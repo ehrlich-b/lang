@@ -88,6 +88,8 @@ func (c *Codegen) Generate(prog *Program) string {
 	c.emit(".section .text")
 	c.emit(".globl _start")
 	c.emit("_start:")
+	c.emit("    mov (%%rsp), %%rdi")    // argc
+	c.emit("    lea 8(%%rsp), %%rsi")   // argv
 	c.emit("    call main")
 	c.emit("    mov %%rax, %%rdi")
 	c.emit("    mov $60, %%rax")

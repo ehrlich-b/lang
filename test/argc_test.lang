@@ -1,0 +1,16 @@
+// Test argc/argv
+
+func main(argc i64, argv **u8) i64 {
+    print("argc = ");
+    print_int(argc);
+    println("");
+
+    if argc > 0 {
+        var p **u8 = argv;
+        var arg0 *u8 = *p;
+        print("argv[0] = ");
+        println(arg0);
+    }
+
+    return 0;
+}

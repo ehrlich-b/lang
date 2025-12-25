@@ -96,14 +96,15 @@ func local_set_type(index i64, t *u8) void {
 }
 
 func find_local(name *u8, name_len i64) i64 {
-    var i i64 = 0;
-    while i < cg_local_count {
+    // Search from end (most recent) to find correct variable in shadowing cases
+    var i i64 = cg_local_count - 1;
+    while i >= 0 {
         if local_get_name_len(i) == name_len {
             if memcmp(local_get_name(i), name, name_len) {
                 return i;
             }
         }
-        i = i + 1;
+        i = i - 1;
     }
     return 0 - 1;  // -1 not found
 }
@@ -1310,31 +1311,6 @@ func generate(prog *u8, out_path *u8) void {
         return;
     }
 
-    // Write data section
-    out_line(".section .data");
-
-    // Write string literals
-    i = 0;
-    while i < cg_string_count {
-        out_str(".str");
-        out_int(i);
-        out_line(":");
-        out_str("    .ascii ");
-        emit_ascii_string(string_get_ptr(i), string_get_len(i));  // This writes to code buf!
-        // Oops - need to fix this - let me write directly
-        i = i + 1;
-    }
-
-    // Actually, emit_ascii_string writes to code buffer. Let me output directly instead.
-    // Rewind string output
-    // This is getting messy - let me simplify by writing strings and globals directly
-
-    // Close and reopen to start fresh
-    file_close(cg_out_fd);
-
-    // Write everything properly
-    cg_out_fd = syscall(2, out_path, 577, 420);
-
     // Data section
     out_line(".section .data");
 
@@ -1366,6 +1342,9 @@ func generate(prog *u8, out_path *u8) void {
     out_line(".section .text");
     out_line(".globl _start");
     out_line("_start:");
+    // Get argc and argv from stack
+    out_line("    mov (%rsp), %rdi");     // argc
+    out_line("    lea 8(%rsp), %rsi");    // argv
     out_line("    call main");
     out_line("    mov %rax, %rdi");
     out_line("    mov $60, %rax");
