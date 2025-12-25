@@ -707,8 +707,8 @@ func set_token(index i64, tok *u8) void {
 // ============================================================
 
 func parser_init() void {
-    // Allocate token array (max 10000 tokens)
-    parse_tokens = alloc(80000);
+    // Allocate token array (max 50000 tokens)
+    parse_tokens = alloc(400000);
     parse_token_count = 0;
     parse_current = 0;
     parse_error_count = 0;
