@@ -4,7 +4,7 @@
 Phase 1.5: Stabilize foundation before adding features
 
 ## Immediate Tasks
-- [ ] Implement bootstrap design (see designs/bootstrap_design.md)
+- [x] Implement bootstrap design (see designs/bootstrap_design.md)
 - [ ] Update documentation (README, LANG.md) to reflect self-hosting
 
 ## Phase 1.5: Stdlib Additions (no language changes)
