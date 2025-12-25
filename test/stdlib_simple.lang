@@ -1,0 +1,6 @@
+func main() i64 {
+    println("line 1");
+    println("line 2");
+    println("line 3");
+    return 0;
+}

@@ -1,0 +1,15 @@
+// expect: 0
+// Pointers: chain of pointer operations
+func main() i64 {
+    var a i64 = 1;
+    var b i64 = 2;
+    var c i64 = 3;
+    var pa *i64 = &a;
+    var pb *i64 = &b;
+    var pc *i64 = &c;
+
+    // Sum through pointers
+    var sum i64 = *pa + *pb + *pc;
+    if sum == 6 { return 0; }
+    return 1;
+}

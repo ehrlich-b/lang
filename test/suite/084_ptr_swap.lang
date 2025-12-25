@@ -1,0 +1,19 @@
+// expect: 0
+// Pointers: swap two values using pointers
+func swap(a *i64, b *i64) {
+    var tmp i64 = *a;
+    *a = *b;
+    *b = tmp;
+}
+
+func main() i64 {
+    var x i64 = 10;
+    var y i64 = 20;
+    swap(&x, &y);
+    if x == 20 {
+        if y == 10 {
+            return 0;
+        }
+    }
+    return 1;
+}

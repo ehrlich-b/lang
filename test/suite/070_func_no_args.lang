@@ -1,0 +1,10 @@
+// expect: 0
+// Functions: no arguments
+func five() i64 {
+    return 5;
+}
+
+func main() i64 {
+    if five() == 5 { return 0; }
+    return 1;
+}

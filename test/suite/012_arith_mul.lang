@@ -1,0 +1,6 @@
+// expect: 0
+// Arithmetic: multiplication
+func main() i64 {
+    if 6 * 7 == 42 { return 0; }
+    return 1;
+}

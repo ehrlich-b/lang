@@ -1,0 +1,8 @@
+// expect: 0
+// Pointers: dereference
+func main() i64 {
+    var x i64 = 42;
+    var p *i64 = &x;
+    if *p == 42 { return 0; }
+    return 1;
+}

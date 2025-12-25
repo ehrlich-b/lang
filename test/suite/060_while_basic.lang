@@ -1,0 +1,10 @@
+// expect: 0
+// Control: basic while loop
+func main() i64 {
+    var i i64 = 0;
+    while i < 5 {
+        i = i + 1;
+    }
+    if i == 5 { return 0; }
+    return 1;
+}

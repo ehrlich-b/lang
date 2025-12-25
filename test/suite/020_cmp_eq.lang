@@ -1,0 +1,11 @@
+// expect: 0
+// Comparison: equality
+func main() i64 {
+    if 5 == 5 {
+        if 5 == 6 {
+            return 1;  // fail: 5 == 6 should be false
+        }
+        return 0;
+    }
+    return 2;  // fail: 5 == 5 should be true
+}

@@ -1,0 +1,14 @@
+// expect: 0
+// Comparison: less than
+func main() i64 {
+    if 3 < 5 {
+        if 5 < 5 {
+            return 1;  // fail
+        }
+        if 7 < 5 {
+            return 2;  // fail
+        }
+        return 0;
+    }
+    return 3;
+}

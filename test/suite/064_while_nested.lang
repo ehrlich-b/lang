@@ -1,0 +1,17 @@
+// expect: 0
+// Control: nested while loops
+func main() i64 {
+    var count i64 = 0;
+    var i i64 = 0;
+    while i < 3 {
+        var j i64 = 0;
+        while j < 4 {
+            count = count + 1;
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    // 3 * 4 = 12
+    if count == 12 { return 0; }
+    return 1;
+}

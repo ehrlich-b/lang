@@ -1,0 +1,10 @@
+// expect: 0
+// Functions: six arguments (all register args on x86-64)
+func sum6(a i64, b i64, c i64, d i64, e i64, f i64) i64 {
+    return a + b + c + d + e + f;
+}
+
+func main() i64 {
+    if sum6(1, 2, 3, 4, 5, 6) == 21 { return 0; }
+    return 1;
+}

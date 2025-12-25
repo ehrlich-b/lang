@@ -1,0 +1,8 @@
+// expect: 0
+// Variables: assignment after declaration
+func main() i64 {
+    var x i64 = 0;
+    x = 100;
+    if x == 100 { return 0; }
+    return 1;
+}

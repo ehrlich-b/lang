@@ -1,0 +1,7 @@
+// expect: 0
+// Arithmetic: operator precedence (/ before -)
+func main() i64 {
+    // 20 - 10 / 2 should be 20 - 5 = 15
+    if 20 - 10 / 2 == 15 { return 0; }
+    return 1;
+}

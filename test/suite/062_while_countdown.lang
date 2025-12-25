@@ -1,0 +1,10 @@
+// expect: 0
+// Control: countdown loop
+func main() i64 {
+    var n i64 = 10;
+    while n > 0 {
+        n = n - 1;
+    }
+    if n == 0 { return 0; }
+    return 1;
+}

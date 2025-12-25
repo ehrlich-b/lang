@@ -1,0 +1,6 @@
+// expect: 0
+// Arithmetic: addition
+func main() i64 {
+    if 2 + 3 == 5 { return 0; }
+    return 1;
+}

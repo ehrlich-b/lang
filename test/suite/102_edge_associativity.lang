@@ -1,0 +1,7 @@
+// expect: 0
+// Edge: left-to-right associativity of subtraction
+func main() i64 {
+    // 10 - 3 - 2 should be (10 - 3) - 2 = 5, not 10 - (3 - 2) = 9
+    if 10 - 3 - 2 == 5 { return 0; }
+    return 1;
+}

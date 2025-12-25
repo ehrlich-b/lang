@@ -1,0 +1,6 @@
+// expect: 0
+// Syscall: write to stdout
+func main() i64 {
+    syscall(1, 1, "test\n", 5);
+    return 0;
+}

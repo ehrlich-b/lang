@@ -1,0 +1,9 @@
+// expect: 0
+// Pointers: address-of operator
+func main() i64 {
+    var x i64 = 42;
+    var p *i64 = &x;
+    // Just check that we can take address (non-null)
+    if p != 0 { return 0; }
+    return 1;
+}

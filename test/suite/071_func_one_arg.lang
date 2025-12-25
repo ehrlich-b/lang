@@ -1,0 +1,10 @@
+// expect: 0
+// Functions: one argument
+func double(x i64) i64 {
+    return x * 2;
+}
+
+func main() i64 {
+    if double(21) == 42 { return 0; }
+    return 1;
+}

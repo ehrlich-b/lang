@@ -1,0 +1,16 @@
+// expect: 0
+// Expressions: chained assignment
+func main() i64 {
+    var a i64 = 0;
+    var b i64 = 0;
+    var c i64 = 0;
+    a = b = c = 100;
+    if a == 100 {
+        if b == 100 {
+            if c == 100 {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}

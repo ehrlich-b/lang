@@ -1,0 +1,6 @@
+// expect: 0
+// Control: if with false condition (should skip body)
+func main() i64 {
+    if 0 { return 1; }
+    return 0;
+}

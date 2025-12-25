@@ -1,0 +1,11 @@
+// expect: 0
+// Logical: AND short-circuit (right side not evaluated when left is false)
+func main() i64 {
+    var x i64 = 0;
+    // If short-circuit works, x should stay 0
+    if 0 && (x = 1) {
+        return 1;  // fail: should not enter
+    }
+    if x == 0 { return 0; }
+    return 2;  // fail: x was modified, short-circuit failed
+}

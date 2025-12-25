@@ -1,0 +1,7 @@
+// expect: 0
+// Arithmetic: operator precedence (* before +)
+func main() i64 {
+    // 2 + 3 * 4 should be 2 + 12 = 14, not 5 * 4 = 20
+    if 2 + 3 * 4 == 14 { return 0; }
+    return 1;
+}

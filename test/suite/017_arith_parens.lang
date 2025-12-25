@@ -1,0 +1,7 @@
+// expect: 0
+// Arithmetic: parentheses override precedence
+func main() i64 {
+    // (2 + 3) * 4 should be 5 * 4 = 20
+    if (2 + 3) * 4 == 20 { return 0; }
+    return 1;
+}

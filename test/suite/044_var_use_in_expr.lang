@@ -1,0 +1,9 @@
+// expect: 0
+// Variables: use variable in later initializer
+func main() i64 {
+    var a i64 = 10;
+    var b i64 = a * 2;
+    var c i64 = a + b;
+    if c == 30 { return 0; }
+    return 1;
+}

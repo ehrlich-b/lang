@@ -1,0 +1,8 @@
+// expect: 0
+// Arithmetic: complex expression
+func main() i64 {
+    // ((10 + 5) * 2 - 20) / 2 + 1 = (15 * 2 - 20) / 2 + 1 = (30 - 20) / 2 + 1 = 10 / 2 + 1 = 5 + 1 = 6
+    var result i64 = ((10 + 5) * 2 - 20) / 2 + 1;
+    if result == 6 { return 0; }
+    return 1;
+}

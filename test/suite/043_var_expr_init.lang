@@ -1,0 +1,7 @@
+// expect: 0
+// Variables: expression in initializer
+func main() i64 {
+    var x i64 = 3 * 4 + 5;
+    if x == 17 { return 0; }
+    return 1;
+}
