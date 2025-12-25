@@ -1,0 +1,1424 @@
+// src/codegen.lang - x86-64 code generator for self-hosting compiler
+// Emits GNU as compatible assembly
+
+// ============================================================
+// Codegen state (global)
+// ============================================================
+
+var cg_out_fd i64 = 0;           // output file descriptor
+var cg_label_num i64 = 0;        // for generating unique labels
+
+// Locals array: each entry is [name_ptr:8][name_len:8][offset:8][type_ptr:8] = 32 bytes
+// Max 256 locals
+var cg_locals *u8 = nil;
+var cg_local_count i64 = 0;
+var cg_stack_size i64 = 0;
+
+// Globals array: each entry is [name_ptr:8][name_len:8][type_ptr:8][init_ptr:8] = 32 bytes
+// Max 1000 globals
+var cg_globals *u8 = nil;
+var cg_global_count i64 = 0;
+
+// Strings array: each entry is [str_ptr:8][str_len:8] = 16 bytes
+// Max 1000 strings
+var cg_strings *u8 = nil;
+var cg_string_count i64 = 0;
+
+// Output buffer for code (collect code first, emit strings/globals first)
+var cg_code_buf *u8 = nil;
+var cg_code_len i64 = 0;
+var cg_code_cap i64 = 0;
+
+// ============================================================
+// Initialization
+// ============================================================
+
+func codegen_init() void {
+    cg_locals = alloc(8192);    // 256 * 32
+    cg_local_count = 0;
+    cg_stack_size = 0;
+
+    cg_globals = alloc(32000);  // 1000 * 32
+    cg_global_count = 0;
+
+    cg_strings = alloc(16000);  // 1000 * 16
+    cg_string_count = 0;
+
+    cg_code_buf = alloc(1048576);  // 1MB code buffer
+    cg_code_len = 0;
+    cg_code_cap = 1048576;
+
+    cg_label_num = 0;
+}
+
+// ============================================================
+// Local variable accessors
+// ============================================================
+
+func local_get_name(index i64) *u8 {
+    var p **u8 = cg_locals + (index * 32);
+    return *p;
+}
+
+func local_set_name(index i64, ptr *u8) void {
+    var p **u8 = cg_locals + (index * 32);
+    *p = ptr;
+}
+
+func local_get_name_len(index i64) i64 {
+    var p *i64 = cg_locals + (index * 32) + 8;
+    return *p;
+}
+
+func local_set_name_len(index i64, len i64) void {
+    var p *i64 = cg_locals + (index * 32) + 8;
+    *p = len;
+}
+
+func local_get_offset(index i64) i64 {
+    var p *i64 = cg_locals + (index * 32) + 16;
+    return *p;
+}
+
+func local_set_offset(index i64, off i64) void {
+    var p *i64 = cg_locals + (index * 32) + 16;
+    *p = off;
+}
+
+func local_get_type(index i64) *u8 {
+    var p **u8 = cg_locals + (index * 32) + 24;
+    return *p;
+}
+
+func local_set_type(index i64, t *u8) void {
+    var p **u8 = cg_locals + (index * 32) + 24;
+    *p = t;
+}
+
+func find_local(name *u8, name_len i64) i64 {
+    var i i64 = 0;
+    while i < cg_local_count {
+        if local_get_name_len(i) == name_len {
+            if memcmp(local_get_name(i), name, name_len) {
+                return i;
+            }
+        }
+        i = i + 1;
+    }
+    return 0 - 1;  // -1 not found
+}
+
+func add_local(name *u8, name_len i64, offset i64, t *u8) void {
+    local_set_name(cg_local_count, name);
+    local_set_name_len(cg_local_count, name_len);
+    local_set_offset(cg_local_count, offset);
+    local_set_type(cg_local_count, t);
+    cg_local_count = cg_local_count + 1;
+}
+
+// ============================================================
+// Global variable accessors
+// ============================================================
+
+func global_get_name(index i64) *u8 {
+    var p **u8 = cg_globals + (index * 32);
+    return *p;
+}
+
+func global_set_name(index i64, ptr *u8) void {
+    var p **u8 = cg_globals + (index * 32);
+    *p = ptr;
+}
+
+func global_get_name_len(index i64) i64 {
+    var p *i64 = cg_globals + (index * 32) + 8;
+    return *p;
+}
+
+func global_set_name_len(index i64, len i64) void {
+    var p *i64 = cg_globals + (index * 32) + 8;
+    *p = len;
+}
+
+func global_get_type(index i64) *u8 {
+    var p **u8 = cg_globals + (index * 32) + 16;
+    return *p;
+}
+
+func global_set_type(index i64, t *u8) void {
+    var p **u8 = cg_globals + (index * 32) + 16;
+    *p = t;
+}
+
+func global_get_init(index i64) *u8 {
+    var p **u8 = cg_globals + (index * 32) + 24;
+    return *p;
+}
+
+func global_set_init(index i64, init *u8) void {
+    var p **u8 = cg_globals + (index * 32) + 24;
+    *p = init;
+}
+
+func find_global(name *u8, name_len i64) i64 {
+    var i i64 = 0;
+    while i < cg_global_count {
+        if global_get_name_len(i) == name_len {
+            if memcmp(global_get_name(i), name, name_len) {
+                return i;
+            }
+        }
+        i = i + 1;
+    }
+    return 0 - 1;  // -1 not found
+}
+
+func add_global(name *u8, name_len i64, t *u8, init *u8) void {
+    global_set_name(cg_global_count, name);
+    global_set_name_len(cg_global_count, name_len);
+    global_set_type(cg_global_count, t);
+    global_set_init(cg_global_count, init);
+    cg_global_count = cg_global_count + 1;
+}
+
+// ============================================================
+// String literal accessors
+// ============================================================
+
+func string_get_ptr(index i64) *u8 {
+    var p **u8 = cg_strings + (index * 16);
+    return *p;
+}
+
+func string_set_ptr(index i64, ptr *u8) void {
+    var p **u8 = cg_strings + (index * 16);
+    *p = ptr;
+}
+
+func string_get_len(index i64) i64 {
+    var p *i64 = cg_strings + (index * 16) + 8;
+    return *p;
+}
+
+func string_set_len(index i64, len i64) void {
+    var p *i64 = cg_strings + (index * 16) + 8;
+    *p = len;
+}
+
+func add_string(ptr *u8, len i64) i64 {
+    var idx i64 = cg_string_count;
+    string_set_ptr(idx, ptr);
+    string_set_len(idx, len);
+    cg_string_count = cg_string_count + 1;
+    return idx;
+}
+
+// ============================================================
+// Memory comparison
+// ============================================================
+
+func memcmp(a *u8, b *u8, len i64) bool {
+    var i i64 = 0;
+    while i < len {
+        if *(a + i) != *(b + i) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// ============================================================
+// Output helpers
+// ============================================================
+
+func emit_char(c u8) void {
+    *(cg_code_buf + cg_code_len) = c;
+    cg_code_len = cg_code_len + 1;
+}
+
+func emit_str(s *u8) void {
+    var i i64 = 0;
+    while *(s + i) != 0 {
+        emit_char(*(s + i));
+        i = i + 1;
+    }
+}
+
+func emit_n(s *u8, n i64) void {
+    var i i64 = 0;
+    while i < n {
+        emit_char(*(s + i));
+        i = i + 1;
+    }
+}
+
+func emit_int(n i64) void {
+    if n < 0 {
+        emit_char(45);  // '-'
+        n = 0 - n;
+    }
+    if n == 0 {
+        emit_char(48);  // '0'
+        return;
+    }
+
+    // Find highest power of 10
+    var divisor i64 = 1;
+    var temp i64 = n;
+    while temp >= 10 {
+        temp = temp / 10;
+        divisor = divisor * 10;
+    }
+
+    // Print each digit
+    while divisor > 0 {
+        var digit i64 = n / divisor;
+        emit_char(48 + digit);
+        n = n % divisor;
+        divisor = divisor / 10;
+    }
+}
+
+func emit_line(s *u8) void {
+    emit_str(s);
+    emit_char(10);  // newline
+}
+
+func emit_label(label i64) void {
+    emit_str(".L");
+    emit_int(label);
+}
+
+func new_label() i64 {
+    cg_label_num = cg_label_num + 1;
+    return cg_label_num;
+}
+
+// ============================================================
+// Direct file output (for final assembly)
+// ============================================================
+
+func out_char(c u8) void {
+    file_write(cg_out_fd, &c, 1);
+}
+
+func out_str(s *u8) void {
+    file_write(cg_out_fd, s, strlen(s));
+}
+
+func out_n(s *u8, n i64) void {
+    file_write(cg_out_fd, s, n);
+}
+
+func out_int(n i64) void {
+    if n < 0 {
+        out_char(45);  // '-'
+        n = 0 - n;
+    }
+    if n == 0 {
+        out_char(48);  // '0'
+        return;
+    }
+
+    var divisor i64 = 1;
+    var temp i64 = n;
+    while temp >= 10 {
+        temp = temp / 10;
+        divisor = divisor * 10;
+    }
+
+    while divisor > 0 {
+        var digit i64 = n / divisor;
+        out_char(48 + digit);
+        n = n % divisor;
+        divisor = divisor / 10;
+    }
+}
+
+func out_line(s *u8) void {
+    out_str(s);
+    out_char(10);
+}
+
+// ============================================================
+// Type helpers
+// ============================================================
+
+func get_type_size(t *u8) i64 {
+    if t == nil {
+        return 8;
+    }
+    var k i64 = type_kind(t);
+    if k == TYPE_PTR {
+        return 8;
+    }
+    if k == TYPE_BASE {
+        var name *u8 = base_type_name(t);
+        var len i64 = base_type_name_len(t);
+
+        // Check for 1-byte types
+        if len == 2 {
+            if memcmp(name, "u8", 2) || memcmp(name, "i8", 2) {
+                return 1;
+            }
+        }
+        // Check for 2-byte types
+        if len == 3 {
+            if memcmp(name, "u16", 3) || memcmp(name, "i16", 3) {
+                return 2;
+            }
+            if memcmp(name, "u32", 3) || memcmp(name, "i32", 3) {
+                return 4;
+            }
+            if memcmp(name, "u64", 3) || memcmp(name, "i64", 3) {
+                return 8;
+            }
+        }
+        if len == 4 {
+            if memcmp(name, "bool", 4) {
+                return 1;
+            }
+            if memcmp(name, "void", 4) {
+                return 0;
+            }
+        }
+    }
+    return 8;  // default
+}
+
+func get_pointed_type(t *u8) *u8 {
+    if t == nil {
+        return nil;
+    }
+    if type_kind(t) == TYPE_PTR {
+        return ptr_type_elem(t);
+    }
+    return nil;
+}
+
+func is_void_type(t *u8) bool {
+    if t == nil {
+        return true;
+    }
+    if type_kind(t) == TYPE_BASE {
+        var name *u8 = base_type_name(t);
+        var len i64 = base_type_name_len(t);
+        if len == 4 {
+            return memcmp(name, "void", 4);
+        }
+    }
+    return false;
+}
+
+// ============================================================
+// Expression type inference
+// ============================================================
+
+func get_expr_type(expr *u8) *u8 {
+    if expr == nil {
+        return nil;
+    }
+
+    var k i64 = node_kind(expr);
+
+    if k == NODE_IDENT_EXPR {
+        var name *u8 = ident_expr_name(expr);
+        var name_len i64 = ident_expr_name_len(expr);
+
+        // Check locals first
+        var local_idx i64 = find_local(name, name_len);
+        if local_idx >= 0 {
+            return local_get_type(local_idx);
+        }
+
+        // Check globals
+        var global_idx i64 = find_global(name, name_len);
+        if global_idx >= 0 {
+            return global_get_type(global_idx);
+        }
+
+        return nil;
+    }
+
+    if k == NODE_UNARY_EXPR {
+        var op i64 = unary_expr_op(expr);
+        if op == TOKEN_STAR {  // dereference
+            var inner_type *u8 = get_expr_type(unary_expr_expr(expr));
+            return get_pointed_type(inner_type);
+        }
+        if op == TOKEN_AMP {  // address-of
+            // Should return pointer type, but we'd need to create it
+            return nil;
+        }
+        return get_expr_type(unary_expr_expr(expr));
+    }
+
+    if k == NODE_BINARY_EXPR {
+        return get_expr_type(binary_expr_left(expr));
+    }
+
+    if k == NODE_GROUP_EXPR {
+        return get_expr_type(group_expr_expr(expr));
+    }
+
+    // Default: i64
+    return nil;
+}
+
+// ============================================================
+// Constant evaluation (for global initializers)
+// ============================================================
+
+func eval_constant(expr *u8) i64 {
+    if expr == nil {
+        return 0;
+    }
+
+    var k i64 = node_kind(expr);
+
+    if k == NODE_NUMBER_EXPR {
+        // Parse the number string
+        var ptr *u8 = number_expr_value(expr);
+        var len i64 = number_expr_value_len(expr);
+        var val i64 = 0;
+        var i i64 = 0;
+        while i < len {
+            val = val * 10 + (*(ptr + i) - 48);
+            i = i + 1;
+        }
+        return val;
+    }
+
+    if k == NODE_BOOL_EXPR {
+        return bool_expr_value(expr);
+    }
+
+    if k == NODE_NIL_EXPR {
+        return 0;
+    }
+
+    if k == NODE_IDENT_EXPR {
+        // Look up global constant
+        var name *u8 = ident_expr_name(expr);
+        var name_len i64 = ident_expr_name_len(expr);
+
+        // Check for "nil"
+        if name_len == 3 {
+            if memcmp(name, "nil", 3) {
+                return 0;
+            }
+        }
+
+        var idx i64 = find_global(name, name_len);
+        if idx >= 0 {
+            var init *u8 = global_get_init(idx);
+            if init != nil {
+                return eval_constant(init);
+            }
+        }
+        return 0;
+    }
+
+    if k == NODE_UNARY_EXPR {
+        var val i64 = eval_constant(unary_expr_expr(expr));
+        var op i64 = unary_expr_op(expr);
+        if op == TOKEN_MINUS {
+            return 0 - val;
+        }
+        if op == TOKEN_BANG {
+            if val == 0 {
+                return 1;
+            }
+            return 0;
+        }
+        return val;
+    }
+
+    if k == NODE_BINARY_EXPR {
+        var left i64 = eval_constant(binary_expr_left(expr));
+        var right i64 = eval_constant(binary_expr_right(expr));
+        var op i64 = binary_expr_op(expr);
+
+        if op == TOKEN_PLUS { return left + right; }
+        if op == TOKEN_MINUS { return left - right; }
+        if op == TOKEN_STAR { return left * right; }
+        if op == TOKEN_SLASH {
+            if right != 0 { return left / right; }
+            return 0;
+        }
+        if op == TOKEN_PERCENT {
+            if right != 0 { return left % right; }
+            return 0;
+        }
+        if op == TOKEN_EQEQ {
+            if left == right { return 1; }
+            return 0;
+        }
+        if op == TOKEN_BANGEQ {
+            if left != right { return 1; }
+            return 0;
+        }
+        if op == TOKEN_LT {
+            if left < right { return 1; }
+            return 0;
+        }
+        if op == TOKEN_GT {
+            if left > right { return 1; }
+            return 0;
+        }
+        if op == TOKEN_LTEQ {
+            if left <= right { return 1; }
+            return 0;
+        }
+        if op == TOKEN_GTEQ {
+            if left >= right { return 1; }
+            return 0;
+        }
+        return 0;
+    }
+
+    if k == NODE_GROUP_EXPR {
+        return eval_constant(group_expr_expr(expr));
+    }
+
+    return 0;
+}
+
+// ============================================================
+// String formatting for .ascii directive
+// ============================================================
+
+func emit_ascii_string(ptr *u8, len i64) void {
+    // Skip quotes in original string
+    var start *u8 = ptr + 1;
+    var end i64 = len - 2;
+
+    emit_char(34);  // opening quote
+
+    var i i64 = 0;
+    while i < end {
+        var c u8 = *(start + i);
+
+        if c == 92 && i + 1 < end {  // backslash escape
+            i = i + 1;
+            var next u8 = *(start + i);
+            if next == 110 {  // 'n'
+                emit_str("\\012");
+            } else if next == 116 {  // 't'
+                emit_str("\\011");
+            } else if next == 114 {  // 'r'
+                emit_str("\\015");
+            } else if next == 92 {  // '\'
+                emit_str("\\\\");
+            } else if next == 34 {  // '"'
+                emit_str("\\\"");
+            } else if next == 48 {  // '0'
+                emit_str("\\000");
+            } else {
+                emit_char(next);
+            }
+        } else if c >= 32 && c < 127 && c != 34 && c != 92 {
+            emit_char(c);
+        } else {
+            // Octal escape
+            emit_char(92);  // '\'
+            emit_char(48 + (c / 64));
+            emit_char(48 + ((c / 8) % 8));
+            emit_char(48 + (c % 8));
+        }
+        i = i + 1;
+    }
+
+    emit_str("\\000");  // null terminator
+    emit_char(34);  // closing quote
+}
+
+// ============================================================
+// Expression code generation
+// ============================================================
+
+func gen_expr(expr *u8) void {
+    if expr == nil {
+        return;
+    }
+
+    var k i64 = node_kind(expr);
+
+    if k == NODE_NUMBER_EXPR {
+        emit_str("    mov $");
+        emit_n(number_expr_value(expr), number_expr_value_len(expr));
+        emit_line(", %rax");
+        return;
+    }
+
+    if k == NODE_STRING_EXPR {
+        var idx i64 = add_string(string_expr_value(expr), string_expr_value_len(expr));
+        emit_str("    lea .str");
+        emit_int(idx);
+        emit_line("(%rip), %rax");
+        return;
+    }
+
+    if k == NODE_BOOL_EXPR {
+        if bool_expr_value(expr) != 0 {
+            emit_line("    mov $1, %rax");
+        } else {
+            emit_line("    xor %rax, %rax");
+        }
+        return;
+    }
+
+    if k == NODE_NIL_EXPR {
+        emit_line("    xor %rax, %rax");
+        return;
+    }
+
+    if k == NODE_IDENT_EXPR {
+        var name *u8 = ident_expr_name(expr);
+        var name_len i64 = ident_expr_name_len(expr);
+
+        // Check locals
+        var local_idx i64 = find_local(name, name_len);
+        if local_idx >= 0 {
+            emit_str("    mov ");
+            emit_int(local_get_offset(local_idx));
+            emit_line("(%rbp), %rax");
+            return;
+        }
+
+        // Check globals
+        var global_idx i64 = find_global(name, name_len);
+        if global_idx >= 0 {
+            emit_str("    mov ");
+            emit_n(name, name_len);
+            emit_line("(%rip), %rax");
+            return;
+        }
+
+        // Function reference
+        emit_str("    lea ");
+        emit_n(name, name_len);
+        emit_line("(%rip), %rax");
+        return;
+    }
+
+    if k == NODE_GROUP_EXPR {
+        gen_expr(group_expr_expr(expr));
+        return;
+    }
+
+    if k == NODE_UNARY_EXPR {
+        var op i64 = unary_expr_op(expr);
+
+        if op == TOKEN_AMP {  // address-of
+            var inner *u8 = unary_expr_expr(expr);
+            if node_kind(inner) == NODE_IDENT_EXPR {
+                var name *u8 = ident_expr_name(inner);
+                var name_len i64 = ident_expr_name_len(inner);
+
+                var local_idx i64 = find_local(name, name_len);
+                if local_idx >= 0 {
+                    emit_str("    lea ");
+                    emit_int(local_get_offset(local_idx));
+                    emit_line("(%rbp), %rax");
+                    return;
+                }
+
+                var global_idx i64 = find_global(name, name_len);
+                if global_idx >= 0 {
+                    emit_str("    lea ");
+                    emit_n(name, name_len);
+                    emit_line("(%rip), %rax");
+                    return;
+                }
+            }
+            return;
+        }
+
+        gen_expr(unary_expr_expr(expr));
+
+        if op == TOKEN_MINUS {
+            emit_line("    neg %rax");
+            return;
+        }
+
+        if op == TOKEN_BANG {
+            emit_line("    test %rax, %rax");
+            emit_line("    setz %al");
+            emit_line("    movzx %al, %rax");
+            return;
+        }
+
+        if op == TOKEN_STAR {  // dereference
+            var ptr_type *u8 = get_expr_type(unary_expr_expr(expr));
+            var elem_type *u8 = get_pointed_type(ptr_type);
+            var size i64 = 8;
+            if elem_type != nil {
+                size = get_type_size(elem_type);
+            }
+
+            if size == 1 {
+                emit_line("    movzbl (%rax), %eax");
+            } else if size == 2 {
+                emit_line("    movzwl (%rax), %eax");
+            } else if size == 4 {
+                emit_line("    mov (%rax), %eax");
+            } else {
+                emit_line("    mov (%rax), %rax");
+            }
+            return;
+        }
+
+        return;
+    }
+
+    if k == NODE_BINARY_EXPR {
+        var op i64 = binary_expr_op(expr);
+
+        // Assignment
+        if op == TOKEN_EQ {
+            gen_expr(binary_expr_right(expr));
+            gen_lvalue_store(binary_expr_left(expr));
+            return;
+        }
+
+        // Short-circuit &&
+        if op == TOKEN_AMPAMP {
+            var end_label i64 = new_label();
+            gen_expr(binary_expr_left(expr));
+            emit_line("    test %rax, %rax");
+            emit_str("    jz ");
+            emit_label(end_label);
+            emit_char(10);
+            gen_expr(binary_expr_right(expr));
+            emit_label(end_label);
+            emit_line(":");
+            return;
+        }
+
+        // Short-circuit ||
+        if op == TOKEN_PIPEPIPE {
+            var end_label i64 = new_label();
+            gen_expr(binary_expr_left(expr));
+            emit_line("    test %rax, %rax");
+            emit_str("    jnz ");
+            emit_label(end_label);
+            emit_char(10);
+            gen_expr(binary_expr_right(expr));
+            emit_label(end_label);
+            emit_line(":");
+            return;
+        }
+
+        // General binary: left in rax, push, right in rcx
+        gen_expr(binary_expr_left(expr));
+        emit_line("    push %rax");
+        gen_expr(binary_expr_right(expr));
+        emit_line("    mov %rax, %rcx");
+        emit_line("    pop %rax");
+
+        if op == TOKEN_PLUS {
+            emit_line("    add %rcx, %rax");
+        } else if op == TOKEN_MINUS {
+            emit_line("    sub %rcx, %rax");
+        } else if op == TOKEN_STAR {
+            emit_line("    imul %rcx, %rax");
+        } else if op == TOKEN_SLASH {
+            emit_line("    cqo");
+            emit_line("    idiv %rcx");
+        } else if op == TOKEN_PERCENT {
+            emit_line("    cqo");
+            emit_line("    idiv %rcx");
+            emit_line("    mov %rdx, %rax");
+        } else if op == TOKEN_EQEQ {
+            emit_line("    cmp %rcx, %rax");
+            emit_line("    sete %al");
+            emit_line("    movzx %al, %rax");
+        } else if op == TOKEN_BANGEQ {
+            emit_line("    cmp %rcx, %rax");
+            emit_line("    setne %al");
+            emit_line("    movzx %al, %rax");
+        } else if op == TOKEN_LT {
+            emit_line("    cmp %rcx, %rax");
+            emit_line("    setl %al");
+            emit_line("    movzx %al, %rax");
+        } else if op == TOKEN_GT {
+            emit_line("    cmp %rcx, %rax");
+            emit_line("    setg %al");
+            emit_line("    movzx %al, %rax");
+        } else if op == TOKEN_LTEQ {
+            emit_line("    cmp %rcx, %rax");
+            emit_line("    setle %al");
+            emit_line("    movzx %al, %rax");
+        } else if op == TOKEN_GTEQ {
+            emit_line("    cmp %rcx, %rax");
+            emit_line("    setge %al");
+            emit_line("    movzx %al, %rax");
+        }
+        return;
+    }
+
+    if k == NODE_CALL_EXPR {
+        var func_expr *u8 = call_expr_func(expr);
+        var args *u8 = call_expr_args(expr);
+        var arg_count i64 = call_expr_arg_count(expr);
+
+        // Check for syscall
+        if node_kind(func_expr) == NODE_IDENT_EXPR {
+            var name *u8 = ident_expr_name(func_expr);
+            var name_len i64 = ident_expr_name_len(func_expr);
+            if name_len == 7 {
+                if memcmp(name, "syscall", 7) {
+                    gen_syscall(args, arg_count);
+                    return;
+                }
+            }
+        }
+
+        // Push args in reverse order
+        var i i64 = arg_count - 1;
+        while i >= 0 {
+            var p **u8 = args + (i * 8);
+            gen_expr(*p);
+            emit_line("    push %rax");
+            i = i - 1;
+        }
+
+        // Pop into arg registers: rdi, rsi, rdx, rcx, r8, r9
+        i = 0;
+        while i < arg_count && i < 6 {
+            if i == 0 { emit_line("    pop %rdi"); }
+            else if i == 1 { emit_line("    pop %rsi"); }
+            else if i == 2 { emit_line("    pop %rdx"); }
+            else if i == 3 { emit_line("    pop %rcx"); }
+            else if i == 4 { emit_line("    pop %r8"); }
+            else if i == 5 { emit_line("    pop %r9"); }
+            i = i + 1;
+        }
+
+        // Call function
+        if node_kind(func_expr) == NODE_IDENT_EXPR {
+            emit_str("    call ");
+            emit_n(ident_expr_name(func_expr), ident_expr_name_len(func_expr));
+            emit_char(10);
+        } else {
+            gen_expr(func_expr);
+            emit_line("    call *%rax");
+        }
+        return;
+    }
+
+    if k == NODE_INDEX_EXPR {
+        // Not implemented for now
+        return;
+    }
+}
+
+func gen_syscall(args *u8, arg_count i64) void {
+    if arg_count == 0 {
+        return;
+    }
+
+    // Push all args in reverse
+    var i i64 = arg_count - 1;
+    while i >= 0 {
+        var p **u8 = args + (i * 8);
+        gen_expr(*p);
+        emit_line("    push %rax");
+        i = i - 1;
+    }
+
+    // Pop syscall number into rax
+    emit_line("    pop %rax");
+
+    // Pop args into syscall registers: rdi, rsi, rdx, r10, r8, r9
+    i = 1;
+    while i < arg_count && i <= 6 {
+        if i == 1 { emit_line("    pop %rdi"); }
+        else if i == 2 { emit_line("    pop %rsi"); }
+        else if i == 3 { emit_line("    pop %rdx"); }
+        else if i == 4 { emit_line("    pop %r10"); }
+        else if i == 5 { emit_line("    pop %r8"); }
+        else if i == 6 { emit_line("    pop %r9"); }
+        i = i + 1;
+    }
+
+    emit_line("    syscall");
+}
+
+func gen_lvalue_store(expr *u8) void {
+    var k i64 = node_kind(expr);
+
+    if k == NODE_IDENT_EXPR {
+        var name *u8 = ident_expr_name(expr);
+        var name_len i64 = ident_expr_name_len(expr);
+
+        var local_idx i64 = find_local(name, name_len);
+        if local_idx >= 0 {
+            emit_str("    mov %rax, ");
+            emit_int(local_get_offset(local_idx));
+            emit_line("(%rbp)");
+            return;
+        }
+
+        var global_idx i64 = find_global(name, name_len);
+        if global_idx >= 0 {
+            emit_str("    mov %rax, ");
+            emit_n(name, name_len);
+            emit_line("(%rip)");
+            return;
+        }
+        return;
+    }
+
+    if k == NODE_UNARY_EXPR {
+        var op i64 = unary_expr_op(expr);
+        if op == TOKEN_STAR {
+            // *ptr = value
+            emit_line("    push %rax");
+            gen_expr(unary_expr_expr(expr));
+            emit_line("    mov %rax, %rcx");
+            emit_line("    pop %rax");
+            emit_line("    mov %rax, (%rcx)");
+            return;
+        }
+    }
+}
+
+// ============================================================
+// Statement code generation
+// ============================================================
+
+func gen_stmt(stmt *u8) void {
+    if stmt == nil {
+        return;
+    }
+
+    var k i64 = node_kind(stmt);
+
+    if k == NODE_VAR_DECL {
+        cg_stack_size = cg_stack_size + 8;
+        var offset i64 = 0 - cg_stack_size;
+
+        add_local(var_decl_name(stmt), var_decl_name_len(stmt), offset, var_decl_type(stmt));
+
+        var init *u8 = var_decl_init(stmt);
+        if init != nil {
+            gen_expr(init);
+            emit_str("    mov %rax, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
+        }
+        return;
+    }
+
+    if k == NODE_EXPR_STMT {
+        gen_expr(expr_stmt_expr(stmt));
+        return;
+    }
+
+    if k == NODE_RETURN_STMT {
+        var value *u8 = return_stmt_value(stmt);
+        if value != nil {
+            gen_expr(value);
+        } else {
+            emit_line("    xor %rax, %rax");
+        }
+        emit_line("    leave");
+        emit_line("    ret");
+        return;
+    }
+
+    if k == NODE_IF_STMT {
+        var else_label i64 = new_label();
+        var end_label i64 = new_label();
+
+        gen_expr(if_stmt_cond(stmt));
+        emit_line("    test %rax, %rax");
+
+        if if_stmt_else(stmt) != nil {
+            emit_str("    jz ");
+            emit_label(else_label);
+            emit_char(10);
+        } else {
+            emit_str("    jz ");
+            emit_label(end_label);
+            emit_char(10);
+        }
+
+        gen_block(if_stmt_then(stmt));
+
+        if if_stmt_else(stmt) != nil {
+            emit_str("    jmp ");
+            emit_label(end_label);
+            emit_char(10);
+
+            emit_label(else_label);
+            emit_line(":");
+
+            var els *u8 = if_stmt_else(stmt);
+            if node_kind(els) == NODE_BLOCK_STMT {
+                gen_block(els);
+            } else {
+                gen_stmt(els);
+            }
+        }
+
+        emit_label(end_label);
+        emit_line(":");
+        return;
+    }
+
+    if k == NODE_WHILE_STMT {
+        var start_label i64 = new_label();
+        var end_label i64 = new_label();
+
+        emit_label(start_label);
+        emit_line(":");
+
+        gen_expr(while_stmt_cond(stmt));
+        emit_line("    test %rax, %rax");
+        emit_str("    jz ");
+        emit_label(end_label);
+        emit_char(10);
+
+        gen_block(while_stmt_body(stmt));
+
+        emit_str("    jmp ");
+        emit_label(start_label);
+        emit_char(10);
+
+        emit_label(end_label);
+        emit_line(":");
+        return;
+    }
+
+    if k == NODE_BLOCK_STMT {
+        gen_block(stmt);
+        return;
+    }
+}
+
+func gen_block(block *u8) void {
+    var stmts *u8 = block_stmt_stmts(block);
+    var count i64 = block_stmt_count(block);
+
+    var i i64 = 0;
+    while i < count {
+        var p **u8 = stmts + (i * 8);
+        gen_stmt(*p);
+        i = i + 1;
+    }
+}
+
+// ============================================================
+// Function code generation
+// ============================================================
+
+func gen_func(func_node *u8) void {
+    // Reset locals
+    cg_local_count = 0;
+    cg_stack_size = 0;
+
+    var name *u8 = func_decl_name(func_node);
+    var name_len i64 = func_decl_name_len(func_node);
+
+    emit_str(".globl ");
+    emit_n(name, name_len);
+    emit_char(10);
+
+    emit_n(name, name_len);
+    emit_line(":");
+
+    // Prologue
+    emit_line("    push %rbp");
+    emit_line("    mov %rsp, %rbp");
+    // Use fixed large stack frame - we could optimize later
+    emit_line("    sub $256, %rsp");
+
+    // Store parameters
+    var params *u8 = func_decl_params(func_node);
+    var param_count i64 = func_decl_param_count(func_node);
+
+    var i i64 = 0;
+    while i < param_count {
+        cg_stack_size = cg_stack_size + 8;
+        var offset i64 = 0 - cg_stack_size;
+
+        var p *u8 = params + (i * 24);
+        add_local(param_name(p), param_name_len(p), offset, param_type(p));
+
+        // Move from arg register to stack
+        if i == 0 {
+            emit_str("    mov %rdi, ");
+        } else if i == 1 {
+            emit_str("    mov %rsi, ");
+        } else if i == 2 {
+            emit_str("    mov %rdx, ");
+        } else if i == 3 {
+            emit_str("    mov %rcx, ");
+        } else if i == 4 {
+            emit_str("    mov %r8, ");
+        } else if i == 5 {
+            emit_str("    mov %r9, ");
+        }
+        emit_int(offset);
+        emit_line("(%rbp)");
+
+        i = i + 1;
+    }
+
+    // Generate body
+    gen_block(func_decl_body(func_node));
+
+    // Default return if void
+    var ret_type *u8 = func_decl_ret_type(func_node);
+    if is_void_type(ret_type) {
+        emit_line("    xor %rax, %rax");
+        emit_line("    leave");
+        emit_line("    ret");
+    }
+
+    emit_char(10);
+}
+
+func patch_stack_size(pos i64, size i64) void {
+    // Find "STACKSIZE" starting at pos and replace with the actual number
+    // The string "    sub $STACKSIZE, %rsp\n" is 26 chars
+    // We need to replace STACKSIZE (9 chars) with the actual number
+
+    // For simplicity, we'll rebuild the instruction
+    // Actually, let's just find and replace in place
+
+    // Scan from pos looking for 'S' (start of STACKSIZE)
+    var i i64 = pos;
+    while i < cg_code_len {
+        if *(cg_code_buf + i) == 83 {  // 'S'
+            // Check if it's STACKSIZE
+            if memcmp(cg_code_buf + i, "STACKSIZE", 9) {
+                // Calculate how many digits we need
+                var num_len i64 = 1;
+                var temp i64 = size;
+                while temp >= 10 {
+                    temp = temp / 10;
+                    num_len = num_len + 1;
+                }
+
+                // Shift the rest of the buffer if needed
+                var diff i64 = num_len - 9;
+                if diff != 0 {
+                    // Move rest of buffer
+                    var j i64 = cg_code_len - 1;
+                    if diff > 0 {
+                        // Expand
+                        while j >= i + 9 {
+                            *(cg_code_buf + j + diff) = *(cg_code_buf + j);
+                            j = j - 1;
+                        }
+                    } else {
+                        // Contract
+                        j = i + 9;
+                        while j < cg_code_len {
+                            *(cg_code_buf + j + diff) = *(cg_code_buf + j);
+                            j = j + 1;
+                        }
+                    }
+                    cg_code_len = cg_code_len + diff;
+                }
+
+                // Write the number
+                var divisor i64 = 1;
+                temp = size;
+                while temp >= 10 {
+                    temp = temp / 10;
+                    divisor = divisor * 10;
+                }
+                var k i64 = 0;
+                while divisor > 0 {
+                    *(cg_code_buf + i + k) = 48 + (size / divisor);
+                    size = size % divisor;
+                    divisor = divisor / 10;
+                    k = k + 1;
+                }
+
+                return;
+            }
+        }
+        i = i + 1;
+    }
+}
+
+// ============================================================
+// Declaration code generation
+// ============================================================
+
+func gen_decl(decl *u8) void {
+    if decl == nil {
+        return;
+    }
+
+    var k i64 = node_kind(decl);
+
+    if k == NODE_FUNC_DECL {
+        gen_func(decl);
+        return;
+    }
+
+    if k == NODE_VAR_DECL {
+        // Global variable - already registered
+        return;
+    }
+}
+
+// ============================================================
+// Program code generation
+// ============================================================
+
+func generate(prog *u8, out_path *u8) void {
+    codegen_init();
+
+    var decls *u8 = program_decls(prog);
+    var decl_count i64 = program_decl_count(prog);
+
+    // First pass: collect global variables
+    var i i64 = 0;
+    while i < decl_count {
+        var decl *u8 = get_decl(decls, i);
+        if node_kind(decl) == NODE_VAR_DECL {
+            add_global(
+                var_decl_name(decl),
+                var_decl_name_len(decl),
+                var_decl_type(decl),
+                var_decl_init(decl)
+            );
+        }
+        i = i + 1;
+    }
+
+    // Second pass: generate code (into buffer)
+    i = 0;
+    while i < decl_count {
+        gen_decl(get_decl(decls, i));
+        i = i + 1;
+    }
+
+    // Open output file (O_WRONLY | O_CREAT | O_TRUNC = 577, mode 0644 = 420)
+    cg_out_fd = syscall(2, out_path, 577, 420);
+    if cg_out_fd < 0 {
+        eprintln("Error: cannot open output file");
+        return;
+    }
+
+    // Write data section
+    out_line(".section .data");
+
+    // Write string literals
+    i = 0;
+    while i < cg_string_count {
+        out_str(".str");
+        out_int(i);
+        out_line(":");
+        out_str("    .ascii ");
+        emit_ascii_string(string_get_ptr(i), string_get_len(i));  // This writes to code buf!
+        // Oops - need to fix this - let me write directly
+        i = i + 1;
+    }
+
+    // Actually, emit_ascii_string writes to code buffer. Let me output directly instead.
+    // Rewind string output
+    // This is getting messy - let me simplify by writing strings and globals directly
+
+    // Close and reopen to start fresh
+    file_close(cg_out_fd);
+
+    // Write everything properly
+    cg_out_fd = syscall(2, out_path, 577, 420);
+
+    // Data section
+    out_line(".section .data");
+
+    // String literals
+    i = 0;
+    while i < cg_string_count {
+        out_str(".str");
+        out_int(i);
+        out_line(":");
+        out_str("    .ascii ");
+        write_ascii_string(string_get_ptr(i), string_get_len(i));
+        out_char(10);
+        i = i + 1;
+    }
+
+    // Global variables
+    i = 0;
+    while i < cg_global_count {
+        out_n(global_get_name(i), global_get_name_len(i));
+        out_line(":");
+        out_str("    .quad ");
+        out_int(eval_constant(global_get_init(i)));
+        out_char(10);
+        i = i + 1;
+    }
+
+    // Text section
+    out_char(10);
+    out_line(".section .text");
+    out_line(".globl _start");
+    out_line("_start:");
+    out_line("    call main");
+    out_line("    mov %rax, %rdi");
+    out_line("    mov $60, %rax");
+    out_line("    syscall");
+    out_char(10);
+
+    // Write code buffer
+    file_write(cg_out_fd, cg_code_buf, cg_code_len);
+
+    file_close(cg_out_fd);
+}
+
+func write_ascii_string(ptr *u8, len i64) void {
+    // Skip quotes in original string
+    var start *u8 = ptr + 1;
+    var end i64 = len - 2;
+
+    out_char(34);  // opening quote
+
+    var i i64 = 0;
+    while i < end {
+        var c u8 = *(start + i);
+
+        if c == 92 && i + 1 < end {  // backslash escape
+            i = i + 1;
+            var next u8 = *(start + i);
+            if next == 110 {  // 'n'
+                out_str("\\012");
+            } else if next == 116 {  // 't'
+                out_str("\\011");
+            } else if next == 114 {  // 'r'
+                out_str("\\015");
+            } else if next == 92 {  // '\'
+                out_str("\\\\");
+            } else if next == 34 {  // '"'
+                out_str("\\\"");
+            } else if next == 48 {  // '0'
+                out_str("\\000");
+            } else {
+                out_char(next);
+            }
+        } else if c >= 32 && c < 127 && c != 34 && c != 92 {
+            out_char(c);
+        } else {
+            // Octal escape
+            out_char(92);  // '\'
+            out_char(48 + (c / 64));
+            out_char(48 + ((c / 8) % 8));
+            out_char(48 + (c % 8));
+        }
+        i = i + 1;
+    }
+
+    out_str("\\000");  // null terminator
+    out_char(34);  // closing quote
+}
