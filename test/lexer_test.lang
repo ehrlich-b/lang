@@ -1,0 +1,38 @@
+// test/lexer_test.lang - Test the self-hosting lexer
+
+func main() i64 {
+    // Test source code
+    var source *u8 = "func main() i64 {\n    var x i64 = 42;\n    return x + 1;\n}\n";
+
+    println("=== Lexer Test ===");
+    println("Source:");
+    println(source);
+    println("Tokens:");
+
+    lexer_init(source);
+
+    var count i64 = 0;
+    var done i64 = 0;
+    while done == 0 {
+        var tok *u8 = scan_token();
+        print_token(tok);
+        count = count + 1;
+
+        if tok_type(tok) == TOKEN_EOF {
+            done = 1;
+        } else if tok_type(tok) == TOKEN_ERROR {
+            println("ERROR encountered!");
+            return 1;
+        } else if count > 100 {
+            println("Too many tokens!");
+            return 1;
+        }
+    }
+
+    println("");
+    print("Total tokens: ");
+    print_int(count);
+    println("");
+
+    return 0;
+}

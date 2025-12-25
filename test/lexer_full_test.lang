@@ -1,0 +1,63 @@
+// test/lexer_full_test.lang - Comprehensive lexer test
+
+func main() i64 {
+    // Test all operators and punctuation
+    var source1 *u8 = "+ - * / % && || ! == != < > <= >= = ( ) { } [ ] , ; . : :=";
+
+    println("=== Operator/Punctuation Test ===");
+    lexer_init(source1);
+    var done i64 = 0;
+    while done == 0 {
+        var tok *u8 = scan_token();
+        print_token(tok);
+        if tok_type(tok) == TOKEN_EOF || tok_type(tok) == TOKEN_ERROR {
+            done = 1;
+        }
+    }
+
+    // Test keywords
+    var source2 *u8 = "func var struct if else while return true false nil i8 i16 i32 i64 u8 u16 u32 u64 bool void";
+    println("");
+    println("=== Keyword Test ===");
+    lexer_init(source2);
+    done = 0;
+    while done == 0 {
+        var tok *u8 = scan_token();
+        print_token(tok);
+        if tok_type(tok) == TOKEN_EOF || tok_type(tok) == TOKEN_ERROR {
+            done = 1;
+        }
+    }
+
+    // Test strings and escapes
+    var source3 *u8 = "\"hello\" \"world\\n\" \"tab\\there\"";
+    println("");
+    println("=== String Test ===");
+    lexer_init(source3);
+    done = 0;
+    while done == 0 {
+        var tok *u8 = scan_token();
+        print_token(tok);
+        if tok_type(tok) == TOKEN_EOF || tok_type(tok) == TOKEN_ERROR {
+            done = 1;
+        }
+    }
+
+    // Test comments
+    var source4 *u8 = "before // line comment\nafter /* block */ end";
+    println("");
+    println("=== Comment Test ===");
+    lexer_init(source4);
+    done = 0;
+    while done == 0 {
+        var tok *u8 = scan_token();
+        print_token(tok);
+        if tok_type(tok) == TOKEN_EOF || tok_type(tok) == TOKEN_ERROR {
+            done = 1;
+        }
+    }
+
+    println("");
+    println("=== All tests passed! ===");
+    return 0;
+}

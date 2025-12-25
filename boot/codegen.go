@@ -24,8 +24,9 @@ type Codegen struct {
 	stackSize int
 
 	// Global variables
-	globals     map[string]bool
-	globalTypes map[string]Type
+	globals      map[string]bool
+	globalTypes  map[string]Type
+	globalInits  map[string]Expr // initializer expressions
 
 	// String literals
 	strings   []string
@@ -37,6 +38,7 @@ func NewCodegen() *Codegen {
 		locals:      make(map[string]LocalVar),
 		globals:     make(map[string]bool),
 		globalTypes: make(map[string]Type),
+		globalInits: make(map[string]Expr),
 	}
 }
 
@@ -46,6 +48,7 @@ func (c *Codegen) Generate(prog *Program) string {
 		if v, ok := decl.(*VarDecl); ok {
 			c.globals[v.Name] = true
 			c.globalTypes[v.Name] = v.Type
+			c.globalInits[v.Name] = v.Init
 		}
 	}
 
@@ -70,10 +73,14 @@ func (c *Codegen) Generate(prog *Program) string {
 		c.emit("    .ascii %s", formatAscii(s))
 	}
 
-	// Emit global variables (8 bytes each, initialized to 0)
+	// Emit global variables (8 bytes each)
 	for name := range c.globals {
 		c.emit("%s:", name)
-		c.emit("    .quad 0")
+		initVal := int64(0)
+		if init, ok := c.globalInits[name]; ok && init != nil {
+			initVal = c.evalConstant(init)
+		}
+		c.emit("    .quad %d", initVal)
 	}
 
 	// Text section
@@ -602,4 +609,98 @@ func (c *Codegen) getExprType(expr Expr) Type {
 		return &BaseType{Name: "bool"}
 	}
 	return &BaseType{Name: "i64"} // default
+}
+
+// evalConstant evaluates a constant expression at compile time
+// Used for global variable initializers
+func (c *Codegen) evalConstant(expr Expr) int64 {
+	switch e := expr.(type) {
+	case *NumberExpr:
+		val, _ := strconv.ParseInt(e.Value, 10, 64)
+		return val
+	case *BoolExpr:
+		if e.Value {
+			return 1
+		}
+		return 0
+	case *NilExpr:
+		return 0
+	case *IdentExpr:
+		// Handle nil and other special identifiers
+		if e.Name == "nil" {
+			return 0
+		}
+		// Try to look up global constant
+		if init, ok := c.globalInits[e.Name]; ok && init != nil {
+			return c.evalConstant(init)
+		}
+		return 0
+	case *UnaryExpr:
+		val := c.evalConstant(e.Expr)
+		switch e.Op {
+		case TOKEN_MINUS:
+			return -val
+		case TOKEN_BANG:
+			if val == 0 {
+				return 1
+			}
+			return 0
+		}
+		return val
+	case *BinaryExpr:
+		left := c.evalConstant(e.Left)
+		right := c.evalConstant(e.Right)
+		switch e.Op {
+		case TOKEN_PLUS:
+			return left + right
+		case TOKEN_MINUS:
+			return left - right
+		case TOKEN_STAR:
+			return left * right
+		case TOKEN_SLASH:
+			if right != 0 {
+				return left / right
+			}
+			return 0
+		case TOKEN_PERCENT:
+			if right != 0 {
+				return left % right
+			}
+			return 0
+		case TOKEN_EQEQ:
+			if left == right {
+				return 1
+			}
+			return 0
+		case TOKEN_BANGEQ:
+			if left != right {
+				return 1
+			}
+			return 0
+		case TOKEN_LT:
+			if left < right {
+				return 1
+			}
+			return 0
+		case TOKEN_GT:
+			if left > right {
+				return 1
+			}
+			return 0
+		case TOKEN_LTEQ:
+			if left <= right {
+				return 1
+			}
+			return 0
+		case TOKEN_GTEQ:
+			if left >= right {
+				return 1
+			}
+			return 0
+		}
+		return 0
+	case *GroupExpr:
+		return c.evalConstant(e.Expr)
+	}
+	return 0
 }

@@ -1,0 +1,13 @@
+// expect: 0
+// Global variable initialization with non-zero values
+
+var CONST_A i64 = 42;
+var CONST_B i64 = 10;
+var CONST_C i64 = 0;
+
+func main() i64 {
+    if CONST_A != 42 { return 1; }
+    if CONST_B != 10 { return 2; }
+    if CONST_C != 0 { return 3; }
+    return 0;
+}

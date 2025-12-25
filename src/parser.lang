@@ -1,0 +1,1285 @@
+// src/parser.lang - Parser for self-hosting compiler
+// Recursive descent parser with precedence climbing for expressions
+
+// ============================================================
+// AST Node Types (constants)
+// ============================================================
+
+// Node kinds
+var NODE_FUNC_DECL i64 = 1;
+var NODE_VAR_DECL i64 = 2;
+var NODE_STRUCT_DECL i64 = 3;
+var NODE_BLOCK_STMT i64 = 4;
+var NODE_IF_STMT i64 = 5;
+var NODE_WHILE_STMT i64 = 6;
+var NODE_RETURN_STMT i64 = 7;
+var NODE_EXPR_STMT i64 = 8;
+var NODE_BINARY_EXPR i64 = 9;
+var NODE_UNARY_EXPR i64 = 10;
+var NODE_CALL_EXPR i64 = 11;
+var NODE_INDEX_EXPR i64 = 12;
+var NODE_FIELD_EXPR i64 = 13;
+var NODE_IDENT_EXPR i64 = 14;
+var NODE_NUMBER_EXPR i64 = 15;
+var NODE_STRING_EXPR i64 = 16;
+var NODE_BOOL_EXPR i64 = 17;
+var NODE_NIL_EXPR i64 = 18;
+var NODE_GROUP_EXPR i64 = 19;
+
+// Type kinds
+var TYPE_BASE i64 = 1;
+var TYPE_PTR i64 = 2;
+var TYPE_ARRAY i64 = 3;
+
+// ============================================================
+// AST Node layouts (all nodes start with kind field)
+// ============================================================
+
+// Generic node header: [kind:8]
+// All nodes start with this
+
+// FuncDecl: [kind:8][name_ptr:8][name_len:8][params:8][param_count:8][ret_type:8][body:8] = 56 bytes
+// VarDecl: [kind:8][name_ptr:8][name_len:8][type:8][init:8] = 40 bytes
+// BlockStmt: [kind:8][stmts:8][stmt_count:8] = 24 bytes
+// IfStmt: [kind:8][cond:8][then:8][else:8] = 32 bytes
+// WhileStmt: [kind:8][cond:8][body:8] = 24 bytes
+// ReturnStmt: [kind:8][value:8] = 16 bytes
+// ExprStmt: [kind:8][expr:8] = 16 bytes
+// BinaryExpr: [kind:8][op:8][left:8][right:8] = 32 bytes
+// UnaryExpr: [kind:8][op:8][expr:8] = 24 bytes
+// CallExpr: [kind:8][func:8][args:8][arg_count:8] = 32 bytes
+// IndexExpr: [kind:8][expr:8][index:8] = 24 bytes
+// FieldExpr: [kind:8][expr:8][field_ptr:8][field_len:8] = 32 bytes
+// IdentExpr: [kind:8][name_ptr:8][name_len:8] = 24 bytes
+// NumberExpr: [kind:8][value_ptr:8][value_len:8] = 24 bytes
+// StringExpr: [kind:8][value_ptr:8][value_len:8] = 24 bytes
+// BoolExpr: [kind:8][value:8] = 16 bytes
+// NilExpr: [kind:8] = 8 bytes
+// GroupExpr: [kind:8][expr:8] = 16 bytes
+
+// Type layouts:
+// BaseType: [kind:8][name_ptr:8][name_len:8] = 24 bytes
+// PtrType: [kind:8][elem:8] = 16 bytes
+// ArrayType: [kind:8][size:8][elem:8] = 24 bytes
+
+// Param: [name_ptr:8][name_len:8][type:8] = 24 bytes
+
+// ============================================================
+// Node accessor functions
+// ============================================================
+
+func node_kind(node *u8) i64 {
+    var p *i64 = node;
+    return *p;
+}
+
+func node_set_kind(node *u8, k i64) void {
+    var p *i64 = node;
+    *p = k;
+}
+
+// ============================================================
+// FuncDecl accessors
+// ============================================================
+
+func func_decl_alloc() *u8 {
+    var node *u8 = alloc(56);
+    node_set_kind(node, NODE_FUNC_DECL);
+    return node;
+}
+
+func func_decl_name(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func func_decl_set_name(node *u8, ptr *u8) void {
+    var p **u8 = node + 8;
+    *p = ptr;
+}
+
+func func_decl_name_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func func_decl_set_name_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+func func_decl_params(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func func_decl_set_params(node *u8, params *u8) void {
+    var p **u8 = node + 24;
+    *p = params;
+}
+
+func func_decl_param_count(node *u8) i64 {
+    var p *i64 = node + 32;
+    return *p;
+}
+
+func func_decl_set_param_count(node *u8, count i64) void {
+    var p *i64 = node + 32;
+    *p = count;
+}
+
+func func_decl_ret_type(node *u8) *u8 {
+    var p **u8 = node + 40;
+    return *p;
+}
+
+func func_decl_set_ret_type(node *u8, t *u8) void {
+    var p **u8 = node + 40;
+    *p = t;
+}
+
+func func_decl_body(node *u8) *u8 {
+    var p **u8 = node + 48;
+    return *p;
+}
+
+func func_decl_set_body(node *u8, body *u8) void {
+    var p **u8 = node + 48;
+    *p = body;
+}
+
+// ============================================================
+// VarDecl accessors
+// ============================================================
+
+func var_decl_alloc() *u8 {
+    var node *u8 = alloc(40);
+    node_set_kind(node, NODE_VAR_DECL);
+    return node;
+}
+
+func var_decl_name(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func var_decl_set_name(node *u8, ptr *u8) void {
+    var p **u8 = node + 8;
+    *p = ptr;
+}
+
+func var_decl_name_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func var_decl_set_name_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+func var_decl_type(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func var_decl_set_type(node *u8, t *u8) void {
+    var p **u8 = node + 24;
+    *p = t;
+}
+
+func var_decl_init(node *u8) *u8 {
+    var p **u8 = node + 32;
+    return *p;
+}
+
+func var_decl_set_init(node *u8, init *u8) void {
+    var p **u8 = node + 32;
+    *p = init;
+}
+
+// ============================================================
+// BlockStmt accessors
+// ============================================================
+
+func block_stmt_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_BLOCK_STMT);
+    return node;
+}
+
+func block_stmt_stmts(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func block_stmt_set_stmts(node *u8, stmts *u8) void {
+    var p **u8 = node + 8;
+    *p = stmts;
+}
+
+func block_stmt_count(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func block_stmt_set_count(node *u8, count i64) void {
+    var p *i64 = node + 16;
+    *p = count;
+}
+
+// ============================================================
+// IfStmt accessors
+// ============================================================
+
+func if_stmt_alloc() *u8 {
+    var node *u8 = alloc(32);
+    node_set_kind(node, NODE_IF_STMT);
+    return node;
+}
+
+func if_stmt_cond(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func if_stmt_set_cond(node *u8, cond *u8) void {
+    var p **u8 = node + 8;
+    *p = cond;
+}
+
+func if_stmt_then(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func if_stmt_set_then(node *u8, then *u8) void {
+    var p **u8 = node + 16;
+    *p = then;
+}
+
+func if_stmt_else(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func if_stmt_set_else(node *u8, els *u8) void {
+    var p **u8 = node + 24;
+    *p = els;
+}
+
+// ============================================================
+// WhileStmt accessors
+// ============================================================
+
+func while_stmt_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_WHILE_STMT);
+    return node;
+}
+
+func while_stmt_cond(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func while_stmt_set_cond(node *u8, cond *u8) void {
+    var p **u8 = node + 8;
+    *p = cond;
+}
+
+func while_stmt_body(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func while_stmt_set_body(node *u8, body *u8) void {
+    var p **u8 = node + 16;
+    *p = body;
+}
+
+// ============================================================
+// ReturnStmt accessors
+// ============================================================
+
+func return_stmt_alloc() *u8 {
+    var node *u8 = alloc(16);
+    node_set_kind(node, NODE_RETURN_STMT);
+    return node;
+}
+
+func return_stmt_value(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func return_stmt_set_value(node *u8, val *u8) void {
+    var p **u8 = node + 8;
+    *p = val;
+}
+
+// ============================================================
+// ExprStmt accessors
+// ============================================================
+
+func expr_stmt_alloc() *u8 {
+    var node *u8 = alloc(16);
+    node_set_kind(node, NODE_EXPR_STMT);
+    return node;
+}
+
+func expr_stmt_expr(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func expr_stmt_set_expr(node *u8, expr *u8) void {
+    var p **u8 = node + 8;
+    *p = expr;
+}
+
+// ============================================================
+// BinaryExpr accessors
+// ============================================================
+
+func binary_expr_alloc() *u8 {
+    var node *u8 = alloc(32);
+    node_set_kind(node, NODE_BINARY_EXPR);
+    return node;
+}
+
+func binary_expr_op(node *u8) i64 {
+    var p *i64 = node + 8;
+    return *p;
+}
+
+func binary_expr_set_op(node *u8, op i64) void {
+    var p *i64 = node + 8;
+    *p = op;
+}
+
+func binary_expr_left(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func binary_expr_set_left(node *u8, left *u8) void {
+    var p **u8 = node + 16;
+    *p = left;
+}
+
+func binary_expr_right(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func binary_expr_set_right(node *u8, right *u8) void {
+    var p **u8 = node + 24;
+    *p = right;
+}
+
+// ============================================================
+// UnaryExpr accessors
+// ============================================================
+
+func unary_expr_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_UNARY_EXPR);
+    return node;
+}
+
+func unary_expr_op(node *u8) i64 {
+    var p *i64 = node + 8;
+    return *p;
+}
+
+func unary_expr_set_op(node *u8, op i64) void {
+    var p *i64 = node + 8;
+    *p = op;
+}
+
+func unary_expr_expr(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func unary_expr_set_expr(node *u8, expr *u8) void {
+    var p **u8 = node + 16;
+    *p = expr;
+}
+
+// ============================================================
+// CallExpr accessors
+// ============================================================
+
+func call_expr_alloc() *u8 {
+    var node *u8 = alloc(32);
+    node_set_kind(node, NODE_CALL_EXPR);
+    return node;
+}
+
+func call_expr_func(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func call_expr_set_func(node *u8, f *u8) void {
+    var p **u8 = node + 8;
+    *p = f;
+}
+
+func call_expr_args(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func call_expr_set_args(node *u8, args *u8) void {
+    var p **u8 = node + 16;
+    *p = args;
+}
+
+func call_expr_arg_count(node *u8) i64 {
+    var p *i64 = node + 24;
+    return *p;
+}
+
+func call_expr_set_arg_count(node *u8, count i64) void {
+    var p *i64 = node + 24;
+    *p = count;
+}
+
+// ============================================================
+// IdentExpr accessors
+// ============================================================
+
+func ident_expr_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_IDENT_EXPR);
+    return node;
+}
+
+func ident_expr_name(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func ident_expr_set_name(node *u8, ptr *u8) void {
+    var p **u8 = node + 8;
+    *p = ptr;
+}
+
+func ident_expr_name_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func ident_expr_set_name_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+// ============================================================
+// NumberExpr accessors
+// ============================================================
+
+func number_expr_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_NUMBER_EXPR);
+    return node;
+}
+
+func number_expr_value(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func number_expr_set_value(node *u8, ptr *u8) void {
+    var p **u8 = node + 8;
+    *p = ptr;
+}
+
+func number_expr_value_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func number_expr_set_value_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+// ============================================================
+// StringExpr accessors
+// ============================================================
+
+func string_expr_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_STRING_EXPR);
+    return node;
+}
+
+func string_expr_value(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func string_expr_set_value(node *u8, ptr *u8) void {
+    var p **u8 = node + 8;
+    *p = ptr;
+}
+
+func string_expr_value_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func string_expr_set_value_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+// ============================================================
+// BoolExpr accessors
+// ============================================================
+
+func bool_expr_alloc() *u8 {
+    var node *u8 = alloc(16);
+    node_set_kind(node, NODE_BOOL_EXPR);
+    return node;
+}
+
+func bool_expr_value(node *u8) i64 {
+    var p *i64 = node + 8;
+    return *p;
+}
+
+func bool_expr_set_value(node *u8, val i64) void {
+    var p *i64 = node + 8;
+    *p = val;
+}
+
+// ============================================================
+// NilExpr accessors
+// ============================================================
+
+func nil_expr_alloc() *u8 {
+    var node *u8 = alloc(8);
+    node_set_kind(node, NODE_NIL_EXPR);
+    return node;
+}
+
+// ============================================================
+// GroupExpr accessors
+// ============================================================
+
+func group_expr_alloc() *u8 {
+    var node *u8 = alloc(16);
+    node_set_kind(node, NODE_GROUP_EXPR);
+    return node;
+}
+
+func group_expr_expr(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func group_expr_set_expr(node *u8, expr *u8) void {
+    var p **u8 = node + 8;
+    *p = expr;
+}
+
+// ============================================================
+// Type accessors
+// ============================================================
+
+func type_kind(t *u8) i64 {
+    var p *i64 = t;
+    return *p;
+}
+
+func type_set_kind(t *u8, k i64) void {
+    var p *i64 = t;
+    *p = k;
+}
+
+func base_type_alloc() *u8 {
+    var t *u8 = alloc(24);
+    type_set_kind(t, TYPE_BASE);
+    return t;
+}
+
+func base_type_name(t *u8) *u8 {
+    var p **u8 = t + 8;
+    return *p;
+}
+
+func base_type_set_name(t *u8, ptr *u8) void {
+    var p **u8 = t + 8;
+    *p = ptr;
+}
+
+func base_type_name_len(t *u8) i64 {
+    var p *i64 = t + 16;
+    return *p;
+}
+
+func base_type_set_name_len(t *u8, len i64) void {
+    var p *i64 = t + 16;
+    *p = len;
+}
+
+func ptr_type_alloc() *u8 {
+    var t *u8 = alloc(16);
+    type_set_kind(t, TYPE_PTR);
+    return t;
+}
+
+func ptr_type_elem(t *u8) *u8 {
+    var p **u8 = t + 8;
+    return *p;
+}
+
+func ptr_type_set_elem(t *u8, elem *u8) void {
+    var p **u8 = t + 8;
+    *p = elem;
+}
+
+// ============================================================
+// Param accessors (24 bytes each)
+// ============================================================
+
+func param_name(p *u8) *u8 {
+    var ptr **u8 = p;
+    return *ptr;
+}
+
+func param_set_name(p *u8, name *u8) void {
+    var ptr **u8 = p;
+    *ptr = name;
+}
+
+func param_name_len(p *u8) i64 {
+    var ptr *i64 = p + 8;
+    return *ptr;
+}
+
+func param_set_name_len(p *u8, len i64) void {
+    var ptr *i64 = p + 8;
+    *ptr = len;
+}
+
+func param_type(p *u8) *u8 {
+    var ptr **u8 = p + 16;
+    return *ptr;
+}
+
+func param_set_type(p *u8, t *u8) void {
+    var ptr **u8 = p + 16;
+    *ptr = t;
+}
+
+// ============================================================
+// Parser state (global)
+// ============================================================
+
+var parse_tokens *u8 = nil;      // array of token pointers
+var parse_token_count i64 = 0;
+var parse_current i64 = 0;
+var parse_error_count i64 = 0;
+
+// ============================================================
+// Token array helper
+// Each element is a pointer (8 bytes)
+// ============================================================
+
+func get_token(index i64) *u8 {
+    var p **u8 = parse_tokens + (index * 8);
+    return *p;
+}
+
+func set_token(index i64, tok *u8) void {
+    var p **u8 = parse_tokens + (index * 8);
+    *p = tok;
+}
+
+// ============================================================
+// Parser initialization
+// ============================================================
+
+func parser_init() void {
+    // Allocate token array (max 10000 tokens)
+    parse_tokens = alloc(80000);
+    parse_token_count = 0;
+    parse_current = 0;
+    parse_error_count = 0;
+}
+
+func parser_add_token(tok *u8) void {
+    set_token(parse_token_count, tok);
+    parse_token_count = parse_token_count + 1;
+}
+
+// Tokenize source and fill token array
+func parser_tokenize(source *u8) void {
+    parser_init();
+    lexer_init(source);
+
+    var done i64 = 0;
+    while done == 0 {
+        var tok *u8 = scan_token();
+        parser_add_token(tok);
+        if tok_type(tok) == TOKEN_EOF || tok_type(tok) == TOKEN_ERROR {
+            done = 1;
+        }
+    }
+}
+
+// ============================================================
+// Parser helpers
+// ============================================================
+
+func parse_is_at_end() bool {
+    return tok_type(parse_peek()) == TOKEN_EOF;
+}
+
+func parse_peek() *u8 {
+    return get_token(parse_current);
+}
+
+func parse_previous() *u8 {
+    return get_token(parse_current - 1);
+}
+
+func parse_advance() *u8 {
+    if !parse_is_at_end() {
+        parse_current = parse_current + 1;
+    }
+    return parse_previous();
+}
+
+func parse_check(t i64) bool {
+    if parse_is_at_end() {
+        return false;
+    }
+    return tok_type(parse_peek()) == t;
+}
+
+func parse_match(t i64) bool {
+    if parse_check(t) {
+        parse_advance();
+        return true;
+    }
+    return false;
+}
+
+func parse_error(msg *u8) void {
+    var tok *u8 = parse_peek();
+    eprint("Error at ");
+    print_int(tok_line(tok));
+    eprint(":");
+    print_int(tok_col(tok));
+    eprint(": ");
+    eprintln(msg);
+    parse_error_count = parse_error_count + 1;
+}
+
+func parse_expect(t i64, msg *u8) *u8 {
+    if parse_check(t) {
+        return parse_advance();
+    }
+    parse_error(msg);
+    return nil;
+}
+
+// ============================================================
+// Type parsing
+// ============================================================
+
+func parse_type() *u8 {
+    if parse_match(TOKEN_STAR) {
+        var elem *u8 = parse_type();
+        var t *u8 = ptr_type_alloc();
+        ptr_type_set_elem(t, elem);
+        return t;
+    }
+
+    // Base type
+    var tok *u8 = parse_advance();
+    var tt i64 = tok_type(tok);
+
+    if tt == TOKEN_I8 || tt == TOKEN_I16 || tt == TOKEN_I32 || tt == TOKEN_I64 ||
+       tt == TOKEN_U8 || tt == TOKEN_U16 || tt == TOKEN_U32 || tt == TOKEN_U64 ||
+       tt == TOKEN_BOOL || tt == TOKEN_VOID || tt == TOKEN_IDENT {
+        var t *u8 = base_type_alloc();
+        base_type_set_name(t, tok_lexeme(tok));
+        base_type_set_name_len(t, tok_lexeme_len(tok));
+        return t;
+    }
+
+    parse_error("expected type");
+    var t *u8 = base_type_alloc();
+    base_type_set_name(t, "error");
+    base_type_set_name_len(t, 5);
+    return t;
+}
+
+// ============================================================
+// Expression parsing (precedence climbing)
+// ============================================================
+
+// Forward declarations via recursive calls
+
+func parse_expression() *u8 {
+    return parse_assignment();
+}
+
+func parse_assignment() *u8 {
+    var expr *u8 = parse_or();
+    if parse_match(TOKEN_EQ) {
+        var value *u8 = parse_assignment();
+        var node *u8 = binary_expr_alloc();
+        binary_expr_set_op(node, TOKEN_EQ);
+        binary_expr_set_left(node, expr);
+        binary_expr_set_right(node, value);
+        return node;
+    }
+    return expr;
+}
+
+func parse_or() *u8 {
+    var expr *u8 = parse_and();
+    while parse_match(TOKEN_PIPEPIPE) {
+        var right *u8 = parse_and();
+        var node *u8 = binary_expr_alloc();
+        binary_expr_set_op(node, TOKEN_PIPEPIPE);
+        binary_expr_set_left(node, expr);
+        binary_expr_set_right(node, right);
+        expr = node;
+    }
+    return expr;
+}
+
+func parse_and() *u8 {
+    var expr *u8 = parse_equality();
+    while parse_match(TOKEN_AMPAMP) {
+        var right *u8 = parse_equality();
+        var node *u8 = binary_expr_alloc();
+        binary_expr_set_op(node, TOKEN_AMPAMP);
+        binary_expr_set_left(node, expr);
+        binary_expr_set_right(node, right);
+        expr = node;
+    }
+    return expr;
+}
+
+func parse_equality() *u8 {
+    var expr *u8 = parse_comparison();
+    while parse_check(TOKEN_EQEQ) || parse_check(TOKEN_BANGEQ) {
+        var op i64 = tok_type(parse_advance());
+        var right *u8 = parse_comparison();
+        var node *u8 = binary_expr_alloc();
+        binary_expr_set_op(node, op);
+        binary_expr_set_left(node, expr);
+        binary_expr_set_right(node, right);
+        expr = node;
+    }
+    return expr;
+}
+
+func parse_comparison() *u8 {
+    var expr *u8 = parse_additive();
+    while parse_check(TOKEN_LT) || parse_check(TOKEN_GT) ||
+          parse_check(TOKEN_LTEQ) || parse_check(TOKEN_GTEQ) {
+        var op i64 = tok_type(parse_advance());
+        var right *u8 = parse_additive();
+        var node *u8 = binary_expr_alloc();
+        binary_expr_set_op(node, op);
+        binary_expr_set_left(node, expr);
+        binary_expr_set_right(node, right);
+        expr = node;
+    }
+    return expr;
+}
+
+func parse_additive() *u8 {
+    var expr *u8 = parse_mult();
+    while parse_check(TOKEN_PLUS) || parse_check(TOKEN_MINUS) {
+        var op i64 = tok_type(parse_advance());
+        var right *u8 = parse_mult();
+        var node *u8 = binary_expr_alloc();
+        binary_expr_set_op(node, op);
+        binary_expr_set_left(node, expr);
+        binary_expr_set_right(node, right);
+        expr = node;
+    }
+    return expr;
+}
+
+func parse_mult() *u8 {
+    var expr *u8 = parse_unary();
+    while parse_check(TOKEN_STAR) || parse_check(TOKEN_SLASH) || parse_check(TOKEN_PERCENT) {
+        var op i64 = tok_type(parse_advance());
+        var right *u8 = parse_unary();
+        var node *u8 = binary_expr_alloc();
+        binary_expr_set_op(node, op);
+        binary_expr_set_left(node, expr);
+        binary_expr_set_right(node, right);
+        expr = node;
+    }
+    return expr;
+}
+
+func parse_unary() *u8 {
+    if parse_check(TOKEN_MINUS) || parse_check(TOKEN_BANG) ||
+       parse_check(TOKEN_STAR) || parse_check(TOKEN_AMP) {
+        var op i64 = tok_type(parse_advance());
+        var expr *u8 = parse_unary();
+        var node *u8 = unary_expr_alloc();
+        unary_expr_set_op(node, op);
+        unary_expr_set_expr(node, expr);
+        return node;
+    }
+    return parse_postfix();
+}
+
+func parse_postfix() *u8 {
+    var expr *u8 = parse_primary();
+
+    var done i64 = 0;
+    while done == 0 {
+        if parse_match(TOKEN_LPAREN) {
+            expr = parse_finish_call(expr);
+        } else if parse_match(TOKEN_LBRACKET) {
+            var index *u8 = parse_expression();
+            parse_expect(TOKEN_RBRACKET, "expected ']' after index");
+            var node *u8 = alloc(24);  // IndexExpr
+            node_set_kind(node, NODE_INDEX_EXPR);
+            var p **u8 = node + 8;
+            *p = expr;
+            p = node + 16;
+            *p = index;
+            expr = node;
+        } else if parse_match(TOKEN_DOT) {
+            var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected field name");
+            var node *u8 = alloc(32);  // FieldExpr
+            node_set_kind(node, NODE_FIELD_EXPR);
+            var pe **u8 = node + 8;
+            *pe = expr;
+            var pn **u8 = node + 16;
+            *pn = tok_lexeme(name_tok);
+            var pl *i64 = node + 24;
+            *pl = tok_lexeme_len(name_tok);
+            expr = node;
+        } else {
+            done = 1;
+        }
+    }
+    return expr;
+}
+
+func parse_finish_call(callee *u8) *u8 {
+    // Allocate array for args (max 16)
+    var args *u8 = alloc(128);
+    var arg_count i64 = 0;
+
+    if !parse_check(TOKEN_RPAREN) {
+        var done i64 = 0;
+        while done == 0 {
+            var arg *u8 = parse_expression();
+            var p **u8 = args + (arg_count * 8);
+            *p = arg;
+            arg_count = arg_count + 1;
+            if !parse_match(TOKEN_COMMA) {
+                done = 1;
+            }
+        }
+    }
+    parse_expect(TOKEN_RPAREN, "expected ')' after arguments");
+
+    var node *u8 = call_expr_alloc();
+    call_expr_set_func(node, callee);
+    call_expr_set_args(node, args);
+    call_expr_set_arg_count(node, arg_count);
+    return node;
+}
+
+func parse_primary() *u8 {
+    if parse_match(TOKEN_NUMBER) {
+        var tok *u8 = parse_previous();
+        var node *u8 = number_expr_alloc();
+        number_expr_set_value(node, tok_lexeme(tok));
+        number_expr_set_value_len(node, tok_lexeme_len(tok));
+        return node;
+    }
+
+    if parse_match(TOKEN_STRING) {
+        var tok *u8 = parse_previous();
+        var node *u8 = string_expr_alloc();
+        string_expr_set_value(node, tok_lexeme(tok));
+        string_expr_set_value_len(node, tok_lexeme_len(tok));
+        return node;
+    }
+
+    if parse_match(TOKEN_TRUE) {
+        var node *u8 = bool_expr_alloc();
+        bool_expr_set_value(node, 1);
+        return node;
+    }
+
+    if parse_match(TOKEN_FALSE) {
+        var node *u8 = bool_expr_alloc();
+        bool_expr_set_value(node, 0);
+        return node;
+    }
+
+    if parse_match(TOKEN_NIL) {
+        return nil_expr_alloc();
+    }
+
+    if parse_match(TOKEN_IDENT) {
+        var tok *u8 = parse_previous();
+        var node *u8 = ident_expr_alloc();
+        ident_expr_set_name(node, tok_lexeme(tok));
+        ident_expr_set_name_len(node, tok_lexeme_len(tok));
+        return node;
+    }
+
+    if parse_match(TOKEN_LPAREN) {
+        var expr *u8 = parse_expression();
+        parse_expect(TOKEN_RPAREN, "expected ')' after expression");
+        var node *u8 = group_expr_alloc();
+        group_expr_set_expr(node, expr);
+        return node;
+    }
+
+    parse_error("expected expression");
+    var node *u8 = number_expr_alloc();
+    number_expr_set_value(node, "0");
+    number_expr_set_value_len(node, 1);
+    return node;
+}
+
+// ============================================================
+// Statement parsing
+// ============================================================
+
+func parse_block() *u8 {
+    parse_expect(TOKEN_LBRACE, "expected '{'");
+
+    // Allocate array for statements (max 256)
+    var stmts *u8 = alloc(2048);
+    var stmt_count i64 = 0;
+
+    while !parse_check(TOKEN_RBRACE) && !parse_is_at_end() {
+        var stmt *u8 = parse_statement();
+        var p **u8 = stmts + (stmt_count * 8);
+        *p = stmt;
+        stmt_count = stmt_count + 1;
+    }
+    parse_expect(TOKEN_RBRACE, "expected '}'");
+
+    var node *u8 = block_stmt_alloc();
+    block_stmt_set_stmts(node, stmts);
+    block_stmt_set_count(node, stmt_count);
+    return node;
+}
+
+func parse_statement() *u8 {
+    if parse_match(TOKEN_VAR) {
+        return parse_var_decl();
+    }
+    if parse_match(TOKEN_IF) {
+        return parse_if_stmt();
+    }
+    if parse_match(TOKEN_WHILE) {
+        return parse_while_stmt();
+    }
+    if parse_match(TOKEN_RETURN) {
+        return parse_return_stmt();
+    }
+    if parse_check(TOKEN_LBRACE) {
+        return parse_block();
+    }
+    return parse_expr_stmt();
+}
+
+func parse_var_decl() *u8 {
+    var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected variable name");
+    var typ *u8 = parse_type();
+
+    var init *u8 = nil;
+    if parse_match(TOKEN_EQ) {
+        init = parse_expression();
+    }
+    parse_expect(TOKEN_SEMICOLON, "expected ';' after variable declaration");
+
+    var node *u8 = var_decl_alloc();
+    var_decl_set_name(node, tok_lexeme(name_tok));
+    var_decl_set_name_len(node, tok_lexeme_len(name_tok));
+    var_decl_set_type(node, typ);
+    var_decl_set_init(node, init);
+    return node;
+}
+
+func parse_if_stmt() *u8 {
+    var cond *u8 = parse_expression();
+    var then *u8 = parse_block();
+
+    var els *u8 = nil;
+    if parse_match(TOKEN_ELSE) {
+        if parse_check(TOKEN_IF) {
+            parse_advance();
+            els = parse_if_stmt();
+        } else {
+            els = parse_block();
+        }
+    }
+
+    var node *u8 = if_stmt_alloc();
+    if_stmt_set_cond(node, cond);
+    if_stmt_set_then(node, then);
+    if_stmt_set_else(node, els);
+    return node;
+}
+
+func parse_while_stmt() *u8 {
+    var cond *u8 = parse_expression();
+    var body *u8 = parse_block();
+
+    var node *u8 = while_stmt_alloc();
+    while_stmt_set_cond(node, cond);
+    while_stmt_set_body(node, body);
+    return node;
+}
+
+func parse_return_stmt() *u8 {
+    var value *u8 = nil;
+    if !parse_check(TOKEN_SEMICOLON) {
+        value = parse_expression();
+    }
+    parse_expect(TOKEN_SEMICOLON, "expected ';' after return");
+
+    var node *u8 = return_stmt_alloc();
+    return_stmt_set_value(node, value);
+    return node;
+}
+
+func parse_expr_stmt() *u8 {
+    var expr *u8 = parse_expression();
+    parse_expect(TOKEN_SEMICOLON, "expected ';' after expression");
+
+    var node *u8 = expr_stmt_alloc();
+    expr_stmt_set_expr(node, expr);
+    return node;
+}
+
+// ============================================================
+// Declaration parsing
+// ============================================================
+
+func parse_func_decl() *u8 {
+    var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected function name");
+    parse_expect(TOKEN_LPAREN, "expected '(' after function name");
+
+    // Allocate params array (max 16 params, 24 bytes each)
+    var params *u8 = alloc(384);
+    var param_count i64 = 0;
+
+    if !parse_check(TOKEN_RPAREN) {
+        var done i64 = 0;
+        while done == 0 {
+            var pname_tok *u8 = parse_expect(TOKEN_IDENT, "expected parameter name");
+            var ptype *u8 = parse_type();
+
+            var p *u8 = params + (param_count * 24);
+            param_set_name(p, tok_lexeme(pname_tok));
+            param_set_name_len(p, tok_lexeme_len(pname_tok));
+            param_set_type(p, ptype);
+            param_count = param_count + 1;
+
+            if !parse_match(TOKEN_COMMA) {
+                done = 1;
+            }
+        }
+    }
+    parse_expect(TOKEN_RPAREN, "expected ')' after parameters");
+
+    var ret_type *u8 = nil;
+    if !parse_check(TOKEN_LBRACE) {
+        ret_type = parse_type();
+    }
+
+    var body *u8 = parse_block();
+
+    var node *u8 = func_decl_alloc();
+    func_decl_set_name(node, tok_lexeme(name_tok));
+    func_decl_set_name_len(node, tok_lexeme_len(name_tok));
+    func_decl_set_params(node, params);
+    func_decl_set_param_count(node, param_count);
+    func_decl_set_ret_type(node, ret_type);
+    func_decl_set_body(node, body);
+    return node;
+}
+
+func parse_declaration() *u8 {
+    if parse_match(TOKEN_FUNC) {
+        return parse_func_decl();
+    }
+    if parse_match(TOKEN_VAR) {
+        return parse_var_decl();
+    }
+    // Skip struct for now
+    if parse_match(TOKEN_STRUCT) {
+        parse_error("struct not implemented");
+        return nil;
+    }
+
+    parse_error("expected declaration");
+    parse_advance();
+    return nil;
+}
+
+// ============================================================
+// Program parsing
+// ============================================================
+
+// Program: [decls:8][decl_count:8] = 16 bytes
+
+func parse_program() *u8 {
+    // Allocate decls array (max 1000)
+    var decls *u8 = alloc(8000);
+    var decl_count i64 = 0;
+
+    while !parse_is_at_end() {
+        var decl *u8 = parse_declaration();
+        if decl != nil {
+            var p **u8 = decls + (decl_count * 8);
+            *p = decl;
+            decl_count = decl_count + 1;
+        }
+    }
+
+    var prog *u8 = alloc(16);
+    var pd **u8 = prog;
+    *pd = decls;
+    var pc *i64 = prog + 8;
+    *pc = decl_count;
+
+    return prog;
+}
+
+// Program accessors
+func program_decls(prog *u8) *u8 {
+    var p **u8 = prog;
+    return *p;
+}
+
+func program_decl_count(prog *u8) i64 {
+    var p *i64 = prog + 8;
+    return *p;
+}
+
+func get_decl(decls *u8, index i64) *u8 {
+    var p **u8 = decls + (index * 8);
+    return *p;
+}

@@ -17,8 +17,8 @@ Phase 1: Self-hosting (rewrite compiler in language)
 - [x] Standard library (std/core.lang)
 
 ### Phase 1: Self-Hosting
-- [ ] Rewrite lexer in language
-- [ ] Rewrite parser in language
+- [x] Rewrite lexer in language (src/lexer.lang)
+- [x] Rewrite parser in language (src/parser.lang)
 - [ ] Rewrite codegen in language
 - [ ] Compiler compiles itself (stage 1)
 - [ ] Stage 1 compiles itself to identical output (stage 2)
