@@ -1,11 +1,11 @@
 # language - TODO
 
 ## Current Focus
-Phase 0 compiler implementation (Go)
+Phase 1: Self-hosting (rewrite compiler in language)
 
 ## Milestone Checklist
 
-### Phase 0: Bootstrap Compiler (Go)
+### Phase 0: Bootstrap Compiler (Go) ✓ COMPLETE
 - [x] Finalize syntax decisions (see INITIAL_DESIGN.md)
 - [x] Lexer
 - [x] Parser
@@ -13,6 +13,8 @@ Phase 0 compiler implementation (Go)
 - [x] x86-64 code generation
 - [x] Hello world compiles and runs
 - [x] Compiler can compile a simple program (fibonacci, etc.)
+- [x] Test suite (67 tests)
+- [x] Standard library (std/core.lang)
 
 ### Phase 1: Self-Hosting
 - [ ] Rewrite lexer in language
