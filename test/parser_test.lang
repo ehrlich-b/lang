@@ -1,0 +1,161 @@
+// test/parser_test.lang - Test the self-hosting parser
+
+func print_indent(depth i64) void {
+    var i i64 = 0;
+    while i < depth {
+        print("  ");
+        i = i + 1;
+    }
+}
+
+func print_node(node *u8, depth i64) void {
+    if node == nil {
+        print_indent(depth);
+        println("(nil)");
+        return;
+    }
+
+    var kind i64 = node_kind(node);
+    print_indent(depth);
+
+    if kind == NODE_FUNC_DECL {
+        print("FuncDecl: ");
+        print_n(func_decl_name(node), func_decl_name_len(node));
+        print(" (");
+        print_int(func_decl_param_count(node));
+        println(" params)");
+        print_node(func_decl_body(node), depth + 1);
+    } else if kind == NODE_VAR_DECL {
+        print("VarDecl: ");
+        print_n(var_decl_name(node), var_decl_name_len(node));
+        println("");
+        if var_decl_init(node) != nil {
+            print_indent(depth + 1);
+            println("init:");
+            print_node(var_decl_init(node), depth + 2);
+        }
+    } else if kind == NODE_BLOCK_STMT {
+        print("Block (");
+        print_int(block_stmt_count(node));
+        println(" stmts)");
+        var i i64 = 0;
+        var stmts *u8 = block_stmt_stmts(node);
+        while i < block_stmt_count(node) {
+            var p **u8 = stmts + (i * 8);
+            print_node(*p, depth + 1);
+            i = i + 1;
+        }
+    } else if kind == NODE_IF_STMT {
+        println("IfStmt");
+        print_indent(depth + 1);
+        println("cond:");
+        print_node(if_stmt_cond(node), depth + 2);
+        print_indent(depth + 1);
+        println("then:");
+        print_node(if_stmt_then(node), depth + 2);
+        if if_stmt_else(node) != nil {
+            print_indent(depth + 1);
+            println("else:");
+            print_node(if_stmt_else(node), depth + 2);
+        }
+    } else if kind == NODE_WHILE_STMT {
+        println("WhileStmt");
+        print_indent(depth + 1);
+        println("cond:");
+        print_node(while_stmt_cond(node), depth + 2);
+        print_indent(depth + 1);
+        println("body:");
+        print_node(while_stmt_body(node), depth + 2);
+    } else if kind == NODE_RETURN_STMT {
+        println("ReturnStmt");
+        if return_stmt_value(node) != nil {
+            print_node(return_stmt_value(node), depth + 1);
+        }
+    } else if kind == NODE_EXPR_STMT {
+        println("ExprStmt");
+        print_node(expr_stmt_expr(node), depth + 1);
+    } else if kind == NODE_BINARY_EXPR {
+        print("BinaryExpr op=");
+        print_int(binary_expr_op(node));
+        println("");
+        print_node(binary_expr_left(node), depth + 1);
+        print_node(binary_expr_right(node), depth + 1);
+    } else if kind == NODE_UNARY_EXPR {
+        print("UnaryExpr op=");
+        print_int(unary_expr_op(node));
+        println("");
+        print_node(unary_expr_expr(node), depth + 1);
+    } else if kind == NODE_CALL_EXPR {
+        print("CallExpr (");
+        print_int(call_expr_arg_count(node));
+        println(" args)");
+        print_indent(depth + 1);
+        println("func:");
+        print_node(call_expr_func(node), depth + 2);
+    } else if kind == NODE_IDENT_EXPR {
+        print("Ident: ");
+        print_n(ident_expr_name(node), ident_expr_name_len(node));
+        println("");
+    } else if kind == NODE_NUMBER_EXPR {
+        print("Number: ");
+        print_n(number_expr_value(node), number_expr_value_len(node));
+        println("");
+    } else if kind == NODE_STRING_EXPR {
+        print("String: ");
+        print_n(string_expr_value(node), string_expr_value_len(node));
+        println("");
+    } else if kind == NODE_BOOL_EXPR {
+        print("Bool: ");
+        print_int(bool_expr_value(node));
+        println("");
+    } else if kind == NODE_NIL_EXPR {
+        println("Nil");
+    } else if kind == NODE_GROUP_EXPR {
+        println("Group");
+        print_node(group_expr_expr(node), depth + 1);
+    } else {
+        print("Unknown kind: ");
+        print_int(kind);
+        println("");
+    }
+}
+
+func main() i64 {
+    var source *u8 = "func main() i64 {\n    var x i64 = 42;\n    if x > 0 {\n        return x + 1;\n    }\n    return 0;\n}\n";
+
+    println("=== Parser Test ===");
+    println("Source:");
+    println(source);
+    println("AST:");
+
+    parser_tokenize(source);
+
+    print("Tokens: ");
+    print_int(parse_token_count);
+    println("");
+
+    var prog *u8 = parse_program();
+
+    print("Declarations: ");
+    print_int(program_decl_count(prog));
+    println("");
+
+    if parse_error_count > 0 {
+        print("Errors: ");
+        print_int(parse_error_count);
+        println("");
+        return 1;
+    }
+
+    println("");
+    var i i64 = 0;
+    var decls *u8 = program_decls(prog);
+    while i < program_decl_count(prog) {
+        print_node(get_decl(decls, i), 0);
+        i = i + 1;
+    }
+
+    println("");
+    println("=== Parser test passed! ===");
+    return 0;
+}
