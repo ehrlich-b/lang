@@ -1,7 +1,7 @@
 #!/bin/bash
 # Test the self-hosted compiler on the test suite
 
-LANG1=./out/lang1
+LANG=./out/lang
 passed=0
 failed=0
 
@@ -9,7 +9,7 @@ for f in test/suite/*.lang; do
     name=$(basename "$f" .lang)
     expected=$(head -1 "$f" | grep -o '[0-9]*')
 
-    if $LANG1 "$f" -o out/test_$name.s 2>/dev/null && \
+    if $LANG "$f" -o out/test_$name.s 2>/dev/null && \
        as out/test_$name.s -o out/test_$name.o 2>/dev/null && \
        ld out/test_$name.o -o out/test_$name 2>/dev/null; then
         result=$(./out/test_$name 2>/dev/null; echo $?)
