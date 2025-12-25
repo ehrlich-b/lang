@@ -1,0 +1,6 @@
+// expect: 0
+// Arithmetic: division
+func main() i64 {
+    if 100 / 10 == 10 { return 0; }
+    return 1;
+}

@@ -1,0 +1,24 @@
+// Test u8 array access via pointer arithmetic
+
+func main() i64 {
+    var s *u8 = "abc";
+
+    // Access characters via pointer arithmetic and dereference
+    var c0 u8 = *s;           // 'a' = 97
+    var c1 u8 = *(s + 1);     // 'b' = 98
+    var c2 u8 = *(s + 2);     // 'c' = 99
+
+    // Sum should be 97 + 98 + 99 = 294, mod 256 = 38
+    // But since we return i64, should be 294
+    var sum i64 = c0 + c1 + c2;
+
+    // Return something we can verify
+    if c0 == 97 {
+        if c1 == 98 {
+            if c2 == 99 {
+                return 0; // success
+            }
+        }
+    }
+    return 1; // failure
+}

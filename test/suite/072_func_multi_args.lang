@@ -1,0 +1,10 @@
+// expect: 0
+// Functions: multiple arguments
+func add(a i64, b i64, c i64) i64 {
+    return a + b + c;
+}
+
+func main() i64 {
+    if add(10, 20, 30) == 60 { return 0; }
+    return 1;
+}

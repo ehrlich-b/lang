@@ -1,0 +1,136 @@
+// std/core.lang - Standard library for language
+// Provides basic I/O, memory allocation, and string operations
+
+// ============================================================
+// Memory (bump allocator, never frees - compiler is short-lived)
+// ============================================================
+
+var heap_pos *u8 = nil;
+var heap_end *u8 = nil;
+
+func alloc(size i64) *u8 {
+    if heap_pos == nil {
+        // mmap(NULL, 64MB, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
+        // syscall 9 = mmap, 3 = PROT_READ|PROT_WRITE, 34 = MAP_PRIVATE|MAP_ANONYMOUS
+        heap_pos = syscall(9, 0, 67108864, 3, 34, 0-1, 0);
+        heap_end = heap_pos + 67108864;
+    }
+    var ptr *u8 = heap_pos;
+    heap_pos = heap_pos + size;
+    return ptr;
+}
+
+// ============================================================
+// File I/O
+// ============================================================
+
+func file_open(path *u8, flags i64) i64 {
+    // syscall 2 = open, 420 = 0644 permissions
+    return syscall(2, path, flags, 420);
+}
+
+func file_read(fd i64, buf *u8, n i64) i64 {
+    // syscall 0 = read
+    return syscall(0, fd, buf, n);
+}
+
+func file_write(fd i64, buf *u8, n i64) i64 {
+    // syscall 1 = write
+    return syscall(1, fd, buf, n);
+}
+
+func file_close(fd i64) {
+    // syscall 3 = close
+    syscall(3, fd);
+}
+
+// ============================================================
+// Strings
+// ============================================================
+
+func strlen(s *u8) i64 {
+    var n i64 = 0;
+    while *(s + n) != 0 {
+        n = n + 1;
+    }
+    return n;
+}
+
+func streq(a *u8, b *u8) bool {
+    while *a != 0 && *b != 0 {
+        if *a != *b {
+            return false;
+        }
+        a = a + 1;
+        b = b + 1;
+    }
+    return *a == *b;
+}
+
+// ============================================================
+// I/O helpers
+// ============================================================
+
+func print(s *u8) {
+    file_write(1, s, strlen(s));
+}
+
+func println(s *u8) {
+    print(s);
+    file_write(1, "\n", 1);
+}
+
+func eprint(s *u8) {
+    file_write(2, s, strlen(s));
+}
+
+func eprintln(s *u8) {
+    eprint(s);
+    file_write(2, "\n", 1);
+}
+
+// ============================================================
+// Process
+// ============================================================
+
+func exit(code i64) {
+    // syscall 60 = exit
+    syscall(60, code);
+}
+
+// ============================================================
+// Numeric helpers (useful for debugging)
+// ============================================================
+
+func print_digit(d i64) {
+    var c u8 = 48 + d;  // '0' = 48
+    file_write(1, &c, 1);
+}
+
+func print_int(n i64) {
+    if n < 0 {
+        file_write(1, "-", 1);
+        n = 0 - n;
+    }
+
+    if n == 0 {
+        file_write(1, "0", 1);
+        return;
+    }
+
+    // Find the highest power of 10
+    var divisor i64 = 1;
+    var temp i64 = n;
+    while temp >= 10 {
+        temp = temp / 10;
+        divisor = divisor * 10;
+    }
+
+    // Print each digit
+    while divisor > 0 {
+        var digit i64 = n / divisor;
+        print_digit(digit);
+        n = n % divisor;
+        divisor = divisor / 10;
+    }
+}

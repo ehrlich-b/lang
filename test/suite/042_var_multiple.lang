@@ -1,0 +1,9 @@
+// expect: 0
+// Variables: multiple variables
+func main() i64 {
+    var a i64 = 1;
+    var b i64 = 2;
+    var c i64 = 3;
+    if a + b + c == 6 { return 0; }
+    return 1;
+}

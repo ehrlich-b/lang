@@ -1,0 +1,11 @@
+// expect: 0
+// Logical: NOT operator
+func main() i64 {
+    if !0 {
+        if !1 {
+            return 1;  // fail: !1 should be false
+        }
+        return 0;
+    }
+    return 2;  // fail: !0 should be true
+}

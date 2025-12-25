@@ -1,0 +1,6 @@
+// expect: 0
+// Arithmetic: modulo
+func main() i64 {
+    if 17 % 5 == 2 { return 0; }
+    return 1;
+}

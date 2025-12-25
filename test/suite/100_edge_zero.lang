@@ -1,0 +1,13 @@
+// expect: 0
+// Edge: operations with zero
+func main() i64 {
+    var x i64 = 0;
+    if x + 0 == 0 {
+        if x * 100 == 0 {
+            if 0 / 1 == 0 {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}

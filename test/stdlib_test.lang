@@ -1,0 +1,8 @@
+// Test the standard library
+func main() i64 {
+    println("Hello from stdlib!");
+    print("The answer is: ");
+    print_int(42);
+    println("");
+    return 0;
+}

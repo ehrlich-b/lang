@@ -1,0 +1,14 @@
+// expect: 0
+// Control: nested if statements
+func main() i64 {
+    var a i64 = 1;
+    var b i64 = 2;
+    if a == 1 {
+        if b == 2 {
+            if a + b == 3 {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}

@@ -1,0 +1,5 @@
+// expect: 255
+// Basic: return max exit code
+func main() i64 {
+    return 255;
+}

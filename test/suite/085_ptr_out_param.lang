@@ -1,0 +1,12 @@
+// expect: 0
+// Pointers: output parameter pattern
+func compute(input i64, result *i64) {
+    *result = input * input;
+}
+
+func main() i64 {
+    var output i64 = 0;
+    compute(7, &output);
+    if output == 49 { return 0; }
+    return 1;
+}

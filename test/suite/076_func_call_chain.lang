@@ -1,0 +1,11 @@
+// expect: 0
+// Functions: chain of calls
+func a() i64 { return 1; }
+func b() i64 { return a() + 2; }
+func c() i64 { return b() + 3; }
+func d() i64 { return c() + 4; }
+
+func main() i64 {
+    if d() == 10 { return 0; }
+    return 1;
+}

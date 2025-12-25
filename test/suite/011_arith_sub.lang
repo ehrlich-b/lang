@@ -1,0 +1,6 @@
+// expect: 0
+// Arithmetic: subtraction
+func main() i64 {
+    if 10 - 3 == 7 { return 0; }
+    return 1;
+}

@@ -1,0 +1,12 @@
+// expect: 0
+// Functions: fibonacci (mutual recursion pattern)
+func fib(n i64) i64 {
+    if n <= 1 { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+
+func main() i64 {
+    // fib(10) = 55
+    if fib(10) == 55 { return 0; }
+    return 1;
+}

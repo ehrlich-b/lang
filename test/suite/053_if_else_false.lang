@@ -1,0 +1,9 @@
+// expect: 0
+// Control: if-else with false condition
+func main() i64 {
+    if 0 {
+        return 1;
+    } else {
+        return 0;
+    }
+}

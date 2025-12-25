@@ -1,0 +1,9 @@
+// expect: 0
+// Pointers: assign through pointer
+func main() i64 {
+    var x i64 = 10;
+    var p *i64 = &x;
+    *p = 99;
+    if x == 99 { return 0; }
+    return 1;
+}

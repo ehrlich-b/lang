@@ -1,0 +1,13 @@
+// expect: 0
+// Expressions: assignment returns value
+func main() i64 {
+    var x i64 = 0;
+    var y i64 = 0;
+    y = (x = 42);
+    if x == 42 {
+        if y == 42 {
+            return 0;
+        }
+    }
+    return 1;
+}

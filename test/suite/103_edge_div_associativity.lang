@@ -1,0 +1,7 @@
+// expect: 0
+// Edge: left-to-right associativity of division
+func main() i64 {
+    // 100 / 10 / 2 should be (100 / 10) / 2 = 5, not 100 / (10 / 2) = 20
+    if 100 / 10 / 2 == 5 { return 0; }
+    return 1;
+}

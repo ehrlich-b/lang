@@ -1,0 +1,10 @@
+// expect: 0
+// Control: while loop that never executes
+func main() i64 {
+    var x i64 = 0;
+    while 0 {
+        x = 1;
+    }
+    if x == 0 { return 0; }
+    return 1;
+}

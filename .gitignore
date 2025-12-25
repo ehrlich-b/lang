@@ -1,0 +1,12 @@
+# Build artifacts
+out/
+boot/lang0
+
+# Editor
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store

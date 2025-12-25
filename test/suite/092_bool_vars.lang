@@ -1,0 +1,12 @@
+// expect: 0
+// Variables: bool type
+func main() i64 {
+    var t bool = true;
+    var f bool = false;
+    if t {
+        if !f {
+            return 0;
+        }
+    }
+    return 1;
+}
