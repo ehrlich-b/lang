@@ -19,7 +19,7 @@ Phase 1: Self-hosting (rewrite compiler in language)
 ### Phase 1: Self-Hosting
 - [x] Rewrite lexer in language (src/lexer.lang)
 - [x] Rewrite parser in language (src/parser.lang)
-- [ ] Rewrite codegen in language
+- [x] Rewrite codegen in language (src/codegen.lang)
 - [ ] Compiler compiles itself (stage 1)
 - [ ] Stage 1 compiles itself to identical output (stage 2)
 

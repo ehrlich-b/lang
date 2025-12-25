@@ -1,0 +1,61 @@
+// src/main.lang - Main entry point for self-hosting compiler
+
+func read_file(path *u8) *u8 {
+    var fd i64 = file_open(path, 0);  // O_RDONLY
+    if fd < 0 {
+        eprint("Error: cannot open file: ");
+        eprintln(path);
+        return nil;
+    }
+
+    var buf *u8 = alloc(1048576);  // 1MB max file size
+    var n i64 = file_read(fd, buf, 1048576);
+    file_close(fd);
+
+    if n < 0 {
+        eprintln("Error: cannot read file");
+        return nil;
+    }
+
+    // Null-terminate
+    *(buf + n) = 0;
+
+    return buf;
+}
+
+func main() i64 {
+    // Test: fibonacci sequence
+    var source *u8 = "func fib(n i64) i64 {\n    if n <= 1 {\n        return n;\n    }\n    return fib(n - 1) + fib(n - 2);\n}\n\nfunc main() i64 {\n    return fib(10);\n}\n";
+
+    println("=== Self-hosting Compiler Test ===");
+    println("Compiling:");
+    println(source);
+
+    // Tokenize
+    print("Tokenizing... ");
+    parser_tokenize(source);
+    print_int(parse_token_count);
+    println(" tokens");
+
+    // Parse
+    print("Parsing... ");
+    var prog *u8 = parse_program();
+    print_int(program_decl_count(prog));
+    println(" declarations");
+
+    if parse_error_count > 0 {
+        print("Parse errors: ");
+        print_int(parse_error_count);
+        println("");
+        return 1;
+    }
+
+    // Generate
+    println("Generating assembly...");
+    generate(prog, "out/selfhost_test.s");
+
+    println("Wrote out/selfhost_test.s");
+    println("Done!");
+
+    return 0;
+}
