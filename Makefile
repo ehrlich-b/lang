@@ -1,78 +1,148 @@
-.PHONY: all build test test-run test-suite test-all test-stdlib clean
+.PHONY: all bootstrap build verify promote release test test-suite test-run clean distclean
+
+# Get git info
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+GIT_DIRTY := $(shell git diff --quiet 2>/dev/null || echo "-dirty")
+VERSION := $(GIT_COMMIT)$(GIT_DIRTY)
+
+# Find latest bootstrap file
+LATEST_BOOTSTRAP := $(shell ls -v bootstrap/*.s 2>/dev/null | tail -1)
+LATEST_TAG := $(shell basename $(LATEST_BOOTSTRAP) .s 2>/dev/null)
+
+# Compiler paths
+LANG := out/lang
+LANG_NEXT := out/lang_next
 
 # Default target
 all: build
 
-# Run ALL tests (suite + sample programs + stdlib)
-test-all: build test-suite test-run test-stdlib
-	@echo "\n=== All tests complete ==="
+# Bootstrap: assemble from latest bootstrap/*.s, create lang symlink
+bootstrap:
+	@if [ -z "$(LATEST_BOOTSTRAP)" ]; then \
+		echo "ERROR: No bootstrap/*.s files found"; \
+		exit 1; \
+	fi
+	@mkdir -p out
+	@echo "Bootstrapping from $(LATEST_BOOTSTRAP)..."
+	as $(LATEST_BOOTSTRAP) -o out/lang_$(LATEST_TAG).o
+	ld out/lang_$(LATEST_TAG).o -o out/lang_$(LATEST_TAG)
+	rm -f out/lang_$(LATEST_TAG).o
+	ln -sf lang_$(LATEST_TAG) $(LANG)
+	@echo "Created: $(LANG) -> lang_$(LATEST_TAG)"
 
-# Build the Phase 0 compiler
+# Build: compile src/*.lang using lang -> lang_next
 build:
-	cd boot && go build -o lang0
+	@if [ ! -L $(LANG) ]; then \
+		$(MAKE) bootstrap; \
+	fi
+	@mkdir -p out
+	$(LANG) std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/main.lang -o out/lang_$(VERSION).s
+	as out/lang_$(VERSION).s -o out/lang_$(VERSION).o
+	ld out/lang_$(VERSION).o -o out/lang_$(VERSION)
+	rm -f out/lang_$(VERSION).o
+	ln -sf lang_$(VERSION) $(LANG_NEXT)
+	@echo "Created: $(LANG_NEXT) -> lang_$(VERSION)"
 
-# Show AST for test files
-test: build
-	@echo "=== hello.lang ==="
-	./boot/lang0 test/hello.lang --ast
-	@echo "\n=== factorial.lang ==="
-	./boot/lang0 test/factorial.lang --ast
+# Verify: lang_next compiles src/*.lang, check fixed point
+verify: build
+	@if [ ! -L $(LANG_NEXT) ]; then \
+		echo "ERROR: No lang_next to verify. Run 'make build' first."; \
+		exit 1; \
+	fi
+	$(LANG_NEXT) std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/main.lang -o out/verify.s
+	@if diff -q out/lang_$(VERSION).s out/verify.s > /dev/null; then \
+		echo "FIXED POINT VERIFIED: lang_$(VERSION)"; \
+		rm -f out/verify.s; \
+	else \
+		echo "ERROR: Fixed point not reached!"; \
+		echo "diff out/lang_$(VERSION).s out/verify.s"; \
+		exit 1; \
+	fi
 
-# Run the full test suite (67 tests)
-test-suite: build
-	@./test/run_suite.sh
+# Promote: update lang symlink to point to lang_next target
+promote: verify
+	@TARGET=$$(readlink $(LANG_NEXT)); \
+	ln -sf $$TARGET $(LANG); \
+	rm -f $(LANG_NEXT); \
+	echo "Promoted: $(LANG) -> $$TARGET"
+
+# Release: save .s to bootstrap/, git tag
+release:
+	@if [ -z "$(TAG)" ]; then \
+		echo "Usage: make release TAG=v0.2.0"; \
+		exit 1; \
+	fi
+	@$(MAKE) verify
+	@TARGET=$$(readlink $(LANG_NEXT)); \
+	cp out/$$TARGET.s bootstrap/$(TAG).s; \
+	ln -sf $$TARGET $(LANG); \
+	rm -f $(LANG_NEXT); \
+	git add bootstrap/$(TAG).s; \
+	echo "Saved bootstrap/$(TAG).s"; \
+	echo "Run: git commit -m 'Release $(TAG)' && git tag $(TAG)"
+
+# Run the test suite
+test-suite:
+	@if [ ! -L $(LANG) ]; then $(MAKE) bootstrap; fi
+	@./test/run_lang1_suite.sh
+
+# Run ALL tests
+test-all: test-suite test-run
 
 # Compile and run sample test programs
-test-run: build
-	@mkdir -p out
+test-run:
+	@if [ ! -L $(LANG) ]; then $(MAKE) bootstrap; fi
 	@echo "=== hello.lang ===" && \
-	./boot/lang0 test/hello.lang -o out/hello.s && \
+	$(LANG) test/hello.lang -o out/hello.s && \
 	as out/hello.s -o out/hello.o && \
 	ld out/hello.o -o out/hello && \
-	./out/hello
+	./out/hello && rm -f out/hello.o
 	@echo "=== factorial.lang ===" && \
-	./boot/lang0 test/factorial.lang -o out/factorial.s && \
+	$(LANG) test/factorial.lang -o out/factorial.s && \
 	as out/factorial.s -o out/factorial.o && \
 	ld out/factorial.o -o out/factorial && \
-	./out/factorial
+	./out/factorial && rm -f out/factorial.o
 
-# Clean build artifacts
-clean:
-	rm -f boot/lang0
-	rm -rf out/*
-
-# Compile a .lang file to assembly (usage: make compile FILE=test/hello.lang)
-compile: build
-	@mkdir -p out
-	./boot/lang0 $(FILE) -o out/$(notdir $(basename $(FILE))).s
+# Compile a .lang file (usage: make compile FILE=test/hello.lang)
+compile:
+	@if [ ! -L $(LANG) ]; then $(MAKE) bootstrap; fi
+	$(LANG) $(FILE) -o out/$(notdir $(basename $(FILE))).s
 
 # Full build chain for a .lang file (usage: make run FILE=test/hello.lang)
-run: build
-	@mkdir -p out
-	./boot/lang0 $(FILE) -o out/$(notdir $(basename $(FILE))).s
+run:
+	@if [ ! -L $(LANG) ]; then $(MAKE) bootstrap; fi
+	$(LANG) $(FILE) -o out/$(notdir $(basename $(FILE))).s
 	as out/$(notdir $(basename $(FILE))).s -o out/$(notdir $(basename $(FILE))).o
 	ld out/$(notdir $(basename $(FILE))).o -o out/$(notdir $(basename $(FILE)))
 	./out/$(notdir $(basename $(FILE)))
-
-# Show generated assembly
-asm: build
-	@mkdir -p out
-	./boot/lang0 $(FILE) -o out/$(notdir $(basename $(FILE))).s
-	cat out/$(notdir $(basename $(FILE))).s
 
 # Build with stdlib (usage: make stdlib-run FILE=myprogram.lang)
-stdlib-run: build
-	@mkdir -p out
-	./boot/lang0 std/core.lang $(FILE) -o out/$(notdir $(basename $(FILE))).s
+stdlib-run:
+	@if [ ! -L $(LANG) ]; then $(MAKE) bootstrap; fi
+	$(LANG) std/core.lang $(FILE) -o out/$(notdir $(basename $(FILE))).s
 	as out/$(notdir $(basename $(FILE))).s -o out/$(notdir $(basename $(FILE))).o
 	ld out/$(notdir $(basename $(FILE))).o -o out/$(notdir $(basename $(FILE)))
 	./out/$(notdir $(basename $(FILE)))
 
-# Test stdlib with sample program
-test-stdlib: build
-	@mkdir -p out
-	@echo "=== stdlib_test.lang ==="
-	@./boot/lang0 std/core.lang test/stdlib_test.lang -o out/stdlib_test.s && \
-	as out/stdlib_test.s -o out/stdlib_test.o && \
-	ld out/stdlib_test.o -o out/stdlib_test && \
-	./out/stdlib_test
+# Clean: remove non-essential build artifacts
+clean:
+	rm -f out/*.s out/*.o out/verify.s
+	rm -f out/hello out/factorial
+	rm -f $(LANG_NEXT)
+
+# Distclean: remove everything in out/
+distclean:
+	rm -rf out/*
+
+# Show current state
+status:
+	@echo "Latest bootstrap: $(LATEST_BOOTSTRAP) ($(LATEST_TAG))"
+	@echo "Current commit: $(VERSION)"
+	@if [ -L $(LANG) ]; then \
+		echo "lang -> $$(readlink $(LANG))"; \
+	else \
+		echo "lang: not set (run 'make bootstrap')"; \
+	fi
+	@if [ -L $(LANG_NEXT) ]; then \
+		echo "lang_next -> $$(readlink $(LANG_NEXT))"; \
+	fi

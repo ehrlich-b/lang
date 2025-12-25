@@ -1,6 +1,8 @@
 # Build artifacts
 out/
-boot/lang0
+
+# Legacy Go compiler binary (source kept in archive/boot-go/)
+archive/boot-go/lang0
 
 # Editor
 .vscode/

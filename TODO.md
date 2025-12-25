@@ -4,8 +4,7 @@
 Phase 1.5: Stabilize foundation before adding features
 
 ## Immediate Tasks
-- [ ] Assess state of project, clean up foundation we're building on
-- [ ] Archive Go compiler to `archive/boot-go/`
+- [ ] Implement bootstrap design (see designs/bootstrap_design.md)
 - [ ] Update documentation (README, LANG.md) to reflect self-hosting
 
 ## Phase 1.5: Stdlib Additions (no language changes)
@@ -42,6 +41,6 @@ Phase 1.5: Stabilize foundation before adding features
 - Phase 4: Runtime (GC, maybe LLVM backend)
 
 ## Notes
-- Go compiler archived but kept as reference
-- stage1-bootstrap.s is the escape hatch if we break things
+- Go compiler archived at archive/boot-go/
+- Bootstrap from stage1-bootstrap.s (will become bootstrap/v0.1.0.s)
 - 90% that takes half the project, skip the polish
