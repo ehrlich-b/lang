@@ -41,6 +41,12 @@ var cg_struct_count i64 = 0;
 var cg_macros *u8 = nil;
 var cg_macro_count i64 = 0;
 
+// Reader registry: simple array of reader decls
+// Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
+// Max 100 readers
+var cg_readers *u8 = nil;
+var cg_reader_count i64 = 0;
+
 // Debug flag: print macro expansions
 var cg_expand_macros i64 = 0;
 
@@ -73,6 +79,9 @@ func codegen_init() void {
 
     cg_macros = alloc(2400);   // 100 * 24
     cg_macro_count = 0;
+
+    cg_readers = alloc(2400);  // 100 * 24
+    cg_reader_count = 0;
 }
 
 // ============================================================
@@ -291,6 +300,53 @@ func find_macro(name *u8, name_len i64) *u8 {
 
         if mlen == name_len {
             if memcmp(mname, name, name_len) {
+                var dp **u8 = entry + 16;
+                return *dp;
+            }
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
+// ============================================================
+// Reader registry functions
+// ============================================================
+
+func add_reader(decl *u8) void {
+    var name *u8 = reader_decl_name(decl);
+    var name_len i64 = reader_decl_name_len(decl);
+
+    var entry *u8 = cg_readers + (cg_reader_count * 24);
+
+    // Store name_ptr
+    var np **u8 = entry;
+    *np = name;
+
+    // Store name_len
+    var nl *i64 = entry + 8;
+    *nl = name_len;
+
+    // Store decl_ptr
+    var dp **u8 = entry + 16;
+    *dp = decl;
+
+    cg_reader_count = cg_reader_count + 1;
+}
+
+func find_reader(name *u8, name_len i64) *u8 {
+    var i i64 = 0;
+    while i < cg_reader_count {
+        var entry *u8 = cg_readers + (i * 24);
+
+        var np **u8 = entry;
+        var rname *u8 = *np;
+
+        var nl *i64 = entry + 8;
+        var rlen i64 = *nl;
+
+        if rlen == name_len {
+            if memcmp(rname, name, name_len) {
                 var dp **u8 = entry + 16;
                 return *dp;
             }
@@ -1188,11 +1244,29 @@ func gen_expr(expr *u8) void {
     }
 
     if k == NODE_READER_EXPR {
-        // Reader macro invocation - requires reader registry
-        eprint("error: reader macro '");
-        eprint_buf(reader_expr_name(expr), reader_expr_name_len(expr));
-        eprintln("' not found (reader registry not implemented)");
-        cg_had_error = 1;
+        // Reader macro invocation
+        var name *u8 = reader_expr_name(expr);
+        var name_len i64 = reader_expr_name_len(expr);
+        var content *u8 = reader_expr_content(expr);
+        var content_len i64 = reader_expr_content_len(expr);
+
+        // Look up the reader
+        var reader_decl *u8 = find_reader(name, name_len);
+        if reader_decl == nil {
+            eprint("error: reader macro '");
+            eprint_buf(name, name_len);
+            eprintln("' not found");
+            cg_had_error = 1;
+            return;
+        }
+
+        // Call the reader with the content
+        var expanded *u8 = interp_call_reader(reader_decl, content, content_len);
+
+        // Generate code for the expanded AST
+        if expanded != nil {
+            gen_expr(expanded);
+        }
         return;
     }
 }
@@ -1646,8 +1720,8 @@ func gen_decl(decl *u8) void {
     }
 
     if k == NODE_READER_DECL {
-        // Reader declaration - will register in reader registry
-        // For now, just skip (reader registry not implemented)
+        // Register reader in the reader registry
+        add_reader(decl);
         return;
     }
 }
@@ -1833,6 +1907,78 @@ func expand_quote(expr *u8) *u8 {
     return expr;
 }
 
+// Helper to convert i64 to string for AST construction
+func interp_i64_to_str(value i64) *u8 {
+    var buf *u8 = alloc(24);  // Enough for any i64
+    var len i64 = 0;
+    var neg i64 = 0;
+    var v i64 = value;
+
+    if v < 0 {
+        neg = 1;
+        v = 0 - v;
+    }
+
+    if v == 0 {
+        *buf = 48;  // '0'
+        *(buf + 1) = 0;
+        return buf;
+    }
+
+    // Write digits in reverse
+    var tmp *u8 = alloc(24);
+    var tlen i64 = 0;
+    while v > 0 {
+        *(tmp + tlen) = 48 + (v % 10);
+        v = v / 10;
+        tlen = tlen + 1;
+    }
+
+    // Handle negative
+    if neg != 0 {
+        *buf = 45;  // '-'
+        len = 1;
+    }
+
+    // Reverse digits into buf
+    var i i64 = tlen - 1;
+    while i >= 0 {
+        *(buf + len) = *(tmp + i);
+        len = len + 1;
+        i = i - 1;
+    }
+    *(buf + len) = 0;
+
+    return buf;
+}
+
+func interp_strlen(s *u8) i64 {
+    var len i64 = 0;
+    while *(s + len) != 0 {
+        len = len + 1;
+    }
+    return len;
+}
+
+// Create a number expression from an integer value
+func interp_make_number(value i64) *u8 {
+    var str *u8 = interp_i64_to_str(value);
+    var len i64 = interp_strlen(str);
+    var node *u8 = number_expr_alloc();
+    number_expr_set_value(node, str);
+    number_expr_set_value_len(node, len);
+    return node;
+}
+
+// Create a binary expression
+func interp_make_binary(left *u8, op i64, right *u8) *u8 {
+    var node *u8 = binary_expr_alloc();
+    binary_expr_set_left(node, left);
+    binary_expr_set_op(node, op);
+    binary_expr_set_right(node, right);
+    return node;
+}
+
 func interp_expr(expr *u8) i64 {
     if expr == nil {
         return 0;
@@ -1948,6 +2094,126 @@ func interp_expr(expr *u8) i64 {
                     var arg_ptr **u8 = args;
                     var arg_ast *u8 = interp_expr(*arg_ptr);
                     return ast_to_string(arg_ast);
+                }
+                return 0;
+            }
+
+            // lang_number(value i64) - create a number expression
+            if fname_len == 11 && memcmp(fname, "lang_number", 11) {
+                var args *u8 = call_expr_args(expr);
+                var arg_count i64 = call_expr_arg_count(expr);
+                if arg_count >= 1 {
+                    var arg_ptr **u8 = args;
+                    var value i64 = interp_expr(*arg_ptr);
+                    return interp_make_number(value);
+                }
+                return 0;
+            }
+
+            // lang_add(left *u8, right *u8) - create addition expression
+            if fname_len == 8 && memcmp(fname, "lang_add", 8) {
+                var args *u8 = call_expr_args(expr);
+                var arg_count i64 = call_expr_arg_count(expr);
+                if arg_count >= 2 {
+                    var left_ptr **u8 = args;
+                    var right_ptr **u8 = args + 8;
+                    var left *u8 = interp_expr(*left_ptr);
+                    var right *u8 = interp_expr(*right_ptr);
+                    return interp_make_binary(left, TOKEN_PLUS, right);
+                }
+                return 0;
+            }
+
+            // lang_sub(left *u8, right *u8) - create subtraction expression
+            if fname_len == 8 && memcmp(fname, "lang_sub", 8) {
+                var args *u8 = call_expr_args(expr);
+                var arg_count i64 = call_expr_arg_count(expr);
+                if arg_count >= 2 {
+                    var left_ptr **u8 = args;
+                    var right_ptr **u8 = args + 8;
+                    var left *u8 = interp_expr(*left_ptr);
+                    var right *u8 = interp_expr(*right_ptr);
+                    return interp_make_binary(left, TOKEN_MINUS, right);
+                }
+                return 0;
+            }
+
+            // lang_mul(left *u8, right *u8) - create multiplication expression
+            if fname_len == 8 && memcmp(fname, "lang_mul", 8) {
+                var args *u8 = call_expr_args(expr);
+                var arg_count i64 = call_expr_arg_count(expr);
+                if arg_count >= 2 {
+                    var left_ptr **u8 = args;
+                    var right_ptr **u8 = args + 8;
+                    var left *u8 = interp_expr(*left_ptr);
+                    var right *u8 = interp_expr(*right_ptr);
+                    return interp_make_binary(left, TOKEN_STAR, right);
+                }
+                return 0;
+            }
+
+            // lang_div(left *u8, right *u8) - create division expression
+            if fname_len == 8 && memcmp(fname, "lang_div", 8) {
+                var args *u8 = call_expr_args(expr);
+                var arg_count i64 = call_expr_arg_count(expr);
+                if arg_count >= 2 {
+                    var left_ptr **u8 = args;
+                    var right_ptr **u8 = args + 8;
+                    var left *u8 = interp_expr(*left_ptr);
+                    var right *u8 = interp_expr(*right_ptr);
+                    return interp_make_binary(left, TOKEN_SLASH, right);
+                }
+                return 0;
+            }
+
+            // peek_char(ptr *u8, offset i64) - return character at ptr+offset
+            if fname_len == 9 && memcmp(fname, "peek_char", 9) {
+                var args *u8 = call_expr_args(expr);
+                var arg_count i64 = call_expr_arg_count(expr);
+                if arg_count >= 2 {
+                    var ptr_ptr **u8 = args;
+                    var off_ptr **u8 = args + 8;
+                    var ptr *u8 = interp_expr(*ptr_ptr);
+                    var offset i64 = interp_expr(*off_ptr);
+                    return *(ptr + offset);
+                }
+                return 0;
+            }
+
+            // str_len(ptr *u8) - return length of null-terminated string
+            if fname_len == 7 && memcmp(fname, "str_len", 7) {
+                var args *u8 = call_expr_args(expr);
+                var arg_count i64 = call_expr_arg_count(expr);
+                if arg_count >= 1 {
+                    var ptr_ptr **u8 = args;
+                    var ptr *u8 = interp_expr(*ptr_ptr);
+                    return interp_strlen(ptr);
+                }
+                return 0;
+            }
+
+            // is_digit(c i64) - return 1 if c is '0'-'9'
+            if fname_len == 8 && memcmp(fname, "is_digit", 8) {
+                var args *u8 = call_expr_args(expr);
+                var arg_count i64 = call_expr_arg_count(expr);
+                if arg_count >= 1 {
+                    var c_ptr **u8 = args;
+                    var c i64 = interp_expr(*c_ptr);
+                    if c >= 48 && c <= 57 { return 1; }
+                    return 0;
+                }
+                return 0;
+            }
+
+            // is_space(c i64) - return 1 if c is whitespace
+            if fname_len == 8 && memcmp(fname, "is_space", 8) {
+                var args *u8 = call_expr_args(expr);
+                var arg_count i64 = call_expr_arg_count(expr);
+                if arg_count >= 1 {
+                    var c_ptr **u8 = args;
+                    var c i64 = interp_expr(*c_ptr);
+                    if c == 32 || c == 9 || c == 10 || c == 13 { return 1; }
+                    return 0;
                 }
                 return 0;
             }
@@ -2359,6 +2625,27 @@ func interp_call_macro(macro_decl *u8, args *u8, arg_count i64) *u8 {
     return interp_return_value;
 }
 
+func interp_call_reader(reader_decl *u8, content *u8, content_len i64) *u8 {
+    interp_init();
+
+    // Bind the text content to the reader's parameter
+    var param_name *u8 = reader_decl_param_name(reader_decl);
+    var param_len i64 = reader_decl_param_len(reader_decl);
+
+    // The parameter is a pointer to the raw text content
+    interp_add_binding(param_name, param_len, content);
+
+    // Also bind the content length (param_name + "_len")
+    // For now, readers just get the pointer - they can scan for delimiters
+
+    // Execute reader body
+    var reader_body *u8 = reader_decl_body(reader_decl);
+    interp_stmt(reader_body);
+
+    // Return the result (should be an AST pointer)
+    return interp_return_value;
+}
+
 // ============================================================
 // Program code generation
 // ============================================================
@@ -2379,6 +2666,9 @@ func generate(prog *u8, out_path *u8) void {
         }
         if k == NODE_MACRO_DECL {
             add_macro(decl);
+        }
+        if k == NODE_READER_DECL {
+            add_reader(decl);
         }
         if k == NODE_VAR_DECL {
             add_global(
