@@ -1,0 +1,90 @@
+// macro_lisp_test.lang
+// Church-style: EVERYTHING is a macro, even control flow
+// This looks like Lisp had a baby with APL
+
+// ============================================================
+// CHURCH BOOLEANS - True and False are FUNCTIONS
+// ============================================================
+
+macro TRUE(a, b)  { return ${ $a }; }
+macro FALSE(a, b) { return ${ $b }; }
+
+macro NOT(p)      { return ${ $p(0, 1) }; }
+macro AND(p, q)   { return ${ $p($q(1, 0), 0) }; }
+macro OR(p, q)    { return ${ $p(1, $q(1, 0)) }; }
+macro XOR(p, q)   { return ${ $p(NOT($q), $q) }; }
+
+macro IF(c, t, f) { return ${ $c($t, $f) }; }
+
+// ============================================================
+// COMPARISON - returns church boolean (macro!)
+// ============================================================
+
+macro IS_ZERO(n)     { return ${ ($n == 0) }; }
+macro IS_POS(n)      { return ${ ($n > 0) }; }
+macro IS_NEG(n)      { return ${ ($n < 0) }; }
+macro EQ(a, b)       { return ${ ($a == $b) }; }
+macro LT(a, b)       { return ${ ($a < $b) }; }
+macro GT(a, b)       { return ${ ($a > $b) }; }
+macro LEQ(a, b)      { return ${ ($a <= $b) }; }
+macro GEQ(a, b)      { return ${ ($a >= $b) }; }
+
+// ============================================================
+// ARITHMETIC COMBINATORS
+// ============================================================
+
+macro ADD(a, b) { return ${ $a + $b }; }
+macro SUB(a, b) { return ${ $a - $b }; }
+macro MUL(a, b) { return ${ $a * $b }; }
+macro DIV(a, b) { return ${ $a / $b }; }
+macro MOD(a, b) { return ${ $a % $b }; }
+macro NEG(x)    { return ${ 0 - $x }; }
+
+// ============================================================
+// POINT-FREE COMBINATORS (no mention of data!)
+// ============================================================
+
+macro DOUBLE(x)  { return ${ ADD($x, $x) }; }
+macro SQUARE(x)  { return ${ MUL($x, $x) }; }
+macro CUBE(x)    { return ${ MUL($x, MUL($x, $x)) }; }
+macro SUCC(x)    { return ${ ADD($x, 1) }; }
+macro PRED(x)    { return ${ SUB($x, 1) }; }
+
+macro TWICE(f, x)  { return ${ $f($f($x)) }; }
+macro THRICE(f, x) { return ${ $f($f($f($x))) }; }
+
+// ============================================================
+// THE MIND-BENDER: Compute 42 in one expression
+// ============================================================
+
+// Formula: ((7 * 2) * 3) = 42
+// Using only combinators:
+// THRICE(DOUBLE, 7) - DOUBLE(7) + DOUBLE(7) - 7 - 7
+// = 56 - 14 + 14 - 7 - 7 = 42
+
+// Or simpler: MUL(MUL(7, 2), 3) = 42
+
+// But let's be fancy:
+// IF(GT(10, 5), MUL(6, 7), 0) = 42
+
+func main() i64 {
+    // The ENTIRE computation is ONE macro expression
+    // No intermediate variables. No statements. Just... this:
+
+    return IF(
+        AND(
+            GT(10, 5),
+            NOT(IS_ZERO(1))
+        ),
+        MUL(
+            SUCC(SUCC(SUCC(SUCC(SUCC(1))))),
+            SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(1))))))
+        ),
+        NEG(1)
+    );
+
+    // Translation:
+    // IF (10 > 5) AND (NOT (1 == 0))
+    // THEN (1+1+1+1+1+1) * (1+1+1+1+1+1+1)  = 6 * 7 = 42
+    // ELSE -1
+}
