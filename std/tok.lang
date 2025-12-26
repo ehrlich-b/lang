@@ -1,0 +1,327 @@
+// ============================================================
+// std/tok.lang - Tokenizer for Reader Macros
+// ============================================================
+//
+// A simple, configurable tokenizer for building readers.
+// Provides a stream of tokens with position tracking.
+//
+// Example:
+//   var t *Tokenizer = tok_new("(+ 1 2)");
+//   while !tok_eof(t) {
+//       var kind i64 = tok_kind(t);
+//       var text *u8 = tok_text(t);
+//       tok_advance(t);
+//   }
+//
+
+// ============================================================
+// Token Kinds
+// ============================================================
+
+var TOK_EOF i64 = 0;
+var TOK_NUMBER i64 = 1;
+var TOK_IDENT i64 = 2;
+var TOK_STRING i64 = 3;
+var TOK_LPAREN i64 = 4;    // (
+var TOK_RPAREN i64 = 5;    // )
+var TOK_LBRACKET i64 = 6;  // [
+var TOK_RBRACKET i64 = 7;  // ]
+var TOK_LBRACE i64 = 8;    // {
+var TOK_RBRACE i64 = 9;    // }
+var TOK_PLUS i64 = 10;
+var TOK_MINUS i64 = 11;
+var TOK_STAR i64 = 12;
+var TOK_SLASH i64 = 13;
+var TOK_PERCENT i64 = 14;
+var TOK_COMMA i64 = 15;
+var TOK_COLON i64 = 16;
+var TOK_SEMI i64 = 17;
+var TOK_DOT i64 = 18;
+var TOK_EQ i64 = 19;
+var TOK_LT i64 = 20;
+var TOK_GT i64 = 21;
+var TOK_BANG i64 = 22;
+var TOK_AMP i64 = 23;
+var TOK_PIPE i64 = 24;
+var TOK_UNKNOWN i64 = 99;
+
+// ============================================================
+// Tokenizer State
+// ============================================================
+
+struct Tokenizer {
+    input *u8;      // input string
+    pos i64;        // current position
+    len i64;        // length of input
+    tok_start i64;  // start of current token
+    tok_len i64;    // length of current token
+    tok_kind i64;   // kind of current token
+}
+
+func tok_new(input *u8) *Tokenizer {
+    var t *Tokenizer = alloc(48);  // 6 fields * 8 bytes
+    t.input = input;
+    t.pos = 0;
+    t.len = strlen(input);
+    t.tok_start = 0;
+    t.tok_len = 0;
+    t.tok_kind = TOK_EOF;
+    tok_next(t);  // prime the tokenizer
+    return t;
+}
+
+// ============================================================
+// Character Helpers
+// ============================================================
+
+func tok_is_digit(c i64) bool {
+    return c >= 48 && c <= 57;
+}
+
+func tok_is_alpha(c i64) bool {
+    return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95;
+}
+
+func tok_is_alnum(c i64) bool {
+    return tok_is_digit(c) || tok_is_alpha(c);
+}
+
+func tok_is_space(c i64) bool {
+    return c == 32 || c == 9 || c == 10 || c == 13;
+}
+
+// ============================================================
+// Tokenizer Methods
+// ============================================================
+
+func tok_peek_char(t *Tokenizer) i64 {
+    if t.pos >= t.len {
+        return 0;
+    }
+    // Workaround: *(struct.ptr_field) is buggy, use temp variable
+    var inp *u8 = t.input;
+    return *(inp + t.pos);
+}
+
+func tok_peek_char_at(t *Tokenizer, offset i64) i64 {
+    if t.pos + offset >= t.len {
+        return 0;
+    }
+    // Workaround: *(struct.ptr_field) is buggy, use temp variable
+    var inp *u8 = t.input;
+    return *(inp + t.pos + offset);
+}
+
+func tok_advance_char(t *Tokenizer) void {
+    if t.pos < t.len {
+        t.pos = t.pos + 1;
+    }
+}
+
+func tok_skip_whitespace(t *Tokenizer) void {
+    while t.pos < t.len && tok_is_space(tok_peek_char(t)) {
+        tok_advance_char(t);
+    }
+}
+
+func tok_next(t *Tokenizer) void {
+    tok_skip_whitespace(t);
+
+    t.tok_start = t.pos;
+    t.tok_len = 0;
+
+    if t.pos >= t.len {
+        t.tok_kind = TOK_EOF;
+        return;
+    }
+
+    var c i64 = tok_peek_char(t);
+
+    // Single character tokens
+    if c == 40 { t.tok_kind = TOK_LPAREN; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 41 { t.tok_kind = TOK_RPAREN; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 91 { t.tok_kind = TOK_LBRACKET; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 93 { t.tok_kind = TOK_RBRACKET; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 123 { t.tok_kind = TOK_LBRACE; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 125 { t.tok_kind = TOK_RBRACE; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 43 { t.tok_kind = TOK_PLUS; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 42 { t.tok_kind = TOK_STAR; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 47 { t.tok_kind = TOK_SLASH; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 37 { t.tok_kind = TOK_PERCENT; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 44 { t.tok_kind = TOK_COMMA; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 58 { t.tok_kind = TOK_COLON; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 59 { t.tok_kind = TOK_SEMI; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 46 { t.tok_kind = TOK_DOT; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 61 { t.tok_kind = TOK_EQ; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 60 { t.tok_kind = TOK_LT; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 62 { t.tok_kind = TOK_GT; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 33 { t.tok_kind = TOK_BANG; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 38 { t.tok_kind = TOK_AMP; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 124 { t.tok_kind = TOK_PIPE; t.tok_len = 1; tok_advance_char(t); return; }
+
+    // Minus or negative number
+    if c == 45 {
+        if tok_is_digit(tok_peek_char_at(t, 1)) {
+            // Negative number
+            tok_advance_char(t);
+            while tok_is_digit(tok_peek_char(t)) {
+                tok_advance_char(t);
+            }
+            t.tok_len = t.pos - t.tok_start;
+            t.tok_kind = TOK_NUMBER;
+            return;
+        }
+        t.tok_kind = TOK_MINUS;
+        t.tok_len = 1;
+        tok_advance_char(t);
+        return;
+    }
+
+    // Number
+    if tok_is_digit(c) {
+        while tok_is_digit(tok_peek_char(t)) {
+            tok_advance_char(t);
+        }
+        t.tok_len = t.pos - t.tok_start;
+        t.tok_kind = TOK_NUMBER;
+        return;
+    }
+
+    // Identifier
+    if tok_is_alpha(c) {
+        while tok_is_alnum(tok_peek_char(t)) {
+            tok_advance_char(t);
+        }
+        t.tok_len = t.pos - t.tok_start;
+        t.tok_kind = TOK_IDENT;
+        return;
+    }
+
+    // String
+    if c == 34 {  // "
+        tok_advance_char(t);  // skip opening quote
+        while tok_peek_char(t) != 0 && tok_peek_char(t) != 34 {
+            if tok_peek_char(t) == 92 {  // backslash escape
+                tok_advance_char(t);
+            }
+            tok_advance_char(t);
+        }
+        if tok_peek_char(t) == 34 {
+            tok_advance_char(t);  // skip closing quote
+        }
+        t.tok_len = t.pos - t.tok_start;
+        t.tok_kind = TOK_STRING;
+        return;
+    }
+
+    // Unknown
+    t.tok_kind = TOK_UNKNOWN;
+    t.tok_len = 1;
+    tok_advance_char(t);
+}
+
+func tok_kind(t *Tokenizer) i64 {
+    return t.tok_kind;
+}
+
+func tok_eof(t *Tokenizer) bool {
+    return t.tok_kind == TOK_EOF;
+}
+
+// Returns the raw text of the current token (not null-terminated!)
+func tok_text_ptr(t *Tokenizer) *u8 {
+    return t.input + t.tok_start;
+}
+
+func tok_text_len(t *Tokenizer) i64 {
+    return t.tok_len;
+}
+
+// Returns a null-terminated copy of the token text
+func tok_text(t *Tokenizer) *u8 {
+    var buf *u8 = alloc(t.tok_len + 1);
+    // Workaround: *(struct.ptr_field) is buggy, use temp variable
+    var inp *u8 = t.input;
+    var i i64 = 0;
+    while i < t.tok_len {
+        *(buf + i) = *(inp + t.tok_start + i);
+        i = i + 1;
+    }
+    *(buf + t.tok_len) = 0;
+    return buf;
+}
+
+// Parse the current number token as i64
+func tok_number(t *Tokenizer) i64 {
+    var ptr *u8 = t.input + t.tok_start;
+    var len i64 = t.tok_len;
+    var neg i64 = 0;
+    var i i64 = 0;
+
+    if len > 0 && *ptr == 45 {  // '-'
+        neg = 1;
+        i = 1;
+    }
+
+    var n i64 = 0;
+    while i < len {
+        n = n * 10 + (*(ptr + i) - 48);
+        i = i + 1;
+    }
+
+    if neg != 0 {
+        return 0 - n;
+    }
+    return n;
+}
+
+// Get the string value (without quotes, with escapes processed)
+func tok_string_value(t *Tokenizer) *u8 {
+    var start *u8 = t.input + t.tok_start + 1;  // skip opening quote
+    var len i64 = t.tok_len - 2;  // exclude both quotes
+    var buf *u8 = alloc(len + 1);
+    var i i64 = 0;
+    var j i64 = 0;
+
+    while i < len {
+        var c i64 = *(start + i);
+        if c == 92 && i + 1 < len {  // backslash
+            i = i + 1;
+            var next i64 = *(start + i);
+            if next == 110 { c = 10; }       // \n
+            else if next == 114 { c = 13; }  // \r
+            else if next == 116 { c = 9; }   // \t
+            else if next == 34 { c = 34; }   // \"
+            else if next == 92 { c = 92; }   // \\
+            else { c = next; }
+        }
+        *(buf + j) = c;
+        i = i + 1;
+        j = j + 1;
+    }
+    *(buf + j) = 0;
+    return buf;
+}
+
+// Check if current token matches a specific kind
+func tok_check(t *Tokenizer, kind i64) bool {
+    return t.tok_kind == kind;
+}
+
+// Match and consume a token of the given kind
+func tok_match(t *Tokenizer, kind i64) bool {
+    if t.tok_kind == kind {
+        tok_next(t);
+        return true;
+    }
+    return false;
+}
+
+// Expect a token of the given kind (error if not found)
+func tok_expect(t *Tokenizer, kind i64) bool {
+    if t.tok_kind != kind {
+        return false;
+    }
+    tok_next(t);
+    return true;
+}

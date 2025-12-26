@@ -1,0 +1,56 @@
+// Test std/emit.lang code generation helpers
+
+include "std/core.lang"
+include "std/emit.lang"
+
+func main() i64 {
+    // Test emit_number
+    var n *u8 = emit_number(42);
+    print("emit_number(42) = ");
+    print(n);
+    print("\n");
+
+    // Test negative number
+    var neg *u8 = emit_number(-17);
+    print("emit_number(-17) = ");
+    print(neg);
+    print("\n");
+
+    // Test emit_binop
+    var b *u8 = emit_binop("1", "+", "2");
+    print("emit_binop(1, +, 2) = ");
+    print(b);
+    print("\n");
+
+    // Test nested expressions
+    var left *u8 = emit_number(1);
+    var right *u8 = emit_binop(emit_number(2), "*", emit_number(3));
+    var nested *u8 = emit_binop(left, "+", right);
+    print("(1 + (2 * 3)) = ");
+    print(nested);
+    print("\n");
+
+    // Test emit_string
+    var s *u8 = emit_string("hello");
+    print("emit_string(hello) = ");
+    print(s);
+    print("\n");
+
+    // Test emit_unary
+    var u *u8 = emit_unary("-", "5");
+    print("emit_unary(-, 5) = ");
+    print(u);
+    print("\n");
+
+    // Test emit_call
+    var args *u8 = vec_new();
+    vec_push(args, "1");
+    vec_push(args, "2");
+    vec_push(args, "3");
+    var c *u8 = emit_call("foo", args);
+    print("emit_call(foo, [1,2,3]) = ");
+    print(c);
+    print("\n");
+
+    return 0;
+}

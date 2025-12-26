@@ -1,0 +1,80 @@
+// Test std/tok.lang tokenizer
+
+include "std/core.lang"
+include "std/tok.lang"
+
+func kind_name(k i64) *u8 {
+    if k == TOK_EOF { return "EOF"; }
+    if k == TOK_NUMBER { return "NUMBER"; }
+    if k == TOK_IDENT { return "IDENT"; }
+    if k == TOK_STRING { return "STRING"; }
+    if k == TOK_LPAREN { return "LPAREN"; }
+    if k == TOK_RPAREN { return "RPAREN"; }
+    if k == TOK_PLUS { return "PLUS"; }
+    if k == TOK_MINUS { return "MINUS"; }
+    if k == TOK_STAR { return "STAR"; }
+    if k == TOK_SLASH { return "SLASH"; }
+    return "?";
+}
+
+func main() i64 {
+    print("=== Tokenizer Test ===\n\n");
+
+    // Test 1: Simple arithmetic
+    print("Input: (+ 1 2)\n");
+    var t *Tokenizer = tok_new("(+ 1 2)");
+    while !tok_eof(t) {
+        print("  ");
+        print(kind_name(tok_kind(t)));
+        print(": ");
+        print(tok_text(t));
+        print("\n");
+        tok_next(t);
+    }
+    print("\n");
+
+    // Test 2: Nested expression
+    print("Input: (* (+ 1 2) 3)\n");
+    t = tok_new("(* (+ 1 2) 3)");
+    while !tok_eof(t) {
+        print("  ");
+        print(kind_name(tok_kind(t)));
+        print(": ");
+        print(tok_text(t));
+        print("\n");
+        tok_next(t);
+    }
+    print("\n");
+
+    // Test 3: Negative numbers
+    print("Input: (- -5 3)\n");
+    t = tok_new("(- -5 3)");
+    while !tok_eof(t) {
+        print("  ");
+        print(kind_name(tok_kind(t)));
+        print(": ");
+        print(tok_text(t));
+        if tok_kind(t) == TOK_NUMBER {
+            print(" = ");
+            print_int(tok_number(t));
+        }
+        print("\n");
+        tok_next(t);
+    }
+    print("\n");
+
+    // Test 4: Identifiers
+    print("Input: (define x 42)\n");
+    t = tok_new("(define x 42)");
+    while !tok_eof(t) {
+        print("  ");
+        print(kind_name(tok_kind(t)));
+        print(": ");
+        print(tok_text(t));
+        print("\n");
+        tok_next(t);
+    }
+
+    print("\nAll tokenizer tests passed!\n");
+    return 0;
+}

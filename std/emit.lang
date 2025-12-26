@@ -1,0 +1,197 @@
+// ============================================================
+// std/emit.lang - Code Generation Helpers for Reader Macros
+// ============================================================
+//
+// This module provides helpers for generating lang source code.
+// Readers output lang source text, and these functions make that easy.
+//
+// Example:
+//   var code *u8 = emit_binop(emit_number(1), "+", emit_number(2));
+//   // code = "(1 + 2)"
+//
+
+// ============================================================
+// String Builder
+// ============================================================
+//
+// Simple growable string buffer for building output.
+
+struct StringBuilder {
+    buf *u8;
+    len i64;
+    cap i64;
+}
+
+func sb_new() *StringBuilder {
+    var sb *StringBuilder = alloc(24);
+    sb.cap = 256;
+    sb.buf = alloc(sb.cap);
+    sb.len = 0;
+    return sb;
+}
+
+func sb_grow(sb *StringBuilder, need i64) void {
+    if sb.len + need >= sb.cap {
+        var new_cap i64 = sb.cap * 2;
+        while new_cap < sb.len + need {
+            new_cap = new_cap * 2;
+        }
+        var new_buf *u8 = alloc(new_cap);
+        var i i64 = 0;
+        while i < sb.len {
+            *(new_buf + i) = *(sb.buf + i);
+            i = i + 1;
+        }
+        sb.buf = new_buf;
+        sb.cap = new_cap;
+    }
+}
+
+func sb_char(sb *StringBuilder, c i64) void {
+    sb_grow(sb, 1);
+    *(sb.buf + sb.len) = c;
+    sb.len = sb.len + 1;
+}
+
+func sb_str(sb *StringBuilder, s *u8) void {
+    while *s != 0 {
+        sb_char(sb, *s);
+        s = s + 1;
+    }
+}
+
+func sb_int(sb *StringBuilder, n i64) void {
+    if n < 0 {
+        sb_char(sb, 45);  // '-'
+        n = 0 - n;
+    }
+    if n == 0 {
+        sb_char(sb, 48);  // '0'
+        return;
+    }
+    // Count digits
+    var temp i64 = n;
+    var digits i64 = 0;
+    while temp > 0 {
+        digits = digits + 1;
+        temp = temp / 10;
+    }
+    // Write digits
+    var i i64 = digits - 1;
+    while i >= 0 {
+        var divisor i64 = 1;
+        var j i64 = 0;
+        while j < i {
+            divisor = divisor * 10;
+            j = j + 1;
+        }
+        var digit i64 = (n / divisor) % 10;
+        sb_char(sb, 48 + digit);
+        i = i - 1;
+    }
+}
+
+func sb_finish(sb *StringBuilder) *u8 {
+    sb_char(sb, 0);
+    return sb.buf;
+}
+
+// ============================================================
+// Emit Helpers
+// ============================================================
+
+// emit_number(42) -> "42"
+func emit_number(n i64) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_int(sb, n);
+    return sb_finish(sb);
+}
+
+// emit_binop("1", "+", "2") -> "(1 + 2)"
+func emit_binop(left *u8, op *u8, right *u8) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_char(sb, 40);  // '('
+    sb_str(sb, left);
+    sb_char(sb, 32);  // ' '
+    sb_str(sb, op);
+    sb_char(sb, 32);  // ' '
+    sb_str(sb, right);
+    sb_char(sb, 41);  // ')'
+    return sb_finish(sb);
+}
+
+// emit_unary("-", "5") -> "(-5)"
+func emit_unary(op *u8, operand *u8) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_char(sb, 40);  // '('
+    sb_str(sb, op);
+    sb_str(sb, operand);
+    sb_char(sb, 41);  // ')'
+    return sb_finish(sb);
+}
+
+// emit_call("foo", ["1", "2"]) -> "foo(1, 2)"
+// args is a Vec of *u8 strings
+func emit_call(fn *u8, args *u8) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, fn);
+    sb_char(sb, 40);  // '('
+    var n i64 = vec_len(args);
+    var i i64 = 0;
+    while i < n {
+        if i > 0 {
+            sb_char(sb, 44);  // ','
+            sb_char(sb, 32);  // ' '
+        }
+        var arg *u8 = vec_get(args, i);
+        sb_str(sb, arg);
+        i = i + 1;
+    }
+    sb_char(sb, 41);  // ')'
+    return sb_finish(sb);
+}
+
+// emit_string("hello") -> "\"hello\""
+// Handles escaping of special characters
+func emit_string(s *u8) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_char(sb, 34);  // '"'
+    while *s != 0 {
+        var c i64 = *s;
+        if c == 34 {         // '"'
+            sb_char(sb, 92); // '\'
+            sb_char(sb, 34);
+        } else if c == 92 {  // '\'
+            sb_char(sb, 92);
+            sb_char(sb, 92);
+        } else if c == 10 {  // newline
+            sb_char(sb, 92);
+            sb_char(sb, 110); // 'n'
+        } else if c == 13 {  // carriage return
+            sb_char(sb, 92);
+            sb_char(sb, 114); // 'r'
+        } else if c == 9 {   // tab
+            sb_char(sb, 92);
+            sb_char(sb, 116); // 't'
+        } else {
+            sb_char(sb, c);
+        }
+        s = s + 1;
+    }
+    sb_char(sb, 34);  // '"'
+    return sb_finish(sb);
+}
+
+// emit_ident just returns the string as-is (identifiers don't need quoting)
+func emit_ident(name *u8) *u8 {
+    return str_dup(name);
+}
+
+// emit_paren wraps an expression in parentheses
+func emit_paren(expr *u8) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_char(sb, 40);  // '('
+    sb_str(sb, expr);
+    sb_char(sb, 41);  // ')'
+    return sb_finish(sb);
+}

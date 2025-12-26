@@ -1,0 +1,25 @@
+include "std/core.lang"
+
+func main() i64 {
+    var s *u8 = "(+";
+    
+    print("String: ");
+    print(s);
+    print("\n");
+    
+    print("s = ");
+    print_int(s);
+    print("\n");
+    
+    var c0 i64 = *s;
+    print("*s = ");
+    print_int(c0);
+    print(" (should be 40 for '(')\n");
+    
+    var c1 i64 = *(s + 1);
+    print("*(s+1) = ");
+    print_int(c1);
+    print(" (should be 43 for '+')\n");
+    
+    return 0;
+}

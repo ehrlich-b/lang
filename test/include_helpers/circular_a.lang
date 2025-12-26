@@ -1,0 +1,6 @@
+// Circular include test - A includes B
+include "test/include_helpers/circular_b.lang"
+
+func from_a() i64 {
+    return 1;
+}

@@ -1,0 +1,6 @@
+// Helper: includes multiply and provides square
+include "test/include_helpers/multiply.lang"
+
+func square(x i64) i64 {
+    return multiply(x, x);
+}

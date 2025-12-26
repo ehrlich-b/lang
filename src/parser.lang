@@ -36,6 +36,7 @@ var NODE_UNQUOTE_STRING_EXPR i64 = 23;  // $@name - unquote string as string lit
 var NODE_IMPORT i64 = 24;         // import "path"
 var NODE_READER_DECL i64 = 25;    // reader name(text) { }
 var NODE_READER_EXPR i64 = 26;    // #name{content} - reader macro invocation
+var NODE_INCLUDE_DECL i64 = 27;   // include "path"
 
 // Type kinds
 var TYPE_BASE i64 = 1;
@@ -1016,6 +1017,43 @@ func reader_expr_set_content_len(node *u8, len i64) void {
 }
 
 // ============================================================
+// IncludeDecl struct
+// Stores path to included file
+// ============================================================
+
+struct IncludeDecl {
+    kind i64;
+    path *u8;
+    path_len i64;
+}
+
+func include_decl_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_INCLUDE_DECL);
+    return node;
+}
+
+func include_decl_path(node *u8) *u8 {
+    var n *IncludeDecl = node;
+    return n.path;
+}
+
+func include_decl_set_path(node *u8, ptr *u8) void {
+    var n *IncludeDecl = node;
+    n.path = ptr;
+}
+
+func include_decl_path_len(node *u8) i64 {
+    var n *IncludeDecl = node;
+    return n.path_len;
+}
+
+func include_decl_set_path_len(node *u8, len i64) void {
+    var n *IncludeDecl = node;
+    n.path_len = len;
+}
+
+// ============================================================
 // Type accessors
 // ============================================================
 
@@ -1800,6 +1838,28 @@ func parse_reader_decl() *u8 {
     return node;
 }
 
+// Parse: include "path"
+func parse_include() *u8 {
+    if !parse_match(TOKEN_STRING) {
+        parse_error("expected string path after include");
+        return nil;
+    }
+    var path_tok *u8 = parse_previous();
+
+    // Extract path (string value includes quotes, we want just the path)
+    var path *u8 = tok_lexeme(path_tok);
+    var path_len i64 = tok_lexeme_len(path_tok);
+
+    // Strip quotes from path
+    path = path + 1;
+    path_len = path_len - 2;
+
+    var node *u8 = include_decl_alloc();
+    include_decl_set_path(node, path);
+    include_decl_set_path_len(node, path_len);
+    return node;
+}
+
 func parse_declaration() *u8 {
     if parse_match(TOKEN_FUNC) {
         return parse_func_decl();
@@ -1818,6 +1878,9 @@ func parse_declaration() *u8 {
     }
     if parse_match(TOKEN_READER) {
         return parse_reader_decl();
+    }
+    if parse_match(TOKEN_INCLUDE) {
+        return parse_include();
     }
 
     parse_error("expected declaration");
@@ -1868,4 +1931,71 @@ func program_decl_count(prog *u8) i64 {
 func get_decl(decls *u8, index i64) *u8 {
     var p **u8 = decls + (index * 8);
     return *p;
+}
+
+// ============================================================
+// Parse expression from string (for V2 reader macros)
+// ============================================================
+
+func parse_expression_from_string(source *u8) *u8 {
+    // Save current parser state
+    var saved_tokens *u8 = parse_tokens;
+    var saved_current i64 = parse_current;
+    var saved_errors i64 = parse_error_count;
+
+    // Initialize fresh state
+    parse_tokens = vec_new();
+    parse_current = 0;
+    parse_error_count = 0;
+
+    // Tokenize the source
+    parser_tokenize(source);
+
+    // Parse as expression
+    var expr *u8 = nil;
+    if parser_token_count() > 0 {
+        expr = parse_expression();
+    }
+
+    // Free the temporary token vec
+    vec_free(parse_tokens);
+
+    // Restore parser state
+    parse_tokens = saved_tokens;
+    parse_current = saved_current;
+    parse_error_count = saved_errors;
+
+    return expr;
+}
+
+// Parse a program from a source string (for include processing)
+func parse_program_from_string(source *u8) *u8 {
+    // Save current parser state
+    var saved_tokens *u8 = parse_tokens;
+    var saved_current i64 = parse_current;
+    var saved_errors i64 = parse_error_count;
+
+    // Initialize fresh state
+    parse_tokens = vec_new();
+    parse_current = 0;
+    parse_error_count = 0;
+
+    // Tokenize the source
+    parser_tokenize(source);
+
+    // Parse as program
+    var prog *u8 = nil;
+    if parser_token_count() > 0 {
+        prog = parse_program();
+    }
+
+    // Free the temporary token vec
+    vec_free(parse_tokens);
+
+    // Restore parser state
+    parse_tokens = saved_tokens;
+    parse_current = saved_current;
+    parse_error_count = saved_errors;
+
+    return prog;
 }

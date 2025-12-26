@@ -47,8 +47,18 @@ var cg_macro_count i64 = 0;
 var cg_readers *u8 = nil;
 var cg_reader_count i64 = 0;
 
+// Include stack for loop detection
+// Each entry: [path_ptr:8][path_len:8] = 16 bytes
+// Max 32 nested includes
+var cg_include_stack *u8 = nil;
+var cg_include_count i64 = 0;
+
 // Debug flag: print macro expansions
 var cg_expand_macros i64 = 0;
+
+// Program declarations (for interpreter function calls)
+var cg_decls *u8 = nil;
+var cg_decl_count i64 = 0;
 
 // Workaround for codegen bug - temp storage
 var cg_temp_struct_decl *u8 = nil;
@@ -82,6 +92,9 @@ func codegen_init() void {
 
     cg_readers = alloc(2400);  // 100 * 24
     cg_reader_count = 0;
+
+    cg_include_stack = alloc(512);  // 32 * 16
+    cg_include_count = 0;
 }
 
 // ============================================================
@@ -313,6 +326,135 @@ func find_macro(name *u8, name_len i64) *u8 {
 // Reader registry functions
 // ============================================================
 
+// Execute a program, wait for completion (no stdin/stdout capture)
+func exec_run(program *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8) i64 {
+    var argv *u8 = alloc(56);  // 7 pointers
+    var a0 **u8 = argv;      *a0 = program;
+    var a1 **u8 = argv + 8;  *a1 = arg1;
+    var a2 **u8 = argv + 16; *a2 = arg2;
+    var a3 **u8 = argv + 24; *a3 = arg3;
+    var a4 **u8 = argv + 32; *a4 = arg4;
+    var a5 **u8 = argv + 40; *a5 = arg5;
+    var a6 **u8 = argv + 48; *a6 = nil;
+
+    var envp *u8 = alloc(8);
+    var e0 **u8 = envp;
+    *e0 = nil;
+
+    var pid i64 = syscall(57);
+    if pid == 0 {
+        syscall(59, program, argv, envp);
+        syscall(60, 127);
+    }
+
+    var status *i64 = alloc(8);
+    syscall(61, pid, status, 0, 0);
+    return (*status / 256) % 256;  // extract exit code
+}
+
+// Execute a program with argv array directly (for more than 5 args)
+func exec_run_argv(program *u8, argv *u8) i64 {
+    var envp *u8 = alloc(8);
+    var e0 **u8 = envp;
+    *e0 = nil;
+
+    var pid i64 = syscall(57);
+    if pid == 0 {
+        syscall(59, program, argv, envp);
+        syscall(60, 127);
+    }
+
+    var status *i64 = alloc(8);
+    syscall(61, pid, status, 0, 0);
+    return (*status / 256) % 256;
+}
+
+// Generate and compile reader to executable
+func compile_reader_to_executable(decl *u8) void {
+    var name *u8 = reader_decl_name(decl);
+    var name_len i64 = reader_decl_name_len(decl);
+    var body *u8 = reader_decl_body(decl);
+
+    // Create .lang-cache/readers/ directories
+    syscall(83, ".lang-cache", 493);  // mkdir
+    syscall(83, ".lang-cache/readers", 493);
+
+    // Build paths
+    var base_path *u8 = alloc(256);
+    var i i64 = 0;
+    var src *u8 = ".lang-cache/readers/";
+    while *src != 0 {
+        *(base_path + i) = *src;
+        src = src + 1;
+        i = i + 1;
+    }
+    var j i64 = 0;
+    while j < name_len {
+        *(base_path + i) = *(name + j);
+        i = i + 1;
+        j = j + 1;
+    }
+    *(base_path + i) = 0;
+
+    var src_path *u8 = str_concat(base_path, ".lang");
+    var asm_path *u8 = str_concat(base_path, ".s");
+    var obj_path *u8 = str_concat(base_path, ".o");
+    var exe_path *u8 = str_dup(base_path);
+
+    // Generate wrapper source
+    var body_src *u8 = ast_to_string_block(body);
+
+    // Build wrapper source (stdlib passed on command line to avoid bootstrap issue)
+    var wrapper *u8 = alloc(65536);
+    var wp *u8 = wrapper;
+
+    // func <name>(text *u8) *u8
+    var fn *u8 = "func ";
+    while *fn != 0 { *wp = *fn; wp = wp + 1; fn = fn + 1; }
+    j = 0;
+    while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
+    var sig *u8 = "(text *u8) *u8 ";
+    while *sig != 0 { *wp = *sig; wp = wp + 1; sig = sig + 1; }
+    while *body_src != 0 { *wp = *body_src; wp = wp + 1; body_src = body_src + 1; }
+    *wp = 10; wp = wp + 1;  // newline
+
+    // main() wrapper
+    var main_src *u8 = "func main() i64 {\n    var buf *u8 = alloc(65536);\n    var n i64 = file_read(0, buf, 65536);\n    *(buf + n) = 0;\n    var result *u8 = ";
+    while *main_src != 0 { *wp = *main_src; wp = wp + 1; main_src = main_src + 1; }
+    j = 0;
+    while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
+    var main_end *u8 = "(buf);\n    print(result);\n    return 0;\n}\n";
+    while *main_end != 0 { *wp = *main_end; wp = wp + 1; main_end = main_end + 1; }
+    *wp = 0;
+
+    // Write wrapper source to file
+    var fd i64 = syscall(2, src_path, 577, 420);  // open with O_CREAT|O_TRUNC|O_WRONLY
+    var wlen i64 = 0;
+    var ws *u8 = wrapper;
+    while *ws != 0 { wlen = wlen + 1; ws = ws + 1; }
+    syscall(1, fd, wrapper, wlen);
+    syscall(3, fd);
+
+    // Compile: ./out/lang std/core.lang std/tok.lang std/emit.lang <src> -o <asm>
+    // Include the parsing toolkit so readers can use tok_* and emit_* functions
+    var compile_argv *u8 = alloc(64);  // 8 pointers
+    var ca0 **u8 = compile_argv;      *ca0 = "./out/lang";
+    var ca1 **u8 = compile_argv + 8;  *ca1 = "std/core.lang";
+    var ca2 **u8 = compile_argv + 16; *ca2 = "std/tok.lang";
+    var ca3 **u8 = compile_argv + 24; *ca3 = "std/emit.lang";
+    var ca4 **u8 = compile_argv + 32; *ca4 = src_path;
+    var ca5 **u8 = compile_argv + 40; *ca5 = "-o";
+    var ca6 **u8 = compile_argv + 48; *ca6 = asm_path;
+    var ca7 **u8 = compile_argv + 56; *ca7 = nil;
+    exec_run_argv("./out/lang", compile_argv);
+
+    // Assemble: as <asm> -o <obj>
+    exec_run("/usr/bin/as", asm_path, "-o", obj_path, nil, nil);
+
+    // Link: ld <obj> -o <exe>
+    exec_run("/usr/bin/ld", obj_path, "-o", exe_path, nil, nil);
+}
+
 func add_reader(decl *u8) void {
     var name *u8 = reader_decl_name(decl);
     var name_len i64 = reader_decl_name_len(decl);
@@ -332,6 +474,9 @@ func add_reader(decl *u8) void {
     *dp = decl;
 
     cg_reader_count = cg_reader_count + 1;
+
+    // V2: Compile reader to executable
+    compile_reader_to_executable(decl);
 }
 
 func find_reader(name *u8, name_len i64) *u8 {
@@ -354,6 +499,163 @@ func find_reader(name *u8, name_len i64) *u8 {
         i = i + 1;
     }
     return nil;
+}
+
+// Look up a function by name in program declarations
+func find_func(name *u8, name_len i64) *u8 {
+    var i i64 = 0;
+    while i < cg_decl_count {
+        var decl *u8 = get_decl(cg_decls, i);
+        if node_kind(decl) == NODE_FUNC_DECL {
+            var fname *u8 = func_decl_name(decl);
+            var flen i64 = func_decl_name_len(decl);
+            if flen == name_len && memcmp(fname, name, name_len) {
+                return decl;
+            }
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
+// ============================================================
+// Include stack operations (for loop detection)
+// ============================================================
+
+func include_stack_push(path *u8, path_len i64) void {
+    var entry *u8 = cg_include_stack + (cg_include_count * 16);
+    var pp **u8 = entry;
+    *pp = path;
+    var pl *i64 = entry + 8;
+    *pl = path_len;
+    cg_include_count = cg_include_count + 1;
+}
+
+func include_stack_pop() void {
+    if cg_include_count > 0 {
+        cg_include_count = cg_include_count - 1;
+    }
+}
+
+func include_stack_contains(path *u8, path_len i64) bool {
+    var i i64 = 0;
+    while i < cg_include_count {
+        var entry *u8 = cg_include_stack + (i * 16);
+        var pp **u8 = entry;
+        var stack_path *u8 = *pp;
+        var pl *i64 = entry + 8;
+        var stack_len i64 = *pl;
+
+        if stack_len == path_len && memcmp(stack_path, path, path_len) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Read a file into a buffer (returns length, or -1 on error)
+func read_file_contents(path *u8, path_len i64, buf *u8, buf_cap i64) i64 {
+    // Null-terminate path
+    var path_z *u8 = alloc(path_len + 1);
+    var j i64 = 0;
+    while j < path_len {
+        *(path_z + j) = *(path + j);
+        j = j + 1;
+    }
+    *(path_z + path_len) = 0;
+
+    // Open file (O_RDONLY = 0)
+    var fd i64 = syscall(2, path_z, 0, 0);
+    if fd < 0 {
+        return -1;
+    }
+
+    // Read contents
+    var n i64 = syscall(0, fd, buf, buf_cap);
+    syscall(3, fd);  // close
+
+    if n >= 0 {
+        *(buf + n) = 0;  // null-terminate
+    }
+    return n;
+}
+
+// Process a single declaration (first pass) - handles includes recursively
+// Note: This function must be defined before process_include_first_pass uses it
+func process_decl_first_pass(decl *u8) void {
+    var k i64 = node_kind(decl);
+    if k == NODE_STRUCT_DECL {
+        add_struct(decl);
+        return;
+    }
+    if k == NODE_MACRO_DECL {
+        add_macro(decl);
+        return;
+    }
+    if k == NODE_READER_DECL {
+        add_reader(decl);
+        return;
+    }
+    if k == NODE_VAR_DECL {
+        add_global(
+            var_decl_name(decl),
+            var_decl_name_len(decl),
+            var_decl_type(decl),
+            var_decl_init(decl)
+        );
+        return;
+    }
+    if k == NODE_INCLUDE_DECL {
+        // Inline include processing to avoid forward declaration
+        var path *u8 = include_decl_path(decl);
+        var path_len i64 = include_decl_path_len(decl);
+
+        // Check for circular include
+        if include_stack_contains(path, path_len) {
+            eprint("error: circular include detected: ");
+            eprint_buf(path, path_len);
+            eprintln("");
+            return;
+        }
+
+        // Push onto include stack
+        include_stack_push(path, path_len);
+
+        // Read file
+        var buf *u8 = alloc(1048576);  // 1MB max
+        var n i64 = read_file_contents(path, path_len, buf, 1048576);
+        if n < 0 {
+            eprint("error: cannot open include file: ");
+            eprint_buf(path, path_len);
+            eprintln("");
+            include_stack_pop();
+            return;
+        }
+
+        // Parse file
+        var prog *u8 = parse_program_from_string(buf);
+        if prog == nil {
+            eprint("error: failed to parse include file: ");
+            eprint_buf(path, path_len);
+            eprintln("");
+            include_stack_pop();
+            return;
+        }
+
+        // Process declarations from included file (first pass)
+        var inc_decls *u8 = program_decls(prog);
+        var inc_count i64 = program_decl_count(prog);
+        var i i64 = 0;
+        while i < inc_count {
+            process_decl_first_pass(get_decl(inc_decls, i));
+            i = i + 1;
+        }
+
+        // Pop from include stack
+        include_stack_pop();
+        return;
+    }
 }
 
 // ============================================================
@@ -1244,7 +1546,7 @@ func gen_expr(expr *u8) void {
     }
 
     if k == NODE_READER_EXPR {
-        // Reader macro invocation
+        // Reader macro invocation - V2: run compiled executable
         var name *u8 = reader_expr_name(expr);
         var name_len i64 = reader_expr_name_len(expr);
         var content *u8 = reader_expr_content(expr);
@@ -1260,8 +1562,29 @@ func gen_expr(expr *u8) void {
             return;
         }
 
-        // Call the reader with the content
-        var expanded *u8 = interp_call_reader(reader_decl, content, content_len);
+        // Build path to reader executable
+        var exe_path *u8 = alloc(256);
+        var i i64 = 0;
+        var base *u8 = ".lang-cache/readers/";
+        while *base != 0 { *(exe_path + i) = *base; i = i + 1; base = base + 1; }
+        var j i64 = 0;
+        while j < name_len { *(exe_path + i) = *(name + j); i = i + 1; j = j + 1; }
+        *(exe_path + i) = 0;
+
+        // Execute reader with content as input
+        var output *u8 = alloc(65536);
+        var n i64 = exec_capture(exe_path, content, content_len, output, 65536);
+
+        if n <= 0 {
+            eprint("error: reader '");
+            eprint_buf(name, name_len);
+            eprintln("' returned no output");
+            cg_had_error = 1;
+            return;
+        }
+
+        // Parse the output as a lang expression
+        var expanded *u8 = parse_expression_from_string(output);
 
         // Generate code for the expanded AST
         if expanded != nil {
@@ -1720,8 +2043,48 @@ func gen_decl(decl *u8) void {
     }
 
     if k == NODE_READER_DECL {
-        // Register reader in the reader registry
-        add_reader(decl);
+        // Already registered in first pass
+        return;
+    }
+
+    if k == NODE_INCLUDE_DECL {
+        // Generate code for included declarations (inline to avoid forward decl)
+        var path *u8 = include_decl_path(decl);
+        var path_len i64 = include_decl_path_len(decl);
+
+        // Check for circular include (same check as first pass)
+        if include_stack_contains(path, path_len) {
+            // Already detected in first pass, just skip silently
+            return;
+        }
+
+        // Push onto include stack
+        include_stack_push(path, path_len);
+
+        // Re-read and re-parse file
+        var buf *u8 = alloc(1048576);
+        var n i64 = read_file_contents(path, path_len, buf, 1048576);
+        if n < 0 {
+            include_stack_pop();
+            return;
+        }
+
+        var prog *u8 = parse_program_from_string(buf);
+        if prog == nil {
+            include_stack_pop();
+            return;
+        }
+
+        // Generate code for included declarations
+        var inc_decls *u8 = program_decls(prog);
+        var inc_count i64 = program_decl_count(prog);
+        var i i64 = 0;
+        while i < inc_count {
+            gen_decl(get_decl(inc_decls, i));
+            i = i + 1;
+        }
+
+        include_stack_pop();
         return;
     }
 }
@@ -1907,78 +2270,6 @@ func expand_quote(expr *u8) *u8 {
     return expr;
 }
 
-// Helper to convert i64 to string for AST construction
-func interp_i64_to_str(value i64) *u8 {
-    var buf *u8 = alloc(24);  // Enough for any i64
-    var len i64 = 0;
-    var neg i64 = 0;
-    var v i64 = value;
-
-    if v < 0 {
-        neg = 1;
-        v = 0 - v;
-    }
-
-    if v == 0 {
-        *buf = 48;  // '0'
-        *(buf + 1) = 0;
-        return buf;
-    }
-
-    // Write digits in reverse
-    var tmp *u8 = alloc(24);
-    var tlen i64 = 0;
-    while v > 0 {
-        *(tmp + tlen) = 48 + (v % 10);
-        v = v / 10;
-        tlen = tlen + 1;
-    }
-
-    // Handle negative
-    if neg != 0 {
-        *buf = 45;  // '-'
-        len = 1;
-    }
-
-    // Reverse digits into buf
-    var i i64 = tlen - 1;
-    while i >= 0 {
-        *(buf + len) = *(tmp + i);
-        len = len + 1;
-        i = i - 1;
-    }
-    *(buf + len) = 0;
-
-    return buf;
-}
-
-func interp_strlen(s *u8) i64 {
-    var len i64 = 0;
-    while *(s + len) != 0 {
-        len = len + 1;
-    }
-    return len;
-}
-
-// Create a number expression from an integer value
-func interp_make_number(value i64) *u8 {
-    var str *u8 = interp_i64_to_str(value);
-    var len i64 = interp_strlen(str);
-    var node *u8 = number_expr_alloc();
-    number_expr_set_value(node, str);
-    number_expr_set_value_len(node, len);
-    return node;
-}
-
-// Create a binary expression
-func interp_make_binary(left *u8, op i64, right *u8) *u8 {
-    var node *u8 = binary_expr_alloc();
-    binary_expr_set_left(node, left);
-    binary_expr_set_op(node, op);
-    binary_expr_set_right(node, right);
-    return node;
-}
-
 func interp_expr(expr *u8) i64 {
     if expr == nil {
         return 0;
@@ -2098,125 +2389,6 @@ func interp_expr(expr *u8) i64 {
                 return 0;
             }
 
-            // lang_number(value i64) - create a number expression
-            if fname_len == 11 && memcmp(fname, "lang_number", 11) {
-                var args *u8 = call_expr_args(expr);
-                var arg_count i64 = call_expr_arg_count(expr);
-                if arg_count >= 1 {
-                    var arg_ptr **u8 = args;
-                    var value i64 = interp_expr(*arg_ptr);
-                    return interp_make_number(value);
-                }
-                return 0;
-            }
-
-            // lang_add(left *u8, right *u8) - create addition expression
-            if fname_len == 8 && memcmp(fname, "lang_add", 8) {
-                var args *u8 = call_expr_args(expr);
-                var arg_count i64 = call_expr_arg_count(expr);
-                if arg_count >= 2 {
-                    var left_ptr **u8 = args;
-                    var right_ptr **u8 = args + 8;
-                    var left *u8 = interp_expr(*left_ptr);
-                    var right *u8 = interp_expr(*right_ptr);
-                    return interp_make_binary(left, TOKEN_PLUS, right);
-                }
-                return 0;
-            }
-
-            // lang_sub(left *u8, right *u8) - create subtraction expression
-            if fname_len == 8 && memcmp(fname, "lang_sub", 8) {
-                var args *u8 = call_expr_args(expr);
-                var arg_count i64 = call_expr_arg_count(expr);
-                if arg_count >= 2 {
-                    var left_ptr **u8 = args;
-                    var right_ptr **u8 = args + 8;
-                    var left *u8 = interp_expr(*left_ptr);
-                    var right *u8 = interp_expr(*right_ptr);
-                    return interp_make_binary(left, TOKEN_MINUS, right);
-                }
-                return 0;
-            }
-
-            // lang_mul(left *u8, right *u8) - create multiplication expression
-            if fname_len == 8 && memcmp(fname, "lang_mul", 8) {
-                var args *u8 = call_expr_args(expr);
-                var arg_count i64 = call_expr_arg_count(expr);
-                if arg_count >= 2 {
-                    var left_ptr **u8 = args;
-                    var right_ptr **u8 = args + 8;
-                    var left *u8 = interp_expr(*left_ptr);
-                    var right *u8 = interp_expr(*right_ptr);
-                    return interp_make_binary(left, TOKEN_STAR, right);
-                }
-                return 0;
-            }
-
-            // lang_div(left *u8, right *u8) - create division expression
-            if fname_len == 8 && memcmp(fname, "lang_div", 8) {
-                var args *u8 = call_expr_args(expr);
-                var arg_count i64 = call_expr_arg_count(expr);
-                if arg_count >= 2 {
-                    var left_ptr **u8 = args;
-                    var right_ptr **u8 = args + 8;
-                    var left *u8 = interp_expr(*left_ptr);
-                    var right *u8 = interp_expr(*right_ptr);
-                    return interp_make_binary(left, TOKEN_SLASH, right);
-                }
-                return 0;
-            }
-
-            // peek_char(ptr *u8, offset i64) - return character at ptr+offset
-            if fname_len == 9 && memcmp(fname, "peek_char", 9) {
-                var args *u8 = call_expr_args(expr);
-                var arg_count i64 = call_expr_arg_count(expr);
-                if arg_count >= 2 {
-                    var ptr_ptr **u8 = args;
-                    var off_ptr **u8 = args + 8;
-                    var ptr *u8 = interp_expr(*ptr_ptr);
-                    var offset i64 = interp_expr(*off_ptr);
-                    return *(ptr + offset);
-                }
-                return 0;
-            }
-
-            // str_len(ptr *u8) - return length of null-terminated string
-            if fname_len == 7 && memcmp(fname, "str_len", 7) {
-                var args *u8 = call_expr_args(expr);
-                var arg_count i64 = call_expr_arg_count(expr);
-                if arg_count >= 1 {
-                    var ptr_ptr **u8 = args;
-                    var ptr *u8 = interp_expr(*ptr_ptr);
-                    return interp_strlen(ptr);
-                }
-                return 0;
-            }
-
-            // is_digit(c i64) - return 1 if c is '0'-'9'
-            if fname_len == 8 && memcmp(fname, "is_digit", 8) {
-                var args *u8 = call_expr_args(expr);
-                var arg_count i64 = call_expr_arg_count(expr);
-                if arg_count >= 1 {
-                    var c_ptr **u8 = args;
-                    var c i64 = interp_expr(*c_ptr);
-                    if c >= 48 && c <= 57 { return 1; }
-                    return 0;
-                }
-                return 0;
-            }
-
-            // is_space(c i64) - return 1 if c is whitespace
-            if fname_len == 8 && memcmp(fname, "is_space", 8) {
-                var args *u8 = call_expr_args(expr);
-                var arg_count i64 = call_expr_arg_count(expr);
-                if arg_count >= 1 {
-                    var c_ptr **u8 = args;
-                    var c i64 = interp_expr(*c_ptr);
-                    if c == 32 || c == 9 || c == 10 || c == 13 { return 1; }
-                    return 0;
-                }
-                return 0;
-            }
         }
         return 0;
     }
@@ -2371,11 +2543,10 @@ func ast_to_string_expr(expr *u8) void {
     }
 
     if kind == NODE_STRING_EXPR {
-        ast_str_append_char(34);  // "
+        // String value already includes quotes from lexer
         var s *u8 = string_expr_value(expr);
         var s_len i64 = string_expr_value_len(expr);
         ast_str_append(s, s_len);
-        ast_str_append_char(34);  // "
         return;
     }
 
@@ -2401,10 +2572,17 @@ func ast_to_string_expr(expr *u8) void {
     }
 
     if kind == NODE_BINARY_EXPR {
+        var op i64 = binary_expr_op(expr);
+        // Assignment doesn't need parens
+        if op == TOKEN_EQ {
+            ast_to_string_expr(binary_expr_left(expr));
+            ast_str_append_cstr(" = ");
+            ast_to_string_expr(binary_expr_right(expr));
+            return;
+        }
         ast_str_append_char(40);  // (
         ast_to_string_expr(binary_expr_left(expr));
         ast_str_append_char(32);  // space
-        var op i64 = binary_expr_op(expr);
         if op == TOKEN_PLUS { ast_str_append_cstr("+"); }
         else if op == TOKEN_MINUS { ast_str_append_cstr("-"); }
         else if op == TOKEN_STAR { ast_str_append_cstr("*"); }
@@ -2461,6 +2639,108 @@ func ast_to_string_expr(expr *u8) void {
     }
 
     ast_str_append_cstr("<expr>");
+}
+
+func ast_to_string_type(type_node *u8) void {
+    if type_node == nil {
+        ast_str_append_cstr("void");
+        return;
+    }
+    var kind i64 = type_kind(type_node);
+    if kind == TYPE_PTR {
+        ast_str_append_char(42);  // *
+        ast_to_string_type(ptr_type_elem(type_node));
+        return;
+    }
+    // Primitive type - get the name
+    var name *u8 = base_type_name(type_node);
+    var name_len i64 = base_type_name_len(type_node);
+    ast_str_append(name, name_len);
+}
+
+func ast_to_string_stmt(stmt *u8) void {
+    if stmt == nil {
+        return;
+    }
+
+    var kind i64 = node_kind(stmt);
+
+    if kind == NODE_BLOCK_STMT {
+        ast_str_append_cstr("{\n");
+        var stmts *u8 = block_stmt_stmts(stmt);
+        var count i64 = block_stmt_count(stmt);
+        var i i64 = 0;
+        while i < count {
+            var s_ptr **u8 = stmts + (i * 8);
+            ast_str_append_cstr("    ");
+            ast_to_string_stmt(*s_ptr);
+            i = i + 1;
+        }
+        ast_str_append_cstr("}\n");
+        return;
+    }
+
+    if kind == NODE_VAR_DECL {
+        ast_str_append_cstr("var ");
+        var name *u8 = var_decl_name(stmt);
+        var name_len i64 = var_decl_name_len(stmt);
+        ast_str_append(name, name_len);
+        ast_str_append_char(32);  // space
+        ast_to_string_type(var_decl_type(stmt));
+        var init *u8 = var_decl_init(stmt);
+        if init != nil {
+            ast_str_append_cstr(" = ");
+            ast_to_string_expr(init);
+        }
+        ast_str_append_cstr(";\n");
+        return;
+    }
+
+    if kind == NODE_RETURN_STMT {
+        ast_str_append_cstr("return");
+        var value *u8 = return_stmt_value(stmt);
+        if value != nil {
+            ast_str_append_char(32);
+            ast_to_string_expr(value);
+        }
+        ast_str_append_cstr(";\n");
+        return;
+    }
+
+    if kind == NODE_EXPR_STMT {
+        ast_to_string_expr(expr_stmt_expr(stmt));
+        ast_str_append_cstr(";\n");
+        return;
+    }
+
+    if kind == NODE_IF_STMT {
+        ast_str_append_cstr("if ");
+        ast_to_string_expr(if_stmt_cond(stmt));
+        ast_str_append_char(32);
+        ast_to_string_stmt(if_stmt_then(stmt));
+        var else_branch *u8 = if_stmt_else(stmt);
+        if else_branch != nil {
+            ast_str_append_cstr(" else ");
+            ast_to_string_stmt(else_branch);
+        }
+        return;
+    }
+
+    if kind == NODE_WHILE_STMT {
+        ast_str_append_cstr("while ");
+        ast_to_string_expr(while_stmt_cond(stmt));
+        ast_str_append_char(32);
+        ast_to_string_stmt(while_stmt_body(stmt));
+        return;
+    }
+
+    ast_str_append_cstr("/* unknown stmt */\n");
+}
+
+func ast_to_string_block(block *u8) *u8 {
+    ast_str_init();
+    ast_to_string_stmt(block);
+    return ast_str_finish();
 }
 
 func ast_to_string(expr *u8) *u8 {
@@ -2625,6 +2905,105 @@ func interp_call_macro(macro_decl *u8, args *u8, arg_count i64) *u8 {
     return interp_return_value;
 }
 
+// ============================================================
+// Process execution for V2 reader macros
+// ============================================================
+
+// Execute a program with input, capture stdout
+// Returns: bytes written to output buffer (-1 on error)
+func exec_capture(program *u8, input *u8, input_len i64, output *u8, output_cap i64) i64 {
+    // Create pipes - pipe() writes two i32 file descriptors
+    var stdin_pipe *u8 = alloc(8);
+    var stdout_pipe *u8 = alloc(8);
+
+    if syscall(22, stdin_pipe) < 0 {
+        return 0 - 1;
+    }
+    if syscall(22, stdout_pipe) < 0 {
+        return 0 - 1;
+    }
+
+    // Read fds as i32 (pipe returns int, not int64)
+    var p1 *i32 = stdin_pipe;
+    var p2 *i32 = stdin_pipe + 4;
+    var p3 *i32 = stdout_pipe;
+    var p4 *i32 = stdout_pipe + 4;
+    var stdin_read i64 = *p1;
+    var stdin_write i64 = *p2;
+    var stdout_read i64 = *p3;
+    var stdout_write i64 = *p4;
+
+    // syscall 57 = fork
+    var pid i64 = syscall(57);
+
+    if pid < 0 {
+        return 0 - 1;
+    }
+
+    if pid == 0 {
+        // Child process
+        // Redirect stdin: dup2(stdin_read, 0)
+        syscall(33, stdin_read, 0);
+        // Redirect stdout: dup2(stdout_write, 1)
+        syscall(33, stdout_write, 1);
+        // Close all pipe fds
+        syscall(3, stdin_read);
+        syscall(3, stdin_write);
+        syscall(3, stdout_read);
+        syscall(3, stdout_write);
+
+        // Build argv: [program, NULL]
+        var argv *u8 = alloc(16);
+        var ap **u8 = argv;
+        *ap = program;
+        var ap2 **u8 = argv + 8;
+        *ap2 = nil;
+
+        // Build envp: [NULL]
+        var envp *u8 = alloc(8);
+        var ep **u8 = envp;
+        *ep = nil;
+
+        // syscall 59 = execve
+        syscall(59, program, argv, envp);
+        // If execve fails, exit
+        syscall(60, 127);
+    }
+
+    // Parent process
+    // Close child's ends of pipes
+    syscall(3, stdin_read);
+    syscall(3, stdout_write);
+
+    // Write input to child's stdin, then close
+    if input_len > 0 {
+        syscall(1, stdin_write, input, input_len);
+    }
+    syscall(3, stdin_write);
+
+    // Read output from child's stdout
+    var total i64 = 0;
+    var n i64 = syscall(0, stdout_read, output, output_cap - 1);
+    while n > 0 {
+        total = total + n;
+        if total >= output_cap - 1 {
+            n = 0;
+        } else {
+            n = syscall(0, stdout_read, output + total, output_cap - 1 - total);
+        }
+    }
+    syscall(3, stdout_read);
+
+    // Null-terminate output
+    *(output + total) = 0;
+
+    // Wait for child
+    var status *i64 = alloc(8);
+    syscall(61, pid, status, 0, 0);
+
+    return total;
+}
+
 func interp_call_reader(reader_decl *u8, content *u8, content_len i64) *u8 {
     interp_init();
 
@@ -2656,28 +3035,14 @@ func generate(prog *u8, out_path *u8) void {
     var decls *u8 = program_decls(prog);
     var decl_count i64 = program_decl_count(prog);
 
-    // First pass: collect structs and global variables
+    // Store for interpreter function calls
+    cg_decls = decls;
+    cg_decl_count = decl_count;
+
+    // First pass: collect structs, macros, readers, globals, and process includes
     var i i64 = 0;
     while i < decl_count {
-        var decl *u8 = get_decl(decls, i);
-        var k i64 = node_kind(decl);
-        if k == NODE_STRUCT_DECL {
-            add_struct(decl);
-        }
-        if k == NODE_MACRO_DECL {
-            add_macro(decl);
-        }
-        if k == NODE_READER_DECL {
-            add_reader(decl);
-        }
-        if k == NODE_VAR_DECL {
-            add_global(
-                var_decl_name(decl),
-                var_decl_name_len(decl),
-                var_decl_type(decl),
-                var_decl_init(decl)
-            );
-        }
+        process_decl_first_pass(get_decl(decls, i));
         i = i + 1;
     }
 
