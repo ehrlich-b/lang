@@ -1186,6 +1186,15 @@ func gen_expr(expr *u8) void {
         }
         return;
     }
+
+    if k == NODE_READER_EXPR {
+        // Reader macro invocation - requires reader registry
+        eprint("error: reader macro '");
+        eprint_buf(reader_expr_name(expr), reader_expr_name_len(expr));
+        eprintln("' not found (reader registry not implemented)");
+        cg_had_error = 1;
+        return;
+    }
 }
 
 func gen_syscall(args *u8, arg_count i64) void {
@@ -1625,6 +1634,20 @@ func gen_decl(decl *u8) void {
 
     if k == NODE_VAR_DECL {
         // Global variable - already registered
+        return;
+    }
+
+    if k == NODE_IMPORT {
+        // Import declaration - file loading not yet implemented
+        eprint("warning: import not yet implemented: ");
+        eprint_buf(import_decl_path(decl), import_decl_path_len(decl));
+        eprintln("");
+        return;
+    }
+
+    if k == NODE_READER_DECL {
+        // Reader declaration - will register in reader registry
+        // For now, just skip (reader registry not implemented)
         return;
     }
 }

@@ -32,6 +32,11 @@ var NODE_UNQUOTE_EXPR i64 = 21;   // $name - unquote (splice AST)
 var NODE_MACRO_DECL i64 = 22;     // macro definition
 var NODE_UNQUOTE_STRING_EXPR i64 = 23;  // $@name - unquote string as string literal
 
+// Reader macro nodes
+var NODE_IMPORT i64 = 24;         // import "path"
+var NODE_READER_DECL i64 = 25;    // reader name(text) { }
+var NODE_READER_EXPR i64 = 26;    // #name{content} - reader macro invocation
+
 // Type kinds
 var TYPE_BASE i64 = 1;
 var TYPE_PTR i64 = 2;
@@ -847,6 +852,170 @@ func macro_decl_set_body(node *u8, body *u8) void {
 }
 
 // ============================================================
+// ImportDecl struct
+// ============================================================
+
+struct ImportDecl {
+    kind i64;
+    path *u8;
+    path_len i64;
+}
+
+func import_decl_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_IMPORT);
+    return node;
+}
+
+func import_decl_path(node *u8) *u8 {
+    var n *ImportDecl = node;
+    return n.path;
+}
+
+func import_decl_set_path(node *u8, ptr *u8) void {
+    var n *ImportDecl = node;
+    n.path = ptr;
+}
+
+func import_decl_path_len(node *u8) i64 {
+    var n *ImportDecl = node;
+    return n.path_len;
+}
+
+func import_decl_set_path_len(node *u8, len i64) void {
+    var n *ImportDecl = node;
+    n.path_len = len;
+}
+
+// ============================================================
+// ReaderDecl struct
+// ============================================================
+
+struct ReaderDecl {
+    kind i64;
+    name *u8;
+    name_len i64;
+    param_name *u8;
+    param_len i64;
+    body *u8;
+}
+
+func reader_decl_alloc() *u8 {
+    var node *u8 = alloc(48);
+    node_set_kind(node, NODE_READER_DECL);
+    return node;
+}
+
+func reader_decl_name(node *u8) *u8 {
+    var n *ReaderDecl = node;
+    return n.name;
+}
+
+func reader_decl_set_name(node *u8, ptr *u8) void {
+    var n *ReaderDecl = node;
+    n.name = ptr;
+}
+
+func reader_decl_name_len(node *u8) i64 {
+    var n *ReaderDecl = node;
+    return n.name_len;
+}
+
+func reader_decl_set_name_len(node *u8, len i64) void {
+    var n *ReaderDecl = node;
+    n.name_len = len;
+}
+
+func reader_decl_param_name(node *u8) *u8 {
+    var n *ReaderDecl = node;
+    return n.param_name;
+}
+
+func reader_decl_set_param_name(node *u8, ptr *u8) void {
+    var n *ReaderDecl = node;
+    n.param_name = ptr;
+}
+
+func reader_decl_param_len(node *u8) i64 {
+    var n *ReaderDecl = node;
+    return n.param_len;
+}
+
+func reader_decl_set_param_len(node *u8, len i64) void {
+    var n *ReaderDecl = node;
+    n.param_len = len;
+}
+
+func reader_decl_body(node *u8) *u8 {
+    var n *ReaderDecl = node;
+    return n.body;
+}
+
+func reader_decl_set_body(node *u8, body *u8) void {
+    var n *ReaderDecl = node;
+    n.body = body;
+}
+
+// ============================================================
+// ReaderExpr struct
+// Stores the reader macro name and raw content
+// ============================================================
+
+struct ReaderExpr {
+    kind i64;
+    name *u8;
+    name_len i64;
+    content *u8;
+    content_len i64;
+}
+
+func reader_expr_alloc() *u8 {
+    var node *u8 = alloc(40);
+    node_set_kind(node, NODE_READER_EXPR);
+    return node;
+}
+
+func reader_expr_name(node *u8) *u8 {
+    var n *ReaderExpr = node;
+    return n.name;
+}
+
+func reader_expr_set_name(node *u8, ptr *u8) void {
+    var n *ReaderExpr = node;
+    n.name = ptr;
+}
+
+func reader_expr_name_len(node *u8) i64 {
+    var n *ReaderExpr = node;
+    return n.name_len;
+}
+
+func reader_expr_set_name_len(node *u8, len i64) void {
+    var n *ReaderExpr = node;
+    n.name_len = len;
+}
+
+func reader_expr_content(node *u8) *u8 {
+    var n *ReaderExpr = node;
+    return n.content;
+}
+
+func reader_expr_set_content(node *u8, ptr *u8) void {
+    var n *ReaderExpr = node;
+    n.content = ptr;
+}
+
+func reader_expr_content_len(node *u8) i64 {
+    var n *ReaderExpr = node;
+    return n.content_len;
+}
+
+func reader_expr_set_content_len(node *u8, len i64) void {
+    var n *ReaderExpr = node;
+    n.content_len = len;
+}
+
+// ============================================================
 // Type accessors
 // ============================================================
 
@@ -1345,6 +1514,17 @@ func parse_primary() *u8 {
         return node;
     }
 
+    // Reader macro invocation: #name{content}
+    if parse_match(TOKEN_READER_MACRO) {
+        var tok *u8 = parse_previous();
+        var node *u8 = reader_expr_alloc();
+        reader_expr_set_name(node, tok_lexeme(tok));
+        reader_expr_set_name_len(node, tok_lexeme_len(tok));
+        reader_expr_set_content(node, tok_content(tok));
+        reader_expr_set_content_len(node, tok_content_len(tok));
+        return node;
+    }
+
     parse_error("expected expression");
     var node *u8 = number_expr_alloc();
     number_expr_set_value(node, "0");
@@ -1586,6 +1766,40 @@ func parse_macro_decl() *u8 {
     return node;
 }
 
+func parse_import() *u8 {
+    // import "path"
+    var path_tok *u8 = parse_expect(TOKEN_STRING, "expected string after 'import'");
+    parse_expect(TOKEN_SEMICOLON, "expected ';' after import path");
+
+    var node *u8 = import_decl_alloc();
+    // Strip quotes from string - path points to opening quote
+    import_decl_set_path(node, tok_lexeme(path_tok) + 1);
+    import_decl_set_path_len(node, tok_lexeme_len(path_tok) - 2);
+    return node;
+}
+
+func parse_reader_decl() *u8 {
+    // reader name(param *u8) *u8 { body }
+    var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected reader name");
+    parse_expect(TOKEN_LPAREN, "expected '(' after reader name");
+    var param_tok *u8 = parse_expect(TOKEN_IDENT, "expected parameter name");
+    // Parse parameter type (readers always take *u8)
+    parse_type();
+    parse_expect(TOKEN_RPAREN, "expected ')' after reader parameter");
+    // Parse return type (readers always return *u8)
+    parse_type();
+
+    var body *u8 = parse_block();
+
+    var node *u8 = reader_decl_alloc();
+    reader_decl_set_name(node, tok_lexeme(name_tok));
+    reader_decl_set_name_len(node, tok_lexeme_len(name_tok));
+    reader_decl_set_param_name(node, tok_lexeme(param_tok));
+    reader_decl_set_param_len(node, tok_lexeme_len(param_tok));
+    reader_decl_set_body(node, body);
+    return node;
+}
+
 func parse_declaration() *u8 {
     if parse_match(TOKEN_FUNC) {
         return parse_func_decl();
@@ -1598,6 +1812,12 @@ func parse_declaration() *u8 {
     }
     if parse_match(TOKEN_MACRO) {
         return parse_macro_decl();
+    }
+    if parse_match(TOKEN_IMPORT) {
+        return parse_import();
+    }
+    if parse_match(TOKEN_READER) {
+        return parse_reader_decl();
     }
 
     parse_error("expected declaration");

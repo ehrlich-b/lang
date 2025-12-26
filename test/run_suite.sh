@@ -4,7 +4,7 @@
 
 set -e
 
-COMPILER="./boot/lang0"
+COMPILER="./out/lang"
 SUITE_DIR="test/suite"
 OUT_DIR="out/test"
 
