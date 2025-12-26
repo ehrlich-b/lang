@@ -70,63 +70,68 @@ var TOKEN_COLON i64 = 50;     // :
 var TOKEN_COLONEQ i64 = 51;   // :=
 
 // ============================================================
-// Token "struct" layout
-// Offset 0:  type (i64)
-// Offset 8:  lexeme_ptr (*u8)
-// Offset 16: lexeme_len (i64)
-// Offset 24: line (i64)
-// Offset 32: col (i64)
-// Total: 40 bytes
+// Token struct
 // ============================================================
 
-func tok_type(tok *u8) i64 {
-    var p *i64 = tok;
-    return *p;
+struct Token {
+    type_tok i64;
+    lexeme *u8;
+    lexeme_len i64;
+    line i64;
+    col i64;
 }
 
-func tok_set_type(tok *u8, t i64) void {
-    var p *i64 = tok;
-    *p = t;
+// Accessor functions for backward compatibility
+// These cast *u8 to *Token and use field access
+
+func tok_type(tok *u8) i64 {
+    var t *Token = tok;
+    return t.type_tok;
+}
+
+func tok_set_type(tok *u8, typ i64) void {
+    var t *Token = tok;
+    t.type_tok = typ;
 }
 
 func tok_lexeme(tok *u8) *u8 {
-    var p **u8 = tok + 8;
-    return *p;
+    var t *Token = tok;
+    return t.lexeme;
 }
 
 func tok_set_lexeme(tok *u8, ptr *u8) void {
-    var p **u8 = tok + 8;
-    *p = ptr;
+    var t *Token = tok;
+    t.lexeme = ptr;
 }
 
 func tok_lexeme_len(tok *u8) i64 {
-    var p *i64 = tok + 16;
-    return *p;
+    var t *Token = tok;
+    return t.lexeme_len;
 }
 
 func tok_set_lexeme_len(tok *u8, len i64) void {
-    var p *i64 = tok + 16;
-    *p = len;
+    var t *Token = tok;
+    t.lexeme_len = len;
 }
 
 func tok_line(tok *u8) i64 {
-    var p *i64 = tok + 24;
-    return *p;
+    var t *Token = tok;
+    return t.line;
 }
 
-func tok_set_line(tok *u8, line i64) void {
-    var p *i64 = tok + 24;
-    *p = line;
+func tok_set_line(tok *u8, ln i64) void {
+    var t *Token = tok;
+    t.line = ln;
 }
 
 func tok_col(tok *u8) i64 {
-    var p *i64 = tok + 32;
-    return *p;
+    var t *Token = tok;
+    return t.col;
 }
 
-func tok_set_col(tok *u8, col i64) void {
-    var p *i64 = tok + 32;
-    *p = col;
+func tok_set_col(tok *u8, c i64) void {
+    var t *Token = tok;
+    t.col = c;
 }
 
 func tok_alloc() *u8 {

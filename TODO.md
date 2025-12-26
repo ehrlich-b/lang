@@ -1,24 +1,28 @@
 # language - TODO
 
 ## Current Focus
-Phase 1.5: Stabilize foundation before adding features
+Phase 1.6: Structs - compiler now uses real struct (Token converted)
 
 ## Immediate Tasks
 - [x] Implement bootstrap design (see designs/bootstrap_design.md)
-- [ ] Update documentation (README, LANG.md) to reflect self-hosting
+- [x] Update documentation (README, LANG.md) to reflect self-hosting
 
 ## Phase 1.5: Stdlib Additions (no language changes)
-- [ ] `malloc(size)` / `free(ptr)` - real allocator with free list
-- [ ] `vec_new()`, `vec_push()`, `vec_get()`, `vec_set()`, `vec_len()` - dynamic array
-- [ ] `map_new()`, `map_set()`, `map_get()`, `map_has()` - hash map
-- [ ] `str_concat()`, `str_eq()` - string utilities
-- [ ] Refactor compiler to use new stdlib
+- [x] `malloc(size)` / `free(ptr)` - real allocator with free list
+- [x] `vec_new()`, `vec_push()`, `vec_get()`, `vec_set()`, `vec_len()` - dynamic array
+- [x] `map_new()`, `map_set()`, `map_get()`, `map_has()` - hash map
+- [x] `str_concat()`, `str_dup()` - string utilities (streq already existed)
+- [x] Refactor compiler to use new stdlib (parser tokens use vec)
 
-## Phase 1.6: Structs
-- [ ] Implement struct parsing in self-hosted compiler
-- [ ] Implement struct codegen (field offsets, access)
-- [ ] Refactor compiler to use structs
-- [ ] Re-reach fixed point
+## Phase 1.6: Structs (IN PROGRESS)
+- [x] Implement struct parsing in self-hosted compiler
+- [x] Implement struct codegen for field read access
+- [x] Fix stack overflow bug (256->4096 byte stack frame)
+- [x] Implement field assignment (p.x = value)
+- [x] Implement pointer-to-struct field access (p.field where p is *Struct)
+- [x] Convert Token struct (first real struct in compiler)
+- [ ] Convert remaining structs (AST nodes, types, etc.)
+- [x] Re-reach fixed point
 
 ## Completed
 

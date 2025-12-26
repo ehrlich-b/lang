@@ -27,19 +27,33 @@ language/
 ## Build Commands
 
 ```bash
-# Phase 0 (Go bootstrap compiler)
-cd boot && go build -o lang0 && cd ..
+# Build compiler from source (uses out/lang to compile src/*.lang)
+make build
 
-# Compile a .lang file
-./boot/lang0 test/hello.lang -o out/hello.s
-as out/hello.s -o out/hello.o
-ld out/hello.o -o out/hello
+# Verify fixed point (compiler compiles itself to identical output)
+make verify
+
+# Promote verified build to be the active compiler
+make promote
+
+# Compile and run a test file
+make run FILE=test/hello.lang
+
+# Compile with stdlib
+make stdlib-run FILE=test/vec_test.lang
+
+# Bootstrap from scratch (only if out/lang is broken)
+make bootstrap
 ```
+
+**After making compiler changes:** Always run `make verify` to ensure fixed point.
 
 ## Development Phases
 
-- [ ] Phase 0: Bootstrap compiler in Go → emits x86-64 assembly
-- [ ] Phase 1: Self-hosting (compiler written in language)
+- [x] Phase 0: Bootstrap compiler in Go → emits x86-64 assembly
+- [x] Phase 1: Self-hosting (compiler written in language)
+- [x] Phase 1.5: Stdlib additions (malloc, vec, map)
+- [~] Phase 1.6: Structs (working, compiler uses them, incremental adoption)
 - [ ] Phase 2: Macro system (AST-based)
 - [ ] Phase 3: Syntax extensions (reader macros)
 - [ ] Phase 4: GC and runtime niceties
@@ -59,6 +73,17 @@ The `devlog/` folder tracks the journey. **Light touch** - only log at milestone
 - Comments explain "why", not "what"
 - If it works, it works
 - Memory can leak in the compiler (it's short-lived)
+
+## Development Philosophy
+
+**Incremental modernization, not big-bang refactoring:**
+
+1. When implementing a new language feature, prove it works in one meaningful part of the compiler (e.g., convert Token to a real struct), then move on
+2. Don't exhaustively refactor all 30 uses of a pattern - that's tedious and error-prone
+3. As you touch compiler code for new features, "bring it up to code" using all available language features
+4. Check `LANG.md` to see what language features are available - use the best ones for the job
+
+This keeps momentum high and ensures the compiler gradually modernizes as it evolves.
 
 ## Key Decisions Log
 

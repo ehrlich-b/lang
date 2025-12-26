@@ -1,0 +1,109 @@
+// Test map_* hash map functions
+
+func main() i64 {
+    // Test 1: Create map and check empty
+    var m *u8 = map_new();
+    if map_has(m, "foo") != 0 {
+        return 1;
+    }
+
+    // Test 2: Set and get single key
+    map_set(m, "foo", 42);
+    if map_has(m, "foo") != 1 {
+        return 2;
+    }
+    if map_get(m, "foo") != 42 {
+        return 3;
+    }
+
+    // Test 3: Set and get multiple keys
+    map_set(m, "bar", 100);
+    map_set(m, "baz", 200);
+    if map_get(m, "foo") != 42 {
+        return 4;
+    }
+    if map_get(m, "bar") != 100 {
+        return 5;
+    }
+    if map_get(m, "baz") != 200 {
+        return 6;
+    }
+
+    // Test 4: Update existing key
+    map_set(m, "foo", 999);
+    if map_get(m, "foo") != 999 {
+        return 7;
+    }
+    // Others unchanged
+    if map_get(m, "bar") != 100 {
+        return 8;
+    }
+
+    // Test 5: Check non-existent key
+    if map_has(m, "notfound") != 0 {
+        return 9;
+    }
+    if map_get(m, "notfound") != 0 {
+        return 10;
+    }
+
+    // Test 6: Many keys to trigger growth
+    map_set(m, "a", 1);
+    map_set(m, "b", 2);
+    map_set(m, "c", 3);
+    map_set(m, "d", 4);
+    map_set(m, "e", 5);
+    map_set(m, "f", 6);
+    map_set(m, "g", 7);
+    map_set(m, "h", 8);
+    map_set(m, "i", 9);
+    map_set(m, "j", 10);
+    map_set(m, "k", 11);
+    map_set(m, "l", 12);
+    map_set(m, "m", 13);
+    map_set(m, "n", 14);
+    map_set(m, "o", 15);
+    map_set(m, "p", 16);
+    map_set(m, "q", 17);
+    map_set(m, "r", 18);
+    map_set(m, "s", 19);
+    map_set(m, "t", 20);
+
+    // Verify all keys still accessible after growth
+    if map_get(m, "foo") != 999 {
+        return 11;
+    }
+    if map_get(m, "bar") != 100 {
+        return 12;
+    }
+    if map_get(m, "a") != 1 {
+        return 13;
+    }
+    if map_get(m, "t") != 20 {
+        return 14;
+    }
+
+    // Test 7: Longer key names
+    map_set(m, "this_is_a_longer_key", 12345);
+    if map_get(m, "this_is_a_longer_key") != 12345 {
+        return 15;
+    }
+
+    // Test 8: Second map (independence)
+    var m2 *u8 = map_new();
+    map_set(m2, "foo", 77);
+    if map_get(m2, "foo") != 77 {
+        return 16;
+    }
+    // First map unchanged
+    if map_get(m, "foo") != 999 {
+        return 17;
+    }
+
+    // Cleanup
+    map_free(m);
+    map_free(m2);
+
+    // All tests passed
+    return 0;
+}

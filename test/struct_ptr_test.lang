@@ -1,0 +1,22 @@
+// Pointer-to-struct field access test
+
+struct Point {
+    x i64;
+    y i64;
+}
+
+func alloc(size i64) *u8 {
+    return syscall(9, 0, size, 3, 34, 0-1, 0);
+}
+
+func main() i64 {
+    // Allocate a Point on the heap
+    var p *Point = alloc(16);
+
+    // Test field assignment through pointer
+    p.x = 42;
+    p.y = 100;
+
+    // Test field read through pointer and arithmetic
+    return p.x + p.y;  // Should return 142
+}

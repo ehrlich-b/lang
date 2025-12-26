@@ -6,7 +6,7 @@ A self-bootstrapping programming language. C-like feel with modern ergonomics. W
 
 ## Status
 
-**Phase 0 complete!** Hello world compiles and runs. Moving to Phase 1 (self-hosting).
+**Phase 1 complete!** The compiler is self-hosting - it compiles itself and reaches a fixed point.
 
 ## The Gist
 
@@ -49,14 +49,21 @@ func add(a Point, b Point) Point {
 ## Building
 
 ```bash
-# Build the compiler
+# Bootstrap from preserved assembly (first time or clean slate)
+make bootstrap
+
+# Build the compiler from source
 make build
+
+# Verify fixed point and promote
+make verify
+make promote
 
 # Compile and run a program
 make run FILE=test/hello.lang
 
 # Or manually:
-./boot/lang0 test/hello.lang -o out/hello.s
+./out/lang test/hello.lang -o out/hello.s
 as out/hello.s -o out/hello.o
 ld out/hello.o -o out/hello
 ./out/hello
@@ -71,7 +78,9 @@ ln -s $(pwd)/editor/vscode ~/.vscode/extensions/language-lang
 
 ## Docs
 
-- [INITIAL_DESIGN.md](./INITIAL_DESIGN.md) - Syntax, grammar, examples
+- [LANG.md](./LANG.md) - Language reference (what works now)
+- [INITIAL_DESIGN.md](./INITIAL_DESIGN.md) - Original syntax design, grammar
+- [designs/](./designs/) - Implementation design docs
 - [devlog/](./devlog/) - Development journal
 
 ## License

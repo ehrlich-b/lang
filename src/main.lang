@@ -91,7 +91,7 @@ func main(argc i64, argv **u8) i64 {
 
     // Check for lexer errors
     i = 0;
-    while i < parse_token_count {
+    while i < parser_token_count() {
         var tok *u8 = get_token(i);
         if tok_type(tok) == TOKEN_ERROR {
             eprint("Error: ");

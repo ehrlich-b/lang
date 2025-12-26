@@ -1,0 +1,94 @@
+// Test vec_* dynamic array functions
+
+func main() i64 {
+    // Test 1: Create vec and check initial state
+    var v *u8 = vec_new();
+    if vec_len(v) != 0 {
+        return 1;
+    }
+
+    // Test 2: Push single element
+    vec_push(v, 42);
+    if vec_len(v) != 1 {
+        return 2;
+    }
+    if vec_get(v, 0) != 42 {
+        return 3;
+    }
+
+    // Test 3: Push more elements
+    vec_push(v, 100);
+    vec_push(v, 200);
+    if vec_len(v) != 3 {
+        return 4;
+    }
+    if vec_get(v, 1) != 100 {
+        return 5;
+    }
+    if vec_get(v, 2) != 200 {
+        return 6;
+    }
+
+    // Test 4: Set element
+    vec_set(v, 1, 999);
+    if vec_get(v, 1) != 999 {
+        return 7;
+    }
+    // Other elements unchanged
+    if vec_get(v, 0) != 42 {
+        return 8;
+    }
+    if vec_get(v, 2) != 200 {
+        return 9;
+    }
+
+    // Test 5: Grow beyond initial capacity (8)
+    var i i64 = 0;
+    while i < 20 {
+        vec_push(v, i * 10);
+        i = i + 1;
+    }
+    // Now have 3 + 20 = 23 elements
+    if vec_len(v) != 23 {
+        return 10;
+    }
+    // Check first elements still intact
+    if vec_get(v, 0) != 42 {
+        return 11;
+    }
+    if vec_get(v, 1) != 999 {
+        return 12;
+    }
+    if vec_get(v, 2) != 200 {
+        return 13;
+    }
+    // Check new elements
+    if vec_get(v, 3) != 0 {
+        return 14;
+    }
+    if vec_get(v, 22) != 190 {
+        return 15;
+    }
+
+    // Test 6: Create second vec (ensure independence)
+    var v2 *u8 = vec_new();
+    vec_push(v2, 1);
+    vec_push(v2, 2);
+    if vec_len(v2) != 2 {
+        return 16;
+    }
+    if vec_get(v2, 0) != 1 {
+        return 17;
+    }
+    // First vec unchanged
+    if vec_len(v) != 23 {
+        return 18;
+    }
+
+    // Test 7: Free vecs
+    vec_free(v);
+    vec_free(v2);
+
+    // All tests passed
+    return 0;
+}

@@ -2,7 +2,7 @@
 
 **Living document** - describes what actually works right now, not aspirational features.
 
-Last updated: Phase 0 compiler (Go bootstrap)
+Last updated: Phase 1 compiler (self-hosted)
 
 ## Quick Reference
 
@@ -35,18 +35,18 @@ syscall(60, 0);  // exit(0)
 ## Types
 
 ### Primitive Types
-| Type | Size | Description |
-|------|------|-------------|
-| `i8` | 1 byte | Signed 8-bit integer |
-| `i16` | 2 bytes | Signed 16-bit integer |
-| `i32` | 4 bytes | Signed 32-bit integer |
-| `i64` | 8 bytes | Signed 64-bit integer (default for numbers) |
-| `u8` | 1 byte | Unsigned 8-bit integer (char) |
-| `u16` | 2 bytes | Unsigned 16-bit integer |
-| `u32` | 4 bytes | Unsigned 32-bit integer |
-| `u64` | 8 bytes | Unsigned 64-bit integer |
-| `bool` | 1 byte | Boolean (true/false) |
-| `void` | 0 bytes | No return value |
+| Type   | Size    | Description                                |
+|--------|---------|-------------------------------------------|
+| `i8`   | 1 byte  | Signed 8-bit integer                       |
+| `i16`  | 2 bytes | Signed 16-bit integer                      |
+| `i32`  | 4 bytes | Signed 32-bit integer                      |
+| `i64`  | 8 bytes | Signed 64-bit integer (default for numbers)|
+| `u8`   | 1 byte  | Unsigned 8-bit integer (char)              |
+| `u16`  | 2 bytes | Unsigned 16-bit integer                    |
+| `u32`  | 4 bytes | Unsigned 32-bit integer                    |
+| `u64`  | 8 bytes | Unsigned 64-bit integer                    |
+| `bool` | 1 byte  | Boolean (true/false)                       |
+| `void` | 0 bytes | No return value                            |
 
 ### Pointer Types
 - `*T` - pointer to type T
@@ -180,14 +180,14 @@ syscall(number, arg1, arg2, arg3, arg4, arg5, arg6);
 Returns syscall result in `rax`.
 
 **Common syscalls:**
-| Number | Name | Args |
-|--------|------|------|
-| 0 | read | fd, buf, count |
-| 1 | write | fd, buf, count |
-| 2 | open | path, flags, mode |
-| 3 | close | fd |
-| 9 | mmap | addr, len, prot, flags, fd, off |
-| 60 | exit | status |
+| Number | Name  | Args                             |
+|--------|-------|----------------------------------|
+| 0      | read  | fd, buf, count                   |
+| 1      | write | fd, buf, count                   |
+| 2      | open  | path, flags, mode                |
+| 3      | close | fd                               |
+| 9      | mmap  | addr, len, prot, flags, fd, off  |
+| 60     | exit  | status                           |
 
 **Example:**
 ```lang
@@ -200,11 +200,32 @@ syscall(60, 0);
 
 ## Standard Library (std/core.lang)
 
-Include with: `./boot/lang0 std/core.lang yourfile.lang -o out.s`
+Include with: `./out/lang std/core.lang yourfile.lang -o out.s`
 
 ### Memory
 ```lang
-func alloc(size i64) *u8;  // Bump allocator, never frees
+func alloc(size i64) *u8;    // Bump allocator (fast, never frees)
+func malloc(size i64) *u8;   // Allocator with free list (reuses freed blocks)
+func free(ptr *u8) void;     // Free block allocated by malloc
+```
+
+### Dynamic Array (Vec)
+```lang
+func vec_new() *u8;                       // Create new vec, returns handle
+func vec_len(v *u8) i64;                  // Get length
+func vec_get(v *u8, index i64) i64;       // Get element at index
+func vec_set(v *u8, index i64, val i64);  // Set element at index
+func vec_push(v *u8, value i64);          // Append element (auto-grows)
+func vec_free(v *u8);                     // Free vec and its data
+```
+
+### Hash Map (string keys -> i64 values)
+```lang
+func map_new() *u8;                       // Create new map, returns handle
+func map_set(m *u8, key *u8, val i64);    // Set key to value
+func map_get(m *u8, key *u8) i64;         // Get value (0 if not found)
+func map_has(m *u8, key *u8) i64;         // Check if key exists (1=yes, 0=no)
+func map_free(m *u8);                     // Free map and its data
 ```
 
 ### I/O
@@ -221,6 +242,8 @@ func exit(code i64) void;   // Exit program
 ```lang
 func strlen(s *u8) i64;           // String length
 func streq(a *u8, b *u8) i64;     // String equality (1=equal, 0=not)
+func str_concat(a *u8, b *u8) *u8; // Concatenate strings (allocates with malloc)
+func str_dup(s *u8) *u8;          // Duplicate string (allocates with malloc)
 ```
 
 ### Files
@@ -241,10 +264,44 @@ func increment() void {
 }
 ```
 
+## Structs
+
+Structs allow grouping multiple values together:
+
+```lang
+struct Point {
+    x i64;
+    y i64;
+}
+
+func main() i64 {
+    var p Point;
+    p.x = 42;
+    p.y = 100;
+    return p.x + p.y;  // 142
+}
+```
+
+Field access also works through pointers:
+
+```lang
+func alloc(size i64) *u8;  // from stdlib
+
+func main() i64 {
+    var p *Point = alloc(16);
+    p.x = 42;
+    p.y = 100;
+    return p.x + p.y;  // 142
+}
+```
+
+**Notes:**
+- All fields are 8 bytes (aligned to 8-byte boundary)
+- Field access works on both direct struct variables and pointers to structs
+
 ## What's NOT Implemented Yet
 
 - Arrays (use pointer arithmetic instead)
-- Structs (use manual memory layout)
 - String operations beyond strlen/streq
 - Heap management (alloc never frees)
 - For loops
@@ -323,8 +380,14 @@ func read_file(path *u8) *u8 {
 ## Build Commands
 
 ```bash
-# Build compiler
+# Bootstrap from preserved assembly
+make bootstrap
+
+# Build compiler from source
 make build
+
+# Verify fixed point
+make verify
 
 # Compile and run a file
 make run FILE=test/hello.lang
@@ -336,5 +399,5 @@ make stdlib-run FILE=myfile.lang
 make test-all
 
 # Just compile to assembly
-./boot/lang0 myfile.lang -o out/myfile.s
+./out/lang myfile.lang -o out/myfile.s
 ```

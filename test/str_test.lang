@@ -1,0 +1,75 @@
+// Test string utility functions
+
+func main() i64 {
+    // Test 1: streq - equal strings
+    if streq("hello", "hello") != 1 {
+        return 1;
+    }
+
+    // Test 2: streq - different strings
+    if streq("hello", "world") != 0 {
+        return 2;
+    }
+
+    // Test 3: streq - prefix
+    if streq("hello", "helloworld") != 0 {
+        return 3;
+    }
+
+    // Test 4: streq - suffix
+    if streq("helloworld", "hello") != 0 {
+        return 4;
+    }
+
+    // Test 5: streq - empty strings
+    if streq("", "") != 1 {
+        return 5;
+    }
+
+    // Test 6: str_concat - basic
+    var s1 *u8 = str_concat("hello", "world");
+    if streq(s1, "helloworld") != 1 {
+        return 6;
+    }
+
+    // Test 7: str_concat - with empty
+    var s2 *u8 = str_concat("foo", "");
+    if streq(s2, "foo") != 1 {
+        return 7;
+    }
+
+    var s3 *u8 = str_concat("", "bar");
+    if streq(s3, "bar") != 1 {
+        return 8;
+    }
+
+    // Test 8: str_concat - both empty
+    var s4 *u8 = str_concat("", "");
+    if streq(s4, "") != 1 {
+        return 9;
+    }
+
+    // Test 9: str_dup
+    var s5 *u8 = str_dup("test");
+    if streq(s5, "test") != 1 {
+        return 10;
+    }
+
+    // Test 10: strlen
+    if strlen("hello") != 5 {
+        return 11;
+    }
+    if strlen("") != 0 {
+        return 12;
+    }
+
+    // Cleanup
+    free(s1);
+    free(s2);
+    free(s3);
+    free(s4);
+    free(s5);
+
+    // All tests passed
+    return 0;
+}

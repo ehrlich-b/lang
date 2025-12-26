@@ -199,6 +199,93 @@ func var_decl_set_init(node *u8, init *u8) void {
 }
 
 // ============================================================
+// StructDecl accessors
+// ============================================================
+// StructDecl: [kind:8][name_ptr:8][name_len:8][fields:8][field_count:8] = 40 bytes
+// StructField: [name_ptr:8][name_len:8][type:8] = 24 bytes (same as Param)
+
+func struct_decl_alloc() *u8 {
+    var node *u8 = alloc(40);
+    node_set_kind(node, NODE_STRUCT_DECL);
+    return node;
+}
+
+func struct_decl_name(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func struct_decl_set_name(node *u8, ptr *u8) void {
+    var p **u8 = node + 8;
+    *p = ptr;
+}
+
+func struct_decl_name_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func struct_decl_set_name_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+func struct_decl_fields(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func struct_decl_set_fields(node *u8, fields *u8) void {
+    var p **u8 = node + 24;
+    *p = fields;
+}
+
+func struct_decl_field_count(node *u8) i64 {
+    var p *i64 = node + 32;
+    return *p;
+}
+
+func struct_decl_set_field_count(node *u8, count i64) void {
+    var p *i64 = node + 32;
+    *p = count;
+}
+
+// StructField accessors (24-byte entries, same layout as Param)
+func struct_field_name(field *u8) *u8 {
+    var p **u8 = field;
+    return *p;
+}
+
+func struct_field_set_name(field *u8, ptr *u8) void {
+    var p **u8 = field;
+    *p = ptr;
+}
+
+func struct_field_name_len(field *u8) i64 {
+    var p *i64 = field + 8;
+    return *p;
+}
+
+func struct_field_set_name_len(field *u8, len i64) void {
+    var p *i64 = field + 8;
+    *p = len;
+}
+
+func struct_field_type(field *u8) *u8 {
+    var p **u8 = field + 16;
+    return *p;
+}
+
+func struct_field_set_type(field *u8, t *u8) void {
+    var p **u8 = field + 16;
+    *p = t;
+}
+
+func get_struct_field(fields *u8, index i64) *u8 {
+    return fields + (index * 24);
+}
+
+// ============================================================
 // BlockStmt accessors
 // ============================================================
 
@@ -479,6 +566,26 @@ func ident_expr_set_name_len(node *u8, len i64) void {
 }
 
 // ============================================================
+// FieldExpr accessors
+// ============================================================
+// FieldExpr: [kind:8][expr:8][field_ptr:8][field_len:8] = 32 bytes
+
+func field_expr_expr(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func field_expr_field(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func field_expr_field_len(node *u8) i64 {
+    var p *i64 = node + 24;
+    return *p;
+}
+
+// ============================================================
 // NumberExpr accessors
 // ============================================================
 
@@ -682,24 +789,23 @@ func param_set_type(p *u8, t *u8) void {
 // Parser state (global)
 // ============================================================
 
-var parse_tokens *u8 = nil;      // array of token pointers
-var parse_token_count i64 = 0;
+var parse_tokens *u8 = nil;      // vec of token pointers
 var parse_current i64 = 0;
 var parse_error_count i64 = 0;
 
 // ============================================================
-// Token array helper
-// Each element is a pointer (8 bytes)
+// Token array helper (using vec)
 // ============================================================
 
 func get_token(index i64) *u8 {
-    var p **u8 = parse_tokens + (index * 8);
-    return *p;
+    var ptr_as_int i64 = vec_get(parse_tokens, index);
+    var p *i64 = &ptr_as_int;
+    var pp **u8 = p;
+    return *pp;
 }
 
-func set_token(index i64, tok *u8) void {
-    var p **u8 = parse_tokens + (index * 8);
-    *p = tok;
+func parser_token_count() i64 {
+    return vec_len(parse_tokens);
 }
 
 // ============================================================
@@ -707,16 +813,16 @@ func set_token(index i64, tok *u8) void {
 // ============================================================
 
 func parser_init() void {
-    // Allocate token array (max 50000 tokens)
-    parse_tokens = alloc(400000);
-    parse_token_count = 0;
+    parse_tokens = vec_new();
     parse_current = 0;
     parse_error_count = 0;
 }
 
 func parser_add_token(tok *u8) void {
-    set_token(parse_token_count, tok);
-    parse_token_count = parse_token_count + 1;
+    // Store pointer as i64 in vec
+    var p **u8 = &tok;
+    var pi *i64 = p;
+    vec_push(parse_tokens, *pi);
 }
 
 // Tokenize source and fill token array
@@ -1221,6 +1327,38 @@ func parse_func_decl() *u8 {
     return node;
 }
 
+func parse_struct_decl() *u8 {
+    // struct IDENT "{" { IDENT type ";" } "}"
+    var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected struct name");
+    parse_expect(TOKEN_LBRACE, "expected '{' after struct name");
+
+    // Allocate fields array (max 64 fields)
+    var fields *u8 = alloc(64 * 24);
+    var field_count i64 = 0;
+
+    while !parse_check(TOKEN_RBRACE) && !parse_is_at_end() {
+        var field_name *u8 = parse_expect(TOKEN_IDENT, "expected field name");
+        var field_type *u8 = parse_type();
+        parse_expect(TOKEN_SEMICOLON, "expected ';' after field");
+
+        // Store field
+        var f *u8 = get_struct_field(fields, field_count);
+        struct_field_set_name(f, tok_lexeme(field_name));
+        struct_field_set_name_len(f, tok_lexeme_len(field_name));
+        struct_field_set_type(f, field_type);
+        field_count = field_count + 1;
+    }
+
+    parse_expect(TOKEN_RBRACE, "expected '}' after struct fields");
+
+    var node *u8 = struct_decl_alloc();
+    struct_decl_set_name(node, tok_lexeme(name_tok));
+    struct_decl_set_name_len(node, tok_lexeme_len(name_tok));
+    struct_decl_set_fields(node, fields);
+    struct_decl_set_field_count(node, field_count);
+    return node;
+}
+
 func parse_declaration() *u8 {
     if parse_match(TOKEN_FUNC) {
         return parse_func_decl();
@@ -1228,10 +1366,8 @@ func parse_declaration() *u8 {
     if parse_match(TOKEN_VAR) {
         return parse_var_decl();
     }
-    // Skip struct for now
     if parse_match(TOKEN_STRUCT) {
-        parse_error("struct not implemented");
-        return nil;
+        return parse_struct_decl();
     }
 
     parse_error("expected declaration");

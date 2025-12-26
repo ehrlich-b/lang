@@ -22,15 +22,15 @@ func factorial(n i64) i64 {
 struct Point { x i64; y i64; }
 ```
 
-| Feature | Syntax | Notes |
-|---------|--------|-------|
-| Functions | `func f(x i64) i64 {}` | Keyword required |
-| Variables | `var x i64 = 5;` | Explicit type |
-| Inference | `x := 5;` | Phase 1+ |
-| Pointers | `*i64`, `*p`, `&x` | C-style operators |
-| Blocks | `{ }` | Braces |
-| Conditionals | `if x > 0 {}` | No parens |
-| Comments | `//`, `/* */` | C-style |
+| Feature      | Syntax                 | Notes            |
+|--------------|------------------------|------------------|
+| Functions    | `func f(x i64) i64 {}` | Keyword required |
+| Variables    | `var x i64 = 5;`       | Explicit type    |
+| Inference    | `x := 5;`              | Phase 1+         |
+| Pointers     | `*i64`, `*p`, `&x`     | C-style operators|
+| Blocks       | `{ }`                  | Braces           |
+| Conditionals | `if x > 0 {}`          | No parens        |
+| Comments     | `//`, `/* */`          | C-style          |
 
 ## Types
 
@@ -89,12 +89,13 @@ primary      = NUMBER | STRING | "true" | "false" | "nil" | IDENT | "(" expr ")"
 
 ## x86-64 Calling Convention (System V ABI)
 
-| Args 1-6 | `rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9` |
-|----------|----------------------------------------|
-| Return | `rax` |
+| Register     | Value                                       |
+|--------------|---------------------------------------------|
+| Args 1-6     | `rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`      |
+| Return       | `rax`                                       |
 | Caller-saved | `rax`, `rcx`, `rdx`, `rsi`, `rdi`, `r8-r11` |
-| Callee-saved | `rbx`, `rbp`, `r12-r15` |
-| Stack | 16-byte aligned before `call` |
+| Callee-saved | `rbx`, `rbp`, `r12-r15`                     |
+| Stack        | 16-byte aligned before `call`               |
 
 **Syscalls**: Number in `rax`, args in `rdi`, `rsi`, `rdx`, `r10`, `r8`, `r9`. Use `syscall` instruction.
 

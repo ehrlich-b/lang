@@ -1,0 +1,17 @@
+// Struct field access and assignment test
+
+struct Point {
+    x i64;
+    y i64;
+}
+
+func main() i64 {
+    var p Point;
+
+    // Test field assignment
+    p.x = 42;
+    p.y = 100;
+
+    // Test field read and arithmetic
+    return p.x + p.y;  // Should return 142
+}

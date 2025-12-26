@@ -1,0 +1,75 @@
+// Test malloc/free allocator
+
+func main() i64 {
+    // Test 1: Basic allocation
+    var p1 *i64 = malloc(8);
+    *p1 = 42;
+
+    var p2 *i64 = malloc(8);
+    *p2 = 100;
+
+    // Verify both allocations work independently
+    if *p1 != 42 {
+        return 1;
+    }
+    if *p2 != 100 {
+        return 2;
+    }
+
+    // Test 2: Free and reuse
+    free(p1);
+
+    var p3 *i64 = malloc(8);
+    *p3 = 77;
+
+    // p3 should have reused p1's memory
+    if *p3 != 77 {
+        return 3;
+    }
+
+    // p2 should still be valid
+    if *p2 != 100 {
+        return 4;
+    }
+
+    // Test 3: Multiple frees and reallocs
+    free(p2);
+    free(p3);
+
+    var p4 *i64 = malloc(8);
+    var p5 *i64 = malloc(8);
+    *p4 = 11;
+    *p5 = 22;
+
+    if *p4 != 11 {
+        return 5;
+    }
+    if *p5 != 22 {
+        return 6;
+    }
+
+    // Test 4: Larger allocation
+    var big *u8 = malloc(256);
+    var i i64 = 0;
+    while i < 256 {
+        *(big + i) = i % 128;
+        i = i + 1;
+    }
+
+    // Verify
+    if *(big + 0) != 0 {
+        return 7;
+    }
+    if *(big + 100) != 100 {
+        return 8;
+    }
+    if *(big + 200) != 72 {
+        return 9;
+    }
+
+    // Test 5: Free nil (should not crash)
+    free(nil);
+
+    // All tests passed
+    return 0;
+}
