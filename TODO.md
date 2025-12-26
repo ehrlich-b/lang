@@ -1,12 +1,16 @@
 # language - TODO
 
 ## Current Focus
-Phase 3: Reader Macros - syntax extensions that change how code is parsed
+Low-hanging fruit and polish
 
-## Phase 3: Reader Macros (DESIGN)
-- [ ] Design doc (designs/reader_macro_design.md)
-- [ ] Prototype implementation
-- [ ] Lisp-lite example: `#lisp(+ 1 (* 2 3))`
+## Phase 3: Reader Macros (COMPLETE)
+- [x] Design doc (designs/reader_macro_design.md)
+- [x] Lexer: `#name{...}` syntax (TOKEN_READER_MACRO)
+- [x] Parser: import, reader declarations, reader expressions
+- [x] Codegen: reader registry, interpreter builtins
+- [x] Interpreter builtins: lang_number, lang_add/sub/mul/div, peek_char, is_digit, is_space
+- [x] Lisp-lite example in example/lisp/
+- [x] Test: 130_reader_lisp.lang
 
 ## Low-Hanging Fruit (Language)
 - [ ] Character literals `'a'` (currently use 97)
@@ -47,6 +51,8 @@ Phase 3: Reader Macros - syntax extensions that change how code is parsed
 - Phase 0: Bootstrap Compiler (Go) - archived at archive/boot-go/
 - Phase 1: Self-Hosting - compiler writes itself, fixed point reached
 - Phase 1.5/1.6: Stdlib (malloc, vec, map) + Structs
+- Phase 2: AST Macros (quote/unquote, compile-time interpreter)
+- Phase 3: Reader Macros (syntax extensions, #name{...})
 
 ## Future Phases
 - Phase 4: Swappable GC (written in .lang, user-replaceable like Zig allocators)
