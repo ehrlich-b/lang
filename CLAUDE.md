@@ -1,96 +1,84 @@
 # language
 
-"There are many like it but this one is mine."
+*"There are many like it but this one is mine."*
 
-A self-bootstrapping language with extreme metaprogramming aspirations. Started as a blog project.
+**Vision**: Racket-style power with Zig-style minimalism. For fun.
+
+A self-hosted language forge: full-power reader macros, parsing toolkit, bare-metal output.
 
 ## Anchor Documents
 
 **Always re-read during reanchor:**
-- `README.md` - Project overview
+- `README.md` - Project overview and vision
 - `CLAUDE.md` - This file (Claude Code guidance)
 - `TODO.md` - Current tasks and roadmap
-- `LANG.md` - **Language reference** (what actually works NOW, not aspirational)
-- `INITIAL_DESIGN.md` - Original syntax design, grammar (EBNF)
-- `designs/macro_design.md` - Phase 2 macro system design (current focus)
+- `LANG.md` - Language reference (what works NOW)
+- `designs/reader_v2_design.md` - Reader macros V2 design (current focus)
 
 ## Project Structure
 
 ```
 language/
-├── boot/           # Phase 0 compiler (Go) - temporary, delete after bootstrap
-├── src/            # Phase 1+ compiler (language) - the real one
+├── src/            # Compiler (written in language)
 ├── std/            # Standard library
 ├── test/           # Test programs
-├── devlog/         # Development log (milestone reflections)
+├── example/        # Example programs (lisp reader, etc.)
+├── designs/        # Design documents
+├── devlog/         # Development journal
 └── out/            # Build artifacts
 ```
 
 ## Build Commands
 
 ```bash
-# Build compiler from source (uses out/lang to compile src/*.lang)
-make build
-
-# Verify fixed point (compiler compiles itself to identical output)
-make verify
-
-# Promote verified build to be the active compiler
-make promote
-
-# Compile and run a test file
-make run FILE=test/hello.lang
-
-# Compile with stdlib
-make stdlib-run FILE=test/vec_test.lang
-
-# Bootstrap from scratch (only if out/lang is broken)
-make bootstrap
+make build          # Build compiler from source
+make verify         # Verify fixed point
+make promote        # Promote verified build
+make run FILE=...   # Compile and run
+make stdlib-run FILE=...  # With stdlib
+make bootstrap      # Bootstrap from assembly (emergency)
 ```
 
-**After making compiler changes:** Always run `make verify` to ensure fixed point.
+**After compiler changes:** Always `make verify`.
+
+## Current Focus
+
+**Reader Macros V2**: Give readers full lang power (stdlib, recursion, memory).
+
+The V1 implementation uses a toy interpreter. V2 compiles readers to native executables that output lang source text.
+
+See `designs/reader_v2_design.md`.
 
 ## Development Phases
 
-- [x] Phase 0: Bootstrap compiler in Go → emits x86-64 assembly
-- [x] Phase 1: Self-hosting (compiler written in language)
-- [x] Phase 1.5: Stdlib additions (malloc, vec, map)
-- [~] Phase 1.6: Structs (working, compiler uses them, incremental adoption)
-- [ ] Phase 2: Macro system (AST-based)
-- [ ] Phase 3: Syntax extensions (reader macros)
-- [ ] Phase 4: GC and runtime niceties
-
-## Devlog Instructions
-
-The `devlog/` folder tracks the journey. **Light touch** - only log at milestones:
-
-- When a major feature lands (not every commit)
-- Format: `NNNN-short-title.md` (e.g., `0001-hello-world.md`)
-- Content: How'd it go? What am I thinking? Is Bryan frustrated yet?
-- If you forget, reconstruct from recent commits when you notice
+- [x] Phase 0: Bootstrap (Go) - deleted
+- [x] Phase 1: Self-hosting
+- [x] Phase 1.5/1.6: Stdlib + Structs
+- [x] Phase 2: AST macros
+- [x] Phase 3: Reader macros V1 (toy interpreter)
+- [ ] **Phase 3.5: Reader macros V2 (full power)** ← current
+- [ ] LLVM IR backend
 
 ## Code Style
 
-- Hack freely, this is a learning project
+- Hack freely, this is for fun
 - Comments explain "why", not "what"
-- If it works, it works
-- Memory can leak in the compiler (it's short-lived)
+- Memory can leak in the compiler (short-lived)
+- Incremental modernization, not big-bang refactoring
 
-## Development Philosophy
+## Error Handling Policy
 
-**Incremental modernization, not big-bang refactoring:**
+**Broken windows rule**: If you see any horrible things like core dumps, segfaults, or crashes - don't just say "but it basically works" and try to move on. That error becomes your **top priority** until you can prove it was a fluke or fix it properly. Ignoring errors leads to compounding problems.
 
-1. When implementing a new language feature, prove it works in one meaningful part of the compiler (e.g., convert Token to a real struct), then move on
-2. Don't exhaustively refactor all 30 uses of a pattern - that's tedious and error-prone
-3. As you touch compiler code for new features, "bring it up to code" using all available language features
-4. Check `LANG.md` to see what language features are available - use the best ones for the job
+## Testing Policy
 
-This keeps momentum high and ensures the compiler gradually modernizes as it evolves.
+**Save every test**: When you write a test to verify something works, save it to the `test/` folder - never leave tests to die in `/tmp`. Every well-formed test is valuable and should be kept forever. Use descriptive names and add to the test suite when appropriate.
 
-## Key Decisions Log
+## Key Decisions
 
 | Decision | Choice | Why |
 |----------|--------|-----|
-| Phase 0 language | Go | Fast to write, goal is to delete it |
-| x86 output | Text assembly (GNU as) | Debuggable, educational |
-| Target | x86-64 Linux (System V ABI) | Most common, well-documented |
+| Bootstrap | Go (deleted) | Fast to write, goal was to delete it |
+| Output | Assembly → native | Direct, educational |
+| Reader output | Lang source text | Simple, debuggable, reuses parser |
+| Future backend | LLVM IR (text) | Optimization, targets, no libLLVM |

@@ -43,7 +43,7 @@ build:
 	ln -sf lang_$(VERSION) $(LANG_NEXT)
 	@echo "Created: $(LANG_NEXT) -> lang_$(VERSION)"
 
-# Verify: lang_next compiles src/*.lang, check fixed point
+# Verify: lang_next compiles src/*.lang, check fixed point, run tests
 verify: build
 	@if [ ! -L $(LANG_NEXT) ]; then \
 		echo "ERROR: No lang_next to verify. Run 'make build' first."; \
@@ -58,6 +58,9 @@ verify: build
 		echo "diff out/lang_$(VERSION).s out/verify.s"; \
 		exit 1; \
 	fi
+	@echo ""
+	@echo "Running test suite..."
+	@COMPILER=$(LANG_NEXT) ./test/run_lang1_suite.sh
 
 # Promote: update lang symlink to point to lang_next target
 promote: verify

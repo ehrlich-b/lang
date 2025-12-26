@@ -1,0 +1,9 @@
+// expect: 14
+// Test: V2 reader with nested expression
+reader complex(text *u8) *u8 {
+    return "((2 + 3) * 2 + 4)";
+}
+
+func main() i64 {
+    return #complex{};
+}

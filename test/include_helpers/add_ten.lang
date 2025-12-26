@@ -1,0 +1,4 @@
+// Helper: provides add_ten function
+func add_ten(x i64) i64 {
+    return x + 10;
+}

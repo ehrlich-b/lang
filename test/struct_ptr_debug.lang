@@ -1,0 +1,35 @@
+include "std/core.lang"
+
+struct Holder {
+    ptr *u8;
+    num i64;
+}
+
+func main() i64 {
+    var h *Holder = alloc(16);
+    h.ptr = "(+";
+    h.num = 42;
+    
+    print("h.ptr = ");
+    print(h.ptr);
+    print("\n");
+    
+    print("h.num = ");
+    print_int(h.num);
+    print("\n");
+    
+    // Try to get first char
+    var c i64 = *(h.ptr);
+    print("*(h.ptr) = ");
+    print_int(c);
+    print(" (should be 40)\n");
+    
+    // Try with temp variable
+    var p *u8 = h.ptr;
+    var c2 i64 = *p;
+    print("*p = ");
+    print_int(c2);
+    print(" (should be 40)\n");
+    
+    return 0;
+}

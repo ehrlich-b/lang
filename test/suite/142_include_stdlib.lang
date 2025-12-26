@@ -1,0 +1,12 @@
+// expect: 0
+// Test: include stdlib and use its functions
+include "std/core.lang"
+
+func main() i64 {
+    var s *u8 = str_dup("hello");
+    var len i64 = strlen(s);
+    if len == 5 {
+        return 0;
+    }
+    return 1;
+}

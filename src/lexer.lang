@@ -79,6 +79,7 @@ var TOKEN_DOLLAR_AT i64 = 55;     // $@ (unquote string as identifier)
 var TOKEN_IMPORT i64 = 56;        // 'import' keyword
 var TOKEN_READER i64 = 57;        // 'reader' keyword
 var TOKEN_READER_MACRO i64 = 58;  // #name{...} reader macro invocation
+var TOKEN_INCLUDE i64 = 59;       // 'include' keyword
 
 // ============================================================
 // Token struct
@@ -375,6 +376,7 @@ func check_keyword() i64 {
     if lexeme_eq("macro") { return TOKEN_MACRO; }
     if lexeme_eq("reader") { return TOKEN_READER; }
     if lexeme_eq("import") { return TOKEN_IMPORT; }
+    if lexeme_eq("include") { return TOKEN_INCLUDE; }
     if lexeme_eq("if") { return TOKEN_IF; }
     if lexeme_eq("else") { return TOKEN_ELSE; }
     if lexeme_eq("while") { return TOKEN_WHILE; }
@@ -668,6 +670,7 @@ func print_token_type(t i64) void {
     if t == TOKEN_IMPORT { print("import"); return; }
     if t == TOKEN_READER { print("reader"); return; }
     if t == TOKEN_READER_MACRO { print("READER_MACRO"); return; }
+    if t == TOKEN_INCLUDE { print("include"); return; }
     print("UNKNOWN");
 }
 

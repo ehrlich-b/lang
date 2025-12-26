@@ -1,0 +1,7 @@
+// expect: 49
+// Test: nested includes (this -> uses_multiply -> multiply)
+include "test/include_helpers/uses_multiply.lang"
+
+func main() i64 {
+    return square(7);
+}

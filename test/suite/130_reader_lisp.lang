@@ -1,64 +1,69 @@
 // expect: 42
-// Test: lisp reader macro
+// Test: V2 lisp-style reader macro
+// V2 readers output lang source text, not AST nodes
 
-// Lisp reader for simple expressions
 reader lisp(text *u8) *u8 {
+    // Simple parser for "OP a b" -> "(a OP b)"
     var pos i64 = 0;
-    var len i64 = str_len(text);
 
     // Skip whitespace
-    while pos < len && is_space(peek_char(text, pos)) {
-        pos = pos + 1;
-    }
+    while *(text + pos) == 32 { pos = pos + 1; }
 
-    var c i64 = peek_char(text, pos);
-
-    // Number
-    if is_digit(c) {
-        var num i64 = 0;
-        while pos < len && is_digit(peek_char(text, pos)) {
-            num = num * 10 + (peek_char(text, pos) - 48);
-            pos = pos + 1;
-        }
-        return lang_number(num);
-    }
-
-    // Operator + two numbers
-    var op i64 = c;
+    // Read operator (single char: +, -, *, /)
+    var op i64 = *(text + pos);
     pos = pos + 1;
 
-    while pos < len && is_space(peek_char(text, pos)) {
+    // Skip whitespace
+    while *(text + pos) == 32 { pos = pos + 1; }
+
+    // Read first number into result buffer
+    var result *u8 = alloc(64);
+    var rp i64 = 0;
+
+    // Start with "("
+    *(result + rp) = 40;
+    rp = rp + 1;
+
+    // Copy first number
+    while *(text + pos) >= 48 && *(text + pos) <= 57 {
+        *(result + rp) = *(text + pos);
+        rp = rp + 1;
         pos = pos + 1;
     }
 
-    var num1 i64 = 0;
-    while pos < len && is_digit(peek_char(text, pos)) {
-        num1 = num1 * 10 + (peek_char(text, pos) - 48);
+    // Add space
+    *(result + rp) = 32;
+    rp = rp + 1;
+
+    // Add operator
+    *(result + rp) = op;
+    rp = rp + 1;
+
+    // Add space
+    *(result + rp) = 32;
+    rp = rp + 1;
+
+    // Skip whitespace in input
+    while *(text + pos) == 32 { pos = pos + 1; }
+
+    // Copy second number
+    while *(text + pos) >= 48 && *(text + pos) <= 57 {
+        *(result + rp) = *(text + pos);
+        rp = rp + 1;
         pos = pos + 1;
     }
 
-    while pos < len && is_space(peek_char(text, pos)) {
-        pos = pos + 1;
-    }
+    // End with ")"
+    *(result + rp) = 41;
+    rp = rp + 1;
 
-    var num2 i64 = 0;
-    while pos < len && is_digit(peek_char(text, pos)) {
-        num2 = num2 * 10 + (peek_char(text, pos) - 48);
-        pos = pos + 1;
-    }
+    // Null terminate
+    *(result + rp) = 0;
 
-    var left *u8 = lang_number(num1);
-    var right *u8 = lang_number(num2);
-
-    if op == 43 { return lang_add(left, right); }
-    if op == 45 { return lang_sub(left, right); }
-    if op == 42 { return lang_mul(left, right); }
-    if op == 47 { return lang_div(left, right); }
-
-    return left;
+    return result;
 }
 
 func main() i64 {
-    // (* 6 7) = 42
+    // "* 6 7" -> "(6 * 7)" -> 42
     return #lisp{* 6 7};
 }

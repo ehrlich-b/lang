@@ -1,0 +1,9 @@
+// expect: 42
+// Test: V2 reader that returns a constant
+reader answer(text *u8) *u8 {
+    return "42";
+}
+
+func main() i64 {
+    return #answer{ignored};
+}

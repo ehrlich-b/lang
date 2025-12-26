@@ -1,79 +1,50 @@
-// Lisp reader - parses simple s-expressions into AST
-// Supported forms:
-//   - Numbers: 42
-//   - Flat operations: + 1 2, - 3 4, * 5 6, / 7 8
+// ============================================================
+// Lisp Reader - BLOCKED on reader includes
+// ============================================================
 //
-// Note: This is a simple implementation without nested expression support
-// (interpreter doesn't support recursive function calls yet)
+// This reader cannot be implemented beautifully until readers
+// can include helper files. See TODO.md "Reader Includes".
+//
+// The problem: only code inside `reader foo() { ... }` braces
+// is compiled into the reader executable. We can't define
+// recursive helper functions outside the reader body.
+//
+// Once reader includes work, this will be:
+//
+//   include "lisp_parser.lang"
+//
+//   reader lisp(text *u8) *u8 {
+//       var t *Tokenizer = tok_new(text);
+//       return sexp_parse(t);
+//   }
+//
+// For now, here's a minimal reader that handles simple cases:
 
-// Reader entry point - parses "op num1 num2" or just "num"
 reader lisp(text *u8) *u8 {
-    var pos i64 = 0;
-    var len i64 = str_len(text);
+    var t *Tokenizer = tok_new(text);
 
-    // Skip leading whitespace
-    while pos < len && is_space(peek_char(text, pos)) {
-        pos = pos + 1;
+    // Simple case: just a number
+    if tok_kind(t) == TOK_NUMBER {
+        return emit_number(tok_number(t));
     }
 
-    // Check what we have
-    var c i64 = peek_char(text, pos);
+    // Simple case: (op num num)
+    if tok_kind(t) == TOK_LPAREN {
+        tok_next(t);  // skip (
+        var op *u8 = tok_text(t);
+        tok_next(t);
 
-    // If it's a digit, parse a number
-    if is_digit(c) {
-        var num i64 = 0;
-        while pos < len && is_digit(peek_char(text, pos)) {
-            num = num * 10 + (peek_char(text, pos) - 48);
-            pos = pos + 1;
-        }
-        return lang_number(num);
+        // Get left operand (must be number for now)
+        var left *u8 = emit_number(tok_number(t));
+        tok_next(t);
+
+        // Get right operand (must be number for now)
+        var right *u8 = emit_number(tok_number(t));
+        tok_next(t);
+        tok_next(t);  // skip )
+
+        return emit_binop(left, op, right);
     }
 
-    // Otherwise, expect operator followed by two numbers
-    var op i64 = c;
-    pos = pos + 1;
-
-    // Skip whitespace
-    while pos < len && is_space(peek_char(text, pos)) {
-        pos = pos + 1;
-    }
-
-    // Parse first number
-    var num1 i64 = 0;
-    while pos < len && is_digit(peek_char(text, pos)) {
-        num1 = num1 * 10 + (peek_char(text, pos) - 48);
-        pos = pos + 1;
-    }
-
-    // Skip whitespace
-    while pos < len && is_space(peek_char(text, pos)) {
-        pos = pos + 1;
-    }
-
-    // Parse second number
-    var num2 i64 = 0;
-    while pos < len && is_digit(peek_char(text, pos)) {
-        num2 = num2 * 10 + (peek_char(text, pos) - 48);
-        pos = pos + 1;
-    }
-
-    // Build AST based on operator
-    var left *u8 = lang_number(num1);
-    var right *u8 = lang_number(num2);
-
-    if op == 43 {  // '+'
-        return lang_add(left, right);
-    }
-    if op == 45 {  // '-'
-        return lang_sub(left, right);
-    }
-    if op == 42 {  // '*'
-        return lang_mul(left, right);
-    }
-    if op == 47 {  // '/'
-        return lang_div(left, right);
-    }
-
-    // Default: just return first number
-    return left;
+    return emit_number(0);
 }
