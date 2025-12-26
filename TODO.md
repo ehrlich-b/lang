@@ -1,16 +1,28 @@
 # language - TODO
 
 ## Current Focus
-Phase 2: Macros - completing the AST-based macro system
+Phase 3: Reader Macros - syntax extensions that change how code is parsed
 
-## Recent Cleanup (2025-12-26)
-- [x] Fix infinite error loop - parser now exits after 10 errors
-- [x] Fix README.md - removed aspirational struct literal syntax
-- [x] Fix LANG.md - updated "Not Implemented" section
-- [x] Fix test harness - now correctly captures exit codes
-- [x] Add struct/macro tests to suite (73 tests total)
+## Phase 3: Reader Macros (DESIGN)
+- [ ] Design doc (designs/reader_macro_design.md)
+- [ ] Prototype implementation
+- [ ] Lisp-lite example: `#lisp(+ 1 (* 2 3))`
 
-## Phase 2: Macros (WORKING)
+## Low-Hanging Fruit (Language)
+- [ ] Character literals `'a'` (currently use 97)
+- [ ] Bitwise operators `& | ^ << >>`
+- [ ] Compound assignment `+= -= *= /=`
+- [ ] `for` loop sugar
+- [ ] `break` / `continue`
+- [ ] Type aliases `type Fd = i64`
+
+## Stdlib Additions
+- [ ] `memcpy`, `memset`
+- [ ] `itoa` (number to string)
+- [ ] String builder
+- [ ] `read_file` (returns contents as string)
+
+## Phase 2: Macros (COMPLETE)
 - [x] Design macro system (see designs/macro_design.md)
 - [x] Add lexer tokens ($, ${, $@, macro keyword)
 - [x] Add AST nodes (NODE_QUOTE_EXPR, NODE_UNQUOTE_EXPR, NODE_MACRO_DECL)
@@ -23,24 +35,20 @@ Phase 2: Macros - completing the AST-based macro system
 - [x] Add --expand-macros debug flag
 - [x] Add ast_to_string(expr) compile-time builtin
 - [x] Add $@name (unquote-string) to splice strings as literals
-- [ ] Extensive examples gallery with cool macro uses
 
 ## Backlog (Nice to Have)
 - [ ] Deduplicate error messages (use map to track seen errors)
 - [ ] Floating point types (f32, f64)
 - [ ] Struct literals (`Point{x: 1, y: 2}`)
 - [ ] Passing/returning structs by value
-
-## Phase 1.5/1.6: COMPLETE
-- Stdlib: malloc, free, vec, map, str_concat, str_dup
-- Structs: parsing, codegen, field access, pointer-to-struct
+- [ ] Extensive examples gallery (after language is "final")
 
 ## Completed Phases
 - Phase 0: Bootstrap Compiler (Go) - archived at archive/boot-go/
 - Phase 1: Self-Hosting - compiler writes itself, fixed point reached
+- Phase 1.5/1.6: Stdlib (malloc, vec, map) + Structs
 
 ## Future Phases
-- Phase 3: Syntax extensions (reader macros, custom operators)
 - Phase 4: Runtime (GC, maybe LLVM backend)
 
 ## Research / Tooling
