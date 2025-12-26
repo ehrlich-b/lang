@@ -1,0 +1,13 @@
+// expect: 142
+// Struct field access
+struct Point {
+    x i64;
+    y i64;
+}
+
+func main() i64 {
+    var p Point;
+    p.x = 42;
+    p.y = 100;
+    return p.x + p.y;
+}

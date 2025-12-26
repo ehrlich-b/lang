@@ -1,0 +1,9 @@
+// expect: 100
+// Nested macro calls
+macro double(x) {
+    return ${ $x + $x };
+}
+
+func main() i64 {
+    return double(double(25));
+}

@@ -943,6 +943,7 @@ func param_set_type(p *u8, t *u8) void {
 var parse_tokens *u8 = nil;      // vec of token pointers
 var parse_current i64 = 0;
 var parse_error_count i64 = 0;
+var parse_max_errors i64 = 10;   // Stop after this many errors
 
 // ============================================================
 // Token array helper (using vec)
@@ -1032,12 +1033,18 @@ func parse_match(t i64) bool {
 func parse_error(msg *u8) void {
     var tok *u8 = parse_peek();
     eprint("Error at ");
-    print_int(tok_line(tok));
+    eprint_i64(tok_line(tok));
     eprint(":");
-    print_int(tok_col(tok));
+    eprint_i64(tok_col(tok));
     eprint(": ");
     eprintln(msg);
     parse_error_count = parse_error_count + 1;
+
+    // Exit early if too many errors
+    if parse_error_count >= parse_max_errors {
+        eprintln("Too many errors, stopping.");
+        exit(1);
+    }
 }
 
 func parse_expect(t i64, msg *u8) *u8 {

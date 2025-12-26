@@ -359,16 +359,19 @@ func main() i64 {
 ## What's NOT Implemented Yet
 
 - Arrays (use pointer arithmetic instead)
-- String operations beyond strlen/streq
-- Heap management (alloc never frees)
+- Struct literals (`Point{x: 1, y: 2}`)
+- Passing/returning structs by value
 - For loops
 - Break/continue
 - Switch/case
+- Floating point types
 - Comments in middle of expressions
 
 ## Common Patterns
 
-### Manual "Struct"
+### Manual "Struct" (Legacy Pattern)
+Now that real structs exist, this pattern is discouraged. Shown for reference since the compiler still uses it internally.
+
 ```lang
 // Token "struct": [type:8][ptr:8][len:8][line:8][col:8] = 40 bytes
 var tok *u8 = alloc(40);

@@ -12,7 +12,8 @@ for f in test/suite/*.lang; do
     if $LANG "$f" -o out/test_$name.s 2>/dev/null && \
        as out/test_$name.s -o out/test_$name.o 2>/dev/null && \
        ld out/test_$name.o -o out/test_$name 2>/dev/null; then
-        result=$(./out/test_$name 2>/dev/null; echo $?)
+        ./out/test_$name >/dev/null 2>&1
+        result=$?
         if [ "$result" = "$expected" ]; then
             echo "PASS $name"
             passed=$((passed + 1))

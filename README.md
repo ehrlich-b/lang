@@ -10,26 +10,30 @@ A self-bootstrapping programming language. C-like feel with modern ergonomics. W
 
 ## The Gist
 
-```
-func main() i64 {
-    var x i32 = 42;
-    var p *i32 = &x;
+```lang
+struct Point {
+    x i64;
+    y i64;
+}
 
-    if *p > 0 {
+func main() i64 {
+    var p Point;
+    p.x = 42;
+    p.y = 100;
+
+    if p.x > 0 {
         syscall(1, 1, "positive\n", 9);
     }
 
-    return 0;
+    return p.x + p.y;  // 142
 }
 
-struct Point {
-    x i32;
-    y i32;
+// Macros for compile-time code generation
+macro double(x) {
+    return ${ $x + $x };
 }
 
-func add(a Point, b Point) Point {
-    return Point{x: a.x + b.x, y: a.y + b.y};
-}
+var n i64 = double(21);  // expands to (21 + 21) = 42
 ```
 
 ## Goals
