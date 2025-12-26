@@ -1,0 +1,152 @@
+// macro_dsl_test.lang
+// A macro-powered expression DSL
+// This looks NOTHING like C - almost Lisp-style!
+
+// ============================================================
+// PRIMITIVE COMBINATORS
+// ============================================================
+
+macro plus(a, b)   { return ${ $a + $b }; }
+macro minus(a, b)  { return ${ $a - $b }; }
+macro times(a, b)  { return ${ $a * $b }; }
+macro divide(a, b) { return ${ $a / $b }; }
+macro modulo(a, b) { return ${ $a % $b }; }
+
+macro negate(x) { return ${ 0 - $x }; }
+macro square(x) { return ${ $x * $x }; }
+macro cube(x)   { return ${ $x * $x * $x }; }
+macro double(x) { return ${ $x + $x }; }
+macro triple(x) { return ${ $x + $x + $x }; }
+macro halve(x)  { return ${ $x / 2 }; }
+macro succ(x)   { return ${ $x + 1 }; }
+macro pred(x)   { return ${ $x - 1 }; }
+
+// ============================================================
+// COMPOSED TRANSFORMS (point-free style!)
+// ============================================================
+
+macro quad(x)     { return ${ double(double($x)) }; }
+macro oct(x)      { return ${ double(quad($x)) }; }
+macro hex(x)      { return ${ double(oct($x)) }; }
+
+macro square_succ(x)    { return ${ succ(square($x)) }; }
+macro succ_square(x)    { return ${ square(succ($x)) }; }
+macro double_square(x)  { return ${ square(double($x)) }; }
+macro square_double(x)  { return ${ double(square($x)) }; }
+
+// ============================================================
+// CONDITIONAL COMBINATORS (arithmetic trick!)
+// select(cond, a, b) = cond ? a : b
+// ============================================================
+
+macro select(cond, a, b) {
+    return ${ ($cond != 0) * $a + ($cond == 0) * $b };
+}
+
+macro max(a, b) { return ${ select($a > $b, $a, $b) }; }
+macro min(a, b) { return ${ select($a < $b, $a, $b) }; }
+macro abs(x)    { return ${ select($x >= 0, $x, negate($x)) }; }
+macro sign(x)   { return ${ select($x > 0, 1, select($x < 0, negate(1), 0)) }; }
+
+macro clamp(x, lo, hi) {
+    return ${ min(max($x, $lo), $hi) };
+}
+
+// ============================================================
+// MATHEMATICAL ABSTRACTIONS
+// ============================================================
+
+// Pythagorean: a² + b²
+macro pythagorean(a, b) {
+    return ${ plus(square($a), square($b)) };
+}
+
+// Distance squared between two points
+macro dist2(x1, y1, x2, y2) {
+    return ${ pythagorean(minus($x2, $x1), minus($y2, $y1)) };
+}
+
+// Polynomial: ax² + bx + c
+macro quadratic(a, b, c, x) {
+    return ${ plus(plus(times($a, square($x)), times($b, $x)), $c) };
+}
+
+// Sum of arithmetic sequence: n * (first + last) / 2
+macro arith_sum(n, first, last) {
+    return ${ divide(times($n, plus($first, $last)), 2) };
+}
+
+// Factorial approximation via macro expansion (just for show)
+macro fact3() { return ${ times(3, times(2, 1)) }; }
+macro fact4() { return ${ times(4, fact3()) }; }
+macro fact5() { return ${ times(5, fact4()) }; }
+
+// ============================================================
+// EVEN WEIRDER: NESTED MACRO CHAINS
+// ============================================================
+
+// Apply a transform N times (manual unrolling)
+macro apply2(f, x)  { return ${ $f($f($x)) }; }
+macro apply3(f, x)  { return ${ $f($f($f($x))) }; }
+macro apply4(f, x)  { return ${ $f($f($f($f($x)))) }; }
+
+// Composition chains
+macro inc_then_double(x) { return ${ double(succ($x)) }; }
+macro double_then_inc(x) { return ${ succ(double($x)) }; }
+
+// Tower: apply succ 10 times
+macro tower10(x) {
+    return ${ succ(succ(succ(succ(succ(succ(succ(succ(succ(succ($x)))))))))) };
+}
+
+// ============================================================
+// THE TEST: Compute using our DSL
+// Expected: exit code 42 (the answer!)
+// ============================================================
+
+func main() i64 {
+    // All computation via macros - no raw arithmetic!
+
+    // quad(3) = 12
+    var a i64 = quad(3);
+
+    // succ_square(4) = (4+1)² = 25
+    var b i64 = succ_square(4);
+
+    // fact5() = 5! = 120
+    var c i64 = fact5();
+
+    // pythagorean(3, 4) = 9 + 16 = 25
+    var d i64 = pythagorean(3, 4);
+
+    // abs(negate(7)) = 7
+    var e i64 = abs(negate(7));
+
+    // clamp(100, 0, 50) = 50
+    var f i64 = clamp(100, 0, 50);
+
+    // quadratic(1, 0, 1, 5) = 1*25 + 0*5 + 1 = 26
+    var g i64 = quadratic(1, 0, 1, 5);
+
+    // dist2(0, 0, 3, 4) = 25
+    var h i64 = dist2(0, 0, 3, 4);
+
+    // arith_sum(10, 1, 10) = 10 * 11 / 2 = 55
+    var i i64 = arith_sum(10, 1, 10);
+
+    // apply4(succ, 0) = 4
+    var j i64 = apply4(succ, 0);
+
+    // tower10(0) = 10
+    var k i64 = tower10(0);
+
+    // Now compute THE ANSWER using only macros:
+    // 42 = (a + b + c + d + e + f + g + h + i + j + k) mod some_value
+    // Let's be clever:
+    // 12 + 25 + 120 + 25 + 7 + 50 + 26 + 25 + 55 + 4 + 10 = 359
+
+    // We want 42. Let's compute: (120 - 25 - 50 - 3) = 42
+    // fact5() - succ_square(4) - clamp(100,0,50) - 3 = 120 - 25 - 50 - 3 = 42
+
+    return minus(minus(minus(c, b), f), 3);
+}

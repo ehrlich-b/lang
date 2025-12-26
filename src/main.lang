@@ -31,7 +31,7 @@ func get_arg(argv **u8, i i64) *u8 {
 
 func main(argc i64, argv **u8) i64 {
     if argc < 2 {
-        eprintln("Usage: lang1 <file.lang>... [-o output.s]");
+        eprintln("Usage: lang <file.lang>... [-o output.s] [--expand-macros]");
         return 1;
     }
 
@@ -43,16 +43,28 @@ func main(argc i64, argv **u8) i64 {
     var i i64 = 1;
     while i < argc {
         var arg *u8 = get_arg(argv, i);
+        var handled i64 = 0;
+
+        // Check for --expand-macros flag
+        if *arg == 45 && *(arg + 1) == 45 {  // '--'
+            if memcmp(arg + 2, "expand-macros", 13) {
+                cg_expand_macros = 1;
+                handled = 1;
+            }
+        }
 
         // Check for -o flag
-        if *arg == 45 {  // '-'
+        if handled == 0 && *arg == 45 {  // '-'
             if *(arg + 1) == 111 {  // 'o'
                 i = i + 1;
                 if i < argc {
                     output_file = get_arg(argv, i);
                 }
+                handled = 1;
             }
-        } else {
+        }
+
+        if handled == 0 {
             // Input file
             var content *u8 = read_file(arg);
             if content == nil {

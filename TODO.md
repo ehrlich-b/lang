@@ -13,8 +13,9 @@ Phase 2: Macros - completing the AST-based macro system
 - [x] Implement quote expansion (substitute unquotes)
 - [x] Implement macro expansion in gen_call
 - [x] Basic macro tests pass (double, square, nested)
-- [ ] Add --expand-macros debug flag
-- [ ] Write debug(x) macro with ast_to_string
+- [x] Add --expand-macros debug flag
+- [x] Add ast_to_string(expr) compile-time builtin
+- [x] Add $@name (unquote-string) to splice strings as literals
 - [ ] Extensive examples gallery with cool macro uses
 
 ## Phase 1.5/1.6: COMPLETE

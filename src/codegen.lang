@@ -41,6 +41,9 @@ var cg_struct_count i64 = 0;
 var cg_macros *u8 = nil;
 var cg_macro_count i64 = 0;
 
+// Debug flag: print macro expansions
+var cg_expand_macros i64 = 0;
+
 // Workaround for codegen bug - temp storage
 var cg_temp_struct_decl *u8 = nil;
 
@@ -1055,6 +1058,14 @@ func gen_expr(expr *u8) void {
             if macro_def != nil {
                 // Call the macro interpreter
                 var expanded *u8 = interp_call_macro(macro_def, args, arg_count);
+                // Print expansion if --expand-macros flag is set
+                if cg_expand_macros != 0 && expanded != nil {
+                    eprint("[macro ");
+                    eprint_buf(name, name_len);
+                    eprint("] => ");
+                    print_expr_ast(expanded);
+                    eprintln("");
+                }
                 // Generate code for the expanded AST
                 if expanded != nil {
                     gen_expr(expanded);
@@ -1716,6 +1727,31 @@ func expand_quote(expr *u8) *u8 {
         return interp_find_binding(name, name_len);
     }
 
+    // Unquote string: look up binding (string), create STRING_EXPR node
+    // Note: STRING_EXPR values must include quotes for write_ascii_string
+    if k == NODE_UNQUOTE_STRING_EXPR {
+        var name *u8 = unquote_string_expr_name(expr);
+        var name_len i64 = unquote_string_expr_name_len(expr);
+        var str_ptr *u8 = interp_find_binding(name, name_len);
+        var str_len i64 = strlen(str_ptr);
+
+        // Wrap in quotes: allocate space for " + content + "
+        var quoted *u8 = alloc(str_len + 3);  // quote + content + quote + null
+        *quoted = 34;  // opening quote
+        var i i64 = 0;
+        while i < str_len {
+            *(quoted + 1 + i) = *(str_ptr + i);
+            i = i + 1;
+        }
+        *(quoted + 1 + str_len) = 34;  // closing quote
+        *(quoted + 2 + str_len) = 0;   // null terminator
+
+        var new_node *u8 = string_expr_alloc();
+        string_expr_set_value(new_node, quoted);
+        string_expr_set_value_len(new_node, str_len + 2);
+        return new_node;
+    }
+
     // Binary expression: expand both children
     if k == NODE_BINARY_EXPR {
         var left *u8 = expand_quote(binary_expr_left(expr));
@@ -1802,6 +1838,11 @@ func interp_expr(expr *u8) i64 {
         return 0;
     }
 
+    if k == NODE_STRING_EXPR {
+        // Return pointer to string value (for use in macros)
+        return string_expr_value(expr);
+    }
+
     if k == NODE_IDENT_EXPR {
         var name *u8 = ident_expr_name(expr);
         var name_len i64 = ident_expr_name_len(expr);
@@ -1867,6 +1908,28 @@ func interp_expr(expr *u8) i64 {
         var name *u8 = unquote_expr_name(expr);
         var name_len i64 = unquote_expr_name_len(expr);
         return interp_find_binding(name, name_len);
+    }
+
+    // Call expression: check for compile-time builtins
+    if k == NODE_CALL_EXPR {
+        var func_node *u8 = call_expr_func(expr);
+        if node_kind(func_node) == NODE_IDENT_EXPR {
+            var fname *u8 = ident_expr_name(func_node);
+            var fname_len i64 = ident_expr_name_len(func_node);
+
+            // Check for ast_to_string builtin
+            if fname_len == 13 && memcmp(fname, "ast_to_string", 13) {
+                var args *u8 = call_expr_args(expr);
+                var arg_count i64 = call_expr_arg_count(expr);
+                if arg_count >= 1 {
+                    var arg_ptr **u8 = args;
+                    var arg_ast *u8 = interp_expr(*arg_ptr);
+                    return ast_to_string(arg_ast);
+                }
+                return 0;
+            }
+        }
+        return 0;
     }
 
     return 0;
@@ -1948,6 +2011,297 @@ func interp_stmt(stmt *u8) void {
         interp_binding_count = saved_count;
         return;
     }
+}
+
+// ============================================================
+// ast_to_string - convert AST to string (compile-time builtin)
+// ============================================================
+
+// Buffer for building AST string
+var ast_str_buf *u8 = nil;
+var ast_str_pos i64 = 0;
+var ast_str_cap i64 = 0;
+
+func ast_str_init() void {
+    if ast_str_buf == nil {
+        ast_str_cap = 1024;
+        ast_str_buf = alloc(ast_str_cap);
+    }
+    ast_str_pos = 0;
+}
+
+func ast_str_append_char(c u8) void {
+    if ast_str_pos < ast_str_cap - 1 {
+        *(ast_str_buf + ast_str_pos) = c;
+        ast_str_pos = ast_str_pos + 1;
+    }
+}
+
+func ast_str_append(s *u8, len i64) void {
+    var i i64 = 0;
+    while i < len {
+        ast_str_append_char(*(s + i));
+        i = i + 1;
+    }
+}
+
+func ast_str_append_cstr(s *u8) void {
+    while *s != 0 {
+        ast_str_append_char(*s);
+        s = s + 1;
+    }
+}
+
+func ast_str_finish() *u8 {
+    *(ast_str_buf + ast_str_pos) = 0;
+    // Duplicate the string so caller owns it
+    var result *u8 = str_dup(ast_str_buf);
+    return result;
+}
+
+func ast_to_string_expr(expr *u8) void {
+    if expr == nil {
+        ast_str_append_cstr("nil");
+        return;
+    }
+
+    var kind i64 = node_kind(expr);
+
+    if kind == NODE_NUMBER_EXPR {
+        var ptr *u8 = number_expr_value(expr);
+        var len i64 = number_expr_value_len(expr);
+        ast_str_append(ptr, len);
+        return;
+    }
+
+    if kind == NODE_IDENT_EXPR {
+        var name *u8 = ident_expr_name(expr);
+        var name_len i64 = ident_expr_name_len(expr);
+        ast_str_append(name, name_len);
+        return;
+    }
+
+    if kind == NODE_STRING_EXPR {
+        ast_str_append_char(34);  // "
+        var s *u8 = string_expr_value(expr);
+        var s_len i64 = string_expr_value_len(expr);
+        ast_str_append(s, s_len);
+        ast_str_append_char(34);  // "
+        return;
+    }
+
+    if kind == NODE_BOOL_EXPR {
+        if bool_expr_value(expr) != 0 {
+            ast_str_append_cstr("true");
+        } else {
+            ast_str_append_cstr("false");
+        }
+        return;
+    }
+
+    if kind == NODE_NIL_EXPR {
+        ast_str_append_cstr("nil");
+        return;
+    }
+
+    if kind == NODE_GROUP_EXPR {
+        ast_str_append_char(40);  // (
+        ast_to_string_expr(group_expr_expr(expr));
+        ast_str_append_char(41);  // )
+        return;
+    }
+
+    if kind == NODE_BINARY_EXPR {
+        ast_str_append_char(40);  // (
+        ast_to_string_expr(binary_expr_left(expr));
+        ast_str_append_char(32);  // space
+        var op i64 = binary_expr_op(expr);
+        if op == TOKEN_PLUS { ast_str_append_cstr("+"); }
+        else if op == TOKEN_MINUS { ast_str_append_cstr("-"); }
+        else if op == TOKEN_STAR { ast_str_append_cstr("*"); }
+        else if op == TOKEN_SLASH { ast_str_append_cstr("/"); }
+        else if op == TOKEN_PERCENT { ast_str_append_cstr("%"); }
+        else if op == TOKEN_EQEQ { ast_str_append_cstr("=="); }
+        else if op == TOKEN_BANGEQ { ast_str_append_cstr("!="); }
+        else if op == TOKEN_LT { ast_str_append_cstr("<"); }
+        else if op == TOKEN_GT { ast_str_append_cstr(">"); }
+        else if op == TOKEN_LTEQ { ast_str_append_cstr("<="); }
+        else if op == TOKEN_GTEQ { ast_str_append_cstr(">="); }
+        else if op == TOKEN_AMPAMP { ast_str_append_cstr("&&"); }
+        else if op == TOKEN_PIPEPIPE { ast_str_append_cstr("||"); }
+        else { ast_str_append_cstr("?op?"); }
+        ast_str_append_char(32);  // space
+        ast_to_string_expr(binary_expr_right(expr));
+        ast_str_append_char(41);  // )
+        return;
+    }
+
+    if kind == NODE_UNARY_EXPR {
+        var op i64 = unary_expr_op(expr);
+        if op == TOKEN_MINUS { ast_str_append_cstr("-"); }
+        else if op == TOKEN_BANG { ast_str_append_cstr("!"); }
+        else if op == TOKEN_STAR { ast_str_append_cstr("*"); }
+        else if op == TOKEN_AMP { ast_str_append_cstr("&"); }
+        ast_to_string_expr(unary_expr_expr(expr));
+        return;
+    }
+
+    if kind == NODE_CALL_EXPR {
+        ast_to_string_expr(call_expr_func(expr));
+        ast_str_append_char(40);  // (
+        var args *u8 = call_expr_args(expr);
+        var count i64 = call_expr_arg_count(expr);
+        var i i64 = 0;
+        while i < count {
+            if i > 0 { ast_str_append_cstr(", "); }
+            var arg_ptr **u8 = args + (i * 8);
+            ast_to_string_expr(*arg_ptr);
+            i = i + 1;
+        }
+        ast_str_append_char(41);  // )
+        return;
+    }
+
+    if kind == NODE_FIELD_EXPR {
+        ast_to_string_expr(field_expr_expr(expr));
+        ast_str_append_char(46);  // .
+        var fname *u8 = field_expr_field(expr);
+        var fname_len i64 = field_expr_field_len(expr);
+        ast_str_append(fname, fname_len);
+        return;
+    }
+
+    ast_str_append_cstr("<expr>");
+}
+
+func ast_to_string(expr *u8) *u8 {
+    ast_str_init();
+    ast_to_string_expr(expr);
+    return ast_str_finish();
+}
+
+// ============================================================
+// AST printing (for --expand-macros debug flag)
+// ============================================================
+
+func print_expr_ast(expr *u8) void {
+    if expr == nil {
+        eprint("nil");
+        return;
+    }
+
+    var kind i64 = node_kind(expr);
+
+    if kind == NODE_NUMBER_EXPR {
+        var ptr *u8 = number_expr_value(expr);
+        var len i64 = number_expr_value_len(expr);
+        eprint_buf(ptr, len);
+        return;
+    }
+
+    if kind == NODE_IDENT_EXPR {
+        var name *u8 = ident_expr_name(expr);
+        var name_len i64 = ident_expr_name_len(expr);
+        eprint_buf(name, name_len);
+        return;
+    }
+
+    if kind == NODE_STRING_EXPR {
+        eprint("\"");
+        var s *u8 = string_expr_value(expr);
+        var s_len i64 = string_expr_value_len(expr);
+        eprint_buf(s, s_len);
+        eprint("\"");
+        return;
+    }
+
+    if kind == NODE_BOOL_EXPR {
+        if bool_expr_value(expr) != 0 {
+            eprint("true");
+        } else {
+            eprint("false");
+        }
+        return;
+    }
+
+    if kind == NODE_NIL_EXPR {
+        eprint("nil");
+        return;
+    }
+
+    if kind == NODE_GROUP_EXPR {
+        eprint("(");
+        print_expr_ast(group_expr_expr(expr));
+        eprint(")");
+        return;
+    }
+
+    if kind == NODE_BINARY_EXPR {
+        eprint("(");
+        print_expr_ast(binary_expr_left(expr));
+        eprint(" ");
+        var op i64 = binary_expr_op(expr);
+        if op == TOKEN_PLUS { eprint("+"); }
+        else if op == TOKEN_MINUS { eprint("-"); }
+        else if op == TOKEN_STAR { eprint("*"); }
+        else if op == TOKEN_SLASH { eprint("/"); }
+        else if op == TOKEN_PERCENT { eprint("%"); }
+        else if op == TOKEN_EQEQ { eprint("=="); }
+        else if op == TOKEN_BANGEQ { eprint("!="); }
+        else if op == TOKEN_LT { eprint("<"); }
+        else if op == TOKEN_GT { eprint(">"); }
+        else if op == TOKEN_LTEQ { eprint("<="); }
+        else if op == TOKEN_GTEQ { eprint(">="); }
+        else if op == TOKEN_AMPAMP { eprint("&&"); }
+        else if op == TOKEN_PIPEPIPE { eprint("||"); }
+        else { eprint("?op?"); }
+        eprint(" ");
+        print_expr_ast(binary_expr_right(expr));
+        eprint(")");
+        return;
+    }
+
+    if kind == NODE_UNARY_EXPR {
+        var op i64 = unary_expr_op(expr);
+        if op == TOKEN_MINUS { eprint("-"); }
+        else if op == TOKEN_BANG { eprint("!"); }
+        else if op == TOKEN_STAR { eprint("*"); }
+        else if op == TOKEN_AMP { eprint("&"); }
+        print_expr_ast(unary_expr_expr(expr));
+        return;
+    }
+
+    if kind == NODE_CALL_EXPR {
+        print_expr_ast(call_expr_func(expr));
+        eprint("(");
+        var args *u8 = call_expr_args(expr);
+        var count i64 = call_expr_arg_count(expr);
+        var i i64 = 0;
+        while i < count {
+            if i > 0 { eprint(", "); }
+            var arg_ptr **u8 = args + (i * 8);
+            print_expr_ast(*arg_ptr);
+            i = i + 1;
+        }
+        eprint(")");
+        return;
+    }
+
+    if kind == NODE_INDEX_EXPR {
+        eprint("<index-expr>");
+        return;
+    }
+
+    if kind == NODE_FIELD_EXPR {
+        print_expr_ast(field_expr_expr(expr));
+        eprint(".");
+        var fname *u8 = field_expr_field(expr);
+        var fname_len i64 = field_expr_field_len(expr);
+        eprint_buf(fname, fname_len);
+        return;
+    }
+
+    eprint("<unknown-expr>");
 }
 
 // Call a macro with arguments (AST nodes)
