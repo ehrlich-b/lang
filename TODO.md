@@ -49,7 +49,8 @@ Phase 3: Reader Macros - syntax extensions that change how code is parsed
 - Phase 1.5/1.6: Stdlib (malloc, vec, map) + Structs
 
 ## Future Phases
-- Phase 4: Runtime (GC, maybe LLVM backend)
+- Phase 4: Swappable GC (written in .lang, user-replaceable like Zig allocators)
+- Phase 5: Maybe LLVM backend
 
 ## Research / Tooling
 - Debug symbols: DWARF, .debug_* sections, gdb support
