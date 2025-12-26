@@ -1,5 +1,16 @@
 # Phase 3: Reader Macros
 
+**Status**: DESIGN FINALIZED - Ready for implementation
+
+## Design Decisions
+
+| Question | Decision | Rationale |
+|----------|----------|-----------|
+| Trigger syntax | `#name{...}` | Braces are visually distinct, familiar from other langs |
+| Macro input | Raw text | Full control; tokenizer provided but optional |
+| Macro output | AST nodes | Direct, efficient, no re-parsing |
+| Definition location | Separate file import | Clean separation, avoids bootstrap issues |
+
 ## The Big Picture
 
 **Phase 2 (AST macros)**: Transform AST → AST. The parser already did its job.
@@ -110,79 +121,175 @@ This is the tricky one.
 ### Syntax
 
 ```lang
-#name(content)   // Parens: reader macro "name" receives content between ()
-#name{content}   // Braces: reader macro "name" receives content between {}
-#name[content]   // Brackets: reader macro "name" receives content between []
+#name{content}   // Reader macro "name" receives content between balanced {}
 ```
 
-The content is **raw text** with balanced delimiters. Nested matching delimiters are included.
+The content is **raw text** with balanced braces. Nested `{...}` are included in the content.
 
-### Defining Reader Macros (Built-in First)
-
-Initially, reader macros are implemented in the compiler itself. We ship with:
-
-- `#lisp(...)` - S-expression syntax
-- `#raw(...)` - Raw string (no escapes)
-
-Later, we can add a way to define them in user code.
-
-### User-Defined Reader Macros (Future)
+### Import Syntax
 
 ```lang
+import "readers/lisp.lang"   // Import reader macro definitions
+
+var x i64 = #lisp{+ 1 (* 2 3)};
+```
+
+The import must appear before usage. Reader macro files are parsed and run through the compile-time interpreter; `reader` declarations become available.
+
+### Reader Definition Syntax
+
+```lang
+// In readers/lisp.lang
 reader lisp(text *u8) *u8 {
-    // text contains the raw content between delimiters
-    // returns AST node
+    // text contains the raw content between braces
+    // returns AST node pointer
     var sexpr *u8 = parse_sexpr(text);
     return sexpr_to_ast(sexpr);
 }
 ```
 
-**Challenge**: The functions `parse_sexpr` and `sexpr_to_ast` need to run at compile time. They'd need to be interpreted or pre-compiled.
+Reader macros run in the **compile-time interpreter** (same as AST macros). They have access to:
+- Standard library functions (vec, map, str operations)
+- Compiler-provided AST construction functions
+- Optionally, the host language's tokenizer
+
+### Compiler-Provided Functions
+
+For building AST nodes:
+```lang
+func lang_number_expr(value i64) *u8;
+func lang_ident_expr(name *u8) *u8;
+func lang_string_expr(value *u8) *u8;
+func lang_binary_expr(op i64, left *u8, right *u8) *u8;
+func lang_unary_expr(op i64, operand *u8) *u8;
+func lang_call_expr(func *u8, args *u8, arg_count i64) *u8;
+func lang_if_stmt(cond *u8, then_block *u8, else_block *u8) *u8;
+func lang_while_stmt(cond *u8, body *u8) *u8;
+func lang_var_decl(name *u8, typ *u8, init *u8) *u8;
+func lang_block_stmt(stmts *u8, count i64) *u8;
+func lang_return_stmt(value *u8) *u8;
+// ... more as needed
+```
+
+For optional tokenizer access:
+```lang
+func lang_tokenize(text *u8) *u8;     // returns vec of tokens
+func lang_tok_type(tok *u8) i64;
+func lang_tok_lexeme(tok *u8) *u8;
+func lang_tok_lexeme_len(tok *u8) i64;
+```
+
+Operator constants:
+```lang
+var OP_ADD i64 = 1;
+var OP_SUB i64 = 2;
+var OP_MUL i64 = 3;
+// ... etc
+```
 
 ---
 
-## Example: Lisp-lite
+## Example: Lisp-lite (Flagship Example)
+
+This is the core demonstration of "lang lang" - you can write other languages in it.
 
 ### Usage
 
 ```lang
-var result i64 = #lisp(+ 1 (* 2 3));  // Compiles to: 1 + (2 * 3)
+import "readers/lisp.lang"
+
+var result i64 = #lisp{+ 1 (* 2 3)};  // Compiles to: 1 + (2 * 3)
 
 // More complex
-var answer i64 = #lisp(
+var answer i64 = #lisp{
     (let ((x 10)
           (y 32))
       (+ x y))
-);
-// Compiles to: { var x = 10; var y = 32; x + y; }
+};
+// Compiles to block: { var x i64 = 10; var y i64 = 32; return x + y; }
 ```
 
-### Implementation (in compiler)
+### Supported Forms (v1)
 
-```c
-// Pseudo-code for built-in #lisp reader macro
-AST* reader_lisp(char* text) {
-    SExpr* sexpr = parse_sexpr(text);
+| Lisp Form | Compiles To |
+|-----------|-------------|
+| `42` | `42` (number literal) |
+| `foo` | `foo` (identifier) |
+| `(+ a b)` | `a + b` |
+| `(- a b)` | `a - b` |
+| `(* a b)` | `a * b` |
+| `(/ a b)` | `a / b` |
+| `(% a b)` | `a % b` |
+| `(< a b)` | `a < b` |
+| `(> a b)` | `a > b` |
+| `(<= a b)` | `a <= b` |
+| `(>= a b)` | `a >= b` |
+| `(== a b)` | `a == b` |
+| `(!= a b)` | `a != b` |
+| `(if c t e)` | `if c { t } else { e }` |
+| `(let ((x v)) body)` | `{ var x = v; body }` |
+| `(progn e1 e2 ...)` | `{ e1; e2; ... }` |
+| `(while c body)` | `while c { body }` |
+| `(set! x v)` | `x = v` |
+| `(funcall f args...)` | `f(args...)` |
+
+### Implementation (in readers/lisp.lang)
+
+```lang
+// S-expression representation
+// Atom: [kind:8][value:8] where kind=0 for number, kind=1 for symbol
+// List: [kind:8][elements:8][count:8] where kind=2
+
+reader lisp(text *u8) *u8 {
+    var sexpr *u8 = parse_sexpr(text);
     return sexpr_to_ast(sexpr);
 }
 
-AST* sexpr_to_ast(SExpr* s) {
-    if (is_number(s)) {
-        return make_number_expr(s->value);
-    }
-    if (is_symbol(s)) {
-        return make_ident_expr(s->name);
-    }
-    if (is_list(s)) {
-        char* op = s->head->name;
-        if (streq(op, "+")) {
-            return make_binary(OP_ADD,
-                sexpr_to_ast(s->args[0]),
-                sexpr_to_ast(s->args[1]));
-        }
-        // ... etc
-    }
+func parse_sexpr(text *u8) *u8 {
+    // Skip whitespace, then:
+    // - If digit: parse number atom
+    // - If '(': parse list recursively
+    // - Otherwise: parse symbol atom
+    // ...
 }
+
+func sexpr_to_ast(s *u8) *u8 {
+    var kind i64 = sexpr_kind(s);
+
+    if kind == SEXPR_NUMBER {
+        return lang_number_expr(sexpr_number_value(s));
+    }
+
+    if kind == SEXPR_SYMBOL {
+        return lang_ident_expr(sexpr_symbol_name(s));
+    }
+
+    if kind == SEXPR_LIST {
+        var head *u8 = sexpr_list_head(s);
+        var op *u8 = sexpr_symbol_name(head);
+
+        if streq(op, "+") {
+            return lang_binary_expr(OP_ADD,
+                sexpr_to_ast(sexpr_list_nth(s, 1)),
+                sexpr_to_ast(sexpr_list_nth(s, 2)));
+        }
+        // ... other operators
+    }
+
+    return nil;
+}
+```
+
+### File Structure
+
+```
+example/lisp/
+├── readers/
+│   └── lisp.lang        # The reader macro implementation
+├── factorial.lang       # (defun factorial (n) ...)
+├── fibonacci.lang       # Recursive fib
+├── arithmetic.lang      # Basic math examples
+└── README.md
 ```
 
 ---
@@ -239,34 +346,122 @@ The reader macro runs first (during parsing), then the AST macro runs (during ex
 
 ## Implementation Plan
 
-### Step 1: Lexer Changes
+### Step 1: Lexer Changes (src/lexer.lang)
 
-- Recognize `#` followed by identifier as `TOKEN_READER_MACRO`
-- After reader macro name, capture balanced delimiter content as raw text
+Add `#name{...}` recognition:
 
 ```lang
-#lisp(+ 1 2)
-      ↑     ↑
-      start end (balanced parens)
+// New token type
+var TOKEN_READER_MACRO i64 = 45;  // or next available
+
+// In scan_token():
+if c == 35 {  // '#'
+    return scan_reader_macro();
+}
+
+func scan_reader_macro() *u8 {
+    // 1. Read identifier (the reader name)
+    // 2. Expect '{'
+    // 3. Read balanced content (track nesting, handle strings)
+    // 4. Return token with name and content
+}
 ```
 
-### Step 2: Parser Changes
+Token stores: reader name, content start pointer, content length.
 
-- When seeing `TOKEN_READER_MACRO`, look up the reader macro by name
-- Call the reader macro with the raw text
-- Insert returned AST node into the parse tree
+### Step 2: Parser Changes (src/parser.lang)
 
-### Step 3: Built-in Reader Macros
+Add `import` statement and reader macro handling:
 
-Implement directly in the compiler:
-- `#lisp` - S-expression parser + transformer
-- `#raw` - Raw string (trivial: just wrap in string node)
+```lang
+// New AST node type
+var NODE_IMPORT i64 = 24;
 
-### Step 4: User-Defined (Future)
+// In parse_declaration():
+if parse_match(TOKEN_IMPORT) {
+    return parse_import();
+}
 
-- Add `reader name(text) { }` syntax
-- Reader macro bodies run in the compile-time interpreter
-- Need to expose AST construction functions to the interpreter
+// In parse_primary():
+if parse_check(TOKEN_READER_MACRO) {
+    return parse_reader_macro_call();
+}
+
+func parse_reader_macro_call() *u8 {
+    var tok *u8 = parse_advance();
+    var name *u8 = reader_macro_name(tok);
+    var content *u8 = reader_macro_content(tok);
+
+    // Look up reader in registry
+    var reader_fn *u8 = find_reader_macro(name);
+    if reader_fn == nil {
+        parse_error("unknown reader macro");
+        return nil;
+    }
+
+    // Call it via interpreter
+    return interp_call_reader(reader_fn, content);
+}
+```
+
+### Step 3: Reader Registry (src/codegen.lang)
+
+```lang
+// Reader macro registry (name -> function AST node)
+var reader_macros *u8 = nil;  // map
+
+func register_reader_macro(name *u8, func_node *u8) void;
+func find_reader_macro(name *u8) *u8;
+
+// Process imports: parse file, find reader declarations, register them
+func process_import(path *u8) void {
+    var source *u8 = read_file(path);
+    var ast *u8 = parse(source);
+
+    // Find all reader declarations and register
+    // Run through interpreter to make functions available
+}
+```
+
+### Step 4: AST Construction Builtins (src/codegen.lang)
+
+Add to compile-time interpreter:
+
+```lang
+// In interp_call(), handle special function names:
+if streq(func_name, "lang_number_expr") {
+    var value i64 = interp_expr(arg0);
+    return number_expr_alloc_with_value(value);
+}
+if streq(func_name, "lang_binary_expr") {
+    var op i64 = interp_expr(arg0);
+    var left *u8 = interp_expr(arg1);
+    var right *u8 = interp_expr(arg2);
+    return binary_expr_alloc_with(op, left, right);
+}
+// ... etc
+```
+
+### Step 5: Reader Declaration Parsing
+
+```lang
+// New keyword
+var TOKEN_READER i64 = 46;
+
+// In parse_declaration():
+if parse_match(TOKEN_READER) {
+    return parse_reader_decl();
+}
+
+// Similar to parse_func_decl but marks as reader macro
+```
+
+### Step 6: Lisp Reader (example/lisp/readers/lisp.lang)
+
+Implement in the language itself:
+1. S-expression parser (recursive descent)
+2. S-expr to AST transformer
+3. Register as `reader lisp`
 
 ---
 
@@ -356,15 +551,13 @@ Reader macros don't replace AST macros—they enable entirely new syntaxes that 
 
 ---
 
-## Minimal First Version
+## Implementation Order
 
-For a first implementation:
+1. **Lexer**: `#name{...}` token scanning with balanced braces
+2. **Parser**: `import` statement, reader macro invocation
+3. **Registry**: Reader macro storage, lookup
+4. **Interpreter builtins**: `lang_number_expr`, `lang_binary_expr`, etc.
+5. **Reader declaration**: `reader name(text) { }` syntax
+6. **Lisp reader**: Full implementation in `example/lisp/`
 
-1. Add `#raw(...)` - trivial, proves the mechanism works
-2. Add `#lisp(...)` - S-expressions for arithmetic only
-3. Built-in only, no user-defined reader macros yet
-
-This gets us:
-- Proof of concept for syntax extension
-- A working Lisp-lite embedded in the language
-- Foundation for more ambitious reader macros later
+Each step should be testable independently before moving to the next.
