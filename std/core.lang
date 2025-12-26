@@ -503,6 +503,39 @@ func eprintln(s *u8) {
     file_write(2, "\n", 1);
 }
 
+func eprint_buf(buf *u8, len i64) {
+    file_write(2, buf, len);
+}
+
+func eprint_i64(n i64) {
+    if n < 0 {
+        file_write(2, "-", 1);
+        n = 0 - n;
+    }
+
+    if n == 0 {
+        file_write(2, "0", 1);
+        return;
+    }
+
+    // Find the highest power of 10
+    var divisor i64 = 1;
+    var temp i64 = n;
+    while temp >= 10 {
+        temp = temp / 10;
+        divisor = divisor * 10;
+    }
+
+    // Print each digit
+    while divisor > 0 {
+        var digit i64 = n / divisor;
+        var c u8 = 48 + digit;  // '0' = 48
+        file_write(2, &c, 1);
+        n = n % divisor;
+        divisor = divisor / 10;
+    }
+}
+
 // ============================================================
 // Process
 // ============================================================

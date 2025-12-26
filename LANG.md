@@ -299,6 +299,63 @@ func main() i64 {
 - All fields are 8 bytes (aligned to 8-byte boundary)
 - Field access works on both direct struct variables and pointers to structs
 
+## Macros
+
+Compile-time code generation with quote/unquote:
+
+```lang
+// Basic macro: expands at compile time
+macro double(x) {
+    return ${ $x + $x };
+}
+
+// Nested macros work
+macro quad(x) {
+    return ${ double(double($x)) };
+}
+
+// Usage
+var n i64 = double(21);  // expands to (21 + 21) = 42
+var m i64 = quad(5);     // expands to double(double(5)) = 20
+```
+
+**Syntax:**
+- `macro name(params) { body }` - define a macro
+- `${ expr }` - quote: treat `expr` as AST to be returned
+- `$name` - unquote: splice the bound AST into the quote
+- `$@name` - unquote-string: splice a string value as a string literal
+
+**Compile-time builtins:**
+- `ast_to_string(expr)` - convert AST node to string representation
+
+**Example: get expression as string:**
+```lang
+macro get_name(expr) {
+    var s *u8 = ast_to_string(expr);
+    return ${ $@s };
+}
+
+func main() i64 {
+    var x i64 = 10;
+    var name *u8 = get_name(x + 1);  // name = "(x + 1)"
+    println(name);
+    return 0;
+}
+```
+
+**How it works:**
+1. At call site, parser identifies macro call
+2. Arguments are bound to parameters as AST nodes (not values)
+3. Macro body executes at compile-time in an interpreter
+4. Quote expansion substitutes `$param` with bound AST
+5. `$@param` splices a string value as a string literal
+6. Resulting AST replaces the call site
+
+**Debug:**
+```bash
+./out/lang --expand-macros file.lang -o out.s  # shows expansions
+```
+
 ## What's NOT Implemented Yet
 
 - Arrays (use pointer arithmetic instead)
@@ -400,4 +457,7 @@ make test-all
 
 # Just compile to assembly
 ./out/lang myfile.lang -o out/myfile.s
+
+# Debug macro expansions (prints each expansion to stderr)
+./out/lang --expand-macros myfile.lang -o out/myfile.s
 ```

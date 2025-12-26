@@ -30,6 +30,7 @@ var NODE_GROUP_EXPR i64 = 19;
 var NODE_QUOTE_EXPR i64 = 20;     // ${ expr } - quoted expression
 var NODE_UNQUOTE_EXPR i64 = 21;   // $name - unquote (splice AST)
 var NODE_MACRO_DECL i64 = 22;     // macro definition
+var NODE_UNQUOTE_STRING_EXPR i64 = 23;  // $@name - unquote string as string literal
 
 // Type kinds
 var TYPE_BASE i64 = 1;
@@ -756,6 +757,36 @@ func unquote_expr_set_name_len(node *u8, len i64) void {
 }
 
 // ============================================================
+// UnquoteStringExpr accessors: [kind:8][name_ptr:8][name_len:8] = 24 bytes
+// ============================================================
+
+func unquote_string_expr_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_UNQUOTE_STRING_EXPR);
+    return node;
+}
+
+func unquote_string_expr_name(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func unquote_string_expr_set_name(node *u8, ptr *u8) void {
+    var p **u8 = node + 8;
+    *p = ptr;
+}
+
+func unquote_string_expr_name_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func unquote_string_expr_set_name_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+// ============================================================
 // MacroDecl accessors: [kind:8][name_ptr:8][name_len:8][params:8][param_count:8][body:8] = 48 bytes
 // ============================================================
 
@@ -1294,6 +1325,16 @@ func parse_primary() *u8 {
         var node *u8 = unquote_expr_alloc();
         unquote_expr_set_name(node, tok_lexeme(tok));
         unquote_expr_set_name_len(node, tok_lexeme_len(tok));
+        return node;
+    }
+
+    // Unquote string: $@name (splice string value as string literal)
+    if parse_match(TOKEN_DOLLAR_AT) {
+        parse_expect(TOKEN_IDENT, "expected identifier after '$@'");
+        var tok *u8 = parse_previous();
+        var node *u8 = unquote_string_expr_alloc();
+        unquote_string_expr_set_name(node, tok_lexeme(tok));
+        unquote_string_expr_set_name_len(node, tok_lexeme_len(tok));
         return node;
     }
 

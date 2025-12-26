@@ -1,0 +1,22 @@
+// Test for ast_to_string and $@ unquote-string
+
+// get_name: returns the AST expression as a string literal
+macro get_name(expr) {
+    var name *u8 = ast_to_string(expr);
+    return ${ $@name };
+}
+
+func main() i64 {
+    var x i64 = 10;
+    var y i64 = 32;
+
+    // get_name(x + y) expands to "(x + y)" at compile time
+    var name *u8 = get_name(x + y);
+    println(name);
+
+    // Another test
+    var name2 *u8 = get_name(x * 2 + y);
+    println(name2);
+
+    return 0;
+}

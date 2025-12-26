@@ -1,0 +1,92 @@
+// macro_logic_test.lang
+// Prolog-style: define RELATIONS, query them
+// "What number satisfies these constraints?"
+
+// ============================================================
+// RELATIONAL OPERATORS (return 0 or 1)
+// ============================================================
+
+macro eq(a, b)  { return ${ $a == $b }; }
+macro neq(a, b) { return ${ $a != $b }; }
+macro lt(a, b)  { return ${ $a < $b }; }
+macro gt(a, b)  { return ${ $a > $b }; }
+macro lte(a, b) { return ${ $a <= $b }; }
+macro gte(a, b) { return ${ $a >= $b }; }
+
+// ============================================================
+// LOGICAL CONNECTIVES
+// ============================================================
+
+macro and(p, q) { return ${ $p * $q }; }
+macro or(p, q)  { return ${ ($p + $q) - ($p * $q) }; }
+macro not(p)    { return ${ 1 - $p }; }
+macro implies(p, q) { return ${ or(not($p), $q) }; }
+macro iff(p, q) { return ${ and(implies($p, $q), implies($q, $p)) }; }
+
+// ============================================================
+// QUANTIFIER-LIKE PATTERNS
+// ============================================================
+
+// "there exists x in [lo, hi] such that pred(x)"
+// Returns x if found, -1 otherwise
+// (This is a SEARCH macro - expands to check each value!)
+
+macro exists_2(pred, a, b) {
+    return ${
+        $pred($a) * $a +
+        not($pred($a)) * $pred($b) * $b +
+        not($pred($a)) * not($pred($b)) * (0-1)
+    };
+}
+
+macro exists_3(pred, a, b, c) {
+    return ${
+        $pred($a) * $a +
+        not($pred($a)) * $pred($b) * $b +
+        not($pred($a)) * not($pred($b)) * $pred($c) * $c +
+        not($pred($a)) * not($pred($b)) * not($pred($c)) * (0-1)
+    };
+}
+
+// ============================================================
+// PREDICATES (properties of numbers)
+// ============================================================
+
+macro is_even(n)      { return ${ eq($n % 2, 0) }; }
+macro is_odd(n)       { return ${ neq($n % 2, 0) }; }
+macro is_positive(n)  { return ${ gt($n, 0) }; }
+macro is_negative(n)  { return ${ lt($n, 0) }; }
+macro divisible_by(n, d) { return ${ eq($n % $d, 0) }; }
+
+// Compound predicates
+macro is_answer(n) {
+    return ${
+        and(
+            and(
+                gt($n, 40),           // n > 40
+                lt($n, 45)            // n < 45
+            ),
+            and(
+                is_even($n),          // n is even
+                divisible_by($n, 7)   // n divisible by 7
+            )
+        )
+    };
+}
+
+// ============================================================
+// THE QUERY: Find the answer to life, universe, everything
+// ============================================================
+
+macro the_answer() {
+    return ${
+        exists_3(is_answer, 41, 42, 43)
+    };
+}
+
+func main() i64 {
+    // Query: "What number > 40, < 45, is even, and divisible by 7?"
+    // Answer: 42
+
+    return the_answer();
+}

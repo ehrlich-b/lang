@@ -1,0 +1,99 @@
+// macro_apl_test.lang
+// APL-inspired: terse, symbolic, array-thinking
+// "Write-only code" but it COMPUTES
+
+// ============================================================
+// REDUCE OPERATIONS (fold pattern)
+// ============================================================
+
+// +/ sum reduction
+macro SUM2(a,b) { return ${ $a + $b }; }
+macro SUM3(a,b,c) { return ${ $a + $b + $c }; }
+macro SUM4(a,b,c,d) { return ${ $a + $b + $c + $d }; }
+macro SUM5(a,b,c,d,e) { return ${ $a + $b + $c + $d + $e }; }
+
+// ×/ product reduction
+macro PROD2(a,b) { return ${ $a * $b }; }
+macro PROD3(a,b,c) { return ${ $a * $b * $c }; }
+macro PROD4(a,b,c,d) { return ${ $a * $b * $c * $d }; }
+macro PROD5(a,b,c,d,e) { return ${ $a * $b * $c * $d * $e }; }
+
+// ⌈/ max reduction
+macro MAX2(a,b) { return ${ ($a > $b) * $a + ($a <= $b) * $b }; }
+macro MAX3(a,b,c) { return ${ MAX2(MAX2($a,$b),$c) }; }
+macro MAX4(a,b,c,d) { return ${ MAX2(MAX2($a,$b),MAX2($c,$d)) }; }
+
+// ⌊/ min reduction
+macro MIN2(a,b) { return ${ ($a < $b) * $a + ($a >= $b) * $b }; }
+macro MIN3(a,b,c) { return ${ MIN2(MIN2($a,$b),$c) }; }
+
+// ============================================================
+// IOTA - generate sequences (compile-time!)
+// ============================================================
+
+// ⍳5 = 1 2 3 4 5 -> SUM = 15
+macro IOTA_SUM5() { return ${ 1 + 2 + 3 + 4 + 5 }; }
+macro IOTA_SUM10() { return ${ 1+2+3+4+5+6+7+8+9+10 }; }
+
+// ⍳5 squared = 1 4 9 16 25 -> SUM = 55
+macro IOTA_SQ_SUM5() { return ${ 1 + 4 + 9 + 16 + 25 }; }
+
+// ============================================================
+// INNER PRODUCT (+.×)
+// ============================================================
+
+// Dot product of two "vectors"
+macro DOT2(a1,a2,b1,b2) {
+    return ${ $a1*$b1 + $a2*$b2 };
+}
+macro DOT3(a1,a2,a3,b1,b2,b3) {
+    return ${ $a1*$b1 + $a2*$b2 + $a3*$b3 };
+}
+
+// ============================================================
+// SCAN (running totals)
+// ============================================================
+
+// +\ prefix sum: [a, a+b, a+b+c, ...]
+macro SCAN_LAST3(a,b,c) { return ${ $a + $b + $c }; }
+macro SCAN_LAST4(a,b,c,d) { return ${ $a + $b + $c + $d }; }
+
+// ============================================================
+// OUTER PRODUCT (∘.×)
+// ============================================================
+
+// Sum of all pairs: ∘.+ then +/+/
+macro OUTER_SUM2x2(a1,a2,b1,b2) {
+    return ${ ($a1+$b1) + ($a1+$b2) + ($a2+$b1) + ($a2+$b2) };
+}
+
+// ============================================================
+// THE COMPUTATION
+// Expected: 42
+// ============================================================
+
+func main() i64 {
+    // All these expand at compile-time to pure arithmetic!
+
+    // PROD3(2,3,7) = 42 (the obvious one)
+    // Let's be weirder:
+
+    // DOT3([1,2,3], [4,5,6]) = 1*4 + 2*5 + 3*6 = 4+10+18 = 32
+    // MAX3(40, 42, 41) = 42
+    // IOTA_SUM5() + DOT2(3,4,5,6) = 15 + (15+24) = 15 + 39 = wrong
+
+    // Let's compute:
+    // SUM5(2, 4, 6, 8, 22) = 42
+    // Or: MAX4(1, 42, 3, 4) = 42
+    // Or: PROD3(2, 3, 7) = 42
+
+    // The APL way - dense, symbolic, no loops
+    // PROD3(2,3,7) = 42, that's it, but wrap it in noise:
+
+    return SUM3(
+        PROD3(2, 3, 7),                    // 42
+        DOT2(1, 1, 0, 0),                  // 1*0 + 1*0 = 0
+        MIN3(0, 0, 0)                      // 0
+    );
+    // = 42 + 0 + 0 = 42
+}
