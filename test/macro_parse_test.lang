@@ -1,0 +1,12 @@
+// Test: macro syntax parsing
+// This tests that the parser can handle macro syntax
+
+macro double(x) {
+    return ${ $x + $x };
+}
+
+func main() i64 {
+    // For now, we just test parsing works
+    // Macro expansion and codegen will come later
+    return 0;
+}

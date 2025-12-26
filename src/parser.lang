@@ -26,6 +26,11 @@ var NODE_BOOL_EXPR i64 = 17;
 var NODE_NIL_EXPR i64 = 18;
 var NODE_GROUP_EXPR i64 = 19;
 
+// Macro-related nodes
+var NODE_QUOTE_EXPR i64 = 20;     // ${ expr } - quoted expression
+var NODE_UNQUOTE_EXPR i64 = 21;   // $name - unquote (splice AST)
+var NODE_MACRO_DECL i64 = 22;     // macro definition
+
 // Type kinds
 var TYPE_BASE i64 = 1;
 var TYPE_PTR i64 = 2;
@@ -56,6 +61,11 @@ var TYPE_ARRAY i64 = 3;
 // BoolExpr: [kind:8][value:8] = 16 bytes
 // NilExpr: [kind:8] = 8 bytes
 // GroupExpr: [kind:8][expr:8] = 16 bytes
+
+// Macro-related:
+// QuoteExpr: [kind:8][expr:8] = 16 bytes
+// UnquoteExpr: [kind:8][name_ptr:8][name_len:8] = 24 bytes
+// MacroDecl: [kind:8][name_ptr:8][name_len:8][params:8][param_count:8][body:8] = 48 bytes
 
 // Type layouts:
 // BaseType: [kind:8][name_ptr:8][name_len:8] = 24 bytes
@@ -696,6 +706,116 @@ func group_expr_set_expr(node *u8, expr *u8) void {
 }
 
 // ============================================================
+// QuoteExpr accessors: [kind:8][expr:8] = 16 bytes
+// ============================================================
+
+func quote_expr_alloc() *u8 {
+    var node *u8 = alloc(16);
+    node_set_kind(node, NODE_QUOTE_EXPR);
+    return node;
+}
+
+func quote_expr_expr(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func quote_expr_set_expr(node *u8, expr *u8) void {
+    var p **u8 = node + 8;
+    *p = expr;
+}
+
+// ============================================================
+// UnquoteExpr accessors: [kind:8][name_ptr:8][name_len:8] = 24 bytes
+// ============================================================
+
+func unquote_expr_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_UNQUOTE_EXPR);
+    return node;
+}
+
+func unquote_expr_name(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func unquote_expr_set_name(node *u8, ptr *u8) void {
+    var p **u8 = node + 8;
+    *p = ptr;
+}
+
+func unquote_expr_name_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func unquote_expr_set_name_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+// ============================================================
+// MacroDecl accessors: [kind:8][name_ptr:8][name_len:8][params:8][param_count:8][body:8] = 48 bytes
+// ============================================================
+
+func macro_decl_alloc() *u8 {
+    var node *u8 = alloc(48);
+    node_set_kind(node, NODE_MACRO_DECL);
+    return node;
+}
+
+func macro_decl_name(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func macro_decl_set_name(node *u8, ptr *u8) void {
+    var p **u8 = node + 8;
+    *p = ptr;
+}
+
+func macro_decl_name_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func macro_decl_set_name_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+func macro_decl_params(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func macro_decl_set_params(node *u8, params *u8) void {
+    var p **u8 = node + 24;
+    *p = params;
+}
+
+func macro_decl_param_count(node *u8) i64 {
+    var p *i64 = node + 32;
+    return *p;
+}
+
+func macro_decl_set_param_count(node *u8, count i64) void {
+    var p *i64 = node + 32;
+    *p = count;
+}
+
+func macro_decl_body(node *u8) *u8 {
+    var p **u8 = node + 40;
+    return *p;
+}
+
+func macro_decl_set_body(node *u8, body *u8) void {
+    var p **u8 = node + 40;
+    *p = body;
+}
+
+// ============================================================
 // Type accessors
 // ============================================================
 
@@ -1158,6 +1278,25 @@ func parse_primary() *u8 {
         return node;
     }
 
+    // Quote: ${ expr }
+    if parse_match(TOKEN_DOLLAR_LBRACE) {
+        var expr *u8 = parse_expression();
+        parse_expect(TOKEN_RBRACE, "expected '}' after quoted expression");
+        var node *u8 = quote_expr_alloc();
+        quote_expr_set_expr(node, expr);
+        return node;
+    }
+
+    // Unquote: $name (splice AST variable)
+    if parse_match(TOKEN_DOLLAR) {
+        parse_expect(TOKEN_IDENT, "expected identifier after '$'");
+        var tok *u8 = parse_previous();
+        var node *u8 = unquote_expr_alloc();
+        unquote_expr_set_name(node, tok_lexeme(tok));
+        unquote_expr_set_name_len(node, tok_lexeme_len(tok));
+        return node;
+    }
+
     parse_error("expected expression");
     var node *u8 = number_expr_alloc();
     number_expr_set_value(node, "0");
@@ -1359,6 +1498,46 @@ func parse_struct_decl() *u8 {
     return node;
 }
 
+func parse_macro_decl() *u8 {
+    // macro IDENT "(" [param-list] ")" block
+    // params are just names (no types, they're all *Ast)
+    var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected macro name");
+    parse_expect(TOKEN_LPAREN, "expected '(' after macro name");
+
+    // Allocate params array (max 16 params, 24 bytes each - reuse same layout as func)
+    var params *u8 = alloc(384);
+    var param_count i64 = 0;
+
+    if !parse_check(TOKEN_RPAREN) {
+        var done i64 = 0;
+        while done == 0 {
+            var pname_tok *u8 = parse_expect(TOKEN_IDENT, "expected parameter name");
+
+            // Store param (no type for macros, set type to nil)
+            var p *u8 = params + (param_count * 24);
+            param_set_name(p, tok_lexeme(pname_tok));
+            param_set_name_len(p, tok_lexeme_len(pname_tok));
+            param_set_type(p, nil);
+            param_count = param_count + 1;
+
+            if !parse_match(TOKEN_COMMA) {
+                done = 1;
+            }
+        }
+    }
+    parse_expect(TOKEN_RPAREN, "expected ')' after macro parameters");
+
+    var body *u8 = parse_block();
+
+    var node *u8 = macro_decl_alloc();
+    macro_decl_set_name(node, tok_lexeme(name_tok));
+    macro_decl_set_name_len(node, tok_lexeme_len(name_tok));
+    macro_decl_set_params(node, params);
+    macro_decl_set_param_count(node, param_count);
+    macro_decl_set_body(node, body);
+    return node;
+}
+
 func parse_declaration() *u8 {
     if parse_match(TOKEN_FUNC) {
         return parse_func_decl();
@@ -1368,6 +1547,9 @@ func parse_declaration() *u8 {
     }
     if parse_match(TOKEN_STRUCT) {
         return parse_struct_decl();
+    }
+    if parse_match(TOKEN_MACRO) {
+        return parse_macro_decl();
     }
 
     parse_error("expected declaration");

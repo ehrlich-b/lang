@@ -69,6 +69,12 @@ var TOKEN_DOT i64 = 49;       // .
 var TOKEN_COLON i64 = 50;     // :
 var TOKEN_COLONEQ i64 = 51;   // :=
 
+// Macro tokens
+var TOKEN_MACRO i64 = 52;         // 'macro' keyword
+var TOKEN_DOLLAR_LBRACE i64 = 53; // ${ (quote start)
+var TOKEN_DOLLAR i64 = 54;        // $ (unquote)
+var TOKEN_DOLLAR_AT i64 = 55;     // $@ (unquote string as identifier)
+
 // ============================================================
 // Token struct
 // ============================================================
@@ -339,6 +345,7 @@ func check_keyword() i64 {
     if lexeme_eq("func") { return TOKEN_FUNC; }
     if lexeme_eq("var") { return TOKEN_VAR; }
     if lexeme_eq("struct") { return TOKEN_STRUCT; }
+    if lexeme_eq("macro") { return TOKEN_MACRO; }
     if lexeme_eq("if") { return TOKEN_IF; }
     if lexeme_eq("else") { return TOKEN_ELSE; }
     if lexeme_eq("while") { return TOKEN_WHILE; }
@@ -470,6 +477,11 @@ func scan_token() *u8 {
         if lex_match(61) { return make_token(TOKEN_COLONEQ); }  // ':='
         return make_token(TOKEN_COLON);
     }
+    if c == 36 {  // '$'
+        if lex_match(123) { return make_token(TOKEN_DOLLAR_LBRACE); }  // '${'
+        if lex_match(64) { return make_token(TOKEN_DOLLAR_AT); }       // '$@'
+        return make_token(TOKEN_DOLLAR);
+    }
     if c == 34 {  // '"'
         return scan_string();
     }
@@ -534,6 +546,10 @@ func print_token_type(t i64) void {
     if t == TOKEN_DOT { print("."); return; }
     if t == TOKEN_COLON { print(":"); return; }
     if t == TOKEN_COLONEQ { print(":="); return; }
+    if t == TOKEN_MACRO { print("macro"); return; }
+    if t == TOKEN_DOLLAR_LBRACE { print("${"); return; }
+    if t == TOKEN_DOLLAR { print("$"); return; }
+    if t == TOKEN_DOLLAR_AT { print("$@"); return; }
     print("UNKNOWN");
 }
 

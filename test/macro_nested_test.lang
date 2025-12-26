@@ -1,0 +1,10 @@
+// Test: nested macro calls
+// Expected exit code: 100 (double(double(25)) = double(50) = 100)
+
+macro double(x) {
+    return ${ $x + $x };
+}
+
+func main() i64 {
+    return double(double(25));
+}

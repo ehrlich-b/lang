@@ -6,11 +6,13 @@ A self-bootstrapping language with extreme metaprogramming aspirations. Started 
 
 ## Anchor Documents
 
+**Always re-read during reanchor:**
 - `README.md` - Project overview
 - `CLAUDE.md` - This file (Claude Code guidance)
 - `TODO.md` - Current tasks and roadmap
 - `LANG.md` - **Language reference** (what actually works NOW, not aspirational)
 - `INITIAL_DESIGN.md` - Original syntax design, grammar (EBNF)
+- `designs/macro_design.md` - Phase 2 macro system design (current focus)
 
 ## Project Structure
 

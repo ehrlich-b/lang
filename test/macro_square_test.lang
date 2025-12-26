@@ -1,0 +1,10 @@
+// Test: macro that squares a number
+// Expected exit code: 49 (7 * 7)
+
+macro square(x) {
+    return ${ $x * $x };
+}
+
+func main() i64 {
+    return square(7);
+}

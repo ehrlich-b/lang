@@ -35,6 +35,12 @@ var cg_code_cap i64 = 0;
 var cg_structs *u8 = nil;
 var cg_struct_count i64 = 0;
 
+// Macro registry: simple array of macro decls
+// Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
+// Max 100 macros
+var cg_macros *u8 = nil;
+var cg_macro_count i64 = 0;
+
 // Workaround for codegen bug - temp storage
 var cg_temp_struct_decl *u8 = nil;
 
@@ -61,6 +67,9 @@ func codegen_init() void {
 
     cg_structs = alloc(2400);  // 100 * 24
     cg_struct_count = 0;
+
+    cg_macros = alloc(2400);   // 100 * 24
+    cg_macro_count = 0;
 }
 
 // ============================================================
@@ -232,6 +241,53 @@ func find_struct(name *u8, name_len i64) *u8 {
 
         if slen == name_len {
             if memcmp(sname, name, name_len) {
+                var dp **u8 = entry + 16;
+                return *dp;
+            }
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
+// ============================================================
+// Macro registry
+// ============================================================
+
+func add_macro(decl *u8) void {
+    var name *u8 = macro_decl_name(decl);
+    var name_len i64 = macro_decl_name_len(decl);
+
+    var entry *u8 = cg_macros + (cg_macro_count * 24);
+
+    // Store name_ptr
+    var np **u8 = entry;
+    *np = name;
+
+    // Store name_len
+    var nl *i64 = entry + 8;
+    *nl = name_len;
+
+    // Store decl_ptr
+    var dp **u8 = entry + 16;
+    *dp = decl;
+
+    cg_macro_count = cg_macro_count + 1;
+}
+
+func find_macro(name *u8, name_len i64) *u8 {
+    var i i64 = 0;
+    while i < cg_macro_count {
+        var entry *u8 = cg_macros + (i * 24);
+
+        var np **u8 = entry;
+        var mname *u8 = *np;
+
+        var nl *i64 = entry + 8;
+        var mlen i64 = *nl;
+
+        if mlen == name_len {
+            if memcmp(mname, name, name_len) {
                 var dp **u8 = entry + 16;
                 return *dp;
             }
@@ -993,6 +1049,18 @@ func gen_expr(expr *u8) void {
                     return;
                 }
             }
+
+            // Check for macro call
+            var macro_def *u8 = find_macro(name, name_len);
+            if macro_def != nil {
+                // Call the macro interpreter
+                var expanded *u8 = interp_call_macro(macro_def, args, arg_count);
+                // Generate code for the expanded AST
+                if expanded != nil {
+                    gen_expr(expanded);
+                }
+                return;
+            }
         }
 
         // Push args in reverse order
@@ -1551,6 +1619,370 @@ func gen_decl(decl *u8) void {
 }
 
 // ============================================================
+// Compile-time interpreter for macros
+// ============================================================
+
+// Interpreter state
+// Macro parameter bindings: [name_ptr:8][name_len:8][value:8] = 24 bytes
+// Max 16 params
+var interp_bindings *u8 = nil;
+var interp_binding_count i64 = 0;
+
+// Return value from macro (set by return statement)
+var interp_return_value i64 = 0;
+var interp_has_returned i64 = 0;
+
+func interp_init() void {
+    if interp_bindings == nil {
+        interp_bindings = alloc(384);  // 16 * 24
+    }
+    interp_binding_count = 0;
+    interp_return_value = 0;
+    interp_has_returned = 0;
+}
+
+func interp_add_binding(name *u8, name_len i64, value i64) void {
+    var entry *u8 = interp_bindings + (interp_binding_count * 24);
+
+    var np **u8 = entry;
+    *np = name;
+
+    var nl *i64 = entry + 8;
+    *nl = name_len;
+
+    var vp *i64 = entry + 16;
+    *vp = value;
+
+    interp_binding_count = interp_binding_count + 1;
+}
+
+func interp_find_binding(name *u8, name_len i64) i64 {
+    var i i64 = interp_binding_count - 1;
+    while i >= 0 {
+        var entry *u8 = interp_bindings + (i * 24);
+
+        var np **u8 = entry;
+        var bname *u8 = *np;
+
+        var nl *i64 = entry + 8;
+        var blen i64 = *nl;
+
+        if blen == name_len {
+            if memcmp(bname, name, name_len) {
+                var vp *i64 = entry + 16;
+                return *vp;
+            }
+        }
+        i = i - 1;
+    }
+    return 0;  // Not found
+}
+
+func interp_set_binding(name *u8, name_len i64, value i64) void {
+    var i i64 = interp_binding_count - 1;
+    while i >= 0 {
+        var entry *u8 = interp_bindings + (i * 24);
+
+        var np **u8 = entry;
+        var bname *u8 = *np;
+
+        var nl *i64 = entry + 8;
+        var blen i64 = *nl;
+
+        if blen == name_len {
+            if memcmp(bname, name, name_len) {
+                var vp *i64 = entry + 16;
+                *vp = value;
+                return;
+            }
+        }
+        i = i - 1;
+    }
+}
+
+// Expand unquotes in a quoted expression
+// Walks the AST and replaces NODE_UNQUOTE_EXPR with the bound AST
+func expand_quote(expr *u8) *u8 {
+    if expr == nil {
+        return nil;
+    }
+
+    var k i64 = node_kind(expr);
+
+    // Unquote: look up binding and return the bound AST
+    if k == NODE_UNQUOTE_EXPR {
+        var name *u8 = unquote_expr_name(expr);
+        var name_len i64 = unquote_expr_name_len(expr);
+        return interp_find_binding(name, name_len);
+    }
+
+    // Binary expression: expand both children
+    if k == NODE_BINARY_EXPR {
+        var left *u8 = expand_quote(binary_expr_left(expr));
+        var right *u8 = expand_quote(binary_expr_right(expr));
+
+        var new_node *u8 = binary_expr_alloc();
+        binary_expr_set_op(new_node, binary_expr_op(expr));
+        binary_expr_set_left(new_node, left);
+        binary_expr_set_right(new_node, right);
+        return new_node;
+    }
+
+    // Unary expression: expand child
+    if k == NODE_UNARY_EXPR {
+        var child *u8 = expand_quote(unary_expr_expr(expr));
+
+        var new_node *u8 = unary_expr_alloc();
+        unary_expr_set_op(new_node, unary_expr_op(expr));
+        unary_expr_set_expr(new_node, child);
+        return new_node;
+    }
+
+    // Group expression: expand child
+    if k == NODE_GROUP_EXPR {
+        var child *u8 = expand_quote(group_expr_expr(expr));
+
+        var new_node *u8 = group_expr_alloc();
+        group_expr_set_expr(new_node, child);
+        return new_node;
+    }
+
+    // Call expression: expand function and args
+    if k == NODE_CALL_EXPR {
+        var func_node *u8 = expand_quote(call_expr_func(expr));
+        var old_args *u8 = call_expr_args(expr);
+        var num_args i64 = call_expr_arg_count(expr);
+
+        var new_args *u8 = alloc(num_args * 8);
+        var ai i64 = 0;
+        while ai < num_args {
+            var old_arg_ptr **u8 = old_args + (ai * 8);
+            var expanded_arg *u8 = expand_quote(*old_arg_ptr);
+            var new_arg_ptr **u8 = new_args + (ai * 8);
+            *new_arg_ptr = expanded_arg;
+            ai = ai + 1;
+        }
+
+        var new_node *u8 = call_expr_alloc();
+        call_expr_set_func(new_node, func_node);
+        call_expr_set_args(new_node, new_args);
+        call_expr_set_arg_count(new_node, num_args);
+        return new_node;
+    }
+
+    // Literals and identifiers: return as-is (they don't contain unquotes)
+    return expr;
+}
+
+func interp_expr(expr *u8) i64 {
+    if expr == nil {
+        return 0;
+    }
+
+    var k i64 = node_kind(expr);
+
+    if k == NODE_NUMBER_EXPR {
+        // Parse the number string
+        var ptr *u8 = number_expr_value(expr);
+        var len i64 = number_expr_value_len(expr);
+        var val i64 = 0;
+        var ii i64 = 0;
+        while ii < len {
+            val = val * 10 + (*(ptr + ii) - 48);
+            ii = ii + 1;
+        }
+        return val;
+    }
+
+    if k == NODE_BOOL_EXPR {
+        return bool_expr_value(expr);
+    }
+
+    if k == NODE_NIL_EXPR {
+        return 0;
+    }
+
+    if k == NODE_IDENT_EXPR {
+        var name *u8 = ident_expr_name(expr);
+        var name_len i64 = ident_expr_name_len(expr);
+        return interp_find_binding(name, name_len);
+    }
+
+    if k == NODE_BINARY_EXPR {
+        var op i64 = binary_expr_op(expr);
+        var left i64 = interp_expr(binary_expr_left(expr));
+        var right i64 = interp_expr(binary_expr_right(expr));
+
+        if op == TOKEN_PLUS { return left + right; }
+        if op == TOKEN_MINUS { return left - right; }
+        if op == TOKEN_STAR { return left * right; }
+        if op == TOKEN_SLASH { return left / right; }
+        if op == TOKEN_PERCENT { return left % right; }
+        if op == TOKEN_EQEQ { if left == right { return 1; } return 0; }
+        if op == TOKEN_BANGEQ { if left != right { return 1; } return 0; }
+        if op == TOKEN_LT { if left < right { return 1; } return 0; }
+        if op == TOKEN_GT { if left > right { return 1; } return 0; }
+        if op == TOKEN_LTEQ { if left <= right { return 1; } return 0; }
+        if op == TOKEN_GTEQ { if left >= right { return 1; } return 0; }
+        if op == TOKEN_AMPAMP { if left != 0 && right != 0 { return 1; } return 0; }
+        if op == TOKEN_PIPEPIPE { if left != 0 || right != 0 { return 1; } return 0; }
+        if op == TOKEN_EQ {
+            // Assignment
+            var left_node *u8 = binary_expr_left(expr);
+            if node_kind(left_node) == NODE_IDENT_EXPR {
+                interp_set_binding(
+                    ident_expr_name(left_node),
+                    ident_expr_name_len(left_node),
+                    right
+                );
+            }
+            return right;
+        }
+        return 0;
+    }
+
+    if k == NODE_UNARY_EXPR {
+        var op i64 = unary_expr_op(expr);
+        var val i64 = interp_expr(unary_expr_expr(expr));
+
+        if op == TOKEN_MINUS { return 0 - val; }
+        if op == TOKEN_BANG { if val == 0 { return 1; } return 0; }
+        return 0;
+    }
+
+    if k == NODE_GROUP_EXPR {
+        return interp_expr(group_expr_expr(expr));
+    }
+
+    // Quote expression: expand unquotes and return the resulting AST
+    if k == NODE_QUOTE_EXPR {
+        var inner *u8 = quote_expr_expr(expr);
+        // Expand any unquotes inside the quote
+        var expanded *u8 = expand_quote(inner);
+        return expanded;
+    }
+
+    // Unquote expression: look up the binding and return the AST pointer
+    if k == NODE_UNQUOTE_EXPR {
+        var name *u8 = unquote_expr_name(expr);
+        var name_len i64 = unquote_expr_name_len(expr);
+        return interp_find_binding(name, name_len);
+    }
+
+    return 0;
+}
+
+func interp_stmt(stmt *u8) void {
+    if stmt == nil {
+        return;
+    }
+    if interp_has_returned {
+        return;
+    }
+
+    var k i64 = node_kind(stmt);
+
+    if k == NODE_EXPR_STMT {
+        interp_expr(expr_stmt_expr(stmt));
+        return;
+    }
+
+    if k == NODE_VAR_DECL {
+        var name *u8 = var_decl_name(stmt);
+        var name_len i64 = var_decl_name_len(stmt);
+        var init *u8 = var_decl_init(stmt);
+        var value i64 = 0;
+        if init != nil {
+            value = interp_expr(init);
+        }
+        interp_add_binding(name, name_len, value);
+        return;
+    }
+
+    if k == NODE_RETURN_STMT {
+        var value *u8 = return_stmt_value(stmt);
+        if value != nil {
+            interp_return_value = interp_expr(value);
+        }
+        interp_has_returned = 1;
+        return;
+    }
+
+    if k == NODE_IF_STMT {
+        var cond i64 = interp_expr(if_stmt_cond(stmt));
+        if cond != 0 {
+            interp_stmt(if_stmt_then(stmt));
+        } else {
+            var else_branch *u8 = if_stmt_else(stmt);
+            if else_branch != nil {
+                interp_stmt(else_branch);
+            }
+        }
+        return;
+    }
+
+    if k == NODE_WHILE_STMT {
+        while !interp_has_returned {
+            var cond i64 = interp_expr(while_stmt_cond(stmt));
+            if cond == 0 {
+                return;
+            }
+            interp_stmt(while_stmt_body(stmt));
+        }
+        return;
+    }
+
+    if k == NODE_BLOCK_STMT {
+        var stmts *u8 = block_stmt_stmts(stmt);
+        var count i64 = block_stmt_count(stmt);
+        var saved_count i64 = interp_binding_count;
+
+        var i i64 = 0;
+        while i < count && !interp_has_returned {
+            var s **u8 = stmts + (i * 8);
+            interp_stmt(*s);
+            i = i + 1;
+        }
+
+        // Restore binding count (pop local vars)
+        interp_binding_count = saved_count;
+        return;
+    }
+}
+
+// Call a macro with arguments (AST nodes)
+// Returns the resulting AST
+func interp_call_macro(macro_decl *u8, args *u8, arg_count i64) *u8 {
+    interp_init();
+
+    // Bind parameters to arguments
+    var macro_params *u8 = macro_decl_params(macro_decl);
+    var num_params i64 = macro_decl_param_count(macro_decl);
+
+    var i i64 = 0;
+    while i < num_params && i < arg_count {
+        var p *u8 = macro_params + (i * 24);
+        var pname *u8 = param_name(p);
+        var pname_len i64 = param_name_len(p);
+
+        // Get the argument AST pointer
+        var arg_ptr **u8 = args + (i * 8);
+        var arg *u8 = *arg_ptr;
+
+        // Bind parameter to argument AST (as pointer value)
+        interp_add_binding(pname, pname_len, arg);
+        i = i + 1;
+    }
+
+    // Execute macro body
+    var macro_body *u8 = macro_decl_body(macro_decl);
+    interp_stmt(macro_body);
+
+    // Return the result (should be an AST pointer)
+    return interp_return_value;
+}
+
+// ============================================================
 // Program code generation
 // ============================================================
 
@@ -1567,6 +1999,9 @@ func generate(prog *u8, out_path *u8) void {
         var k i64 = node_kind(decl);
         if k == NODE_STRUCT_DECL {
             add_struct(decl);
+        }
+        if k == NODE_MACRO_DECL {
+            add_macro(decl);
         }
         if k == NODE_VAR_DECL {
             add_global(

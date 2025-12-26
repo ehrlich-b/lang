@@ -1,50 +1,40 @@
 # language - TODO
 
 ## Current Focus
-Phase 1.6: Structs - compiler now uses real struct (Token converted)
+Phase 2: Macros - completing the AST-based macro system
 
-## Immediate Tasks
-- [x] Implement bootstrap design (see designs/bootstrap_design.md)
-- [x] Update documentation (README, LANG.md) to reflect self-hosting
+## Phase 2: Macros (WORKING)
+- [x] Design macro system (see designs/macro_design.md)
+- [x] Add lexer tokens ($, ${, $@, macro keyword)
+- [x] Add AST nodes (NODE_QUOTE_EXPR, NODE_UNQUOTE_EXPR, NODE_MACRO_DECL)
+- [x] Add parser for quote/unquote/macro
+- [x] Add macro registry in codegen
+- [x] Implement compile-time interpreter
+- [x] Implement quote expansion (substitute unquotes)
+- [x] Implement macro expansion in gen_call
+- [x] Basic macro tests pass (double, square, nested)
+- [ ] Add --expand-macros debug flag
+- [ ] Write debug(x) macro with ast_to_string
+- [ ] Extensive examples gallery with cool macro uses
 
-## Phase 1.5: Stdlib Additions (no language changes)
-- [x] `malloc(size)` / `free(ptr)` - real allocator with free list
-- [x] `vec_new()`, `vec_push()`, `vec_get()`, `vec_set()`, `vec_len()` - dynamic array
-- [x] `map_new()`, `map_set()`, `map_get()`, `map_has()` - hash map
-- [x] `str_concat()`, `str_dup()` - string utilities (streq already existed)
-- [x] Refactor compiler to use new stdlib (parser tokens use vec)
+## Phase 1.5/1.6: COMPLETE
+- Stdlib: malloc, free, vec, map, str_concat, str_dup
+- Structs: parsing, codegen, field access, pointer-to-struct
 
-## Phase 1.6: Structs (IN PROGRESS)
-- [x] Implement struct parsing in self-hosted compiler
-- [x] Implement struct codegen for field read access
-- [x] Fix stack overflow bug (256->4096 byte stack frame)
-- [x] Implement field assignment (p.x = value)
-- [x] Implement pointer-to-struct field access (p.field where p is *Struct)
-- [x] Convert Token struct (first real struct in compiler)
-- [ ] Convert remaining structs (AST nodes, types, etc.)
-- [x] Re-reach fixed point
-
-## Completed
-
-### Phase 0: Bootstrap Compiler (Go) - COMPLETE
-- [x] Lexer, parser, AST, codegen
-- [x] Test suite (68 tests)
-- [x] Standard library (std/core.lang)
-
-### Phase 1: Self-Hosting - COMPLETE
-- [x] Rewrite lexer in language (src/lexer.lang)
-- [x] Rewrite parser in language (src/parser.lang)
-- [x] Rewrite codegen in language (src/codegen.lang)
-- [x] Compiler compiles itself (lang1)
-- [x] Fixed point reached: lang2.s == lang3.s
-- [x] Preserved as stage1-bootstrap.s
+## Completed Phases
+- Phase 0: Bootstrap Compiler (Go) - archived at archive/boot-go/
+- Phase 1: Self-Hosting - compiler writes itself, fixed point reached
 
 ## Future Phases
-- Phase 2: Macros (AST as data, quote/unquote, compile-time eval)
 - Phase 3: Syntax extensions (reader macros, custom operators)
 - Phase 4: Runtime (GC, maybe LLVM backend)
 
+## Research / Tooling
+- Debug symbols: DWARF, .debug_* sections, gdb support
+- Language crash debugging
+- Standard tooling integration (valgrind, perf, etc.)
+- "Bring your own GC" research
+
 ## Notes
-- Go compiler archived at archive/boot-go/
-- Bootstrap from stage1-bootstrap.s (will become bootstrap/v0.1.0.s)
+- Bootstrap from bootstrap/v0.1.0.s (or stage1-bootstrap.s)
 - 90% that takes half the project, skip the polish
