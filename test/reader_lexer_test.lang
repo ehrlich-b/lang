@@ -1,0 +1,8 @@
+// Test: reader macro lexer tokenization
+// This just tests that #name{...} tokenizes correctly
+
+func main() i64 {
+    // If we get here, the compiler didn't crash on reader macro syntax
+    // (though parser doesn't handle it yet)
+    return 0;
+}

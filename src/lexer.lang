@@ -75,6 +75,11 @@ var TOKEN_DOLLAR_LBRACE i64 = 53; // ${ (quote start)
 var TOKEN_DOLLAR i64 = 54;        // $ (unquote)
 var TOKEN_DOLLAR_AT i64 = 55;     // $@ (unquote string as identifier)
 
+// Reader macro tokens
+var TOKEN_IMPORT i64 = 56;        // 'import' keyword
+var TOKEN_READER i64 = 57;        // 'reader' keyword
+var TOKEN_READER_MACRO i64 = 58;  // #name{...} reader macro invocation
+
 // ============================================================
 // Token struct
 // ============================================================
@@ -85,6 +90,8 @@ struct Token {
     lexeme_len i64;
     line i64;
     col i64;
+    content *u8;      // For reader macros: content between braces
+    content_len i64;  // For reader macros: length of content
 }
 
 // Accessor functions for backward compatibility
@@ -140,8 +147,28 @@ func tok_set_col(tok *u8, c i64) void {
     t.col = c;
 }
 
+func tok_content(tok *u8) *u8 {
+    var t *Token = tok;
+    return t.content;
+}
+
+func tok_set_content(tok *u8, ptr *u8) void {
+    var t *Token = tok;
+    t.content = ptr;
+}
+
+func tok_content_len(tok *u8) i64 {
+    var t *Token = tok;
+    return t.content_len;
+}
+
+func tok_set_content_len(tok *u8, len i64) void {
+    var t *Token = tok;
+    t.content_len = len;
+}
+
 func tok_alloc() *u8 {
-    return alloc(40);
+    return alloc(56);  // 7 fields * 8 bytes
 }
 
 // ============================================================
@@ -346,6 +373,8 @@ func check_keyword() i64 {
     if lexeme_eq("var") { return TOKEN_VAR; }
     if lexeme_eq("struct") { return TOKEN_STRUCT; }
     if lexeme_eq("macro") { return TOKEN_MACRO; }
+    if lexeme_eq("reader") { return TOKEN_READER; }
+    if lexeme_eq("import") { return TOKEN_IMPORT; }
     if lexeme_eq("if") { return TOKEN_IF; }
     if lexeme_eq("else") { return TOKEN_ELSE; }
     if lexeme_eq("while") { return TOKEN_WHILE; }
@@ -408,6 +437,89 @@ func scan_string() *u8 {
 
     lex_advance();  // closing quote
     return make_token(TOKEN_STRING);
+}
+
+// Scan reader macro: #name{content}
+// Returns token with:
+//   - lexeme = reader name
+//   - content = text between balanced braces
+func scan_reader_macro() *u8 {
+    // We've already consumed '#', now read the name
+    var name_start i64 = lex_current;
+
+    // Read identifier (the reader macro name)
+    if !is_alpha(lex_peek()) {
+        return error_token("expected identifier after '#'");
+    }
+    while is_alphanumeric(lex_peek()) {
+        lex_advance();
+    }
+    var name_end i64 = lex_current;
+    var name_len i64 = name_end - name_start;
+
+    // Expect '{'
+    if lex_peek() != 123 {  // '{'
+        return error_token("expected '{' after reader macro name");
+    }
+    lex_advance();  // consume '{'
+
+    // Read balanced content
+    var content_start i64 = lex_current;
+    var brace_depth i64 = 1;
+
+    while !lex_is_at_end() && brace_depth > 0 {
+        var c u8 = lex_peek();
+
+        if c == 123 {  // '{'
+            brace_depth = brace_depth + 1;
+            lex_advance();
+        } else if c == 125 {  // '}'
+            brace_depth = brace_depth - 1;
+            if brace_depth > 0 {
+                lex_advance();
+            }
+        } else if c == 34 {  // '"' - skip strings to not count braces inside
+            lex_advance();  // consume opening quote
+            while !lex_is_at_end() && lex_peek() != 34 {
+                if lex_peek() == 92 && lex_peek_next() != 0 {  // escape
+                    lex_advance();
+                }
+                if lex_peek() == 10 {
+                    lex_line = lex_line + 1;
+                    lex_col = 0;
+                }
+                lex_advance();
+            }
+            if !lex_is_at_end() {
+                lex_advance();  // consume closing quote
+            }
+        } else if c == 10 {  // newline
+            lex_line = lex_line + 1;
+            lex_col = 0;
+            lex_advance();
+        } else {
+            lex_advance();
+        }
+    }
+
+    if brace_depth != 0 {
+        return error_token("unterminated reader macro content");
+    }
+
+    var content_end i64 = lex_current;
+    lex_advance();  // consume closing '}'
+
+    // Create token
+    var tok *u8 = tok_alloc();
+    tok_set_type(tok, TOKEN_READER_MACRO);
+    tok_set_lexeme(tok, lex_source + name_start);
+    tok_set_lexeme_len(tok, name_len);
+    tok_set_line(tok, lex_line);
+    tok_set_col(tok, lex_start_col);
+    tok_set_content(tok, lex_source + content_start);
+    tok_set_content_len(tok, content_end - content_start);
+
+    return tok;
 }
 
 // ============================================================
@@ -482,6 +594,9 @@ func scan_token() *u8 {
         if lex_match(64) { return make_token(TOKEN_DOLLAR_AT); }       // '$@'
         return make_token(TOKEN_DOLLAR);
     }
+    if c == 35 {  // '#' - reader macro
+        return scan_reader_macro();
+    }
     if c == 34 {  // '"'
         return scan_string();
     }
@@ -550,6 +665,9 @@ func print_token_type(t i64) void {
     if t == TOKEN_DOLLAR_LBRACE { print("${"); return; }
     if t == TOKEN_DOLLAR { print("$"); return; }
     if t == TOKEN_DOLLAR_AT { print("$@"); return; }
+    if t == TOKEN_IMPORT { print("import"); return; }
+    if t == TOKEN_READER { print("reader"); return; }
+    if t == TOKEN_READER_MACRO { print("READER_MACRO"); return; }
     print("UNKNOWN");
 }
 
