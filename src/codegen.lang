@@ -53,6 +53,9 @@ var cg_reader_count i64 = 0;
 var cg_include_stack *u8 = nil;
 var cg_include_count i64 = 0;
 
+// Map of already-included files (prevents duplicate processing)
+var cg_included_files *u8 = nil;
+
 // Debug flag: print macro expansions
 var cg_expand_macros i64 = 0;
 
@@ -100,6 +103,8 @@ func codegen_init() void {
 
     cg_include_stack = alloc(512);  // 32 * 16
     cg_include_count = 0;
+
+    cg_included_files = map_new();
 }
 
 // ============================================================
@@ -771,6 +776,12 @@ func process_decl_first_pass(decl *u8) void {
         // Inline include processing to avoid forward declaration
         var path *u8 = include_decl_path(decl);
         var path_len i64 = include_decl_path_len(decl);
+
+        // Skip if already included (idempotent includes)
+        if map_has(cg_included_files, str_dup_n(path, path_len)) {
+            return;
+        }
+        map_set(cg_included_files, str_dup_n(path, path_len), 1);
 
         // Check for circular include
         if include_stack_contains(path, path_len) {
@@ -2307,6 +2318,12 @@ func gen_decl(decl *u8) void {
         var path *u8 = include_decl_path(decl);
         var path_len i64 = include_decl_path_len(decl);
 
+        // Skip if already included (idempotent includes)
+        if map_has(cg_included_files, str_dup_n(path, path_len)) {
+            return;
+        }
+        map_set(cg_included_files, str_dup_n(path, path_len), 1);
+
         // Check for circular include (same check as first pass)
         if include_stack_contains(path, path_len) {
             // Already detected in first pass, just skip silently
@@ -3413,6 +3430,9 @@ func generate(prog *u8, out_path *u8) void {
         process_decl_first_pass(get_decl(decls, i));
         i = i + 1;
     }
+
+    // Reset included files map for second pass
+    cg_included_files = map_new();
 
     // Second pass: generate code (into buffer)
     i = 0;

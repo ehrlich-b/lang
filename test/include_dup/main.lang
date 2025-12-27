@@ -1,0 +1,11 @@
+// Test idempotent includes - both main and helper include std/core.lang
+// This should work without "symbol already defined" errors
+
+include "std/core.lang"
+include "test/include_dup/helper.lang"
+
+func main() i64 {
+    print_int(helper());
+    println("");
+    return 0;
+}
