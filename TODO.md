@@ -2,188 +2,150 @@
 
 ## Vision
 
-**A self-hosted compiler compiler.**
+**A self-hosted compiler compiler with universal semantics.**
 
-Lang + reader macro = native compiler for any syntax. No runtime, no VM, just x86.
+The AST is the language. Syntax is a plugin. Effects unify control flow.
 
 ---
 
 ## Milestones
 
 1. ✓ Self-hosting compiler (x86 fixed point)
-2. ✓ Self-hosted compiler compiler (reader infrastructure in lang)
-3. ✓ `#parser{}` reader (parser generator as reader macro!)
-4. ✓ `#lisp{}` reader with defun (cross-file function interop!)
-5. → Language polish (bugs, missing features)
-6. → `lang_reader.lang` (lang syntax defined in lang)
-7. → Language forge (file extension dispatch, trivial compiler creation)
+2. ✓ Reader macro infrastructure (`#parser{}`, `#lisp{}`)
+3. ✓ Language polish (break/continue, bitwise ops, char literals)
+4. → **AST 2.0: Universal Semantics** ← CURRENT
+5. → Kernel/reader split (lang as a reader)
+6. → Multiple backends (WASM, LLVM IR)
 
 ---
 
-## Current Focus: Language Polish
+## Current Focus: AST 2.0 Implementation
 
-We keep tripping over missing features and bugs. Fix these before pushing forward.
+See `designs/ast_as_language.md` for the complete design.
 
-### Bugs (Breaking)
+### Phase 1: Foundation (Current → Layer 1 stable)
 
-| Bug | Severity | Status |
-|-----|----------|--------|
-| ~~>6 parameters generates broken assembly~~ | High | FIXED |
-| ~~`*(struct.ptr_field)` reads 8 bytes~~ | High | FIXED |
-| ~~No argument count checking~~ | Medium | FIXED |
-| ~~Duplicate includes fail~~ | Medium | FIXED |
+| Task | File | Status |
+|------|------|--------|
+| Add `let` expression binding | parser.lang, codegen.lang | TODO |
+| Add explicit `assign` node | parser.lang, codegen.lang | TODO |
+| Add `TYPE_FUNC` to type system | codegen.lang:1166+ | TODO |
+| Verify indirect calls work | codegen.lang:1800+ | TODO |
+| Test function pointers (`&func`) | test/ | TODO |
 
-### Missing Features (Annoying)
+### Phase 2: First-Class Functions
 
-| Feature | Pain Level | Status |
-|---------|-----------|--------|
-| ~~Character literals `'A'`~~ | High - use 65 everywhere | FIXED |
-| ~~Bitwise operators `& \| ^ << >>`~~ | High - can't do bit manipulation | FIXED |
-| ~~Compound assignment `+= -= *= /= %=`~~ | Medium - verbose | FIXED |
-| ~~`break` / `continue` / labeled break~~ | Medium - awkward loops | FIXED |
-| `for` loop sugar | Low - while works | TODO |
+| Task | File | Status |
+|------|------|--------|
+| Parse `fn(T) R` type syntax | parser.lang | TODO |
+| Parse lambda `\|x\| { body }` | parser.lang | TODO |
+| `NODE_LAMBDA_EXPR` node type | parser.lang:30+ | TODO |
+| Lambda codegen (no captures) | codegen.lang | TODO |
+| Function pointer load `lea func, %rax` | codegen.lang | TODO |
 
-### Works Fine (I Was Wrong!)
+### Phase 3: Closures
 
-These features already work - don't waste time on them:
-- ✓ Forward function references (call before definition)
-- ✓ Mutual recursion (is_even/is_odd)
-- ✓ `else if` chains
-- ✓ Nested struct field access
+| Task | File | Status |
+|------|------|--------|
+| Closure struct generation | codegen.lang | TODO |
+| Capture analysis pass | codegen.lang | TODO |
+| Environment passing convention | codegen.lang:2287+ | TODO |
+
+### Phase 4: Sum Types
+
+| Task | File | Status |
+|------|------|--------|
+| Parse `enum Name { V1, V2(T) }` | parser.lang | TODO |
+| Enum registry | codegen.lang:315+ | TODO |
+| Tagged union layout `[tag:8][payload:N]` | codegen.lang | TODO |
+| Parse `match expr { ... }` | parser.lang | TODO |
+| Match → if/else tree compilation | codegen.lang | TODO |
+
+### Phase 5: Algebraic Effects
+
+| Task | File | Status |
+|------|------|--------|
+| Parse `effect` declarations | parser.lang | TODO |
+| Parse `perform Effect(args)` | parser.lang | TODO |
+| Parse `handle { } with { }` | parser.lang | TODO |
+| **Exceptions (no resume)** | codegen.lang | TODO |
+| State machine transform | codegen.lang | TODO |
+| `resume k(value)` support | codegen.lang | TODO |
+
+### Phase 6: Kernel Split
+
+| Task | File | Status |
+|------|------|--------|
+| S-expression parser | kernel/sexpr.lang | TODO |
+| AST validation | kernel/ast.lang | TODO |
+| Extract lang_reader | readers/lang/ | TODO |
+| Verify fixed point | Makefile | TODO |
 
 ---
 
-## Code Quality (from REVIEW.md)
+## Pre-Flight Checks (Before Phase 1)
+
+- [ ] Verify stack frames can exceed 4KB
+- [ ] Test nested structs `struct A { b B; }`
+- [ ] Test storing function address `var f = &myfunc`
+- [ ] Test indirect call via pointer
+
+---
+
+## Code Quality Debt
 
 | Issue | Priority | Status |
 |-------|----------|--------|
 | Magic PNODE numbers in lisp.lang | Low | TODO |
-| Fixed 4KB stack frames | Low | TODO |
-| Reader cache not invalidated | Low | TODO |
-
----
-
-## Next Up: File Extension Dispatch
-
-Two modes:
-
-```bash
-# Build-time compilation
-# .lisp gets wrapped in #lisp{ contents }, finds reader in provided .lang files
-lang reader_lisp.lang program.lisp -o program
-
-# Standalone compiler generation
-# -c lisp means "make a compiler for the 'lisp' reader"
-lang -c lisp reader_lisp.lang -o lisp_compiler
-./lisp_compiler program.lisp -o program
-```
-
-The file extension *is* the reader name. Mix `.lang` and `.whatever` files freely - one needs a main.
-
-- [x] Detect non-.lang extensions, wrap in `#ext{ contents }`
-- [x] `-c <reader>` flag to generate standalone compiler
-- [x] Readers also generate callable functions (no .lang-cache needed at runtime)
-
----
-
-## Future: AST as Language
-
-The big architectural vision: **AST is the language, syntax is just a skin.**
-
-See `designs/ast_as_language.md` for the full design:
-- S-expression AST format as the "root language"
-- Readers output AST via typed constructors (never write S-exprs by hand)
-- Kernel compiles AST → x86 (or WASM, LLVM IR)
-- `lang` becomes just one syntax among many
-
-This is what "compiler compiler" really means - syntax is a plugin, not a property.
-
-### Implementation Path
-
-**1.0: lang as a lang_reader**
-1. [ ] `std/ast.lang` - AST node constructors + `ast_emit()`
-2. [ ] S-expression parser in kernel
-3. [ ] `lang_reader.lang` - lang syntax as a reader
-4. [ ] Verify fixed point (kernel + lang_reader compiles itself)
-5. [ ] Delete hardcoded parser from current compiler
-
-**Post-1.0: Multiple backends**
-6. [ ] WASM backend (portability, browser, WASI)
-7. [ ] LLVM IR backend (optimization, more targets)
-
-**2.0: Modern language features** (see `designs/ast_as_language.md`)
-8. [ ] First-class functions + closures in AST + lang
-9. [ ] Sum types / enums + pattern matching
-10. [ ] Generics (monomorphization in kernel)
-11. [ ] Exception handling
+| Fixed 4KB stack frames | Medium | TODO |
+| Reader cache invalidation | Low | TODO |
 
 ---
 
 ## Stdlib Gaps
 
-- [ ] `memcpy`, `memset`
-- [x] `itoa` (number to string)
-- [ ] `read_file` (returns contents as string)
-- [ ] String builder (have it, needs polish)
+| Item | Status |
+|------|--------|
+| `memcpy`, `memset` | TODO |
+| `read_file` (returns string) | TODO |
+| String builder polish | TODO |
 
 ---
 
-## Backends
+## Backlog (Post 2.0)
 
-### LLVM IR Output
-- [ ] Emit LLVM IR directly (textual .ll files, no libLLVM)
-- [ ] Use `llc` to compile to native
-- [ ] Enables: optimization, multiple targets
+- [ ] Floating point (f32, f64)
+- [ ] Struct literals `Point{x: 1, y: 2}`
+- [ ] Pass/return structs by value
+- [ ] Debug symbols (DWARF)
+- [ ] Type aliases `type Fd = i64`
+- [ ] `for` loop sugar
+- [ ] Generics (monomorphization)
 
 ---
 
-## Completed (This Session)
+## Completed
 
-- [x] Deep code review (see REVIEW.md)
-- [x] Fixed `vec_new()` ignoring capacity parameter
-- [x] Fixed `*(struct.ptr_field)` reading 8 bytes instead of 1
-- [x] Added function argument count checking at compile time
-- [x] Fixed duplicate includes (idempotent includes)
-- [x] Documented `#parser{}` reader macro
-- [x] Lisp `defun` with cross-file function interop
+### This Session
+- [x] Comprehensive AST 2.0 design with algebraic effects
+- [x] Research: LLM comparative analysis (Gemini, Claude, GPT)
+- [x] Layer cake architecture design
+- [x] Pluggable memory model design
 
-## Completed (Previous)
-
+### Previous
 - [x] Self-hosting compiler (x86 fixed point)
 - [x] Stdlib (malloc, vec, map)
 - [x] Structs with field access
 - [x] AST macros (quote/unquote)
 - [x] Reader macros V2 (native executables)
 - [x] `#parser{}` reader macro
-- [x] Reader includes (sibling functions available)
+- [x] `#lisp{}` with defun
 - [x] Parsing toolkit (std/tok.lang, std/emit.lang)
-
----
-
-## Backlog
-
-- [ ] Floating point types (f32, f64)
-- [ ] Struct literals (`Point{x: 1, y: 2}`)
-- [ ] Passing/returning structs by value
-- [ ] Debug symbols (DWARF)
-- [ ] First-class functions (function pointers)
-- [ ] Type aliases `type Fd = i64`
-- [ ] Multiple backends (x86, ARM, WASM)
-
----
-
-## Open Questions: Editor Integration
-
-See `designs/source_maps.md` for full analysis.
-
-**Problem**: IDE features (go-to-definition, hover) don't work inside `#lisp{}` blocks because we lose the connection between input positions and generated code.
-
-**Solution**: Mapped emit API. Readers use `reader_emit_from(ctx, start, end)` instead of string concat. Builds source map automatically as a side effect. Readers still output text!
-
-**Syntax highlighting**: Two levels:
-1. TextMate embedded languages (regex, no compiler) - works today
-2. Semantic highlighting (needs source maps + LSP)
-
-**Key insight**: Readers already tokenize - they have to, to transform. We just ask them to preserve that info when emitting.
-
-**Status**: Design complete, not implemented. Low priority until we want real IDE support.
+- [x] Character literals `'A'`
+- [x] Bitwise operators `& | ^ << >>`
+- [x] Compound assignment `+= -= *= /=`
+- [x] `break` / `continue` / labeled loops
+- [x] >6 parameter support
+- [x] Duplicate include handling
+- [x] Argument count checking
+- [x] Standalone compiler generation (`-c` flag)
