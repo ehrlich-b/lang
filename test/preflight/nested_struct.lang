@@ -1,0 +1,37 @@
+// Pre-flight check: Do nested structs work?
+// Tests struct A { b B; } pattern
+
+struct Inner {
+    x i64;
+    y i64;
+}
+
+struct Outer {
+    a i64;
+    inner Inner;
+    b i64;
+}
+
+func main(argc i64, argv **u8) i64 {
+    var o Outer;
+
+    // Set outer fields
+    o.a = 10;
+    o.b = 30;
+
+    // Set inner fields
+    o.inner.x = 100;
+    o.inner.y = 200;
+
+    // Verify all fields
+    if o.a != 10 { return 1; }
+    if o.b != 30 { return 2; }
+    if o.inner.x != 100 { return 3; }
+    if o.inner.y != 200 { return 4; }
+
+    // Verify sum
+    var sum i64 = o.a + o.b + o.inner.x + o.inner.y;
+    if sum != 340 { return 5; }
+
+    return 0;  // success
+}

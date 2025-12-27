@@ -30,8 +30,8 @@ See `designs/ast_as_language.md` for the complete design.
 | Add `let` expression binding | parser.lang, codegen.lang | TODO |
 | Add explicit `assign` node | parser.lang, codegen.lang | TODO |
 | Add `TYPE_FUNC` to type system | codegen.lang:1166+ | TODO |
-| Verify indirect calls work | codegen.lang:1800+ | TODO |
-| Test function pointers (`&func`) | test/ | TODO |
+| Verify indirect calls work | codegen.lang:1800+ | DONE |
+| Test function pointers (`&func`) | test/ | DONE |
 
 ### Phase 2: First-Class Functions
 
@@ -85,10 +85,10 @@ See `designs/ast_as_language.md` for the complete design.
 
 ## Pre-Flight Checks (Before Phase 1)
 
-- [ ] Verify stack frames can exceed 4KB
-- [ ] Test nested structs `struct A { b B; }`
-- [ ] Test storing function address `var f = &myfunc`
-- [ ] Test indirect call via pointer
+- [x] Verify stack frames can exceed 4KB (dynamic stack sizing)
+- [x] Test nested structs `struct A { b B; }`
+- [x] Test storing function address `var f = &myfunc` (function registry)
+- [x] Test indirect call via pointer
 
 ---
 
@@ -96,8 +96,8 @@ See `designs/ast_as_language.md` for the complete design.
 
 | Issue | Priority | Status |
 |-------|----------|--------|
+| Add `const` keyword for compile-time constants | Medium | TODO |
 | Magic PNODE numbers in lisp.lang | Low | TODO |
-| Fixed 4KB stack frames | Medium | TODO |
 | Reader cache invalidation | Low | TODO |
 
 ---
@@ -127,6 +127,12 @@ See `designs/ast_as_language.md` for the complete design.
 ## Completed
 
 ### This Session
+- [x] Pre-flight checks all passing
+- [x] Dynamic stack sizing (deferred prologue generation)
+- [x] Function registry for `&funcname` support
+- [x] Centralized limits in `src/limits.lang`
+
+### Previous Session
 - [x] Comprehensive AST 2.0 design with algebraic effects
 - [x] Research: LLM comparative analysis (Gemini, Claude, GPT)
 - [x] Layer cake architecture design
