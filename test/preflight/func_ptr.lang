@@ -1,0 +1,38 @@
+// Pre-flight check: Can we store function pointers and call them?
+// Tests: var f = &myfunc; (*f)(args)
+
+func add(a i64, b i64) i64 {
+    return a + b;
+}
+
+func mul(a i64, b i64) i64 {
+    return a * b;
+}
+
+func apply(f *u8, x i64, y i64) i64 {
+    // Cast and call - this is the tricky part
+    // We need to call through a function pointer
+    var fn_ptr **u8 = &f;
+    // For now, we can't easily do indirect calls with the current syntax
+    // Let's test what we CAN do
+    return 0;
+}
+
+func main(argc i64, argv **u8) i64 {
+    // Test 1: Can we take the address of a function?
+    var f *u8 = &add;
+    if f == nil { return 1; }
+
+    // Test 2: Can we compare function addresses?
+    var g *u8 = &mul;
+    if f == g { return 2; }  // should be different
+
+    // Test 3: Can we store in a variable and check it's non-null?
+    var h *u8 = &add;
+    if h != f { return 3; }  // should be same as f
+
+    // Note: Actually CALLING through the pointer requires
+    // indirect call support which we need to verify in codegen
+
+    return 0;  // success - we can at least take addresses
+}

@@ -179,6 +179,7 @@ func main(argc i64, argv **u8) i64 {
         }
 
         // Add ___main wrapper that calls user's main
+        // Passes argc/argv - arg count check skipped for 'main' to support both signatures
         append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8) i64 { return main(argc, argv); }\n");
     }
 

@@ -1,0 +1,144 @@
+// Pre-flight check: Can stack frames exceed 4KB?
+// Tests having many local variables (> 512 i64s = 4096 bytes)
+
+func test_large_stack() i64 {
+    // 600 local variables = 4800 bytes
+    var v0 i64 = 0; var v1 i64 = 1; var v2 i64 = 2; var v3 i64 = 3; var v4 i64 = 4;
+    var v5 i64 = 5; var v6 i64 = 6; var v7 i64 = 7; var v8 i64 = 8; var v9 i64 = 9;
+    var v10 i64 = 10; var v11 i64 = 11; var v12 i64 = 12; var v13 i64 = 13; var v14 i64 = 14;
+    var v15 i64 = 15; var v16 i64 = 16; var v17 i64 = 17; var v18 i64 = 18; var v19 i64 = 19;
+    var v20 i64 = 20; var v21 i64 = 21; var v22 i64 = 22; var v23 i64 = 23; var v24 i64 = 24;
+    var v25 i64 = 25; var v26 i64 = 26; var v27 i64 = 27; var v28 i64 = 28; var v29 i64 = 29;
+    var v30 i64 = 30; var v31 i64 = 31; var v32 i64 = 32; var v33 i64 = 33; var v34 i64 = 34;
+    var v35 i64 = 35; var v36 i64 = 36; var v37 i64 = 37; var v38 i64 = 38; var v39 i64 = 39;
+    var v40 i64 = 40; var v41 i64 = 41; var v42 i64 = 42; var v43 i64 = 43; var v44 i64 = 44;
+    var v45 i64 = 45; var v46 i64 = 46; var v47 i64 = 47; var v48 i64 = 48; var v49 i64 = 49;
+    var v50 i64 = 50; var v51 i64 = 51; var v52 i64 = 52; var v53 i64 = 53; var v54 i64 = 54;
+    var v55 i64 = 55; var v56 i64 = 56; var v57 i64 = 57; var v58 i64 = 58; var v59 i64 = 59;
+    var v60 i64 = 60; var v61 i64 = 61; var v62 i64 = 62; var v63 i64 = 63; var v64 i64 = 64;
+    var v65 i64 = 65; var v66 i64 = 66; var v67 i64 = 67; var v68 i64 = 68; var v69 i64 = 69;
+    var v70 i64 = 70; var v71 i64 = 71; var v72 i64 = 72; var v73 i64 = 73; var v74 i64 = 74;
+    var v75 i64 = 75; var v76 i64 = 76; var v77 i64 = 77; var v78 i64 = 78; var v79 i64 = 79;
+    var v80 i64 = 80; var v81 i64 = 81; var v82 i64 = 82; var v83 i64 = 83; var v84 i64 = 84;
+    var v85 i64 = 85; var v86 i64 = 86; var v87 i64 = 87; var v88 i64 = 88; var v89 i64 = 89;
+    var v90 i64 = 90; var v91 i64 = 91; var v92 i64 = 92; var v93 i64 = 93; var v94 i64 = 94;
+    var v95 i64 = 95; var v96 i64 = 96; var v97 i64 = 97; var v98 i64 = 98; var v99 i64 = 99;
+
+    // More blocks of 100...
+    var v100 i64 = 100; var v101 i64 = 101; var v102 i64 = 102; var v103 i64 = 103; var v104 i64 = 104;
+    var v105 i64 = 105; var v106 i64 = 106; var v107 i64 = 107; var v108 i64 = 108; var v109 i64 = 109;
+    var v110 i64 = 110; var v111 i64 = 111; var v112 i64 = 112; var v113 i64 = 113; var v114 i64 = 114;
+    var v115 i64 = 115; var v116 i64 = 116; var v117 i64 = 117; var v118 i64 = 118; var v119 i64 = 119;
+    var v120 i64 = 120; var v121 i64 = 121; var v122 i64 = 122; var v123 i64 = 123; var v124 i64 = 124;
+    var v125 i64 = 125; var v126 i64 = 126; var v127 i64 = 127; var v128 i64 = 128; var v129 i64 = 129;
+    var v130 i64 = 130; var v131 i64 = 131; var v132 i64 = 132; var v133 i64 = 133; var v134 i64 = 134;
+    var v135 i64 = 135; var v136 i64 = 136; var v137 i64 = 137; var v138 i64 = 138; var v139 i64 = 139;
+    var v140 i64 = 140; var v141 i64 = 141; var v142 i64 = 142; var v143 i64 = 143; var v144 i64 = 144;
+    var v145 i64 = 145; var v146 i64 = 146; var v147 i64 = 147; var v148 i64 = 148; var v149 i64 = 149;
+    var v150 i64 = 150; var v151 i64 = 151; var v152 i64 = 152; var v153 i64 = 153; var v154 i64 = 154;
+    var v155 i64 = 155; var v156 i64 = 156; var v157 i64 = 157; var v158 i64 = 158; var v159 i64 = 159;
+    var v160 i64 = 160; var v161 i64 = 161; var v162 i64 = 162; var v163 i64 = 163; var v164 i64 = 164;
+    var v165 i64 = 165; var v166 i64 = 166; var v167 i64 = 167; var v168 i64 = 168; var v169 i64 = 169;
+    var v170 i64 = 170; var v171 i64 = 171; var v172 i64 = 172; var v173 i64 = 173; var v174 i64 = 174;
+    var v175 i64 = 175; var v176 i64 = 176; var v177 i64 = 177; var v178 i64 = 178; var v179 i64 = 179;
+    var v180 i64 = 180; var v181 i64 = 181; var v182 i64 = 182; var v183 i64 = 183; var v184 i64 = 184;
+    var v185 i64 = 185; var v186 i64 = 186; var v187 i64 = 187; var v188 i64 = 188; var v189 i64 = 189;
+    var v190 i64 = 190; var v191 i64 = 191; var v192 i64 = 192; var v193 i64 = 193; var v194 i64 = 194;
+    var v195 i64 = 195; var v196 i64 = 196; var v197 i64 = 197; var v198 i64 = 198; var v199 i64 = 199;
+
+    var v200 i64 = 200; var v201 i64 = 201; var v202 i64 = 202; var v203 i64 = 203; var v204 i64 = 204;
+    var v205 i64 = 205; var v206 i64 = 206; var v207 i64 = 207; var v208 i64 = 208; var v209 i64 = 209;
+    var v210 i64 = 210; var v211 i64 = 211; var v212 i64 = 212; var v213 i64 = 213; var v214 i64 = 214;
+    var v215 i64 = 215; var v216 i64 = 216; var v217 i64 = 217; var v218 i64 = 218; var v219 i64 = 219;
+    var v220 i64 = 220; var v221 i64 = 221; var v222 i64 = 222; var v223 i64 = 223; var v224 i64 = 224;
+    var v225 i64 = 225; var v226 i64 = 226; var v227 i64 = 227; var v228 i64 = 228; var v229 i64 = 229;
+    var v230 i64 = 230; var v231 i64 = 231; var v232 i64 = 232; var v233 i64 = 233; var v234 i64 = 234;
+    var v235 i64 = 235; var v236 i64 = 236; var v237 i64 = 237; var v238 i64 = 238; var v239 i64 = 239;
+    var v240 i64 = 240; var v241 i64 = 241; var v242 i64 = 242; var v243 i64 = 243; var v244 i64 = 244;
+    var v245 i64 = 245; var v246 i64 = 246; var v247 i64 = 247; var v248 i64 = 248; var v249 i64 = 249;
+    var v250 i64 = 250; var v251 i64 = 251; var v252 i64 = 252; var v253 i64 = 253; var v254 i64 = 254;
+    var v255 i64 = 255; var v256 i64 = 256; var v257 i64 = 257; var v258 i64 = 258; var v259 i64 = 259;
+    var v260 i64 = 260; var v261 i64 = 261; var v262 i64 = 262; var v263 i64 = 263; var v264 i64 = 264;
+    var v265 i64 = 265; var v266 i64 = 266; var v267 i64 = 267; var v268 i64 = 268; var v269 i64 = 269;
+    var v270 i64 = 270; var v271 i64 = 271; var v272 i64 = 272; var v273 i64 = 273; var v274 i64 = 274;
+    var v275 i64 = 275; var v276 i64 = 276; var v277 i64 = 277; var v278 i64 = 278; var v279 i64 = 279;
+    var v280 i64 = 280; var v281 i64 = 281; var v282 i64 = 282; var v283 i64 = 283; var v284 i64 = 284;
+    var v285 i64 = 285; var v286 i64 = 286; var v287 i64 = 287; var v288 i64 = 288; var v289 i64 = 289;
+    var v290 i64 = 290; var v291 i64 = 291; var v292 i64 = 292; var v293 i64 = 293; var v294 i64 = 294;
+    var v295 i64 = 295; var v296 i64 = 296; var v297 i64 = 297; var v298 i64 = 298; var v299 i64 = 299;
+
+    var v300 i64 = 300; var v301 i64 = 301; var v302 i64 = 302; var v303 i64 = 303; var v304 i64 = 304;
+    var v305 i64 = 305; var v306 i64 = 306; var v307 i64 = 307; var v308 i64 = 308; var v309 i64 = 309;
+    var v310 i64 = 310; var v311 i64 = 311; var v312 i64 = 312; var v313 i64 = 313; var v314 i64 = 314;
+    var v315 i64 = 315; var v316 i64 = 316; var v317 i64 = 317; var v318 i64 = 318; var v319 i64 = 319;
+    var v320 i64 = 320; var v321 i64 = 321; var v322 i64 = 322; var v323 i64 = 323; var v324 i64 = 324;
+    var v325 i64 = 325; var v326 i64 = 326; var v327 i64 = 327; var v328 i64 = 328; var v329 i64 = 329;
+    var v330 i64 = 330; var v331 i64 = 331; var v332 i64 = 332; var v333 i64 = 333; var v334 i64 = 334;
+    var v335 i64 = 335; var v336 i64 = 336; var v337 i64 = 337; var v338 i64 = 338; var v339 i64 = 339;
+    var v340 i64 = 340; var v341 i64 = 341; var v342 i64 = 342; var v343 i64 = 343; var v344 i64 = 344;
+    var v345 i64 = 345; var v346 i64 = 346; var v347 i64 = 347; var v348 i64 = 348; var v349 i64 = 349;
+    var v350 i64 = 350; var v351 i64 = 351; var v352 i64 = 352; var v353 i64 = 353; var v354 i64 = 354;
+    var v355 i64 = 355; var v356 i64 = 356; var v357 i64 = 357; var v358 i64 = 358; var v359 i64 = 359;
+    var v360 i64 = 360; var v361 i64 = 361; var v362 i64 = 362; var v363 i64 = 363; var v364 i64 = 364;
+    var v365 i64 = 365; var v366 i64 = 366; var v367 i64 = 367; var v368 i64 = 368; var v369 i64 = 369;
+    var v370 i64 = 370; var v371 i64 = 371; var v372 i64 = 372; var v373 i64 = 373; var v374 i64 = 374;
+    var v375 i64 = 375; var v376 i64 = 376; var v377 i64 = 377; var v378 i64 = 378; var v379 i64 = 379;
+    var v380 i64 = 380; var v381 i64 = 381; var v382 i64 = 382; var v383 i64 = 383; var v384 i64 = 384;
+    var v385 i64 = 385; var v386 i64 = 386; var v387 i64 = 387; var v388 i64 = 388; var v389 i64 = 389;
+    var v390 i64 = 390; var v391 i64 = 391; var v392 i64 = 392; var v393 i64 = 393; var v394 i64 = 394;
+    var v395 i64 = 395; var v396 i64 = 396; var v397 i64 = 397; var v398 i64 = 398; var v399 i64 = 399;
+
+    var v400 i64 = 400; var v401 i64 = 401; var v402 i64 = 402; var v403 i64 = 403; var v404 i64 = 404;
+    var v405 i64 = 405; var v406 i64 = 406; var v407 i64 = 407; var v408 i64 = 408; var v409 i64 = 409;
+    var v410 i64 = 410; var v411 i64 = 411; var v412 i64 = 412; var v413 i64 = 413; var v414 i64 = 414;
+    var v415 i64 = 415; var v416 i64 = 416; var v417 i64 = 417; var v418 i64 = 418; var v419 i64 = 419;
+    var v420 i64 = 420; var v421 i64 = 421; var v422 i64 = 422; var v423 i64 = 423; var v424 i64 = 424;
+    var v425 i64 = 425; var v426 i64 = 426; var v427 i64 = 427; var v428 i64 = 428; var v429 i64 = 429;
+    var v430 i64 = 430; var v431 i64 = 431; var v432 i64 = 432; var v433 i64 = 433; var v434 i64 = 434;
+    var v435 i64 = 435; var v436 i64 = 436; var v437 i64 = 437; var v438 i64 = 438; var v439 i64 = 439;
+    var v440 i64 = 440; var v441 i64 = 441; var v442 i64 = 442; var v443 i64 = 443; var v444 i64 = 444;
+    var v445 i64 = 445; var v446 i64 = 446; var v447 i64 = 447; var v448 i64 = 448; var v449 i64 = 449;
+    var v450 i64 = 450; var v451 i64 = 451; var v452 i64 = 452; var v453 i64 = 453; var v454 i64 = 454;
+    var v455 i64 = 455; var v456 i64 = 456; var v457 i64 = 457; var v458 i64 = 458; var v459 i64 = 459;
+    var v460 i64 = 460; var v461 i64 = 461; var v462 i64 = 462; var v463 i64 = 463; var v464 i64 = 464;
+    var v465 i64 = 465; var v466 i64 = 466; var v467 i64 = 467; var v468 i64 = 468; var v469 i64 = 469;
+    var v470 i64 = 470; var v471 i64 = 471; var v472 i64 = 472; var v473 i64 = 473; var v474 i64 = 474;
+    var v475 i64 = 475; var v476 i64 = 476; var v477 i64 = 477; var v478 i64 = 478; var v479 i64 = 479;
+    var v480 i64 = 480; var v481 i64 = 481; var v482 i64 = 482; var v483 i64 = 483; var v484 i64 = 484;
+    var v485 i64 = 485; var v486 i64 = 486; var v487 i64 = 487; var v488 i64 = 488; var v489 i64 = 489;
+    var v490 i64 = 490; var v491 i64 = 491; var v492 i64 = 492; var v493 i64 = 493; var v494 i64 = 494;
+    var v495 i64 = 495; var v496 i64 = 496; var v497 i64 = 497; var v498 i64 = 498; var v499 i64 = 499;
+
+    var v500 i64 = 500; var v501 i64 = 501; var v502 i64 = 502; var v503 i64 = 503; var v504 i64 = 504;
+    var v505 i64 = 505; var v506 i64 = 506; var v507 i64 = 507; var v508 i64 = 508; var v509 i64 = 509;
+    var v510 i64 = 510; var v511 i64 = 511; var v512 i64 = 512; var v513 i64 = 513; var v514 i64 = 514;
+    var v515 i64 = 515; var v516 i64 = 516; var v517 i64 = 517; var v518 i64 = 518; var v519 i64 = 519;
+    var v520 i64 = 520; var v521 i64 = 521; var v522 i64 = 522; var v523 i64 = 523; var v524 i64 = 524;
+    var v525 i64 = 525; var v526 i64 = 526; var v527 i64 = 527; var v528 i64 = 528; var v529 i64 = 529;
+    var v530 i64 = 530; var v531 i64 = 531; var v532 i64 = 532; var v533 i64 = 533; var v534 i64 = 534;
+    var v535 i64 = 535; var v536 i64 = 536; var v537 i64 = 537; var v538 i64 = 538; var v539 i64 = 539;
+    var v540 i64 = 540; var v541 i64 = 541; var v542 i64 = 542; var v543 i64 = 543; var v544 i64 = 544;
+    var v545 i64 = 545; var v546 i64 = 546; var v547 i64 = 547; var v548 i64 = 548; var v549 i64 = 549;
+    var v550 i64 = 550; var v551 i64 = 551; var v552 i64 = 552; var v553 i64 = 553; var v554 i64 = 554;
+    var v555 i64 = 555; var v556 i64 = 556; var v557 i64 = 557; var v558 i64 = 558; var v559 i64 = 559;
+    var v560 i64 = 560; var v561 i64 = 561; var v562 i64 = 562; var v563 i64 = 563; var v564 i64 = 564;
+    var v565 i64 = 565; var v566 i64 = 566; var v567 i64 = 567; var v568 i64 = 568; var v569 i64 = 569;
+    var v570 i64 = 570; var v571 i64 = 571; var v572 i64 = 572; var v573 i64 = 573; var v574 i64 = 574;
+    var v575 i64 = 575; var v576 i64 = 576; var v577 i64 = 577; var v578 i64 = 578; var v579 i64 = 579;
+    var v580 i64 = 580; var v581 i64 = 581; var v582 i64 = 582; var v583 i64 = 583; var v584 i64 = 584;
+    var v585 i64 = 585; var v586 i64 = 586; var v587 i64 = 587; var v588 i64 = 588; var v589 i64 = 589;
+    var v590 i64 = 590; var v591 i64 = 591; var v592 i64 = 592; var v593 i64 = 593; var v594 i64 = 594;
+    var v595 i64 = 595; var v596 i64 = 596; var v597 i64 = 597; var v598 i64 = 598; var v599 i64 = 599;
+
+    // Sum some variables to verify they're all accessible
+    // Expected: 0 + 100 + 200 + 300 + 400 + 500 + 599 = 2099
+    return v0 + v100 + v200 + v300 + v400 + v500 + v599;
+}
+
+func main(argc i64, argv **u8) i64 {
+    var result i64 = test_large_stack();
+    if result == 2099 {
+        return 0;  // success
+    }
+    return 1;  // failure
+}

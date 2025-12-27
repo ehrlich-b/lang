@@ -1,6 +1,8 @@
 // src/codegen.lang - x86-64 code generator for self-hosting compiler
 // Emits GNU as compatible assembly
 
+include "src/limits.lang"
+
 // ============================================================
 // Codegen state (global)
 // ============================================================
@@ -9,7 +11,7 @@ var cg_out_fd i64 = 0;           // output file descriptor
 var cg_label_num i64 = 0;        // for generating unique labels
 
 // Locals array: each entry is [name_ptr:8][name_len:8][offset:8][type_ptr:8] = 32 bytes
-// Max 256 locals
+// Max 1024 locals
 var cg_locals *u8 = nil;
 var cg_local_count i64 = 0;
 var cg_stack_size i64 = 0;
@@ -29,6 +31,12 @@ var cg_code_buf *u8 = nil;
 var cg_code_len i64 = 0;
 var cg_code_cap i64 = 0;
 
+// Temporary buffer for function bodies (to calculate stack size before prologue)
+var cg_func_buf *u8 = nil;
+var cg_func_len i64 = 0;
+var cg_func_cap i64 = 0;
+var cg_in_func_body i64 = 0;  // 1 = emit to func_buf, 0 = emit to code_buf
+
 // Struct registry: simple array of struct decls
 // Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
 // Max 100 structs
@@ -46,6 +54,12 @@ var cg_macro_count i64 = 0;
 // Max 100 readers
 var cg_readers *u8 = nil;
 var cg_reader_count i64 = 0;
+
+// Function registry: simple array of func decls
+// Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
+// Max 500 functions
+var cg_funcs *u8 = nil;
+var cg_func_count i64 = 0;
 
 // Include stack for loop detection
 // Each entry: [path_ptr:8][path_len:8] = 16 bytes
@@ -67,7 +81,7 @@ var cg_loop_depth i64 = 0;
 
 func loop_stack_push(name *u8, name_len i64, break_label i64, continue_label i64) void {
     if cg_loop_stack == nil {
-        cg_loop_stack = alloc(1024);  // 32 * 32
+        cg_loop_stack = alloc(LIMIT_LOOP_DEPTH * 32);
     }
     var entry *u8 = cg_loop_stack + (cg_loop_depth * 32);
     var p_name **u8 = entry;
@@ -147,32 +161,40 @@ var cg_in_scoped_context i64 = 0;  // 1 when processing included files
 // ============================================================
 
 func codegen_init() void {
-    cg_locals = alloc(8192);    // 256 * 32
+    cg_locals = alloc(LIMIT_LOCALS * 32);
     cg_local_count = 0;
     cg_stack_size = 0;
 
-    cg_globals = alloc(32000);  // 1000 * 32
+    cg_globals = alloc(LIMIT_GLOBALS * 32);
     cg_global_count = 0;
 
-    cg_strings = alloc(16000);  // 1000 * 16
+    cg_strings = alloc(LIMIT_STRINGS * 16);
     cg_string_count = 0;
 
-    cg_code_buf = alloc(1048576);  // 1MB code buffer
+    cg_code_buf = alloc(SIZE_CODE_BUF);
     cg_code_len = 0;
-    cg_code_cap = 1048576;
+    cg_code_cap = SIZE_CODE_BUF;
+
+    cg_func_buf = alloc(SIZE_FUNC_BUF);
+    cg_func_len = 0;
+    cg_func_cap = SIZE_FUNC_BUF;
+    cg_in_func_body = 0;
 
     cg_label_num = 0;
 
-    cg_structs = alloc(2400);  // 100 * 24
+    cg_structs = alloc(LIMIT_STRUCTS * 24);
     cg_struct_count = 0;
 
-    cg_macros = alloc(2400);   // 100 * 24
+    cg_macros = alloc(LIMIT_MACROS * 24);
     cg_macro_count = 0;
 
-    cg_readers = alloc(2400);  // 100 * 24
+    cg_readers = alloc(LIMIT_READERS * 24);
     cg_reader_count = 0;
 
-    cg_include_stack = alloc(512);  // 32 * 16
+    cg_funcs = alloc(LIMIT_FUNCS * 24);
+    cg_func_count = 0;
+
+    cg_include_stack = alloc(LIMIT_INCLUDE_DEPTH * 16);
     cg_include_count = 0;
 
     cg_included_files = map_new();
@@ -687,17 +709,46 @@ func find_reader(name *u8, name_len i64) *u8 {
     return nil;
 }
 
-// Look up a function by name in program declarations
+// ============================================================
+// Function registry
+// ============================================================
+
+func add_func(decl *u8) void {
+    var name *u8 = func_decl_name(decl);
+    var name_len i64 = func_decl_name_len(decl);
+
+    var entry *u8 = cg_funcs + (cg_func_count * 24);
+
+    // Store name_ptr
+    var np **u8 = entry;
+    *np = name;
+
+    // Store name_len
+    var nl *i64 = entry + 8;
+    *nl = name_len;
+
+    // Store decl_ptr
+    var dp **u8 = entry + 16;
+    *dp = decl;
+
+    cg_func_count = cg_func_count + 1;
+}
+
+// Look up a function by name in function registry
 func find_func(name *u8, name_len i64) *u8 {
     var i i64 = 0;
-    while i < cg_decl_count {
-        var decl *u8 = get_decl(cg_decls, i);
-        if node_kind(decl) == NODE_FUNC_DECL {
-            var fname *u8 = func_decl_name(decl);
-            var flen i64 = func_decl_name_len(decl);
-            if flen == name_len && memcmp(fname, name, name_len) {
-                return decl;
-            }
+    while i < cg_func_count {
+        var entry *u8 = cg_funcs + (i * 24);
+
+        var np **u8 = entry;
+        var fname *u8 = *np;
+
+        var nl *i64 = entry + 8;
+        var flen i64 = *nl;
+
+        if flen == name_len && memcmp(fname, name, name_len) {
+            var dp **u8 = entry + 16;
+            return *dp;
         }
         i = i + 1;
     }
@@ -781,6 +832,10 @@ func process_decl_first_pass(decl *u8) void {
     }
     if k == NODE_READER_DECL {
         add_reader(decl);
+        return;
+    }
+    if k == NODE_FUNC_DECL {
+        add_func(decl);
         return;
     }
     // Reader macro at declaration level - expand to declarations
@@ -974,8 +1029,13 @@ func memcmp(a *u8, b *u8, len i64) bool {
 // ============================================================
 
 func emit_char(c u8) void {
-    *(cg_code_buf + cg_code_len) = c;
-    cg_code_len = cg_code_len + 1;
+    if cg_in_func_body != 0 {
+        *(cg_func_buf + cg_func_len) = c;
+        cg_func_len = cg_func_len + 1;
+    } else {
+        *(cg_code_buf + cg_code_len) = c;
+        cg_code_len = cg_code_len + 1;
+    }
 }
 
 func emit_str(s *u8) void {
@@ -1036,6 +1096,17 @@ func new_label() i64 {
     return cg_label_num;
 }
 
+// Copy func body buffer to code buffer
+func flush_func_body() void {
+    var i i64 = 0;
+    while i < cg_func_len {
+        *(cg_code_buf + cg_code_len) = *(cg_func_buf + i);
+        cg_code_len = cg_code_len + 1;
+        i = i + 1;
+    }
+    cg_func_len = 0;
+}
+
 // ============================================================
 // Direct file output (for final assembly)
 // ============================================================
@@ -1087,7 +1158,6 @@ func out_line(s *u8) void {
 // ============================================================
 
 // Get field offset within a struct
-// Simplified: all fields are 8 bytes for now
 func get_field_offset(struct_decl *u8, field_name *u8, field_len i64) i64 {
     if struct_decl == nil {
         return 0 - 1;
@@ -1106,7 +1176,13 @@ func get_field_offset(struct_decl *u8, field_name *u8, field_len i64) i64 {
                 return offset;
             }
         }
-        offset = offset + 8;  // All fields 8 bytes
+        // Add actual field size, not hardcoded 8
+        var field_type *u8 = struct_field_type(f);
+        var field_size i64 = get_type_size(field_type);
+        if field_size < 8 {
+            field_size = 8;  // Minimum 8 for alignment
+        }
+        offset = offset + field_size;
         i = i + 1;
     }
     return 0 - 1;
@@ -1133,6 +1209,78 @@ func get_field_type(struct_decl *u8, field_name *u8, field_len i64) *u8 {
         i = i + 1;
     }
     return nil;
+}
+
+// Global to return base local index from nested field computation
+var cg_nested_field_base_local i64 = 0;
+
+// Compute total offset for nested field access like o.inner.x
+// Returns total offset from base variable, sets cg_nested_field_base_local to base local index
+// Returns -1 if not a simple nested field on a local variable
+func compute_nested_field_offset(expr *u8) i64 {
+    if expr == nil {
+        return 0 - 1;
+    }
+
+    var k i64 = node_kind(expr);
+
+    // Base case: identifier - find the local
+    if k == NODE_IDENT_EXPR {
+        var name *u8 = ident_expr_name(expr);
+        var name_len i64 = ident_expr_name_len(expr);
+        var local_idx i64 = find_local(name, name_len);
+        if local_idx < 0 {
+            return 0 - 1;
+        }
+        cg_nested_field_base_local = local_idx;
+        return 0;  // No offset from the base itself
+    }
+
+    // Recursive case: field expression
+    if k == NODE_FIELD_EXPR {
+        var base_expr *u8 = field_expr_expr(expr);
+        var field_name *u8 = field_expr_field(expr);
+        var field_len i64 = field_expr_field_len(expr);
+
+        // First, get the offset of the base expression
+        var base_offset i64 = compute_nested_field_offset(base_expr);
+        if base_offset < 0 {
+            return 0 - 1;
+        }
+
+        // Get the type of the base expression to find the struct
+        var base_type *u8 = get_expr_type(base_expr);
+        if base_type == nil {
+            return 0 - 1;
+        }
+
+        var struct_name *u8 = nil;
+        var struct_name_len i64 = 0;
+
+        if type_kind(base_type) == TYPE_BASE {
+            struct_name = base_type_name(base_type);
+            struct_name_len = base_type_name_len(base_type);
+        }
+
+        if struct_name == nil {
+            return 0 - 1;
+        }
+
+        // Look up struct and get field offset
+        var struct_decl *u8 = find_struct(struct_name, struct_name_len);
+        if struct_decl == nil {
+            return 0 - 1;
+        }
+
+        var field_offset i64 = get_field_offset(struct_decl, field_name, field_len);
+        if field_offset < 0 {
+            return 0 - 1;
+        }
+
+        return base_offset + field_offset;
+    }
+
+    return 0 - 1;
 }
 
 // Calculate struct size by summing field sizes (with alignment)
@@ -1596,6 +1744,21 @@ func gen_expr(expr *u8) void {
                     emit_line("(%rip), %rax");
                     return;
                 }
+
+                // Check for function address
+                var func_decl *u8 = find_func(name, name_len);
+                if func_decl != nil {
+                    emit_str("    lea ");
+                    emit_n(name, name_len);
+                    emit_line("(%rip), %rax");
+                    return;
+                }
+
+                // Error: identifier not found
+                eprint("error: cannot take address of undefined identifier '");
+                eprint_buf(name, name_len);
+                eprintln("'");
+                cg_had_error = 1;
             }
             return;
         }
@@ -1749,11 +1912,17 @@ func gen_expr(expr *u8) void {
                 }
             }
 
-            // Check argument count
+            // Check argument count (skip for 'main' - wrapper handles both signatures)
             var func_decl *u8 = find_func(name, name_len);
             if func_decl != nil {
+                var is_main i64 = 0;
+                if name_len == 4 {
+                    if memcmp(name, "main", 4) {
+                        is_main = 1;
+                    }
+                }
                 var param_count i64 = func_decl_param_count(func_decl);
-                if arg_count != param_count {
+                if arg_count != param_count && is_main == 0 {
                     eprint("Error: function '");
                     eprint_buf(name, name_len);
                     eprint("' expects ");
@@ -1895,6 +2064,16 @@ func gen_expr(expr *u8) void {
                 emit_line("(%rbp), %rax");
                 return;
             }
+        }
+
+        // Nested field access (e.g., o.inner.x): use recursive helper
+        var total_offset i64 = compute_nested_field_offset(expr);
+        if total_offset >= 0 {
+            var base_offset i64 = local_get_offset(cg_nested_field_base_local);
+            emit_str("    mov ");
+            emit_int(base_offset + total_offset);
+            emit_line("(%rbp), %rax");
+            return;
         }
         return;
     }
@@ -2093,6 +2272,16 @@ func gen_lvalue_store(expr *u8) void {
                 return;
             }
         }
+
+        // Nested field access (e.g., o.inner.x = val): use recursive helper
+        var total_offset i64 = compute_nested_field_offset(expr);
+        if total_offset >= 0 {
+            var base_offset i64 = local_get_offset(cg_nested_field_base_local);
+            emit_str("    mov %rax, ");
+            emit_int(base_offset + total_offset);
+            emit_line("(%rbp)");
+            return;
+        }
         return;
     }
 }
@@ -2284,20 +2473,16 @@ func gen_func(func_node *u8) void {
     var name *u8 = func_decl_name(func_node);
     var name_len i64 = func_decl_name_len(func_node);
 
+    // Emit function label to main buffer
     emit_str(".globl ");
     emit_n(name, name_len);
     emit_char(10);
-
     emit_n(name, name_len);
     emit_line(":");
 
-    // Prologue
-    emit_line("    push %rbp");
-    emit_line("    mov %rsp, %rbp");
-    // SAFETY: Use 4KB stack frame to avoid silent overflow corruption
-    // The compiler itself has functions with 50+ local variables (gen_expr)
-    // TODO: calculate actual size from cg_stack_size after generating body
-    emit_line("    sub $4096, %rsp");
+    // Generate params and body to temp buffer (to calculate stack size)
+    cg_in_func_body = 1;
+    cg_func_len = 0;
 
     // Store parameters
     var params *u8 = func_decl_params(func_node);
@@ -2351,8 +2536,29 @@ func gen_func(func_node *u8) void {
         i = i + 1;
     }
 
-    // Generate body
+    // Generate body (still to temp buffer)
     gen_block(func_decl_body(func_node));
+
+    // Switch back to main buffer
+    cg_in_func_body = 0;
+
+    // Calculate aligned stack size (16-byte alignment, minimum 16)
+    var aligned_size i64 = cg_stack_size;
+    if aligned_size < 16 {
+        aligned_size = 16;
+    }
+    // Round up to 16-byte boundary
+    aligned_size = ((aligned_size + 15) / 16) * 16;
+
+    // Emit prologue with actual stack size
+    emit_line("    push %rbp");
+    emit_line("    mov %rsp, %rbp");
+    emit_str("    sub $");
+    emit_int(aligned_size);
+    emit_line(", %rsp");
+
+    // Copy function body from temp buffer
+    flush_func_body();
 
     // Default return if void
     var ret_type *u8 = func_decl_ret_type(func_node);
@@ -2374,33 +2580,32 @@ func gen_reader_func(reader_node *u8) void {
     var name *u8 = reader_decl_name(reader_node);
     var name_len i64 = reader_decl_name_len(reader_node);
 
+    // Emit function label to main buffer
     emit_str(".globl ");
     emit_n(name, name_len);
     emit_char(10);
-
     emit_n(name, name_len);
     emit_line(":");
 
-    // Prologue
-    emit_line("    push %rbp");
-    emit_line("    mov %rsp, %rbp");
-    emit_line("    sub $4096, %rsp");
+    // Generate params and body to temp buffer
+    cg_in_func_body = 1;
+    cg_func_len = 0;
 
     // Store the single parameter (text *u8)
     cg_stack_size = cg_stack_size + 8;
     var offset i64 = 0 - cg_stack_size;
 
-    var param_name *u8 = reader_decl_param_name(reader_node);
+    var pname *u8 = reader_decl_param_name(reader_node);
     var param_len i64 = reader_decl_param_len(reader_node);
 
     // Create a *u8 type for the parameter
-    var param_type *u8 = alloc(16);
-    *(param_type) = '*';
-    *(param_type + 1) = 'u';
-    *(param_type + 2) = '8';
-    *(param_type + 3) = 0;
+    var ptype *u8 = alloc(16);
+    *(ptype) = '*';
+    *(ptype + 1) = 'u';
+    *(ptype + 2) = '8';
+    *(ptype + 3) = 0;
 
-    add_local(param_name, param_len, offset, param_type);
+    add_local(pname, param_len, offset, ptype);
 
     emit_str("    mov %rdi, ");
     emit_int(offset);
@@ -2409,73 +2614,27 @@ func gen_reader_func(reader_node *u8) void {
     // Generate body
     gen_block(reader_decl_body(reader_node));
 
-    emit_char(10);
-}
+    // Switch back to main buffer
+    cg_in_func_body = 0;
 
-func patch_stack_size(pos i64, size i64) void {
-    // Find "STACKSIZE" starting at pos and replace with the actual number
-    // The string "    sub $STACKSIZE, %rsp\n" is 26 chars
-    // We need to replace STACKSIZE (9 chars) with the actual number
-
-    // For simplicity, we'll rebuild the instruction
-    // Actually, let's just find and replace in place
-
-    // Scan from pos looking for 'S' (start of STACKSIZE)
-    var i i64 = pos;
-    while i < cg_code_len {
-        if *(cg_code_buf + i) == 83 {  // 'S'
-            // Check if it's STACKSIZE
-            if memcmp(cg_code_buf + i, "STACKSIZE", 9) {
-                // Calculate how many digits we need
-                var num_len i64 = 1;
-                var temp i64 = size;
-                while temp >= 10 {
-                    temp = temp / 10;
-                    num_len = num_len + 1;
-                }
-
-                // Shift the rest of the buffer if needed
-                var diff i64 = num_len - 9;
-                if diff != 0 {
-                    // Move rest of buffer
-                    var j i64 = cg_code_len - 1;
-                    if diff > 0 {
-                        // Expand
-                        while j >= i + 9 {
-                            *(cg_code_buf + j + diff) = *(cg_code_buf + j);
-                            j = j - 1;
-                        }
-                    } else {
-                        // Contract
-                        j = i + 9;
-                        while j < cg_code_len {
-                            *(cg_code_buf + j + diff) = *(cg_code_buf + j);
-                            j = j + 1;
-                        }
-                    }
-                    cg_code_len = cg_code_len + diff;
-                }
-
-                // Write the number
-                var divisor i64 = 1;
-                temp = size;
-                while temp >= 10 {
-                    temp = temp / 10;
-                    divisor = divisor * 10;
-                }
-                var k i64 = 0;
-                while divisor > 0 {
-                    *(cg_code_buf + i + k) = 48 + (size / divisor);
-                    size = size % divisor;
-                    divisor = divisor / 10;
-                    k = k + 1;
-                }
-
-                return;
-            }
-        }
-        i = i + 1;
+    // Calculate aligned stack size
+    var aligned_size i64 = cg_stack_size;
+    if aligned_size < 16 {
+        aligned_size = 16;
     }
+    aligned_size = ((aligned_size + 15) / 16) * 16;
+
+    // Emit prologue with actual stack size
+    emit_line("    push %rbp");
+    emit_line("    mov %rsp, %rbp");
+    emit_str("    sub $");
+    emit_int(aligned_size);
+    emit_line(", %rsp");
+
+    // Copy function body from temp buffer
+    flush_func_body();
+
+    emit_char(10);
 }
 
 // ============================================================

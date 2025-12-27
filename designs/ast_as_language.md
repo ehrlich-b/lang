@@ -299,9 +299,11 @@ Reader authors should NEVER write S-expression strings manually. We provide abst
 ### Abstraction Layers
 
 ```
-Level 4: Lang Variants          "fn" → "func", done
+Level 5: Lang Variants          "fn" → "func", done
          ──────────────────────────────────────────
-Level 3: Domain Helpers         expr_lang_parse(text)
+Level 4: Domain Helpers         expr_lang_parse(text)
+         ──────────────────────────────────────────
+Level 3: Parser Generator       #parser{ expr = ... }  ← THE CROWN JEWEL
          ──────────────────────────────────────────
 Level 2: Parser Combinators     p_seq(p_token(...), ...)
          ──────────────────────────────────────────
@@ -309,6 +311,32 @@ Level 1: AST Constructors       ast_binop("+", left, right)
          ──────────────────────────────────────────
 Level 0: Raw S-exprs            "(binop + ...)"  ← NEVER DO THIS
 ```
+
+### Level 3: The Parser Generator (std/parser_reader.lang)
+
+**This is the crown jewel.** Define a grammar in 4 lines, get a full recursive descent parser:
+
+```lang
+include "std/parser_reader.lang"
+
+#parser{
+    sexp = number | symbol | operator | list
+    list = '(' sexp* ')'
+}
+
+// You now have: parse_sexp(t) and parse_list(t) for free!
+```
+
+**Grammar syntax:**
+- `a | b` - choice (try a, then b)
+- `a b` - sequence (match a then b)
+- `a*` - zero or more
+- `a+` - one or more
+- `a?` - optional
+- `'('` - literal character
+- `number`, `symbol`, `string`, `operator` - built-in token types
+
+The `#parser{}` reader macro compiles to a native executable that parses grammars and emits lang code for recursive descent parsers. It's a parser generator written as a reader macro. Readers invoking readers.
 
 ### Level 1: AST Constructors (std/ast.lang)
 
@@ -476,83 +504,77 @@ TYPES
 
 ### Complete Example: Lisp Reader
 
-~100 lines for a working Lisp-to-native compiler:
+The `#parser{}` reader macro is the crown jewel. Define a grammar, get a parser:
 
 ```lang
+include "std/parser_reader.lang"
 include "std/ast.lang"
-include "std/tok.lang"
+
+// 4 lines: define the grammar, get parse_sexp() and parse_list() for free
+#parser{
+    sexp = number | symbol | operator | list
+    list = '(' sexp* ')'
+}
 
 reader lisp(text *u8) *u8 {
     var t *Tokenizer = tok_new(text);
-    var program *Vec = vec_new(16);
-
-    while !tok_eof(t) {
-        vec_push(program, parse_toplevel(t));
-    }
-
-    return ast_emit(ast_program(program));
+    var node *PNode = parse_sexp(t);
+    return ast_emit(lisp_to_ast(node));
 }
 
-func parse_toplevel(t *Tokenizer) *AST {
-    tok_expect(t, TOKEN_LPAREN);
-    var form *u8 = tok_ident(t);
+// Convert parse tree to AST - the only manual part
+func lisp_to_ast(node *PNode) *AST {
+    // Atoms: numbers, symbols
+    if node.kind == PNODE_NUMBER { return ast_number(parse_int(node.text)); }
+    if node.kind == PNODE_SYMBOL { return ast_ident(node.text); }
 
-    if streq(form, "defun") {
-        return parse_defun(t);
+    // List: (op args...)
+    if node.kind == PNODE_LIST {
+        var inner *PNode = list_inner(node);  // get sexp* contents
+        var first *PNode = list_get(inner, 0);
+
+        // (defun name (params) body)
+        if is_symbol(first, "defun") {
+            return lisp_defun(inner);
+        }
+
+        // (+ a b) → ast_binop("+", a, b)
+        if is_operator(first) {
+            return ast_binop(first.text,
+                lisp_to_ast(list_get(inner, 1)),
+                lisp_to_ast(list_get(inner, 2)));
+        }
+
+        // (f a b) → ast_call(f, [a, b])
+        var args *Vec = vec_new(8);
+        var i i64 = 1;
+        while i < list_len(inner) {
+            vec_push(args, lisp_to_ast(list_get(inner, i)));
+            i = i + 1;
+        }
+        return ast_call(ast_ident(first.text), args);
     }
-    tok_error(t, "unknown form");
+    return ast_number(0);
 }
 
-func parse_defun(t *Tokenizer) *AST {
-    var name *u8 = tok_ident(t);
+func lisp_defun(inner *PNode) *AST {
+    var name *u8 = list_get(inner, 1).text;
+    var param_list *PNode = list_get(inner, 2);
+    var body *PNode = list_get(inner, 3);
 
-    // Parse parameter list
-    tok_expect(t, TOKEN_LPAREN);
     var params *Vec = vec_new(8);
-    while !tok_check(t, TOKEN_RPAREN) {
-        var pname *u8 = tok_ident(t);
-        vec_push(params, ast_param(pname, ast_type("i64")));
+    var i i64 = 0;
+    while i < list_len(param_list) {
+        vec_push(params, ast_param(list_get(param_list, i).text, ast_type("i64")));
+        i = i + 1;
     }
-    tok_expect(t, TOKEN_RPAREN);
-
-    // Parse body expression
-    var body *AST = parse_expr(t);
-    tok_expect(t, TOKEN_RPAREN);
 
     return ast_func(name, params, ast_type("i64"),
-                    ast_block(vec_of(ast_return(body))));
-}
-
-func parse_expr(t *Tokenizer) *AST {
-    if tok_check(t, TOKEN_NUMBER) {
-        return ast_number(tok_number(t));
-    }
-    if tok_check(t, TOKEN_IDENT) {
-        return ast_ident(tok_ident(t));
-    }
-    if tok_check(t, TOKEN_LPAREN) {
-        tok_advance(t);
-        var op *u8 = tok_ident(t);
-
-        // Binary operators
-        if streq(op, "+") || streq(op, "-") || streq(op, "*") {
-            var left *AST = parse_expr(t);
-            var right *AST = parse_expr(t);
-            tok_expect(t, TOKEN_RPAREN);
-            return ast_binop(op, left, right);
-        }
-
-        // Function call
-        var args *Vec = vec_new(8);
-        while !tok_check(t, TOKEN_RPAREN) {
-            vec_push(args, parse_expr(t));
-        }
-        tok_expect(t, TOKEN_RPAREN);
-        return ast_call(ast_ident(op), args);
-    }
-    tok_error(t, "expected expression");
+                    ast_block(vec_of(ast_return(lisp_to_ast(body)))));
 }
 ```
+
+**The key insight**: `#parser{}` handles the syntax, `ast_*` constructors handle the semantics. Reader authors focus on the **mapping** between them.
 
 ### What Reader Authors Know vs Don't Know
 

@@ -1,6 +1,8 @@
 // src/parser.lang - Parser for self-hosting compiler
 // Recursive descent parser with precedence climbing for expressions
 
+include "src/limits.lang"
+
 // ============================================================
 // AST Node Types (constants)
 // ============================================================
@@ -1615,7 +1617,7 @@ func parse_postfix() *u8 {
 
 func parse_finish_call(callee *u8) *u8 {
     // Allocate array for args (max 16)
-    var args *u8 = alloc(128);
+    var args *u8 = alloc(LIMIT_CALL_ARGS * 8);
     var arg_count i64 = 0;
 
     if !parse_check(TOKEN_RPAREN) {
@@ -1742,8 +1744,8 @@ func parse_primary() *u8 {
 func parse_block() *u8 {
     parse_expect(TOKEN_LBRACE, "expected '{'");
 
-    // Allocate array for statements (max 256)
-    var stmts *u8 = alloc(2048);
+    // Allocate array for statements
+    var stmts *u8 = alloc(LIMIT_STMTS_PER_BLOCK * 8);
     var stmt_count i64 = 0;
 
     while !parse_check(TOKEN_RBRACE) && !parse_is_at_end() {
@@ -1914,7 +1916,7 @@ func parse_func_decl() *u8 {
     parse_expect(TOKEN_LPAREN, "expected '(' after function name");
 
     // Allocate params array (max 16 params, 24 bytes each)
-    var params *u8 = alloc(384);
+    var params *u8 = alloc(LIMIT_FUNC_PARAMS * 24);
     var param_count i64 = 0;
 
     if !parse_check(TOKEN_RPAREN) {
@@ -1992,7 +1994,7 @@ func parse_macro_decl() *u8 {
     parse_expect(TOKEN_LPAREN, "expected '(' after macro name");
 
     // Allocate params array (max 16 params, 24 bytes each - reuse same layout as func)
-    var params *u8 = alloc(384);
+    var params *u8 = alloc(LIMIT_FUNC_PARAMS * 24);
     var param_count i64 = 0;
 
     if !parse_check(TOKEN_RPAREN) {
@@ -2127,7 +2129,7 @@ func parse_declaration() *u8 {
 
 func parse_program() *u8 {
     // Allocate decls array (max 1000)
-    var decls *u8 = alloc(8000);
+    var decls *u8 = alloc(LIMIT_TOP_DECLS * 8);
     var decl_count i64 = 0;
 
     while !parse_is_at_end() {

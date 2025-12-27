@@ -2,6 +2,8 @@
 // Test: V2 lisp-style reader macro
 // V2 readers output lang source text, not AST nodes
 
+include "std/core.lang"
+
 reader lisp(text *u8) *u8 {
     // Simple parser for "OP a b" -> "(a OP b)"
     var pos i64 = 0;
