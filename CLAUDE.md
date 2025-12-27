@@ -13,6 +13,7 @@ Lang + reader macro = native compiler for any syntax. No runtime, no VM, just x8
 - `CLAUDE.md` - This file (Claude Code guidance)
 - `TODO.md` - Current tasks and roadmap
 - `LANG.md` - Language reference (what works NOW)
+- `designs/ast_as_language.md` - **The big vision**: AST as root language, syntax as plugin
 - `designs/reader_v2_design.md` - Reader macros V2 design
 - `designs/self_defining_syntax.md` - The `lang_reader.lang` vision
 
@@ -44,19 +45,21 @@ make bootstrap      # Bootstrap from assembly (emergency)
 
 ## Current Focus
 
-**Lisp Reader**: Prove the compiler compiler works by building a real reader.
-
-Blocked on: reader includes (readers can't include helper files yet).
+**AST as Language**: The big architectural vision. See `designs/ast_as_language.md`.
 
 ## Milestones
 
 1. ✓ Self-hosting compiler (x86 fixed point)
 2. ✓ Self-hosted compiler compiler (reader infrastructure in lang)
-3. → **Reader includes** (the blocker) ← current
-4. → `#parser{}` reader (parser generator as reader macro!)
-5. → Lisp reader using `#parser{}` (beautiful!)
-6. → `lang_reader.lang` (lang syntax defined in lang)
-7. → Language forge (readers invoking readers, all native)
+3. ✓ `#parser{}` reader (parser generator as reader macro!)
+4. ✓ `#lisp{}` reader with defun (cross-file function interop!)
+5. → **1.0: AST as Language** ← current
+   - `std/ast.lang` - AST constructors + `ast_emit()`
+   - S-expression parser in kernel
+   - `lang_reader.lang` - lang syntax as a reader
+   - Syntax fixed point (lang bootstrapped on AST kernel)
+6. → WASM + LLVM IR backends (same AST, multiple targets)
+7. → Language forge (any syntax → any target, trivially)
 
 ## Code Style
 
@@ -79,5 +82,6 @@ Blocked on: reader includes (readers can't include helper files yet).
 |----------|--------|-----|
 | Bootstrap | Go (deleted) | Fast to write, goal was to delete it |
 | Output | Assembly → native | Direct, educational |
-| Reader output | Lang source text | Simple, debuggable, reuses parser |
-| Future backend | LLVM IR (text) | Optimization, targets, no libLLVM |
+| Reader output | AST S-expressions | Universal format, typed constructors hide details |
+| AST format | S-expressions | Trivial to parse, proven, debuggable |
+| Future backend | WASM, LLVM IR | Portability, optimization |

@@ -86,11 +86,36 @@ The file extension *is* the reader name. Mix `.lang` and `.whatever` files freel
 
 ---
 
-## Future: `lang_reader.lang`
+## Future: AST as Language
 
-Define lang's syntax as a lang reader macro. See `designs/self_defining_syntax.md`.
+The big architectural vision: **AST is the language, syntax is just a skin.**
 
-Ultimate proof the compiler compiler works - lang defines itself.
+See `designs/ast_as_language.md` for the full design:
+- S-expression AST format as the "root language"
+- Readers output AST via typed constructors (never write S-exprs by hand)
+- Kernel compiles AST → x86 (or WASM, LLVM IR)
+- `lang` becomes just one syntax among many
+
+This is what "compiler compiler" really means - syntax is a plugin, not a property.
+
+### Implementation Path
+
+**1.0: lang as a lang_reader**
+1. [ ] `std/ast.lang` - AST node constructors + `ast_emit()`
+2. [ ] S-expression parser in kernel
+3. [ ] `lang_reader.lang` - lang syntax as a reader
+4. [ ] Verify fixed point (kernel + lang_reader compiles itself)
+5. [ ] Delete hardcoded parser from current compiler
+
+**Post-1.0: Multiple backends**
+6. [ ] WASM backend (portability, browser, WASI)
+7. [ ] LLVM IR backend (optimization, more targets)
+
+**2.0: Modern language features** (see `designs/ast_as_language.md`)
+8. [ ] First-class functions + closures in AST + lang
+9. [ ] Sum types / enums + pattern matching
+10. [ ] Generics (monomorphization in kernel)
+11. [ ] Exception handling
 
 ---
 
