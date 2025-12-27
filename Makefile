@@ -5,9 +5,8 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_DIRTY := $(shell git diff --quiet 2>/dev/null || echo "-dirty")
 VERSION := $(GIT_COMMIT)$(GIT_DIRTY)
 
-# Find latest bootstrap file
-LATEST_BOOTSTRAP := $(shell ls -v bootstrap/*.s 2>/dev/null | tail -1)
-LATEST_TAG := $(shell basename $(LATEST_BOOTSTRAP) .s 2>/dev/null)
+# Bootstrap file
+BOOTSTRAP := bootstrap/current.s
 
 # Compiler paths
 LANG := out/lang
@@ -16,19 +15,15 @@ LANG_NEXT := out/lang_next
 # Default target
 all: build
 
-# Bootstrap: assemble from latest bootstrap/*.s, create lang symlink
+# Bootstrap: assemble from bootstrap/current.s, create lang symlink
 bootstrap:
-	@if [ -z "$(LATEST_BOOTSTRAP)" ]; then \
-		echo "ERROR: No bootstrap/*.s files found"; \
-		exit 1; \
-	fi
 	@mkdir -p out
-	@echo "Bootstrapping from $(LATEST_BOOTSTRAP)..."
-	as $(LATEST_BOOTSTRAP) -o out/lang_$(LATEST_TAG).o
-	ld out/lang_$(LATEST_TAG).o -o out/lang_$(LATEST_TAG)
-	rm -f out/lang_$(LATEST_TAG).o
-	ln -sf lang_$(LATEST_TAG) $(LANG)
-	@echo "Created: $(LANG) -> lang_$(LATEST_TAG)"
+	@echo "Bootstrapping from $(BOOTSTRAP)..."
+	as $(BOOTSTRAP) -o out/lang_bootstrap.o
+	ld out/lang_bootstrap.o -o out/lang_bootstrap
+	rm -f out/lang_bootstrap.o
+	ln -sf lang_bootstrap $(LANG)
+	@echo "Created: $(LANG) -> lang_bootstrap"
 
 # Build: compile src/*.lang using lang -> lang_next
 build:
@@ -96,12 +91,12 @@ test-all: test-suite test-run
 test-run:
 	@if [ ! -L $(LANG) ]; then $(MAKE) bootstrap; fi
 	@echo "=== hello.lang ===" && \
-	$(LANG) test/hello.lang -o out/hello.s && \
+	$(LANG) test/suite/181_hello.lang -o out/hello.s && \
 	as out/hello.s -o out/hello.o && \
 	ld out/hello.o -o out/hello && \
 	./out/hello && rm -f out/hello.o
 	@echo "=== factorial.lang ===" && \
-	$(LANG) test/factorial.lang -o out/factorial.s && \
+	$(LANG) test/suite/174_factorial.lang -o out/factorial.s && \
 	as out/factorial.s -o out/factorial.o && \
 	ld out/factorial.o -o out/factorial && \
 	./out/factorial && rm -f out/factorial.o
@@ -139,7 +134,7 @@ distclean:
 
 # Show current state
 status:
-	@echo "Latest bootstrap: $(LATEST_BOOTSTRAP) ($(LATEST_TAG))"
+	@echo "Bootstrap: $(BOOTSTRAP) -> $$(readlink $(BOOTSTRAP))"
 	@echo "Current commit: $(VERSION)"
 	@if [ -L $(LANG) ]; then \
 		echo "lang -> $$(readlink $(LANG))"; \
