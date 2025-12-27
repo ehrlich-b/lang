@@ -2,11 +2,24 @@
 
 ## Vision
 
-**Racket-style power with Zig-style minimalism. For fun.**
+**A self-hosted compiler compiler.**
 
-A language forge: full-power reader macros, parsing toolkit, bare-metal output.
+Lang + reader macro = native compiler for any syntax. No runtime, no VM, just x86.
 
-**The killer feature**: Trivially create DSLs that compile straight to x86 - no runtime, no VM, just your syntax → machine code.
+```
+lang lisp_reader.lang main.lisp  →  native executable
+lang sql_reader.lang queries.sql →  native executable
+lang your_dsl.lang your_code.x   →  native executable
+```
+
+**The milestones:**
+1. ✓ Self-hosting compiler (x86 fixed point)
+2. ✓ Self-hosted compiler compiler (reader infrastructure in lang)
+3. ✓ Reader includes (sibling functions available to readers)
+4. → `#parser{}` reader (parser generator as reader macro)
+5. → Lisp reader using `#parser{}` (beautiful!)
+6. → `lang_reader.lang` (lang syntax defined in lang)
+7. → Language forge (trivially spin out compilers)
 
 ---
 
@@ -16,18 +29,19 @@ A language forge: full-power reader macros, parsing toolkit, bare-metal output.
 
 Readers compile to native executables that output lang source text. The infrastructure works.
 
-**Blocking issues:**
-- Readers can't include helper files (only reader body is compiled)
-- No file extension dispatch yet
+**Next up:**
+- File extension dispatch (`lang reader.lang main.lisp`)
+- `#parser{}` reader macro
 
 ---
 
 ## Immediate: Reader Architecture Fixes
 
-### Reader Includes
-- [ ] Readers must be able to `include` files into their compilation
-- [ ] Functions defined in the same file as a reader should be available to it
-- [ ] Current bug: only code inside `reader foo() { ... }` braces is compiled
+### Reader Includes ✓
+- [x] Readers can `include` files into their compilation
+- [x] Functions defined in included files are available to readers
+- [x] Include statements, struct declarations, and functions are serialized into reader wrapper
+- Note: Readers in included files get full sibling access; command-line readers use stdlib via compile args
 
 ### File Extension Dispatch
 - [ ] `lang reader.lang main.lisp` → compile main.lisp using reader, produce exe
@@ -36,27 +50,50 @@ Readers compile to native executables that output lang source text. The infrastr
 
 ---
 
-## Future: Parser Generator (Killer Feature)
+## Future: `lang_reader.lang` (Self-Defining Syntax)
 
-First-class functions would enable beautiful parser combinators:
+Define lang's syntax as a lang reader macro. See `designs/self_defining_syntax.md`.
+
+Milestone like x86 fixed point - proves the compiler compiler can define itself.
+
+---
+
+## Future: `#parser{}` Reader (Parser Generator as a Reader Macro!)
+
+Instead of first-class functions, use a reader macro to generate parsers:
 
 ```lang
-var sexp Parser = p_or(
-    p_number(),
-    p_seq(p_lparen(), p_many(sexp), p_rparen())
-);
-
-reader lisp(text *u8) *u8 {
-    return parse(sexp, text);
+#parser{
+    sexp = number | symbol | '(' sexp* ')'
 }
 ```
 
-This is the dream: define a grammar, get a native parser. No runtime, no interpreter - just x86.
+Emits recursive descent code:
+```lang
+func parse_sexp(t *Tokenizer) *u8 {
+    if tok_kind(t) == TOK_NUMBER { ... }
+    if tok_kind(t) == TOK_LPAREN { ... }
+}
+```
+
+**The killer feature**: Readers invoking readers!
+
+```lang
+reader lisp(text *u8) *u8 {
+    #parser{
+        sexp = number | symbol | '(' sexp* ')'
+    }
+    return parse_sexp(tok_new(text));
+}
+```
+
+The `#parser{}` reader runs at compile time, generates the parser, and the lisp reader uses it. DSLs for writing DSLs - every layer compiles to native code.
 
 ### Requirements
-- [ ] First-class functions (function pointers at minimum)
-- [ ] Parser combinator library (std/parse.lang)
-- [ ] Lazy evaluation or explicit thunks for recursive grammars
+- [x] Reader includes
+- [ ] `#parser{}` reader macro
+- [ ] BNF/PEG grammar parser
+- [ ] Recursive descent code generator
 
 ---
 
@@ -64,8 +101,8 @@ This is the dream: define a grammar, get a native parser. No runtime, no interpr
 
 - [x] std/tok.lang - Tokenizer
 - [x] std/emit.lang - Code generation helpers
-- [ ] std/sexp.lang - S-expression parser (blocked on reader includes)
-- [ ] Beautiful lisp example (blocked on reader includes)
+- [ ] std/sexp.lang - S-expression parser
+- [ ] Beautiful lisp example
 
 ---
 
@@ -128,14 +165,18 @@ This is the dream: define a grammar, get a native parser. No runtime, no interpr
 
 ## Completed
 
-- **Phase 0**: Bootstrap compiler (Go) - deleted after bootstrap
-- **Phase 1**: Self-hosting - compiler compiles itself, fixed point reached
-- **Phase 1.5**: Stdlib (malloc, vec, map)
-- **Phase 1.6**: Structs
-- **Phase 2**: AST macros (quote/unquote, compile-time interpreter)
-- **Phase 3**: Reader macros V1 (toy interpreter)
-- **Phase 3.5**: Reader macros V2 core (native executables, include statement, 80 tests)
-- **Phase 3.6**: Parsing toolkit (std/tok.lang, std/emit.lang)
+**Milestone 1: Self-Hosting Compiler** (x86 fixed point)
+- Phase 0: Bootstrap compiler (Go) - deleted after bootstrap
+- Phase 1: Self-hosting - compiler compiles itself, fixed point reached
+- Phase 1.5: Stdlib (malloc, vec, map)
+- Phase 1.6: Structs
+
+**Milestone 2: Self-Hosted Compiler Compiler** (reader infrastructure)
+- Phase 2: AST macros (quote/unquote, compile-time interpreter)
+- Phase 3: Reader macros V1 (toy interpreter)
+- Phase 3.5: Reader macros V2 core (native executables, include statement, 80 tests)
+- Phase 3.6: Parsing toolkit (std/tok.lang, std/emit.lang)
+- Phase 3.7: Reader includes (sibling functions available to readers, 81 tests)
 
 ---
 

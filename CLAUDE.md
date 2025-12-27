@@ -2,9 +2,9 @@
 
 *"There are many like it but this one is mine."*
 
-**Vision**: Racket-style power with Zig-style minimalism. For fun.
+**Vision**: A self-hosted compiler compiler. For fun.
 
-A self-hosted language forge: full-power reader macros, parsing toolkit, bare-metal output.
+Lang + reader macro = native compiler for any syntax. No runtime, no VM, just x86.
 
 ## Anchor Documents
 
@@ -13,7 +13,8 @@ A self-hosted language forge: full-power reader macros, parsing toolkit, bare-me
 - `CLAUDE.md` - This file (Claude Code guidance)
 - `TODO.md` - Current tasks and roadmap
 - `LANG.md` - Language reference (what works NOW)
-- `designs/reader_v2_design.md` - Reader macros V2 design (current focus)
+- `designs/reader_v2_design.md` - Reader macros V2 design
+- `designs/self_defining_syntax.md` - The `lang_reader.lang` vision
 
 ## Project Structure
 
@@ -43,21 +44,19 @@ make bootstrap      # Bootstrap from assembly (emergency)
 
 ## Current Focus
 
-**Reader Macros V2**: Give readers full lang power (stdlib, recursion, memory).
+**Lisp Reader**: Prove the compiler compiler works by building a real reader.
 
-The V1 implementation uses a toy interpreter. V2 compiles readers to native executables that output lang source text.
+Blocked on: reader includes (readers can't include helper files yet).
 
-See `designs/reader_v2_design.md`.
+## Milestones
 
-## Development Phases
-
-- [x] Phase 0: Bootstrap (Go) - deleted
-- [x] Phase 1: Self-hosting
-- [x] Phase 1.5/1.6: Stdlib + Structs
-- [x] Phase 2: AST macros
-- [x] Phase 3: Reader macros V1 (toy interpreter)
-- [ ] **Phase 3.5: Reader macros V2 (full power)** ← current
-- [ ] LLVM IR backend
+1. ✓ Self-hosting compiler (x86 fixed point)
+2. ✓ Self-hosted compiler compiler (reader infrastructure in lang)
+3. → **Reader includes** (the blocker) ← current
+4. → `#parser{}` reader (parser generator as reader macro!)
+5. → Lisp reader using `#parser{}` (beautiful!)
+6. → `lang_reader.lang` (lang syntax defined in lang)
+7. → Language forge (readers invoking readers, all native)
 
 ## Code Style
 

@@ -1,0 +1,9 @@
+// expect: 42
+// Test: reader can use helper functions from included file
+include "std/core.lang"
+include "test/reader_helpers.lang"
+
+func main() i64 {
+    // #dbl{21} should expand to 42 (double of 21)
+    return #dbl{21};
+}

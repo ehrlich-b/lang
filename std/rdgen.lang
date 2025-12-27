@@ -1,0 +1,491 @@
+// ============================================================
+// std/rdgen.lang - Recursive Descent Code Generator
+// ============================================================
+//
+// Takes a Grammar and generates lang parser functions.
+//
+// Generated parsers return a simple AST:
+//   struct PNode { kind, text, children }
+//
+// Generated functions:
+//   parse_<rule>(t *Tokenizer) *PNode
+
+// Dependencies
+include "std/emit.lang"
+include "std/grammar.lang"
+
+// ============================================================
+// PNode Kinds (for generated parsers)
+// ============================================================
+
+var PNODE_NUMBER i64 = 1;
+var PNODE_SYMBOL i64 = 2;
+var PNODE_STRING i64 = 3;
+var PNODE_LIST i64 = 4;
+var PNODE_NIL i64 = 5;
+
+// ============================================================
+// Code Generator State
+// ============================================================
+
+struct RDGen {
+    sb *StringBuilder;  // output buffer
+    grammar *Grammar;   // grammar being generated
+    indent i64;         // current indentation level
+}
+
+func rdgen_new(g *Grammar) *RDGen {
+    var rd *RDGen = alloc(24);
+    rd.sb = sb_new();
+    rd.grammar = g;
+    rd.indent = 0;
+    return rd;
+}
+
+func rdgen_indent(rd *RDGen) void {
+    var i i64 = 0;
+    while i < rd.indent {
+        sb_str(rd.sb, "    ");
+        i = i + 1;
+    }
+}
+
+func rdgen_line(rd *RDGen, s *u8) void {
+    rdgen_indent(rd);
+    sb_str(rd.sb, s);
+    sb_char(rd.sb, 10);  // newline
+}
+
+func rdgen_str(rd *RDGen, s *u8) void {
+    sb_str(rd.sb, s);
+}
+
+func rdgen_strn(rd *RDGen, s *u8, len i64) void {
+    var i i64 = 0;
+    while i < len {
+        sb_char(rd.sb, *(s + i));
+        i = i + 1;
+    }
+}
+
+func rdgen_int(rd *RDGen, n i64) void {
+    sb_int(rd.sb, n);
+}
+
+func rdgen_newline(rd *RDGen) void {
+    sb_char(rd.sb, 10);
+}
+
+// ============================================================
+// Generate PNode Struct and Helpers
+// ============================================================
+
+func rdgen_emit_pnode_struct(rd *RDGen) void {
+    rdgen_line(rd, "struct PNode {");
+    rdgen_line(rd, "    kind i64;");
+    rdgen_line(rd, "    text *u8;");
+    rdgen_line(rd, "    children *u8;");
+    rdgen_line(rd, "}");
+    rdgen_newline(rd);
+
+    rdgen_line(rd, "func pnode_new(kind i64) *PNode {");
+    rdgen_line(rd, "    var n *PNode = alloc(24);");
+    rdgen_line(rd, "    n.kind = kind;");
+    rdgen_line(rd, "    n.text = nil;");
+    rdgen_line(rd, "    n.children = nil;");
+    rdgen_line(rd, "    return n;");
+    rdgen_line(rd, "}");
+    rdgen_newline(rd);
+
+    rdgen_line(rd, "func pnode_atom(kind i64, text *u8) *PNode {");
+    rdgen_line(rd, "    var n *PNode = pnode_new(kind);");
+    rdgen_line(rd, "    n.text = text;");
+    rdgen_line(rd, "    return n;");
+    rdgen_line(rd, "}");
+    rdgen_newline(rd);
+
+    rdgen_line(rd, "func pnode_list(children *u8) *PNode {");
+    rdgen_line(rd, "    var n *PNode = pnode_new(4);");  // PNODE_LIST = 4
+    rdgen_line(rd, "    n.children = children;");
+    rdgen_line(rd, "    return n;");
+    rdgen_line(rd, "}");
+    rdgen_newline(rd);
+}
+
+// ============================================================
+// Stack-based Expression Generator (avoids mutual recursion)
+// ============================================================
+//
+// Instead of recursive calls, we use a work stack.
+// Each stack entry contains: (node, result_var, phase)
+// Phase 0 = start, Phase 1+ = continuation after child processing
+
+struct GenWork {
+    node *GNode;
+    result_var *u8;
+    phase i64;
+    temp_data *u8;  // for storing intermediate results
+    temp_int i64;   // for storing loop counters
+}
+
+func genwork_new(node *GNode, result_var *u8) *GenWork {
+    var w *GenWork = alloc(40);
+    w.node = node;
+    w.result_var = result_var;
+    w.phase = 0;
+    w.temp_data = nil;
+    w.temp_int = 0;
+    return w;
+}
+
+// Generate code for an expression using iterative stack
+func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
+    if root == nil {
+        return;
+    }
+
+    // Work stack
+    var stack *u8 = vec_new(16);
+    vec_push(stack, genwork_new(root, root_result_var));
+
+    while vec_len(stack) > 0 {
+        var work *GenWork = vec_pop(stack);
+        var node *GNode = work.node;
+        var result_var *u8 = work.result_var;
+        var phase i64 = work.phase;
+        var kind i64 = node.kind;
+
+        // LITERAL: '(' or similar
+        if kind == GNODE_LITERAL {
+            var lit *u8 = node.name;
+            var len i64 = node.name_len;
+            if len == 1 {
+                var c i64 = *lit;
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if tok_kind(t) == ");
+                if c == 40 { sb_str(rd.sb, "TOK_LPAREN"); }
+                else if c == 41 { sb_str(rd.sb, "TOK_RPAREN"); }
+                else if c == 91 { sb_str(rd.sb, "TOK_LBRACKET"); }
+                else if c == 93 { sb_str(rd.sb, "TOK_RBRACKET"); }
+                else if c == 123 { sb_str(rd.sb, "TOK_LBRACE"); }
+                else if c == 125 { sb_str(rd.sb, "TOK_RBRACE"); }
+                else if c == 43 { sb_str(rd.sb, "TOK_PLUS"); }
+                else if c == 45 { sb_str(rd.sb, "TOK_MINUS"); }
+                else if c == 42 { sb_str(rd.sb, "TOK_STAR"); }
+                else if c == 47 { sb_str(rd.sb, "TOK_SLASH"); }
+                else if c == 44 { sb_str(rd.sb, "TOK_COMMA"); }
+                else if c == 46 { sb_str(rd.sb, "TOK_DOT"); }
+                else if c == 61 { sb_str(rd.sb, "TOK_EQ"); }
+                else {
+                    sb_int(rd.sb, c);
+                }
+                sb_str(rd.sb, " { ");
+                sb_str(rd.sb, result_var);
+                sb_str(rd.sb, " = pnode_new(0); tok_next(t); }");
+                rdgen_newline(rd);
+            }
+        }
+
+        // TOKTYPE: number, symbol, string
+        else if kind == GNODE_TOKTYPE {
+            var name *u8 = node.name;
+            var name_len i64 = node.name_len;
+
+            rdgen_indent(rd);
+            sb_str(rd.sb, "if tok_kind(t) == ");
+            if str_eq_n(name, name_len, "number", 6) {
+                sb_str(rd.sb, "TOK_NUMBER");
+            }
+            else if str_eq_n(name, name_len, "symbol", 6) {
+                sb_str(rd.sb, "TOK_IDENT");
+            }
+            else if str_eq_n(name, name_len, "ident", 5) {
+                sb_str(rd.sb, "TOK_IDENT");
+            }
+            else if str_eq_n(name, name_len, "string", 6) {
+                sb_str(rd.sb, "TOK_STRING");
+            }
+            else if str_eq_n(name, name_len, "operator", 8) {
+                // operator matches +, -, *, /
+                sb_str(rd.sb, "TOK_PLUS || tok_kind(t) == TOK_MINUS || tok_kind(t) == TOK_STAR || tok_kind(t) == TOK_SLASH");
+            }
+            sb_str(rd.sb, " {");
+            rdgen_newline(rd);
+
+            rd.indent = rd.indent + 1;
+            rdgen_indent(rd);
+            sb_str(rd.sb, result_var);
+            sb_str(rd.sb, " = pnode_atom(");
+            if str_eq_n(name, name_len, "number", 6) {
+                sb_str(rd.sb, "1");
+            }
+            else if str_eq_n(name, name_len, "symbol", 6) {
+                sb_str(rd.sb, "2");
+            }
+            else if str_eq_n(name, name_len, "ident", 5) {
+                sb_str(rd.sb, "2");
+            }
+            else if str_eq_n(name, name_len, "string", 6) {
+                sb_str(rd.sb, "3");
+            }
+            else if str_eq_n(name, name_len, "operator", 8) {
+                sb_str(rd.sb, "5");  // kind 5 = operator
+            }
+            sb_str(rd.sb, ", tok_text(t));");
+            rdgen_newline(rd);
+            rdgen_line(rd, "tok_next(t);");
+            rd.indent = rd.indent - 1;
+            rdgen_line(rd, "}");
+        }
+
+        // REF: reference to another rule
+        else if kind == GNODE_REF {
+            rdgen_indent(rd);
+            sb_str(rd.sb, result_var);
+            sb_str(rd.sb, " = parse_");
+            rdgen_strn(rd, node.name, node.name_len);
+            sb_str(rd.sb, "(t);");
+            rdgen_newline(rd);
+        }
+
+        // SEQ: sequence of elements (multi-phase)
+        else if kind == GNODE_SEQ {
+            var children *u8 = node.children;
+            var n i64 = vec_len(children);
+
+            if phase == 0 {
+                // Phase 0: emit sequence setup and start first child
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var _seq *u8 = vec_new(");
+                rdgen_int(rd, n);
+                sb_str(rd.sb, ");");
+                rdgen_newline(rd);
+
+                if n > 0 {
+                    // Emit var for first element
+                    rdgen_indent(rd);
+                    sb_str(rd.sb, "var _e0 *PNode = nil;");
+                    rdgen_newline(rd);
+
+                    // Push continuation for after first child
+                    work.phase = 1;
+                    work.temp_int = 0;
+                    vec_push(stack, work);
+
+                    // Push first child
+                    var child *GNode = vec_get(children, 0);
+                    vec_push(stack, genwork_new(child, "_e0"));
+                }
+            }
+            else {
+                // Phase 1+: after processing a child
+                var i i64 = work.temp_int;
+
+                // For first element, fail early if it didn't match
+                if i == 0 {
+                    rdgen_indent(rd);
+                    sb_str(rd.sb, "if _e0 == nil { return nil; }");
+                    rdgen_newline(rd);
+                }
+
+                // Emit the collection code for completed child
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if _e");
+                rdgen_int(rd, i);
+                sb_str(rd.sb, " != nil { vec_push(_seq, _e");
+                rdgen_int(rd, i);
+                sb_str(rd.sb, "); }");
+                rdgen_newline(rd);
+
+                i = i + 1;
+                if i < n {
+                    // More children to process
+                    rdgen_indent(rd);
+                    sb_str(rd.sb, "var _e");
+                    rdgen_int(rd, i);
+                    sb_str(rd.sb, " *PNode = nil;");
+                    rdgen_newline(rd);
+
+                    work.phase = phase + 1;
+                    work.temp_int = i;
+                    vec_push(stack, work);
+
+                    var child *GNode = vec_get(children, i);
+                    var elem_var *u8 = alloc(16);
+                    *(elem_var + 0) = 95;
+                    *(elem_var + 1) = 101;
+                    *(elem_var + 2) = 48 + i;
+                    *(elem_var + 3) = 0;
+                    vec_push(stack, genwork_new(child, elem_var));
+                }
+                else {
+                    // All children done
+                    rdgen_indent(rd);
+                    sb_str(rd.sb, result_var);
+                    sb_str(rd.sb, " = pnode_list(_seq);");
+                    rdgen_newline(rd);
+                }
+            }
+        }
+
+        // CHOICE: alternatives (multi-phase)
+        else if kind == GNODE_CHOICE {
+            var children *u8 = node.children;
+            var n i64 = vec_len(children);
+
+            if phase < n {
+                // Process alternative at index 'phase'
+                if phase > 0 {
+                    // Close previous, open new check
+                    rdgen_indent(rd);
+                    sb_str(rd.sb, "if ");
+                    sb_str(rd.sb, result_var);
+                    sb_str(rd.sb, " == nil {");
+                    rdgen_newline(rd);
+                    rd.indent = rd.indent + 1;
+                }
+
+                // Push continuation
+                work.phase = phase + 1;
+                vec_push(stack, work);
+
+                // Push child
+                var child *GNode = vec_get(children, phase);
+                vec_push(stack, genwork_new(child, result_var));
+            }
+            else {
+                // All alternatives done, close braces
+                var closes i64 = n - 1;
+                while closes > 0 {
+                    rd.indent = rd.indent - 1;
+                    rdgen_line(rd, "}");
+                    closes = closes - 1;
+                }
+            }
+        }
+
+        // STAR: zero or more (multi-phase)
+        else if kind == GNODE_STAR {
+            var child *GNode = node.child;
+
+            if phase == 0 {
+                // Setup - use a done flag instead of break
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var _list *u8 = vec_new(8);");
+                rdgen_newline(rd);
+                rdgen_line(rd, "var _star_done i64 = 0;");
+                rdgen_line(rd, "while _star_done == 0 {");
+                rd.indent = rd.indent + 1;
+                rdgen_line(rd, "var _item *PNode = nil;");
+
+                // Push continuation
+                work.phase = 1;
+                vec_push(stack, work);
+
+                // Push child
+                vec_push(stack, genwork_new(child, "_item"));
+            }
+            else if phase == 1 {
+                // After child - check if done
+                rdgen_line(rd, "if _item == nil { _star_done = 1; }");
+                rdgen_line(rd, "if _item != nil { vec_push(_list, _item); }");
+                rd.indent = rd.indent - 1;
+                rdgen_line(rd, "}");
+
+                // Emit result assignment
+                rdgen_indent(rd);
+                sb_str(rd.sb, result_var);
+                sb_str(rd.sb, " = pnode_list(_list);");
+                rdgen_newline(rd);
+            }
+        }
+
+        // PLUS: one or more
+        else if kind == GNODE_PLUS {
+            var child *GNode = node.child;
+
+            if phase == 0 {
+                // Setup - parse first (required)
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var _list *u8 = vec_new(8);");
+                rdgen_newline(rd);
+                rdgen_line(rd, "var _first *PNode = nil;");
+
+                work.phase = 1;
+                vec_push(stack, work);
+                vec_push(stack, genwork_new(child, "_first"));
+            }
+            else if phase == 1 {
+                // After first - check required, start loop
+                rdgen_line(rd, "if _first == nil { return nil; }");
+                rdgen_line(rd, "vec_push(_list, _first);");
+                rdgen_line(rd, "var _plus_done i64 = 0;");
+                rdgen_line(rd, "while _plus_done == 0 {");
+                rd.indent = rd.indent + 1;
+                rdgen_line(rd, "var _item *PNode = nil;");
+
+                work.phase = 2;
+                vec_push(stack, work);
+                vec_push(stack, genwork_new(child, "_item"));
+            }
+            else if phase == 2 {
+                // After loop child - check if done
+                rdgen_line(rd, "if _item == nil { _plus_done = 1; }");
+                rdgen_line(rd, "if _item != nil { vec_push(_list, _item); }");
+                rd.indent = rd.indent - 1;
+                rdgen_line(rd, "}");
+
+                // Emit result assignment
+                rdgen_indent(rd);
+                sb_str(rd.sb, result_var);
+                sb_str(rd.sb, " = pnode_list(_list);");
+                rdgen_newline(rd);
+            }
+        }
+
+        // OPT: optional
+        else if kind == GNODE_OPT {
+            var child *GNode = node.child;
+            vec_push(stack, genwork_new(child, result_var));
+        }
+    }
+}
+
+// Generate a single parser function
+func rdgen_gen_rule(rd *RDGen, rule *GNode) void {
+    rdgen_indent(rd);
+    sb_str(rd.sb, "func parse_");
+    rdgen_strn(rd, rule.name, rule.name_len);
+    sb_str(rd.sb, "(t *Tokenizer) *PNode {");
+    rdgen_newline(rd);
+
+    rd.indent = rd.indent + 1;
+    rdgen_line(rd, "var result *PNode = nil;");
+
+    rdgen_gen_expr(rd, rule.child, "result");
+
+    rdgen_line(rd, "return result;");
+    rd.indent = rd.indent - 1;
+    rdgen_line(rd, "}");
+    rdgen_newline(rd);
+}
+
+// Generate all parser functions for a grammar
+func rdgen_generate(g *Grammar) *u8 {
+    var rd *RDGen = rdgen_new(g);
+
+    // Emit PNode struct and helpers
+    rdgen_emit_pnode_struct(rd);
+
+    // Emit parser functions
+    var rules *u8 = g.rules;
+    var n i64 = vec_len(rules);
+    var i i64 = 0;
+    while i < n {
+        var rule *GNode = vec_get(rules, i);
+        rdgen_gen_rule(rd, rule);
+        i = i + 1;
+    }
+
+    return sb_finish(rd.sb);
+}

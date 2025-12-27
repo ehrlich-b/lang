@@ -1882,6 +1882,16 @@ func parse_declaration() *u8 {
     if parse_match(TOKEN_INCLUDE) {
         return parse_include();
     }
+    // Reader macro at declaration level: #name{content}
+    if parse_match(TOKEN_READER_MACRO) {
+        var tok *u8 = parse_previous();
+        var node *u8 = reader_expr_alloc();
+        reader_expr_set_name(node, tok_lexeme(tok));
+        reader_expr_set_name_len(node, tok_lexeme_len(tok));
+        reader_expr_set_content(node, tok_content(tok));
+        reader_expr_set_content_len(node, tok_content_len(tok));
+        return node;
+    }
 
     parse_error("expected declaration");
     parse_advance();

@@ -1,0 +1,316 @@
+// ============================================================
+// std/grammar.lang - Grammar Parser for #parser{} Reader
+// ============================================================
+//
+// Dependencies: std/tok.lang (tokenizer)
+include "std/tok.lang"
+
+// Parses simple grammar specifications:
+//   rule = alt1 | alt2
+//   alt  = elem elem ...
+//   elem = 'literal' | name | elem* | elem+ | elem?
+//
+// Token kinds used in grammar:
+//   number  - matches TOK_NUMBER
+//   symbol  - matches TOK_IDENT (user's symbols)
+//   ident   - matches TOK_IDENT (alias)
+//   string  - matches TOK_STRING
+//   'x'     - matches specific character token
+//   name    - references another rule
+//
+// Modifiers:
+//   *  - zero or more
+//   +  - one or more
+//   ?  - optional
+
+// ============================================================
+// Grammar AST Node Kinds
+// ============================================================
+
+var GNODE_RULE i64 = 1;       // rule = alternatives
+var GNODE_ALT i64 = 2;        // alternative (sequence of elements)
+var GNODE_CHOICE i64 = 3;     // choice between alternatives
+var GNODE_SEQ i64 = 4;        // sequence of elements
+var GNODE_LITERAL i64 = 5;    // 'x' literal token
+var GNODE_TOKTYPE i64 = 6;    // number, symbol, string, ident
+var GNODE_REF i64 = 7;        // reference to another rule
+var GNODE_STAR i64 = 8;       // * (zero or more)
+var GNODE_PLUS i64 = 9;       // + (one or more)
+var GNODE_OPT i64 = 10;       // ? (optional)
+
+// ============================================================
+// Grammar Node Structure
+// ============================================================
+
+struct GNode {
+    kind i64;       // GNODE_*
+    name *u8;       // rule name or literal text
+    name_len i64;   // length of name
+    children *u8;   // Vec of child GNodes (for CHOICE, SEQ)
+    child *u8;      // single child (for STAR, PLUS, OPT)
+}
+
+func gnode_new(kind i64) *GNode {
+    var n *GNode = alloc(40);  // 5 fields * 8 bytes
+    n.kind = kind;
+    n.name = nil;
+    n.name_len = 0;
+    n.children = nil;
+    n.child = nil;
+    return n;
+}
+
+func gnode_with_name(kind i64, name *u8, name_len i64) *GNode {
+    var n *GNode = gnode_new(kind);
+    n.name = name;
+    n.name_len = name_len;
+    return n;
+}
+
+// ============================================================
+// Grammar Structure
+// ============================================================
+
+struct Grammar {
+    rules *u8;      // Vec of GNode (GNODE_RULE)
+    rule_names *u8; // Map of rule names to GNode
+}
+
+func grammar_new() *Grammar {
+    var g *Grammar = alloc(16);
+    g.rules = vec_new(8);
+    g.rule_names = map_new();
+    return g;
+}
+
+func grammar_add_rule(g *Grammar, rule *GNode) void {
+    vec_push(g.rules, rule);
+    map_set_n(g.rule_names, rule.name, rule.name_len, rule);
+}
+
+func grammar_get_rule(g *Grammar, name *u8, name_len i64) *GNode {
+    return map_get_n(g.rule_names, name, name_len);
+}
+
+// ============================================================
+// Grammar Parser
+// ============================================================
+
+struct GrammarParser {
+    t *Tokenizer;
+}
+
+func gp_new(text *u8) *GrammarParser {
+    var gp *GrammarParser = alloc(8);
+    gp.t = tok_new(text);
+    return gp;
+}
+
+// Check if current token is a specific keyword
+func gp_is_keyword(gp *GrammarParser, kw *u8) bool {
+    if tok_kind(gp.t) != TOK_IDENT {
+        return false;
+    }
+    var text *u8 = tok_text_ptr(gp.t);
+    var len i64 = tok_text_len(gp.t);
+    return str_eq_n(text, len, kw, strlen(kw));
+}
+
+// Parse a single element (atom or modified atom)
+func gp_parse_element(gp *GrammarParser) *GNode {
+    var node *GNode = nil;
+
+    // Literal: 'x'
+    if tok_kind(gp.t) == TOK_STRING {
+        var text *u8 = tok_text_ptr(gp.t);
+        var len i64 = tok_text_len(gp.t);
+        // Strip quotes: 'x' -> x
+        node = gnode_with_name(GNODE_LITERAL, text + 1, len - 2);
+        tok_next(gp.t);
+    }
+    // Token type keywords: number, symbol, string, ident
+    else if gp_is_keyword(gp, "number") {
+        node = gnode_with_name(GNODE_TOKTYPE, "number", 6);
+        tok_next(gp.t);
+    }
+    else if gp_is_keyword(gp, "symbol") {
+        node = gnode_with_name(GNODE_TOKTYPE, "symbol", 6);
+        tok_next(gp.t);
+    }
+    else if gp_is_keyword(gp, "string") {
+        node = gnode_with_name(GNODE_TOKTYPE, "string", 6);
+        tok_next(gp.t);
+    }
+    else if gp_is_keyword(gp, "ident") {
+        node = gnode_with_name(GNODE_TOKTYPE, "ident", 5);
+        tok_next(gp.t);
+    }
+    else if gp_is_keyword(gp, "operator") {
+        node = gnode_with_name(GNODE_TOKTYPE, "operator", 8);
+        tok_next(gp.t);
+    }
+    // Rule reference: name (but stop if this ident is followed by '=' - that's a new rule)
+    else if tok_kind(gp.t) == TOK_IDENT {
+        // Save current token info (workaround for struct.ptr_field bug - use temp)
+        var t *Tokenizer = gp.t;
+        var text *u8 = tok_text_ptr(t);
+        var len i64 = tok_text_len(t);
+        // Save full tokenizer state before advancing
+        var save_pos i64 = t.pos;
+        var save_start i64 = t.tok_start;
+        var save_len i64 = t.tok_len;
+        var save_kind i64 = t.tok_kind;
+        tok_next(t);  // consume the ident
+        // Check if this ident is followed by '=' - that means this is a new rule definition
+        if tok_kind(t) == TOK_EQ {
+            // This is a new rule definition (ident =), restore and return nil
+            t.pos = save_pos;
+            t.tok_start = save_start;
+            t.tok_len = save_len;
+            t.tok_kind = save_kind;
+            return nil;
+        }
+        // Not followed by '=', this is a rule reference
+        node = gnode_with_name(GNODE_REF, text, len);
+        // tok_next already called, tokenizer is at next token
+    }
+    // Grouped expression: ( ... )
+    else if tok_kind(gp.t) == TOK_LPAREN {
+        tok_next(gp.t);  // skip '('
+        node = gp_parse_choice(gp);
+        if tok_kind(gp.t) == TOK_RPAREN {
+            tok_next(gp.t);  // skip ')'
+        }
+    }
+    else {
+        return nil;
+    }
+
+    // Check for modifiers: * + ?
+    if tok_kind(gp.t) == TOK_STAR {
+        var star *GNode = gnode_new(GNODE_STAR);
+        star.child = node;
+        node = star;
+        tok_next(gp.t);
+    }
+    else if tok_kind(gp.t) == TOK_PLUS {
+        var plus *GNode = gnode_new(GNODE_PLUS);
+        plus.child = node;
+        node = plus;
+        tok_next(gp.t);
+    }
+    else if tok_kind(gp.t) == TOK_UNKNOWN {
+        // Check for '?' character (ASCII 63)
+        var text *u8 = tok_text_ptr(gp.t);
+        if *text == 63 {
+            var opt *GNode = gnode_new(GNODE_OPT);
+            opt.child = node;
+            node = opt;
+            tok_next(gp.t);
+        }
+    }
+
+    return node;
+}
+
+// Parse a sequence of elements
+func gp_parse_seq(gp *GrammarParser) *GNode {
+    var elements *u8 = vec_new(4);
+
+    var done i64 = 0;
+    while done == 0 {
+        var elem *GNode = gp_parse_element(gp);
+        if elem == nil {
+            done = 1;
+        }
+        else {
+            vec_push(elements, elem);
+        }
+    }
+
+    var count i64 = vec_len(elements);
+    if count == 0 {
+        return nil;
+    }
+    if count == 1 {
+        return vec_get(elements, 0);
+    }
+
+    var seq *GNode = gnode_new(GNODE_SEQ);
+    seq.children = elements;
+    return seq;
+}
+
+// Forward declaration workaround - parse_choice calls parse_seq
+func gp_parse_choice(gp *GrammarParser) *GNode {
+    var alts *u8 = vec_new(4);
+
+    var first *GNode = gp_parse_seq(gp);
+    if first == nil {
+        return nil;
+    }
+    vec_push(alts, first);
+
+    while tok_kind(gp.t) == TOK_PIPE {
+        tok_next(gp.t);  // skip '|'
+        var alt *GNode = gp_parse_seq(gp);
+        if alt != nil {
+            vec_push(alts, alt);
+        }
+    }
+
+    if vec_len(alts) == 1 {
+        return vec_get(alts, 0);
+    }
+
+    var choice *GNode = gnode_new(GNODE_CHOICE);
+    choice.children = alts;
+    return choice;
+}
+
+// Parse a single rule: name = choice
+func gp_parse_rule(gp *GrammarParser) *GNode {
+    if tok_kind(gp.t) != TOK_IDENT {
+        return nil;
+    }
+
+    var name *u8 = tok_text_ptr(gp.t);
+    var name_len i64 = tok_text_len(gp.t);
+    tok_next(gp.t);
+
+    // Expect '='
+    if tok_kind(gp.t) != TOK_EQ {
+        return nil;
+    }
+    tok_next(gp.t);
+
+    var body *GNode = gp_parse_choice(gp);
+    if body == nil {
+        return nil;
+    }
+
+    var rule *GNode = gnode_new(GNODE_RULE);
+    rule.name = name;
+    rule.name_len = name_len;
+    rule.child = body;
+    return rule;
+}
+
+// Parse a complete grammar
+func grammar_parse(text *u8) *Grammar {
+    var gp *GrammarParser = gp_new(text);
+    var g *Grammar = grammar_new();
+
+    var done i64 = 0;
+    while !tok_eof(gp.t) && done == 0 {
+        var rule *GNode = gp_parse_rule(gp);
+        if rule == nil {
+            done = 1;
+        }
+        else {
+            grammar_add_rule(g, rule);
+        }
+    }
+
+    return g;
+}

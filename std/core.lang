@@ -184,6 +184,20 @@ func vec_free(v *u8) {
     free(v);
 }
 
+func vec_pop(v *u8) i64 {
+    var len_ptr *i64 = v + 8;
+    var data_ptr **u8 = v + 16;
+    var len i64 = *len_ptr;
+    if len == 0 {
+        return 0;  // Empty vector
+    }
+    len = len - 1;
+    *len_ptr = len;
+    var data *u8 = *data_ptr;
+    var elem_ptr *i64 = data + len * 8;
+    return *elem_ptr;
+}
+
 // ============================================================
 // Hash Map (string keys -> i64 values)
 // ============================================================
@@ -395,6 +409,31 @@ func map_free(m *u8) {
     free(m);
 }
 
+// Make a null-terminated copy of a string with explicit length
+func str_dup_n(s *u8, len i64) *u8 {
+    var result *u8 = malloc(len + 1);
+    var i i64 = 0;
+    while i < len {
+        *(result + i) = *(s + i);
+        i = i + 1;
+    }
+    *(result + len) = 0;
+    return result;
+}
+
+// Map set/get with length-prefixed keys (creates null-terminated copy)
+func map_set_n(m *u8, key *u8, key_len i64, value i64) void {
+    var key_copy *u8 = str_dup_n(key, key_len);
+    map_set(m, key_copy, value);
+}
+
+func map_get_n(m *u8, key *u8, key_len i64) i64 {
+    var key_copy *u8 = str_dup_n(key, key_len);
+    var result i64 = map_get(m, key_copy);
+    free(key_copy);
+    return result;
+}
+
 // ============================================================
 // File I/O
 // ============================================================
@@ -443,6 +482,21 @@ func streq(a *u8, b *u8) i64 {
         return 1;
     }
     return 0;
+}
+
+// Compare two strings with explicit lengths
+func str_eq_n(a *u8, a_len i64, b *u8, b_len i64) bool {
+    if a_len != b_len {
+        return false;
+    }
+    var i i64 = 0;
+    while i < a_len {
+        if *(a + i) != *(b + i) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
 }
 
 func str_concat(a *u8, b *u8) *u8 {

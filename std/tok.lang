@@ -197,7 +197,7 @@ func tok_next(t *Tokenizer) void {
         return;
     }
 
-    // String
+    // Double-quoted string
     if c == 34 {  // "
         tok_advance_char(t);  // skip opening quote
         while tok_peek_char(t) != 0 && tok_peek_char(t) != 34 {
@@ -207,6 +207,23 @@ func tok_next(t *Tokenizer) void {
             tok_advance_char(t);
         }
         if tok_peek_char(t) == 34 {
+            tok_advance_char(t);  // skip closing quote
+        }
+        t.tok_len = t.pos - t.tok_start;
+        t.tok_kind = TOK_STRING;
+        return;
+    }
+
+    // Single-quoted string (for grammar literals like '(')
+    if c == 39 {  // '
+        tok_advance_char(t);  // skip opening quote
+        while tok_peek_char(t) != 0 && tok_peek_char(t) != 39 {
+            if tok_peek_char(t) == 92 {  // backslash escape
+                tok_advance_char(t);
+            }
+            tok_advance_char(t);
+        }
+        if tok_peek_char(t) == 39 {
             tok_advance_char(t);  // skip closing quote
         }
         t.tok_len = t.pos - t.tok_start;

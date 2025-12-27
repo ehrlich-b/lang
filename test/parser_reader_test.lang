@@ -1,0 +1,35 @@
+// Test #parser{} reader at declaration level
+// Uses explicit include of std/parser_reader.lang
+
+include "std/core.lang"
+include "std/parser_reader.lang"
+
+// Generate a number list parser
+#parser{
+    list = number*
+}
+
+func main() i64 {
+    var t *Tokenizer = tok_new("42 123 456");
+    var result *PNode = parse_list(t);
+
+    if result == nil {
+        print("FAIL: result is nil\n");
+        return 1;
+    }
+
+    var children *u8 = result.children;
+    var count i64 = vec_len(children);
+
+    if count != 3 {
+        print("FAIL: expected 3 items, got ");
+        print_int(count);
+        print("\n");
+        return 2;
+    }
+
+    print("PASS: parser_reader_test - parsed ");
+    print_int(count);
+    print(" numbers\n");
+    return 0;
+}

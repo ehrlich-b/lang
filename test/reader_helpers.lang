@@ -1,0 +1,16 @@
+// Helper file for reader includes test
+include "std/tok.lang"
+include "std/emit.lang"
+
+// Helper function that doubles a number
+func double_number(n i64) i64 {
+    return n * 2;
+}
+
+// Reader that uses the helper function
+reader dbl(text *u8) *u8 {
+    var t *Tokenizer = tok_new(text);
+    var n i64 = tok_number(t);
+    var result i64 = double_number(n);
+    return emit_number(result);
+}

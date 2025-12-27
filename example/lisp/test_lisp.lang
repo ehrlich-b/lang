@@ -1,76 +1,67 @@
-// Test file for lisp reader
-// Shows how to use #lisp{...} syntax
+// ============================================================
+// Lisp Reader Demo - The Grand Finale
+// ============================================================
+//
+// This demonstrates the full power of reader macros:
+// - #lisp{} is a reader macro
+// - #lisp{} uses #parser{} internally (a reader using a reader!)
+// - All of this compiles to native x86 with zero runtime overhead
+//
+// The vision: "compiler compiler" - readers building readers.
 
-// Include the lisp reader
-reader lisp(text *u8) *u8 {
-    var pos i64 = 0;
-    var len i64 = str_len(text);
-
-    // Skip leading whitespace
-    while pos < len && is_space(peek_char(text, pos)) {
-        pos = pos + 1;
-    }
-
-    var c i64 = peek_char(text, pos);
-
-    // If it's a digit, parse a number
-    if is_digit(c) {
-        var num i64 = 0;
-        while pos < len && is_digit(peek_char(text, pos)) {
-            num = num * 10 + (peek_char(text, pos) - 48);
-            pos = pos + 1;
-        }
-        return lang_number(num);
-    }
-
-    // Otherwise, expect operator followed by two numbers
-    var op i64 = c;
-    pos = pos + 1;
-
-    // Skip whitespace
-    while pos < len && is_space(peek_char(text, pos)) {
-        pos = pos + 1;
-    }
-
-    // Parse first number
-    var num1 i64 = 0;
-    while pos < len && is_digit(peek_char(text, pos)) {
-        num1 = num1 * 10 + (peek_char(text, pos) - 48);
-        pos = pos + 1;
-    }
-
-    // Skip whitespace
-    while pos < len && is_space(peek_char(text, pos)) {
-        pos = pos + 1;
-    }
-
-    // Parse second number
-    var num2 i64 = 0;
-    while pos < len && is_digit(peek_char(text, pos)) {
-        num2 = num2 * 10 + (peek_char(text, pos) - 48);
-        pos = pos + 1;
-    }
-
-    // Build AST based on operator
-    var left *u8 = lang_number(num1);
-    var right *u8 = lang_number(num2);
-
-    if op == 43 { return lang_add(left, right); }
-    if op == 45 { return lang_sub(left, right); }
-    if op == 42 { return lang_mul(left, right); }
-    if op == 47 { return lang_div(left, right); }
-
-    return left;
-}
+include "std/core.lang"
+include "example/lisp/lisp.lang"
 
 func main() i64 {
-    // Test simple lisp expressions
-    var a i64 = #lisp{+ 10 5};    // 10 + 5 = 15
-    var b i64 = #lisp{- 20 8};    // 20 - 8 = 12
-    var c i64 = #lisp{* 3 4};     // 3 * 4 = 12
-    var d i64 = #lisp{/ 100 10};  // 100 / 10 = 10
-    var e i64 = #lisp{42};        // just 42
+    print("=== Lisp Reader Macro Demo ===\n\n");
 
-    // Sum should be 15 + 12 + 12 + 10 + 42 = 91
-    return a + b + c + d + e - 49;  // 91 - 49 = 42
+    // Simple arithmetic
+    print("(+ 10 32)           = ");
+    print_int(#lisp{ (+ 10 32) });
+    print("\n");
+
+    // Nested left
+    print("(+ (* 2 3) 1)       = ");
+    print_int(#lisp{ (+ (* 2 3) 1) });
+    print("\n");
+
+    // Nested right
+    print("(+ 1 (* 2 3))       = ");
+    print_int(#lisp{ (+ 1 (* 2 3)) });
+    print("\n");
+
+    // Both sides nested
+    print("(- (* 7 8) (+ 5 9)) = ");
+    print_int(#lisp{ (- (* 7 8) (+ 5 9)) });
+    print("\n");
+
+    // Deep nesting
+    print("(+ (+ (+ 1 2) 3) 4) = ");
+    print_int(#lisp{ (+ (+ (+ 1 2) 3) 4) });
+    print("\n");
+
+    // N-ary operators
+    print("(+ 1 2 3 4 5)       = ");
+    print_int(#lisp{ (+ 1 2 3 4 5) });
+    print("\n");
+
+    // Complex expression
+    print("(* (+ 3 3) (+ 3 4)) = ");
+    var answer i64 = #lisp{ (* (+ 3 3) (+ 3 4)) };
+    print_int(answer);
+    print("\n");
+
+    print("\n=== All computed at COMPILE TIME! ===\n");
+
+    // Verify results
+    if #lisp{ (+ 10 32) } != 42 { print("FAIL\n"); return 1; }
+    if #lisp{ (+ (* 2 3) 1) } != 7 { print("FAIL\n"); return 1; }
+    if #lisp{ (+ 1 (* 2 3)) } != 7 { print("FAIL\n"); return 1; }
+    if #lisp{ (- (* 7 8) (+ 5 9)) } != 42 { print("FAIL\n"); return 1; }
+    if #lisp{ (+ (+ (+ 1 2) 3) 4) } != 10 { print("FAIL\n"); return 1; }
+    if #lisp{ (+ 1 2 3 4 5) } != 15 { print("FAIL\n"); return 1; }
+    if answer != 42 { print("FAIL\n"); return 1; }
+
+    print("\nPASS: All tests passed!\n");
+    return 0;
 }

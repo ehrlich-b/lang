@@ -1,0 +1,95 @@
+// Test #parser{} with s-expression grammar
+// Tests: choices, recursion, parentheses, multiple rules
+
+include "std/core.lang"
+include "std/parser_reader.lang"
+
+// Generate s-expression parser
+#parser{
+    sexp = number | symbol | list
+    list = '(' sexp* ')'
+}
+
+func main() i64 {
+    // Test 1: simple number
+    var t1 *Tokenizer = tok_new("42");
+    var r1 *PNode = parse_sexp(t1);
+    if r1 == nil {
+        print("FAIL: could not parse number\n");
+        return 1;
+    }
+    if r1.kind != 1 {
+        print("FAIL: expected number kind (1), got ");
+        print_int(r1.kind);
+        print("\n");
+        return 2;
+    }
+
+    // Test 2: symbol
+    var t2 *Tokenizer = tok_new("foo");
+    var r2 *PNode = parse_sexp(t2);
+    if r2 == nil {
+        print("FAIL: could not parse symbol\n");
+        return 3;
+    }
+    if r2.kind != 2 {
+        print("FAIL: expected symbol kind (2), got ");
+        print_int(r2.kind);
+        print("\n");
+        return 4;
+    }
+
+    // Test 3: empty list
+    var t3 *Tokenizer = tok_new("()");
+    var r3 *PNode = parse_sexp(t3);
+    if r3 == nil {
+        print("FAIL: could not parse empty list\n");
+        return 5;
+    }
+    if r3.kind != 4 {
+        print("FAIL: expected list kind (4), got ");
+        print_int(r3.kind);
+        print("\n");
+        return 6;
+    }
+
+    // Test 4: list with elements
+    // Note: '+' is tokenized as TOK_PLUS, not TOK_IDENT, so use word symbols
+    var t4 *Tokenizer = tok_new("(add 1 2)");
+    var r4 *PNode = parse_sexp(t4);
+    if r4 == nil {
+        print("FAIL: could not parse (add 1 2)\n");
+        return 7;
+    }
+    // r4 is a sequence containing: '(' pnode, sexp* list, ')' pnode
+    // The sexp* list is at index 1, and contains [add, 1, 2]
+    var inner_list *PNode = vec_get(r4.children, 1);
+    var count i64 = vec_len(inner_list.children);
+    if count != 3 {
+        print("FAIL: expected 3 children in inner list, got ");
+        print_int(count);
+        print("\n");
+        return 8;
+    }
+
+    // Test 5: nested list
+    var t5 *Tokenizer = tok_new("(a (b c) d)");
+    var r5 *PNode = parse_sexp(t5);
+    if r5 == nil {
+        print("FAIL: could not parse nested list\n");
+        return 9;
+    }
+    // r5 is a sequence containing: '(' pnode, sexp* list, ')' pnode
+    // The sexp* list is at index 1, and contains [a, (b c), d]
+    var inner_list2 *PNode = vec_get(r5.children, 1);
+    count = vec_len(inner_list2.children);
+    if count != 3 {
+        print("FAIL: expected 3 children in nested inner list, got ");
+        print_int(count);
+        print("\n");
+        return 10;
+    }
+
+    print("PASS: parser_sexp_test - all s-expression tests passed\n");
+    return 0;
+}

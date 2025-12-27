@@ -1,0 +1,30 @@
+// ============================================================
+// std/parser_reader.lang - #parser{} Reader Macro
+// ============================================================
+//
+// Usage:
+//   include "std/parser_reader.lang"
+//
+//   func my_parser() void {
+//       #parser{
+//           sexp = number | symbol | list
+//           list = '(' sexp* ')'
+//       }
+//       // parse_sexp() and parse_list() are now available
+//   }
+//
+// The reader generates:
+//   - struct PNode { kind, text, children }
+//   - func pnode_new(kind) *PNode
+//   - func pnode_atom(kind, text) *PNode
+//   - func pnode_list(children) *PNode
+//   - func parse_<rule>(t *Tokenizer) *PNode for each rule
+//
+
+// rdgen.lang includes grammar.lang which includes tok.lang and emit.lang
+include "std/rdgen.lang"
+
+reader parser(text *u8) *u8 {
+    var g *Grammar = grammar_parse(text);
+    return rdgen_generate(g);
+}

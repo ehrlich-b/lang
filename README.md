@@ -2,15 +2,14 @@
 
 *"There are many like it but this one is mine."*
 
-A self-bootstrapping programming language. C-like feel with modern ergonomics. Written for fun and a blog post.
+**Racket-style power with Zig-style minimalism. For fun.**
 
-## Status
-
-**Phase 1 complete!** The compiler is self-hosting - it compiles itself and reaches a fixed point.
+A self-hosted language forge: full-power reader macros, parsing toolkit, bare-metal output.
 
 ## The Gist
 
 ```lang
+// C-like syntax, bare-metal output
 struct Point {
     x i64;
     y i64;
@@ -20,73 +19,72 @@ func main() i64 {
     var p Point;
     p.x = 42;
     p.y = 100;
-
-    if p.x > 0 {
-        syscall(1, 1, "positive\n", 9);
-    }
-
     return p.x + p.y;  // 142
 }
 
-// Macros for compile-time code generation
+// AST macros for compile-time code generation
 macro double(x) {
     return ${ $x + $x };
 }
 
 var n i64 = double(21);  // expands to (21 + 21) = 42
+
+// Reader macros for custom syntax (WIP: full-power V2)
+reader lisp(text *u8) *u8 { /* parse s-exprs, emit lang */ }
+
+var answer i64 = #lisp{(* (+ 3 3) (+ 3 4))};  // 42
 ```
 
-## Goals
+## What Is This?
 
-1. **Self-bootstrapping** - Compiler written in `language`, compiles itself
-2. **x86-64 native** - Emits assembly, no VM
-3. **Extreme metaprogramming** - AST macros, syntax extensions (eventually)
-4. **Simple** - You can read the whole compiler
+A language that can extend its own syntax and compiles to native code with no runtime.
 
-## Non-Goals
+**Inspired by:**
+- [Racket](https://racket-lang.org/) - Language-oriented programming, reader macros, `#lang`
+- [Zig](https://ziglang.org/) - No runtime, comptime, simplicity
 
-- Production-ready
-- Fast compilation
-- Complete tooling
-- Windows support
+**The goal:** Racket's metaprogramming power without the runtime. Zig's bare-metal philosophy with real syntax extensibility.
+
+## Status
+
+- **Self-hosted**: Compiler compiles itself, reaches fixed point
+- **AST macros**: Working (`macro`, `${ }`, `$name`, `$@name`)
+- **Reader macros V1**: Syntax works, toy interpreter (V2 in progress with full lang power)
 
 ## Building
 
 ```bash
-# Bootstrap from preserved assembly (first time or clean slate)
+# Bootstrap from preserved assembly (first time)
 make bootstrap
 
-# Build the compiler from source
+# Build compiler from source
 make build
 
 # Verify fixed point and promote
-make verify
-make promote
+make verify && make promote
 
 # Compile and run a program
 make run FILE=test/hello.lang
 
-# Or manually:
-./out/lang test/hello.lang -o out/hello.s
-as out/hello.s -o out/hello.o
-ld out/hello.o -o out/hello
-./out/hello
-```
-
-## Editor Support
-
-VSCode extension in `editor/vscode/`. To install:
-```bash
-ln -s $(pwd)/editor/vscode ~/.vscode/extensions/language-lang
+# With stdlib
+make stdlib-run FILE=test/vec_test.lang
 ```
 
 ## Docs
 
-- [LANG.md](./LANG.md) - Language reference (what works now)
-- [INITIAL_DESIGN.md](./INITIAL_DESIGN.md) - Original syntax design, grammar
-- [designs/](./designs/) - Implementation design docs
+- [LANG.md](./LANG.md) - Language reference
+- [TODO.md](./TODO.md) - Roadmap
+- [designs/reader_v2_design.md](./designs/reader_v2_design.md) - Reader macros V2 design
+- [designs/macro_design.md](./designs/macro_design.md) - AST macro design
 - [devlog/](./devlog/) - Development journal
+
+## Editor Support
+
+VSCode extension in `editor/vscode/`:
+```bash
+ln -s $(pwd)/editor/vscode ~/.vscode/extensions/language-lang
+```
 
 ## License
 
-Do whatever you want with it. It's a toy.
+Do whatever you want with it.

@@ -63,6 +63,11 @@ var cg_decl_count i64 = 0;
 // Workaround for codegen bug - temp storage
 var cg_temp_struct_decl *u8 = nil;
 
+// Current file context (for reader compilation)
+var cg_current_file_decls *u8 = nil;
+var cg_current_file_decl_count i64 = 0;
+var cg_in_scoped_context i64 = 0;  // 1 when processing included files
+
 // ============================================================
 // Initialization
 // ============================================================
@@ -352,27 +357,12 @@ func exec_run(program *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8) i64
     return (*status / 256) % 256;  // extract exit code
 }
 
-// Execute a program with argv array directly (for more than 5 args)
-func exec_run_argv(program *u8, argv *u8) i64 {
-    var envp *u8 = alloc(8);
-    var e0 **u8 = envp;
-    *e0 = nil;
-
-    var pid i64 = syscall(57);
-    if pid == 0 {
-        syscall(59, program, argv, envp);
-        syscall(60, 127);
-    }
-
-    var status *i64 = alloc(8);
-    syscall(61, pid, status, 0, 0);
-    return (*status / 256) % 256;
-}
-
 // Generate and compile reader to executable
 func compile_reader_to_executable(decl *u8) void {
     var name *u8 = reader_decl_name(decl);
     var name_len i64 = reader_decl_name_len(decl);
+    var param_name *u8 = reader_decl_param_name(decl);
+    var param_len i64 = reader_decl_param_len(decl);
     var body *u8 = reader_decl_body(decl);
 
     // Create .lang-cache/readers/ directories
@@ -401,24 +391,127 @@ func compile_reader_to_executable(decl *u8) void {
     var obj_path *u8 = str_concat(base_path, ".o");
     var exe_path *u8 = str_dup(base_path);
 
-    // Generate wrapper source
-    var body_src *u8 = ast_to_string_block(body);
-
-    // Build wrapper source (stdlib passed on command line to avoid bootstrap issue)
-    var wrapper *u8 = alloc(65536);
+    // Build wrapper source with sibling declarations from current file
+    var wrapper *u8 = alloc(262144);  // 256KB for larger reader files
     var wp *u8 = wrapper;
 
-    // func <name>(text *u8) *u8
+    // Serialize sibling declarations from the reader's immediate context.
+    // We only include declarations that are BETWEEN the file start and
+    // the reader declaration, to avoid including stdlib functions.
+    // For now, we only serialize include statements (user must explicitly
+    // include helper files), and we find the reader in the decl list to
+    // only include declarations that come BEFORE it in the same file.
+
+    ast_str_init();
+
+    // Find the reader's position in the declaration list
+    var reader_pos i64 = -1;
+    i = 0;
+    while i < cg_current_file_decl_count {
+        var sibling *u8 = get_decl(cg_current_file_decls, i);
+        if sibling == decl {
+            reader_pos = i;
+        }
+        i = i + 1;
+    }
+
+    // Only emit sibling declarations if we're in a scoped context (included file)
+    // For command-line files, stdlib is already included, so we skip sibling inclusion
+    if cg_in_scoped_context == 1 && reader_pos > 0 {
+        // Emit include statements before the reader
+        i = 0;
+        while i < reader_pos {
+            var sibling *u8 = get_decl(cg_current_file_decls, i);
+            var k i64 = node_kind(sibling);
+            if k == NODE_INCLUDE_DECL {
+                ast_to_string_include_decl(sibling);
+            }
+            i = i + 1;
+        }
+
+        // Emit reader macro expansions (e.g., #parser{} generates code)
+        i = 0;
+        while i < reader_pos {
+            var sibling *u8 = get_decl(cg_current_file_decls, i);
+            var k i64 = node_kind(sibling);
+            if k == NODE_READER_EXPR {
+                // Get reader name and content
+                var rname *u8 = reader_expr_name(sibling);
+                var rname_len i64 = reader_expr_name_len(sibling);
+                var rcontent *u8 = reader_expr_content(sibling);
+                var rcontent_len i64 = reader_expr_content_len(sibling);
+
+                // Build executable path
+                var rexe_path *u8 = alloc(256);
+                var ri i64 = 0;
+                var rbase *u8 = ".lang-cache/readers/";
+                while *rbase != 0 { *(rexe_path + ri) = *rbase; ri = ri + 1; rbase = rbase + 1; }
+                var rj i64 = 0;
+                while rj < rname_len { *(rexe_path + ri) = *(rname + rj); ri = ri + 1; rj = rj + 1; }
+                *(rexe_path + ri) = 0;
+
+                // Execute reader and get output
+                var rout *u8 = alloc(131072);
+                var rn i64 = exec_capture(rexe_path, rcontent, rcontent_len, rout, 131072);
+                if rn > 0 {
+                    // Append reader output directly (it's lang source code)
+                    ast_str_append(rout, rn);
+                    ast_str_append_char(10);
+                }
+            }
+            i = i + 1;
+        }
+
+        // Emit struct declarations before the reader
+        i = 0;
+        while i < reader_pos {
+            var sibling *u8 = get_decl(cg_current_file_decls, i);
+            var k i64 = node_kind(sibling);
+            if k == NODE_STRUCT_DECL {
+                ast_to_string_struct_decl(sibling);
+            }
+            i = i + 1;
+        }
+
+        // Emit function declarations before the reader (skip main)
+        i = 0;
+        while i < reader_pos {
+            var sibling *u8 = get_decl(cg_current_file_decls, i);
+            var k i64 = node_kind(sibling);
+            if k == NODE_FUNC_DECL {
+                // Skip main() to avoid conflict with wrapper main
+                var fname *u8 = func_decl_name(sibling);
+                var flen i64 = func_decl_name_len(sibling);
+                if flen != 4 || !memcmp(fname, "main", 4) {
+                    ast_to_string_func_decl(sibling);
+                }
+            }
+            i = i + 1;
+        }
+    }
+
+    var siblings_src *u8 = ast_str_finish();
+
+    // Copy sibling declarations to wrapper
+    while *siblings_src != 0 { *wp = *siblings_src; wp = wp + 1; siblings_src = siblings_src + 1; }
+
+    // Generate reader body source
+    var body_src *u8 = ast_to_string_block(body);
+
+    // func <name>(<param> *u8) *u8
     var fn *u8 = "func ";
     while *fn != 0 { *wp = *fn; wp = wp + 1; fn = fn + 1; }
     j = 0;
     while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
-    var sig *u8 = "(text *u8) *u8 ";
+    *wp = 40; wp = wp + 1;  // (
+    j = 0;
+    while j < param_len { *wp = *(param_name + j); wp = wp + 1; j = j + 1; }
+    var sig *u8 = " *u8) *u8 ";
     while *sig != 0 { *wp = *sig; wp = wp + 1; sig = sig + 1; }
     while *body_src != 0 { *wp = *body_src; wp = wp + 1; body_src = body_src + 1; }
     *wp = 10; wp = wp + 1;  // newline
 
-    // main() wrapper
+    // main() wrapper - use the reader's parameter name
     var main_src *u8 = "func main() i64 {\n    var buf *u8 = alloc(65536);\n    var n i64 = file_read(0, buf, 65536);\n    *(buf + n) = 0;\n    var result *u8 = ";
     while *main_src != 0 { *wp = *main_src; wp = wp + 1; main_src = main_src + 1; }
     j = 0;
@@ -435,18 +528,9 @@ func compile_reader_to_executable(decl *u8) void {
     syscall(1, fd, wrapper, wlen);
     syscall(3, fd);
 
-    // Compile: ./out/lang std/core.lang std/tok.lang std/emit.lang <src> -o <asm>
-    // Include the parsing toolkit so readers can use tok_* and emit_* functions
-    var compile_argv *u8 = alloc(64);  // 8 pointers
-    var ca0 **u8 = compile_argv;      *ca0 = "./out/lang";
-    var ca1 **u8 = compile_argv + 8;  *ca1 = "std/core.lang";
-    var ca2 **u8 = compile_argv + 16; *ca2 = "std/tok.lang";
-    var ca3 **u8 = compile_argv + 24; *ca3 = "std/emit.lang";
-    var ca4 **u8 = compile_argv + 32; *ca4 = src_path;
-    var ca5 **u8 = compile_argv + 40; *ca5 = "-o";
-    var ca6 **u8 = compile_argv + 48; *ca6 = asm_path;
-    var ca7 **u8 = compile_argv + 56; *ca7 = nil;
-    exec_run_argv("./out/lang", compile_argv);
+    // Compile: ./out/lang std/core.lang <src> -o <asm>
+    // Reader source files should include their own dependencies
+    exec_run("./out/lang", "std/core.lang", src_path, "-o", asm_path, nil);
 
     // Assemble: as <asm> -o <obj>
     exec_run("/usr/bin/as", asm_path, "-o", obj_path, nil, nil);
@@ -480,6 +564,7 @@ func add_reader(decl *u8) void {
 }
 
 func find_reader(name *u8, name_len i64) *u8 {
+    // First check registered readers
     var i i64 = 0;
     while i < cg_reader_count {
         var entry *u8 = cg_readers + (i * 24);
@@ -498,6 +583,24 @@ func find_reader(name *u8, name_len i64) *u8 {
         }
         i = i + 1;
     }
+
+    // Fall back to checking for pre-compiled reader in .lang-cache/readers/
+    var exe_path *u8 = alloc(256);
+    i = 0;
+    var base *u8 = ".lang-cache/readers/";
+    while *base != 0 { *(exe_path + i) = *base; i = i + 1; base = base + 1; }
+    var j i64 = 0;
+    while j < name_len { *(exe_path + i) = *(name + j); i = i + 1; j = j + 1; }
+    *(exe_path + i) = 0;
+
+    // Check if file exists by trying to open it
+    var fd i64 = file_open(exe_path, 0);  // O_RDONLY = 0
+    if fd >= 0 {
+        file_close(fd);
+        // Return non-nil sentinel to indicate reader found
+        return exe_path;
+    }
+
     return nil;
 }
 
@@ -597,6 +700,64 @@ func process_decl_first_pass(decl *u8) void {
         add_reader(decl);
         return;
     }
+    // Reader macro at declaration level - expand to declarations
+    if k == NODE_READER_EXPR {
+        var name *u8 = reader_expr_name(decl);
+        var name_len i64 = reader_expr_name_len(decl);
+        var content *u8 = reader_expr_content(decl);
+        var content_len i64 = reader_expr_content_len(decl);
+
+        // Look up the reader
+        var reader_decl *u8 = find_reader(name, name_len);
+        if reader_decl == nil {
+            eprint("error: reader macro '");
+            eprint_buf(name, name_len);
+            eprintln("' not found");
+            cg_had_error = 1;
+            return;
+        }
+
+        // Build path to reader executable
+        var exe_path *u8 = alloc(256);
+        var i i64 = 0;
+        var base *u8 = ".lang-cache/readers/";
+        while *base != 0 { *(exe_path + i) = *base; i = i + 1; base = base + 1; }
+        var j i64 = 0;
+        while j < name_len { *(exe_path + i) = *(name + j); i = i + 1; j = j + 1; }
+        *(exe_path + i) = 0;
+
+        // Execute reader with content as input
+        var output *u8 = alloc(131072);  // 128KB
+        var n i64 = exec_capture(exe_path, content, content_len, output, 131072);
+
+        if n <= 0 {
+            eprint("error: reader '");
+            eprint_buf(name, name_len);
+            eprintln("' returned no output");
+            cg_had_error = 1;
+            return;
+        }
+
+        // Parse the output as declarations
+        var prog *u8 = parse_program_from_string(output);
+        if prog == nil {
+            eprint("error: failed to parse reader output from '");
+            eprint_buf(name, name_len);
+            eprintln("'");
+            cg_had_error = 1;
+            return;
+        }
+
+        // Process each generated declaration
+        var gen_decls *u8 = program_decls(prog);
+        var gen_count i64 = program_decl_count(prog);
+        i = 0;
+        while i < gen_count {
+            process_decl_first_pass(get_decl(gen_decls, i));
+            i = i + 1;
+        }
+        return;
+    }
     if k == NODE_VAR_DECL {
         add_global(
             var_decl_name(decl),
@@ -646,11 +807,25 @@ func process_decl_first_pass(decl *u8) void {
         // Process declarations from included file (first pass)
         var inc_decls *u8 = program_decls(prog);
         var inc_count i64 = program_decl_count(prog);
+
+        // Save and set current file context (for reader compilation)
+        var saved_file_decls *u8 = cg_current_file_decls;
+        var saved_file_count i64 = cg_current_file_decl_count;
+        var saved_scoped i64 = cg_in_scoped_context;
+        cg_current_file_decls = inc_decls;
+        cg_current_file_decl_count = inc_count;
+        cg_in_scoped_context = 1;  // Mark that we're in an included file
+
         var i i64 = 0;
         while i < inc_count {
             process_decl_first_pass(get_decl(inc_decls, i));
             i = i + 1;
         }
+
+        // Restore current file context
+        cg_current_file_decls = saved_file_decls;
+        cg_current_file_decl_count = saved_file_count;
+        cg_in_scoped_context = saved_scoped;
 
         // Pop from include stack
         include_stack_pop();
@@ -2087,6 +2262,56 @@ func gen_decl(decl *u8) void {
         include_stack_pop();
         return;
     }
+
+    if k == NODE_READER_EXPR {
+        // Reader macro at declaration level - expand and generate code
+        var name *u8 = reader_expr_name(decl);
+        var name_len i64 = reader_expr_name_len(decl);
+        var content *u8 = reader_expr_content(decl);
+        var content_len i64 = reader_expr_content_len(decl);
+
+        // Look up the reader
+        var reader_decl *u8 = find_reader(name, name_len);
+        if reader_decl == nil {
+            // Error already reported in first pass
+            return;
+        }
+
+        // Build path to reader executable
+        var exe_path *u8 = alloc(256);
+        var i i64 = 0;
+        var base *u8 = ".lang-cache/readers/";
+        while *base != 0 { *(exe_path + i) = *base; i = i + 1; base = base + 1; }
+        var j i64 = 0;
+        while j < name_len { *(exe_path + i) = *(name + j); i = i + 1; j = j + 1; }
+        *(exe_path + i) = 0;
+
+        // Execute reader with content as input
+        var output *u8 = alloc(131072);  // 128KB
+        var n i64 = exec_capture(exe_path, content, content_len, output, 131072);
+
+        if n <= 0 {
+            // Error already reported in first pass
+            return;
+        }
+
+        // Parse the output as declarations
+        var prog *u8 = parse_program_from_string(output);
+        if prog == nil {
+            // Error already reported in first pass
+            return;
+        }
+
+        // Generate code for each declaration
+        var gen_decls *u8 = program_decls(prog);
+        var gen_count i64 = program_decl_count(prog);
+        i = 0;
+        while i < gen_count {
+            gen_decl(get_decl(gen_decls, i));
+            i = i + 1;
+        }
+        return;
+    }
 }
 
 // ============================================================
@@ -2485,7 +2710,7 @@ var ast_str_cap i64 = 0;
 
 func ast_str_init() void {
     if ast_str_buf == nil {
-        ast_str_cap = 1024;
+        ast_str_cap = 65536;
         ast_str_buf = alloc(ast_str_cap);
     }
     ast_str_pos = 0;
@@ -2747,6 +2972,65 @@ func ast_to_string(expr *u8) *u8 {
     ast_str_init();
     ast_to_string_expr(expr);
     return ast_str_finish();
+}
+
+// ============================================================
+// AST-to-string for declarations (for reader includes)
+// ============================================================
+
+func ast_to_string_func_decl(decl *u8) void {
+    ast_str_append_cstr("func ");
+    var name *u8 = func_decl_name(decl);
+    var name_len i64 = func_decl_name_len(decl);
+    ast_str_append(name, name_len);
+    ast_str_append_char(40);  // (
+
+    // Parameters
+    var params *u8 = func_decl_params(decl);
+    var param_count i64 = func_decl_param_count(decl);
+    var i i64 = 0;
+    while i < param_count {
+        if i > 0 { ast_str_append_cstr(", "); }
+        var p *u8 = params + (i * 24);
+        ast_str_append(param_name(p), param_name_len(p));
+        ast_str_append_char(32);  // space
+        ast_to_string_type(param_type(p));
+        i = i + 1;
+    }
+
+    ast_str_append_cstr(") ");
+    ast_to_string_type(func_decl_ret_type(decl));
+    ast_str_append_char(32);  // space
+    ast_to_string_stmt(func_decl_body(decl));
+}
+
+func ast_to_string_struct_decl(decl *u8) void {
+    ast_str_append_cstr("struct ");
+    ast_str_append(struct_decl_name(decl), struct_decl_name_len(decl));
+    ast_str_append_cstr(" {\n");
+
+    var fields *u8 = struct_decl_fields(decl);
+    var field_count i64 = struct_decl_field_count(decl);
+    var i i64 = 0;
+    while i < field_count {
+        var f *u8 = fields + (i * 24);
+        ast_str_append_cstr("    ");
+        ast_str_append(param_name(f), param_name_len(f));
+        ast_str_append_char(32);  // space
+        ast_to_string_type(param_type(f));
+        ast_str_append_cstr(";\n");
+        i = i + 1;
+    }
+
+    ast_str_append_cstr("}\n");
+}
+
+func ast_to_string_include_decl(decl *u8) void {
+    ast_str_append_cstr("include \"");
+    var path *u8 = include_decl_path(decl);
+    var path_len i64 = include_decl_path_len(decl);
+    ast_str_append(path, path_len);
+    ast_str_append_cstr("\"\n");
 }
 
 // ============================================================
@@ -3038,6 +3322,10 @@ func generate(prog *u8, out_path *u8) void {
     // Store for interpreter function calls
     cg_decls = decls;
     cg_decl_count = decl_count;
+
+    // Set current file context (for reader compilation)
+    cg_current_file_decls = decls;
+    cg_current_file_decl_count = decl_count;
 
     // First pass: collect structs, macros, readers, globals, and process includes
     var i i64 = 0;

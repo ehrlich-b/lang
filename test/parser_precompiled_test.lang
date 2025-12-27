@@ -1,0 +1,33 @@
+// Test #parser{} with pre-compiled reader
+// Does NOT include std/parser_reader.lang - uses cached reader
+
+include "std/core.lang"
+include "std/tok.lang"
+
+// Use pre-compiled parser reader from .lang-cache/readers/parser
+#parser{
+    nums = number+
+}
+
+func main() i64 {
+    var t *Tokenizer = tok_new("1 2 3 4 5");
+    var result *PNode = parse_nums(t);
+
+    if result == nil {
+        print("FAIL: result is nil\n");
+        return 1;
+    }
+
+    var count i64 = vec_len(result.children);
+    if count != 5 {
+        print("FAIL: expected 5 numbers, got ");
+        print_int(count);
+        print("\n");
+        return 2;
+    }
+
+    print("PASS: parser_precompiled_test - ");
+    print_int(count);
+    print(" numbers parsed\n");
+    return 0;
+}

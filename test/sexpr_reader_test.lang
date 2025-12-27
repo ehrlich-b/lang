@@ -1,0 +1,73 @@
+// Test the #sexpr{} reader macro
+// This demonstrates a reader that USES #parser{} internally
+
+include "std/core.lang"
+include "std/sexpr_reader.lang"
+
+func main() i64 {
+    // Test 1: simple number
+    var a i64 = #sexpr{ 42 };
+    if a != 42 {
+        print("FAIL: expected 42, got ");
+        print_int(a);
+        print("\n");
+        return 1;
+    }
+
+    // Test 2: simple addition
+    var b i64 = #sexpr{ (+ 1 2) };
+    if b != 3 {
+        print("FAIL: (+ 1 2) expected 3, got ");
+        print_int(b);
+        print("\n");
+        return 2;
+    }
+
+    // Test 3: subtraction
+    var c i64 = #sexpr{ (- 10 3) };
+    if c != 7 {
+        print("FAIL: (- 10 3) expected 7, got ");
+        print_int(c);
+        print("\n");
+        return 3;
+    }
+
+    // Test 4: multiplication
+    var d i64 = #sexpr{ (* 6 7) };
+    if d != 42 {
+        print("FAIL: (* 6 7) expected 42, got ");
+        print_int(d);
+        print("\n");
+        return 4;
+    }
+
+    // Test 5: nested expression
+    var e i64 = #sexpr{ (* 2 (+ 3 4)) };
+    if e != 14 {
+        print("FAIL: (* 2 (+ 3 4)) expected 14, got ");
+        print_int(e);
+        print("\n");
+        return 5;
+    }
+
+    // Test 6: more complex nesting
+    var f i64 = #sexpr{ (+ (* 2 3) (* 4 5)) };
+    if f != 26 {
+        print("FAIL: (+ (* 2 3) (* 4 5)) expected 26, got ");
+        print_int(f);
+        print("\n");
+        return 6;
+    }
+
+    // Test 7: multi-arg addition (+ 1 2 3) -> ((1 + 2) + 3)
+    var g i64 = #sexpr{ (+ 1 2 3) };
+    if g != 6 {
+        print("FAIL: (+ 1 2 3) expected 6, got ");
+        print_int(g);
+        print("\n");
+        return 7;
+    }
+
+    print("PASS: sexpr_reader_test - all tests passed\n");
+    return 0;
+}

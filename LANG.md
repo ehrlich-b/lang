@@ -1,8 +1,10 @@
 # Language Reference
 
-**Living document** - describes what actually works right now, not aspirational features.
+**Living document** - describes what actually works right now.
 
-Last updated: Phase 1 compiler (self-hosted)
+**Vision**: Racket-style power with Zig-style minimalism. For fun.
+
+See [TODO.md](./TODO.md) for roadmap, [designs/](./designs/) for design docs.
 
 ## Quick Reference
 
@@ -355,6 +357,26 @@ func main() i64 {
 ```bash
 ./out/lang --expand-macros file.lang -o out.s  # shows expansions
 ```
+
+## Reader Macros
+
+Custom syntax extensions via `#name{content}`:
+
+```lang
+// Define a reader (V1: limited interpreter, V2: full lang power)
+reader lisp(text *u8) *u8 {
+    // Parse text, return lang source code
+    // ...
+}
+
+// Use it
+var x i64 = #lisp{(+ 1 2)};  // Reader transforms to lang expression
+```
+
+**V1 (current)**: Readers run in a toy interpreter with limited builtins.
+**V2 (in progress)**: Readers compile to native executables with full lang power.
+
+See [designs/reader_v2_design.md](./designs/reader_v2_design.md) for the V2 design.
 
 ## What's NOT Implemented Yet
 

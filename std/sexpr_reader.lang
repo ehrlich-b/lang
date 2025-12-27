@@ -1,83 +1,74 @@
 // ============================================================
-// Lisp Reader - S-Expressions to Lang
+// std/sexpr_reader.lang - S-Expression Reader Macro
 // ============================================================
 //
-// The GRAND FINALE: A complete Lisp-to-Lang compiler built with
-// reader macros. This proves the "compiler compiler" vision works.
-//
 // Usage:
-//   include "example/lisp/lisp.lang"
+//   include "std/sexpr_reader.lang"
 //
-//   var x i64 = #lisp{ (+ 1 2) };           // x = 3
-//   var y i64 = #lisp{ (* 2 (+ 3 4)) };     // y = 14
-//   var z i64 = #lisp{ (+ 1 2 3 4 5) };     // z = 15
+//   var x i64 = #sexpr{ (+ 1 2) };       // expands to: (1 + 2)
+//   var y i64 = #sexpr{ (* 3 (+ 1 2)) }; // expands to: (3 * (1 + 2))
 //
-// How it works:
-//   1. #lisp{...} invokes this reader at compile time
-//   2. Reader uses #parser{} to parse the s-expression
-//   3. Parser was ALSO built with a reader macro!
-//   4. Returns lang source code: "(1 + 2)"
-//   5. Compiler parses that as a lang expression
-//   6. Zero runtime overhead - it's all compile time
-//
-// The beauty: readers building readers, all the way down.
+// Converts prefix s-expressions to infix lang expressions.
+// Supports: +, -, *, /, numbers, and nested expressions.
 
 include "std/parser_reader.lang"
 
-// Define s-expression grammar using #parser{}
+// Generate s-expression parser
 #parser{
     sexp = number | symbol | operator | list
     list = '(' sexp* ')'
 }
 
 // Convert parsed s-expression to lang source code
-func lisp_to_lang(node *PNode) *u8 {
+func sexpr_to_lang(node *PNode) *u8 {
     if node == nil {
-        return "0";
+        return "nil";
     }
 
     var sb *StringBuilder = sb_new();
-    lisp_emit(sb, node);
+    sexpr_emit(sb, node);
     return sb_finish(sb);
 }
 
-func lisp_emit(sb *StringBuilder, node *PNode) void {
+func sexpr_emit(sb *StringBuilder, node *PNode) void {
     if node == nil {
-        sb_str(sb, "0");
+        sb_str(sb, "nil");
         return;
     }
 
-    // kind 1 = number
+    // kind 1 = number, kind 2 = symbol (from rdgen)
     if node.kind == 1 {
+        // Number - emit as-is
         sb_str(sb, node.text);
         return;
     }
 
-    // kind 2 = symbol (variable reference)
     if node.kind == 2 {
+        // Symbol - emit as-is (variable reference)
         sb_str(sb, node.text);
         return;
     }
 
-    // kind 5 = operator
     if node.kind == 5 {
+        // Operator - emit as-is
         sb_str(sb, node.text);
         return;
     }
 
-    // kind 4 = list: (op arg1 arg2 ...)
+    // kind 4 = sequence (list)
+    // A list node has children: [lparen, sexp*, rparen]
+    // The sexp* node is at index 1, and its children are the actual elements
     if node.kind == 4 {
-        // List structure: [lparen, sexp*, rparen]
-        // The sexp* node at index 1 contains the actual elements
         var inner *PNode = vec_get(node.children, 1);
         var count i64 = vec_len(inner.children);
 
         if count == 0 {
+            // Empty list - shouldn't happen in valid sexpr
             sb_str(sb, "0");
             return;
         }
 
-        // First element is the operator
+        // First element should be operator
         var op_node *PNode = vec_get(inner.children, 0);
         if op_node == nil {
             sb_str(sb, "0");
@@ -87,8 +78,8 @@ func lisp_emit(sb *StringBuilder, node *PNode) void {
         var op *u8 = op_node.text;
 
         if count == 1 {
-            // Just the operator, treat as value
-            lisp_emit(sb, op_node);
+            // Single element - just emit it
+            sexpr_emit(sb, op_node);
             return;
         }
 
@@ -97,33 +88,33 @@ func lisp_emit(sb *StringBuilder, node *PNode) void {
             sb_str(sb, "(0 ");
             sb_str(sb, op);
             sb_str(sb, " ");
-            lisp_emit(sb, vec_get(inner.children, 1));
+            sexpr_emit(sb, vec_get(inner.children, 1));
             sb_str(sb, ")");
             return;
         }
 
-        // Binary or n-ary: (+ a b c) -> ((a + b) + c)
+        // Binary or more: (+ a b c) -> ((a + b) + c)
         sb_str(sb, "(");
-        lisp_emit(sb, vec_get(inner.children, 1));
+        sexpr_emit(sb, vec_get(inner.children, 1));
 
         var i i64 = 2;
         while i < count {
             sb_str(sb, " ");
             sb_str(sb, op);
             sb_str(sb, " ");
-            lisp_emit(sb, vec_get(inner.children, i));
+            sexpr_emit(sb, vec_get(inner.children, i));
             i = i + 1;
         }
         sb_str(sb, ")");
         return;
     }
 
-    // Unknown kind
+    // Unknown kind - emit 0
     sb_str(sb, "0");
 }
 
-reader lisp(text *u8) *u8 {
+reader sexpr(text *u8) *u8 {
     var t *Tokenizer = tok_new(text);
     var node *PNode = parse_sexp(t);
-    return lisp_to_lang(node);
+    return sexpr_to_lang(node);
 }
