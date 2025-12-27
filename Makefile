@@ -57,12 +57,15 @@ verify: build
 	@echo "Running test suite..."
 	@COMPILER=$(LANG_NEXT) ./test/run_lang1_suite.sh
 
-# Promote: update lang symlink to point to lang_next target
+# Promote: update lang symlink and save bootstrap checkpoint
 promote: verify
 	@TARGET=$$(readlink $(LANG_NEXT)); \
 	ln -sf $$TARGET $(LANG); \
 	rm -f $(LANG_NEXT); \
-	echo "Promoted: $(LANG) -> $$TARGET"
+	echo "Promoted: $(LANG) -> $$TARGET"; \
+	cp out/$$TARGET.s bootstrap/$(GIT_COMMIT).s; \
+	ln -sf $(GIT_COMMIT).s bootstrap/current.s; \
+	echo "Saved bootstrap: bootstrap/$(GIT_COMMIT).s"
 
 # Release: save .s to bootstrap/, git tag
 release:
