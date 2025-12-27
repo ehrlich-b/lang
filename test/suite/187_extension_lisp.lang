@@ -1,0 +1,30 @@
+// expect: 0
+// Test: lisp reader with #lisp{} invocation
+// This tests the reader when included (core functionality)
+// Extension dispatch (.lisp files on CLI) is syntactic sugar on top
+
+include "std/core.lang"
+include "example/lisp/lisp.lang"
+
+// defun at top-level (declarations must be at top-level)
+#lisp{ (defun triple (x) (* x 3)) }
+
+func main() i64 {
+    // Test basic arithmetic
+    var a i64 = #lisp{ (+ 17 25) };
+    if a != 42 { return 1; }
+
+    // Test nested expression
+    var b i64 = #lisp{ (* 2 (+ 3 4)) };
+    if b != 14 { return 2; }
+
+    // Test comparison
+    var c i64 = #lisp{ (if (< 5 10) 100 200) };
+    if c != 100 { return 3; }
+
+    // Test defun-defined function
+    var d i64 = triple(7);
+    if d != 21 { return 4; }
+
+    return 0;
+}

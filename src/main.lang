@@ -1,5 +1,36 @@
 // src/main.lang - Main entry point for self-hosting compiler
 
+// Get file extension (returns pointer to extension after last '.')
+// Returns nil if no extension found
+func get_extension(path *u8) *u8 {
+    var len i64 = strlen(path);
+    var p *u8 = path + len - 1;
+
+    // Walk backwards to find last '.'
+    while p >= path {
+        if *p == 46 {  // '.'
+            return p + 1;  // Return part after '.'
+        }
+        if *p == 47 {  // '/' - stop at path separator
+            return nil;
+        }
+        p = p - 1;
+    }
+    return nil;
+}
+
+// Check if extension matches "lang"
+func is_lang_extension(ext *u8) i64 {
+    if ext == nil {
+        return 0;
+    }
+    // Check "lang\0"
+    if *ext == 'l' && *(ext + 1) == 'a' && *(ext + 2) == 'n' && *(ext + 3) == 'g' && *(ext + 4) == 0 {
+        return 1;
+    }
+    return 0;
+}
+
 func read_file(path *u8) *u8 {
     var fd i64 = file_open(path, 0);  // O_RDONLY
     if fd < 0 {
@@ -29,16 +60,25 @@ func get_arg(argv **u8, i i64) *u8 {
     return *p;
 }
 
+// Helper to append string to source buffer
+func append_str(buf *u8, len *i64, s *u8) void {
+    while *s != 0 {
+        *(buf + *len) = *s;
+        *len = *len + 1;
+        s = s + 1;
+    }
+}
+
 func main(argc i64, argv **u8) i64 {
     if argc < 2 {
-        eprintln("Usage: lang <file.lang>... [-o output.s] [--expand-macros]");
+        eprintln("Usage: lang <file.lang>... [-o output.s] [--expand-macros] [-c reader]");
         return 1;
     }
 
-    // Parse arguments
+    // Parse arguments - first pass collects files
     var output_file *u8 = nil;
-    var source_buf *u8 = alloc(4194304);  // 4MB for all sources
-    var source_len i64 = 0;
+    var gen_compiler *u8 = nil;  // For -c flag: generate compiler for this reader
+    var input_files *u8 = vec_new(16);  // Collect input file paths
 
     var i i64 = 1;
     while i < argc {
@@ -49,6 +89,17 @@ func main(argc i64, argv **u8) i64 {
         if *arg == 45 && *(arg + 1) == 45 {  // '--'
             if memcmp(arg + 2, "expand-macros", 13) {
                 cg_expand_macros = 1;
+                handled = 1;
+            }
+        }
+
+        // Check for -c flag (generate standalone compiler for reader)
+        if handled == 0 && *arg == 45 {  // '-'
+            if *(arg + 1) == 'c' && *(arg + 2) == 0 {
+                i = i + 1;
+                if i < argc {
+                    gen_compiler = get_arg(argv, i);
+                }
                 handled = 1;
             }
         }
@@ -65,25 +116,70 @@ func main(argc i64, argv **u8) i64 {
         }
 
         if handled == 0 {
-            // Input file
-            var content *u8 = read_file(arg);
-            if content == nil {
-                return 1;
-            }
-            var content_len i64 = strlen(content);
-
-            // Copy to source buffer
-            var j i64 = 0;
-            while j < content_len {
-                *(source_buf + source_len) = *(content + j);
-                source_len = source_len + 1;
-                j = j + 1;
-            }
-            // Add newline separator
-            *(source_buf + source_len) = 10;
-            source_len = source_len + 1;
+            // Input file - collect for later processing
+            vec_push(input_files, arg);
         }
         i = i + 1;
+    }
+
+    // Build source based on mode
+    var source_buf *u8 = alloc(4194304);  // 4MB for all sources
+    var source_len i64 = 0;
+
+    if gen_compiler != nil {
+        // -c mode: Generate standalone compiler
+        // 1. Include all .lang files from CLI (reader sources)
+        //    This ensures the reader gets compiled to .lang-cache/readers/<name>
+        i = 0;
+        while i < vec_len(input_files) {
+            var path *u8 = vec_get(input_files, i);
+            append_str(source_buf, &source_len, "include \"");
+            append_str(source_buf, &source_len, path);
+            append_str(source_buf, &source_len, "\"\n");
+            i = i + 1;
+        }
+
+        // 2. Generate glue function that calls the reader directly
+        append_str(source_buf, &source_len, "func reader_transform(t *u8) *u8 { return ");
+        append_str(source_buf, &source_len, gen_compiler);
+        append_str(source_buf, &source_len, "(t); }\n");
+
+        // 3. Include standalone template (provides main and compiler infrastructure)
+        append_str(source_buf, &source_len, "include \"src/standalone.lang\"\n");
+
+        // 4. Add ___main wrapper
+        append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8) i64 { return main(argc, argv); }\n");
+
+    } else {
+        // Normal mode: Compile user program
+        i = 0;
+        while i < vec_len(input_files) {
+            var arg *u8 = vec_get(input_files, i);
+            var ext *u8 = get_extension(arg);
+
+            if ext != nil && is_lang_extension(ext) == 0 {
+                // Non-.lang file: read content and wrap in #ext{ content }
+                var content *u8 = read_file(arg);
+                if content == nil {
+                    return 1;
+                }
+
+                append_str(source_buf, &source_len, "#");
+                append_str(source_buf, &source_len, ext);
+                append_str(source_buf, &source_len, "{");
+                append_str(source_buf, &source_len, content);
+                append_str(source_buf, &source_len, "}\n");
+            } else {
+                // .lang file: generate include statement
+                append_str(source_buf, &source_len, "include \"");
+                append_str(source_buf, &source_len, arg);
+                append_str(source_buf, &source_len, "\"\n");
+            }
+            i = i + 1;
+        }
+
+        // Add ___main wrapper that calls user's main
+        append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8) i64 { return main(argc, argv); }\n");
     }
 
     // Null-terminate

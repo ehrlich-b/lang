@@ -80,9 +80,9 @@ lang -c lisp reader_lisp.lang -o lisp_compiler
 
 The file extension *is* the reader name. Mix `.lang` and `.whatever` files freely - one needs a main.
 
-- [ ] Detect non-.lang extensions, wrap in `#ext{ contents }`
-- [ ] `-c <reader>` flag to generate standalone compiler
-- [ ] Find reader macro by name in provided sources
+- [x] Detect non-.lang extensions, wrap in `#ext{ contents }`
+- [x] `-c <reader>` flag to generate standalone compiler
+- [x] Readers also generate callable functions (no .lang-cache needed at runtime)
 
 ---
 
@@ -144,3 +144,21 @@ Ultimate proof the compiler compiler works - lang defines itself.
 - [ ] First-class functions (function pointers)
 - [ ] Type aliases `type Fd = i64`
 - [ ] Multiple backends (x86, ARM, WASM)
+
+---
+
+## Open Questions: Editor Integration
+
+See `designs/source_maps.md` for full analysis.
+
+**Problem**: IDE features (go-to-definition, hover) don't work inside `#lisp{}` blocks because we lose the connection between input positions and generated code.
+
+**Solution**: Mapped emit API. Readers use `reader_emit_from(ctx, start, end)` instead of string concat. Builds source map automatically as a side effect. Readers still output text!
+
+**Syntax highlighting**: Two levels:
+1. TextMate embedded languages (regex, no compiler) - works today
+2. Semantic highlighting (needs source maps + LSP)
+
+**Key insight**: Readers already tokenize - they have to, to transform. We just ask them to preserve that info when emitting.
+
+**Status**: Design complete, not implemented. Low priority until we want real IDE support.

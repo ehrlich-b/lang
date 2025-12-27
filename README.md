@@ -14,23 +14,24 @@ var answer i64 = #lisp{(* (+ 3 3) (+ 3 4))};  // 42
 
 The compiler compiles itself. Reader macros are compiled to native executables and invoked during compilation. There's no interpreter, no VM, no runtime.
 
-The endgame (not yet implemented):
+This works today:
 
 ```bash
 # Build-time: file extension selects the reader
 # .lisp files get wrapped in #lisp{ ... } automatically
-lang reader_lisp.lang program.lisp -o program
+./out/lang std/core.lang example/lisp/lisp.lang program.lisp -o program.s
 
-# Or generate a standalone compiler
-lang -c lisp reader_lisp.lang -o lisp_compiler
-./lisp_compiler program.lisp -o program
+# Or generate a standalone compiler (no dependencies at runtime!)
+./out/lang -c lisp std/core.lang example/lisp/lisp.lang -o lisp_compiler.s
+as lisp_compiler.s -o lisp_compiler.o && ld lisp_compiler.o -o lisp_compiler
+./lisp_compiler program.lisp -o program.s
 ```
 
 The file extension *is* the reader name. A `.lisp` file gets wrapped in `#lisp{ contents }`. A `.bf` file would use `#bf{ contents }`. Mix `.lang` files with any other extension - one of them needs a main.
 
 ## Status
 
-Self-hosted and at fixed point. AST macros work. Reader macros V2 work (full lang power, native compilation). Currently polishing rough edges.
+Self-hosted and at fixed point. File extension dispatch works. Standalone compiler generation works. Next: `lang_reader.lang` (define lang's syntax as a reader macro).
 
 ## Building
 

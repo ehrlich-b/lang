@@ -480,6 +480,10 @@ func compile_reader_to_executable(decl *u8) void {
 
     ast_str_init();
 
+    // Always include std/core.lang for stdlib functions
+    // String is: include "std/core.lang"\n = 24 chars
+    ast_str_append_cstr("include \"std/core.lang\"\n");
+
     // Find the reader's position in the declaration list
     var reader_pos i64 = -1;
     i = 0;
@@ -491,9 +495,10 @@ func compile_reader_to_executable(decl *u8) void {
         i = i + 1;
     }
 
-    // Only emit sibling declarations if we're in a scoped context (included file)
-    // For command-line files, stdlib is already included, so we skip sibling inclusion
-    if cg_in_scoped_context == 1 && reader_pos > 0 {
+    // Emit sibling declarations so the reader executable has access to them.
+    // This includes: include statements, reader macro expansions (like #parser{}),
+    // struct declarations, and function declarations that come BEFORE the reader.
+    if reader_pos > 0 {
         // Emit include statements before the reader
         i = 0;
         while i < reader_pos {
@@ -569,7 +574,8 @@ func compile_reader_to_executable(decl *u8) void {
     var siblings_src *u8 = ast_str_finish();
 
     // Copy sibling declarations to wrapper
-    while *siblings_src != 0 { *wp = *siblings_src; wp = wp + 1; siblings_src = siblings_src + 1; }
+    var siblings_copy *u8 = siblings_src;
+    while *siblings_copy != 0 { *wp = *siblings_copy; wp = wp + 1; siblings_copy = siblings_copy + 1; }
 
     // Generate reader body source
     var body_src *u8 = ast_to_string_block(body);
@@ -604,9 +610,10 @@ func compile_reader_to_executable(decl *u8) void {
     syscall(1, fd, wrapper, wlen);
     syscall(3, fd);
 
-    // Compile: ./out/lang std/core.lang <src> -o <asm>
-    // Reader source files should include their own dependencies
-    exec_run("./out/lang", "std/core.lang", src_path, "-o", asm_path, nil);
+    // Compile: ./out/lang <src> -o <asm>
+    // The wrapper source already has includes and sibling declarations serialized.
+    // Don't pass std/core.lang - the wrapper handles its own dependencies.
+    exec_run("./out/lang", src_path, "-o", asm_path, nil, nil);
 
     // Assemble: as <asm> -o <obj>
     exec_run("/usr/bin/as", asm_path, "-o", obj_path, nil, nil);
@@ -2358,6 +2365,53 @@ func gen_func(func_node *u8) void {
     emit_char(10);
 }
 
+// Generate reader as a callable function (for standalone compilers)
+func gen_reader_func(reader_node *u8) void {
+    // Reset locals
+    cg_local_count = 0;
+    cg_stack_size = 0;
+
+    var name *u8 = reader_decl_name(reader_node);
+    var name_len i64 = reader_decl_name_len(reader_node);
+
+    emit_str(".globl ");
+    emit_n(name, name_len);
+    emit_char(10);
+
+    emit_n(name, name_len);
+    emit_line(":");
+
+    // Prologue
+    emit_line("    push %rbp");
+    emit_line("    mov %rsp, %rbp");
+    emit_line("    sub $4096, %rsp");
+
+    // Store the single parameter (text *u8)
+    cg_stack_size = cg_stack_size + 8;
+    var offset i64 = 0 - cg_stack_size;
+
+    var param_name *u8 = reader_decl_param_name(reader_node);
+    var param_len i64 = reader_decl_param_len(reader_node);
+
+    // Create a *u8 type for the parameter
+    var param_type *u8 = alloc(16);
+    *(param_type) = '*';
+    *(param_type + 1) = 'u';
+    *(param_type + 2) = '8';
+    *(param_type + 3) = 0;
+
+    add_local(param_name, param_len, offset, param_type);
+
+    emit_str("    mov %rdi, ");
+    emit_int(offset);
+    emit_line("(%rbp)");
+
+    // Generate body
+    gen_block(reader_decl_body(reader_node));
+
+    emit_char(10);
+}
+
 func patch_stack_size(pos i64, size i64) void {
     // Find "STACKSIZE" starting at pos and replace with the actual number
     // The string "    sub $STACKSIZE, %rsp\n" is 26 chars
@@ -2454,7 +2508,8 @@ func gen_decl(decl *u8) void {
     }
 
     if k == NODE_READER_DECL {
-        // Already registered in first pass
+        // Generate reader as callable function (for standalone compilers)
+        gen_reader_func(decl);
         return;
     }
 
@@ -3637,7 +3692,7 @@ func generate(prog *u8, out_path *u8) void {
     // Get argc and argv from stack
     out_line("    mov (%rsp), %rdi");     // argc
     out_line("    lea 8(%rsp), %rsi");    // argv
-    out_line("    call main");
+    out_line("    call ___main");
     out_line("    mov %rax, %rdi");
     out_line("    mov $60, %rax");
     out_line("    syscall");

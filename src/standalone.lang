@@ -1,0 +1,136 @@
+// src/standalone.lang - Template for standalone compilers
+//
+// Usage: Generate source that:
+//   1. Includes reader source (so the reader gets compiled to .lang-cache)
+//   2. Defines: var standalone_reader_path *u8 = ".lang-cache/readers/<name>";
+//   3. Includes this file
+//
+// This template provides the compiler infrastructure and main().
+
+include "src/lexer.lang"
+include "src/parser.lang"
+include "src/codegen.lang"
+
+// Helper to append string to buffer
+func standalone_append(buf *u8, len *i64, s *u8) void {
+    while *s != 0 {
+        *(buf + *len) = *s;
+        *len = *len + 1;
+        s = s + 1;
+    }
+}
+
+func standalone_read_file(path *u8) *u8 {
+    var fd i64 = file_open(path, 0);
+    if fd < 0 {
+        eprint("Error: cannot open file: ");
+        eprintln(path);
+        return nil;
+    }
+    var buf *u8 = alloc(1048576);
+    var n i64 = file_read(fd, buf, 1048576);
+    file_close(fd);
+    if n < 0 {
+        eprintln("Error: cannot read file");
+        return nil;
+    }
+    *(buf + n) = 0;
+    return buf;
+}
+
+func standalone_get_arg(argv **u8, i i64) *u8 {
+    var p **u8 = argv + (i * 8);
+    return *p;
+}
+
+// reader_transform is defined by the generated glue code
+// It calls the reader function directly (e.g., lisp(content))
+
+func main(argc i64, argv **u8) i64 {
+    if argc < 2 {
+        eprintln("Usage: <compiler> <file>... [-o output.s]");
+        return 1;
+    }
+
+    var output_file *u8 = nil;
+    var source_buf *u8 = alloc(4194304);
+    var source_len i64 = 0;
+
+    // Start with std/core.lang include for the compiled program
+    var core_include *u8 = "include \"std/core.lang\"\n";
+    standalone_append(source_buf, &source_len, core_include);
+
+    var i i64 = 1;
+    while i < argc {
+        var arg *u8 = standalone_get_arg(argv, i);
+
+        // Check for -o flag
+        if *arg == '-' && *(arg + 1) == 'o' {
+            i = i + 1;
+            if i < argc {
+                output_file = standalone_get_arg(argv, i);
+            }
+        } else {
+            // Input file - read and transform through reader
+            var content *u8 = standalone_read_file(arg);
+            if content == nil {
+                return 1;
+            }
+
+            // Transform through reader
+            var transformed *u8 = reader_transform(content);
+            if transformed == nil {
+                return 1;
+            }
+
+            // Append transformed source
+            standalone_append(source_buf, &source_len, transformed);
+            *(source_buf + source_len) = 10;  // newline
+            source_len = source_len + 1;
+        }
+        i = i + 1;
+    }
+
+    // Add ___main wrapper
+    var wrapper *u8 = "func ___main(argc i64, argv **u8) i64 { return main(argc, argv); }\n";
+    standalone_append(source_buf, &source_len, wrapper);
+
+    *(source_buf + source_len) = 0;
+
+    if source_len == 0 {
+        eprintln("Error: no input files");
+        return 1;
+    }
+
+    if output_file == nil {
+        output_file = "a.s";
+    }
+
+    // Compile
+    parser_tokenize(source_buf);
+
+    // Check for lexer errors
+    i = 0;
+    while i < parser_token_count() {
+        var tok *u8 = get_token(i);
+        if tok_type(tok) == TOKEN_ERROR {
+            eprint("Error: ");
+            eprintln(tok_lexeme(tok));
+            return 1;
+        }
+        i = i + 1;
+    }
+
+    var prog *u8 = parse_program();
+
+    if parse_error_count > 0 {
+        return 1;
+    }
+
+    generate(prog, output_file);
+
+    print("Wrote ");
+    println(output_file);
+
+    return 0;
+}

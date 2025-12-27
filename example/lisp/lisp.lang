@@ -267,7 +267,7 @@ func lisp_emit(sb *StringBuilder, node *PNode) void {
         // ============================================================
         // COMPARISONS: (< a b) -> (a < b)
         // ============================================================
-        if (first.kind == 2 || first.kind == 5) && is_comparison(first.text) {
+        if first.kind == 2 && is_comparison(first.text) {
             if count < 3 {
                 sb_str(sb, "0");
                 return;
