@@ -98,6 +98,13 @@ var TOKEN_PERCENTEQ i64 = 68;     // %=
 var TOKEN_BREAK i64 = 69;         // break
 var TOKEN_CONTINUE i64 = 70;      // continue
 
+// Let expression tokens
+var TOKEN_LET i64 = 71;           // let
+var TOKEN_IN i64 = 72;            // in
+
+// Function type token
+var TOKEN_FN i64 = 73;            // fn (for function pointer types)
+
 // ============================================================
 // Token struct
 // ============================================================
@@ -400,6 +407,9 @@ func check_keyword() i64 {
     if lexeme_eq("return") { return TOKEN_RETURN; }
     if lexeme_eq("break") { return TOKEN_BREAK; }
     if lexeme_eq("continue") { return TOKEN_CONTINUE; }
+    if lexeme_eq("let") { return TOKEN_LET; }
+    if lexeme_eq("in") { return TOKEN_IN; }
+    if lexeme_eq("fn") { return TOKEN_FN; }
     if lexeme_eq("true") { return TOKEN_TRUE; }
     if lexeme_eq("false") { return TOKEN_FALSE; }
     if lexeme_eq("nil") { return TOKEN_NIL; }
@@ -773,6 +783,9 @@ func print_token_type(t i64) void {
     if t == TOKEN_PERCENTEQ { print("%="); return; }
     if t == TOKEN_BREAK { print("break"); return; }
     if t == TOKEN_CONTINUE { print("continue"); return; }
+    if t == TOKEN_LET { print("let"); return; }
+    if t == TOKEN_IN { print("in"); return; }
+    if t == TOKEN_FN { print("fn"); return; }
     print("UNKNOWN");
 }
 

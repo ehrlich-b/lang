@@ -1,0 +1,82 @@
+// expect: 42
+// Test: function pointers - store, pass, and call through variables
+
+func add(a i64, b i64) i64 {
+    return a + b;
+}
+
+func mul(a i64, b i64) i64 {
+    return a * b;
+}
+
+func sub(a i64, b i64) i64 {
+    return a - b;
+}
+
+// Higher-order function: takes a function pointer
+func apply(f *u8, x i64, y i64) i64 {
+    return f(x, y);
+}
+
+// Apply twice
+func apply2(f *u8, x i64, y i64) i64 {
+    var r i64 = f(x, y);
+    return f(r, y);
+}
+
+// Global function pointer
+var global_fn *u8 = nil;
+
+func test_local_ptr() i64 {
+    var f *u8 = &add;
+    return f(20, 22);  // 42
+}
+
+func test_reassign() i64 {
+    var f *u8 = &add;
+    var r1 i64 = f(10, 10);  // 20
+    f = &mul;
+    var r2 i64 = f(r1, 2);   // 40
+    f = &add;
+    return f(r2, 2);         // 42
+}
+
+func test_higher_order() i64 {
+    return apply(&add, 30, 12);  // 42
+}
+
+func test_higher_order_mul() i64 {
+    return apply(&mul, 6, 7);    // 42
+}
+
+func test_global_ptr() i64 {
+    global_fn = &mul;
+    return global_fn(7, 6);  // 42
+}
+
+func test_chain() i64 {
+    // (10 + 5) * 2 + 2 = 32, then 32 + 10 = 42
+    var r i64 = apply(&add, 10, 5);   // 15
+    r = apply(&mul, r, 2);            // 30
+    r = apply(&add, r, 12);           // 42
+    return r;
+}
+
+func test_apply2() i64 {
+    // add(add(10, 8), 8) = add(18, 8) = 26... not 42
+    // Let's use: mul(mul(2, 3), 3) = mul(6, 3) = 18...
+    // Actually: add(add(13, 8), 8) = add(21, 8) = 29
+    // Better: sub(sub(58, 8), 8) = sub(50, 8) = 42
+    return apply2(&sub, 58, 8);  // 42
+}
+
+func main() i64 {
+    if test_local_ptr() != 42 { return 1; }
+    if test_reassign() != 42 { return 2; }
+    if test_higher_order() != 42 { return 3; }
+    if test_higher_order_mul() != 42 { return 4; }
+    if test_global_ptr() != 42 { return 5; }
+    if test_chain() != 42 { return 6; }
+    if test_apply2() != 42 { return 7; }
+    return 42;
+}

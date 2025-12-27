@@ -1,0 +1,62 @@
+// expect: 42
+// Test: function pointers with recursion and mutual recursion
+
+func add(a i64, b i64) i64 { return a + b; }
+func mul(a i64, b i64) i64 { return a * b; }
+
+// Recursive function that takes a binary operation
+func reduce(op *u8, n i64, acc i64) i64 {
+    if n <= 0 {
+        return acc;
+    }
+    return reduce(op, n - 1, op(acc, n));
+}
+
+// Fold with custom operation
+func fold(op *u8, start i64, end i64, init i64) i64 {
+    if start > end {
+        return init;
+    }
+    return fold(op, start + 1, end, op(init, start));
+}
+
+func test_reduce_add() i64 {
+    // 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 = 45
+    // We need 42, so start with -3: -3 + 45 = 42
+    return reduce(&add, 9, 0 - 3);
+}
+
+func test_reduce_mul() i64 {
+    // 1 * 1 * 2 * 3 = 6, * 7 = 42
+    // mul(mul(mul(1, 1), 2), 3) etc
+    // Actually reduce builds: op(op(op(init, n), n-1), n-2)...
+    // reduce(&mul, 3, 7) = mul(mul(mul(7, 3), 2), 1) = mul(mul(21, 2), 1) = mul(42, 1) = 42
+    return reduce(&mul, 3, 7);
+}
+
+func test_fold_add() i64 {
+    // fold(&add, 1, 6, 21) = add(add(add(add(add(add(21, 1), 2), 3), 4), 5), 6)
+    // = 21 + 1 + 2 + 3 + 4 + 5 + 6 = 42
+    return fold(&add, 1, 6, 21);
+}
+
+// Test passing function pointer through multiple levels
+func apply_n(op *u8, n i64, x i64, y i64) i64 {
+    if n <= 0 {
+        return x;
+    }
+    return apply_n(op, n - 1, op(x, y), y);
+}
+
+func test_apply_n() i64 {
+    // apply_n(&add, 4, 2, 10) = add(add(add(add(2, 10), 10), 10), 10) = 42
+    return apply_n(&add, 4, 2, 10);
+}
+
+func main() i64 {
+    if test_reduce_add() != 42 { return 1; }
+    if test_reduce_mul() != 42 { return 2; }
+    if test_fold_add() != 42 { return 3; }
+    if test_apply_n() != 42 { return 4; }
+    return 42;
+}

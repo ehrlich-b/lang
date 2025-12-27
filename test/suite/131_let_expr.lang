@@ -1,0 +1,46 @@
+// expect: 42
+// Test: let expression binding (AST 2.0)
+
+func test_simple() i64 {
+    // Simple let
+    return let x = 42 in x;
+}
+
+func test_arithmetic() i64 {
+    // Let with arithmetic in body
+    return let x = 6 in x * 7;  // 42
+}
+
+func test_nested() i64 {
+    // Nested lets
+    return let x = 20 in let y = 22 in x + y;  // 42
+}
+
+func test_shadowing() i64 {
+    // Inner let shadows outer
+    return let x = 10 in (let x = 32 in x) + x;  // 32 + 10 = 42
+}
+
+func test_with_type() i64 {
+    // Let with explicit type annotation
+    return let x i64 = 42 in x;
+}
+
+func main() i64 {
+    if test_simple() != 42 {
+        return 1;
+    }
+    if test_arithmetic() != 42 {
+        return 2;
+    }
+    if test_nested() != 42 {
+        return 3;
+    }
+    if test_shadowing() != 42 {
+        return 4;
+    }
+    if test_with_type() != 42 {
+        return 5;
+    }
+    return 42;
+}

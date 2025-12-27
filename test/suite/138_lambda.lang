@@ -1,0 +1,49 @@
+// expect: 42
+// Test: Lambda expressions (anonymous functions)
+
+// Test 1: Simple lambda assigned to variable
+func test_simple_lambda() i64 {
+    var add fn(i64, i64) i64 = fn(a i64, b i64) i64 { return a + b; };
+    return add(20, 22);
+}
+
+// Test 2: Lambda passed as argument
+func apply(f fn(i64) i64, x i64) i64 {
+    return f(x);
+}
+
+func test_lambda_arg() i64 {
+    return apply(fn(x i64) i64 { return x * 2; }, 21);
+}
+
+// Test 3: Lambda with no parameters
+func test_zero_params() i64 {
+    var get_value fn() i64 = fn() i64 { return 42; };
+    return get_value();
+}
+
+// Test 4: Lambda in expression context
+func test_immediate_call() i64 {
+    // Can't call lambda immediately without parens, so use variable
+    var f fn(i64, i64) i64 = fn(a i64, b i64) i64 { return a + b; };
+    return f(40, 2);
+}
+
+// Test 5: Multiple lambdas
+func test_multiple_lambdas() i64 {
+    var inc fn(i64) i64 = fn(x i64) i64 { return x + 1; };
+    var dec fn(i64) i64 = fn(x i64) i64 { return x - 1; };
+    var x i64 = 40;
+    x = inc(x);  // 41
+    x = inc(x);  // 42
+    return x;
+}
+
+func main() i64 {
+    if test_simple_lambda() != 42 { return 1; }
+    if test_lambda_arg() != 42 { return 2; }
+    if test_zero_params() != 42 { return 3; }
+    if test_immediate_call() != 42 { return 4; }
+    if test_multiple_lambdas() != 42 { return 5; }
+    return 42;
+}

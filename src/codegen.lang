@@ -61,6 +61,12 @@ var cg_reader_count i64 = 0;
 var cg_funcs *u8 = nil;
 var cg_func_count i64 = 0;
 
+// Lambda registry: collect lambdas during codegen, emit at end
+// Each entry: [lambda_node:8][name_id:8] = 16 bytes
+// Max 500 lambdas
+var cg_lambdas *u8 = nil;
+var cg_lambda_count i64 = 0;
+
 // Include stack for loop detection
 // Each entry: [path_ptr:8][path_len:8] = 16 bytes
 // Max 32 nested includes
@@ -603,8 +609,8 @@ func compile_reader_to_executable(decl *u8) void {
     var body_src *u8 = ast_to_string_block(body);
 
     // func <name>(<param> *u8) *u8
-    var fn *u8 = "func ";
-    while *fn != 0 { *wp = *fn; wp = wp + 1; fn = fn + 1; }
+    var fn_kw *u8 = "func ";
+    while *fn_kw != 0 { *wp = *fn_kw; wp = wp + 1; fn_kw = fn_kw + 1; }
     j = 0;
     while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
     *wp = 40; wp = wp + 1;  // (
@@ -1319,6 +1325,9 @@ func get_type_size(t *u8) i64 {
     if k == TYPE_PTR {
         return 8;
     }
+    if k == TYPE_FUNC {
+        return 8;  // Function pointer
+    }
     if k == TYPE_BASE {
         var name *u8 = base_type_name(t);
         var len i64 = base_type_name_len(t);
@@ -1472,6 +1481,11 @@ func get_expr_type(expr *u8) *u8 {
 
         // Get field type
         return get_field_type(struct_decl, field_name, field_len);
+    }
+
+    if k == NODE_LET_EXPR {
+        // Type of let expression is the type of its body
+        return get_expr_type(let_expr_body(expr));
     }
 
     // Default: i64
@@ -1978,9 +1992,33 @@ func gen_expr(expr *u8) void {
 
         // Call function
         if node_kind(func_expr) == NODE_IDENT_EXPR {
-            emit_str("    call ");
-            emit_n(ident_expr_name(func_expr), ident_expr_name_len(func_expr));
-            emit_char(10);
+            var fn_name *u8 = ident_expr_name(func_expr);
+            var fn_name_len i64 = ident_expr_name_len(func_expr);
+
+            // Check if it's a local variable (function pointer)
+            var local_idx i64 = find_local(fn_name, fn_name_len);
+            if local_idx >= 0 {
+                // Load function pointer from local and indirect call
+                emit_str("    mov ");
+                emit_int(local_get_offset(local_idx));
+                emit_line("(%rbp), %rax");
+                emit_line("    call *%rax");
+            } else {
+                // Check if it's a global variable
+                var global_idx i64 = find_global(fn_name, fn_name_len);
+                if global_idx >= 0 {
+                    // Load function pointer from global and indirect call
+                    emit_str("    mov ");
+                    emit_n(fn_name, fn_name_len);
+                    emit_line("(%rip), %rax");
+                    emit_line("    call *%rax");
+                } else {
+                    // Direct function call
+                    emit_str("    call ");
+                    emit_n(fn_name, fn_name_len);
+                    emit_char(10);
+                }
+            }
         } else {
             gen_expr(func_expr);
             emit_line("    call *%rax");
@@ -2123,6 +2161,71 @@ func gen_expr(expr *u8) void {
         if expanded != nil {
             gen_expr(expanded);
         }
+        return;
+    }
+
+    if k == NODE_LET_EXPR {
+        // Save local scope for restoration after body
+        var saved_local_count i64 = cg_local_count;
+
+        // Get type (use i64 as default if no type annotation)
+        var var_type *u8 = let_expr_type(expr);
+        if var_type == nil {
+            // Infer type from init expression
+            var_type = get_expr_type(let_expr_init(expr));
+            if var_type == nil {
+                // Default to i64 if type inference fails
+                var_type = alloc(24);
+                node_set_kind(var_type, TYPE_BASE);
+                var p **u8 = var_type + 8;
+                *p = "i64";
+                var pl *i64 = var_type + 16;
+                *pl = 3;
+            }
+        }
+
+        // Allocate stack space
+        var var_size i64 = get_type_size(var_type);
+        if var_size < 8 {
+            var_size = 8;
+        }
+        cg_stack_size = cg_stack_size + var_size;
+        var offset i64 = 0 - cg_stack_size;
+
+        // Add local variable
+        add_local(let_expr_name(expr), let_expr_name_len(expr), offset, var_type);
+
+        // Generate init expression and store to local
+        gen_expr(let_expr_init(expr));
+        emit_str("    mov %rax, ");
+        emit_int(offset);
+        emit_line("(%rbp)");
+
+        // Generate body expression (result stays in %rax)
+        gen_expr(let_expr_body(expr));
+
+        // Restore local scope (variable goes out of scope)
+        cg_local_count = saved_local_count;
+        return;
+    }
+
+    if k == NODE_LAMBDA_EXPR {
+        // Register lambda for later emission
+        if cg_lambdas == nil {
+            cg_lambdas = alloc(LIMIT_LAMBDAS * 16);
+        }
+        var lambda_id i64 = cg_lambda_count;
+        var entry *u8 = cg_lambdas + (cg_lambda_count * 16);
+        var p_node **u8 = entry;
+        *p_node = expr;
+        var p_id *i64 = entry + 8;
+        *p_id = lambda_id;
+        cg_lambda_count = cg_lambda_count + 1;
+
+        // Return address of lambda function
+        emit_str("    lea __lambda_");
+        emit_int(lambda_id);
+        emit_line("(%rip), %rax");
         return;
     }
 }
@@ -2320,6 +2423,13 @@ func gen_stmt(stmt *u8) void {
 
     if k == NODE_EXPR_STMT {
         gen_expr(expr_stmt_expr(stmt));
+        return;
+    }
+
+    // Explicit assignment statement (AST 2.0)
+    if k == NODE_ASSIGN_STMT {
+        gen_expr(assign_stmt_value(stmt));
+        gen_lvalue_store(assign_stmt_target(stmt));
         return;
     }
 
@@ -2569,6 +2679,121 @@ func gen_func(func_node *u8) void {
     }
 
     emit_char(10);
+}
+
+// Generate a lambda function (similar to gen_func but with generated name)
+func gen_lambda(lambda_node *u8, lambda_id i64) void {
+    // Reset locals
+    cg_local_count = 0;
+    cg_stack_size = 0;
+
+    // Emit function label
+    emit_str("__lambda_");
+    emit_int(lambda_id);
+    emit_line(":");
+
+    // Generate params and body to temp buffer
+    cg_in_func_body = 1;
+    cg_func_len = 0;
+
+    // Store parameters
+    var params *u8 = lambda_expr_params(lambda_node);
+    var param_count i64 = lambda_expr_param_count(lambda_node);
+
+    var i i64 = 0;
+    while i < param_count {
+        cg_stack_size = cg_stack_size + 8;
+        var offset i64 = 0 - cg_stack_size;
+
+        var p *u8 = params + (i * 24);
+        add_local(param_name(p), param_name_len(p), offset, param_type(p));
+
+        // Move from arg register to local stack slot
+        if i == 0 {
+            emit_str("    mov %rdi, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
+        } else if i == 1 {
+            emit_str("    mov %rsi, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
+        } else if i == 2 {
+            emit_str("    mov %rdx, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
+        } else if i == 3 {
+            emit_str("    mov %rcx, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
+        } else if i == 4 {
+            emit_str("    mov %r8, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
+        } else if i == 5 {
+            emit_str("    mov %r9, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
+        } else {
+            // Args 7+ are on caller's stack
+            var stack_offset i64 = 16 + (i - 6) * 8;
+            emit_str("    mov ");
+            emit_int(stack_offset);
+            emit_str("(%rbp), %rax");
+            emit_char(10);
+            emit_str("    mov %rax, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
+        }
+
+        i = i + 1;
+    }
+
+    // Generate body
+    gen_block(lambda_expr_body(lambda_node));
+
+    // Switch back to main buffer
+    cg_in_func_body = 0;
+
+    // Calculate aligned stack size
+    var aligned_size i64 = cg_stack_size;
+    if aligned_size < 16 {
+        aligned_size = 16;
+    }
+    aligned_size = ((aligned_size + 15) / 16) * 16;
+
+    // Emit prologue
+    emit_line("    push %rbp");
+    emit_line("    mov %rsp, %rbp");
+    emit_str("    sub $");
+    emit_int(aligned_size);
+    emit_line(", %rsp");
+
+    // Copy function body from temp buffer
+    flush_func_body();
+
+    // Default return if void
+    var ret_type *u8 = lambda_expr_ret_type(lambda_node);
+    if is_void_type(ret_type) {
+        emit_line("    xor %rax, %rax");
+        emit_line("    leave");
+        emit_line("    ret");
+    }
+
+    emit_char(10);
+}
+
+// Generate all collected lambdas
+func gen_all_lambdas() void {
+    var i i64 = 0;
+    while i < cg_lambda_count {
+        var entry *u8 = cg_lambdas + (i * 16);
+        var p_node **u8 = entry;
+        var lambda_node *u8 = *p_node;
+        var p_id *i64 = entry + 8;
+        var lambda_id i64 = *p_id;
+        gen_lambda(lambda_node, lambda_id);
+        i = i + 1;
+    }
 }
 
 // Generate reader as a callable function (for standalone compilers)
@@ -3074,6 +3299,27 @@ func interp_expr(expr *u8) i64 {
         return 0;
     }
 
+    // Let expression: bind name, evaluate body, restore scope
+    if k == NODE_LET_EXPR {
+        var name *u8 = let_expr_name(expr);
+        var name_len i64 = let_expr_name_len(expr);
+        var init_val i64 = interp_expr(let_expr_init(expr));
+
+        // Save binding count for scope restoration
+        var saved_binding_count i64 = interp_binding_count;
+
+        // Add the binding
+        interp_add_binding(name, name_len, init_val);
+
+        // Evaluate body
+        var result i64 = interp_expr(let_expr_body(expr));
+
+        // Restore scope
+        interp_binding_count = saved_binding_count;
+
+        return result;
+    }
+
     return 0;
 }
 
@@ -3089,6 +3335,20 @@ func interp_stmt(stmt *u8) void {
 
     if k == NODE_EXPR_STMT {
         interp_expr(expr_stmt_expr(stmt));
+        return;
+    }
+
+    // Explicit assignment statement (AST 2.0)
+    if k == NODE_ASSIGN_STMT {
+        var target *u8 = assign_stmt_target(stmt);
+        var value i64 = interp_expr(assign_stmt_value(stmt));
+        if node_kind(target) == NODE_IDENT_EXPR {
+            interp_set_binding(
+                ident_expr_name(target),
+                ident_expr_name_len(target),
+                value
+            );
+        }
         return;
     }
 
@@ -3395,6 +3655,15 @@ func ast_to_string_stmt(stmt *u8) void {
 
     if kind == NODE_EXPR_STMT {
         ast_to_string_expr(expr_stmt_expr(stmt));
+        ast_str_append_cstr(";\n");
+        return;
+    }
+
+    // Explicit assignment statement (AST 2.0)
+    if kind == NODE_ASSIGN_STMT {
+        ast_to_string_expr(assign_stmt_target(stmt));
+        ast_str_append_cstr(" = ");
+        ast_to_string_expr(assign_stmt_value(stmt));
         ast_str_append_cstr(";\n");
         return;
     }
@@ -3809,6 +4078,9 @@ func generate(prog *u8, out_path *u8) void {
         gen_decl(get_decl(decls, i));
         i = i + 1;
     }
+
+    // Third pass: generate collected lambdas
+    gen_all_lambdas();
 
     // Open output file (O_WRONLY | O_CREAT | O_TRUNC = 577, mode 0644 = 420)
     cg_out_fd = syscall(2, out_path, 577, 420);

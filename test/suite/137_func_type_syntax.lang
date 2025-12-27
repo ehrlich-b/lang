@@ -1,0 +1,46 @@
+// expect: 42
+// Test: fn(T) R type syntax for function pointers
+
+func add(a i64, b i64) i64 { return a + b; }
+func mul(a i64, b i64) i64 { return a * b; }
+func sub(a i64, b i64) i64 { return a - b; }
+
+// Binary operation using fn type syntax
+func apply_binop(f fn(i64, i64) i64, a i64, b i64) i64 {
+    return f(a, b);
+}
+
+// Higher-order function: compose two functions
+func double(x i64) i64 { return x * 2; }
+func add_one(x i64) i64 { return x + 1; }
+
+func compose(f fn(i64) i64, g fn(i64) i64, x i64) i64 {
+    return f(g(x));
+}
+
+// Test passing function by fn type
+func test_apply_binop() i64 {
+    var r1 i64 = apply_binop(&add, 10, 5);  // 15
+    var r2 i64 = apply_binop(&mul, r1, 2);  // 30
+    var r3 i64 = apply_binop(&add, r2, 12); // 42
+    return r3;
+}
+
+// Test function composition
+func test_compose() i64 {
+    // compose(double, add_one, 20) = double(add_one(20)) = double(21) = 42
+    return compose(&double, &add_one, 20);
+}
+
+// Variable with fn type
+func test_fn_var() i64 {
+    var f fn(i64, i64) i64 = &mul;
+    return f(6, 7);  // 42
+}
+
+func main() i64 {
+    if test_apply_binop() != 42 { return 1; }
+    if test_compose() != 42 { return 2; }
+    if test_fn_var() != 42 { return 3; }
+    return 42;
+}
