@@ -43,7 +43,7 @@ func main() i64 {
     print("\n");
 
     // Test emit_call
-    var args *u8 = vec_new();
+    var args *u8 = vec_new(4);
     vec_push(args, "1");
     vec_push(args, "2");
     vec_push(args, "3");

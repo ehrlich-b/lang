@@ -213,7 +213,7 @@ func free(ptr *u8) void;     // Free block allocated by malloc
 
 ### Dynamic Array (Vec)
 ```lang
-func vec_new() *u8;                       // Create new vec, returns handle
+func vec_new(cap i64) *u8;                // Create new vec with initial capacity
 func vec_len(v *u8) i64;                  // Get length
 func vec_get(v *u8, index i64) i64;       // Get element at index
 func vec_set(v *u8, index i64, val i64);  // Set element at index

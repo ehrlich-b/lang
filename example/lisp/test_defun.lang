@@ -1,0 +1,65 @@
+// Test defun - functions defined in Lisp, used from lang!
+include "std/core.lang"
+include "example/lisp/lisp.lang"
+
+// Define functions using Lisp syntax!
+#lisp{ (defun add (a b) (+ a b)) }
+#lisp{ (defun square (x) (* x x)) }
+#lisp{ (defun abs (x) (if (< x 0) (- 0 x) x)) }
+#lisp{ (defun max (a b) (if (> a b) a b)) }
+#lisp{ (defun factorial (n) (if (< n 2) 1 (* n (factorial (- n 1))))) }
+
+func main() i64 {
+    // Test add
+    var a i64 = add(3, 4);
+    print("add(3, 4) = ");
+    print_int(a);
+    println("");
+    if a != 7 { return 1; }
+
+    // Test square
+    var s i64 = square(5);
+    print("square(5) = ");
+    print_int(s);
+    println("");
+    if s != 25 { return 2; }
+
+    // Test abs
+    var p i64 = abs(10);
+    var n i64 = abs(-10);
+    print("abs(10) = ");
+    print_int(p);
+    print(", abs(-10) = ");
+    print_int(n);
+    println("");
+    if p != 10 { return 3; }
+    if n != 10 { return 4; }
+
+    // Test max
+    var m1 i64 = max(3, 7);
+    var m2 i64 = max(7, 3);
+    print("max(3,7) = ");
+    print_int(m1);
+    print(", max(7,3) = ");
+    print_int(m2);
+    println("");
+    if m1 != 7 { return 5; }
+    if m2 != 7 { return 6; }
+
+    // Test factorial (recursive!)
+    var f5 i64 = factorial(5);
+    print("factorial(5) = ");
+    print_int(f5);
+    println("");
+    if f5 != 120 { return 7; }
+
+    // The beautiful part: call Lisp-defined funcs from Lisp expressions!
+    var combo i64 = #lisp{ (add (square 3) (square 4)) };  // 9 + 16 = 25
+    print("(add (square 3) (square 4)) = ");
+    print_int(combo);
+    println("");
+    if combo != 25 { return 8; }
+
+    println("All tests passed!");
+    return 0;
+}

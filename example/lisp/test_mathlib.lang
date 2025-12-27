@@ -1,0 +1,68 @@
+// Test mathlib - using Lisp-defined functions from regular lang code!
+include "std/core.lang"
+include "example/lisp/mathlib.lang"
+
+func main() i64 {
+    println("=== Testing Lisp-defined math library ===");
+    println("");
+
+    // Test abs
+    print("abs(-42) = ");
+    print_int(abs(-42));
+    println("");
+    if abs(-42) != 42 { return 1; }
+    if abs(42) != 42 { return 2; }
+
+    // Test min/max
+    print("min(3, 7) = ");
+    print_int(min(3, 7));
+    print(", max(3, 7) = ");
+    print_int(max(3, 7));
+    println("");
+    if min(3, 7) != 3 { return 3; }
+    if max(3, 7) != 7 { return 4; }
+
+    // Test clamp
+    print("clamp(5, 0, 10) = ");
+    print_int(clamp(5, 0, 10));
+    print(", clamp(-5, 0, 10) = ");
+    print_int(clamp(-5, 0, 10));
+    print(", clamp(15, 0, 10) = ");
+    print_int(clamp(15, 0, 10));
+    println("");
+    if clamp(5, 0, 10) != 5 { return 5; }
+    if clamp(-5, 0, 10) != 0 { return 6; }
+    if clamp(15, 0, 10) != 10 { return 7; }
+
+    // Test factorial
+    print("factorial(6) = ");
+    print_int(factorial(6));
+    println("");
+    if factorial(6) != 720 { return 8; }
+
+    // Test fib
+    print("fib(10) = ");
+    print_int(fib(10));
+    println("");
+    if fib(10) != 55 { return 9; }
+
+    // Test predicates
+    print("is_even(4) = ");
+    print_int(is_even(4));
+    print(", is_odd(4) = ");
+    print_int(is_odd(4));
+    println("");
+    if is_even(4) != 1 { return 10; }
+    if is_odd(4) != 0 { return 11; }
+
+    // Test gcd
+    print("gcd(48, 18) = ");
+    print_int(gcd(48, 18));
+    println("");
+    if gcd(48, 18) != 6 { return 12; }
+
+    println("");
+    println("=== All tests passed! ===");
+    println("Lisp -> Lang interop works perfectly!");
+    return 0;
+}

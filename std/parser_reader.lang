@@ -2,24 +2,169 @@
 // std/parser_reader.lang - #parser{} Reader Macro
 // ============================================================
 //
-// Usage:
+// A PARSER GENERATOR that creates recursive descent parsers from
+// grammar specifications. The crown jewel of the reader macro system.
+//
+// ============================================================
+// QUICK START
+// ============================================================
+//
 //   include "std/parser_reader.lang"
 //
-//   func my_parser() void {
-//       #parser{
-//           sexp = number | symbol | list
-//           list = '(' sexp* ')'
-//       }
-//       // parse_sexp() and parse_list() are now available
+//   #parser{
+//       expr = number | symbol | list
+//       list = '(' expr* ')'
 //   }
 //
-// The reader generates:
-//   - struct PNode { kind, text, children }
-//   - func pnode_new(kind) *PNode
-//   - func pnode_atom(kind, text) *PNode
-//   - func pnode_list(children) *PNode
-//   - func parse_<rule>(t *Tokenizer) *PNode for each rule
+//   // Now you have: parse_expr(), parse_list()
 //
+// ============================================================
+// GRAMMAR SYNTAX
+// ============================================================
+//
+// RULES:
+//   rule_name = definition
+//
+// CHOICES (alternatives):
+//   expr = number | symbol | list     // matches any ONE of these
+//
+// SEQUENCES:
+//   list = '(' expr* ')'              // matches all in order
+//
+// MODIFIERS:
+//   elem*     Zero or more
+//   elem+     One or more
+//   elem?     Optional (zero or one)
+//
+// LITERALS (single characters):
+//   '('       Matches left paren
+//   ')'       Matches right paren
+//   '['       Matches left bracket
+//   ']'       Matches right bracket
+//   '{'       Matches left brace
+//   '}'       Matches right brace
+//   '+'       Matches plus
+//   '-'       Matches minus
+//   '*'       Matches star
+//   '/'       Matches slash
+//   ','       Matches comma
+//   '.'       Matches dot
+//   '='       Matches equals
+//
+// BUILT-IN TOKEN TYPES:
+//   number    Matches TOK_NUMBER (integers, negative numbers)
+//   symbol    Matches TOK_IDENT (identifiers)
+//   ident     Alias for symbol
+//   string    Matches TOK_STRING (quoted strings)
+//   operator  Matches +, -, *, / (for operator-first grammars like Lisp)
+//
+// RULE REFERENCES:
+//   list = '(' expr ')   // references the 'expr' rule
+//
+// GROUPING:
+//   item = (number | symbol)+   // parentheses for grouping
+//
+// ============================================================
+// GENERATED CODE
+// ============================================================
+//
+// For each grammar, #parser{} generates:
+//
+// STRUCT:
+//   struct PNode {
+//       kind i64;       // PNODE_* constant
+//       text *u8;       // Token text (for atoms)
+//       children *u8;   // Vec of *PNode (for lists/sequences)
+//   }
+//
+// HELPER FUNCTIONS:
+//   func pnode_new(kind i64) *PNode
+//   func pnode_atom(kind i64, text *u8) *PNode
+//   func pnode_list(children *u8) *PNode
+//
+// PARSER FUNCTIONS (one per rule):
+//   func parse_<rule>(t *Tokenizer) *PNode
+//
+// PNODE KINDS:
+//   1 = PNODE_NUMBER   (number token)
+//   2 = PNODE_SYMBOL   (symbol/ident token)
+//   3 = PNODE_STRING   (string token)
+//   4 = PNODE_LIST     (sequence or list)
+//   5 = PNODE_OPERATOR (operator token: + - * /)
+//
+// ============================================================
+// EXAMPLE: S-EXPRESSION PARSER
+// ============================================================
+//
+// Grammar:
+//   #parser{
+//       sexp = number | symbol | operator | list
+//       list = '(' sexp* ')'
+//   }
+//
+// Generated functions:
+//   parse_sexp(t) - parses any s-expression
+//   parse_list(t) - parses a list specifically
+//
+// Usage:
+//   var t *Tokenizer = tok_new("(+ 1 2)");
+//   var node *PNode = parse_sexp(t);
+//
+// Result structure for "(+ 1 2)":
+//   PNode{kind=4, children=[     // PNODE_LIST
+//       PNode{kind=0},           // '(' literal
+//       PNode{kind=4, children=[ // sexp* sequence
+//           PNode{kind=5, text="+"}, // PNODE_OPERATOR
+//           PNode{kind=1, text="1"}, // PNODE_NUMBER
+//           PNode{kind=1, text="2"}  // PNODE_NUMBER
+//       ]},
+//       PNode{kind=0}            // ')' literal
+//   ]}
+//
+// ============================================================
+// EXAMPLE: BUILDING A READER WITH #parser{}
+// ============================================================
+//
+// See example/lisp/lisp.lang for a complete example that uses
+// #parser{} to build a Lisp-to-Lang compiler.
+//
+// The pattern is:
+//   1. Define grammar with #parser{}
+//   2. Write a conversion function (e.g., lisp_to_lang)
+//   3. Create a reader that calls parse_* and converts
+//
+//   include "std/parser_reader.lang"
+//
+//   #parser{
+//       sexp = number | symbol | operator | list
+//       list = '(' sexp* ')'
+//   }
+//
+//   func my_convert(node *PNode) *u8 {
+//       // Walk the AST and generate lang code
+//       ...
+//   }
+//
+//   reader myreader(text *u8) *u8 {
+//       var t *Tokenizer = tok_new(text);
+//       var node *PNode = parse_sexp(t);
+//       return my_convert(node);
+//   }
+//
+// ============================================================
+// DEPENDENCIES
+// ============================================================
+//
+// Automatically includes:
+//   - std/tok.lang (Tokenizer)
+//   - std/emit.lang (StringBuilder, code generation helpers)
+//   - std/grammar.lang (grammar parsing)
+//   - std/rdgen.lang (parser code generation)
+//
+// The Tokenizer from std/tok.lang is used by generated parsers.
+// You can use tok_new(), tok_kind(), tok_text(), etc.
+//
+// ============================================================
 
 // rdgen.lang includes grammar.lang which includes tok.lang and emit.lang
 include "std/rdgen.lang"

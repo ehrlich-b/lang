@@ -1,0 +1,32 @@
+// ============================================================
+// mathlib.lang - A math library written in Lisp!
+// ============================================================
+//
+// This file defines functions using Lisp syntax, but they're
+// usable from any .lang file just like normal lang functions.
+//
+// Usage:
+//   include "example/lisp/mathlib.lang"
+//   var x i64 = abs(-42);  // Works!
+
+include "example/lisp/lisp.lang"
+
+// Basic arithmetic
+#lisp{ (defun abs (x) (if (< x 0) (- 0 x) x)) }
+#lisp{ (defun min (a b) (if (< a b) a b)) }
+#lisp{ (defun max (a b) (if (> a b) a b)) }
+#lisp{ (defun clamp (x lo hi) (min (max x lo) hi)) }
+
+// Factorial and fibonacci
+#lisp{ (defun factorial (n) (if (< n 2) 1 (* n (factorial (- n 1))))) }
+#lisp{ (defun fib (n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))) }
+
+// Simple predicates
+#lisp{ (defun is_zero (x) (if (= x 0) 1 0)) }
+#lisp{ (defun is_positive (x) (if (> x 0) 1 0)) }
+#lisp{ (defun is_negative (x) (if (< x 0) 1 0)) }
+#lisp{ (defun is_even (x) (if (= (% x 2) 0) 1 0)) }
+#lisp{ (defun is_odd (x) (if (= (% x 2) 0) 0 1)) }
+
+// GCD using Euclidean algorithm
+#lisp{ (defun gcd (a b) (if (= b 0) a (gcd b (% a b)))) }

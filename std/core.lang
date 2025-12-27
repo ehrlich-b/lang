@@ -103,20 +103,23 @@ func free(ptr *u8) {
 // Vec layout: [capacity:8][length:8][data:8] = 24 bytes
 // Data array stores i64 values (8 bytes each)
 
-func vec_new() *u8 {
+func vec_new(cap i64) *u8 {
     var v *u8 = malloc(24);
 
-    // Initialize capacity to 8
+    // Initialize capacity
+    if cap < 4 {
+        cap = 4;
+    }
     var cap_ptr *i64 = v;
-    *cap_ptr = 8;
+    *cap_ptr = cap;
 
     // Initialize length to 0
     var len_ptr *i64 = v + 8;
     *len_ptr = 0;
 
-    // Allocate initial data array (8 slots * 8 bytes = 64 bytes)
+    // Allocate initial data array
     var data_ptr **u8 = v + 16;
-    *data_ptr = malloc(64);
+    *data_ptr = malloc(cap * 8);
 
     return v;
 }

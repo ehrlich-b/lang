@@ -2,25 +2,27 @@
 // Lisp Reader - S-Expressions to Lang
 // ============================================================
 //
-// The GRAND FINALE: A complete Lisp-to-Lang compiler built with
-// reader macros. This proves the "compiler compiler" vision works.
+// A Lisp-to-Lang compiler built with reader macros.
 //
-// Usage:
-//   include "example/lisp/lisp.lang"
+// EXPRESSIONS:
+//   #lisp{ (+ 1 2) }           // => 3
+//   #lisp{ (* 2 (+ 3 4)) }     // => 14
+//   #lisp{ (if (< x 0) 0 x) }  // => conditional
+//   #lisp{ (foo 1 2) }         // => function call
 //
-//   var x i64 = #lisp{ (+ 1 2) };           // x = 3
-//   var y i64 = #lisp{ (* 2 (+ 3 4)) };     // y = 14
-//   var z i64 = #lisp{ (+ 1 2 3 4 5) };     // z = 15
+// DEFINITIONS (at top level):
+//   #lisp{ (defun add (a b) (+ a b)) }  // defines func add()
+//   #lisp{ (defun abs (x) (if (< x 0) (- 0 x) x)) }
 //
-// How it works:
-//   1. #lisp{...} invokes this reader at compile time
-//   2. Reader uses #parser{} to parse the s-expression
-//   3. Parser was ALSO built with a reader macro!
-//   4. Returns lang source code: "(1 + 2)"
-//   5. Compiler parses that as a lang expression
-//   6. Zero runtime overhead - it's all compile time
+// SUPPORTED FORMS:
+//   Arithmetic:  + - * / %
+//   Comparison:  < > <= >= = !=
+//   Boolean:     and or not
+//   Control:     if
+//   Definition:  defun
+//   Calls:       (funcname args...)
 //
-// The beauty: readers building readers, all the way down.
+// All types are i64. No closures, no lists, no macros (yet).
 
 include "std/parser_reader.lang"
 
@@ -30,17 +32,82 @@ include "std/parser_reader.lang"
     list = '(' sexp* ')'
 }
 
-// Convert parsed s-expression to lang source code
+// ============================================================
+// Lisp to Lang Conversion
+// ============================================================
+
 func lisp_to_lang(node *PNode) *u8 {
     if node == nil {
         return "0";
     }
-
     var sb *StringBuilder = sb_new();
     lisp_emit(sb, node);
     return sb_finish(sb);
 }
 
+// Get the inner elements of a list node
+// list = ['(', sexp*, ')'] - we want index 1 (the sexp*)
+func list_inner(node *PNode) *PNode {
+    return vec_get(node.children, 1);
+}
+
+// Get element at index from inner list
+func list_get(node *PNode, i i64) *PNode {
+    var inner *PNode = list_inner(node);
+    return vec_get(inner.children, i);
+}
+
+// Get count of elements in inner list
+func list_len(node *PNode) i64 {
+    var inner *PNode = list_inner(node);
+    return vec_len(inner.children);
+}
+
+// Check if node is a symbol with given name
+func is_symbol(node *PNode, name *u8) bool {
+    if node == nil { return false; }
+    if node.kind != 2 { return false; }  // 2 = PNODE_SYMBOL
+    return streq(node.text, name);
+}
+
+// Check if symbol is a comparison operator
+func is_comparison(name *u8) bool {
+    if streq(name, "<") { return true; }
+    if streq(name, ">") { return true; }
+    if streq(name, "<=") { return true; }
+    if streq(name, ">=") { return true; }
+    if streq(name, "=") { return true; }
+    if streq(name, "!=") { return true; }
+    return false;
+}
+
+// Get lang operator for comparison
+func comparison_op(name *u8) *u8 {
+    if streq(name, "=") { return "=="; }
+    if streq(name, "!=") { return "!="; }
+    return name;  // <, >, <=, >= are same
+}
+
+// Check if symbol is an arithmetic operator
+func is_arith(name *u8) bool {
+    if streq(name, "+") { return true; }
+    if streq(name, "-") { return true; }
+    if streq(name, "*") { return true; }
+    if streq(name, "/") { return true; }
+    if streq(name, "%") { return true; }
+    return false;
+}
+
+// Check if node is an if-expression
+func is_if_expr(node *PNode) bool {
+    if node == nil { return false; }
+    if node.kind != 4 { return false; }  // 4 = PNODE_LIST
+    if list_len(node) < 4 { return false; }
+    var first *PNode = list_get(node, 0);
+    return is_symbol(first, "if");
+}
+
+// Main emit function
 func lisp_emit(sb *StringBuilder, node *PNode) void {
     if node == nil {
         sb_str(sb, "0");
@@ -59,67 +126,258 @@ func lisp_emit(sb *StringBuilder, node *PNode) void {
         return;
     }
 
-    // kind 5 = operator
+    // kind 5 = operator (standalone)
     if node.kind == 5 {
         sb_str(sb, node.text);
         return;
     }
 
-    // kind 4 = list: (op arg1 arg2 ...)
+    // kind 4 = list
     if node.kind == 4 {
-        // List structure: [lparen, sexp*, rparen]
-        // The sexp* node at index 1 contains the actual elements
-        var inner *PNode = vec_get(node.children, 1);
-        var count i64 = vec_len(inner.children);
-
+        var count i64 = list_len(node);
         if count == 0 {
             sb_str(sb, "0");
             return;
         }
 
-        // First element is the operator
-        var op_node *PNode = vec_get(inner.children, 0);
-        if op_node == nil {
+        var first *PNode = list_get(node, 0);
+        if first == nil {
             sb_str(sb, "0");
             return;
         }
 
-        var op *u8 = op_node.text;
+        // ============================================================
+        // DEFUN: (defun name (params...) body)
+        // ============================================================
+        if is_symbol(first, "defun") {
+            if count < 4 {
+                sb_str(sb, "/* defun needs name, params, body */");
+                return;
+            }
 
-        if count == 1 {
-            // Just the operator, treat as value
-            lisp_emit(sb, op_node);
+            var name_node *PNode = list_get(node, 1);
+            var params_node *PNode = list_get(node, 2);
+            var body_node *PNode = list_get(node, 3);
+
+            // func name(
+            sb_str(sb, "func ");
+            sb_str(sb, name_node.text);
+            sb_str(sb, "(");
+
+            // params - all i64
+            var param_count i64 = list_len(params_node);
+            var pi i64 = 0;
+            while pi < param_count {
+                if pi > 0 {
+                    sb_str(sb, ", ");
+                }
+                var param *PNode = list_get(params_node, pi);
+                sb_str(sb, param.text);
+                sb_str(sb, " i64");
+                pi = pi + 1;
+            }
+
+            sb_str(sb, ") i64 {\n");
+
+            // Check if body is an if - generate proper if-statements
+            if is_if_expr(body_node) {
+                lisp_emit_if_body(sb, body_node, "    ");
+            } else {
+                // Normal expression body
+                sb_str(sb, "    return ");
+                lisp_emit(sb, body_node);
+                sb_str(sb, ";\n");
+            }
+
+            sb_str(sb, "}\n");
             return;
         }
 
-        if count == 2 {
-            // Unary: (- x) -> (0 - x)
-            sb_str(sb, "(0 ");
-            sb_str(sb, op);
-            sb_str(sb, " ");
-            lisp_emit(sb, vec_get(inner.children, 1));
+        // ============================================================
+        // IF: (if cond then else) - expression form
+        // ============================================================
+        if is_symbol(first, "if") {
+            if count < 4 {
+                sb_str(sb, "/* if needs cond, then, else */");
+                return;
+            }
+
+            var cond_node *PNode = list_get(node, 1);
+            var then_node *PNode = list_get(node, 2);
+            var else_node *PNode = list_get(node, 3);
+
+            // Use multiplication trick: cond*then + !cond*else
+            // WARNING: This evaluates both branches! Don't use for recursion.
+            sb_str(sb, "((");
+            lisp_emit(sb, cond_node);
+            sb_str(sb, ") * (");
+            lisp_emit(sb, then_node);
+            sb_str(sb, ") + (!(");
+            lisp_emit(sb, cond_node);
+            sb_str(sb, ")) * (");
+            lisp_emit(sb, else_node);
+            sb_str(sb, "))");
+            return;
+        }
+
+        // ============================================================
+        // AND: (and a b) -> (a && b)
+        // ============================================================
+        if is_symbol(first, "and") {
+            sb_str(sb, "(");
+            var ai i64 = 1;
+            while ai < count {
+                if ai > 1 {
+                    sb_str(sb, " && ");
+                }
+                lisp_emit(sb, list_get(node, ai));
+                ai = ai + 1;
+            }
             sb_str(sb, ")");
             return;
         }
 
-        // Binary or n-ary: (+ a b c) -> ((a + b) + c)
-        sb_str(sb, "(");
-        lisp_emit(sb, vec_get(inner.children, 1));
-
-        var i i64 = 2;
-        while i < count {
-            sb_str(sb, " ");
-            sb_str(sb, op);
-            sb_str(sb, " ");
-            lisp_emit(sb, vec_get(inner.children, i));
-            i = i + 1;
+        // ============================================================
+        // OR: (or a b) -> (a || b)
+        // ============================================================
+        if is_symbol(first, "or") {
+            sb_str(sb, "(");
+            var oi i64 = 1;
+            while oi < count {
+                if oi > 1 {
+                    sb_str(sb, " || ");
+                }
+                lisp_emit(sb, list_get(node, oi));
+                oi = oi + 1;
+            }
+            sb_str(sb, ")");
+            return;
         }
-        sb_str(sb, ")");
+
+        // ============================================================
+        // NOT: (not x) -> (!x)
+        // ============================================================
+        if is_symbol(first, "not") {
+            sb_str(sb, "(!");
+            lisp_emit(sb, list_get(node, 1));
+            sb_str(sb, ")");
+            return;
+        }
+
+        // ============================================================
+        // COMPARISONS: (< a b) -> (a < b)
+        // ============================================================
+        if (first.kind == 2 || first.kind == 5) && is_comparison(first.text) {
+            if count < 3 {
+                sb_str(sb, "0");
+                return;
+            }
+            sb_str(sb, "(");
+            lisp_emit(sb, list_get(node, 1));
+            sb_str(sb, " ");
+            sb_str(sb, comparison_op(first.text));
+            sb_str(sb, " ");
+            lisp_emit(sb, list_get(node, 2));
+            sb_str(sb, ")");
+            return;
+        }
+
+        // ============================================================
+        // ARITHMETIC: (+ a b c) -> ((a + b) + c)
+        // ============================================================
+        var op *u8 = nil;
+        if first.kind == 5 {
+            op = first.text;  // operator token
+        } else if first.kind == 2 && is_arith(first.text) {
+            op = first.text;  // symbol that's an operator name
+        }
+
+        if op != nil {
+            if count == 1 {
+                lisp_emit(sb, first);
+                return;
+            }
+
+            if count == 2 {
+                // Unary: (- x) -> (0 - x)
+                sb_str(sb, "(0 ");
+                sb_str(sb, op);
+                sb_str(sb, " ");
+                lisp_emit(sb, list_get(node, 1));
+                sb_str(sb, ")");
+                return;
+            }
+
+            // Binary or n-ary
+            sb_str(sb, "(");
+            lisp_emit(sb, list_get(node, 1));
+            var i i64 = 2;
+            while i < count {
+                sb_str(sb, " ");
+                sb_str(sb, op);
+                sb_str(sb, " ");
+                lisp_emit(sb, list_get(node, i));
+                i = i + 1;
+            }
+            sb_str(sb, ")");
+            return;
+        }
+
+        // ============================================================
+        // FUNCTION CALL: (foo a b) -> foo(a, b)
+        // ============================================================
+        if first.kind == 2 {
+            sb_str(sb, first.text);
+            sb_str(sb, "(");
+            var ci i64 = 1;
+            while ci < count {
+                if ci > 1 {
+                    sb_str(sb, ", ");
+                }
+                lisp_emit(sb, list_get(node, ci));
+                ci = ci + 1;
+            }
+            sb_str(sb, ")");
+            return;
+        }
+
+        // Unknown form
+        sb_str(sb, "/* unknown */0");
         return;
     }
 
     // Unknown kind
     sb_str(sb, "0");
+}
+
+// Emit if as statements for function bodies (proper short-circuit)
+func lisp_emit_if_body(sb *StringBuilder, node *PNode, indent *u8) void {
+    var cond_node *PNode = list_get(node, 1);
+    var then_node *PNode = list_get(node, 2);
+    var else_node *PNode = list_get(node, 3);
+
+    sb_str(sb, indent);
+    sb_str(sb, "if (");
+    lisp_emit(sb, cond_node);
+    sb_str(sb, ") {\n");
+    sb_str(sb, indent);
+    sb_str(sb, "    return ");
+    lisp_emit(sb, then_node);
+    sb_str(sb, ";\n");
+    sb_str(sb, indent);
+    sb_str(sb, "}\n");
+
+    // Handle else-if chains
+    if is_if_expr(else_node) {
+        sb_str(sb, indent);
+        sb_str(sb, "else ");
+        lisp_emit_if_body(sb, else_node, "");
+    } else {
+        sb_str(sb, indent);
+        sb_str(sb, "return ");
+        lisp_emit(sb, else_node);
+        sb_str(sb, ";\n");
+    }
 }
 
 reader lisp(text *u8) *u8 {

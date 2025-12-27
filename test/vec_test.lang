@@ -2,7 +2,7 @@
 
 func main() i64 {
     // Test 1: Create vec and check initial state
-    var v *u8 = vec_new();
+    var v *u8 = vec_new(8);
     if vec_len(v) != 0 {
         return 1;
     }
@@ -71,7 +71,7 @@ func main() i64 {
     }
 
     // Test 6: Create second vec (ensure independence)
-    var v2 *u8 = vec_new();
+    var v2 *u8 = vec_new(8);
     vec_push(v2, 1);
     vec_push(v2, 2);
     if vec_len(v2) != 2 {

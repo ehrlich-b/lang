@@ -1172,7 +1172,7 @@ func parser_token_count() i64 {
 // ============================================================
 
 func parser_init() void {
-    parse_tokens = vec_new();
+    parse_tokens = vec_new(8);
     parse_current = 0;
     parse_error_count = 0;
 }
@@ -1954,7 +1954,7 @@ func parse_expression_from_string(source *u8) *u8 {
     var saved_errors i64 = parse_error_count;
 
     // Initialize fresh state
-    parse_tokens = vec_new();
+    parse_tokens = vec_new(8);
     parse_current = 0;
     parse_error_count = 0;
 
@@ -1986,7 +1986,7 @@ func parse_program_from_string(source *u8) *u8 {
     var saved_errors i64 = parse_error_count;
 
     // Initialize fresh state
-    parse_tokens = vec_new();
+    parse_tokens = vec_new(8);
     parse_current = 0;
     parse_error_count = 0;
 
