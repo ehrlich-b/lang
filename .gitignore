@@ -12,3 +12,4 @@ archive/boot-go/lang0
 
 # OS
 .DS_Store
+.lang-cache/

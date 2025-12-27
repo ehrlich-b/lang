@@ -1,0 +1,20 @@
+// Expected: 5
+// Test labeled break - breaks outer loop from inner loop
+func main() i64 {
+    var sum i64 = 0;
+    var i i64 = 0;
+
+    outer:
+    while i < 10 {
+        var j i64 = 0;
+        while j < 5 {
+            sum = sum + 1;
+            j = j + 1;
+        }
+        // After inner loop runs once, break outer
+        break outer;
+        i = i + 1;
+    }
+
+    return sum;
+}

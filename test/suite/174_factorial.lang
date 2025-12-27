@@ -1,3 +1,4 @@
+// Expected: 0
 // Factorial - tests loops and arithmetic
 func factorial(n i64) i64 {
     var result i64 = 1;

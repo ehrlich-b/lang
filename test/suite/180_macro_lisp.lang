@@ -1,3 +1,4 @@
+// Expected: 139
 // macro_lisp_test.lang
 // Church-style: EVERYTHING is a macro, even control flow
 // This looks like Lisp had a baby with APL

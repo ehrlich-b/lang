@@ -1,3 +1,4 @@
+// Expected: 0
 // Test: macro syntax parsing
 // This tests that the parser can handle macro syntax
 

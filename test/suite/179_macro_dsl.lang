@@ -1,3 +1,4 @@
+// Expected: 42
 // macro_dsl_test.lang
 // A macro-powered expression DSL
 // This looks NOTHING like C - almost Lisp-style!

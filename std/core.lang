@@ -638,3 +638,38 @@ func print_int(n i64) {
         divisor = divisor / 10;
     }
 }
+
+// Convert integer to string, write to buffer, return length
+func itoa(n i64, buf *u8) i64 {
+    var pos i64 = 0;
+
+    if n < 0 {
+        *(buf + pos) = 45;  // '-'
+        pos = pos + 1;
+        n = 0 - n;
+    }
+
+    if n == 0 {
+        *(buf + pos) = 48;  // '0'
+        return pos + 1;
+    }
+
+    // Find the highest power of 10
+    var divisor i64 = 1;
+    var temp i64 = n;
+    while temp >= 10 {
+        temp = temp / 10;
+        divisor = divisor * 10;
+    }
+
+    // Write each digit
+    while divisor > 0 {
+        var digit i64 = n / divisor;
+        *(buf + pos) = 48 + digit;
+        pos = pos + 1;
+        n = n % divisor;
+        divisor = divisor / 10;
+    }
+
+    return pos;
+}

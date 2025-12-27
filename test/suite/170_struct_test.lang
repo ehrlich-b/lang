@@ -1,3 +1,4 @@
+// Expected: 142
 // Struct field access and assignment test
 
 struct Point {

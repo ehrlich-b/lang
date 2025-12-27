@@ -1,3 +1,4 @@
+// Expected: 0
 // Test u8 array access via pointer arithmetic
 
 func main() i64 {

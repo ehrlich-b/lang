@@ -1,3 +1,4 @@
+// Expected: 0
 // Pointer operations test
 func main() i64 {
     var x i64 = 42;

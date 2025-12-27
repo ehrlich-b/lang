@@ -28,7 +28,7 @@ We keep tripping over missing features and bugs. Fix these before pushing forwar
 
 | Bug | Severity | Status |
 |-----|----------|--------|
-| >6 parameters generates broken assembly | High | **TODO** |
+| ~~>6 parameters generates broken assembly~~ | High | FIXED |
 | ~~`*(struct.ptr_field)` reads 8 bytes~~ | High | FIXED |
 | ~~No argument count checking~~ | Medium | FIXED |
 | ~~Duplicate includes fail~~ | Medium | FIXED |
@@ -37,10 +37,10 @@ We keep tripping over missing features and bugs. Fix these before pushing forwar
 
 | Feature | Pain Level | Status |
 |---------|-----------|--------|
-| Character literals `'A'` | High - use 65 everywhere | **TODO** |
-| Bitwise operators `& \| ^ << >>` | High - can't do bit manipulation | **TODO** |
-| Compound assignment `+= -=` | Medium - verbose | TODO |
-| `break` / `continue` | Medium - awkward loops | TODO |
+| ~~Character literals `'A'`~~ | High - use 65 everywhere | FIXED |
+| ~~Bitwise operators `& \| ^ << >>`~~ | High - can't do bit manipulation | FIXED |
+| ~~Compound assignment `+= -= *= /= %=`~~ | Medium - verbose | FIXED |
+| ~~`break` / `continue` / labeled break~~ | Medium - awkward loops | FIXED |
 | `for` loop sugar | Low - while works | TODO |
 
 ### Works Fine (I Was Wrong!)
@@ -65,16 +65,24 @@ These features already work - don't waste time on them:
 
 ## Next Up: File Extension Dispatch
 
+Two modes:
+
 ```bash
-lang reader.lang main.lisp  →  native executable
+# Build-time compilation
+# .lisp gets wrapped in #lisp{ contents }, finds reader in provided .lang files
+lang reader_lisp.lang program.lisp -o program
+
+# Standalone compiler generation
+# -c lisp means "make a compiler for the 'lisp' reader"
+lang -c lisp reader_lisp.lang -o lisp_compiler
+./lisp_compiler program.lisp -o program
 ```
 
-- [ ] Detect file extension
-- [ ] Find matching reader
-- [ ] Wrap file content in `#reader{...}`
-- [ ] Compile and run
+The file extension *is* the reader name. Mix `.lang` and `.whatever` files freely - one needs a main.
 
-This completes the "language forge" vision.
+- [ ] Detect non-.lang extensions, wrap in `#ext{ contents }`
+- [ ] `-c <reader>` flag to generate standalone compiler
+- [ ] Find reader macro by name in provided sources
 
 ---
 
@@ -89,7 +97,7 @@ Ultimate proof the compiler compiler works - lang defines itself.
 ## Stdlib Gaps
 
 - [ ] `memcpy`, `memset`
-- [ ] `itoa` (number to string)
+- [x] `itoa` (number to string)
 - [ ] `read_file` (returns contents as string)
 - [ ] String builder (have it, needs polish)
 

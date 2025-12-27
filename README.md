@@ -1,55 +1,36 @@
 # language
 
-*"There are many like it but this one is mine."*
+A self-hosted compiler compiler (not a typo).
 
-**Racket-style power with Zig-style minimalism. For fun.**
-
-A self-hosted language forge: full-power reader macros, parsing toolkit, bare-metal output.
-
-## The Gist
+Write a reader macro that parses some syntax. It outputs lang source. That gets compiled to x86. You now have a native compiler for whatever syntax you defined.
 
 ```lang
-// C-like syntax, bare-metal output
-struct Point {
-    x i64;
-    y i64;
-}
-
-func main() i64 {
-    var p Point;
-    p.x = 42;
-    p.y = 100;
-    return p.x + p.y;  // 142
-}
-
-// AST macros for compile-time code generation
-macro double(x) {
-    return ${ $x + $x };
-}
-
-var n i64 = double(21);  // expands to (21 + 21) = 42
-
-// Reader macros for custom syntax (WIP: full-power V2)
+// Define a reader that handles lisp syntax
 reader lisp(text *u8) *u8 { /* parse s-exprs, emit lang */ }
 
+// Use it inline - this compiles to native code
 var answer i64 = #lisp{(* (+ 3 3) (+ 3 4))};  // 42
 ```
 
-## What Is This?
+The compiler compiles itself. Reader macros are compiled to native executables and invoked during compilation. There's no interpreter, no VM, no runtime.
 
-A language that can extend its own syntax and compiles to native code with no runtime.
+The endgame (not yet implemented):
 
-**Inspired by:**
-- [Racket](https://racket-lang.org/) - Language-oriented programming, reader macros, `#lang`
-- [Zig](https://ziglang.org/) - No runtime, comptime, simplicity
+```bash
+# Build-time: file extension selects the reader
+# .lisp files get wrapped in #lisp{ ... } automatically
+lang reader_lisp.lang program.lisp -o program
 
-**The goal:** Racket's metaprogramming power without the runtime. Zig's bare-metal philosophy with real syntax extensibility.
+# Or generate a standalone compiler
+lang -c lisp reader_lisp.lang -o lisp_compiler
+./lisp_compiler program.lisp -o program
+```
+
+The file extension *is* the reader name. A `.lisp` file gets wrapped in `#lisp{ contents }`. A `.bf` file would use `#bf{ contents }`. Mix `.lang` files with any other extension - one of them needs a main.
 
 ## Status
 
-- **Self-hosted**: Compiler compiles itself, reaches fixed point
-- **AST macros**: Working (`macro`, `${ }`, `$name`, `$@name`)
-- **Reader macros V1**: Syntax works, toy interpreter (V2 in progress with full lang power)
+Self-hosted and at fixed point. AST macros work. Reader macros V2 work (full lang power, native compilation). Currently polishing rough edges.
 
 ## Building
 

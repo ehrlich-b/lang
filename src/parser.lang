@@ -37,6 +37,8 @@ var NODE_IMPORT i64 = 24;         // import "path"
 var NODE_READER_DECL i64 = 25;    // reader name(text) { }
 var NODE_READER_EXPR i64 = 26;    // #name{content} - reader macro invocation
 var NODE_INCLUDE_DECL i64 = 27;   // include "path"
+var NODE_BREAK_STMT i64 = 28;     // break
+var NODE_CONTINUE_STMT i64 = 29;  // continue
 
 // Type kinds
 var TYPE_BASE i64 = 1;
@@ -54,7 +56,9 @@ var TYPE_ARRAY i64 = 3;
 // VarDecl: [kind:8][name_ptr:8][name_len:8][type:8][init:8] = 40 bytes
 // BlockStmt: [kind:8][stmts:8][stmt_count:8] = 24 bytes
 // IfStmt: [kind:8][cond:8][then:8][else:8] = 32 bytes
-// WhileStmt: [kind:8][cond:8][body:8] = 24 bytes
+// WhileStmt: [kind:8][cond:8][body:8][label_ptr:8][label_len:8] = 40 bytes
+// BreakStmt: [kind:8][label_ptr:8][label_len:8] = 24 bytes
+// ContinueStmt: [kind:8][label_ptr:8][label_len:8] = 24 bytes
 // ReturnStmt: [kind:8][value:8] = 16 bytes
 // ExprStmt: [kind:8][expr:8] = 16 bytes
 // BinaryExpr: [kind:8][op:8][left:8][right:8] = 32 bytes
@@ -377,7 +381,7 @@ func if_stmt_set_else(node *u8, els *u8) void {
 // ============================================================
 
 func while_stmt_alloc() *u8 {
-    var node *u8 = alloc(24);
+    var node *u8 = alloc(40);
     node_set_kind(node, NODE_WHILE_STMT);
     return node;
 }
@@ -400,6 +404,86 @@ func while_stmt_body(node *u8) *u8 {
 func while_stmt_set_body(node *u8, body *u8) void {
     var p **u8 = node + 16;
     *p = body;
+}
+
+func while_stmt_label(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func while_stmt_set_label(node *u8, label *u8) void {
+    var p **u8 = node + 24;
+    *p = label;
+}
+
+func while_stmt_label_len(node *u8) i64 {
+    var p *i64 = node + 32;
+    return *p;
+}
+
+func while_stmt_set_label_len(node *u8, len i64) void {
+    var p *i64 = node + 32;
+    *p = len;
+}
+
+// ============================================================
+// BreakStmt accessors
+// ============================================================
+
+func break_stmt_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_BREAK_STMT);
+    return node;
+}
+
+func break_stmt_label(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func break_stmt_set_label(node *u8, label *u8) void {
+    var p **u8 = node + 8;
+    *p = label;
+}
+
+func break_stmt_label_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func break_stmt_set_label_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+// ============================================================
+// ContinueStmt accessors
+// ============================================================
+
+func continue_stmt_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_CONTINUE_STMT);
+    return node;
+}
+
+func continue_stmt_label(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func continue_stmt_set_label(node *u8, label *u8) void {
+    var p **u8 = node + 8;
+    *p = label;
+}
+
+func continue_stmt_label_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func continue_stmt_set_label_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
 }
 
 // ============================================================
@@ -1211,6 +1295,13 @@ func parse_peek() *u8 {
     return get_token(parse_current);
 }
 
+func parse_peek_next() *u8 {
+    if parse_current + 1 >= parser_token_count() {
+        return nil;
+    }
+    return get_token(parse_current + 1);
+}
+
 func parse_previous() *u8 {
     return get_token(parse_current - 1);
 }
@@ -1314,6 +1405,27 @@ func parse_assignment() *u8 {
         binary_expr_set_right(node, value);
         return node;
     }
+    // Compound assignment: x += y  =>  x = x + y
+    var compound_op i64 = 0;
+    if parse_match(TOKEN_PLUSEQ) { compound_op = TOKEN_PLUS; }
+    else if parse_match(TOKEN_MINUSEQ) { compound_op = TOKEN_MINUS; }
+    else if parse_match(TOKEN_STAREQ) { compound_op = TOKEN_STAR; }
+    else if parse_match(TOKEN_SLASHEQ) { compound_op = TOKEN_SLASH; }
+    else if parse_match(TOKEN_PERCENTEQ) { compound_op = TOKEN_PERCENT; }
+    if compound_op != 0 {
+        var value *u8 = parse_assignment();
+        // Build: x + y
+        var binop *u8 = binary_expr_alloc();
+        binary_expr_set_op(binop, compound_op);
+        binary_expr_set_left(binop, expr);
+        binary_expr_set_right(binop, value);
+        // Build: x = (x + y)
+        var assign *u8 = binary_expr_alloc();
+        binary_expr_set_op(assign, TOKEN_EQ);
+        binary_expr_set_left(assign, expr);
+        binary_expr_set_right(assign, binop);
+        return assign;
+    }
     return expr;
 }
 
@@ -1331,11 +1443,50 @@ func parse_or() *u8 {
 }
 
 func parse_and() *u8 {
-    var expr *u8 = parse_equality();
+    var expr *u8 = parse_bitor();
     while parse_match(TOKEN_AMPAMP) {
-        var right *u8 = parse_equality();
+        var right *u8 = parse_bitor();
         var node *u8 = binary_expr_alloc();
         binary_expr_set_op(node, TOKEN_AMPAMP);
+        binary_expr_set_left(node, expr);
+        binary_expr_set_right(node, right);
+        expr = node;
+    }
+    return expr;
+}
+
+func parse_bitor() *u8 {
+    var expr *u8 = parse_bitxor();
+    while parse_match(TOKEN_PIPE) {
+        var right *u8 = parse_bitxor();
+        var node *u8 = binary_expr_alloc();
+        binary_expr_set_op(node, TOKEN_PIPE);
+        binary_expr_set_left(node, expr);
+        binary_expr_set_right(node, right);
+        expr = node;
+    }
+    return expr;
+}
+
+func parse_bitxor() *u8 {
+    var expr *u8 = parse_bitand();
+    while parse_match(TOKEN_CARET) {
+        var right *u8 = parse_bitand();
+        var node *u8 = binary_expr_alloc();
+        binary_expr_set_op(node, TOKEN_CARET);
+        binary_expr_set_left(node, expr);
+        binary_expr_set_right(node, right);
+        expr = node;
+    }
+    return expr;
+}
+
+func parse_bitand() *u8 {
+    var expr *u8 = parse_equality();
+    while parse_match(TOKEN_AMP) {
+        var right *u8 = parse_equality();
+        var node *u8 = binary_expr_alloc();
+        binary_expr_set_op(node, TOKEN_AMP);
         binary_expr_set_left(node, expr);
         binary_expr_set_right(node, right);
         expr = node;
@@ -1358,9 +1509,23 @@ func parse_equality() *u8 {
 }
 
 func parse_comparison() *u8 {
-    var expr *u8 = parse_additive();
+    var expr *u8 = parse_shift();
     while parse_check(TOKEN_LT) || parse_check(TOKEN_GT) ||
           parse_check(TOKEN_LTEQ) || parse_check(TOKEN_GTEQ) {
+        var op i64 = tok_type(parse_advance());
+        var right *u8 = parse_shift();
+        var node *u8 = binary_expr_alloc();
+        binary_expr_set_op(node, op);
+        binary_expr_set_left(node, expr);
+        binary_expr_set_right(node, right);
+        expr = node;
+    }
+    return expr;
+}
+
+func parse_shift() *u8 {
+    var expr *u8 = parse_additive();
+    while parse_check(TOKEN_LTLT) || parse_check(TOKEN_GTGT) {
         var op i64 = tok_type(parse_advance());
         var right *u8 = parse_additive();
         var node *u8 = binary_expr_alloc();
@@ -1595,7 +1760,26 @@ func parse_block() *u8 {
     return node;
 }
 
+// Track pending label for next while statement
+var parse_pending_label *u8 = nil;
+var parse_pending_label_len i64 = 0;
+
 func parse_statement() *u8 {
+    // Check for label: IDENT followed by COLON
+    if parse_check(TOKEN_IDENT) {
+        var tok *u8 = parse_peek();
+        var next *u8 = parse_peek_next();
+        if next != nil && tok_type(next) == TOKEN_COLON {
+            // This is a label
+            parse_advance();  // consume IDENT
+            parse_advance();  // consume COLON
+            parse_pending_label = tok_lexeme(tok);
+            parse_pending_label_len = tok_lexeme_len(tok);
+            // The next statement (must be while) will pick up the label
+            return parse_statement();
+        }
+    }
+
     if parse_match(TOKEN_VAR) {
         return parse_var_decl();
     }
@@ -1607,6 +1791,34 @@ func parse_statement() *u8 {
     }
     if parse_match(TOKEN_RETURN) {
         return parse_return_stmt();
+    }
+    if parse_match(TOKEN_BREAK) {
+        var node *u8 = break_stmt_alloc();
+        // Check for optional label
+        if parse_check(TOKEN_IDENT) {
+            var label_tok *u8 = parse_advance();
+            break_stmt_set_label(node, tok_lexeme(label_tok));
+            break_stmt_set_label_len(node, tok_lexeme_len(label_tok));
+        } else {
+            break_stmt_set_label(node, nil);
+            break_stmt_set_label_len(node, 0);
+        }
+        parse_expect(TOKEN_SEMICOLON, "expected ';' after break");
+        return node;
+    }
+    if parse_match(TOKEN_CONTINUE) {
+        var node *u8 = continue_stmt_alloc();
+        // Check for optional label
+        if parse_check(TOKEN_IDENT) {
+            var label_tok *u8 = parse_advance();
+            continue_stmt_set_label(node, tok_lexeme(label_tok));
+            continue_stmt_set_label_len(node, tok_lexeme_len(label_tok));
+        } else {
+            continue_stmt_set_label(node, nil);
+            continue_stmt_set_label_len(node, 0);
+        }
+        parse_expect(TOKEN_SEMICOLON, "expected ';' after continue");
+        return node;
     }
     if parse_check(TOKEN_LBRACE) {
         return parse_block();
@@ -1654,12 +1866,21 @@ func parse_if_stmt() *u8 {
 }
 
 func parse_while_stmt() *u8 {
+    // Capture pending label BEFORE parsing body (nested loops would steal it)
+    var label *u8 = parse_pending_label;
+    var label_len i64 = parse_pending_label_len;
+    parse_pending_label = nil;
+    parse_pending_label_len = 0;
+
     var cond *u8 = parse_expression();
     var body *u8 = parse_block();
 
     var node *u8 = while_stmt_alloc();
     while_stmt_set_cond(node, cond);
     while_stmt_set_body(node, body);
+    while_stmt_set_label(node, label);
+    while_stmt_set_label_len(node, label_len);
+
     return node;
 }
 

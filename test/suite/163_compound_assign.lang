@@ -1,0 +1,29 @@
+// Expected: 55
+// Test compound assignment operators
+
+func main() i64 {
+    var a i64 = 10;
+
+    // +=
+    a += 5;  // 15
+
+    // -=
+    a -= 3;  // 12
+
+    // *=
+    a *= 2;  // 24
+
+    // /=
+    a /= 4;  // 6
+
+    // %=
+    a %= 5;  // 1
+
+    // Chain with expression
+    var b i64 = 10;
+    b += 2 * 3;  // 10 + 6 = 16
+
+    // Return sum: 1 + 16 + 38 = 55
+    var c i64 = 38;
+    return a + b + c;
+}

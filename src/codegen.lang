@@ -59,6 +59,77 @@ var cg_included_files *u8 = nil;
 // Debug flag: print macro expansions
 var cg_expand_macros i64 = 0;
 
+// Loop label stack for break/continue
+// Each entry: [name_ptr:8][name_len:8][break_label:8][continue_label:8] = 32 bytes
+// Max 32 nested loops
+var cg_loop_stack *u8 = nil;
+var cg_loop_depth i64 = 0;
+
+func loop_stack_push(name *u8, name_len i64, break_label i64, continue_label i64) void {
+    if cg_loop_stack == nil {
+        cg_loop_stack = alloc(1024);  // 32 * 32
+    }
+    var entry *u8 = cg_loop_stack + (cg_loop_depth * 32);
+    var p_name **u8 = entry;
+    *p_name = name;
+    var p_len *i64 = entry + 8;
+    *p_len = name_len;
+    var p_break *i64 = entry + 16;
+    *p_break = break_label;
+    var p_cont *i64 = entry + 24;
+    *p_cont = continue_label;
+    cg_loop_depth = cg_loop_depth + 1;
+}
+
+func loop_stack_pop() void {
+    if cg_loop_depth > 0 {
+        cg_loop_depth = cg_loop_depth - 1;
+    }
+}
+
+func loop_stack_find(name *u8, name_len i64) *u8 {
+    // Search from top of stack (innermost loop first)
+    var i i64 = cg_loop_depth - 1;
+    while i >= 0 {
+        var entry *u8 = cg_loop_stack + (i * 32);
+        var p_name **u8 = entry;
+        var entry_name *u8 = *p_name;
+        var p_len *i64 = entry + 8;
+        var entry_len i64 = *p_len;
+
+        if name == nil {
+            // No label specified, return innermost loop
+            return entry;
+        }
+        if entry_name != nil && entry_len == name_len {
+            // Compare names
+            var match i64 = 1;
+            var j i64 = 0;
+            while j < name_len {
+                if *(name + j) != *(entry_name + j) {
+                    match = 0;
+                }
+                j = j + 1;
+            }
+            if match == 1 {
+                return entry;
+            }
+        }
+        i = i - 1;
+    }
+    return nil;
+}
+
+func loop_entry_break_label(entry *u8) i64 {
+    var p *i64 = entry + 16;
+    return *p;
+}
+
+func loop_entry_continue_label(entry *u8) i64 {
+    var p *i64 = entry + 24;
+    return *p;
+}
+
 // Program declarations (for interpreter function calls)
 var cg_decls *u8 = nil;
 var cg_decl_count i64 = 0;
@@ -1641,6 +1712,16 @@ func gen_expr(expr *u8) void {
             emit_line("    cmp %rcx, %rax");
             emit_line("    setge %al");
             emit_line("    movzx %al, %rax");
+        } else if op == TOKEN_AMP {
+            emit_line("    and %rcx, %rax");
+        } else if op == TOKEN_PIPE {
+            emit_line("    or %rcx, %rax");
+        } else if op == TOKEN_CARET {
+            emit_line("    xor %rcx, %rax");
+        } else if op == TOKEN_LTLT {
+            emit_line("    shl %cl, %rax");
+        } else if op == TOKEN_GTGT {
+            emit_line("    sar %cl, %rax");
         }
         return;
     }
@@ -2102,6 +2183,11 @@ func gen_stmt(stmt *u8) void {
         var start_label i64 = new_label();
         var end_label i64 = new_label();
 
+        // Push loop onto stack with optional label
+        var loop_name *u8 = while_stmt_label(stmt);
+        var loop_name_len i64 = while_stmt_label_len(stmt);
+        loop_stack_push(loop_name, loop_name_len, end_label, start_label);
+
         emit_label(start_label);
         emit_line(":");
 
@@ -2119,11 +2205,50 @@ func gen_stmt(stmt *u8) void {
 
         emit_label(end_label);
         emit_line(":");
+
+        // Pop loop from stack
+        loop_stack_pop();
         return;
     }
 
     if k == NODE_BLOCK_STMT {
         gen_block(stmt);
+        return;
+    }
+
+    if k == NODE_BREAK_STMT {
+        var label *u8 = break_stmt_label(stmt);
+        var label_len i64 = break_stmt_label_len(stmt);
+        var entry *u8 = loop_stack_find(label, label_len);
+        if entry == nil {
+            print("error: break outside of loop");
+            if label != nil {
+                print(" (label not found)");
+            }
+            print("\n");
+            exit(1);
+        }
+        emit_str("    jmp ");
+        emit_label(loop_entry_break_label(entry));
+        emit_char(10);
+        return;
+    }
+
+    if k == NODE_CONTINUE_STMT {
+        var label *u8 = continue_stmt_label(stmt);
+        var label_len i64 = continue_stmt_label_len(stmt);
+        var entry *u8 = loop_stack_find(label, label_len);
+        if entry == nil {
+            print("error: continue outside of loop");
+            if label != nil {
+                print(" (label not found)");
+            }
+            print("\n");
+            exit(1);
+        }
+        emit_str("    jmp ");
+        emit_label(loop_entry_continue_label(entry));
+        emit_char(10);
         return;
     }
 }
@@ -2179,22 +2304,42 @@ func gen_func(func_node *u8) void {
         var p *u8 = params + (i * 24);
         add_local(param_name(p), param_name_len(p), offset, param_type(p));
 
-        // Move from arg register to stack
+        // Move from arg register or stack to local stack slot
         if i == 0 {
             emit_str("    mov %rdi, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
         } else if i == 1 {
             emit_str("    mov %rsi, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
         } else if i == 2 {
             emit_str("    mov %rdx, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
         } else if i == 3 {
             emit_str("    mov %rcx, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
         } else if i == 4 {
             emit_str("    mov %r8, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
         } else if i == 5 {
             emit_str("    mov %r9, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
+        } else {
+            // Args 7+ are on caller's stack: 16(%rbp), 24(%rbp), ...
+            var stack_offset i64 = 16 + (i - 6) * 8;
+            emit_str("    mov ");
+            emit_int(stack_offset);
+            emit_str("(%rbp), %rax");
+            emit_char(10);
+            emit_str("    mov %rax, ");
+            emit_int(offset);
+            emit_line("(%rbp)");
         }
-        emit_int(offset);
-        emit_line("(%rbp)");
 
         i = i + 1;
     }
@@ -2918,6 +3063,11 @@ func ast_to_string_expr(expr *u8) void {
         else if op == TOKEN_GTEQ { ast_str_append_cstr(">="); }
         else if op == TOKEN_AMPAMP { ast_str_append_cstr("&&"); }
         else if op == TOKEN_PIPEPIPE { ast_str_append_cstr("||"); }
+        else if op == TOKEN_AMP { ast_str_append_cstr("&"); }
+        else if op == TOKEN_PIPE { ast_str_append_cstr("|"); }
+        else if op == TOKEN_CARET { ast_str_append_cstr("^"); }
+        else if op == TOKEN_LTLT { ast_str_append_cstr("<<"); }
+        else if op == TOKEN_GTGT { ast_str_append_cstr(">>"); }
         else { ast_str_append_cstr("?op?"); }
         ast_str_append_char(32);  // space
         ast_to_string_expr(binary_expr_right(expr));
@@ -3204,6 +3354,11 @@ func print_expr_ast(expr *u8) void {
         else if op == TOKEN_GTEQ { eprint(">="); }
         else if op == TOKEN_AMPAMP { eprint("&&"); }
         else if op == TOKEN_PIPEPIPE { eprint("||"); }
+        else if op == TOKEN_AMP { eprint("&"); }
+        else if op == TOKEN_PIPE { eprint("|"); }
+        else if op == TOKEN_CARET { eprint("^"); }
+        else if op == TOKEN_LTLT { eprint("<<"); }
+        else if op == TOKEN_GTGT { eprint(">>"); }
         else { eprint("?op?"); }
         eprint(" ");
         print_expr_ast(binary_expr_right(expr));

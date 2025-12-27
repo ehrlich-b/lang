@@ -1,3 +1,4 @@
+// Expected: 0
 // Test: reader macro lexer tokenization
 // This just tests that #name{...} tokenizes correctly
 

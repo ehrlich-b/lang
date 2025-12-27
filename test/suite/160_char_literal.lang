@@ -1,0 +1,16 @@
+// Expected: 129
+func main() i64 {
+    // Test various char literals
+    var a i64 = 'A';     // 65
+    var z i64 = 'z';     // 122
+    var zero i64 = '0';  // 48
+    var nl i64 = '\n';   // 10
+    var tab i64 = '\t';  // 9
+    var nul i64 = '\0';  // 0
+    var bs i64 = '\\';   // 92
+    var sq i64 = '\'';   // 39
+
+    // Sum them all: 65 + 122 + 48 + 10 + 9 + 0 + 92 + 39 = 385
+    // But exit code is mod 256, so 385 % 256 = 129
+    return a + z + zero + nl + tab + nul + bs + sq;
+}

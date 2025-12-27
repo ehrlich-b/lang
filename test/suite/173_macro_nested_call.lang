@@ -1,3 +1,4 @@
+// Expected: 100
 // Test: nested macro calls
 // Expected exit code: 100 (double(double(25)) = double(50) = 100)
 

@@ -1,3 +1,4 @@
+// Expected: 49
 // Test: macro that squares a number
 // Expected exit code: 49 (7 * 7)
 

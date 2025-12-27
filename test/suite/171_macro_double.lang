@@ -1,5 +1,5 @@
+// Expected: 84
 // Test: simple macro that doubles an expression
-// Expected exit code: 84 (42 + 42)
 
 macro double(x) {
     return ${ $x + $x };

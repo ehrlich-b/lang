@@ -81,6 +81,23 @@ var TOKEN_READER i64 = 57;        // 'reader' keyword
 var TOKEN_READER_MACRO i64 = 58;  // #name{...} reader macro invocation
 var TOKEN_INCLUDE i64 = 59;       // 'include' keyword
 
+// Bitwise operators
+var TOKEN_PIPE i64 = 60;          // |
+var TOKEN_CARET i64 = 61;         // ^
+var TOKEN_LTLT i64 = 62;          // <<
+var TOKEN_GTGT i64 = 63;          // >>
+
+// Compound assignment
+var TOKEN_PLUSEQ i64 = 64;        // +=
+var TOKEN_MINUSEQ i64 = 65;       // -=
+var TOKEN_STAREQ i64 = 66;        // *=
+var TOKEN_SLASHEQ i64 = 67;       // /=
+var TOKEN_PERCENTEQ i64 = 68;     // %=
+
+// Loop control
+var TOKEN_BREAK i64 = 69;         // break
+var TOKEN_CONTINUE i64 = 70;      // continue
+
 // ============================================================
 // Token struct
 // ============================================================
@@ -381,6 +398,8 @@ func check_keyword() i64 {
     if lexeme_eq("else") { return TOKEN_ELSE; }
     if lexeme_eq("while") { return TOKEN_WHILE; }
     if lexeme_eq("return") { return TOKEN_RETURN; }
+    if lexeme_eq("break") { return TOKEN_BREAK; }
+    if lexeme_eq("continue") { return TOKEN_CONTINUE; }
     if lexeme_eq("true") { return TOKEN_TRUE; }
     if lexeme_eq("false") { return TOKEN_FALSE; }
     if lexeme_eq("nil") { return TOKEN_NIL; }
@@ -439,6 +458,55 @@ func scan_string() *u8 {
 
     lex_advance();  // closing quote
     return make_token(TOKEN_STRING);
+}
+
+// Scan character literal: 'A' or '\n'
+// Returns TOKEN_NUMBER with the character value as lexeme
+func scan_char() *u8 {
+    // We've already consumed opening quote
+    if lex_is_at_end() {
+        return error_token("unterminated character literal");
+    }
+
+    var c u8 = lex_advance();
+    var value i64 = 0;
+
+    if c == 92 {  // backslash - escape sequence
+        if lex_is_at_end() {
+            return error_token("unterminated escape in character literal");
+        }
+        var esc u8 = lex_advance();
+        if esc == 110 { value = 10; }       // \n -> newline
+        else if esc == 116 { value = 9; }   // \t -> tab
+        else if esc == 114 { value = 13; }  // \r -> carriage return
+        else if esc == 48 { value = 0; }    // \0 -> null
+        else if esc == 92 { value = 92; }   // \\ -> backslash
+        else if esc == 39 { value = 39; }   // \' -> single quote
+        else if esc == 34 { value = 34; }   // \" -> double quote
+        else {
+            return error_token("unknown escape sequence");
+        }
+    } else {
+        value = c;
+    }
+
+    // Expect closing quote
+    if lex_is_at_end() || lex_peek() != 39 {
+        return error_token("unterminated character literal");
+    }
+    lex_advance();  // consume closing quote
+
+    // Convert value to string and create NUMBER token
+    var buf *u8 = alloc(16);
+    var len i64 = itoa(value, buf);
+
+    var tok *u8 = tok_alloc();
+    tok_set_type(tok, TOKEN_NUMBER);
+    tok_set_lexeme(tok, buf);
+    tok_set_lexeme_len(tok, len);
+    tok_set_line(tok, lex_line);
+    tok_set_col(tok, lex_start_col);
+    return tok;
 }
 
 // Scan reader macro: #name{content}
@@ -556,11 +624,26 @@ func scan_token() *u8 {
     if c == 44 { return make_token(TOKEN_COMMA); }     // ','
     if c == 59 { return make_token(TOKEN_SEMICOLON); } // ';'
     if c == 46 { return make_token(TOKEN_DOT); }       // '.'
-    if c == 43 { return make_token(TOKEN_PLUS); }      // '+'
-    if c == 45 { return make_token(TOKEN_MINUS); }     // '-'
-    if c == 42 { return make_token(TOKEN_STAR); }      // '*'
-    if c == 47 { return make_token(TOKEN_SLASH); }     // '/'
-    if c == 37 { return make_token(TOKEN_PERCENT); }   // '%'
+    if c == 43 {  // '+'
+        if lex_match(61) { return make_token(TOKEN_PLUSEQ); }  // '+='
+        return make_token(TOKEN_PLUS);
+    }
+    if c == 45 {  // '-'
+        if lex_match(61) { return make_token(TOKEN_MINUSEQ); }  // '-='
+        return make_token(TOKEN_MINUS);
+    }
+    if c == 42 {  // '*'
+        if lex_match(61) { return make_token(TOKEN_STAREQ); }  // '*='
+        return make_token(TOKEN_STAR);
+    }
+    if c == 47 {  // '/'
+        if lex_match(61) { return make_token(TOKEN_SLASHEQ); }  // '/='
+        return make_token(TOKEN_SLASH);
+    }
+    if c == 37 {  // '%'
+        if lex_match(61) { return make_token(TOKEN_PERCENTEQ); }  // '%='
+        return make_token(TOKEN_PERCENT);
+    }
 
     // Two-char tokens
     if c == 38 {  // '&'
@@ -569,7 +652,10 @@ func scan_token() *u8 {
     }
     if c == 124 {  // '|'
         if lex_match(124) { return make_token(TOKEN_PIPEPIPE); }  // '||'
-        return error_token("unexpected character '|'");
+        return make_token(TOKEN_PIPE);  // bitwise or
+    }
+    if c == 94 {  // '^'
+        return make_token(TOKEN_CARET);  // bitwise xor
     }
     if c == 33 {  // '!'
         if lex_match(61) { return make_token(TOKEN_BANGEQ); }  // '!='
@@ -580,11 +666,13 @@ func scan_token() *u8 {
         return make_token(TOKEN_EQ);
     }
     if c == 60 {  // '<'
-        if lex_match(61) { return make_token(TOKEN_LTEQ); }  // '<='
+        if lex_match(60) { return make_token(TOKEN_LTLT); }   // '<<'
+        if lex_match(61) { return make_token(TOKEN_LTEQ); }   // '<='
         return make_token(TOKEN_LT);
     }
     if c == 62 {  // '>'
-        if lex_match(61) { return make_token(TOKEN_GTEQ); }  // '>='
+        if lex_match(62) { return make_token(TOKEN_GTGT); }   // '>>'
+        if lex_match(61) { return make_token(TOKEN_GTEQ); }   // '>='
         return make_token(TOKEN_GT);
     }
     if c == 58 {  // ':'
@@ -601,6 +689,9 @@ func scan_token() *u8 {
     }
     if c == 34 {  // '"'
         return scan_string();
+    }
+    if c == 39 {  // '\''
+        return scan_char();
     }
 
     return error_token("unexpected character");
@@ -671,6 +762,17 @@ func print_token_type(t i64) void {
     if t == TOKEN_READER { print("reader"); return; }
     if t == TOKEN_READER_MACRO { print("READER_MACRO"); return; }
     if t == TOKEN_INCLUDE { print("include"); return; }
+    if t == TOKEN_PIPE { print("|"); return; }
+    if t == TOKEN_CARET { print("^"); return; }
+    if t == TOKEN_LTLT { print("<<"); return; }
+    if t == TOKEN_GTGT { print(">>"); return; }
+    if t == TOKEN_PLUSEQ { print("+="); return; }
+    if t == TOKEN_MINUSEQ { print("-="); return; }
+    if t == TOKEN_STAREQ { print("*="); return; }
+    if t == TOKEN_SLASHEQ { print("/="); return; }
+    if t == TOKEN_PERCENTEQ { print("%="); return; }
+    if t == TOKEN_BREAK { print("break"); return; }
+    if t == TOKEN_CONTINUE { print("continue"); return; }
     print("UNKNOWN");
 }
 
