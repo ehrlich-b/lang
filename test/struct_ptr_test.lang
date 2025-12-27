@@ -1,22 +1,136 @@
-// Pointer-to-struct field access test
+// Comprehensive test for struct field pointer dereference
+// Tests that *(struct.ptr_field + offset) uses correct byte size
 
-struct Point {
-    x i64;
-    y i64;
+include "std/core.lang"
+
+struct Foo {
+    data *u8;
+    pos i64;
 }
 
-func alloc(size i64) *u8 {
-    return syscall(9, 0, size, 3, 34, 0-1, 0);
+// Test 1: Basic *(struct.ptr_field + offset) - the bug that was fixed
+func test_basic(f *Foo) i64 {
+    return *(f.data + f.pos);
+}
+
+// Test 2: *(struct.ptr_field) without offset
+func test_no_offset(f *Foo) i64 {
+    return *(f.data);
+}
+
+// Test 3: Through local variable (original workaround - should still work)
+func test_via_local(f *Foo) i64 {
+    var p *u8 = f.data;
+    return *(p + f.pos);
+}
+
+// Test 4: Complex expression *(struct.ptr + (struct.pos + 1))
+func test_complex_offset(f *Foo) i64 {
+    return *(f.data + (f.pos + 1));
+}
+
+// Test 5: Multiple field accesses in one expression
+func test_multiple_fields(f *Foo, g *Foo) i64 {
+    var a i64 = *(f.data + f.pos);
+    var b i64 = *(g.data + g.pos);
+    return a + b;
+}
+
+// Test 6: Nested struct access
+struct Bar {
+    foo *Foo;
+    extra i64;
+}
+
+func test_nested(b *Bar) i64 {
+    return *(b.foo.data + b.foo.pos);
 }
 
 func main() i64 {
-    // Allocate a Point on the heap
-    var p *Point = alloc(16);
+    // Setup: buffer with known values
+    var buf *u8 = alloc(8);
+    *(buf + 0) = 65;   // 'A' = 65
+    *(buf + 1) = 1;    // next byte = 1 (would cause 321 if 8-byte read)
+    *(buf + 2) = 66;   // 'B' = 66
+    *(buf + 3) = 0;
+    *(buf + 4) = 0;
+    *(buf + 5) = 0;
+    *(buf + 6) = 0;
+    *(buf + 7) = 0;
 
-    // Test field assignment through pointer
-    p.x = 42;
-    p.y = 100;
+    var f *Foo = alloc(16);
+    f.data = buf;
+    f.pos = 0;
 
-    // Test field read through pointer and arithmetic
-    return p.x + p.y;  // Should return 142
+    // Test 1: Basic (this was the original bug)
+    var r1 i64 = test_basic(f);
+    if r1 != 65 {
+        print("FAIL test_basic: expected 65, got ");
+        print_int(r1);
+        println("");
+        return 1;
+    }
+
+    // Test 2: No offset
+    var r2 i64 = test_no_offset(f);
+    if r2 != 65 {
+        print("FAIL test_no_offset: expected 65, got ");
+        print_int(r2);
+        println("");
+        return 2;
+    }
+
+    // Test 3: Via local (workaround - should still work)
+    var r3 i64 = test_via_local(f);
+    if r3 != 65 {
+        print("FAIL test_via_local: expected 65, got ");
+        print_int(r3);
+        println("");
+        return 3;
+    }
+
+    // Test 4: Complex offset (pos=0, so pos+1=1, buf[1]=1)
+    var r4 i64 = test_complex_offset(f);
+    if r4 != 1 {
+        print("FAIL test_complex_offset: expected 1, got ");
+        print_int(r4);
+        println("");
+        return 4;
+    }
+
+    // Test 5: Multiple fields
+    var g *Foo = alloc(16);
+    g.data = buf;
+    g.pos = 2;  // points to 'B' = 66
+    var r5 i64 = test_multiple_fields(f, g);
+    if r5 != 131 {  // 65 + 66
+        print("FAIL test_multiple_fields: expected 131, got ");
+        print_int(r5);
+        println("");
+        return 5;
+    }
+
+    // Test 6: Nested struct access
+    var b *Bar = alloc(16);
+    b.foo = f;
+    var r6 i64 = test_nested(b);
+    if r6 != 65 {
+        print("FAIL test_nested: expected 65, got ");
+        print_int(r6);
+        println("");
+        return 6;
+    }
+
+    // Test with pos > 0 to really test the offset
+    f.pos = 2;
+    var r7 i64 = test_basic(f);
+    if r7 != 66 {
+        print("FAIL test_basic with pos=2: expected 66, got ");
+        print_int(r7);
+        println("");
+        return 7;
+    }
+
+    println("All struct_ptr tests passed!");
+    return 0;
 }

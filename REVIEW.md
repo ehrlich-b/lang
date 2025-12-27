@@ -22,22 +22,15 @@ The compiler is in good shape overall - self-hosting works, all 81 tests pass, a
 
 ---
 
-### 2. Language Limitation: `*(struct.ptr_field)` Is Buggy
+### 2. ~~Language Limitation: `*(struct.ptr_field)` Is Buggy~~ FIXED
 
-**Files**: std/tok.lang
-**Severity**: Low (documented workaround exists)
+**Status**: FIXED - Added `NODE_FIELD_EXPR` handling to `get_expr_type()` in src/codegen.lang.
 
-Multiple comments document this:
-```lang
-// std/tok.lang:101-102
-// Workaround: *(struct.ptr_field) is buggy, use temp variable
-var inp *u8 = t.input;
-return *(inp + t.pos);
-```
+**Root cause**: When dereferencing through a struct field like `*(f.data + offset)`, `get_expr_type()` didn't handle `NODE_FIELD_EXPR`, returning `nil`, which defaulted to 8-byte load instead of 1-byte.
 
-**Impact**: Can't directly write `*(t.input + t.pos)` - must use temp variable.
+**Fix**: Added `get_field_type()` function and `NODE_FIELD_EXPR` case to `get_expr_type()` that looks up the struct and returns the field's type.
 
-**Fix**: This is a language limitation that should be tracked in TODO.md or fixed in the parser/codegen.
+**Workarounds removed from**: std/tok.lang (3 locations)
 
 ---
 
@@ -124,15 +117,14 @@ Not a bug, but inconsistent style.
 
 ## Potential Future Issues
 
-### 8. No Argument Count Checking
+### 8. ~~No Argument Count Checking~~ FIXED
 
-**Severity**: Medium
+**Status**: FIXED - Compiler now checks argument count at call sites.
 
-The language allows calling functions with wrong number of arguments:
-- `vec_new(8)` when signature is `vec_new()`
-- Extra arguments silently pushed to stack and ignored
-
-This is how the vec_new bug went unnoticed. Should add compile-time check.
+Wrong argument count now produces:
+```
+Error: function 'add' expects 2 argument(s), got 1
+```
 
 ---
 

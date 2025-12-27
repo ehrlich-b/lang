@@ -98,18 +98,14 @@ func tok_peek_char(t *Tokenizer) i64 {
     if t.pos >= t.len {
         return 0;
     }
-    // Workaround: *(struct.ptr_field) is buggy, use temp variable
-    var inp *u8 = t.input;
-    return *(inp + t.pos);
+    return *(t.input + t.pos);
 }
 
 func tok_peek_char_at(t *Tokenizer, offset i64) i64 {
     if t.pos + offset >= t.len {
         return 0;
     }
-    // Workaround: *(struct.ptr_field) is buggy, use temp variable
-    var inp *u8 = t.input;
-    return *(inp + t.pos + offset);
+    return *(t.input + t.pos + offset);
 }
 
 func tok_advance_char(t *Tokenizer) void {
@@ -257,11 +253,9 @@ func tok_text_len(t *Tokenizer) i64 {
 // Returns a null-terminated copy of the token text
 func tok_text(t *Tokenizer) *u8 {
     var buf *u8 = alloc(t.tok_len + 1);
-    // Workaround: *(struct.ptr_field) is buggy, use temp variable
-    var inp *u8 = t.input;
     var i i64 = 0;
     while i < t.tok_len {
-        *(buf + i) = *(inp + t.tok_start + i);
+        *(buf + i) = *(t.input + t.tok_start + i);
         i = i + 1;
     }
     *(buf + t.tok_len) = 0;

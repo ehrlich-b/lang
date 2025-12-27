@@ -116,7 +116,7 @@ The `#parser{}` reader runs at compile time, generates the parser, and the lisp 
 
 ## Bugs
 
-- [ ] **`*(struct.ptr_field)` reads 8 bytes instead of 1** - When dereferencing a pointer field from a struct (e.g., `*(t.input + offset)`), the compiler reads 8 bytes (i64) instead of 1 byte (u8). Workaround: assign to temp variable first (`var p *u8 = t.input; *(p + offset)`). See `test/struct_ptr_debug.lang`.
+- [x] **~~`*(struct.ptr_field)` reads 8 bytes instead of 1~~** - FIXED. Added `NODE_FIELD_EXPR` handling to `get_expr_type()`. See `test/struct_ptr_test.lang`.
 
 - [ ] **Functions with >6 parameters generate broken assembly** - The 7th+ parameters (which go on stack per x86_64 ABI) generate malformed assembly like `-56(%rbp)` without a mov instruction. Workaround: pass a struct or array instead of many parameters.
 

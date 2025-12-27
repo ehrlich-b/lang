@@ -1023,6 +1023,29 @@ func get_field_offset(struct_decl *u8, field_name *u8, field_len i64) i64 {
     return 0 - 1;
 }
 
+// Get field type from a struct
+func get_field_type(struct_decl *u8, field_name *u8, field_len i64) *u8 {
+    if struct_decl == nil {
+        return nil;
+    }
+    var fields *u8 = struct_decl_fields(struct_decl);
+    var count i64 = struct_decl_field_count(struct_decl);
+    var i i64 = 0;
+    while i < count {
+        var f *u8 = get_struct_field(fields, i);
+        var fname *u8 = struct_field_name(f);
+        var fname_len i64 = struct_field_name_len(f);
+
+        if fname_len == field_len {
+            if memcmp(fname, field_name, field_len) {
+                return struct_field_type(f);
+            }
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
 // Calculate struct size by summing field sizes (with alignment)
 func get_struct_size(decl *u8) i64 {
     var fields *u8 = struct_decl_fields(decl);
@@ -1171,6 +1194,47 @@ func get_expr_type(expr *u8) *u8 {
 
     if k == NODE_GROUP_EXPR {
         return get_expr_type(group_expr_expr(expr));
+    }
+
+    if k == NODE_FIELD_EXPR {
+        var base_expr *u8 = field_expr_expr(expr);
+        var field_name *u8 = field_expr_field(expr);
+        var field_len i64 = field_expr_field_len(expr);
+
+        // Get type of base expression
+        var base_type *u8 = get_expr_type(base_expr);
+        if base_type == nil {
+            return nil;
+        }
+
+        var struct_name *u8 = nil;
+        var struct_name_len i64 = 0;
+
+        // Check if base is a direct struct or pointer to struct
+        if type_kind(base_type) == TYPE_BASE {
+            struct_name = base_type_name(base_type);
+            struct_name_len = base_type_name_len(base_type);
+        } else if type_kind(base_type) == TYPE_PTR {
+            // Pointer to struct: get the pointed-to type
+            var pointed_type *u8 = ptr_type_elem(base_type);
+            if pointed_type != nil && type_kind(pointed_type) == TYPE_BASE {
+                struct_name = base_type_name(pointed_type);
+                struct_name_len = base_type_name_len(pointed_type);
+            }
+        }
+
+        if struct_name == nil {
+            return nil;
+        }
+
+        // Look up struct
+        var struct_decl *u8 = find_struct(struct_name, struct_name_len);
+        if struct_decl == nil {
+            return nil;
+        }
+
+        // Get field type
+        return get_field_type(struct_decl, field_name, field_len);
     }
 
     // Default: i64
@@ -1583,6 +1647,22 @@ func gen_expr(expr *u8) void {
                 if memcmp(name, "syscall", 7) {
                     gen_syscall(args, arg_count);
                     return;
+                }
+            }
+
+            // Check argument count
+            var func_decl *u8 = find_func(name, name_len);
+            if func_decl != nil {
+                var param_count i64 = func_decl_param_count(func_decl);
+                if arg_count != param_count {
+                    eprint("Error: function '");
+                    eprint_buf(name, name_len);
+                    eprint("' expects ");
+                    eprint_i64(param_count);
+                    eprint(" argument(s), got ");
+                    eprint_i64(arg_count);
+                    eprintln("");
+                    exit(1);
                 }
             }
 
