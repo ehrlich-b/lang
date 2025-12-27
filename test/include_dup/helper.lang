@@ -1,0 +1,9 @@
+// Helper module that also includes std/core.lang
+// When main.lang includes this AND std/core.lang directly,
+// the duplicate should be silently ignored (idempotent includes)
+
+include "std/core.lang"
+
+func helper() i64 {
+    return 42;
+}
