@@ -27,9 +27,10 @@ See `designs/ast_as_language.md` for the complete design.
 
 | Task | File | Status |
 |------|------|--------|
-| Add `let` expression binding | parser.lang, codegen.lang | TODO |
-| Add explicit `assign` node | parser.lang, codegen.lang | TODO |
-| Add `TYPE_FUNC` to type system | codegen.lang:1166+ | TODO |
+| Add `let` expression binding | parser.lang, codegen.lang | DONE |
+| Add explicit `assign` node | parser.lang, codegen.lang | DONE |
+| Add `TYPE_FUNC` to type system | parser.lang, codegen.lang | DONE |
+| Parse `fn(T) R` type syntax | parser.lang | DONE |
 | Verify indirect calls work | codegen.lang:1800+ | DONE |
 | Test function pointers (`&func`) | test/ | DONE |
 
@@ -37,11 +38,9 @@ See `designs/ast_as_language.md` for the complete design.
 
 | Task | File | Status |
 |------|------|--------|
-| Parse `fn(T) R` type syntax | parser.lang | TODO |
-| Parse lambda `\|x\| { body }` | parser.lang | TODO |
-| `NODE_LAMBDA_EXPR` node type | parser.lang:30+ | TODO |
-| Lambda codegen (no captures) | codegen.lang | TODO |
-| Function pointer load `lea func, %rax` | codegen.lang | TODO |
+| `NODE_LAMBDA_EXPR` node type | parser.lang:32 | DONE |
+| Parse lambda `fn(x i64) i64 { body }` | parser.lang:1980+ | DONE |
+| Lambda codegen (no captures) | codegen.lang:2684+ | DONE |
 
 ### Phase 3: Closures
 
@@ -80,6 +79,21 @@ See `designs/ast_as_language.md` for the complete design.
 | AST validation | kernel/ast.lang | TODO |
 | Extract lang_reader | readers/lang/ | TODO |
 | Verify fixed point | Makefile | TODO |
+
+**Open Question: Parser Unification**
+
+Should `parser.lang` (handwritten recursive descent) unify with `#parser{}` (parser generator)?
+
+The vision: lang's syntax defined in parser DSL, not handwritten. This would mean:
+- `lang.grammar` defines lang syntax using `#parser{}` grammar notation
+- Parser generator produces `lang_reader.lang` (or equivalent)
+- Handwritten `src/parser.lang` becomes generated/obsolete
+- True "syntax as data" - grammar IS the specification
+
+Implications:
+- Parser generator must be powerful enough (precedence, error recovery)
+- Bootstrap: need handwritten parser to compile first parser generator
+- See `designs/self_defining_syntax.md` for the full vision
 
 ---
 
@@ -131,6 +145,13 @@ See `designs/ast_as_language.md` for the complete design.
 - [x] Dynamic stack sizing (deferred prologue generation)
 - [x] Function registry for `&funcname` support
 - [x] Centralized limits in `src/limits.lang`
+- [x] `let` expression binding (`let x = val in body`)
+- [x] Explicit `assign` node (AST 2.0: separates assignment statement from expression)
+- [x] Function pointer calls via variables (indirect call codegen)
+- [x] `TYPE_FUNC` type kind and `fn(T) R` type syntax
+- [x] Comprehensive function pointer tests (133-137)
+- [x] Lambda expressions `fn(x i64) i64 { body }` (Phase 2 complete)
+- [x] Lambda test (138_lambda.lang)
 
 ### Previous Session
 - [x] Comprehensive AST 2.0 design with algebraic effects

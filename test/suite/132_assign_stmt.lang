@@ -1,0 +1,50 @@
+// expect: 42
+// Test: explicit assignment statement (AST 2.0)
+
+func test_simple_assign() i64 {
+    var x i64 = 0;
+    x = 42;
+    return x;
+}
+
+func test_chain_assign() i64 {
+    var a i64 = 0;
+    var b i64 = 0;
+    a = 10;
+    b = 32;
+    return a + b;  // 42
+}
+
+func test_complex_value() i64 {
+    var x i64 = 0;
+    x = 6 * 7;
+    return x;  // 42
+}
+
+func test_pointer_assign() i64 {
+    var x i64 = 0;
+    var p *i64 = &x;
+    *p = 42;
+    return x;
+}
+
+struct Point {
+    x i64;
+    y i64;
+}
+
+func test_field_assign() i64 {
+    var p Point;
+    p.x = 20;
+    p.y = 22;
+    return p.x + p.y;  // 42
+}
+
+func main() i64 {
+    if test_simple_assign() != 42 { return 1; }
+    if test_chain_assign() != 42 { return 2; }
+    if test_complex_value() != 42 { return 3; }
+    if test_pointer_assign() != 42 { return 4; }
+    if test_field_assign() != 42 { return 5; }
+    return 42;
+}

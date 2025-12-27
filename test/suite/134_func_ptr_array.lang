@@ -1,0 +1,54 @@
+// expect: 42
+// Test: function pointers in struct and manual array
+
+struct Dispatch {
+    add_fn *u8;
+    mul_fn *u8;
+    sub_fn *u8;
+}
+
+func add(a i64, b i64) i64 { return a + b; }
+func mul(a i64, b i64) i64 { return a * b; }
+func sub(a i64, b i64) i64 { return a - b; }
+
+func test_struct_dispatch() i64 {
+    var d Dispatch;
+    d.add_fn = &add;
+    d.mul_fn = &mul;
+    d.sub_fn = &sub;
+
+    var r i64 = d.add_fn(10, 5);   // 15
+    r = d.mul_fn(r, 2);            // 30
+    r = d.add_fn(r, 12);           // 42
+    return r;
+}
+
+func test_ptr_to_struct_dispatch() i64 {
+    var d Dispatch;
+    var p *Dispatch = &d;
+    p.add_fn = &add;
+    p.mul_fn = &mul;
+
+    var r i64 = p.mul_fn(6, 7);    // 42
+    return r;
+}
+
+// Test function pointers stored on stack (simulating array)
+func test_fn_stack_array() i64 {
+    // Three function pointers on stack
+    var f0 *u8 = &add;
+    var f1 *u8 = &mul;
+    var f2 *u8 = &sub;
+
+    var r i64 = f0(10, 5);   // add: 15
+    r = f1(r, 3);            // mul: 45
+    r = f2(r, 3);            // sub: 42
+    return r;
+}
+
+func main() i64 {
+    if test_struct_dispatch() != 42 { return 1; }
+    if test_ptr_to_struct_dispatch() != 42 { return 2; }
+    if test_fn_stack_array() != 42 { return 3; }
+    return 42;
+}

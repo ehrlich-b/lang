@@ -132,9 +132,9 @@ func emit_unary(op *u8, operand *u8) *u8 {
 
 // emit_call("foo", ["1", "2"]) -> "foo(1, 2)"
 // args is a Vec of *u8 strings
-func emit_call(fn *u8, args *u8) *u8 {
+func emit_call(func_name *u8, args *u8) *u8 {
     var sb *StringBuilder = sb_new();
-    sb_str(sb, fn);
+    sb_str(sb, func_name);
     sb_char(sb, 40);  // '('
     var n i64 = vec_len(args);
     var i i64 = 0;

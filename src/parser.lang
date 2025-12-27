@@ -41,11 +41,15 @@ var NODE_READER_EXPR i64 = 26;    // #name{content} - reader macro invocation
 var NODE_INCLUDE_DECL i64 = 27;   // include "path"
 var NODE_BREAK_STMT i64 = 28;     // break
 var NODE_CONTINUE_STMT i64 = 29;  // continue
+var NODE_LET_EXPR i64 = 30;       // let x = init in body
+var NODE_ASSIGN_STMT i64 = 31;    // target = value (explicit assignment)
+var NODE_LAMBDA_EXPR i64 = 32;    // |params| { body } - lambda expression
 
 // Type kinds
 var TYPE_BASE i64 = 1;
 var TYPE_PTR i64 = 2;
 var TYPE_ARRAY i64 = 3;
+var TYPE_FUNC i64 = 4;    // fn(T1, T2) R
 
 // ============================================================
 // AST Node layouts (all nodes start with kind field)
@@ -80,10 +84,17 @@ var TYPE_ARRAY i64 = 3;
 // UnquoteExpr: [kind:8][name_ptr:8][name_len:8] = 24 bytes
 // MacroDecl: [kind:8][name_ptr:8][name_len:8][params:8][param_count:8][body:8] = 48 bytes
 
+// Let expression (2.0):
+// LetExpr: [kind:8][name_ptr:8][name_len:8][type:8][init:8][body:8] = 48 bytes
+
+// Lambda expression (2.0):
+// LambdaExpr: [kind:8][params:8][param_count:8][ret_type:8][body:8] = 40 bytes
+
 // Type layouts:
 // BaseType: [kind:8][name_ptr:8][name_len:8] = 24 bytes
 // PtrType: [kind:8][elem:8] = 16 bytes
 // ArrayType: [kind:8][size:8][elem:8] = 24 bytes
+// FuncType: [kind:8][params:8][param_count:8][ret:8] = 32 bytes
 
 // Param: [name_ptr:8][name_len:8][type:8] = 24 bytes
 
@@ -529,6 +540,37 @@ func expr_stmt_set_expr(node *u8, expr *u8) void {
 }
 
 // ============================================================
+// AssignStmt accessors (AST 2.0)
+// ============================================================
+// AssignStmt: [kind:8][target:8][value:8] = 24 bytes
+
+func assign_stmt_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_ASSIGN_STMT);
+    return node;
+}
+
+func assign_stmt_target(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func assign_stmt_set_target(node *u8, target *u8) void {
+    var p **u8 = node + 8;
+    *p = target;
+}
+
+func assign_stmt_value(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func assign_stmt_set_value(node *u8, value *u8) void {
+    var p **u8 = node + 16;
+    *p = value;
+}
+
+// ============================================================
 // BinaryExpr accessors
 // ============================================================
 
@@ -939,6 +981,117 @@ func macro_decl_set_body(node *u8, body *u8) void {
 }
 
 // ============================================================
+// LetExpr accessors: [kind:8][name_ptr:8][name_len:8][type:8][init:8][body:8] = 48 bytes
+// ============================================================
+
+func let_expr_alloc() *u8 {
+    var node *u8 = alloc(48);
+    node_set_kind(node, NODE_LET_EXPR);
+    return node;
+}
+
+func let_expr_name(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func let_expr_set_name(node *u8, ptr *u8) void {
+    var p **u8 = node + 8;
+    *p = ptr;
+}
+
+func let_expr_name_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func let_expr_set_name_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+func let_expr_type(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func let_expr_set_type(node *u8, typ *u8) void {
+    var p **u8 = node + 24;
+    *p = typ;
+}
+
+func let_expr_init(node *u8) *u8 {
+    var p **u8 = node + 32;
+    return *p;
+}
+
+func let_expr_set_init(node *u8, init *u8) void {
+    var p **u8 = node + 32;
+    *p = init;
+}
+
+func let_expr_body(node *u8) *u8 {
+    var p **u8 = node + 40;
+    return *p;
+}
+
+func let_expr_set_body(node *u8, body *u8) void {
+    var p **u8 = node + 40;
+    *p = body;
+}
+
+// ============================================================
+// LambdaExpr accessors (2.0)
+// Layout: [kind:8][params:8][param_count:8][ret_type:8][body:8] = 40 bytes
+// ============================================================
+
+func lambda_expr_alloc() *u8 {
+    var node *u8 = alloc(40);
+    node_set_kind(node, NODE_LAMBDA_EXPR);
+    return node;
+}
+
+func lambda_expr_params(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func lambda_expr_set_params(node *u8, params *u8) void {
+    var p **u8 = node + 8;
+    *p = params;
+}
+
+func lambda_expr_param_count(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func lambda_expr_set_param_count(node *u8, count i64) void {
+    var p *i64 = node + 16;
+    *p = count;
+}
+
+func lambda_expr_ret_type(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func lambda_expr_set_ret_type(node *u8, typ *u8) void {
+    var p **u8 = node + 24;
+    *p = typ;
+}
+
+func lambda_expr_body(node *u8) *u8 {
+    var p **u8 = node + 32;
+    return *p;
+}
+
+func lambda_expr_set_body(node *u8, body *u8) void {
+    var p **u8 = node + 32;
+    *p = body;
+}
+
+// ============================================================
 // ImportDecl struct
 // ============================================================
 
@@ -1196,6 +1349,48 @@ func ptr_type_set_elem(t *u8, elem *u8) void {
 }
 
 // ============================================================
+// FuncType accessors (AST 2.0)
+// ============================================================
+// FuncType: [kind:8][params:8][param_count:8][ret:8] = 32 bytes
+// params is array of type pointers (8 bytes each)
+
+func func_type_alloc() *u8 {
+    var t *u8 = alloc(32);
+    type_set_kind(t, TYPE_FUNC);
+    return t;
+}
+
+func func_type_params(t *u8) *u8 {
+    var p **u8 = t + 8;
+    return *p;
+}
+
+func func_type_set_params(t *u8, params *u8) void {
+    var p **u8 = t + 8;
+    *p = params;
+}
+
+func func_type_param_count(t *u8) i64 {
+    var p *i64 = t + 16;
+    return *p;
+}
+
+func func_type_set_param_count(t *u8, count i64) void {
+    var p *i64 = t + 16;
+    *p = count;
+}
+
+func func_type_ret(t *u8) *u8 {
+    var p **u8 = t + 24;
+    return *p;
+}
+
+func func_type_set_ret(t *u8, ret *u8) void {
+    var p **u8 = t + 24;
+    *p = ret;
+}
+
+// ============================================================
 // Param accessors (24 bytes each)
 // ============================================================
 
@@ -1364,6 +1559,32 @@ func parse_type() *u8 {
         var elem *u8 = parse_type();
         var t *u8 = ptr_type_alloc();
         ptr_type_set_elem(t, elem);
+        return t;
+    }
+
+    // Function type: fn(T1, T2) R
+    if parse_match(TOKEN_FN) {
+        parse_expect(TOKEN_LPAREN, "expected '(' after 'fn'");
+
+        // Parse parameter types
+        var params *u8 = vec_new(8);
+        if !parse_check(TOKEN_RPAREN) {
+            var first i64 = 1;
+            while first == 1 || parse_match(TOKEN_COMMA) {
+                first = 0;
+                var param_type *u8 = parse_type();
+                vec_push(params, param_type);
+            }
+        }
+        parse_expect(TOKEN_RPAREN, "expected ')' after parameter types");
+
+        // Parse return type
+        var ret *u8 = parse_type();
+
+        var t *u8 = func_type_alloc();
+        func_type_set_params(t, params);
+        func_type_set_param_count(t, vec_len(params));
+        func_type_set_ret(t, ret);
         return t;
     }
 
@@ -1730,6 +1951,78 @@ func parse_primary() *u8 {
         return node;
     }
 
+    // Let expression: let x = init in body
+    // or with type: let x i64 = init in body
+    if parse_match(TOKEN_LET) {
+        var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected identifier after 'let'");
+
+        // Optional type annotation
+        var typ *u8 = nil;
+        if !parse_check(TOKEN_EQ) {
+            typ = parse_type();
+        }
+
+        parse_expect(TOKEN_EQ, "expected '=' in let expression");
+        var init *u8 = parse_expression();
+
+        parse_expect(TOKEN_IN, "expected 'in' after let initializer");
+        var body *u8 = parse_expression();
+
+        var node *u8 = let_expr_alloc();
+        let_expr_set_name(node, tok_lexeme(name_tok));
+        let_expr_set_name_len(node, tok_lexeme_len(name_tok));
+        let_expr_set_type(node, typ);
+        let_expr_set_init(node, init);
+        let_expr_set_body(node, body);
+        return node;
+    }
+
+    // Lambda expression: fn(param1 type1, param2 type2) ret_type { body }
+    // Uses TOKEN_FN which is already used for fn(T) R type syntax
+    // In primary position, this is a lambda value, not a type
+    if parse_match(TOKEN_FN) {
+        parse_expect(TOKEN_LPAREN, "expected '(' after 'fn' in lambda");
+
+        // Parse parameters (similar to func params)
+        var params *u8 = alloc(LIMIT_FUNC_PARAMS * 24);
+        var param_count i64 = 0;
+
+        if !parse_check(TOKEN_RPAREN) {
+            var done i64 = 0;
+            while done == 0 {
+                var pname_tok *u8 = parse_expect(TOKEN_IDENT, "expected parameter name");
+                var ptype *u8 = parse_type();
+
+                var p *u8 = params + (param_count * 24);
+                param_set_name(p, tok_lexeme(pname_tok));
+                param_set_name_len(p, tok_lexeme_len(pname_tok));
+                param_set_type(p, ptype);
+                param_count = param_count + 1;
+
+                if !parse_match(TOKEN_COMMA) {
+                    done = 1;
+                }
+            }
+        }
+        parse_expect(TOKEN_RPAREN, "expected ')' after lambda parameters");
+
+        // Parse optional return type (if not immediately a brace)
+        var ret_type *u8 = nil;
+        if !parse_check(TOKEN_LBRACE) {
+            ret_type = parse_type();
+        }
+
+        // Parse body (block only for now)
+        var body *u8 = parse_block();
+
+        var node *u8 = lambda_expr_alloc();
+        lambda_expr_set_params(node, params);
+        lambda_expr_set_param_count(node, param_count);
+        lambda_expr_set_ret_type(node, ret_type);
+        lambda_expr_set_body(node, body);
+        return node;
+    }
+
     parse_error("expected expression");
     var node *u8 = number_expr_alloc();
     number_expr_set_value(node, "0");
@@ -1901,6 +2194,17 @@ func parse_return_stmt() *u8 {
 func parse_expr_stmt() *u8 {
     var expr *u8 = parse_expression();
     parse_expect(TOKEN_SEMICOLON, "expected ';' after expression");
+
+    // Convert assignment binary expressions to explicit assign statements
+    // This separates assignment-as-statement from assignment-as-expression
+    if node_kind(expr) == NODE_BINARY_EXPR {
+        if binary_expr_op(expr) == TOKEN_EQ {
+            var node *u8 = assign_stmt_alloc();
+            assign_stmt_set_target(node, binary_expr_left(expr));
+            assign_stmt_set_value(node, binary_expr_right(expr));
+            return node;
+        }
+    }
 
     var node *u8 = expr_stmt_alloc();
     expr_stmt_set_expr(node, expr);

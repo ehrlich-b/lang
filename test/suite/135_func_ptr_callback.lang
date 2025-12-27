@@ -1,0 +1,81 @@
+// expect: 42
+// Test: callbacks and nested function pointer calls
+
+func identity(x i64) i64 { return x; }
+func double(x i64) i64 { return x * 2; }
+func square(x i64) i64 { return x * x; }
+func inc(x i64) i64 { return x + 1; }
+
+// Map a function over a computation
+func map1(f *u8, x i64) i64 {
+    return f(x);
+}
+
+// Compose two functions: g(f(x))
+func compose(f *u8, g *u8, x i64) i64 {
+    return g(f(x));
+}
+
+// Apply f three times: f(f(f(x)))
+func apply3(f *u8, x i64) i64 {
+    return f(f(f(x)));
+}
+
+// Conditional dispatch
+func dispatch(cond i64, f *u8, g *u8, x i64) i64 {
+    if cond {
+        return f(x);
+    }
+    return g(x);
+}
+
+func test_map() i64 {
+    return map1(&double, 21);  // 42
+}
+
+func test_compose() i64 {
+    // double(inc(20)) = double(21) = 42
+    return compose(&inc, &double, 20);
+}
+
+func test_apply3() i64 {
+    // inc(inc(inc(39))) = 42
+    return apply3(&inc, 39);
+}
+
+func test_dispatch_true() i64 {
+    return dispatch(1, &double, &identity, 21);  // 42
+}
+
+func test_dispatch_false() i64 {
+    return dispatch(0, &double, &identity, 42);  // 42
+}
+
+func test_nested_compose() i64 {
+    // square(inc(inc(inc(inc(2))))) = square(6) = 36... no
+    // Let's do: double(double(double(inc(4)))) = double(double(10)) = double(20) = 40...
+    // Actually: inc(inc(square(inc(5)))) = inc(inc(36)) = inc(37) = 38...
+    // Better: double(inc(double(10))) = double(21) = 42
+    var r i64 = double(10);   // 20
+    r = inc(r);               // 21
+    r = double(r);            // 42
+    return r;
+}
+
+func test_ptr_chain() i64 {
+    var f *u8 = &inc;
+    var g *u8 = &double;
+    // g(f(20)) = double(21) = 42
+    return g(f(20));
+}
+
+func main() i64 {
+    if test_map() != 42 { return 1; }
+    if test_compose() != 42 { return 2; }
+    if test_apply3() != 42 { return 3; }
+    if test_dispatch_true() != 42 { return 4; }
+    if test_dispatch_false() != 42 { return 5; }
+    if test_nested_compose() != 42 { return 6; }
+    if test_ptr_chain() != 42 { return 7; }
+    return 42;
+}
