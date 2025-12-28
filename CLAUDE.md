@@ -33,15 +33,39 @@ language/
 ## Build Commands
 
 ```bash
-make build          # Build compiler from source
-make verify         # Verify fixed point
-make promote        # Promote verified build
-make run FILE=...   # Compile and run
-make stdlib-run FILE=...  # With stdlib
+make build          # Build compiler from source → out/lang_next
+make verify         # Verify fixed point + run all tests
+make promote        # Promote verified build (lang_next → lang)
+make run FILE=...   # Compile and run (uses stable out/lang)
+make stdlib-run FILE=...  # With stdlib (uses stable out/lang)
 make bootstrap      # Bootstrap from assembly (emergency)
 ```
 
 **After compiler changes:** Always `make verify`.
+
+## Testing New Features
+
+There are TWO compilers:
+- `out/lang` - **Stable compiler** (used by `make run`, `make test-suite`)
+- `out/lang_next` - **Development compiler** (built by `make build`)
+
+When developing new language features (like enums, match, etc.), the stable compiler doesn't have them yet. Use these patterns:
+
+```bash
+# Run test suite with development compiler
+COMPILER=./out/lang_next ./test/run_lang1_suite.sh
+
+# Run specific test with development compiler
+COMPILER=./out/lang_next ./test/run_lang1_suite.sh 2>&1 | grep "141"
+
+# Manual single-file test with development compiler
+./out/lang_next test/suite/141_enum_variant.lang -o /tmp/test.s && \
+  as /tmp/test.s -o /tmp/test.o && \
+  ld /tmp/test.o -o /tmp/test && \
+  /tmp/test; echo "Exit: $?"
+```
+
+**Key insight**: `make run` will FAIL on new syntax because it uses the stable compiler. Always use `lang_next` for testing new features until they're promoted.
 
 ## Current Focus
 
@@ -67,6 +91,30 @@ make bootstrap      # Bootstrap from assembly (emergency)
 - Comments explain "why", not "what"
 - Memory can leak in the compiler (short-lived)
 - Incremental modernization, not big-bang refactoring
+
+## Language Gotchas (READ THIS)
+
+### Forward Declarations: NOT NEEDED, DON'T USE SIGNATURES
+
+**THE BUG**: Writing `func foo() void;` (signature only, no body) is INVALID SYNTAX.
+
+**THE FIX**: Just define functions in any order. Lang's parser collects ALL function declarations first, so functions CAN call functions defined later in the file. No forward declarations needed!
+
+```lang
+// THIS WORKS - mutual recursion without forward declarations
+func foo() void {
+    bar();  // bar is defined BELOW, but this works!
+}
+
+func bar() void {
+    foo();
+}
+
+// THIS IS INVALID - don't do this!
+func baz() void;  // ERROR: expected '{'
+```
+
+**Why we keep hitting this**: Coming from C, the instinct is to forward-declare mutually recursive functions. In lang, the two-pass parser handles this automatically.
 
 ## Error Handling Policy
 

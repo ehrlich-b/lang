@@ -134,8 +134,14 @@ The AST is a typed language expressed as S-expressions. This is NOT meant to be 
 (break <label>?)
 (continue <label>?)
 (expr-stmt <expr>)
-(assign <target> <value>)              ; ← explicit assignment (2.0)
+(assign <lvalue> <value>)              ; ← explicit assignment (2.0)
 (let <name> <type>? <init> <body>)     ; ← lexical binding (2.0)
+
+;; LVALUE grammar (valid targets for assign):
+;;   lvalue ::= (ident <name>)           ; x = ...
+;;            | (field <expr> <name>)    ; obj.field = ...
+;;            | (index <expr> <index>)   ; arr[i] = ...
+;;            | (unop * <expr>)          ; *ptr = ...
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; EXPRESSIONS
@@ -149,15 +155,18 @@ The AST is a typed language expressed as S-expressions. This is NOT meant to be 
 (nil)
 
 ;; Operations
-(binop <op> <left> <right>)            ; + - * / % == != < > <= >= && || & | ^
+(binop <op> <left> <right>)            ; + - * / % == != < > <= >= & | ^ << >>
 (unop <op> <expr>)                     ; - ! * &
 (call <func> <arg>*)
+
+;; Short-circuit control flow (NOT binops - these are control flow)
+(and <left> <right>)                   ; eval right only if left true
+(or <left> <right>)                    ; eval right only if left false
 (field <expr> <name>)
 (index <expr> <index>)
 
 ;; First-class functions ← NEW in 2.0
 (lambda (<param>*) (<effect>*)? <ret-type> <body>)
-(closure <lambda> (<capture>*))        ; lambda + captured environment
 
 ;; Sum types ← NEW in 2.0
 (variant <enum-name> <variant-name> <value>?)   ; construct: Some(42)
@@ -169,13 +178,35 @@ The AST is a typed language expressed as S-expressions. This is NOT meant to be 
 (handle <expr> <return-case> (<effect-case>*))   ; wrap and intercept
 (resume <k> <value>?)                            ; resume continuation
 
+;; Primitives / intrinsics ← NEW in 2.0
+;; Operations whose semantics are kernel-defined, not expressible in user code.
+(prim <op> <arg>*)
+
+;; Primop table (kernel responsibility):
+;;   mem-alloc <size>        → *u8     ; allocate bytes
+;;   mem-free <ptr>          → void    ; deallocate
+;;   mem-copy <dst> <src> <n> → void   ; copy bytes
+;;   trap <msg>              → !       ; abort with message
+;;   cast <type> <expr>      → T       ; unsafe type coercion
+;;   sizeof <type>           → i64     ; size of type in bytes
+
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; PATTERNS (for match expressions) ← NEW in 2.0
+;; Patterns are RECURSIVE - nested patterns like Some(Some(x)) are valid.
 ;; ═══════════════════════════════════════════════════════════════════════════
 
-(pattern-variant <name> <binding>?)    ; Some(x), None
-(pattern-wildcard)                      ; _
+(pattern-var <name>)                   ; x - binds matched value
+(pattern-wildcard)                     ; _ - matches anything, no binding
 (pattern-literal <value>)              ; 42, "hello", true
+(pattern-variant <enum> <variant> (<pattern>*))  ; Some(x), Pair(a, b), None
+
+;; Example: match option { Some(Some(x)) => x, _ => 0 }
+;; Compiles to:
+;;   (match (ident option)
+;;     ((case (pattern-variant Option Some
+;;              ((pattern-variant Option Some ((pattern-var x)))))
+;;            (ident x))
+;;      (case (pattern-wildcard) (number 0))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; TYPES
@@ -201,7 +232,45 @@ The AST is a typed language expressed as S-expressions. This is NOT meant to be 
 ;; Effect handling
 (return-case (<binding>) <body>)       ; normal return path ← NEW
 (effect-case <name> (<param>*) <k> <body>)  ; handler case ← NEW
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; LOWERING NODES (kernel internal - NOT emitted by readers)
+;; These are produced during kernel lowering passes, not by frontends.
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(closure <func-ptr> (<capture-value>*))  ; closure-converted lambda
+                                         ; func-ptr: pointer to lifted function
+                                         ; captures: values copied into closure struct
 ```
+
+### Statement vs Expression Contexts
+
+The AST distinguishes statements and expressions. The rules:
+
+| Context | Expects | Notes |
+|---------|---------|-------|
+| `(block <stmt>*)` | statements | Returns void |
+| `(let ... <body>)` | statement as body | Body is a statement |
+| `(if <c> <then> <else>?)` | statements | Else optional, returns void |
+| `(while <c> <body>)` | statement as body | Always returns void |
+| `(match <e> ...)` | expression | All arms must have same type |
+| `(handle <e> ...)` | expression | Handler result type |
+| Function body | statement | Use `(return <e>)` for value |
+
+To use an expression where a statement is expected: `(expr-stmt <expr>)`
+
+### Continuation Semantics
+
+Algebraic effect continuations in 2.0 have these properties:
+
+| Property | Choice | Rationale |
+|----------|--------|-----------|
+| **Linearity** | One-shot | Resume may be called AT MOST once |
+| **Escape** | Allowed | Continuations may escape handler scope |
+| **Reinstall** | Yes | Resume reinstates handler stack |
+| **Multi-shot** | No | No implicit copying; explicit `clone_k` if ever added |
+
+One-shot continuations map efficiently to state machines (like Rust async, Kotlin coroutines). Multi-shot would require stack copying and is deferred.
 
 ### What's New in 2.0 (Summary)
 
@@ -480,7 +549,15 @@ EXPRESSIONS (things that have values)
 ├── ast_unop("*", expr)               →  *expr (deref)
 ├── ast_unop("&", expr)               →  &expr (address-of)
 ├── ast_call(fn, args_vec)            →  fn(a, b, c)
-└── ast_field(expr, "name")           →  expr.name
+├── ast_field(expr, "name")           →  expr.name
+├── ast_and(left, right)              →  left && right (short-circuit)
+├── ast_or(left, right)               →  left || right (short-circuit)
+├── ast_lambda(params, effs, ret, body) →  |x| { body }
+├── ast_variant(enum, var, val)       →  Some(42)
+├── ast_match(expr, cases)            →  match e { ... }
+├── ast_perform(eff, args)            →  perform Eff(args)
+├── ast_handle(e, ret, effs)          →  handle { e } with { ... }
+└── ast_prim(op, args)                →  intrinsic operation
 
 STATEMENTS (things that do stuff)
 ├── ast_block(stmts_vec)              →  { stmt1; stmt2; }
@@ -488,18 +565,30 @@ STATEMENTS (things that do stuff)
 ├── ast_while(cond, body)             →  while cond { body }
 ├── ast_return(expr)                  →  return expr;
 ├── ast_break()                       →  break;
-└── ast_continue()                    →  continue;
+├── ast_continue()                    →  continue;
+├── ast_assign(lvalue, value)         →  x = expr; (see lvalue grammar)
+└── ast_let(name, type, init, body)   →  let x = e in body
 
 DECLARATIONS (things that define stuff)
 ├── ast_var(name, type, init)         →  var name type = init;
 ├── ast_func(name, params, ret, body) →  func name(params) ret { body }
 ├── ast_param(name, type)             →  name type
-└── ast_struct(name, fields)          →  struct name { fields }
+├── ast_struct(name, fields)          →  struct name { fields }
+├── ast_enum(name, variants)          →  enum Name { V1, V2(T) }
+└── ast_effect_decl(name, params, ret) →  effect Eff(T) -> R
+
+PATTERNS (for match arms - recursive!)
+├── ast_pattern_var("x")              →  x (binds value)
+├── ast_pattern_wildcard()            →  _ (matches any)
+├── ast_pattern_literal(val)          →  42, "hi"
+└── ast_pattern_variant(e, v, pats)   →  Some(x), Pair(a, b)
 
 TYPES
 ├── ast_type("i64")                   →  i64
 ├── ast_type("bool")                  →  bool
-└── ast_type_ptr(elem)                →  *elem
+├── ast_type_ptr(elem)                →  *elem
+├── ast_type_func(params, effs, ret)  →  fn(T) -> R
+└── ast_type_enum("Option")           →  Option
 ```
 
 ### Complete Example: Lisp Reader
@@ -935,13 +1024,23 @@ func ast_variant_decl(name *u8, payload_type *AST) *AST;
 func ast_variant(enum_name *u8, variant_name *u8, value *AST) *AST;
 func ast_match(expr *AST, cases *Vec) *AST;
 func ast_case(pattern *AST, body *AST) *AST;
-func ast_pattern_variant(name *u8, binding *u8) *AST;
+
+// Patterns (recursive - patterns can contain patterns)
+func ast_pattern_var(name *u8) *AST;
 func ast_pattern_wildcard() *AST;
+func ast_pattern_literal(value *AST) *AST;
+func ast_pattern_variant(enum_name *u8, variant_name *u8, sub_patterns *Vec) *AST;
 
 // First-class functions
 func ast_lambda(params *Vec, effects *Vec, ret_type *AST, body *AST) *AST;
-func ast_closure(lambda *AST, captures *Vec) *AST;
 func ast_type_func(params *Vec, effects *Vec, ret_type *AST) *AST;
+
+// Short-circuit control flow
+func ast_and(left *AST, right *AST) *AST;
+func ast_or(left *AST, right *AST) *AST;
+
+// Primitives / intrinsics
+func ast_prim(op *u8, args *Vec) *AST;
 
 // Algebraic effects
 func ast_effect_decl(name *u8, param_types *Vec, resume_type *AST) *AST;
@@ -1003,14 +1102,14 @@ The kernel doesn't try to be everything. It understands a small **Core** and pro
 
 ### The Design
 
-The kernel provides **allocation primitives** but not policy:
+The kernel provides **allocation primitives** via `(prim ...)` but not policy:
 
 ```lisp
-;; Memory primitives (kernel built-ins)
-(mem-alloc <size>)              ; allocate size bytes, return *u8
-(mem-free <ptr>)                ; mark memory as freeable
-(mem-size <ptr>)                ; get allocation size
-(mem-copy <dst> <src> <len>)    ; copy bytes
+;; Memory primitives (via prim node)
+(prim mem-alloc <size>)              ; allocate size bytes, return *u8
+(prim mem-free <ptr>)                ; mark memory as freeable
+(prim mem-size <ptr>)                ; get allocation size
+(prim mem-copy <dst> <src> <len>)    ; copy bytes
 ```
 
 The **memory manager** is a `.lang` library that readers include:
@@ -1018,10 +1117,10 @@ The **memory manager** is a `.lang` library that readers include:
 ```lang
 // std/gc/none.lang - no GC, manual free (current behavior)
 func alloc(size i64) *u8 {
-    return mem_alloc(size);
+    return prim_mem_alloc(size);  // calls (prim mem-alloc size)
 }
 func free(ptr *u8) void {
-    mem_free(ptr);
+    prim_mem_free(ptr);
 }
 
 // std/gc/refcount.lang - reference counting
