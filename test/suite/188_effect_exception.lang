@@ -1,0 +1,43 @@
+// expect: 0
+// Test basic effect/exception system
+// Effect declaration + perform + handle
+
+effect Fail(i64) i64
+
+func might_fail(x i64) i64 {
+    if x < 0 {
+        return perform Fail(x);
+    }
+    return x * 2;
+}
+
+func main() i64 {
+    // Test 1: No exception - should return 84
+    var result1 i64 = handle { might_fail(42) } with {
+        return(v) => v,
+        Fail(e) => 0
+    };
+    if result1 != 84 {
+        return 1;
+    }
+
+    // Test 2: Exception triggered - should return the handler result (100)
+    var result2 i64 = handle { might_fail(0 - 5) } with {
+        return(v) => v,
+        Fail(e) => 100
+    };
+    if result2 != 100 {
+        return 2;
+    }
+
+    // Test 3: Exception with value - handler receives the effect argument
+    var result3 i64 = handle { might_fail(0 - 7) } with {
+        return(v) => v,
+        Fail(e) => 0 - e
+    };
+    if result3 != 7 {
+        return 3;
+    }
+
+    return 0;
+}

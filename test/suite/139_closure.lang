@@ -1,0 +1,61 @@
+// expect: 42
+// Test: Closures - lambdas that capture variables from enclosing scope
+// Note: Captures are automatic (no explicit [captures] syntax needed)
+// Closures require manual calling convention with helper function
+
+include "std/core.lang"
+
+// Helper to call a closure with one i64 argument
+func call_closure_i64(closure *u8, arg i64) i64 {
+    var fn_ptr_p **u8 = closure;
+    var fn_ptr *u8 = *fn_ptr_p;
+    var f fn(*u8, i64) i64 = fn_ptr;
+    return f(closure, arg);
+}
+
+// Helper to call a zero-arg closure
+func call_closure_0(closure *u8) i64 {
+    var fn_ptr_p **u8 = closure;
+    var fn_ptr *u8 = *fn_ptr_p;
+    var f fn(*u8) i64 = fn_ptr;
+    return f(closure);
+}
+
+// Test 1: Simple capture
+func test_simple_capture() i64 {
+    var n i64 = 5;
+    // Lambda automatically captures 'n'
+    var add_n *u8 = fn(x i64) i64 { return x + n; };
+    return call_closure_i64(add_n, 37);  // 37 + 5 = 42
+}
+
+// Test 2: Multiple captures
+func test_multi_capture() i64 {
+    var a i64 = 10;
+    var b i64 = 32;
+    var f *u8 = fn() i64 { return a + b; };
+    return call_closure_0(f);  // 10 + 32 = 42
+}
+
+// Test 3: Captured value is copied (not referenced)
+func test_capture_copy() i64 {
+    var n i64 = 42;
+    var get_n *u8 = fn() i64 { return n; };
+    n = 100;  // Modify original
+    return call_closure_0(get_n);  // Should still return 42 (captured at creation)
+}
+
+// Test 4: Closure with params and captures
+func test_closure_with_params() i64 {
+    var multiplier i64 = 6;
+    var scale *u8 = fn(x i64) i64 { return x * multiplier; };
+    return call_closure_i64(scale, 7);  // 7 * 6 = 42
+}
+
+func main() i64 {
+    if test_simple_capture() != 42 { return 1; }
+    if test_multi_capture() != 42 { return 2; }
+    if test_capture_copy() != 42 { return 3; }
+    if test_closure_with_params() != 42 { return 5; }
+    return 42;
+}

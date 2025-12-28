@@ -45,6 +45,18 @@ var NODE_LET_EXPR i64 = 30;       // let x = init in body
 var NODE_ASSIGN_STMT i64 = 31;    // target = value (explicit assignment)
 var NODE_LAMBDA_EXPR i64 = 32;    // |params| { body } - lambda expression
 
+// Sum type nodes
+var NODE_ENUM_DECL i64 = 33;      // enum Name { Variant1, Variant2(Type) }
+var NODE_MATCH_EXPR i64 = 34;     // match expr { Pattern => body, ... }
+var NODE_PATTERN_VARIANT i64 = 35; // EnumName.Variant or EnumName.Variant(binding)
+var NODE_PATTERN_WILDCARD i64 = 36; // _ (matches anything)
+
+// Algebraic effect nodes
+var NODE_EFFECT_DECL i64 = 37;    // effect Name(params) ReturnType
+var NODE_PERFORM_EXPR i64 = 38;   // perform Effect(args)
+var NODE_HANDLE_EXPR i64 = 39;    // handle { expr } with { cases }
+var NODE_RESUME_EXPR i64 = 40;    // resume k(value) - for future use
+
 // Type kinds
 var TYPE_BASE i64 = 1;
 var TYPE_PTR i64 = 2;
@@ -97,6 +109,24 @@ var TYPE_FUNC i64 = 4;    // fn(T1, T2) R
 // FuncType: [kind:8][params:8][param_count:8][ret:8] = 32 bytes
 
 // Param: [name_ptr:8][name_len:8][type:8] = 24 bytes
+
+// ============================================================
+// Helper functions
+// ============================================================
+
+// Compare buffer with length against null-terminated string
+func buf_eq_str(buf *u8, len i64, str *u8) i64 {
+    var i i64 = 0;
+    while i < len {
+        var c u8 = *(str + i);
+        if c == 0 { return 0; }  // str is shorter than buf
+        if *(buf + i) != c { return 0; }
+        i = i + 1;
+    }
+    // Check that str has ended
+    if *(str + i) != 0 { return 0; }
+    return 1;
+}
 
 // ============================================================
 // Node accessor functions
@@ -317,6 +347,486 @@ func struct_field_set_type(field *u8, t *u8) void {
 
 func get_struct_field(fields *u8, index i64) *u8 {
     return fields + (index * 24);
+}
+
+// ============================================================
+// EnumDecl accessors
+// ============================================================
+// EnumDecl: [kind:8][name_ptr:8][name_len:8][variants:8][variant_count:8] = 40 bytes
+// EnumVariant: [name_ptr:8][name_len:8][payload_type:8][tag:8] = 32 bytes
+
+func enum_decl_alloc() *u8 {
+    var node *u8 = alloc(40);
+    node_set_kind(node, NODE_ENUM_DECL);
+    return node;
+}
+
+func enum_decl_name(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func enum_decl_set_name(node *u8, ptr *u8) void {
+    var p **u8 = node + 8;
+    *p = ptr;
+}
+
+func enum_decl_name_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func enum_decl_set_name_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+func enum_decl_variants(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func enum_decl_set_variants(node *u8, variants *u8) void {
+    var p **u8 = node + 24;
+    *p = variants;
+}
+
+func enum_decl_variant_count(node *u8) i64 {
+    var p *i64 = node + 32;
+    return *p;
+}
+
+func enum_decl_set_variant_count(node *u8, count i64) void {
+    var p *i64 = node + 32;
+    *p = count;
+}
+
+// EnumVariant accessors (32-byte entries)
+func enum_variant_name(v *u8) *u8 {
+    var p **u8 = v;
+    return *p;
+}
+
+func enum_variant_set_name(v *u8, ptr *u8) void {
+    var p **u8 = v;
+    *p = ptr;
+}
+
+func enum_variant_name_len(v *u8) i64 {
+    var p *i64 = v + 8;
+    return *p;
+}
+
+func enum_variant_set_name_len(v *u8, len i64) void {
+    var p *i64 = v + 8;
+    *p = len;
+}
+
+func enum_variant_type(v *u8) *u8 {
+    var p **u8 = v + 16;
+    return *p;
+}
+
+func enum_variant_set_type(v *u8, t *u8) void {
+    var p **u8 = v + 16;
+    *p = t;
+}
+
+func enum_variant_tag(v *u8) i64 {
+    var p *i64 = v + 24;
+    return *p;
+}
+
+func enum_variant_set_tag(v *u8, tag i64) void {
+    var p *i64 = v + 24;
+    *p = tag;
+}
+
+func get_enum_variant(variants *u8, index i64) *u8 {
+    return variants + (index * 32);
+}
+
+// ============================================================
+// MatchExpr accessors
+// Layout: [kind:8][scrutinee:8][arms:8][arm_count:8] = 32 bytes
+// ============================================================
+
+func match_expr_alloc() *u8 {
+    var node *u8 = alloc(32);
+    node_set_kind(node, NODE_MATCH_EXPR);
+    return node;
+}
+
+func match_expr_scrutinee(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func match_expr_set_scrutinee(node *u8, expr *u8) void {
+    var p **u8 = node + 8;
+    *p = expr;
+}
+
+func match_expr_arms(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func match_expr_set_arms(node *u8, arms *u8) void {
+    var p **u8 = node + 16;
+    *p = arms;
+}
+
+func match_expr_arm_count(node *u8) i64 {
+    var p *i64 = node + 24;
+    return *p;
+}
+
+func match_expr_set_arm_count(node *u8, count i64) void {
+    var p *i64 = node + 24;
+    *p = count;
+}
+
+// MatchArm layout: [pattern:8][body:8] = 16 bytes
+func get_match_arm(arms *u8, index i64) *u8 {
+    return arms + (index * 16);
+}
+
+func match_arm_pattern(arm *u8) *u8 {
+    var p **u8 = arm;
+    return *p;
+}
+
+func match_arm_set_pattern(arm *u8, pattern *u8) void {
+    var p **u8 = arm;
+    *p = pattern;
+}
+
+func match_arm_body(arm *u8) *u8 {
+    var p **u8 = arm + 8;
+    return *p;
+}
+
+func match_arm_set_body(arm *u8, body *u8) void {
+    var p **u8 = arm + 8;
+    *p = body;
+}
+
+// ============================================================
+// Pattern accessors
+// PatternVariant: [kind:8][enum_name:8][enum_len:8][variant_name:8][variant_len:8][binding_name:8][binding_len:8] = 56 bytes
+// PatternWildcard: [kind:8] = 8 bytes
+// ============================================================
+
+func pattern_variant_alloc() *u8 {
+    var node *u8 = alloc(56);
+    node_set_kind(node, NODE_PATTERN_VARIANT);
+    return node;
+}
+
+func pattern_variant_enum_name(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func pattern_variant_set_enum_name(node *u8, name *u8) void {
+    var p **u8 = node + 8;
+    *p = name;
+}
+
+func pattern_variant_enum_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func pattern_variant_set_enum_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+func pattern_variant_name(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func pattern_variant_set_name(node *u8, name *u8) void {
+    var p **u8 = node + 24;
+    *p = name;
+}
+
+func pattern_variant_name_len(node *u8) i64 {
+    var p *i64 = node + 32;
+    return *p;
+}
+
+func pattern_variant_set_name_len(node *u8, len i64) void {
+    var p *i64 = node + 32;
+    *p = len;
+}
+
+func pattern_variant_binding(node *u8) *u8 {
+    var p **u8 = node + 40;
+    return *p;
+}
+
+func pattern_variant_set_binding(node *u8, name *u8) void {
+    var p **u8 = node + 40;
+    *p = name;
+}
+
+func pattern_variant_binding_len(node *u8) i64 {
+    var p *i64 = node + 48;
+    return *p;
+}
+
+func pattern_variant_set_binding_len(node *u8, len i64) void {
+    var p *i64 = node + 48;
+    *p = len;
+}
+
+func pattern_wildcard_alloc() *u8 {
+    var node *u8 = alloc(8);
+    node_set_kind(node, NODE_PATTERN_WILDCARD);
+    return node;
+}
+
+// ============================================================
+// Effect node accessors
+// ============================================================
+
+// EffectDecl: [kind:8][name_ptr:8][name_len:8][param_types:8][param_type_count:8][return_type:8] = 48 bytes
+// Example: effect Fail(i64) void
+
+func effect_decl_alloc() *u8 {
+    var node *u8 = alloc(48);
+    node_set_kind(node, NODE_EFFECT_DECL);
+    return node;
+}
+
+func effect_decl_name(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func effect_decl_set_name(node *u8, name *u8) void {
+    var p **u8 = node + 8;
+    *p = name;
+}
+
+func effect_decl_name_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func effect_decl_set_name_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+func effect_decl_param_types(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func effect_decl_set_param_types(node *u8, params *u8) void {
+    var p **u8 = node + 24;
+    *p = params;
+}
+
+func effect_decl_param_type_count(node *u8) i64 {
+    var p *i64 = node + 32;
+    return *p;
+}
+
+func effect_decl_set_param_type_count(node *u8, count i64) void {
+    var p *i64 = node + 32;
+    *p = count;
+}
+
+func effect_decl_return_type(node *u8) *u8 {
+    var p **u8 = node + 40;
+    return *p;
+}
+
+func effect_decl_set_return_type(node *u8, ret_type *u8) void {
+    var p **u8 = node + 40;
+    *p = ret_type;
+}
+
+// PerformExpr: [kind:8][effect_name_ptr:8][effect_name_len:8][args:8][arg_count:8] = 40 bytes
+// Example: perform Fail(42)
+
+func perform_expr_alloc() *u8 {
+    var node *u8 = alloc(40);
+    node_set_kind(node, NODE_PERFORM_EXPR);
+    return node;
+}
+
+func perform_expr_name(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func perform_expr_set_name(node *u8, name *u8) void {
+    var p **u8 = node + 8;
+    *p = name;
+}
+
+func perform_expr_name_len(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func perform_expr_set_name_len(node *u8, len i64) void {
+    var p *i64 = node + 16;
+    *p = len;
+}
+
+func perform_expr_args(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func perform_expr_set_args(node *u8, args *u8) void {
+    var p **u8 = node + 24;
+    *p = args;
+}
+
+func perform_expr_arg_count(node *u8) i64 {
+    var p *i64 = node + 32;
+    return *p;
+}
+
+func perform_expr_set_arg_count(node *u8, count i64) void {
+    var p *i64 = node + 32;
+    *p = count;
+}
+
+// HandleExpr: [kind:8][body:8][cases:8][case_count:8][ret_bind_ptr:8][ret_bind_len:8][ret_body:8] = 56 bytes
+// Example: handle { expr } with { return(v) => v, Fail(e) => 0 }
+// For exceptions (no resume), cases are [effect_name:8][effect_name_len:8][binding_ptr:8][binding_len:8][body:8] = 40 bytes
+
+func handle_expr_alloc() *u8 {
+    var node *u8 = alloc(56);
+    node_set_kind(node, NODE_HANDLE_EXPR);
+    return node;
+}
+
+func handle_expr_body(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func handle_expr_set_body(node *u8, body *u8) void {
+    var p **u8 = node + 8;
+    *p = body;
+}
+
+func handle_expr_cases(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func handle_expr_set_cases(node *u8, cases *u8) void {
+    var p **u8 = node + 16;
+    *p = cases;
+}
+
+func handle_expr_case_count(node *u8) i64 {
+    var p *i64 = node + 24;
+    return *p;
+}
+
+func handle_expr_set_case_count(node *u8, count i64) void {
+    var p *i64 = node + 24;
+    *p = count;
+}
+
+func handle_expr_ret_bind(node *u8) *u8 {
+    var p **u8 = node + 32;
+    return *p;
+}
+
+func handle_expr_set_ret_bind(node *u8, bind *u8) void {
+    var p **u8 = node + 32;
+    *p = bind;
+}
+
+func handle_expr_ret_bind_len(node *u8) i64 {
+    var p *i64 = node + 40;
+    return *p;
+}
+
+func handle_expr_set_ret_bind_len(node *u8, len i64) void {
+    var p *i64 = node + 40;
+    *p = len;
+}
+
+func handle_expr_ret_body(node *u8) *u8 {
+    var p **u8 = node + 48;
+    return *p;
+}
+
+func handle_expr_set_ret_body(node *u8, body *u8) void {
+    var p **u8 = node + 48;
+    *p = body;
+}
+
+// Effect case entry: [effect_name:8][effect_name_len:8][binding_ptr:8][binding_len:8][body:8] = 40 bytes
+// Stored in a Vec
+
+func effect_case_name(entry *u8) *u8 {
+    var p **u8 = entry;
+    return *p;
+}
+
+func effect_case_name_len(entry *u8) i64 {
+    var p *i64 = entry + 8;
+    return *p;
+}
+
+func effect_case_binding(entry *u8) *u8 {
+    var p **u8 = entry + 16;
+    return *p;
+}
+
+func effect_case_binding_len(entry *u8) i64 {
+    var p *i64 = entry + 24;
+    return *p;
+}
+
+func effect_case_body(entry *u8) *u8 {
+    var p **u8 = entry + 32;
+    return *p;
+}
+
+// ResumeExpr: [kind:8][k_expr:8][value:8] = 24 bytes
+// Example: resume k(42)  (for future use)
+
+func resume_expr_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_RESUME_EXPR);
+    return node;
+}
+
+func resume_expr_k(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func resume_expr_set_k(node *u8, k *u8) void {
+    var p **u8 = node + 8;
+    *p = k;
+}
+
+func resume_expr_value(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func resume_expr_set_value(node *u8, value *u8) void {
+    var p **u8 = node + 16;
+    *p = value;
 }
 
 // ============================================================
@@ -1862,6 +2372,45 @@ func parse_finish_call(callee *u8) *u8 {
     return node;
 }
 
+// Parse a pattern for match expressions
+// Patterns: _ | EnumName.Variant | EnumName.Variant(binding)
+func parse_pattern() *u8 {
+    // Check for wildcard: _
+    if parse_check(TOKEN_IDENT) {
+        var tok *u8 = parse_peek();
+        var name *u8 = tok_lexeme(tok);
+        var len i64 = tok_lexeme_len(tok);
+        if len == 1 && *name == 95 {  // '_'
+            parse_advance();
+            return pattern_wildcard_alloc();
+        }
+    }
+
+    // Must be EnumName.Variant or EnumName.Variant(binding)
+    var enum_tok *u8 = parse_expect(TOKEN_IDENT, "expected pattern");
+    parse_expect(TOKEN_DOT, "expected '.' after enum name in pattern");
+    var variant_tok *u8 = parse_expect(TOKEN_IDENT, "expected variant name after '.'");
+
+    var node *u8 = pattern_variant_alloc();
+    pattern_variant_set_enum_name(node, tok_lexeme(enum_tok));
+    pattern_variant_set_enum_len(node, tok_lexeme_len(enum_tok));
+    pattern_variant_set_name(node, tok_lexeme(variant_tok));
+    pattern_variant_set_name_len(node, tok_lexeme_len(variant_tok));
+
+    // Check for binding: Variant(x)
+    if parse_match(TOKEN_LPAREN) {
+        var binding_tok *u8 = parse_expect(TOKEN_IDENT, "expected binding name");
+        pattern_variant_set_binding(node, tok_lexeme(binding_tok));
+        pattern_variant_set_binding_len(node, tok_lexeme_len(binding_tok));
+        parse_expect(TOKEN_RPAREN, "expected ')' after binding");
+    } else {
+        pattern_variant_set_binding(node, nil);
+        pattern_variant_set_binding_len(node, 0);
+    }
+
+    return node;
+}
+
 func parse_primary() *u8 {
     if parse_match(TOKEN_NUMBER) {
         var tok *u8 = parse_previous();
@@ -2020,6 +2569,147 @@ func parse_primary() *u8 {
         lambda_expr_set_param_count(node, param_count);
         lambda_expr_set_ret_type(node, ret_type);
         lambda_expr_set_body(node, body);
+        return node;
+    }
+
+    // Match expression: match expr { Pattern => body, ... }
+    if parse_match(TOKEN_MATCH) {
+        var scrutinee *u8 = parse_expression();
+        parse_expect(TOKEN_LBRACE, "expected '{' after match expression");
+
+        // Allocate arms array (max 32 arms)
+        var arms *u8 = alloc(32 * 16);
+        var arm_count i64 = 0;
+
+        while !parse_check(TOKEN_RBRACE) && !parse_is_at_end() {
+            // Parse pattern
+            var pattern *u8 = parse_pattern();
+
+            parse_expect(TOKEN_ARROW, "expected '=>' after pattern");
+
+            // Parse body expression
+            var body *u8 = parse_expression();
+
+            // Store arm
+            var arm *u8 = get_match_arm(arms, arm_count);
+            match_arm_set_pattern(arm, pattern);
+            match_arm_set_body(arm, body);
+            arm_count = arm_count + 1;
+
+            // Optional comma between arms
+            parse_match(TOKEN_COMMA);
+        }
+
+        parse_expect(TOKEN_RBRACE, "expected '}' after match arms");
+
+        var node *u8 = match_expr_alloc();
+        match_expr_set_scrutinee(node, scrutinee);
+        match_expr_set_arms(node, arms);
+        match_expr_set_arm_count(node, arm_count);
+        return node;
+    }
+
+    // Perform expression: perform Effect(args)
+    if parse_match(TOKEN_PERFORM) {
+        var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected effect name after 'perform'");
+        parse_expect(TOKEN_LPAREN, "expected '(' after effect name");
+
+        // Parse arguments
+        var args *u8 = alloc(64 * 8);  // max 64 args
+        var arg_count i64 = 0;
+
+        if !parse_check(TOKEN_RPAREN) {
+            var first_arg *u8 = parse_expression();
+            var p **u8 = args + (arg_count * 8);
+            *p = first_arg;
+            arg_count = arg_count + 1;
+
+            while parse_match(TOKEN_COMMA) {
+                var arg *u8 = parse_expression();
+                var pp **u8 = args + (arg_count * 8);
+                *pp = arg;
+                arg_count = arg_count + 1;
+            }
+        }
+
+        parse_expect(TOKEN_RPAREN, "expected ')' after effect arguments");
+
+        var node *u8 = perform_expr_alloc();
+        perform_expr_set_name(node, tok_lexeme(name_tok));
+        perform_expr_set_name_len(node, tok_lexeme_len(name_tok));
+        perform_expr_set_args(node, args);
+        perform_expr_set_arg_count(node, arg_count);
+        return node;
+    }
+
+    // Handle expression: handle { body } with { return(v) => expr, Effect(e) => expr }
+    if parse_match(TOKEN_HANDLE) {
+        parse_expect(TOKEN_LBRACE, "expected '{' after 'handle'");
+
+        // Parse body expression/statement
+        var body *u8 = parse_expression();
+
+        parse_expect(TOKEN_RBRACE, "expected '}' after handle body");
+        parse_expect(TOKEN_WITH, "expected 'with' after handle body");
+        parse_expect(TOKEN_LBRACE, "expected '{' after 'with'");
+
+        // Parse return case first: return(v) => expr
+        var ret_bind *u8 = nil;
+        var ret_bind_len i64 = 0;
+        var ret_body *u8 = nil;
+
+        // Allocate effect cases array (max 32 cases, 40 bytes each)
+        var cases *u8 = alloc(32 * 40);
+        var case_count i64 = 0;
+
+        while !parse_check(TOKEN_RBRACE) && !parse_is_at_end() {
+            // Accept either IDENT or RETURN keyword for case name
+            var case_name_tok *u8 = nil;
+            if parse_match(TOKEN_RETURN) {
+                case_name_tok = parse_previous();
+            } else {
+                case_name_tok = parse_expect(TOKEN_IDENT, "expected effect name or 'return'");
+            }
+            parse_expect(TOKEN_LPAREN, "expected '(' after handler case name");
+            var binding_tok *u8 = parse_expect(TOKEN_IDENT, "expected binding name");
+            parse_expect(TOKEN_RPAREN, "expected ')' after binding");
+            parse_expect(TOKEN_ARROW, "expected '=>' after pattern");
+            var case_body *u8 = parse_expression();
+
+            // Check if this is the return case
+            if buf_eq_str(tok_lexeme(case_name_tok), tok_lexeme_len(case_name_tok), "return") {
+                ret_bind = tok_lexeme(binding_tok);
+                ret_bind_len = tok_lexeme_len(binding_tok);
+                ret_body = case_body;
+            } else {
+                // Effect case: store in cases array
+                var entry *u8 = cases + (case_count * 40);
+                var p1 **u8 = entry;
+                *p1 = tok_lexeme(case_name_tok);
+                var p2 *i64 = entry + 8;
+                *p2 = tok_lexeme_len(case_name_tok);
+                var p3 **u8 = entry + 16;
+                *p3 = tok_lexeme(binding_tok);
+                var p4 *i64 = entry + 24;
+                *p4 = tok_lexeme_len(binding_tok);
+                var p5 **u8 = entry + 32;
+                *p5 = case_body;
+                case_count = case_count + 1;
+            }
+
+            // Optional comma
+            parse_match(TOKEN_COMMA);
+        }
+
+        parse_expect(TOKEN_RBRACE, "expected '}' after handler cases");
+
+        var node *u8 = handle_expr_alloc();
+        handle_expr_set_body(node, body);
+        handle_expr_set_cases(node, cases);
+        handle_expr_set_case_count(node, case_count);
+        handle_expr_set_ret_bind(node, ret_bind);
+        handle_expr_set_ret_bind_len(node, ret_bind_len);
+        handle_expr_set_ret_body(node, ret_body);
         return node;
     }
 
@@ -2291,6 +2981,86 @@ func parse_struct_decl() *u8 {
     return node;
 }
 
+func parse_enum_decl() *u8 {
+    // enum IDENT "{" { IDENT [ "(" type ")" ] "," } "}"
+    var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected enum name");
+    parse_expect(TOKEN_LBRACE, "expected '{' after enum name");
+
+    // Allocate variants array (max 64 variants, 32 bytes each)
+    var variants *u8 = alloc(64 * 32);
+    var variant_count i64 = 0;
+
+    while !parse_check(TOKEN_RBRACE) && !parse_is_at_end() {
+        var vname_tok *u8 = parse_expect(TOKEN_IDENT, "expected variant name");
+
+        var v *u8 = get_enum_variant(variants, variant_count);
+        enum_variant_set_name(v, tok_lexeme(vname_tok));
+        enum_variant_set_name_len(v, tok_lexeme_len(vname_tok));
+        enum_variant_set_tag(v, variant_count);
+
+        // Optional payload type: Variant(Type)
+        if parse_match(TOKEN_LPAREN) {
+            var vtype *u8 = parse_type();
+            enum_variant_set_type(v, vtype);
+            parse_expect(TOKEN_RPAREN, "expected ')' after variant type");
+        } else {
+            enum_variant_set_type(v, nil);
+        }
+
+        variant_count = variant_count + 1;
+
+        // Optional comma (allow trailing comma)
+        parse_match(TOKEN_COMMA);
+    }
+
+    parse_expect(TOKEN_RBRACE, "expected '}' after enum variants");
+
+    var node *u8 = enum_decl_alloc();
+    enum_decl_set_name(node, tok_lexeme(name_tok));
+    enum_decl_set_name_len(node, tok_lexeme_len(name_tok));
+    enum_decl_set_variants(node, variants);
+    enum_decl_set_variant_count(node, variant_count);
+    return node;
+}
+
+func parse_effect_decl() *u8 {
+    // effect NAME "(" [type-list] ")" return-type
+    // Example: effect Fail(i64) void
+    var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected effect name");
+    parse_expect(TOKEN_LPAREN, "expected '(' after effect name");
+
+    // Parse parameter types (just types, no names - effects don't bind param names in decl)
+    var param_types *u8 = alloc(64 * 8);  // max 64 param types
+    var param_type_count i64 = 0;
+
+    if !parse_check(TOKEN_RPAREN) {
+        var first_type *u8 = parse_type();
+        var p **u8 = param_types + (param_type_count * 8);
+        *p = first_type;
+        param_type_count = param_type_count + 1;
+
+        while parse_match(TOKEN_COMMA) {
+            var ptype *u8 = parse_type();
+            var pp **u8 = param_types + (param_type_count * 8);
+            *pp = ptype;
+            param_type_count = param_type_count + 1;
+        }
+    }
+
+    parse_expect(TOKEN_RPAREN, "expected ')' after effect parameters");
+
+    // Parse return type
+    var ret_type *u8 = parse_type();
+
+    var node *u8 = effect_decl_alloc();
+    effect_decl_set_name(node, tok_lexeme(name_tok));
+    effect_decl_set_name_len(node, tok_lexeme_len(name_tok));
+    effect_decl_set_param_types(node, param_types);
+    effect_decl_set_param_type_count(node, param_type_count);
+    effect_decl_set_return_type(node, ret_type);
+    return node;
+}
+
 func parse_macro_decl() *u8 {
     // macro IDENT "(" [param-list] ")" block
     // params are just names (no types, they're all *Ast)
@@ -2396,6 +3166,12 @@ func parse_declaration() *u8 {
     }
     if parse_match(TOKEN_STRUCT) {
         return parse_struct_decl();
+    }
+    if parse_match(TOKEN_ENUM) {
+        return parse_enum_decl();
+    }
+    if parse_match(TOKEN_EFFECT) {
+        return parse_effect_decl();
     }
     if parse_match(TOKEN_MACRO) {
         return parse_macro_decl();

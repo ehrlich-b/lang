@@ -1,0 +1,34 @@
+// expect: 42
+// Test: Enum variant construction
+// Verifies variant construction works for both unit and payload variants
+
+include "std/core.lang"
+
+enum Option {
+    None,
+    Some(i64),
+}
+
+func main() i64 {
+    // Test unit variant construction
+    var none Option = Option.None;
+
+    // Test variant with payload
+    var some Option = Option.Some(42);
+
+    // Access memory layout directly: [tag:8][payload:8]
+    // Use byte pointer and manual offset to avoid pointer arithmetic scaling bug
+    var base *u8 = &some;
+    var tag_ptr *i64 = base;
+    var tag i64 = *tag_ptr;
+
+    // Payload is at offset 8 from start
+    var payload_ptr *i64 = base + 8;
+    var payload i64 = *payload_ptr;
+
+    // tag should be 1 (Some is second variant), payload should be 42
+    if tag != 1 {
+        return 1;  // Wrong tag
+    }
+    return payload;
+}

@@ -1,0 +1,71 @@
+// expect: 42
+// Pointer arithmetic: ptr + 1 should add sizeof(element), not 1 byte
+
+// Use struct to get contiguous memory on stack
+struct Array4 {
+    a i64;
+    b i64;
+    c i64;
+    d i64;
+}
+
+func main() i64 {
+    // Stack-allocated contiguous array
+    var storage Array4;
+    var arr *i64 = &storage;
+
+    // Store values using pointer arithmetic
+    *arr = 100;
+    *(arr + 1) = 200;  // Should be at arr + 8 bytes
+    *(arr + 2) = 300;  // Should be at arr + 16 bytes
+    *(arr + 3) = 400;  // Should be at arr + 24 bytes
+
+    // Read back and verify
+    if *arr != 100 {
+        return 2;
+    }
+    if *(arr + 1) != 200 {
+        return 3;
+    }
+    if *(arr + 2) != 300 {
+        return 4;
+    }
+    if *(arr + 3) != 400 {
+        return 5;
+    }
+
+    // Also verify via struct fields (sanity check)
+    if storage.a != 100 {
+        return 10;
+    }
+    if storage.b != 200 {
+        return 11;
+    }
+    if storage.c != 300 {
+        return 12;
+    }
+    if storage.d != 400 {
+        return 13;
+    }
+
+    // Test subtraction: arr + 3 - 1 should give arr + 2
+    var p3 *i64 = arr + 3;
+    var p2 *i64 = p3 - 1;
+    if *p2 != 300 {
+        return 6;
+    }
+
+    // Verify addresses are correctly spaced (8 bytes apart for i64)
+    var addr0 i64 = arr;
+    var addr1 i64 = arr + 1;
+    var addr2 i64 = arr + 2;
+
+    if addr1 - addr0 != 8 {
+        return 7;
+    }
+    if addr2 - addr1 != 8 {
+        return 8;
+    }
+
+    return 42;
+}

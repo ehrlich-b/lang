@@ -1,0 +1,34 @@
+// expect: 42
+// Test: Basic match expression
+// Verifies match on enum variants works
+
+include "std/core.lang"
+
+enum Option {
+    None,
+    Some(i64),
+}
+
+func unwrap_or(opt *Option, default i64) i64 {
+    return match opt {
+        Option.None => default,
+        Option.Some(x) => x,
+    };
+}
+
+func main() i64 {
+    var some Option = Option.Some(42);
+    var none Option = Option.None;
+
+    var result1 i64 = unwrap_or(&some, 0);
+    var result2 i64 = unwrap_or(&none, 99);
+
+    // result1 should be 42, result2 should be 99
+    if result1 != 42 {
+        return 1;
+    }
+    if result2 != 99 {
+        return 2;
+    }
+    return 42;
+}

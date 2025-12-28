@@ -43,6 +43,12 @@ var cg_in_func_body i64 = 0;  // 1 = emit to func_buf, 0 = emit to code_buf
 var cg_structs *u8 = nil;
 var cg_struct_count i64 = 0;
 
+// Enum registry: simple array of enum decls
+// Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
+// Max 100 enums
+var cg_enums *u8 = nil;
+var cg_enum_count i64 = 0;
+
 // Macro registry: simple array of macro decls
 // Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
 // Max 100 macros
@@ -62,10 +68,34 @@ var cg_funcs *u8 = nil;
 var cg_func_count i64 = 0;
 
 // Lambda registry: collect lambdas during codegen, emit at end
-// Each entry: [lambda_node:8][name_id:8] = 16 bytes
+// Each entry: [lambda_node:8][name_id:8][captures_ptr:8][capture_count:8] = 32 bytes
 // Max 500 lambdas
 var cg_lambdas *u8 = nil;
 var cg_lambda_count i64 = 0;
+
+// Capture tracking during lambda analysis
+// Each capture entry: [name_ptr:8][name_len:8][outer_offset:8][type:8] = 32 bytes
+var cg_current_captures *u8 = nil;
+var cg_current_capture_count i64 = 0;
+
+// Scope marker for distinguishing outer vs inner locals during capture analysis
+var cg_lambda_scope_start i64 = 0;
+
+// Closure context for generating closure bodies
+var cg_in_closure i64 = 0;                // 1 if generating a closure body
+var cg_closure_ptr_offset i64 = 0;        // Stack offset where closure ptr is stored
+var cg_closure_captures *u8 = nil;        // Captures array for current closure
+var cg_closure_capture_count i64 = 0;     // Number of captures
+
+// Effect registry: simple array of effect decls
+// Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
+// Max 100 effects
+var cg_effects *u8 = nil;
+var cg_effect_count i64 = 0;
+
+// Handler stack for runtime effect handling
+// This tracks the handler depth at codegen time (for labels)
+var cg_handler_depth i64 = 0;
 
 // Include stack for loop detection
 // Each entry: [path_ptr:8][path_len:8] = 16 bytes
@@ -123,15 +153,15 @@ func loop_stack_find(name *u8, name_len i64) *u8 {
         }
         if entry_name != nil && entry_len == name_len {
             // Compare names
-            var match i64 = 1;
+            var is_match i64 = 1;
             var j i64 = 0;
             while j < name_len {
                 if *(name + j) != *(entry_name + j) {
-                    match = 0;
+                    is_match = 0;
                 }
                 j = j + 1;
             }
-            if match == 1 {
+            if is_match == 1 {
                 return entry;
             }
         }
@@ -190,6 +220,12 @@ func codegen_init() void {
 
     cg_structs = alloc(LIMIT_STRUCTS * 24);
     cg_struct_count = 0;
+
+    cg_enums = alloc(LIMIT_ENUMS * 24);
+    cg_enum_count = 0;
+
+    cg_effects = alloc(LIMIT_EFFECTS * 24);
+    cg_effect_count = 0;
 
     cg_macros = alloc(LIMIT_MACROS * 24);
     cg_macro_count = 0;
@@ -270,6 +306,267 @@ func add_local(name *u8, name_len i64, offset i64, t *u8) void {
     local_set_offset(cg_local_count, offset);
     local_set_type(cg_local_count, t);
     cg_local_count = cg_local_count + 1;
+}
+
+// ============================================================
+// Capture accessors (for closures)
+// Each entry: [name_ptr:8][name_len:8][outer_offset:8][type:8] = 32 bytes
+// ============================================================
+
+func capture_get_name(index i64) *u8 {
+    var p **u8 = cg_current_captures + (index * 32);
+    return *p;
+}
+
+func capture_set_name(index i64, ptr *u8) void {
+    var p **u8 = cg_current_captures + (index * 32);
+    *p = ptr;
+}
+
+func capture_get_name_len(index i64) i64 {
+    var p *i64 = cg_current_captures + (index * 32) + 8;
+    return *p;
+}
+
+func capture_set_name_len(index i64, len i64) void {
+    var p *i64 = cg_current_captures + (index * 32) + 8;
+    *p = len;
+}
+
+func capture_get_outer_offset(index i64) i64 {
+    var p *i64 = cg_current_captures + (index * 32) + 16;
+    return *p;
+}
+
+func capture_set_outer_offset(index i64, off i64) void {
+    var p *i64 = cg_current_captures + (index * 32) + 16;
+    *p = off;
+}
+
+func capture_get_type(index i64) *u8 {
+    var p **u8 = cg_current_captures + (index * 32) + 24;
+    return *p;
+}
+
+func capture_set_type(index i64, t *u8) void {
+    var p **u8 = cg_current_captures + (index * 32) + 24;
+    *p = t;
+}
+
+func find_capture(name *u8, name_len i64) i64 {
+    var i i64 = 0;
+    while i < cg_current_capture_count {
+        if capture_get_name_len(i) == name_len {
+            if memcmp(capture_get_name(i), name, name_len) {
+                return i;
+            }
+        }
+        i = i + 1;
+    }
+    return 0 - 1;  // -1 not found
+}
+
+func add_capture(name *u8, name_len i64, outer_offset i64, t *u8) void {
+    // Check if already captured
+    if find_capture(name, name_len) >= 0 {
+        return;  // Already in capture list
+    }
+    capture_set_name(cg_current_capture_count, name);
+    capture_set_name_len(cg_current_capture_count, name_len);
+    capture_set_outer_offset(cg_current_capture_count, outer_offset);
+    capture_set_type(cg_current_capture_count, t);
+    cg_current_capture_count = cg_current_capture_count + 1;
+}
+
+func init_capture_tracking() void {
+    if cg_current_captures == nil {
+        cg_current_captures = alloc(LIMIT_CAPTURES * 32);
+    }
+    cg_current_capture_count = 0;
+}
+
+// ============================================================
+// Capture analysis - walk AST to find free variables
+// Note: Mutual recursion works without forward declarations
+// because lang's parser collects all function decls first.
+// ============================================================
+
+func analyze_captures_block(block *u8) void {
+    var stmts *u8 = block_stmt_stmts(block);
+    var count i64 = block_stmt_count(block);
+    var i i64 = 0;
+    while i < count {
+        var stmt_p **u8 = stmts + (i * 8);
+        analyze_captures_stmt(*stmt_p);
+        i = i + 1;
+    }
+}
+
+func analyze_captures_stmt(stmt *u8) void {
+    if stmt == nil { return; }
+    var k i64 = node_kind(stmt);
+
+    if k == NODE_BLOCK_STMT {
+        analyze_captures_block(stmt);
+    } else if k == NODE_IF_STMT {
+        analyze_captures_expr(if_stmt_cond(stmt));
+        analyze_captures_stmt(if_stmt_then(stmt));
+        var else_part *u8 = if_stmt_else(stmt);
+        if else_part != nil {
+            analyze_captures_stmt(else_part);
+        }
+    } else if k == NODE_WHILE_STMT {
+        analyze_captures_expr(while_stmt_cond(stmt));
+        analyze_captures_stmt(while_stmt_body(stmt));
+    } else if k == NODE_RETURN_STMT {
+        var ret_val *u8 = return_stmt_value(stmt);
+        if ret_val != nil {
+            analyze_captures_expr(ret_val);
+        }
+    } else if k == NODE_EXPR_STMT {
+        analyze_captures_expr(expr_stmt_expr(stmt));
+    } else if k == NODE_VAR_DECL {
+        // Note: The local is ADDED to scope by normal codegen
+        // We need to analyze the initializer expression
+        var init *u8 = var_decl_init(stmt);
+        if init != nil {
+            analyze_captures_expr(init);
+        }
+    } else if k == NODE_ASSIGN_STMT {
+        analyze_captures_expr(assign_stmt_target(stmt));
+        analyze_captures_expr(assign_stmt_value(stmt));
+    }
+    // BREAK_STMT and CONTINUE_STMT have no expressions to analyze
+}
+
+func analyze_captures_expr(expr *u8) void {
+    if expr == nil { return; }
+    var k i64 = node_kind(expr);
+
+    if k == NODE_IDENT_EXPR {
+        var name *u8 = ident_expr_name(expr);
+        var name_len i64 = ident_expr_name_len(expr);
+
+        // Check if it's a local from BEFORE the lambda scope started
+        var local_idx i64 = find_local(name, name_len);
+        if local_idx >= 0 && local_idx < cg_lambda_scope_start {
+            // This is an outer-scope variable - capture it!
+            var outer_offset i64 = local_get_offset(local_idx);
+            var local_type *u8 = local_get_type(local_idx);
+            add_capture(name, name_len, outer_offset, local_type);
+        }
+        // If it's a local within lambda scope, it's not captured
+        // If it's not a local (global, function), it's not captured
+    } else if k == NODE_BINARY_EXPR {
+        analyze_captures_expr(binary_expr_left(expr));
+        analyze_captures_expr(binary_expr_right(expr));
+    } else if k == NODE_UNARY_EXPR {
+        analyze_captures_expr(unary_expr_expr(expr));
+    } else if k == NODE_CALL_EXPR {
+        analyze_captures_expr(call_expr_func(expr));
+        var args *u8 = call_expr_args(expr);
+        var arg_count i64 = call_expr_arg_count(expr);
+        var i i64 = 0;
+        while i < arg_count {
+            var arg_p **u8 = args + (i * 8);
+            analyze_captures_expr(*arg_p);
+            i = i + 1;
+        }
+    } else if k == NODE_FIELD_EXPR {
+        analyze_captures_expr(field_expr_expr(expr));
+    } else if k == NODE_INDEX_EXPR {
+        // IndexExpr layout: [kind:8][expr:8][index:8]
+        var idx_expr_p **u8 = expr + 8;
+        var idx_index_p **u8 = expr + 16;
+        analyze_captures_expr(*idx_expr_p);
+        analyze_captures_expr(*idx_index_p);
+    } else if k == NODE_GROUP_EXPR {
+        analyze_captures_expr(group_expr_expr(expr));
+    } else if k == NODE_LET_EXPR {
+        analyze_captures_expr(let_expr_init(expr));
+        // let bindings create a new local, but analyze body for more captures
+        analyze_captures_expr(let_expr_body(expr));
+    } else if k == NODE_LAMBDA_EXPR {
+        // Nested lambda - for now, don't analyze nested lambdas
+        // They will be analyzed when they are processed
+        // This avoids double-capture complexity
+    } else if k == NODE_MATCH_EXPR {
+        analyze_captures_expr(match_expr_scrutinee(expr));
+        var arms *u8 = match_expr_arms(expr);
+        var arm_count i64 = match_expr_arm_count(expr);
+        var i i64 = 0;
+        while i < arm_count {
+            var arm *u8 = get_match_arm(arms, i);
+            // Pattern bindings create locals, but analyze body
+            analyze_captures_expr(match_arm_body(arm));
+            i = i + 1;
+        }
+    }
+    // NUMBER_EXPR, STRING_EXPR, BOOL_EXPR, NIL_EXPR have no sub-expressions
+}
+
+// Main function to analyze captures in a lambda
+// Returns the number of captures found
+func analyze_lambda_captures(lambda_node *u8, param_count i64) i64 {
+    // Initialize capture tracking
+    init_capture_tracking();
+
+    // Mark current scope start - variables at or above this index are outer scope
+    cg_lambda_scope_start = cg_local_count;
+
+    // Walk the lambda body to find captures
+    analyze_captures_block(lambda_expr_body(lambda_node));
+
+    return cg_current_capture_count;
+}
+
+// Find a capture in the current closure context by name
+// Returns capture index (>= 0) or -1 if not found
+func find_closure_capture(name *u8, name_len i64) i64 {
+    if cg_in_closure == 0 { return 0 - 1; }
+    var i i64 = 0;
+    while i < cg_closure_capture_count {
+        var entry *u8 = cg_closure_captures + (i * 32);
+        var cap_name **u8 = entry;
+        var cap_len *i64 = entry + 8;
+        if *cap_len == name_len {
+            if memcmp(*cap_name, name, name_len) {
+                return i;
+            }
+        }
+        i = i + 1;
+    }
+    return 0 - 1;
+}
+
+// Get capture type from capture entry
+func closure_capture_type(index i64) *u8 {
+    var entry *u8 = cg_closure_captures + (index * 32);
+    var type_ptr **u8 = entry + 24;
+    return *type_ptr;
+}
+
+// Check if a lambda expression has captures (for compile-time safety check)
+// Returns 1 if lambda captures outer variables, 0 otherwise
+func lambda_has_captures(lambda_node *u8) i64 {
+    // Save current capture tracking state
+    var saved_captures *u8 = cg_current_captures;
+    var saved_count i64 = cg_current_capture_count;
+    var saved_scope_start i64 = cg_lambda_scope_start;
+
+    // Analyze this lambda's captures
+    var param_count i64 = lambda_expr_param_count(lambda_node);
+    var capture_count i64 = analyze_lambda_captures(lambda_node, param_count);
+
+    // Restore state
+    cg_current_captures = saved_captures;
+    cg_current_capture_count = saved_count;
+    cg_lambda_scope_start = saved_scope_start;
+
+    if capture_count > 0 {
+        return 1;
+    }
+    return 0;
 }
 
 // ============================================================
@@ -375,6 +672,112 @@ func find_struct(name *u8, name_len i64) *u8 {
 
         if slen == name_len {
             if memcmp(sname, name, name_len) {
+                var dp **u8 = entry + 16;
+                return *dp;
+            }
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
+// ============================================================
+// Enum registry helpers
+// ============================================================
+
+func add_enum(decl *u8) void {
+    var name *u8 = enum_decl_name(decl);
+    var name_len i64 = enum_decl_name_len(decl);
+
+    var entry *u8 = cg_enums + (cg_enum_count * 24);
+
+    var np **u8 = entry;
+    *np = name;
+
+    var nl *i64 = entry + 8;
+    *nl = name_len;
+
+    var dp **u8 = entry + 16;
+    *dp = decl;
+
+    cg_enum_count = cg_enum_count + 1;
+}
+
+func find_enum(name *u8, name_len i64) *u8 {
+    var i i64 = 0;
+    while i < cg_enum_count {
+        var entry *u8 = cg_enums + (i * 24);
+
+        var np **u8 = entry;
+        var ename *u8 = *np;
+
+        var nl *i64 = entry + 8;
+        var elen i64 = *nl;
+
+        if elen == name_len {
+            if memcmp(ename, name, name_len) {
+                var dp **u8 = entry + 16;
+                return *dp;
+            }
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
+func find_variant(enum_decl *u8, name *u8, name_len i64) *u8 {
+    var variants *u8 = enum_decl_variants(enum_decl);
+    var count i64 = enum_decl_variant_count(enum_decl);
+    var i i64 = 0;
+    while i < count {
+        var v *u8 = get_enum_variant(variants, i);
+        var vname *u8 = enum_variant_name(v);
+        var vlen i64 = enum_variant_name_len(v);
+        if vlen == name_len {
+            if memcmp(vname, name, name_len) {
+                return v;
+            }
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
+// ============================================================
+// Effect registry
+// ============================================================
+
+func add_effect(decl *u8) void {
+    var name *u8 = effect_decl_name(decl);
+    var name_len i64 = effect_decl_name_len(decl);
+
+    var entry *u8 = cg_effects + (cg_effect_count * 24);
+
+    var np **u8 = entry;
+    *np = name;
+
+    var nl *i64 = entry + 8;
+    *nl = name_len;
+
+    var dp **u8 = entry + 16;
+    *dp = decl;
+
+    cg_effect_count = cg_effect_count + 1;
+}
+
+func find_effect(name *u8, name_len i64) *u8 {
+    var i i64 = 0;
+    while i < cg_effect_count {
+        var entry *u8 = cg_effects + (i * 24);
+
+        var np **u8 = entry;
+        var ename *u8 = *np;
+
+        var nl *i64 = entry + 8;
+        var elen i64 = *nl;
+
+        if elen == name_len {
+            if memcmp(ename, name, name_len) {
                 var dp **u8 = entry + 16;
                 return *dp;
             }
@@ -830,6 +1233,14 @@ func process_decl_first_pass(decl *u8) void {
     var k i64 = node_kind(decl);
     if k == NODE_STRUCT_DECL {
         add_struct(decl);
+        return;
+    }
+    if k == NODE_ENUM_DECL {
+        add_enum(decl);
+        return;
+    }
+    if k == NODE_EFFECT_DECL {
+        add_effect(decl);
         return;
     }
     if k == NODE_MACRO_DECL {
@@ -1363,8 +1774,43 @@ func get_type_size(t *u8) i64 {
         if struct_decl != nil {
             return get_struct_size(struct_decl);
         }
+        // Check if it's an enum type
+        var enum_decl *u8 = find_enum(name, len);
+        if enum_decl != nil {
+            return get_enum_size(enum_decl);
+        }
     }
     return 8;  // default
+}
+
+// Enum size functions
+func get_enum_max_payload(decl *u8) i64 {
+    var variants *u8 = enum_decl_variants(decl);
+    var count i64 = enum_decl_variant_count(decl);
+    var max_payload i64 = 0;
+    var i i64 = 0;
+    while i < count {
+        var v *u8 = get_enum_variant(variants, i);
+        var vtype *u8 = enum_variant_type(v);
+        if vtype != nil {
+            var size i64 = get_type_size(vtype);
+            if size > max_payload {
+                max_payload = size;
+            }
+        }
+        i = i + 1;
+    }
+    return max_payload;
+}
+
+func get_enum_size(decl *u8) i64 {
+    // Layout: [tag:8][payload:max_payload_size]
+    // Minimum payload size is 8 for alignment
+    var max_payload i64 = get_enum_max_payload(decl);
+    if max_payload < 8 {
+        max_payload = 8;
+    }
+    return 8 + max_payload;  // tag + payload
 }
 
 func get_pointed_type(t *u8) *u8 {
@@ -1391,6 +1837,18 @@ func is_void_type(t *u8) bool {
     return false;
 }
 
+// Check if a TYPE_FUNC is an auto-closure type
+// Currently DISABLED: mixing plain function pointers and closures is unsafe
+// because &func returns a plain pointer but closures return structs.
+// For now, all TYPE_FUNC calls use plain function pointer semantics.
+// Users must use the manual closure calling convention with helper functions.
+func is_auto_closure_type(t *u8) i64 {
+    // Always return 0 to disable auto-closure calling
+    // TODO: Enable auto-closure when we have proper type distinction
+    // between fn(T) R (closure) and *u8 (plain function pointer)
+    return 0;
+}
+
 // ============================================================
 // Expression type inference
 // ============================================================
@@ -1405,6 +1863,14 @@ func get_expr_type(expr *u8) *u8 {
     if k == NODE_IDENT_EXPR {
         var name *u8 = ident_expr_name(expr);
         var name_len i64 = ident_expr_name_len(expr);
+
+        // Check for closure captures first
+        if cg_in_closure == 1 {
+            var cap_idx i64 = find_closure_capture(name, name_len);
+            if cap_idx >= 0 {
+                return closure_capture_type(cap_idx);
+            }
+        }
 
         // Check locals first
         var local_idx i64 = find_local(name, name_len);
@@ -1486,6 +1952,16 @@ func get_expr_type(expr *u8) *u8 {
     if k == NODE_LET_EXPR {
         // Type of let expression is the type of its body
         return get_expr_type(let_expr_body(expr));
+    }
+
+    if k == NODE_LAMBDA_EXPR {
+        // Lambda expressions have function type
+        // Build TYPE_FUNC from lambda's parameters and return type
+        var t *u8 = func_type_alloc();
+        func_type_set_params(t, lambda_expr_params(expr));
+        func_type_set_param_count(t, lambda_expr_param_count(expr));
+        func_type_set_ret(t, lambda_expr_ret_type(expr));
+        return t;
     }
 
     // Default: i64
@@ -1704,6 +2180,24 @@ func gen_expr(expr *u8) void {
         var name *u8 = ident_expr_name(expr);
         var name_len i64 = ident_expr_name_len(expr);
 
+        // Check for closure captures first
+        if cg_in_closure == 1 {
+            var cap_idx i64 = find_closure_capture(name, name_len);
+            if cap_idx >= 0 {
+                // Load from closure struct: [fn_ptr:8][capture0:8][capture1:8]...
+                var capture_offset i64 = 8 + (cap_idx * 8);
+                // Load closure pointer
+                emit_str("    mov ");
+                emit_int(cg_closure_ptr_offset);
+                emit_line("(%rbp), %rax");
+                // Load captured value from closure
+                emit_str("    mov ");
+                emit_int(capture_offset);
+                emit_line("(%rax), %rax");
+                return;
+            }
+        }
+
         // Check locals
         var local_idx i64 = find_local(name, name_len);
         if local_idx >= 0 {
@@ -1762,6 +2256,8 @@ func gen_expr(expr *u8) void {
                 // Check for function address
                 var func_decl *u8 = find_func(name, name_len);
                 if func_decl != nil {
+                    // Return plain function pointer (no closure struct)
+                    // This is used when assigning to *u8 type
                     emit_str("    lea ");
                     emit_n(name, name_len);
                     emit_line("(%rip), %rax");
@@ -1860,8 +2356,30 @@ func gen_expr(expr *u8) void {
         emit_line("    pop %rax");
 
         if op == TOKEN_PLUS {
+            // Pointer arithmetic: scale offset by element size
+            var left_type *u8 = get_expr_type(binary_expr_left(expr));
+            if left_type != nil && type_kind(left_type) == TYPE_PTR {
+                var elem_type *u8 = ptr_type_elem(left_type);
+                var elem_size i64 = get_type_size(elem_type);
+                if elem_size > 1 {
+                    emit_str("    imul $");
+                    emit_int(elem_size);
+                    emit_line(", %rcx");
+                }
+            }
             emit_line("    add %rcx, %rax");
         } else if op == TOKEN_MINUS {
+            // Pointer arithmetic: scale offset by element size
+            var left_type *u8 = get_expr_type(binary_expr_left(expr));
+            if left_type != nil && type_kind(left_type) == TYPE_PTR {
+                var elem_type *u8 = ptr_type_elem(left_type);
+                var elem_size i64 = get_type_size(elem_type);
+                if elem_size > 1 {
+                    emit_str("    imul $");
+                    emit_int(elem_size);
+                    emit_line(", %rcx");
+                }
+            }
             emit_line("    sub %rcx, %rax");
         } else if op == TOKEN_STAR {
             emit_line("    imul %rcx, %rax");
@@ -1914,6 +2432,62 @@ func gen_expr(expr *u8) void {
         var func_expr *u8 = call_expr_func(expr);
         var args *u8 = call_expr_args(expr);
         var arg_count i64 = call_expr_arg_count(expr);
+
+        // Check for enum variant construction: EnumName.Variant(payload)
+        if node_kind(func_expr) == NODE_FIELD_EXPR {
+            var field_base *u8 = field_expr_expr(func_expr);
+            var field_name *u8 = field_expr_field(func_expr);
+            var field_len i64 = field_expr_field_len(func_expr);
+
+            // Check if base is an ident that matches an enum
+            if node_kind(field_base) == NODE_IDENT_EXPR {
+                var enum_name *u8 = ident_expr_name(field_base);
+                var enum_name_len i64 = ident_expr_name_len(field_base);
+                var enum_decl *u8 = find_enum(enum_name, enum_name_len);
+
+                if enum_decl != nil {
+                    // Find the variant
+                    var variant *u8 = find_variant(enum_decl, field_name, field_len);
+                    if variant == nil {
+                        eprint("error: enum '");
+                        eprint_buf(enum_name, enum_name_len);
+                        eprint("' has no variant '");
+                        eprint_buf(field_name, field_len);
+                        eprintln("'");
+                        cg_had_error = 1;
+                        return;
+                    }
+
+                    // Allocate space for enum on stack
+                    var enum_size i64 = get_enum_size(enum_decl);
+                    cg_stack_size = cg_stack_size + enum_size;
+                    var enum_offset i64 = 0 - cg_stack_size;
+
+                    // Set tag
+                    var tag i64 = enum_variant_tag(variant);
+                    emit_str("    movq $");
+                    emit_int(tag);
+                    emit_str(", ");
+                    emit_int(enum_offset);
+                    emit_line("(%rbp)");
+
+                    // Set payload if present
+                    if arg_count > 0 {
+                        var p **u8 = args;
+                        gen_expr(*p);
+                        emit_str("    movq %rax, ");
+                        emit_int(enum_offset + 8);
+                        emit_line("(%rbp)");
+                    }
+
+                    // Return pointer to enum value
+                    emit_str("    lea ");
+                    emit_int(enum_offset);
+                    emit_line("(%rbp), %rax");
+                    return;
+                }
+            }
+        }
 
         // Check for syscall
         if node_kind(func_expr) == NODE_IDENT_EXPR {
@@ -1995,23 +2569,108 @@ func gen_expr(expr *u8) void {
             var fn_name *u8 = ident_expr_name(func_expr);
             var fn_name_len i64 = ident_expr_name_len(func_expr);
 
-            // Check if it's a local variable (function pointer)
+            // Check if it's a local variable (function pointer or closure)
             var local_idx i64 = find_local(fn_name, fn_name_len);
             if local_idx >= 0 {
-                // Load function pointer from local and indirect call
-                emit_str("    mov ");
-                emit_int(local_get_offset(local_idx));
-                emit_line("(%rbp), %rax");
-                emit_line("    call *%rax");
+                // Check if it's an auto-closure (TYPE_FUNC without *u8 first param)
+                var var_type *u8 = local_get_type(local_idx);
+                if is_auto_closure_type(var_type) == 1 {
+                    // Closure struct layout: [tag:8][fn_ptr:8][captures...]
+                    // tag == 0: plain function (no closure arg)
+                    // tag == 1: closure (pass struct as first arg)
+
+                    // Load closure struct pointer
+                    emit_str("    mov ");
+                    emit_int(local_get_offset(local_idx));
+                    emit_line("(%rbp), %r10");
+
+                    // Check tag
+                    emit_line("    mov (%r10), %r11");
+                    emit_line("    test %r11, %r11");
+                    var plain_label i64 = new_label();
+                    var end_label i64 = new_label();
+                    emit_str("    jz ");
+                    emit_label(plain_label);
+                    emit_char(10);
+
+                    // Tag == 1: Closure call - shift args and pass closure as first arg
+                    if arg_count >= 5 { emit_line("    mov %r9, %rax"); emit_line("    push %rax"); }
+                    if arg_count >= 5 { emit_line("    mov %r8, %r9"); }
+                    if arg_count >= 4 { emit_line("    mov %rcx, %r8"); }
+                    if arg_count >= 3 { emit_line("    mov %rdx, %rcx"); }
+                    if arg_count >= 2 { emit_line("    mov %rsi, %rdx"); }
+                    if arg_count >= 1 { emit_line("    mov %rdi, %rsi"); }
+                    emit_line("    mov %r10, %rdi");  // Closure as first arg
+                    emit_line("    mov 8(%r10), %rax");  // Load fn_ptr
+                    emit_line("    call *%rax");
+                    emit_str("    jmp ");
+                    emit_label(end_label);
+                    emit_char(10);
+
+                    // Tag == 0: Plain function call
+                    emit_label(plain_label);
+                    emit_line(":");
+                    emit_line("    mov 8(%r10), %rax");  // Load fn_ptr (at offset 8)
+                    emit_line("    call *%rax");
+
+                    emit_label(end_label);
+                    emit_line(":");
+                } else {
+                    // Plain function pointer call (manual mode or non-function type)
+                    emit_str("    mov ");
+                    emit_int(local_get_offset(local_idx));
+                    emit_line("(%rbp), %rax");
+                    emit_line("    call *%rax");
+                }
             } else {
                 // Check if it's a global variable
                 var global_idx i64 = find_global(fn_name, fn_name_len);
                 if global_idx >= 0 {
-                    // Load function pointer from global and indirect call
-                    emit_str("    mov ");
-                    emit_n(fn_name, fn_name_len);
-                    emit_line("(%rip), %rax");
-                    emit_line("    call *%rax");
+                    // Check if it's an auto-closure
+                    var var_type *u8 = global_get_type(global_idx);
+                    if is_auto_closure_type(var_type) == 1 {
+                        // Closure struct layout: [tag:8][fn_ptr:8][captures...]
+                        emit_str("    mov ");
+                        emit_n(fn_name, fn_name_len);
+                        emit_line("(%rip), %r10");
+
+                        emit_line("    mov (%r10), %r11");
+                        emit_line("    test %r11, %r11");
+                        var plain_label i64 = new_label();
+                        var end_label i64 = new_label();
+                        emit_str("    jz ");
+                        emit_label(plain_label);
+                        emit_char(10);
+
+                        // Closure call
+                        if arg_count >= 5 { emit_line("    mov %r9, %rax"); emit_line("    push %rax"); }
+                        if arg_count >= 5 { emit_line("    mov %r8, %r9"); }
+                        if arg_count >= 4 { emit_line("    mov %rcx, %r8"); }
+                        if arg_count >= 3 { emit_line("    mov %rdx, %rcx"); }
+                        if arg_count >= 2 { emit_line("    mov %rsi, %rdx"); }
+                        if arg_count >= 1 { emit_line("    mov %rdi, %rsi"); }
+                        emit_line("    mov %r10, %rdi");
+                        emit_line("    mov 8(%r10), %rax");
+                        emit_line("    call *%rax");
+                        emit_str("    jmp ");
+                        emit_label(end_label);
+                        emit_char(10);
+
+                        // Plain function call
+                        emit_label(plain_label);
+                        emit_line(":");
+                        emit_line("    mov 8(%r10), %rax");
+                        emit_line("    call *%rax");
+
+                        emit_label(end_label);
+                        emit_line(":");
+                    } else {
+                        // Plain function pointer call (manual mode or non-function type)
+                        emit_str("    mov ");
+                        emit_n(fn_name, fn_name_len);
+                        emit_line("(%rip), %rax");
+                        emit_line("    call *%rax");
+                    }
                 } else {
                     // Direct function call
                     emit_str("    call ");
@@ -2035,6 +2694,51 @@ func gen_expr(expr *u8) void {
         var base_expr *u8 = field_expr_expr(expr);
         var field_name *u8 = field_expr_field(expr);
         var field_len i64 = field_expr_field_len(expr);
+
+        // Check for enum unit variant construction: EnumName.Variant
+        if node_kind(base_expr) == NODE_IDENT_EXPR {
+            var enum_name *u8 = ident_expr_name(base_expr);
+            var enum_name_len i64 = ident_expr_name_len(base_expr);
+            var enum_decl *u8 = find_enum(enum_name, enum_name_len);
+
+            if enum_decl != nil {
+                // Find the variant
+                var variant *u8 = find_variant(enum_decl, field_name, field_len);
+                if variant == nil {
+                    eprint("error: enum '");
+                    eprint_buf(enum_name, enum_name_len);
+                    eprint("' has no variant '");
+                    eprint_buf(field_name, field_len);
+                    eprintln("'");
+                    cg_had_error = 1;
+                    return;
+                }
+
+                // Allocate space for enum on stack
+                var enum_size i64 = get_enum_size(enum_decl);
+                cg_stack_size = cg_stack_size + enum_size;
+                var enum_offset i64 = 0 - cg_stack_size;
+
+                // Set tag
+                var tag i64 = enum_variant_tag(variant);
+                emit_str("    movq $");
+                emit_int(tag);
+                emit_str(", ");
+                emit_int(enum_offset);
+                emit_line("(%rbp)");
+
+                // Zero out payload slot (for safety)
+                emit_str("    movq $0, ");
+                emit_int(enum_offset + 8);
+                emit_line("(%rbp)");
+
+                // Return pointer to enum value
+                emit_str("    lea ");
+                emit_int(enum_offset);
+                emit_line("(%rbp), %rax");
+                return;
+            }
+        }
 
         // Get type of base expression
         var base_type *u8 = get_expr_type(base_expr);
@@ -2210,22 +2914,304 @@ func gen_expr(expr *u8) void {
     }
 
     if k == NODE_LAMBDA_EXPR {
+        // Analyze captures for this lambda
+        var param_count i64 = lambda_expr_param_count(expr);
+        var capture_count i64 = analyze_lambda_captures(expr, param_count);
+
         // Register lambda for later emission
         if cg_lambdas == nil {
-            cg_lambdas = alloc(LIMIT_LAMBDAS * 16);
+            cg_lambdas = alloc(LIMIT_LAMBDAS * 32);
         }
         var lambda_id i64 = cg_lambda_count;
-        var entry *u8 = cg_lambdas + (cg_lambda_count * 16);
+        var entry *u8 = cg_lambdas + (cg_lambda_count * 32);
         var p_node **u8 = entry;
         *p_node = expr;
         var p_id *i64 = entry + 8;
         *p_id = lambda_id;
+
+        // Store capture info with lambda
+        // Copy captures array for this lambda (so it persists)
+        var captures_copy *u8 = nil;
+        if capture_count > 0 {
+            captures_copy = alloc(capture_count * 32);
+            var i i64 = 0;
+            while i < capture_count {
+                var src *u8 = cg_current_captures + (i * 32);
+                var dst *u8 = captures_copy + (i * 32);
+                // Copy 32 bytes per entry
+                var j i64 = 0;
+                while j < 32 {
+                    *(dst + j) = *(src + j);
+                    j = j + 1;
+                }
+                i = i + 1;
+            }
+        }
+        var p_captures **u8 = entry + 16;
+        *p_captures = captures_copy;
+        var p_cap_count *i64 = entry + 24;
+        *p_cap_count = capture_count;
         cg_lambda_count = cg_lambda_count + 1;
 
-        // Return address of lambda function
-        emit_str("    lea __lambda_");
-        emit_int(lambda_id);
+        if capture_count == 0 {
+            // No captures - just return function address
+            emit_str("    lea __lambda_");
+            emit_int(lambda_id);
+            emit_line("(%rip), %rax");
+        } else {
+            // Has captures - allocate closure struct
+            // Closure layout: [fn_ptr:8][capture1:8][capture2:8]...
+            var closure_size i64 = 8 + (capture_count * 8);
+
+            // Allocate closure struct
+            emit_str("    mov $");
+            emit_int(closure_size);
+            emit_line(", %rdi");
+            emit_line("    call alloc");
+            emit_line("    push %rax");  // Save closure ptr
+
+            // Store function pointer
+            emit_str("    lea __lambda_");
+            emit_int(lambda_id);
+            emit_line("(%rip), %rbx");
+            emit_line("    mov %rbx, (%rax)");
+
+            // Copy captured values from outer scope
+            var i i64 = 0;
+            while i < capture_count {
+                var outer_offset i64 = capture_get_outer_offset(i);
+                var closure_offset i64 = 8 + (i * 8);
+
+                // Load from outer scope
+                emit_str("    mov ");
+                emit_int(outer_offset);
+                emit_line("(%rbp), %rbx");
+
+                // Store into closure struct
+                emit_line("    pop %rax");
+                emit_line("    push %rax");
+                emit_str("    mov %rbx, ");
+                emit_int(closure_offset);
+                emit_line("(%rax)");
+
+                i = i + 1;
+            }
+
+            // Return closure pointer
+            emit_line("    pop %rax");
+        }
+        return;
+    }
+
+    if k == NODE_MATCH_EXPR {
+        // Generate match expression: compile to if/else chain
+        var scrutinee *u8 = match_expr_scrutinee(expr);
+        var arms *u8 = match_expr_arms(expr);
+        var arm_count i64 = match_expr_arm_count(expr);
+
+        // Allocate space to save scrutinee pointer
+        cg_stack_size = cg_stack_size + 8;
+        var scrutinee_offset i64 = 0 - cg_stack_size;
+
+        // Evaluate scrutinee and save pointer
+        gen_expr(scrutinee);
+        emit_str("    mov %rax, ");
+        emit_int(scrutinee_offset);
+        emit_line("(%rbp)");
+
+        // Load tag from scrutinee
+        emit_line("    mov (%rax), %rbx");  // tag in %rbx
+
+        var end_label i64 = new_label();
+
+        var i i64 = 0;
+        while i < arm_count {
+            var arm *u8 = get_match_arm(arms, i);
+            var pattern *u8 = match_arm_pattern(arm);
+            var body *u8 = match_arm_body(arm);
+            var pk i64 = node_kind(pattern);
+
+            if pk == NODE_PATTERN_WILDCARD {
+                // Wildcard matches anything - just emit body
+                gen_expr(body);
+                emit_str("    jmp ");
+                emit_label(end_label);
+                emit_char(10);
+            } else if pk == NODE_PATTERN_VARIANT {
+                // Get variant info from pattern
+                var enum_name *u8 = pattern_variant_enum_name(pattern);
+                var enum_len i64 = pattern_variant_enum_len(pattern);
+                var var_name *u8 = pattern_variant_name(pattern);
+                var var_len i64 = pattern_variant_name_len(pattern);
+                var binding *u8 = pattern_variant_binding(pattern);
+                var binding_len i64 = pattern_variant_binding_len(pattern);
+
+                // Look up enum and variant to get tag
+                var enum_decl *u8 = find_enum(enum_name, enum_len);
+                if enum_decl == nil {
+                    eprint("error: unknown enum '");
+                    eprint_buf(enum_name, enum_len);
+                    eprintln("' in match pattern");
+                    cg_had_error = 1;
+                    return;
+                }
+                var variant *u8 = find_variant(enum_decl, var_name, var_len);
+                if variant == nil {
+                    eprint("error: unknown variant '");
+                    eprint_buf(var_name, var_len);
+                    eprintln("' in match pattern");
+                    cg_had_error = 1;
+                    return;
+                }
+                var expected_tag i64 = enum_variant_tag(variant);
+
+                // Compare tag
+                var next_label i64 = new_label();
+                emit_str("    cmp $");
+                emit_int(expected_tag);
+                emit_line(", %rbx");
+                emit_str("    jne ");
+                emit_label(next_label);
+                emit_char(10);
+
+                // If we have a binding, bind the payload
+                if binding != nil {
+                    var saved_local_count i64 = cg_local_count;
+
+                    // Create local for the binding
+                    cg_stack_size = cg_stack_size + 8;
+                    var bind_offset i64 = 0 - cg_stack_size;
+
+                    // Infer type from variant payload
+                    var payload_type *u8 = enum_variant_type(variant);
+                    add_local(binding, binding_len, bind_offset, payload_type);
+
+                    // Load payload from scrutinee+8
+                    emit_str("    mov ");
+                    emit_int(scrutinee_offset);
+                    emit_line("(%rbp), %rax");
+                    emit_line("    mov 8(%rax), %rax");
+                    emit_str("    mov %rax, ");
+                    emit_int(bind_offset);
+                    emit_line("(%rbp)");
+
+                    // Generate body
+                    gen_expr(body);
+
+                    // Restore scope
+                    cg_local_count = saved_local_count;
+                } else {
+                    // No binding, just generate body
+                    gen_expr(body);
+                }
+
+                emit_str("    jmp ");
+                emit_label(end_label);
+                emit_char(10);
+
+                emit_label(next_label);
+                emit_line(":");
+            }
+            i = i + 1;
+        }
+
+        emit_label(end_label);
+        emit_line(":");
+        return;
+    }
+
+    // Handle expression: handle { body } with { return(v) => ..., Effect(e) => ... }
+    if k == NODE_HANDLE_EXPR {
+        var body *u8 = handle_expr_body(expr);
+        var cases *u8 = handle_expr_cases(expr);
+        var case_count i64 = handle_expr_case_count(expr);
+        var ret_bind *u8 = handle_expr_ret_bind(expr);
+        var ret_bind_len i64 = handle_expr_ret_bind_len(expr);
+        var ret_body *u8 = handle_expr_ret_body(expr);
+
+        // Generate labels
+        var handler_label i64 = new_label();
+        var done_label i64 = new_label();
+
+        // Set up handler - save current state and set handler address
+        emit_line("    movq %rbp, __handler_rbp(%rip)");
+        emit_line("    movq %rsp, __handler_rsp(%rip)");
+        emit_str("    leaq ");
+        emit_label(handler_label);
         emit_line("(%rip), %rax");
+        emit_line("    movq %rax, __handler_addr(%rip)");
+        emit_line("    movq $1, __handler_set(%rip)");
+
+        // Generate body
+        gen_expr(body);
+
+        // Normal completion - go to done (skip handler)
+        emit_str("    jmp ");
+        emit_label(done_label);
+        emit_char(10);
+
+        // Handler entry point
+        emit_label(handler_label);
+        emit_line(":");
+
+        // Effect value is in __effect_value, load it if there's a case
+        // For now, just support one effect case (first one)
+        if case_count > 0 {
+            var entry *u8 = cases;
+            var bind_ptr **u8 = entry + 16;
+            var bind_len_ptr *i64 = entry + 24;
+            var case_body_ptr **u8 = entry + 32;
+
+            // Create a local for the binding
+            if *bind_len_ptr > 0 {
+                var saved_local_count i64 = cg_local_count;
+
+                cg_stack_size = cg_stack_size + 8;
+                var bind_offset i64 = 0 - cg_stack_size;
+                add_local(*bind_ptr, *bind_len_ptr, bind_offset, nil);
+
+                // Load effect value into binding
+                emit_line("    movq __effect_value(%rip), %rax");
+                emit_str("    movq %rax, ");
+                emit_int(bind_offset);
+                emit_line("(%rbp)");
+
+                // Generate case body
+                gen_expr(*case_body_ptr);
+
+                cg_local_count = saved_local_count;
+            } else {
+                gen_expr(*case_body_ptr);
+            }
+        }
+
+        // Done - clear handler and result is in %rax
+        emit_label(done_label);
+        emit_line(":");
+        emit_line("    movq $0, __handler_set(%rip)");
+
+        // Apply return case if present (for normal completion path)
+        // The body result is already in %rax
+        // For simplicity, return case is just identity for now
+        return;
+    }
+
+    // Perform expression: perform Effect(args)
+    if k == NODE_PERFORM_EXPR {
+        var args *u8 = perform_expr_args(expr);
+        var arg_count i64 = perform_expr_arg_count(expr);
+
+        // Evaluate first arg (if any) and store in __effect_value
+        if arg_count > 0 {
+            var first_arg_ptr **u8 = args;
+            gen_expr(*first_arg_ptr);
+            emit_line("    movq %rax, __effect_value(%rip)");
+        }
+
+        // Restore handler's frame and jump
+        emit_line("    movq __handler_rbp(%rip), %rbp");
+        emit_line("    movq __handler_rsp(%rip), %rsp");
+        emit_line("    jmpq *__handler_addr(%rip)");
         return;
     }
 }
@@ -2413,7 +3399,48 @@ func gen_stmt(stmt *u8) void {
 
         var init *u8 = var_decl_init(stmt);
         if init != nil {
+            // Safety check: capturing lambda assigned to fn type is unsafe
+            // Because fn(T) R uses plain function pointer calling convention,
+            // but closures need their struct passed as first argument.
+            // Use *u8 type with manual calling convention for closures.
+            if var_type != nil && type_kind(var_type) == TYPE_FUNC {
+                if node_kind(init) == NODE_LAMBDA_EXPR {
+                    if lambda_has_captures(init) == 1 {
+                        eprint("error: cannot assign capturing lambda to 'fn' type variable '");
+                        eprint_buf(var_decl_name(stmt), var_decl_name_len(stmt));
+                        eprintln("'");
+                        eprintln("  hint: closures with captures require manual calling convention");
+                        eprintln("  hint: use '*u8' type and call via helper function");
+                        eprintln("  hint: see test/suite/139_closure.lang for example");
+                        cg_had_error = 1;
+                        return;
+                    }
+                }
+            }
+
             gen_expr(init);
+
+            // Check if this is an enum type - need to copy full value
+            if type_kind(var_type) == TYPE_BASE {
+                var type_name *u8 = base_type_name(var_type);
+                var type_name_len i64 = base_type_name_len(var_type);
+                var enum_decl *u8 = find_enum(type_name, type_name_len);
+                if enum_decl != nil {
+                    // %rax has pointer to source enum, copy to variable location
+                    // Copy tag
+                    emit_line("    mov (%rax), %rcx");
+                    emit_str("    mov %rcx, ");
+                    emit_int(offset);
+                    emit_line("(%rbp)");
+                    // Copy payload
+                    emit_line("    mov 8(%rax), %rcx");
+                    emit_str("    mov %rcx, ");
+                    emit_int(offset + 8);
+                    emit_line("(%rbp)");
+                    return;
+                }
+            }
+
             emit_str("    mov %rax, ");
             emit_int(offset);
             emit_line("(%rbp)");
@@ -2682,7 +3709,7 @@ func gen_func(func_node *u8) void {
 }
 
 // Generate a lambda function (similar to gen_func but with generated name)
-func gen_lambda(lambda_node *u8, lambda_id i64) void {
+func gen_lambda(lambda_node *u8, lambda_id i64, captures *u8, capture_count i64) void {
     // Reset locals
     cg_local_count = 0;
     cg_stack_size = 0;
@@ -2696,9 +3723,31 @@ func gen_lambda(lambda_node *u8, lambda_id i64) void {
     cg_in_func_body = 1;
     cg_func_len = 0;
 
+    // Set up closure context if this lambda has captures
+    if capture_count > 0 {
+        cg_in_closure = 1;
+        cg_closure_captures = captures;
+        cg_closure_capture_count = capture_count;
+
+        // First argument (%rdi) is the closure pointer
+        cg_stack_size = cg_stack_size + 8;
+        cg_closure_ptr_offset = 0 - cg_stack_size;
+        emit_str("    mov %rdi, ");
+        emit_int(cg_closure_ptr_offset);
+        emit_line("(%rbp)");
+    } else {
+        cg_in_closure = 0;
+    }
+
     // Store parameters
     var params *u8 = lambda_expr_params(lambda_node);
     var param_count i64 = lambda_expr_param_count(lambda_node);
+
+    // Registers shift by 1 if this is a closure (first arg is closure ptr)
+    var reg_offset i64 = 0;
+    if capture_count > 0 {
+        reg_offset = 1;
+    }
 
     var i i64 = 0;
     while i < param_count {
@@ -2709,33 +3758,35 @@ func gen_lambda(lambda_node *u8, lambda_id i64) void {
         add_local(param_name(p), param_name_len(p), offset, param_type(p));
 
         // Move from arg register to local stack slot
-        if i == 0 {
+        // Register index is i + reg_offset
+        var reg_idx i64 = i + reg_offset;
+        if reg_idx == 0 {
             emit_str("    mov %rdi, ");
             emit_int(offset);
             emit_line("(%rbp)");
-        } else if i == 1 {
+        } else if reg_idx == 1 {
             emit_str("    mov %rsi, ");
             emit_int(offset);
             emit_line("(%rbp)");
-        } else if i == 2 {
+        } else if reg_idx == 2 {
             emit_str("    mov %rdx, ");
             emit_int(offset);
             emit_line("(%rbp)");
-        } else if i == 3 {
+        } else if reg_idx == 3 {
             emit_str("    mov %rcx, ");
             emit_int(offset);
             emit_line("(%rbp)");
-        } else if i == 4 {
+        } else if reg_idx == 4 {
             emit_str("    mov %r8, ");
             emit_int(offset);
             emit_line("(%rbp)");
-        } else if i == 5 {
+        } else if reg_idx == 5 {
             emit_str("    mov %r9, ");
             emit_int(offset);
             emit_line("(%rbp)");
         } else {
             // Args 7+ are on caller's stack
-            var stack_offset i64 = 16 + (i - 6) * 8;
+            var stack_offset i64 = 16 + (reg_idx - 6) * 8;
             emit_str("    mov ");
             emit_int(stack_offset);
             emit_str("(%rbp), %rax");
@@ -2753,6 +3804,11 @@ func gen_lambda(lambda_node *u8, lambda_id i64) void {
 
     // Switch back to main buffer
     cg_in_func_body = 0;
+
+    // Clear closure context
+    cg_in_closure = 0;
+    cg_closure_captures = nil;
+    cg_closure_capture_count = 0;
 
     // Calculate aligned stack size
     var aligned_size i64 = cg_stack_size;
@@ -2786,12 +3842,16 @@ func gen_lambda(lambda_node *u8, lambda_id i64) void {
 func gen_all_lambdas() void {
     var i i64 = 0;
     while i < cg_lambda_count {
-        var entry *u8 = cg_lambdas + (i * 16);
+        var entry *u8 = cg_lambdas + (i * 32);
         var p_node **u8 = entry;
         var lambda_node *u8 = *p_node;
         var p_id *i64 = entry + 8;
         var lambda_id i64 = *p_id;
-        gen_lambda(lambda_node, lambda_id);
+        var p_captures **u8 = entry + 16;
+        var captures *u8 = *p_captures;
+        var p_cap_count *i64 = entry + 24;
+        var capture_count i64 = *p_cap_count;
+        gen_lambda(lambda_node, lambda_id, captures, capture_count);
         i = i + 1;
     }
 }
@@ -4113,6 +5173,20 @@ func generate(prog *u8, out_path *u8) void {
         out_int(eval_constant(global_get_init(i)));
         out_char(10);
         i = i + 1;
+    }
+
+    // Effect handler runtime globals
+    if cg_effect_count > 0 {
+        out_line("__handler_set:");
+        out_line("    .quad 0");
+        out_line("__handler_rbp:");
+        out_line("    .quad 0");
+        out_line("__handler_rsp:");
+        out_line("    .quad 0");
+        out_line("__handler_addr:");
+        out_line("    .quad 0");
+        out_line("__effect_value:");
+        out_line("    .quad 0");
     }
 
     // Text section
