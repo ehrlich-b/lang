@@ -123,6 +123,9 @@ The AST is a typed language expressed as S-expressions. This is NOT meant to be 
 ;; Effect declarations ← NEW in 2.0
 (effect <name> (<param-type>*) <resume-type>)
 
+;; FFI (future - not yet implemented)
+(extern <name> (<param-type>*) <ret-type> <attrs>?)
+
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; STATEMENTS
 ;; ═══════════════════════════════════════════════════════════════════════════
