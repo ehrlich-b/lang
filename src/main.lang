@@ -55,8 +55,10 @@ func read_file(path *u8) *u8 {
 }
 
 // Get argv[i] - argv is array of char pointers
+// Uses *u8 cast for bootstrap compatibility (works with both old and new compilers)
 func get_arg(argv **u8, i i64) *u8 {
-    var p **u8 = argv + (i * 8);
+    var base *u8 = argv;
+    var p **u8 = base + (i * 8);  // Manual byte offset on *u8
     return *p;
 }
 

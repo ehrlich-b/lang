@@ -39,7 +39,8 @@ func standalone_read_file(path *u8) *u8 {
 }
 
 func standalone_get_arg(argv **u8, i i64) *u8 {
-    var p **u8 = argv + (i * 8);
+    var base *u8 = argv;
+    var p **u8 = base + (i * 8);  // Manual byte offset on *u8
     return *p;
 }
 
