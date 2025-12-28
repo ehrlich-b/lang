@@ -1,0 +1,66 @@
+// expect: 35
+// Test: Enum creation and matching in loop (interaction: enum + loop)
+
+enum Status {
+    Active(i64),
+    Inactive,
+}
+
+func get_value(s *Status) i64 {
+    return match s {
+        Status.Active(x) => x,
+        Status.Inactive => 0,
+    };
+}
+
+func main() i64 {
+    var sum i64 = 0;
+    var i i64 = 0;
+
+    // Create different enum variants in loop
+    while i < 10 {
+        var s Status;
+        if i % 2 == 0 {
+            s = Status.Active(i);
+        } else {
+            s = Status.Inactive;
+        }
+        sum = sum + get_value(&s);
+        i = i + 1;
+    }
+
+    // sum = 0 + 0 + 2 + 0 + 4 + 0 + 6 + 0 + 8 + 0 = 20
+    // Wait: i=0 even, i=1 odd, i=2 even...
+    // Active: 0, 2, 4, 6, 8 -> sum = 0+2+4+6+8 = 20
+
+    // Test break from loop inside match
+    i = 0;
+    while i < 100 {
+        var s Status = Status.Active(i);
+        var v i64 = match &s {
+            Status.Active(x) => x,
+            Status.Inactive => 0,
+        };
+        if v >= 5 {
+            break;
+        }
+        sum = sum + v;
+        i = i + 1;
+    }
+    // sum += 0+1+2+3+4 = 10, total = 30
+
+    // Test continue inside loop with enum
+    i = 0;
+    while i < 10 {
+        i = i + 1;
+        var s Status = Status.Active(i);
+        if get_value(&s) % 2 == 0 {
+            continue;
+        }
+        sum = sum + 1;  // count odd values
+    }
+    // Odd values: 1,3,5,7,9 = 5 iterations
+    // sum += 5 = 35
+
+    return sum;  // 35
+}

@@ -1,0 +1,39 @@
+// expect: 0
+// Test handler factored into separate function
+
+include "std/core.lang"
+
+effect Ask(i64) i64
+
+func effectful_work(x i64) i64 {
+    var a i64 = perform Ask(x);
+    var b i64 = perform Ask(x + 10);
+    return a + b;
+}
+
+func run_with_handler(x i64) i64 {
+    return handle { effectful_work(x) } with {
+        return(v) => v,
+        Ask(n, k) => {
+            resume k(n * 3);
+        }
+    };
+}
+
+func main() i64 {
+    // Test 1: Handler in separate function
+    var result1 i64 = run_with_handler(5);
+    // Ask(5) returns 15, Ask(15) returns 45, total = 60
+    if result1 != 60 {
+        return 1;
+    }
+
+    // Test 2: Call multiple times
+    var result2 i64 = run_with_handler(10);
+    // Ask(10) returns 30, Ask(20) returns 60, total = 90
+    if result2 != 90 {
+        return 2;
+    }
+
+    return 0;
+}

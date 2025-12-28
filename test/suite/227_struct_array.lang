@@ -1,0 +1,37 @@
+// expect: 42
+// Test: Struct containing pointer (interaction: struct + pointer)
+
+struct Buffer {
+    data *i64;
+    len i64;
+}
+
+func read_buffer(b *Buffer) i64 {
+    return *(b.data);
+}
+
+func write_buffer(b *Buffer, val i64) void {
+    *(b.data) = val;
+}
+
+func main() i64 {
+    var value i64 = 10;
+    var buf Buffer;
+    buf.data = &value;
+    buf.len = 1;
+
+    var result i64 = 0;
+
+    // Read through struct pointer
+    result = result + read_buffer(&buf);  // 10
+
+    // Write through struct pointer
+    write_buffer(&buf, 20);
+    result = result + value;  // 10 + 20 = 30
+
+    // Direct access through struct field
+    *(buf.data) = 12;
+    result = result + *(buf.data);  // 30 + 12 = 42
+
+    return result;  // 42
+}

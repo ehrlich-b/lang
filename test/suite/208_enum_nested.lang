@@ -1,0 +1,35 @@
+// expect: 42
+// Test: Nested enum (enum containing enum)
+// Verifies enum variants can contain other enums
+
+include "std/core.lang"
+
+enum Inner {
+    A,
+    B(i64),
+}
+
+enum Outer {
+    None,
+    Some(Inner),
+}
+
+func main() i64 {
+    // Create nested enum: Outer containing Inner
+    var inner Inner = Inner.B(42);
+    var outer Outer = Outer.Some(inner);
+
+    // Match the outer layer
+    var result i64 = match &outer {
+        Outer.None => 0,
+        Outer.Some(i) => {
+            // Match the inner layer
+            match &i {
+                Inner.A => 1,
+                Inner.B(x) => x,
+            }
+        },
+    };
+
+    return result;
+}

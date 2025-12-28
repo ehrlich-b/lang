@@ -1,0 +1,37 @@
+// expect: 42
+// Test: Return enum from function
+// Verifies functions can return enum values
+
+include "std/core.lang"
+
+enum Result {
+    Ok(i64),
+    Err(i64),
+}
+
+func divide(a i64, b i64) Result {
+    if b == 0 {
+        return Result.Err(0 - 1);
+    }
+    return Result.Ok(a / b);
+}
+
+func safe_divide(a i64, b i64, default i64) i64 {
+    var r Result = divide(a, b);
+    return match &r {
+        Result.Ok(x) => x,
+        Result.Err(e) => default,
+    };
+}
+
+func main() i64 {
+    // Test successful division
+    var r1 i64 = safe_divide(84, 2, 0);
+    if r1 != 42 { return 1; }
+
+    // Test division by zero with default
+    var r2 i64 = safe_divide(100, 0, 99);
+    if r2 != 99 { return 2; }
+
+    return 42;
+}

@@ -1,0 +1,47 @@
+// expect: 42
+// Test: Deeply nested struct access (stress test for field offset calculation)
+
+struct Inner {
+    value i64;
+}
+
+struct Middle {
+    inner Inner;
+    extra i64;
+}
+
+struct Outer {
+    middle Middle;
+    flag i64;
+}
+
+struct Deep {
+    outer Outer;
+    data i64;
+}
+
+func main() i64 {
+    var d Deep;
+
+    // Set all nested fields
+    d.data = 10;
+    d.outer.flag = 5;
+    d.outer.middle.extra = 7;
+    d.outer.middle.inner.value = 20;
+
+    // Read all nested fields
+    var sum i64 = 0;
+    sum = sum + d.outer.middle.inner.value;  // 20
+    sum = sum + d.outer.middle.extra;        // 7
+    sum = sum + d.outer.flag;                // 5
+    sum = sum + d.data;                      // 10
+    // Total: 42
+
+    // Test modification
+    d.outer.middle.inner.value = d.outer.middle.inner.value + 10;
+    if d.outer.middle.inner.value != 30 {
+        return 0;
+    }
+
+    return sum;  // 42
+}

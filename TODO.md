@@ -21,16 +21,50 @@ The AST is the language. Syntax is a plugin. Effects unify control flow.
 
 ## 🔥 IMMEDIATE: Test Hardening Sprint
 
-**Before kernel split, the test suite must be comprehensive.** Currently 119 tests, mostly happy-path. Target: 150+ tests covering edge cases, error conditions, and feature interactions.
+**Before kernel split, the test suite must be comprehensive.** Currently 158 tests. Target: 150+ tests - **SPRINT COMPLETE!**
 
 See "Code Quality Debt → TEST SUITE GAPS" below for categories.
 
-**Priority order:**
-1. Algebraic effects edge cases (nested handlers, multiple resumes, handler in different function)
-2. Closure edge cases (captures across multiple scopes, closure lifetime)
-3. Sum types edge cases (large payloads, nested enums)
-4. Stress tests (deep recursion, many locals, large structs)
-5. Interaction tests (closures + effects, enums + closures, etc.)
+**Progress:**
+- [x] Algebraic effects edge cases (8 new tests: 191-198)
+  - Block bodies in handle expressions
+  - Zero-arg effects (fixed codegen bug)
+  - Multiple effect types in same handler (fixed dispatch)
+  - Deep call frames, loops, handler in functions, many resumes
+- [x] Closure edge cases (8 new tests: 199-206)
+  - Nested scope captures (multi-level)
+  - Parameter capture (function params as captures)
+  - Shared captures (multiple closures, same variable)
+  - Closures in loops, many captures, nested lambdas
+  - Capturing pointers, closures in structs
+  - **Fixed: nested lambdas now capture from parent closures**
+- [x] Sum types edge cases (11 new tests: 207-217)
+  - Struct payloads (large payload types)
+  - Nested enums (enum containing enum)
+  - Many variants, match in loops, nested match
+  - Enum reassignment, return enum from function
+  - Enum as struct field
+  - **Fixed 5 major bugs**: variable shadowing in match, enum assignment, address-of struct field, aggregate locals, full enum copy
+- [x] Stress tests (7 new tests: 218-224)
+  - Deep recursion (fib, mutual recursion), many locals (50 vars)
+  - Large structs, many functions, deep nesting, complex expressions
+- [x] Interaction tests (7 new tests: 225-231)
+  - Closure + struct, enum in loop, nested match, struct pointers
+  - **Fixed 2 bugs**: nested field through pointer, address-of pointer field
+
+**Bugs fixed during test hardening:**
+1. Handle body now supports block statements, not just expressions
+2. Zero-arg effects now correctly bind continuation (not value)
+3. Multiple effect types in same handler now dispatch correctly
+4. Nested lambdas now properly capture variables from parent closures
+5. Variable shadowing in match loop caused buffer overflow
+6. Enum assignment copied pointer instead of full value
+7. Address-of struct field `&s.field` now generates correct address
+8. Aggregate locals (structs/enums) now return address, not value
+9. Full enum copy in var decl (respects payload size)
+10. Nested field access through pointer `r.size.x` where `r` is `*Rect`
+11. Address-of pointer field `&r.field` where `r` is pointer to struct
+12. 7+ parameter calls now clean up stack args after call
 
 ---
 
@@ -167,10 +201,18 @@ Implications:
 | Issue | Priority | Status |
 |-------|----------|--------|
 | ~~**POINTER ARITHMETIC BUG**~~ | ~~CRITICAL~~ | DONE |
+| ~~**7+ PARAM ACCUMULATOR BUG**~~ | ~~MEDIUM~~ | DONE |
 | **TEST SUITE GAPS** | **HIGH** | TODO |
 | Add `const` keyword for compile-time constants | Medium | TODO |
 | Magic PNODE numbers in lisp.lang | Low | TODO |
 | Reader cache invalidation | Low | TODO |
+
+### ~~MEDIUM: 7+ Parameter Accumulator Bug~~ (FIXED)
+
+**Fixed**: Stack cleanup now correctly pops extra args after 7+ parameter calls.
+
+- **Test**: `test/suite/232_many_params_bug.lang`
+- **Fix location**: `codegen.lang:2858-2867` (add `add $(n-6)*8, %rsp` after call)
 
 ### HIGH: Test Suite Gaps
 

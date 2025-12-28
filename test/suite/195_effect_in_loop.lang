@@ -1,0 +1,44 @@
+// expect: 0
+// Test effect inside loop - multiple performs
+
+include "std/core.lang"
+
+effect Tick(i64) i64
+
+var tick_sum i64 = 0;
+
+func count_loop(n i64) i64 {
+    var i i64 = 0;
+    var sum i64 = 0;
+    while i < n {
+        var x i64 = perform Tick(i);
+        sum = sum + x;
+        i = i + 1;
+    }
+    return sum;
+}
+
+func main() i64 {
+    tick_sum = 0;
+
+    // Test: 5 iterations, each Tick returns i*2
+    var result i64 = handle { count_loop(5) } with {
+        return(v) => v,
+        Tick(n, k) => {
+            tick_sum = tick_sum + n;
+            resume k(n * 2);
+        }
+    };
+
+    // tick_sum = 0 + 1 + 2 + 3 + 4 = 10
+    if tick_sum != 10 {
+        return 1;
+    }
+
+    // result = 0*2 + 1*2 + 2*2 + 3*2 + 4*2 = 0 + 2 + 4 + 6 + 8 = 20
+    if result != 20 {
+        return 2;
+    }
+
+    return 0;
+}

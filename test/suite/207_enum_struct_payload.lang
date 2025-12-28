@@ -1,0 +1,34 @@
+// expect: 42
+// Test: Enum with struct payload
+// Verifies large payloads (struct in variant) work correctly
+
+include "std/core.lang"
+
+struct Point {
+    x i64;
+    y i64;
+}
+
+enum Shape {
+    Empty,
+    Dot(Point),
+}
+
+func main() i64 {
+    // Create a Point
+    var p Point;
+    p.x = 17;
+    p.y = 25;
+
+    // Put it in an enum variant
+    var shape Shape = Shape.Dot(p);
+
+    // Match and extract
+    var result i64 = match &shape {
+        Shape.Empty => 0,
+        Shape.Dot(pt) => pt.x + pt.y,
+    };
+
+    // 17 + 25 = 42
+    return result;
+}

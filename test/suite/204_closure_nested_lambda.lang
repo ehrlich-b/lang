@@ -1,0 +1,83 @@
+// expect: 0
+// Test: Nested lambdas - lambda inside lambda
+
+include "std/core.lang"
+
+// Test 1: Simple nested lambda (no captures)
+func test_simple_nested() i64 {
+    var outer fn() i64 = fn() i64 {
+        var inner fn() i64 = fn() i64 { return 42; };
+        return inner();
+    };
+
+    var result i64 = outer();
+    if result != 42 {
+        return 1;
+    }
+    return 0;
+}
+
+// Test 2: Outer lambda captures, inner doesn't
+func test_outer_captures() i64 {
+    var n i64 = 10;
+
+    var outer closure() i64 = fn() i64 {
+        var inner fn(i64) i64 = fn(x i64) i64 { return x * 2; };
+        return inner(n);  // n is captured by outer, passed to inner
+    };
+
+    var result i64 = outer();  // inner(10) = 20
+    if result != 20 {
+        return 2;
+    }
+    return 0;
+}
+
+// Test 3: Both outer and inner capture (from outer's perspective)
+func test_both_capture() i64 {
+    var a i64 = 5;
+    var b i64 = 3;
+
+    var outer closure() i64 = fn() i64 {
+        // Inner captures both a and b (which are already captured by outer)
+        var inner closure() i64 = fn() i64 { return a * b; };
+        return inner() + 27;  // 5*3 + 27 = 42
+    };
+
+    var result i64 = outer();
+    if result != 42 {
+        return 3;
+    }
+    return 0;
+}
+
+// Test 4: Inner captures outer's local
+func test_inner_captures_outer_local() i64 {
+    var outer closure() i64 = fn() i64 {
+        var local i64 = 7;
+        var inner closure() i64 = fn() i64 { return local * 6; };
+        return inner();  // 7 * 6 = 42
+    };
+
+    var result i64 = outer();
+    if result != 42 {
+        return 4;
+    }
+    return 0;
+}
+
+func main() i64 {
+    var r i64 = test_simple_nested();
+    if r != 0 { return r; }
+
+    r = test_outer_captures();
+    if r != 0 { return r; }
+
+    r = test_both_capture();
+    if r != 0 { return r; }
+
+    r = test_inner_captures_outer_local();
+    if r != 0 { return r; }
+
+    return 0;
+}

@@ -1,0 +1,71 @@
+// expect: 50
+// Test: Many local variables (stress test for stack allocation)
+
+func main() i64 {
+    // 50 local variables
+    var a1 i64 = 1;
+    var a2 i64 = 1;
+    var a3 i64 = 1;
+    var a4 i64 = 1;
+    var a5 i64 = 1;
+    var a6 i64 = 1;
+    var a7 i64 = 1;
+    var a8 i64 = 1;
+    var a9 i64 = 1;
+    var a10 i64 = 1;
+    var a11 i64 = 1;
+    var a12 i64 = 1;
+    var a13 i64 = 1;
+    var a14 i64 = 1;
+    var a15 i64 = 1;
+    var a16 i64 = 1;
+    var a17 i64 = 1;
+    var a18 i64 = 1;
+    var a19 i64 = 1;
+    var a20 i64 = 1;
+    var a21 i64 = 1;
+    var a22 i64 = 1;
+    var a23 i64 = 1;
+    var a24 i64 = 1;
+    var a25 i64 = 1;
+    var a26 i64 = 1;
+    var a27 i64 = 1;
+    var a28 i64 = 1;
+    var a29 i64 = 1;
+    var a30 i64 = 1;
+    var a31 i64 = 1;
+    var a32 i64 = 1;
+    var a33 i64 = 1;
+    var a34 i64 = 1;
+    var a35 i64 = 1;
+    var a36 i64 = 1;
+    var a37 i64 = 1;
+    var a38 i64 = 1;
+    var a39 i64 = 1;
+    var a40 i64 = 1;
+    var a41 i64 = 1;
+    var a42 i64 = 1;
+    var a43 i64 = 1;
+    var a44 i64 = 1;
+    var a45 i64 = 1;
+    var a46 i64 = 1;
+    var a47 i64 = 1;
+    var a48 i64 = 1;
+    var a49 i64 = 1;
+    var a50 i64 = 1;
+
+    // Use all of them to ensure they're not optimized away
+    var sum i64 = 0;
+    sum = sum + a1 + a2 + a3 + a4 + a5;
+    sum = sum + a6 + a7 + a8 + a9 + a10;
+    sum = sum + a11 + a12 + a13 + a14 + a15;
+    sum = sum + a16 + a17 + a18 + a19 + a20;
+    sum = sum + a21 + a22 + a23 + a24 + a25;
+    sum = sum + a26 + a27 + a28 + a29 + a30;
+    sum = sum + a31 + a32 + a33 + a34 + a35;
+    sum = sum + a36 + a37 + a38 + a39 + a40;
+    sum = sum + a41 + a42 + a43 + a44 + a45;
+    sum = sum + a46 + a47 + a48 + a49 + a50;
+
+    return sum;  // 50
+}

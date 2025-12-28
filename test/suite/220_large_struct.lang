@@ -1,0 +1,64 @@
+// expect: 100
+// Test: Large struct (stress test for struct allocation and access)
+
+struct LargeStruct {
+    f1 i64;
+    f2 i64;
+    f3 i64;
+    f4 i64;
+    f5 i64;
+    f6 i64;
+    f7 i64;
+    f8 i64;
+    f9 i64;
+    f10 i64;
+}
+
+func init_struct(s *LargeStruct) void {
+    s.f1 = 1;
+    s.f2 = 2;
+    s.f3 = 3;
+    s.f4 = 4;
+    s.f5 = 5;
+    s.f6 = 6;
+    s.f7 = 7;
+    s.f8 = 8;
+    s.f9 = 9;
+    s.f10 = 10;
+}
+
+func sum_struct(s *LargeStruct) i64 {
+    return s.f1 + s.f2 + s.f3 + s.f4 + s.f5 +
+           s.f6 + s.f7 + s.f8 + s.f9 + s.f10;
+}
+
+// Nested large struct
+struct Container {
+    inner LargeStruct;
+    extra i64;
+}
+
+func main() i64 {
+    var s LargeStruct;
+    init_struct(&s);
+
+    var result i64 = sum_struct(&s);  // 55
+
+    // Test modification
+    s.f5 = 50;
+    // s.f5 was 5, now is 50, diff is 45
+    result = result + (s.f5 - 5);  // 55 + 45 = 100
+
+    // Test nested struct
+    var c Container;
+    c.extra = 0;
+    init_struct(&c.inner);
+
+    if sum_struct(&c.inner) == 55 {
+        // Correct - nested struct works
+    } else {
+        result = 0;  // Fail if nested doesn't work
+    }
+
+    return result;  // 100
+}

@@ -1,0 +1,84 @@
+// expect: 0
+// Test: Stress test - closure with many captured variables
+
+include "std/core.lang"
+
+// Test 1: Capture 8 variables
+func test_eight_captures() i64 {
+    var a i64 = 1;
+    var b i64 = 2;
+    var c i64 = 3;
+    var d i64 = 4;
+    var e i64 = 5;
+    var f i64 = 6;
+    var g i64 = 7;
+    var h i64 = 8;
+
+    var sum_all closure() i64 = fn() i64 {
+        return a + b + c + d + e + f + g + h;
+    };
+
+    var result i64 = sum_all();  // 1+2+3+4+5+6+7+8 = 36
+    if result != 36 {
+        return 1;
+    }
+    return 0;
+}
+
+// Test 2: Capture 10 variables with computation
+func test_ten_captures() i64 {
+    var v0 i64 = 0;
+    var v1 i64 = 1;
+    var v2 i64 = 2;
+    var v3 i64 = 3;
+    var v4 i64 = 4;
+    var v5 i64 = 5;
+    var v6 i64 = 6;
+    var v7 i64 = 7;
+    var v8 i64 = 8;
+    var v9 i64 = 9;
+
+    var compute closure() i64 = fn() i64 {
+        // Sum of 0..9 = 45
+        return v0 + v1 + v2 + v3 + v4 + v5 + v6 + v7 + v8 + v9;
+    };
+
+    var result i64 = compute();
+    if result != 45 {
+        return 2;
+    }
+    return 0;
+}
+
+// Test 3: Multiple closures each capturing many variables
+func test_multiple_heavy_closures() i64 {
+    var a i64 = 1;
+    var b i64 = 2;
+    var c i64 = 3;
+    var d i64 = 4;
+    var e i64 = 5;
+
+    var sum closure() i64 = fn() i64 { return a + b + c + d + e; };
+    var prod closure() i64 = fn() i64 { return a * b * c * d * e; };
+
+    var s i64 = sum();   // 15
+    var p i64 = prod();  // 120
+
+    if s != 15 { return 31; }
+    if p != 120 { return 32; }
+
+    return 0;
+}
+
+func main() i64 {
+    var r i64 = test_eight_captures();
+    if r != 0 { return r; }
+
+    r = test_ten_captures();
+    if r != 0 { return r; }
+
+    r = test_multiple_heavy_closures();
+    if r != 0 { return r; }
+
+    return 0;
+}

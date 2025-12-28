@@ -1,0 +1,36 @@
+// expect: 0
+// Test effect propagating through multiple call frames
+
+include "std/core.lang"
+
+effect Signal(i64) i64
+
+func level3(x i64) i64 {
+    return perform Signal(x * 10);
+}
+
+func level2(x i64) i64 {
+    return level3(x) + 1;
+}
+
+func level1(x i64) i64 {
+    return level2(x) + 10;
+}
+
+func main() i64 {
+    // Test: Effect travels up 3 call frames
+    var result i64 = handle { level1(5) } with {
+        return(v) => v,
+        Signal(n) => n + 1000
+    };
+
+    // Without resume, Signal(50) returns 1050
+    // That becomes level3 result, +1 in level2, +10 in level1
+    // But wait - Signal doesn't resume, so level2/level1 don't continue
+    // Actually the handler returns 1050 directly
+    if result != 1050 {
+        return 1;
+    }
+
+    return 0;
+}

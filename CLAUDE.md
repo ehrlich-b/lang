@@ -125,6 +125,41 @@ func baz() void;  // ERROR: expected '{'
 
 **Save every test**: When you write a test to verify something works, save it to the `test/` folder - never leave tests to die in `/tmp`. Every well-formed test is valuable and should be kept forever. Use descriptive names and add to the test suite when appropriate.
 
+### Tests Check the Compiler, Not Vice Versa
+
+**THE RULE**: When a test fails, assume THE COMPILER IS WRONG until proven otherwise.
+
+Tests represent what the language SHOULD do. The compiler is the thing being tested. If you write a reasonable test and the compiler rejects it or produces wrong output, that's a **compiler bug to fix**, not a test to change.
+
+**WRONG approach** (what I must NOT do):
+```
+1. Write test with zero-arg effect: effect Read() i64
+2. Compiler crashes or misbehaves
+3. "Oh, let me change the test to use effects with arguments instead"
+4. Test passes, bug remains hidden
+```
+
+**RIGHT approach**:
+```
+1. Write test with zero-arg effect: effect Read() i64
+2. Compiler crashes or misbehaves
+3. "This is a compiler bug. Let me fix the compiler."
+4. Fix codegen to handle zero-arg effects correctly
+5. Original test now passes, bug is fixed
+```
+
+**Only change a test when**:
+- The test is semantically wrong (misunderstands what the language should do)
+- The test has a typo or logic error in its own verification code
+- The expected behavior has intentionally changed (and documented)
+
+**Never change a test because**:
+- It does something "weird" or unusual (weird is GOOD - it finds edge cases!)
+- The compiler says it's wrong (that's what we're checking!)
+- It would be easier to work around than fix
+
+**Weird tests are the best tests.** They expose edges. A test that does something no reasonable user would do is still valuable - it might reveal an assumption the compiler makes that isn't actually guaranteed.
+
 ## Key Decisions
 
 | Decision | Choice | Why |

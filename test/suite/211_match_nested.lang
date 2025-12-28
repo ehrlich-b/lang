@@ -1,0 +1,41 @@
+// expect: 42
+// Test: Nested match expressions
+// Verifies match can contain match
+
+include "std/core.lang"
+
+enum Option {
+    None,
+    Some(i64),
+}
+
+func add_options(a *Option, b *Option) i64 {
+    return match a {
+        Option.None => match b {
+            Option.None => 0,
+            Option.Some(y) => y,
+        },
+        Option.Some(x) => match b {
+            Option.None => x,
+            Option.Some(y) => x + y,
+        },
+    };
+}
+
+func main() i64 {
+    var none Option = Option.None;
+    var some20 Option = Option.Some(20);
+    var some22 Option = Option.Some(22);
+
+    // Test all combinations
+    var r1 i64 = add_options(&none, &none);     // 0
+    var r2 i64 = add_options(&none, &some20);   // 20
+    var r3 i64 = add_options(&some22, &none);   // 22
+    var r4 i64 = add_options(&some20, &some22); // 42
+
+    if r1 != 0 { return 1; }
+    if r2 != 20 { return 2; }
+    if r3 != 22 { return 3; }
+
+    return r4;
+}

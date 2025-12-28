@@ -1,0 +1,67 @@
+// expect: 0
+// Test handle with block bodies (multiple statements)
+
+include "std/core.lang"
+
+effect Ask(i64) i64
+
+var counter i64 = 0;
+
+func do_ask(x i64) i64 {
+    return perform Ask(x);
+}
+
+func main() i64 {
+    // Test 1: Single expression body (existing behavior)
+    counter = 42;
+    var result1 i64 = handle { do_ask(1); } with {
+        return(v) => v,
+        Ask(n, k) => {
+            resume k(counter + n);
+        }
+    };
+
+    // Ask(1) with counter=42, resumed with 43
+    if result1 != 43 {
+        return 1;
+    }
+
+    // Test 2: Handle with block body containing variable
+    counter = 5;
+    var result2 i64 = handle {
+        var a i64 = do_ask(0);
+        a + 100;
+    } with {
+        return(v) => v,
+        Ask(n, k) => {
+            resume k(counter);
+        }
+    };
+
+    // Ask(0) returns 5, a=5, a+100=105
+    if result2 != 105 {
+        return 2;
+    }
+
+    // Test 3: Handle with multiple performs in body
+    counter = 10;
+    var result3 i64 = handle {
+        var x i64 = 0;
+        x = x + do_ask(0);
+        counter = 20;
+        x = x + do_ask(0);
+        x;
+    } with {
+        return(v) => v,
+        Ask(n, k) => {
+            resume k(counter);
+        }
+    };
+
+    // First Ask returns 10, x=10, counter=20, second Ask returns 20, x=30
+    if result3 != 30 {
+        return 3;
+    }
+
+    return 0;
+}

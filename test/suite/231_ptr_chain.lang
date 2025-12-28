@@ -1,0 +1,38 @@
+// expect: 42
+// Test: Chain of pointer dereferences (interaction: pointers + nested access)
+
+func main() i64 {
+    var a i64 = 42;
+    var p1 *i64 = &a;
+    var p2 **i64 = &p1;
+    var p3 ***i64 = &p2;
+
+    // Dereference chain
+    var result i64 = ***p3;  // 42
+
+    // Modify through chain
+    ***p3 = 100;
+    if a != 100 {
+        return 0;
+    }
+
+    // Reassign intermediate pointer
+    var b i64 = 50;
+    *p2 = &b;
+    if **p2 != 50 {
+        return 0;
+    }
+
+    // Original triple deref should now point to b
+    if ***p3 != 50 {
+        return 0;
+    }
+
+    // Modify b through chain
+    ***p3 = 42;
+    if b != 42 {
+        return 0;
+    }
+
+    return result;  // 42 (original value of a)
+}

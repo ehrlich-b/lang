@@ -1,0 +1,44 @@
+// expect: 0
+// Test many resumes (stress test)
+
+include "std/core.lang"
+
+effect Step(i64) i64
+
+var step_count i64 = 0;
+
+func many_steps(n i64) i64 {
+    var i i64 = 0;
+    var sum i64 = 0;
+    while i < n {
+        var x i64 = perform Step(i);
+        sum = sum + x;
+        i = i + 1;
+    }
+    return sum;
+}
+
+func main() i64 {
+    step_count = 0;
+
+    // Test: 20 resumes in sequence
+    var result i64 = handle { many_steps(20) } with {
+        return(v) => v,
+        Step(n, k) => {
+            step_count = step_count + 1;
+            resume k(1);
+        }
+    };
+
+    // Should have 20 steps
+    if step_count != 20 {
+        return 1;
+    }
+
+    // sum of 1+1+...+1 (20 times) = 20
+    if result != 20 {
+        return 2;
+    }
+
+    return 0;
+}
