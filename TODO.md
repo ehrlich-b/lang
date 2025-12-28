@@ -56,36 +56,32 @@ See `designs/ast_as_language.md` for the complete design.
 
 **Safety Check**: Compiler now errors if you assign a capturing lambda to a `fn(T) R` variable. This prevents a crash where the closure struct would be executed as code. Non-capturing lambdas are still allowed with `fn(T) R`.
 
-**Automatic Calls (Deferred)**: Requires type-level distinction. See Phase 3b below.
+### Phase 3b: Closure Type ✓
 
-### Phase 3b: Closure Type (Future)
-
-The core problem: `fn(T) R` can hold either:
-1. Plain function pointer (from `&func` or non-capturing lambda) - call directly
-2. Closure struct pointer (from capturing lambda) - needs hidden env arg
-
-These are **incompatible** at runtime. Current workaround: use `*u8` with manual helper.
-
-**Option B: Separate Types** (recommended)
+Implemented type-level distinction between plain function pointers and closures:
 
 ```lang
 // Plain function pointer - no captures allowed
 var f fn(i64) i64 = &add;                    // OK
 var f fn(i64) i64 = fn(x i64) { x + 1 };     // OK (no captures)
-var f fn(i64) i64 = fn(x i64) { x + n };     // COMPILE ERROR (already implemented)
+var f fn(i64) i64 = fn(x i64) { x + n };     // COMPILE ERROR
 
-// New closure type - allows captures, automatic calling
+// Closure type - allows captures, automatic calling
 var g closure(i64) i64 = fn(x i64) { x + n };  // OK
 g(42);  // Compiler auto-passes closure struct as first arg
 ```
 
 | Task | File | Status |
 |------|------|--------|
-| Parse `closure(T) R` type syntax | parser.lang | TODO |
-| Add TYPE_CLOSURE kind | parser.lang | TODO |
-| Closure type codegen | codegen.lang | TODO |
-| Auto-wrap `&func` for closure type | codegen.lang | TODO |
-| Update higher-order function patterns | test/ | TODO |
+| Parse `closure(T) R` type syntax | parser.lang | DONE |
+| Add TYPE_CLOSURE kind | parser.lang | DONE |
+| Closure type codegen | codegen.lang | DONE |
+| Auto-wrap non-capturing lambda for closure type | codegen.lang | DONE |
+| Test closure type | test/suite/189_closure_type.lang | DONE |
+
+**Closure struct layout**: `[tag:8][fn_ptr:8][captures...]`
+- tag=0: non-capturing (call fn_ptr directly)
+- tag=1: capturing (pass struct as hidden first arg)
 
 ### Phase 4: Sum Types ✓
 
@@ -229,6 +225,8 @@ Implications:
 - [x] Closure test (test/stdlib/144_closure_basic.lang)
 - [x] Phase 5 Exceptions MVP (effect/perform/handle, setjmp/longjmp style)
 - [x] Exception test (test/suite/188_effect_exception.lang)
+- [x] Phase 3b Closure Type (closure(T) R type, automatic calling)
+- [x] Closure type test (test/suite/189_closure_type.lang)
 
 ### Previous Session
 - [x] Comprehensive AST 2.0 design with algebraic effects

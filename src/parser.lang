@@ -62,6 +62,7 @@ var TYPE_BASE i64 = 1;
 var TYPE_PTR i64 = 2;
 var TYPE_ARRAY i64 = 3;
 var TYPE_FUNC i64 = 4;    // fn(T1, T2) R
+var TYPE_CLOSURE i64 = 5; // closure(T1, T2) R (can capture)
 
 // ============================================================
 // AST Node layouts (all nodes start with kind field)
@@ -107,6 +108,7 @@ var TYPE_FUNC i64 = 4;    // fn(T1, T2) R
 // PtrType: [kind:8][elem:8] = 16 bytes
 // ArrayType: [kind:8][size:8][elem:8] = 24 bytes
 // FuncType: [kind:8][params:8][param_count:8][ret:8] = 32 bytes
+// ClosureType: [kind:8][params:8][param_count:8][ret:8] = 32 bytes (same layout)
 
 // Param: [name_ptr:8][name_len:8][type:8] = 24 bytes
 
@@ -1901,6 +1903,48 @@ func func_type_set_ret(t *u8, ret *u8) void {
 }
 
 // ============================================================
+// ClosureType accessors (AST 2.0 - Phase 3b)
+// ============================================================
+// ClosureType: [kind:8][params:8][param_count:8][ret:8] = 32 bytes
+// Same layout as FuncType but with TYPE_CLOSURE kind
+
+func closure_type_alloc() *u8 {
+    var t *u8 = alloc(32);
+    type_set_kind(t, TYPE_CLOSURE);
+    return t;
+}
+
+func closure_type_params(t *u8) *u8 {
+    var p **u8 = t + 8;
+    return *p;
+}
+
+func closure_type_set_params(t *u8, params *u8) void {
+    var p **u8 = t + 8;
+    *p = params;
+}
+
+func closure_type_param_count(t *u8) i64 {
+    var p *i64 = t + 16;
+    return *p;
+}
+
+func closure_type_set_param_count(t *u8, count i64) void {
+    var p *i64 = t + 16;
+    *p = count;
+}
+
+func closure_type_ret(t *u8) *u8 {
+    var p **u8 = t + 24;
+    return *p;
+}
+
+func closure_type_set_ret(t *u8, ret *u8) void {
+    var p **u8 = t + 24;
+    *p = ret;
+}
+
+// ============================================================
 // Param accessors (24 bytes each)
 // ============================================================
 
@@ -2095,6 +2139,32 @@ func parse_type() *u8 {
         func_type_set_params(t, params);
         func_type_set_param_count(t, vec_len(params));
         func_type_set_ret(t, ret);
+        return t;
+    }
+
+    // Closure type: closure(T1, T2) R (allows capturing lambdas)
+    if parse_match(TOKEN_CLOSURE) {
+        parse_expect(TOKEN_LPAREN, "expected '(' after 'closure'");
+
+        // Parse parameter types
+        var params *u8 = vec_new(8);
+        if !parse_check(TOKEN_RPAREN) {
+            var first i64 = 1;
+            while first == 1 || parse_match(TOKEN_COMMA) {
+                first = 0;
+                var param_type *u8 = parse_type();
+                vec_push(params, param_type);
+            }
+        }
+        parse_expect(TOKEN_RPAREN, "expected ')' after parameter types");
+
+        // Parse return type
+        var ret *u8 = parse_type();
+
+        var t *u8 = closure_type_alloc();
+        closure_type_set_params(t, params);
+        closure_type_set_param_count(t, vec_len(params));
+        closure_type_set_ret(t, ret);
         return t;
     }
 

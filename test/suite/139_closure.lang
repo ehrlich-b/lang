@@ -6,19 +6,21 @@
 include "std/core.lang"
 
 // Helper to call a closure with one i64 argument
-func call_closure_i64(closure *u8, arg i64) i64 {
-    var fn_ptr_p **u8 = closure;
+// Closure layout: [tag:8][fn_ptr:8][captures...]
+func call_closure_i64(clos *u8, arg i64) i64 {
+    var fn_ptr_p **u8 = clos + 8;  // fn_ptr at offset 8
     var fn_ptr *u8 = *fn_ptr_p;
     var f fn(*u8, i64) i64 = fn_ptr;
-    return f(closure, arg);
+    return f(clos, arg);
 }
 
 // Helper to call a zero-arg closure
-func call_closure_0(closure *u8) i64 {
-    var fn_ptr_p **u8 = closure;
+// Closure layout: [tag:8][fn_ptr:8][captures...]
+func call_closure_0(clos *u8) i64 {
+    var fn_ptr_p **u8 = clos + 8;  // fn_ptr at offset 8
     var fn_ptr *u8 = *fn_ptr_p;
     var f fn(*u8) i64 = fn_ptr;
-    return f(closure);
+    return f(clos);
 }
 
 // Test 1: Simple capture

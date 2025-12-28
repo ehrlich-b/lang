@@ -55,6 +55,23 @@ syscall(60, 0);  // exit(0)
 - `*u8` - commonly used for strings
 - `**i64` - pointer to pointer
 
+### Function Types
+- `fn(T1, T2) R` - plain function pointer (no captures allowed)
+- `closure(T1, T2) R` - closure type (captures allowed, automatic calling)
+
+```lang
+// fn type: plain function pointers, non-capturing lambdas
+var add fn(i64, i64) i64 = fn(a i64, b i64) i64 { return a + b; };
+var f fn(i64) i64 = &my_func;  // Function reference
+
+// closure type: supports capturing lambdas with automatic calling
+var n i64 = 5;
+var add_n closure(i64) i64 = fn(x i64) i64 { return x + n; };
+var result i64 = add_n(37);  // Automatic closure calling
+```
+
+**Note**: Capturing lambdas assigned to `fn(T) R` will produce a compile error. Use `closure(T) R` for capturing lambdas.
+
 ## Syntax
 
 ### Functions
