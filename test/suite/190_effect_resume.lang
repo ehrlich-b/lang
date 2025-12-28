@@ -1,0 +1,39 @@
+// expect: 0
+// Test effect resume - resumable effects with block handlers
+
+include "std/core.lang"
+
+effect Yield(i64) i64
+
+var total i64 = 0;
+
+// Generator that yields 1, 2, 3
+func count_to_3() i64 {
+    var x i64 = perform Yield(1);
+    x = perform Yield(2);
+    x = perform Yield(3);
+    return 999;
+}
+
+func main() i64 {
+    // Test: handle with resume using block - sum yielded values
+    var result i64 = handle { count_to_3() } with {
+        return(v) => v,
+        Yield(n, k) => {
+            total = total + n;
+            resume k(0);
+        }
+    };
+
+    // total should be 1 + 2 + 3 = 6
+    if total != 6 {
+        return 1;
+    }
+
+    // result should be 999 (the final return value)
+    if result != 999 {
+        return 2;
+    }
+
+    return 0;
+}

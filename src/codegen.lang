@@ -3128,7 +3128,7 @@ func gen_expr(expr *u8) void {
         return;
     }
 
-    // Handle expression: handle { body } with { return(v) => ..., Effect(e) => ... }
+    // Handle expression: handle { body } with { return(v) => ..., Effect(e, k) => ... }
     if k == NODE_HANDLE_EXPR {
         var body *u8 = handle_expr_body(expr);
         var cases *u8 = handle_expr_cases(expr);
@@ -3162,35 +3162,54 @@ func gen_expr(expr *u8) void {
         emit_label(handler_label);
         emit_line(":");
 
-        // Effect value is in __effect_value, load it if there's a case
+        // Effect value is in __effect_value, continuation in __continuation_ptr
         // For now, just support one effect case (first one)
+        // Case layout: [name:8][len:8][bind:8][bind_len:8][k:8][k_len:8][body:8] = 56 bytes
         if case_count > 0 {
             var entry *u8 = cases;
-            var bind_ptr **u8 = entry + 16;
-            var bind_len_ptr *i64 = entry + 24;
-            var case_body_ptr **u8 = entry + 32;
+            var bind_ptr *u8 = effect_case_binding(entry);
+            var bind_len i64 = effect_case_binding_len(entry);
+            var k_ptr *u8 = effect_case_k(entry);
+            var k_len i64 = effect_case_k_len(entry);
+            var case_body *u8 = effect_case_body(entry);
 
-            // Create a local for the binding
-            if *bind_len_ptr > 0 {
-                var saved_local_count i64 = cg_local_count;
+            var saved_local_count i64 = cg_local_count;
 
+            // Create local for effect value binding (e)
+            var bind_offset i64 = 0;
+            if bind_len > 0 {
                 cg_stack_size = cg_stack_size + 8;
-                var bind_offset i64 = 0 - cg_stack_size;
-                add_local(*bind_ptr, *bind_len_ptr, bind_offset, nil);
+                bind_offset = 0 - cg_stack_size;
+                add_local(bind_ptr, bind_len, bind_offset, nil);
 
                 // Load effect value into binding
                 emit_line("    movq __effect_value(%rip), %rax");
                 emit_str("    movq %rax, ");
                 emit_int(bind_offset);
                 emit_line("(%rbp)");
-
-                // Generate case body
-                gen_expr(*case_body_ptr);
-
-                cg_local_count = saved_local_count;
-            } else {
-                gen_expr(*case_body_ptr);
             }
+
+            // Create local for continuation binding (k)
+            if k_len > 0 {
+                cg_stack_size = cg_stack_size + 8;
+                var k_offset i64 = 0 - cg_stack_size;
+                add_local(k_ptr, k_len, k_offset, nil);
+
+                // Load continuation pointer into binding
+                emit_line("    movq __continuation_ptr(%rip), %rax");
+                emit_str("    movq %rax, ");
+                emit_int(k_offset);
+                emit_line("(%rbp)");
+            }
+
+            // Generate case body (may be expression or block statement)
+            if node_kind(case_body) == NODE_BLOCK_STMT {
+                gen_stmt(case_body);
+            } else {
+                gen_expr(case_body);
+            }
+
+            cg_local_count = saved_local_count;
         }
 
         // Done - clear handler and result is in %rax
@@ -3205,9 +3224,34 @@ func gen_expr(expr *u8) void {
     }
 
     // Perform expression: perform Effect(args)
+    // Creates a continuation struct and jumps to handler
     if k == NODE_PERFORM_EXPR {
         var args *u8 = perform_expr_args(expr);
         var arg_count i64 = perform_expr_arg_count(expr);
+
+        // Create a resume label (where we'll return to after resume)
+        var resume_label i64 = new_label();
+
+        // Allocate continuation struct: [rbp:8][rsp:8][return_addr:8] = 24 bytes
+        emit_line("    mov $24, %rdi");
+        emit_line("    call alloc");
+        emit_line("    push %rax");  // Save continuation pointer
+
+        // Store rbp at offset 0
+        emit_line("    movq %rbp, (%rax)");
+
+        // Store rsp at offset 8 (current rsp, before we pushed)
+        emit_line("    leaq 8(%rsp), %rbx");  // rsp before push
+        emit_line("    movq %rbx, 8(%rax)");
+
+        // Store return address at offset 16
+        emit_str("    leaq ");
+        emit_label(resume_label);
+        emit_line("(%rip), %rbx");
+        emit_line("    movq %rbx, 16(%rax)");
+
+        // Store continuation pointer in global
+        emit_line("    movq %rax, __continuation_ptr(%rip)");
 
         // Evaluate first arg (if any) and store in __effect_value
         if arg_count > 0 {
@@ -3216,10 +3260,49 @@ func gen_expr(expr *u8) void {
             emit_line("    movq %rax, __effect_value(%rip)");
         }
 
-        // Restore handler's frame and jump
+        // Pop the continuation pointer (we stored it in global)
+        emit_line("    addq $8, %rsp");
+
+        // Restore handler's rbp (for accessing handler's locals) but NOT rsp
+        // Keeping rsp at effectful function's stack prevents handler's push/pop
+        // from overwriting the effectful function's return address
         emit_line("    movq __handler_rbp(%rip), %rbp");
-        emit_line("    movq __handler_rsp(%rip), %rsp");
         emit_line("    jmpq *__handler_addr(%rip)");
+
+        // Resume point: when resume k(v) is called, we land here with v in %rax
+        emit_label(resume_label);
+        emit_line(":");
+        return;
+    }
+
+    // Resume expression: resume k(value)
+    // Restores continuation and returns to perform site
+    if k == NODE_RESUME_EXPR {
+        var k_expr *u8 = resume_expr_k(expr);
+        var value *u8 = resume_expr_value(expr);
+
+        // Evaluate continuation expression (the k variable)
+        gen_expr(k_expr);
+        emit_line("    mov %rax, %rbx");  // rbx = continuation pointer
+
+        // Extract all values from continuation BEFORE restoring stack
+        // Continuation struct: [rbp:8][rsp:8][return_addr:8]
+        emit_line("    movq (%rbx), %r12");    // r12 = saved rbp
+        emit_line("    movq 8(%rbx), %r13");   // r13 = saved rsp
+        emit_line("    movq 16(%rbx), %r14");  // r14 = return address
+
+        // Evaluate value to resume with (if any)
+        if value != nil {
+            gen_expr(value);
+        } else {
+            emit_line("    xor %eax, %eax");  // Default to 0
+        }
+        // rax now has the resume value
+
+        // Restore rbp and rsp, then jump
+        emit_line("    mov %r12, %rbp");
+        emit_line("    mov %r13, %rsp");
+        emit_line("    jmpq *%r14");
         return;
     }
 }
@@ -5210,6 +5293,8 @@ func generate(prog *u8, out_path *u8) void {
         out_line("__handler_addr:");
         out_line("    .quad 0");
         out_line("__effect_value:");
+        out_line("    .quad 0");
+        out_line("__continuation_ptr:");
         out_line("    .quad 0");
     }
 

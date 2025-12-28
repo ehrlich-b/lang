@@ -52,20 +52,20 @@ There are TWO compilers:
 When developing new language features (like enums, match, etc.), the stable compiler doesn't have them yet. Use these patterns:
 
 ```bash
-# Run test suite with development compiler
+# Run single test with development compiler (PREFERRED)
+make dev-run FILE=test/suite/188_effect_exception.lang
+
+# Run single test with dev compiler + stdlib
+make dev-stdlib-run FILE=test/suite/189_closure_type.lang
+
+# Run full test suite with development compiler
 COMPILER=./out/lang_next ./test/run_lang1_suite.sh
 
-# Run specific test with development compiler
-COMPILER=./out/lang_next ./test/run_lang1_suite.sh 2>&1 | grep "141"
-
-# Manual single-file test with development compiler
-./out/lang_next test/suite/141_enum_variant.lang -o /tmp/test.s && \
-  as /tmp/test.s -o /tmp/test.o && \
-  ld /tmp/test.o -o /tmp/test && \
-  /tmp/test; echo "Exit: $?"
+# Filter test suite output for specific test
+COMPILER=./out/lang_next ./test/run_lang1_suite.sh 2>&1 | grep "188"
 ```
 
-**Key insight**: `make run` will FAIL on new syntax because it uses the stable compiler. Always use `lang_next` for testing new features until they're promoted.
+**Key insight**: `make run` will FAIL on new syntax because it uses the stable compiler. Always use `make dev-run` or `make dev-stdlib-run` for testing new features until they're promoted.
 
 ## Current Focus
 
@@ -91,6 +91,7 @@ COMPILER=./out/lang_next ./test/run_lang1_suite.sh 2>&1 | grep "141"
 - Comments explain "why", not "what"
 - Memory can leak in the compiler (short-lived)
 - Incremental modernization, not big-bang refactoring
+- **Just include stdlib when needed** - Don't try to avoid `std/core.lang` dependencies with clever workarounds. If a feature needs `alloc`, include stdlib. Tests that need stdlib should include it.
 
 ## Language Gotchas (READ THIS)
 

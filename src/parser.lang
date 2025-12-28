@@ -774,8 +774,9 @@ func handle_expr_set_ret_body(node *u8, body *u8) void {
     *p = body;
 }
 
-// Effect case entry: [effect_name:8][effect_name_len:8][binding_ptr:8][binding_len:8][body:8] = 40 bytes
+// Effect case entry: [effect_name:8][effect_name_len:8][binding_ptr:8][binding_len:8][k_ptr:8][k_len:8][body:8] = 56 bytes
 // Stored in a Vec
+// Example: Fail(e, k) => body
 
 func effect_case_name(entry *u8) *u8 {
     var p **u8 = entry;
@@ -797,8 +798,18 @@ func effect_case_binding_len(entry *u8) i64 {
     return *p;
 }
 
-func effect_case_body(entry *u8) *u8 {
+func effect_case_k(entry *u8) *u8 {
     var p **u8 = entry + 32;
+    return *p;
+}
+
+func effect_case_k_len(entry *u8) i64 {
+    var p *i64 = entry + 40;
+    return *p;
+}
+
+func effect_case_body(entry *u8) *u8 {
+    var p **u8 = entry + 48;
     return *p;
 }
 
@@ -2712,6 +2723,27 @@ func parse_primary() *u8 {
         return node;
     }
 
+    // Resume expression: resume k(value)
+    if parse_match(TOKEN_RESUME) {
+        // Parse continuation as identifier
+        var k_tok *u8 = parse_expect(TOKEN_IDENT, "expected continuation name after 'resume'");
+        var k_expr *u8 = ident_expr_alloc();
+        ident_expr_set_name(k_expr, tok_lexeme(k_tok));
+        ident_expr_set_name_len(k_expr, tok_lexeme_len(k_tok));
+
+        parse_expect(TOKEN_LPAREN, "expected '(' after continuation");
+        var value *u8 = nil;
+        if !parse_check(TOKEN_RPAREN) {
+            value = parse_expression();
+        }
+        parse_expect(TOKEN_RPAREN, "expected ')' after resume value");
+
+        var node *u8 = resume_expr_alloc();
+        resume_expr_set_k(node, k_expr);
+        resume_expr_set_value(node, value);
+        return node;
+    }
+
     // Handle expression: handle { body } with { return(v) => expr, Effect(e) => expr }
     if parse_match(TOKEN_HANDLE) {
         parse_expect(TOKEN_LBRACE, "expected '{' after 'handle'");
@@ -2728,8 +2760,8 @@ func parse_primary() *u8 {
         var ret_bind_len i64 = 0;
         var ret_body *u8 = nil;
 
-        // Allocate effect cases array (max 32 cases, 40 bytes each)
-        var cases *u8 = alloc(32 * 40);
+        // Allocate effect cases array (max 32 cases, 56 bytes each)
+        var cases *u8 = alloc(32 * 56);
         var case_count i64 = 0;
 
         while !parse_check(TOKEN_RBRACE) && !parse_is_at_end() {
@@ -2742,9 +2774,23 @@ func parse_primary() *u8 {
             }
             parse_expect(TOKEN_LPAREN, "expected '(' after handler case name");
             var binding_tok *u8 = parse_expect(TOKEN_IDENT, "expected binding name");
+
+            // Optional continuation parameter: Effect(e, k)
+            var k_tok *u8 = nil;
+            if parse_match(TOKEN_COMMA) {
+                k_tok = parse_expect(TOKEN_IDENT, "expected continuation name");
+            }
+
             parse_expect(TOKEN_RPAREN, "expected ')' after binding");
             parse_expect(TOKEN_ARROW, "expected '=>' after pattern");
-            var case_body *u8 = parse_expression();
+
+            // Handler body can be expression or block
+            var case_body *u8 = nil;
+            if parse_check(TOKEN_LBRACE) {
+                case_body = parse_block();
+            } else {
+                case_body = parse_expression();
+            }
 
             // Check if this is the return case
             if buf_eq_str(tok_lexeme(case_name_tok), tok_lexeme_len(case_name_tok), "return") {
@@ -2753,7 +2799,7 @@ func parse_primary() *u8 {
                 ret_body = case_body;
             } else {
                 // Effect case: store in cases array
-                var entry *u8 = cases + (case_count * 40);
+                var entry *u8 = cases + (case_count * 56);
                 var p1 **u8 = entry;
                 *p1 = tok_lexeme(case_name_tok);
                 var p2 *i64 = entry + 8;
@@ -2762,8 +2808,18 @@ func parse_primary() *u8 {
                 *p3 = tok_lexeme(binding_tok);
                 var p4 *i64 = entry + 24;
                 *p4 = tok_lexeme_len(binding_tok);
+                // Continuation binding (k)
                 var p5 **u8 = entry + 32;
-                *p5 = case_body;
+                var p6 *i64 = entry + 40;
+                if k_tok != nil {
+                    *p5 = tok_lexeme(k_tok);
+                    *p6 = tok_lexeme_len(k_tok);
+                } else {
+                    *p5 = nil;
+                    *p6 = 0;
+                }
+                var p7 **u8 = entry + 48;
+                *p7 = case_body;
                 case_count = case_count + 1;
             }
 
