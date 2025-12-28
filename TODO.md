@@ -279,6 +279,50 @@ Implications:
 
 ---
 
+## Runtime & FFI (During/After LLVM Backend)
+
+**Current state**: Freestanding. `std/core.lang` uses raw Linux syscalls (mmap, read, write, exit). No libc, no runtime.
+
+**Goal**: "Bring your own runtime" - readers choose what they link against.
+
+| Task | Status |
+|------|--------|
+| `extern` declarations (FFI to C) | TODO |
+| Calling convention selection | TODO |
+| Linker script control | TODO |
+| Platform abstraction (`std/platform/linux.lang`, etc.) | TODO |
+
+### Runtime Options (by reader choice)
+
+```
+std/runtime/freestanding.lang  - raw syscalls (current)
+std/runtime/libc.lang          - link against libc
+std/runtime/baremetal.lang     - no OS, hardware direct
+std/runtime/wasm.lang          - WASM imports
+```
+
+### FFI Design Sketch
+
+```lang
+// Declare external C functions
+extern func malloc(size i64) *u8;
+extern func printf(fmt *u8, ...) i64;
+
+// Calling convention attribute (future)
+@cdecl extern func callback(f fn(i64) i64) void;
+@stdcall extern func WinMain(...) i64;
+```
+
+### Why This Matters
+
+A reader for a GC'd language includes `std/runtime/libc.lang` + `std/gc/mark_sweep.lang`.
+A reader for embedded includes `std/runtime/baremetal.lang`.
+Same kernel, different linking.
+
+**Dependencies**: LLVM backend makes this easier (LLVM handles calling conventions, platform ABIs). Could do manually for x86 but painful.
+
+---
+
 ## Completed
 
 ### This Session
