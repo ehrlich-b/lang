@@ -133,6 +133,61 @@ If S-expression parsing ever becomes a bottleneck (unlikely), we can add binary 
 
 This gives us debuggability now, performance later if needed.
 
+## Reader Expansion Semantics
+
+**Key insight**: Readers output AST, and that AST can contain `reader-expr` nodes requesting further reader invocations. The kernel must recursively expand until no `reader-expr` nodes remain.
+
+### Example: Composing Readers
+
+Suppose you have a `sql` reader that emits AST with embedded `#lisp{}`:
+
+```lisp
+;; sql reader receives: "SELECT * FROM users WHERE #lisp{(get-id)}"
+;; sql reader outputs AST:
+(call (ident query)
+  (string "SELECT * FROM users WHERE ")
+  (reader-expr lisp "(get-id)"))   ;; ← unexpanded reader invocation!
+```
+
+The kernel sees `reader-expr`, invokes the `lisp` reader with `"(get-id)"`, gets back:
+```lisp
+(call (ident get-id))
+```
+
+Final expanded AST:
+```lisp
+(call (ident query)
+  (string "SELECT * FROM users WHERE ")
+  (call (ident get-id)))   ;; ← fully expanded
+```
+
+### Recursive Expansion Algorithm
+
+```
+expand(ast):
+  if ast is (reader-expr name content):
+    reader = find_or_compile_reader(name)
+    result_ast = invoke_reader(reader, content)  // returns S-expr AST
+    return expand(result_ast)                    // recurse! might have more readers
+  else if ast is a list:
+    return map(expand, ast)
+  else:
+    return ast
+```
+
+**Termination**: Readers must eventually produce AST without `reader-expr` nodes. Infinite reader loops are programmer error (like infinite macro expansion in Lisp).
+
+### Why This Matters
+
+This enables **reader composition**:
+- A `markdown` reader can embed `#lang{}` code blocks
+- A `template` reader can embed `#sql{}` queries
+- A `config` reader can embed `#lisp{}` for computed values
+
+Each reader only knows its own syntax. The kernel handles the recursive dance.
+
+---
+
 ## S-Expression AST Specification
 
 ### Grammar
@@ -212,6 +267,12 @@ Each AST node is a list starting with a symbol (the node type):
 (perform <effect> <arg>*)
 (handle <expr> <return-handler> (<effect-handler>*))
 (resume <k> <value>?)
+
+;; ═══════════════════════════════════════════════════════════════
+;; READER INVOCATION
+;; ═══════════════════════════════════════════════════════════════
+
+(reader-expr <name> <content>)   ; Request reader expansion
 
 ;; ═══════════════════════════════════════════════════════════════
 ;; PATTERNS

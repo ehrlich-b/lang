@@ -799,7 +799,7 @@ func ast_emit_node(node *u8) void {
     }
 
     if kind == NODE_READER_EXPR {
-        // Reader macro invocation - this should have been expanded
+        // Reader invocation - kernel will recursively expand these
         ast_emit_str("(reader-expr ");
         ast_emit_strn(reader_expr_name(node), reader_expr_name_len(node));
         ast_emit_str(" ");
