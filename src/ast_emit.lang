@@ -1,0 +1,877 @@
+// src/ast_emit.lang - Emit AST as S-expressions
+//
+// This module converts the internal AST representation to S-expression text.
+// Used for:
+// - Debugging (--emit-ast flag)
+// - Reader macro protocol (readers output S-expr AST)
+// - Round-trip testing
+
+// ============================================================
+// Array accessor helpers for raw arrays (not Vecs)
+// ============================================================
+
+// Params: 24 bytes per entry (same as struct fields)
+func get_param(params *u8, index i64) *u8 {
+    return params + (index * 24);
+}
+
+// Stmts: 8 bytes per entry (pointers)
+func get_stmt(stmts *u8, index i64) *u8 {
+    var p **u8 = stmts + (index * 8);
+    return *p;
+}
+
+// Pointers: 8 bytes per entry (for args, types, etc.)
+func get_ptr_at(arr *u8, index i64) *u8 {
+    var p **u8 = arr + (index * 8);
+    return *p;
+}
+
+// Effect cases: 56 bytes per entry
+func get_effect_case(cases *u8, index i64) *u8 {
+    return cases + (index * 56);
+}
+
+// Forward declarations of accessors from parser.lang
+// (parser.lang is included before this file)
+
+// ============================================================
+// S-expression emitter
+// ============================================================
+
+// Global output buffer
+var ast_emit_buf *u8 = nil;
+var ast_emit_len i64 = 0;
+var ast_emit_cap i64 = 0;
+var ast_emit_indent i64 = 0;
+
+func ast_emit_init() void {
+    ast_emit_cap = 1048576;  // 1MB
+    ast_emit_buf = alloc(ast_emit_cap);
+    ast_emit_len = 0;
+    ast_emit_indent = 0;
+}
+
+func ast_emit_char(c u8) void {
+    if ast_emit_len < ast_emit_cap - 1 {
+        *(ast_emit_buf + ast_emit_len) = c;
+        ast_emit_len = ast_emit_len + 1;
+    }
+}
+
+func ast_emit_str(s *u8) void {
+    while *s != 0 {
+        ast_emit_char(*s);
+        s = s + 1;
+    }
+}
+
+func ast_emit_strn(s *u8, len i64) void {
+    var i i64 = 0;
+    while i < len {
+        ast_emit_char(*(s + i));
+        i = i + 1;
+    }
+}
+
+func ast_emit_int(n i64) void {
+    if n < 0 {
+        ast_emit_char('-');
+        n = 0 - n;
+    }
+    if n == 0 {
+        ast_emit_char('0');
+        return;
+    }
+    // Convert to string (reversed)
+    var buf *u8 = alloc(32);
+    var i i64 = 0;
+    while n > 0 {
+        *(buf + i) = (n % 10) + '0';
+        n = n / 10;
+        i = i + 1;
+    }
+    // Emit reversed
+    while i > 0 {
+        i = i - 1;
+        ast_emit_char(*(buf + i));
+    }
+}
+
+func ast_emit_newline() void {
+    ast_emit_char('\n');
+    var i i64 = 0;
+    while i < ast_emit_indent {
+        ast_emit_char(' ');
+        ast_emit_char(' ');
+        i = i + 1;
+    }
+}
+
+func ast_emit_finish() *u8 {
+    *(ast_emit_buf + ast_emit_len) = 0;
+    return ast_emit_buf;
+}
+
+// Emit a quoted string (with escaping)
+func ast_emit_quoted_string(s *u8, len i64) void {
+    ast_emit_char('"');
+    var i i64 = 0;
+    while i < len {
+        var c u8 = *(s + i);
+        if c == '"' {
+            ast_emit_char('\\');
+            ast_emit_char('"');
+        } else if c == '\\' {
+            ast_emit_char('\\');
+            ast_emit_char('\\');
+        } else if c == '\n' {
+            ast_emit_char('\\');
+            ast_emit_char('n');
+        } else if c == '\t' {
+            ast_emit_char('\\');
+            ast_emit_char('t');
+        } else if c == '\r' {
+            ast_emit_char('\\');
+            ast_emit_char('r');
+        } else if c == 0 {
+            ast_emit_char('\\');
+            ast_emit_char('0');
+        } else {
+            ast_emit_char(c);
+        }
+        i = i + 1;
+    }
+    ast_emit_char('"');
+}
+
+// ============================================================
+// Operator to string conversion
+// ============================================================
+
+func ast_emit_op(op i64) void {
+    if op == TOKEN_PLUS { ast_emit_str("+"); return; }
+    if op == TOKEN_MINUS { ast_emit_str("-"); return; }
+    if op == TOKEN_STAR { ast_emit_str("*"); return; }
+    if op == TOKEN_SLASH { ast_emit_str("/"); return; }
+    if op == TOKEN_PERCENT { ast_emit_str("%"); return; }
+    if op == TOKEN_AMP { ast_emit_str("&"); return; }
+    if op == TOKEN_PIPE { ast_emit_str("|"); return; }
+    if op == TOKEN_CARET { ast_emit_str("^"); return; }
+    if op == TOKEN_LTLT { ast_emit_str("<<"); return; }
+    if op == TOKEN_GTGT { ast_emit_str(">>"); return; }
+    if op == TOKEN_EQEQ { ast_emit_str("=="); return; }
+    if op == TOKEN_BANGEQ { ast_emit_str("!="); return; }
+    if op == TOKEN_LT { ast_emit_str("<"); return; }
+    if op == TOKEN_GT { ast_emit_str(">"); return; }
+    if op == TOKEN_LTEQ { ast_emit_str("<="); return; }
+    if op == TOKEN_GTEQ { ast_emit_str(">="); return; }
+    if op == TOKEN_AMPAMP { ast_emit_str("&&"); return; }
+    if op == TOKEN_PIPEPIPE { ast_emit_str("||"); return; }
+    if op == TOKEN_BANG { ast_emit_str("!"); return; }
+    if op == TOKEN_EQ { ast_emit_str("="); return; }
+    // Unknown op - emit as number
+    ast_emit_str("op");
+    ast_emit_int(op);
+}
+
+// ============================================================
+// Type emission
+// ============================================================
+
+func ast_emit_type(t *u8) void {
+    if t == nil {
+        ast_emit_str("nil");
+        return;
+    }
+
+    var kind i64 = node_kind(t);
+
+    if kind == TYPE_BASE {
+        ast_emit_str("(type-base ");
+        ast_emit_strn(base_type_name(t), base_type_name_len(t));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == TYPE_PTR {
+        ast_emit_str("(type-ptr ");
+        ast_emit_type(ptr_type_elem(t));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == TYPE_FUNC {
+        ast_emit_str("(type-func (");
+        var params *u8 = func_type_params(t);
+        var count i64 = func_type_param_count(t);
+        var i i64 = 0;
+        while i < count {
+            if i > 0 { ast_emit_str(" "); }
+            var param_type *u8 = vec_get(params, i);
+            ast_emit_type(param_type);
+            i = i + 1;
+        }
+        ast_emit_str(") ");
+        ast_emit_type(func_type_ret(t));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == TYPE_CLOSURE {
+        ast_emit_str("(type-closure (");
+        var params *u8 = closure_type_params(t);
+        var count i64 = closure_type_param_count(t);
+        var i i64 = 0;
+        while i < count {
+            if i > 0 { ast_emit_str(" "); }
+            var param_type *u8 = vec_get(params, i);
+            ast_emit_type(param_type);
+            i = i + 1;
+        }
+        ast_emit_str(") ");
+        ast_emit_type(closure_type_ret(t));
+        ast_emit_str(")");
+        return;
+    }
+
+    // Unknown type kind
+    ast_emit_str("(type-unknown ");
+    ast_emit_int(kind);
+    ast_emit_str(")");
+}
+
+// ============================================================
+// Parameter emission
+// ============================================================
+
+func ast_emit_param(p *u8) void {
+    ast_emit_str("(param ");
+    ast_emit_strn(param_name(p), param_name_len(p));
+    ast_emit_str(" ");
+    ast_emit_type(param_type(p));
+    ast_emit_str(")");
+}
+
+// ============================================================
+// Main AST emission
+// ============================================================
+
+func ast_emit_node(node *u8) void {
+    if node == nil {
+        ast_emit_str("nil");
+        return;
+    }
+
+    var kind i64 = node_kind(node);
+
+    // ============================================================
+    // Declarations
+    // ============================================================
+
+    if kind == NODE_FUNC_DECL {
+        ast_emit_str("(func ");
+        ast_emit_strn(func_decl_name(node), func_decl_name_len(node));
+        ast_emit_str(" (");
+        var params *u8 = func_decl_params(node);
+        var count i64 = func_decl_param_count(node);
+        var i i64 = 0;
+        while i < count {
+            if i > 0 { ast_emit_str(" "); }
+            ast_emit_param(get_param(params, i));
+            i = i + 1;
+        }
+        ast_emit_str(") ");
+        ast_emit_type(func_decl_ret_type(node));
+        ast_emit_indent = ast_emit_indent + 1;
+        ast_emit_newline();
+        ast_emit_node(func_decl_body(node));
+        ast_emit_str(")");
+        ast_emit_indent = ast_emit_indent - 1;
+        return;
+    }
+
+    if kind == NODE_VAR_DECL {
+        ast_emit_str("(var ");
+        ast_emit_strn(var_decl_name(node), var_decl_name_len(node));
+        ast_emit_str(" ");
+        ast_emit_type(var_decl_type(node));
+        var init *u8 = var_decl_init(node);
+        if init != nil {
+            ast_emit_str(" ");
+            ast_emit_node(init);
+        }
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_STRUCT_DECL {
+        ast_emit_str("(struct ");
+        ast_emit_strn(struct_decl_name(node), struct_decl_name_len(node));
+        ast_emit_str(" (");
+        var fields *u8 = struct_decl_fields(node);
+        var count i64 = struct_decl_field_count(node);
+        var i i64 = 0;
+        while i < count {
+            if i > 0 { ast_emit_str(" "); }
+            var field *u8 = get_struct_field(fields, i);
+            ast_emit_str("(field-decl ");
+            ast_emit_strn(struct_field_name(field), struct_field_name_len(field));
+            ast_emit_str(" ");
+            ast_emit_type(struct_field_type(field));
+            ast_emit_str(")");
+            i = i + 1;
+        }
+        ast_emit_str("))");
+        return;
+    }
+
+    if kind == NODE_ENUM_DECL {
+        ast_emit_str("(enum ");
+        ast_emit_strn(enum_decl_name(node), enum_decl_name_len(node));
+        ast_emit_str(" (");
+        var variants *u8 = enum_decl_variants(node);
+        var count i64 = enum_decl_variant_count(node);
+        var i i64 = 0;
+        while i < count {
+            if i > 0 { ast_emit_str(" "); }
+            var v *u8 = get_enum_variant(variants, i);
+            ast_emit_str("(variant-decl ");
+            ast_emit_strn(enum_variant_name(v), enum_variant_name_len(v));
+            var payload *u8 = enum_variant_type(v);
+            if payload != nil {
+                ast_emit_str(" ");
+                ast_emit_type(payload);
+            }
+            ast_emit_str(")");
+            i = i + 1;
+        }
+        ast_emit_str("))");
+        return;
+    }
+
+    if kind == NODE_EFFECT_DECL {
+        ast_emit_str("(effect ");
+        ast_emit_strn(effect_decl_name(node), effect_decl_name_len(node));
+        ast_emit_str(" (");
+        var params *u8 = effect_decl_param_types(node);
+        var count i64 = effect_decl_param_type_count(node);
+        var i i64 = 0;
+        while i < count {
+            if i > 0 { ast_emit_str(" "); }
+            ast_emit_type(get_ptr_at(params, i));
+            i = i + 1;
+        }
+        ast_emit_str(") ");
+        ast_emit_type(effect_decl_return_type(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_MACRO_DECL {
+        ast_emit_str("(macro ");
+        ast_emit_strn(macro_decl_name(node), macro_decl_name_len(node));
+        ast_emit_str(" (");
+        var params *u8 = macro_decl_params(node);
+        var count i64 = macro_decl_param_count(node);
+        var i i64 = 0;
+        while i < count {
+            if i > 0 { ast_emit_str(" "); }
+            var p *u8 = get_param(params, i);
+            ast_emit_strn(param_name(p), param_name_len(p));
+            i = i + 1;
+        }
+        ast_emit_str(") ");
+        ast_emit_node(macro_decl_body(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_READER_DECL {
+        ast_emit_str("(reader ");
+        ast_emit_strn(reader_decl_name(node), reader_decl_name_len(node));
+        ast_emit_str(" ");
+        ast_emit_strn(reader_decl_param_name(node), reader_decl_param_len(node));
+        ast_emit_str(" ");
+        ast_emit_node(reader_decl_body(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_INCLUDE_DECL {
+        ast_emit_str("(include ");
+        ast_emit_quoted_string(include_decl_path(node), include_decl_path_len(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_IMPORT {
+        ast_emit_str("(import ");
+        ast_emit_quoted_string(import_decl_path(node), import_decl_path_len(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    // ============================================================
+    // Statements
+    // ============================================================
+
+    if kind == NODE_BLOCK_STMT {
+        ast_emit_str("(block");
+        var stmts *u8 = block_stmt_stmts(node);
+        var count i64 = block_stmt_count(node);
+        ast_emit_indent = ast_emit_indent + 1;
+        var i i64 = 0;
+        while i < count {
+            ast_emit_newline();
+            ast_emit_node(get_stmt(stmts, i));
+            i = i + 1;
+        }
+        ast_emit_str(")");
+        ast_emit_indent = ast_emit_indent - 1;
+        return;
+    }
+
+    if kind == NODE_BLOCK_EXPR {
+        ast_emit_str("(block-expr");
+        var stmts *u8 = block_expr_stmts(node);
+        var count i64 = block_expr_count(node);
+        ast_emit_indent = ast_emit_indent + 1;
+        var i i64 = 0;
+        while i < count {
+            ast_emit_newline();
+            ast_emit_node(get_stmt(stmts, i));
+            i = i + 1;
+        }
+        ast_emit_newline();
+        ast_emit_node(block_expr_tail(node));
+        ast_emit_str(")");
+        ast_emit_indent = ast_emit_indent - 1;
+        return;
+    }
+
+    if kind == NODE_IF_STMT {
+        ast_emit_str("(if ");
+        ast_emit_node(if_stmt_cond(node));
+        ast_emit_indent = ast_emit_indent + 1;
+        ast_emit_newline();
+        ast_emit_node(if_stmt_then(node));
+        var else_branch *u8 = if_stmt_else(node);
+        if else_branch != nil {
+            ast_emit_newline();
+            ast_emit_node(else_branch);
+        }
+        ast_emit_str(")");
+        ast_emit_indent = ast_emit_indent - 1;
+        return;
+    }
+
+    if kind == NODE_WHILE_STMT {
+        ast_emit_str("(while ");
+        ast_emit_node(while_stmt_cond(node));
+        ast_emit_indent = ast_emit_indent + 1;
+        ast_emit_newline();
+        ast_emit_node(while_stmt_body(node));
+        var label_len i64 = while_stmt_label_len(node);
+        if label_len > 0 {
+            ast_emit_str(" ");
+            ast_emit_strn(while_stmt_label(node), label_len);
+        }
+        ast_emit_str(")");
+        ast_emit_indent = ast_emit_indent - 1;
+        return;
+    }
+
+    if kind == NODE_RETURN_STMT {
+        ast_emit_str("(return");
+        var val *u8 = return_stmt_value(node);
+        if val != nil {
+            ast_emit_str(" ");
+            ast_emit_node(val);
+        }
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_BREAK_STMT {
+        ast_emit_str("(break");
+        var label_len i64 = break_stmt_label_len(node);
+        if label_len > 0 {
+            ast_emit_str(" ");
+            ast_emit_strn(break_stmt_label(node), label_len);
+        }
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_CONTINUE_STMT {
+        ast_emit_str("(continue");
+        var label_len i64 = continue_stmt_label_len(node);
+        if label_len > 0 {
+            ast_emit_str(" ");
+            ast_emit_strn(continue_stmt_label(node), label_len);
+        }
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_EXPR_STMT {
+        ast_emit_str("(expr-stmt ");
+        ast_emit_node(expr_stmt_expr(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_ASSIGN_STMT {
+        ast_emit_str("(assign ");
+        ast_emit_node(assign_stmt_target(node));
+        ast_emit_str(" ");
+        ast_emit_node(assign_stmt_value(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    // ============================================================
+    // Expressions
+    // ============================================================
+
+    if kind == NODE_BINARY_EXPR {
+        ast_emit_str("(binop ");
+        ast_emit_op(binary_expr_op(node));
+        ast_emit_str(" ");
+        ast_emit_node(binary_expr_left(node));
+        ast_emit_str(" ");
+        ast_emit_node(binary_expr_right(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_UNARY_EXPR {
+        ast_emit_str("(unop ");
+        ast_emit_op(unary_expr_op(node));
+        ast_emit_str(" ");
+        ast_emit_node(unary_expr_expr(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_CALL_EXPR {
+        ast_emit_str("(call ");
+        ast_emit_node(call_expr_func(node));
+        var args *u8 = call_expr_args(node);
+        var count i64 = call_expr_arg_count(node);
+        var i i64 = 0;
+        while i < count {
+            ast_emit_str(" ");
+            ast_emit_node(get_ptr_at(args, i));
+            i = i + 1;
+        }
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_FIELD_EXPR {
+        ast_emit_str("(field ");
+        ast_emit_node(field_expr_expr(node));
+        ast_emit_str(" ");
+        ast_emit_strn(field_expr_field(node), field_expr_field_len(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_INDEX_EXPR {
+        ast_emit_str("(index ");
+        // IndexExpr layout: [kind:8][expr:8][index:8]
+        var pe **u8 = node + 8;
+        var pi **u8 = node + 16;
+        ast_emit_node(*pe);
+        ast_emit_str(" ");
+        ast_emit_node(*pi);
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_IDENT_EXPR {
+        ast_emit_str("(ident ");
+        ast_emit_strn(ident_expr_name(node), ident_expr_name_len(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_NUMBER_EXPR {
+        ast_emit_str("(number ");
+        ast_emit_strn(number_expr_value(node), number_expr_value_len(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_STRING_EXPR {
+        ast_emit_str("(string ");
+        ast_emit_quoted_string(string_expr_value(node), string_expr_value_len(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_BOOL_EXPR {
+        ast_emit_str("(bool ");
+        if bool_expr_value(node) != 0 {
+            ast_emit_str("true");
+        } else {
+            ast_emit_str("false");
+        }
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_NIL_EXPR {
+        ast_emit_str("(nil)");
+        return;
+    }
+
+    if kind == NODE_GROUP_EXPR {
+        // Groups are just for precedence, emit the inner expression
+        ast_emit_node(group_expr_expr(node));
+        return;
+    }
+
+    // ============================================================
+    // Let expression
+    // ============================================================
+
+    if kind == NODE_LET_EXPR {
+        ast_emit_str("(let ");
+        ast_emit_strn(let_expr_name(node), let_expr_name_len(node));
+        var t *u8 = let_expr_type(node);
+        if t != nil {
+            ast_emit_str(" ");
+            ast_emit_type(t);
+        }
+        ast_emit_str(" ");
+        ast_emit_node(let_expr_init(node));
+        ast_emit_str(" ");
+        ast_emit_node(let_expr_body(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    // ============================================================
+    // Lambda expression
+    // ============================================================
+
+    if kind == NODE_LAMBDA_EXPR {
+        ast_emit_str("(lambda (");
+        var params *u8 = lambda_expr_params(node);
+        var count i64 = lambda_expr_param_count(node);
+        var i i64 = 0;
+        while i < count {
+            if i > 0 { ast_emit_str(" "); }
+            ast_emit_param(get_param(params, i));
+            i = i + 1;
+        }
+        ast_emit_str(") ");
+        ast_emit_type(lambda_expr_ret_type(node));
+        ast_emit_str(" ");
+        ast_emit_node(lambda_expr_body(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    // ============================================================
+    // Match expression
+    // ============================================================
+
+    if kind == NODE_MATCH_EXPR {
+        ast_emit_str("(match ");
+        ast_emit_node(match_expr_scrutinee(node));
+        ast_emit_str(" (");
+        var arms *u8 = match_expr_arms(node);
+        var count i64 = match_expr_arm_count(node);
+        ast_emit_indent = ast_emit_indent + 1;
+        var i i64 = 0;
+        while i < count {
+            ast_emit_newline();
+            var arm *u8 = get_match_arm(arms, i);
+            ast_emit_str("(case ");
+            ast_emit_pattern(match_arm_pattern(arm));
+            ast_emit_str(" ");
+            ast_emit_node(match_arm_body(arm));
+            ast_emit_str(")");
+            i = i + 1;
+        }
+        ast_emit_str("))");
+        ast_emit_indent = ast_emit_indent - 1;
+        return;
+    }
+
+    // ============================================================
+    // Algebraic effects
+    // ============================================================
+
+    if kind == NODE_PERFORM_EXPR {
+        ast_emit_str("(perform ");
+        ast_emit_strn(perform_expr_name(node), perform_expr_name_len(node));
+        var args *u8 = perform_expr_args(node);
+        var count i64 = perform_expr_arg_count(node);
+        var i i64 = 0;
+        while i < count {
+            ast_emit_str(" ");
+            ast_emit_node(get_ptr_at(args, i));
+            i = i + 1;
+        }
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_HANDLE_EXPR {
+        ast_emit_str("(handle ");
+        ast_emit_node(handle_expr_body(node));
+        ast_emit_indent = ast_emit_indent + 1;
+        ast_emit_newline();
+        ast_emit_str("(return-handler ");
+        ast_emit_strn(handle_expr_ret_bind(node), handle_expr_ret_bind_len(node));
+        ast_emit_str(" ");
+        ast_emit_node(handle_expr_ret_body(node));
+        ast_emit_str(")");
+
+        var handlers *u8 = handle_expr_cases(node);
+        var count i64 = handle_expr_case_count(node);
+        var i i64 = 0;
+        while i < count {
+            ast_emit_newline();
+            var h *u8 = get_effect_case(handlers, i);
+            ast_emit_str("(effect-handler ");
+            ast_emit_strn(effect_case_name(h), effect_case_name_len(h));
+            ast_emit_str(" ");
+            // Single binding parameter
+            var bind_len i64 = effect_case_binding_len(h);
+            if bind_len > 0 {
+                ast_emit_strn(effect_case_binding(h), bind_len);
+            } else {
+                ast_emit_str("_");
+            }
+            ast_emit_str(" ");
+            ast_emit_strn(effect_case_k(h), effect_case_k_len(h));
+            ast_emit_str(" ");
+            ast_emit_node(effect_case_body(h));
+            ast_emit_str(")");
+            i = i + 1;
+        }
+        ast_emit_str(")");
+        ast_emit_indent = ast_emit_indent - 1;
+        return;
+    }
+
+    if kind == NODE_RESUME_EXPR {
+        ast_emit_str("(resume ");
+        ast_emit_node(resume_expr_k(node));
+        var val *u8 = resume_expr_value(node);
+        if val != nil {
+            ast_emit_str(" ");
+            ast_emit_node(val);
+        }
+        ast_emit_str(")");
+        return;
+    }
+
+    // ============================================================
+    // Macro-related nodes
+    // ============================================================
+
+    if kind == NODE_QUOTE_EXPR {
+        ast_emit_str("(quote ");
+        ast_emit_node(quote_expr_expr(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_UNQUOTE_EXPR {
+        ast_emit_str("(unquote ");
+        ast_emit_strn(unquote_expr_name(node), unquote_expr_name_len(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_UNQUOTE_STRING_EXPR {
+        ast_emit_str("(unquote-string ");
+        ast_emit_strn(unquote_string_expr_name(node), unquote_string_expr_name_len(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_READER_EXPR {
+        // Reader macro invocation - this should have been expanded
+        ast_emit_str("(reader-expr ");
+        ast_emit_strn(reader_expr_name(node), reader_expr_name_len(node));
+        ast_emit_str(" ");
+        ast_emit_quoted_string(reader_expr_content(node), reader_expr_content_len(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    // Unknown node type
+    ast_emit_str("(unknown-node ");
+    ast_emit_int(kind);
+    ast_emit_str(")");
+}
+
+// ============================================================
+// Pattern emission
+// ============================================================
+
+func ast_emit_pattern(p *u8) void {
+    if p == nil {
+        ast_emit_str("nil");
+        return;
+    }
+
+    var kind i64 = node_kind(p);
+
+    if kind == NODE_PATTERN_VARIANT {
+        ast_emit_str("(pattern-variant ");
+        ast_emit_strn(pattern_variant_enum_name(p), pattern_variant_enum_len(p));
+        ast_emit_str(" ");
+        ast_emit_strn(pattern_variant_name(p), pattern_variant_name_len(p));
+        var binding_len i64 = pattern_variant_binding_len(p);
+        if binding_len > 0 {
+            ast_emit_str(" ");
+            ast_emit_strn(pattern_variant_binding(p), binding_len);
+        }
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_PATTERN_WILDCARD {
+        ast_emit_str("(pattern-wildcard)");
+        return;
+    }
+
+    // Unknown pattern
+    ast_emit_str("(unknown-pattern ");
+    ast_emit_int(kind);
+    ast_emit_str(")");
+}
+
+// ============================================================
+// Program emission (top-level)
+// ============================================================
+
+func ast_emit_program(prog *u8) *u8 {
+    ast_emit_init();
+    ast_emit_str("(program");
+
+    var decls *u8 = program_decls(prog);
+    var count i64 = program_decl_count(prog);
+    ast_emit_indent = ast_emit_indent + 1;
+
+    var i i64 = 0;
+    while i < count {
+        ast_emit_newline();
+        ast_emit_node(get_decl(decls, i));
+        i = i + 1;
+    }
+
+    ast_emit_str(")");
+    ast_emit_newline();
+
+    return ast_emit_finish();
+}

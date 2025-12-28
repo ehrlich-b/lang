@@ -31,7 +31,7 @@ build:
 		$(MAKE) bootstrap; \
 	fi
 	@mkdir -p out
-	$(LANG) std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/main.lang -o out/lang_$(VERSION).s
+	$(LANG) std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/ast_emit.lang src/main.lang -o out/lang_$(VERSION).s
 	as out/lang_$(VERSION).s -o out/lang_$(VERSION).o
 	ld out/lang_$(VERSION).o -o out/lang_$(VERSION)
 	rm -f out/lang_$(VERSION).o
@@ -44,7 +44,7 @@ verify: build
 		echo "ERROR: No lang_next to verify. Run 'make build' first."; \
 		exit 1; \
 	fi
-	$(LANG_NEXT) std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/main.lang -o out/verify.s
+	$(LANG_NEXT) std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/ast_emit.lang src/main.lang -o out/verify.s
 	@if diff -q out/lang_$(VERSION).s out/verify.s > /dev/null; then \
 		echo "FIXED POINT VERIFIED: lang_$(VERSION)"; \
 		rm -f out/verify.s; \

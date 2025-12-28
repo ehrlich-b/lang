@@ -71,9 +71,12 @@ func append_str(buf *u8, len *i64, s *u8) void {
     }
 }
 
+// Global flag for --emit-ast mode
+var emit_ast_mode i64 = 0;
+
 func main(argc i64, argv **u8) i64 {
     if argc < 2 {
-        eprintln("Usage: lang <file.lang>... [-o output.s] [--expand-macros] [-c reader]");
+        eprintln("Usage: lang <file.lang>... [-o output.s] [--expand-macros] [--emit-ast] [-c reader]");
         return 1;
     }
 
@@ -91,6 +94,11 @@ func main(argc i64, argv **u8) i64 {
         if *arg == 45 && *(arg + 1) == 45 {  // '--'
             if memcmp(arg + 2, "expand-macros", 13) {
                 cg_expand_macros = 1;
+                handled = 1;
+            }
+            // Check for --emit-ast flag
+            if handled == 0 && memcmp(arg + 2, "emit-ast", 8) {
+                emit_ast_mode = 1;
                 handled = 1;
             }
         }
@@ -219,11 +227,31 @@ func main(argc i64, argv **u8) i64 {
         return 1;
     }
 
-    // Generate
-    generate(prog, output_file);
+    // Output based on mode
+    if emit_ast_mode != 0 {
+        // Emit AST as S-expressions
+        var ast_str *u8 = ast_emit_program(prog);
 
-    print("Wrote ");
-    println(output_file);
+        // Write to output file
+        // O_WRONLY=1 | O_CREAT=64 | O_TRUNC=512 = 577
+        var fd i64 = file_open(output_file, 577);
+        if fd < 0 {
+            eprint("Error: cannot open output file: ");
+            eprintln(output_file);
+            return 1;
+        }
+        file_write(fd, ast_str, strlen(ast_str));
+        file_close(fd);
+
+        print("Wrote AST to ");
+        println(output_file);
+    } else {
+        // Generate assembly
+        generate(prog, output_file);
+
+        print("Wrote ");
+        println(output_file);
+    }
 
     return 0;
 }

@@ -165,7 +165,10 @@ g(42);  // Compiler auto-passes closure struct as first arg
 
 | Task | File | Status |
 |------|------|--------|
-| S-expression parser | kernel/sexpr.lang | TODO |
+| AST S-expr format design | designs/ast_interchange.md | DONE |
+| `--emit-ast` flag | src/ast_emit.lang, src/main.lang | DONE |
+| `--from-ast` flag (parse S-expr AST) | kernel/sexpr.lang | TODO |
+| Round-trip verification | test/ | TODO |
 | AST validation | kernel/ast.lang | TODO |
 | Extract lang_reader | readers/lang/ | TODO |
 | Verify fixed point | Makefile | TODO |
