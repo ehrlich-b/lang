@@ -228,6 +228,9 @@ Each AST node is a list starting with a symbol (the node type):
 (reader <name> <param-name> <body>)
 (include <path>)
 
+;; FFI (future - not yet implemented)
+(extern <name> (<param-type>*) <ret-type> <attrs>?)   ; external function decl
+
 ;; ═══════════════════════════════════════════════════════════════
 ;; STATEMENTS
 ;; ═══════════════════════════════════════════════════════════════
