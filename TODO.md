@@ -19,6 +19,21 @@ The AST is the language. Syntax is a plugin. Effects unify control flow.
 
 ---
 
+## 🔥 IMMEDIATE: Test Hardening Sprint
+
+**Before kernel split, the test suite must be comprehensive.** Currently 119 tests, mostly happy-path. Target: 150+ tests covering edge cases, error conditions, and feature interactions.
+
+See "Code Quality Debt → TEST SUITE GAPS" below for categories.
+
+**Priority order:**
+1. Algebraic effects edge cases (nested handlers, multiple resumes, handler in different function)
+2. Closure edge cases (captures across multiple scopes, closure lifetime)
+3. Sum types edge cases (large payloads, nested enums)
+4. Stress tests (deep recursion, many locals, large structs)
+5. Interaction tests (closures + effects, enums + closures, etc.)
+
+---
+
 ## Current Focus: AST 2.0 Implementation
 
 See `designs/ast_as_language.md` for the complete design.
@@ -94,7 +109,7 @@ g(42);  // Compiler auto-passes closure struct as first arg
 | Parse `match expr { ... }` | parser.lang | DONE |
 | Match → if/else tree compilation | codegen.lang | DONE |
 
-### Phase 5: Algebraic Effects (Exceptions MVP)
+### Phase 5: Algebraic Effects ✓
 
 | Task | File | Status |
 |------|------|--------|
@@ -102,15 +117,15 @@ g(42);  // Compiler auto-passes closure struct as first arg
 | Parse `perform Effect(args)` | parser.lang | DONE |
 | Parse `handle { } with { }` | parser.lang | DONE |
 | **Exceptions (no resume)** | codegen.lang | DONE |
-| State machine transform | codegen.lang | TODO |
-| `resume k(value)` support | codegen.lang | TODO |
+| `resume k(value)` support | codegen.lang | DONE |
+| State machine transform | codegen.lang | DEFERRED |
 
-**Status**: Basic exceptions work! `perform` jumps to handler, handler receives effect argument. No resume support yet (perform is a one-way jump). See `test/suite/188_effect_exception.lang`.
+**Status**: Full resumable effects work! Handlers can catch effect invocations and resume them with a value. See `test/suite/188_effect_exception.lang` and `test/suite/190_effect_resume.lang`.
 
 **Current Limitations**:
 - Single handler at a time (no handler stack for nesting)
-- No resume support (exceptions only, not full delimited continuations)
 - Effects are not type-checked (any perform goes to active handler)
+- No tail-resumptive optimization yet
 
 ### Phase 6: Kernel Split
 
@@ -227,6 +242,8 @@ Implications:
 - [x] Exception test (test/suite/188_effect_exception.lang)
 - [x] Phase 3b Closure Type (closure(T) R type, automatic calling)
 - [x] Closure type test (test/suite/189_closure_type.lang)
+- [x] Phase 5 Resume support (resume k(value) for resumable effects)
+- [x] Resume test (test/suite/190_effect_resume.lang)
 
 ### Previous Session
 - [x] Comprehensive AST 2.0 design with algebraic effects

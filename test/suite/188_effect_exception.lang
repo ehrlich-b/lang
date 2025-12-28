@@ -2,6 +2,8 @@
 // Test basic effect/exception system
 // Effect declaration + perform + handle
 
+include "std/core.lang"
+
 effect Fail(i64) i64
 
 func might_fail(x i64) i64 {

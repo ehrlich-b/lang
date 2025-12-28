@@ -125,6 +125,22 @@ stdlib-run:
 	ld out/$(notdir $(basename $(FILE))).o -o out/$(notdir $(basename $(FILE)))
 	./out/$(notdir $(basename $(FILE)))
 
+# Run with development compiler (usage: make dev-run FILE=test/suite/188_effect_exception.lang)
+dev-run:
+	@if [ ! -L $(LANG_NEXT) ]; then echo "Run 'make build' first"; exit 1; fi
+	$(LANG_NEXT) $(FILE) -o out/$(notdir $(basename $(FILE))).s
+	as out/$(notdir $(basename $(FILE))).s -o out/$(notdir $(basename $(FILE))).o
+	ld out/$(notdir $(basename $(FILE))).o -o out/$(notdir $(basename $(FILE)))
+	./out/$(notdir $(basename $(FILE))); echo "Exit: $$?"
+
+# Run with dev compiler + stdlib (usage: make dev-stdlib-run FILE=myprogram.lang)
+dev-stdlib-run:
+	@if [ ! -L $(LANG_NEXT) ]; then echo "Run 'make build' first"; exit 1; fi
+	$(LANG_NEXT) std/core.lang $(FILE) -o out/$(notdir $(basename $(FILE))).s
+	as out/$(notdir $(basename $(FILE))).s -o out/$(notdir $(basename $(FILE))).o
+	ld out/$(notdir $(basename $(FILE))).o -o out/$(notdir $(basename $(FILE)))
+	./out/$(notdir $(basename $(FILE))); echo "Exit: $$?"
+
 # Clean: remove non-essential build artifacts
 clean:
 	rm -f out/*.s out/*.o out/verify.s
