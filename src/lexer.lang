@@ -117,6 +117,9 @@ var TOKEN_HANDLE i64 = 79;        // handle
 var TOKEN_WITH i64 = 80;          // with
 var TOKEN_RESUME i64 = 81;        // resume
 
+// Closure type
+var TOKEN_CLOSURE i64 = 82;       // closure (for closure type)
+
 // ============================================================
 // Token struct
 // ============================================================
@@ -429,6 +432,7 @@ func check_keyword() i64 {
     if lexeme_eq("handle") { return TOKEN_HANDLE; }
     if lexeme_eq("with") { return TOKEN_WITH; }
     if lexeme_eq("resume") { return TOKEN_RESUME; }
+    if lexeme_eq("closure") { return TOKEN_CLOSURE; }
     if lexeme_eq("true") { return TOKEN_TRUE; }
     if lexeme_eq("false") { return TOKEN_FALSE; }
     if lexeme_eq("nil") { return TOKEN_NIL; }
@@ -814,6 +818,7 @@ func print_token_type(t i64) void {
     if t == TOKEN_HANDLE { print("handle"); return; }
     if t == TOKEN_WITH { print("with"); return; }
     if t == TOKEN_RESUME { print("resume"); return; }
+    if t == TOKEN_CLOSURE { print("closure"); return; }
     print("UNKNOWN");
 }
 

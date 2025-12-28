@@ -1739,6 +1739,9 @@ func get_type_size(t *u8) i64 {
     if k == TYPE_FUNC {
         return 8;  // Function pointer
     }
+    if k == TYPE_CLOSURE {
+        return 8;  // Closure pointer (pointer to closure struct)
+    }
     if k == TYPE_BASE {
         var name *u8 = base_type_name(t);
         var len i64 = base_type_name_len(t);
@@ -1837,15 +1840,16 @@ func is_void_type(t *u8) bool {
     return false;
 }
 
-// Check if a TYPE_FUNC is an auto-closure type
-// Currently DISABLED: mixing plain function pointers and closures is unsafe
-// because &func returns a plain pointer but closures return structs.
-// For now, all TYPE_FUNC calls use plain function pointer semantics.
-// Users must use the manual closure calling convention with helper functions.
+// Check if a type is a closure type (TYPE_CLOSURE)
+// TYPE_CLOSURE: auto-closure calling enabled (pass struct as hidden first arg)
+// TYPE_FUNC: plain function pointer, no auto-closure
 func is_auto_closure_type(t *u8) i64 {
-    // Always return 0 to disable auto-closure calling
-    // TODO: Enable auto-closure when we have proper type distinction
-    // between fn(T) R (closure) and *u8 (plain function pointer)
+    if t == nil {
+        return 0;
+    }
+    if type_kind(t) == TYPE_CLOSURE {
+        return 1;
+    }
     return 0;
 }
 
@@ -2184,8 +2188,8 @@ func gen_expr(expr *u8) void {
         if cg_in_closure == 1 {
             var cap_idx i64 = find_closure_capture(name, name_len);
             if cap_idx >= 0 {
-                // Load from closure struct: [fn_ptr:8][capture0:8][capture1:8]...
-                var capture_offset i64 = 8 + (cap_idx * 8);
+                // Load from closure struct: [tag:8][fn_ptr:8][capture0:8][capture1:8]...
+                var capture_offset i64 = 16 + (cap_idx * 8);
                 // Load closure pointer
                 emit_str("    mov ");
                 emit_int(cg_closure_ptr_offset);
@@ -2960,8 +2964,9 @@ func gen_expr(expr *u8) void {
             emit_line("(%rip), %rax");
         } else {
             // Has captures - allocate closure struct
-            // Closure layout: [fn_ptr:8][capture1:8][capture2:8]...
-            var closure_size i64 = 8 + (capture_count * 8);
+            // Closure layout: [tag:8][fn_ptr:8][capture1:8][capture2:8]...
+            // tag = 1 means "this is a closure, pass struct as hidden first arg"
+            var closure_size i64 = 16 + (capture_count * 8);
 
             // Allocate closure struct
             emit_str("    mov $");
@@ -2970,17 +2975,20 @@ func gen_expr(expr *u8) void {
             emit_line("    call alloc");
             emit_line("    push %rax");  // Save closure ptr
 
-            // Store function pointer
+            // Store tag = 1 (closure with captures)
+            emit_line("    movq $1, (%rax)");
+
+            // Store function pointer at offset 8
             emit_str("    lea __lambda_");
             emit_int(lambda_id);
             emit_line("(%rip), %rbx");
-            emit_line("    mov %rbx, (%rax)");
+            emit_line("    mov %rbx, 8(%rax)");
 
-            // Copy captured values from outer scope
+            // Copy captured values from outer scope (starting at offset 16)
             var i i64 = 0;
             while i < capture_count {
                 var outer_offset i64 = capture_get_outer_offset(i);
-                var closure_offset i64 = 8 + (i * 8);
+                var closure_offset i64 = 16 + (i * 8);
 
                 // Load from outer scope
                 emit_str("    mov ");
@@ -3402,16 +3410,15 @@ func gen_stmt(stmt *u8) void {
             // Safety check: capturing lambda assigned to fn type is unsafe
             // Because fn(T) R uses plain function pointer calling convention,
             // but closures need their struct passed as first argument.
-            // Use *u8 type with manual calling convention for closures.
+            // Use closure(T) R type for capturing lambdas (auto-calling convention).
             if var_type != nil && type_kind(var_type) == TYPE_FUNC {
                 if node_kind(init) == NODE_LAMBDA_EXPR {
                     if lambda_has_captures(init) == 1 {
                         eprint("error: cannot assign capturing lambda to 'fn' type variable '");
                         eprint_buf(var_decl_name(stmt), var_decl_name_len(stmt));
                         eprintln("'");
-                        eprintln("  hint: closures with captures require manual calling convention");
-                        eprintln("  hint: use '*u8' type and call via helper function");
-                        eprintln("  hint: see test/suite/139_closure.lang for example");
+                        eprintln("  hint: use 'closure(T) R' type for capturing lambdas");
+                        eprintln("  hint: fn(T) R only accepts non-capturing lambdas and &func");
                         cg_had_error = 1;
                         return;
                     }
@@ -3419,6 +3426,23 @@ func gen_stmt(stmt *u8) void {
             }
 
             gen_expr(init);
+
+            // Check if assigning non-capturing lambda to closure type
+            // Wrap it in a closure struct with tag=0
+            if var_type != nil && type_kind(var_type) == TYPE_CLOSURE {
+                if node_kind(init) == NODE_LAMBDA_EXPR {
+                    if lambda_has_captures(init) == 0 {
+                        // %rax has function pointer, wrap in closure struct
+                        // Allocate struct: [tag:8][fn_ptr:8] = 16 bytes
+                        emit_line("    push %rax");  // Save fn ptr
+                        emit_line("    mov $16, %rdi");
+                        emit_line("    call alloc");
+                        emit_line("    movq $0, (%rax)");  // tag = 0 (plain function)
+                        emit_line("    pop %rbx");
+                        emit_line("    mov %rbx, 8(%rax)");  // fn_ptr at offset 8
+                    }
+                }
+            }
 
             // Check if this is an enum type - need to copy full value
             if type_kind(var_type) == TYPE_BASE {

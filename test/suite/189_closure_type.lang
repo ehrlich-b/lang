@@ -1,0 +1,71 @@
+// expect: 0
+// Test: closure(T) R type - automatic closure calling
+// Phase 3b: Closures with type-level distinction from fn(T) R
+
+include "std/core.lang"
+
+// Test 1: Non-capturing lambda assigned to closure type
+func test_non_capturing() i64 {
+    var add closure(i64, i64) i64 = fn(a i64, b i64) i64 { return a + b; };
+    // Call automatically - no manual helper needed
+    var result i64 = add(30, 12);
+    if result != 42 {
+        return 1;
+    }
+    return 0;
+}
+
+// Test 2: Capturing lambda assigned to closure type
+func test_capturing() i64 {
+    var n i64 = 5;
+    var add_n closure(i64) i64 = fn(x i64) i64 { return x + n; };
+    // Automatic calling convention
+    var result i64 = add_n(37);
+    if result != 42 {
+        return 2;
+    }
+    return 0;
+}
+
+// Test 3: Multiple captures
+func test_multi_capture() i64 {
+    var a i64 = 10;
+    var b i64 = 32;
+    var sum closure() i64 = fn() i64 { return a + b; };
+    var result i64 = sum();
+    if result != 42 {
+        return 3;
+    }
+    return 0;
+}
+
+// Test 4: Closure passed as argument
+func apply(f closure(i64) i64, x i64) i64 {
+    return f(x);
+}
+
+func test_closure_param() i64 {
+    var multiplier i64 = 6;
+    var scale closure(i64) i64 = fn(x i64) i64 { return x * multiplier; };
+    var result i64 = apply(scale, 7);
+    if result != 42 {
+        return 4;
+    }
+    return 0;
+}
+
+func main() i64 {
+    var r i64 = test_non_capturing();
+    if r != 0 { return r; }
+
+    r = test_capturing();
+    if r != 0 { return r; }
+
+    r = test_multi_capture();
+    if r != 0 { return r; }
+
+    r = test_closure_param();
+    if r != 0 { return r; }
+
+    return 0;
+}
