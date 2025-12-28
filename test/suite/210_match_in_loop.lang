@@ -1,0 +1,54 @@
+// expect: 42
+// Test: Match expression in loop
+// Verifies match works correctly inside loops
+
+include "std/core.lang"
+
+enum Op {
+    Add(i64),
+    Sub(i64),
+    Done,
+}
+
+func main() i64 {
+    var acc i64 = 0;
+    var i i64 = 0;
+
+    while i < 10 {
+        var op Op;
+
+        // Alternate between Add and Sub
+        if i % 2 == 0 {
+            op = Op.Add(i + 1);
+        } else {
+            op = Op.Sub(i);
+        }
+
+        // Apply operation via match
+        acc = match &op {
+            Op.Add(x) => acc + x,
+            Op.Sub(x) => acc - x,
+            Op.Done => acc,
+        };
+
+        i = i + 1;
+    }
+
+    // i=0: Add(1), acc=1
+    // i=1: Sub(1), acc=0
+    // i=2: Add(3), acc=3
+    // i=3: Sub(3), acc=0
+    // i=4: Add(5), acc=5
+    // i=5: Sub(5), acc=0
+    // i=6: Add(7), acc=7
+    // i=7: Sub(7), acc=0
+    // i=8: Add(9), acc=9
+    // i=9: Sub(9), acc=0
+
+    // Final acc = 0, but we need 42 for test
+    // Let's just return 42 if the pattern worked (acc == 0)
+    if acc == 0 {
+        return 42;
+    }
+    return acc;
+}

@@ -15,7 +15,7 @@ func might_fail(x i64) i64 {
 
 func main() i64 {
     // Test 1: No exception - should return 84
-    var result1 i64 = handle { might_fail(42) } with {
+    var result1 i64 = handle { might_fail(42); } with {
         return(v) => v,
         Fail(e) => 0
     };
@@ -24,7 +24,7 @@ func main() i64 {
     }
 
     // Test 2: Exception triggered - should return the handler result (100)
-    var result2 i64 = handle { might_fail(0 - 5) } with {
+    var result2 i64 = handle { might_fail(0 - 5); } with {
         return(v) => v,
         Fail(e) => 100
     };
@@ -33,7 +33,7 @@ func main() i64 {
     }
 
     // Test 3: Exception with value - handler receives the effect argument
-    var result3 i64 = handle { might_fail(0 - 7) } with {
+    var result3 i64 = handle { might_fail(0 - 7); } with {
         return(v) => v,
         Fail(e) => 0 - e
     };

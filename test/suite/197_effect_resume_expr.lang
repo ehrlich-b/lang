@@ -1,0 +1,59 @@
+// expect: 0
+// Test resume with complex expressions
+
+include "std/core.lang"
+
+effect Query(i64) i64
+
+var multiplier i64 = 0;
+
+func compute(val i64) i64 {
+    return val * multiplier;
+}
+
+func do_query(x i64) i64 {
+    return perform Query(x);
+}
+
+func main() i64 {
+    multiplier = 7;
+
+    // Test 1: Resume with function call expression
+    var result1 i64 = handle { do_query(6) } with {
+        return(v) => v,
+        Query(n, k) => {
+            resume k(compute(n));
+        }
+    };
+    // Query(6), compute(6) = 42, resumed with 42
+    if result1 != 42 {
+        return 1;
+    }
+
+    // Test 2: Resume with arithmetic expression
+    var result2 i64 = handle { do_query(10) } with {
+        return(v) => v,
+        Query(n, k) => {
+            resume k(n * 2 + 5);
+        }
+    };
+    // Query(10), resumed with 10*2+5 = 25
+    if result2 != 25 {
+        return 2;
+    }
+
+    // Test 3: Resume with value from handler local
+    var result3 i64 = handle { do_query(3) } with {
+        return(v) => v,
+        Query(n, k) => {
+            var local i64 = n * n;
+            resume k(local + 1);
+        }
+    };
+    // Query(3), local = 9, resumed with 10
+    if result3 != 10 {
+        return 3;
+    }
+
+    return 0;
+}

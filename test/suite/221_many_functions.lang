@@ -1,0 +1,45 @@
+// expect: 100
+// Test: Many functions (stress test for function registry)
+
+func f1() i64 { return 5; }
+func f2() i64 { return 5; }
+func f3() i64 { return 5; }
+func f4() i64 { return 5; }
+func f5() i64 { return 5; }
+func f6() i64 { return 5; }
+func f7() i64 { return 5; }
+func f8() i64 { return 5; }
+func f9() i64 { return 5; }
+func f10() i64 { return 5; }
+func f11() i64 { return 5; }
+func f12() i64 { return 5; }
+func f13() i64 { return 5; }
+func f14() i64 { return 5; }
+func f15() i64 { return 5; }
+func f16() i64 { return 5; }
+func f17() i64 { return 5; }
+func f18() i64 { return 5; }
+func f19() i64 { return 5; }
+func f20() i64 { return 5; }
+
+// Also test function with many parameters
+func many_params(a i64, b i64, c i64, d i64, e i64, f i64, g i64, h i64) i64 {
+    return a + b + c + d + e + f + g + h;
+}
+
+func main() i64 {
+    var sum i64 = 0;
+    sum = sum + f1() + f2() + f3() + f4() + f5();
+    sum = sum + f6() + f7() + f8() + f9() + f10();
+    sum = sum + f11() + f12() + f13() + f14() + f15();
+    sum = sum + f16() + f17() + f18() + f19() + f20();
+    // 20 * 5 = 100
+
+    // Verify many params still works
+    var p i64 = many_params(1, 2, 3, 4, 5, 6, 7, 8);  // = 36
+    if p != 36 {
+        return 0;
+    }
+
+    return sum;  // 100
+}

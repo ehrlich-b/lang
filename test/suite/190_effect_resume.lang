@@ -17,7 +17,7 @@ func count_to_3() i64 {
 
 func main() i64 {
     // Test: handle with resume using block - sum yielded values
-    var result i64 = handle { count_to_3() } with {
+    var result i64 = handle { count_to_3(); } with {
         return(v) => v,
         Yield(n, k) => {
             total = total + n;

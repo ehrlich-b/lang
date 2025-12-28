@@ -1,0 +1,97 @@
+// expect: 0
+// Test: Closure capturing pointer variables
+
+include "std/core.lang"
+
+// Test 1: Capture pointer to integer
+func test_capture_ptr() i64 {
+    var n i64 = 42;
+    var ptr *i64 = &n;
+
+    var deref closure() i64 = fn() i64 { return *ptr; };
+
+    var result i64 = deref();
+    if result != 42 {
+        return 1;
+    }
+    return 0;
+}
+
+// Test 2: Capture pointer to struct
+struct Point {
+    x i64;
+    y i64;
+}
+
+func test_capture_struct_ptr() i64 {
+    var p *Point = alloc(16);
+    p.x = 10;
+    p.y = 32;
+
+    var get_sum closure() i64 = fn() i64 { return p.x + p.y; };
+
+    var result i64 = get_sum();
+    if result != 42 {
+        return 2;
+    }
+    return 0;
+}
+
+// Test 3: Capture string (pointer to u8)
+func test_capture_string() i64 {
+    var s *u8 = "hello";
+
+    var get_first closure() i64 = fn() i64 {
+        var c u8 = *s;
+        return c;  // 'h' = 104
+    };
+
+    var result i64 = get_first();
+    if result != 104 {
+        return 3;
+    }
+    return 0;
+}
+
+// Test 4: Capture pointer to array (pointer arithmetic)
+func test_capture_array_ptr() i64 {
+    var arr *i64 = alloc(40);  // 5 elements
+    var p *i64 = arr;
+    *p = 10;
+    p = arr + 8;
+    *p = 20;
+    p = arr + 16;
+    *p = 12;
+
+    var sum closure() i64 = fn() i64 {
+        var a *i64 = arr;
+        var v0 i64 = *a;
+        a = arr + 8;
+        var v1 i64 = *a;
+        a = arr + 16;
+        var v2 i64 = *a;
+        return v0 + v1 + v2;
+    };
+
+    var result i64 = sum();  // 10 + 20 + 12 = 42
+    if result != 42 {
+        return 4;
+    }
+    return 0;
+}
+
+func main() i64 {
+    var r i64 = test_capture_ptr();
+    if r != 0 { return r; }
+
+    r = test_capture_struct_ptr();
+    if r != 0 { return r; }
+
+    r = test_capture_string();
+    if r != 0 { return r; }
+
+    r = test_capture_array_ptr();
+    if r != 0 { return r; }
+
+    return 0;
+}

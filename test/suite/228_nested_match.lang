@@ -1,0 +1,65 @@
+// expect: 100
+// Test: Deeply nested match expressions (interaction: enum + match nesting)
+
+enum Outer {
+    A(i64),
+    B(i64),
+}
+
+enum Inner {
+    X(i64),
+    Y(i64),
+}
+
+func process(o *Outer, i *Inner) i64 {
+    return match o {
+        Outer.A(a) => match i {
+            Inner.X(x) => a + x,
+            Inner.Y(y) => a * y,
+        },
+        Outer.B(b) => match i {
+            Inner.X(x) => b - x,
+            Inner.Y(y) => b / y,
+        },
+    };
+}
+
+func main() i64 {
+    var result i64 = 0;
+
+    // A + X = addition
+    var o1 Outer = Outer.A(10);
+    var i1 Inner = Inner.X(5);
+    result = result + process(&o1, &i1);  // 10 + 5 = 15
+
+    // A + Y = multiplication
+    var o2 Outer = Outer.A(3);
+    var i2 Inner = Inner.Y(5);
+    result = result + process(&o2, &i2);   // 3 * 5 = 15
+
+    // B + X = subtraction
+    var o3 Outer = Outer.B(20);
+    var i3 Inner = Inner.X(5);
+    result = result + process(&o3, &i3);  // 20 - 5 = 15
+
+    // B + Y = division
+    var o4 Outer = Outer.B(75);
+    var i4 Inner = Inner.Y(5);
+    result = result + process(&o4, &i4);  // 75 / 5 = 15
+
+    // Total: 15 + 15 + 15 + 15 = 60
+
+    // Test match result used directly
+    var o5 Outer = Outer.A(20);
+    var i5 Inner = Inner.X(20);
+    var direct i64 = match &o5 {
+        Outer.A(a) => match &i5 {
+            Inner.X(x) => a + x,
+            Inner.Y(y) => 0,
+        },
+        Outer.B(b) => 0,
+    };
+    result = result + direct;  // 60 + 40 = 100
+
+    return result;  // 100
+}

@@ -1,0 +1,54 @@
+// expect: 42
+// Test: Deeply nested control flow (stress test for label management)
+
+func main() i64 {
+    var result i64 = 0;
+
+    // Nested if/else - 10 levels deep
+    if 1 == 1 {
+        if 2 == 2 {
+            if 3 == 3 {
+                if 4 == 4 {
+                    if 5 == 5 {
+                        if 6 == 6 {
+                            if 7 == 7 {
+                                if 8 == 8 {
+                                    if 9 == 9 {
+                                        if 10 == 10 {
+                                            result = result + 10;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Nested loops - 5 levels deep
+    var i i64 = 0;
+    while i < 2 {
+        var j i64 = 0;
+        while j < 2 {
+            var k i64 = 0;
+            while k < 2 {
+                var l i64 = 0;
+                while l < 2 {
+                    var m i64 = 0;
+                    while m < 2 {
+                        result = result + 1;  // 2^5 = 32 iterations
+                        m = m + 1;
+                    }
+                    l = l + 1;
+                }
+                k = k + 1;
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    return result;  // 10 + 32 = 42
+}

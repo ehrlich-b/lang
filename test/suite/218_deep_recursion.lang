@@ -1,0 +1,54 @@
+// expect: 77
+// Test: Deep recursion (stress test for call stack)
+
+func fib(n i64) i64 {
+    if n <= 1 {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+// Mutual recursion - tests call frame management
+func is_even(n i64) i64 {
+    if n == 0 {
+        return 1;
+    }
+    return is_odd(n - 1);
+}
+
+func is_odd(n i64) i64 {
+    if n == 0 {
+        return 0;
+    }
+    return is_even(n - 1);
+}
+
+// Deep single-path recursion
+func count_down(n i64, acc i64) i64 {
+    if n <= 0 {
+        return acc;
+    }
+    return count_down(n - 1, acc + 1);
+}
+
+func main() i64 {
+    var result i64 = 0;
+
+    // Fibonacci - exponential call tree
+    result = result + fib(10);  // 55
+
+    // Mutual recursion
+    if is_even(100) == 1 {
+        result = result + 10;
+    }
+    if is_odd(99) == 1 {
+        result = result + 5;
+    }
+
+    // Deep linear recursion (200 deep)
+    if count_down(200, 0) == 200 {
+        result = result + 7;
+    }
+
+    return result;  // 55 + 10 + 5 + 7 = 77
+}

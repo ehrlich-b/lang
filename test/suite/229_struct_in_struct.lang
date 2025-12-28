@@ -1,0 +1,44 @@
+// expect: 78
+// Test: Struct containing struct containing struct (interaction: deeply nested types)
+
+struct Point {
+    x i64;
+    y i64;
+}
+
+struct Rect {
+    origin Point;
+    size Point;
+}
+
+struct Window {
+    frame Rect;
+    title i64;
+}
+
+func rect_area(r *Rect) i64 {
+    return r.size.x * r.size.y;
+}
+
+func window_info(w *Window) i64 {
+    return w.frame.origin.x + w.frame.origin.y + rect_area(&w.frame) + w.title;
+}
+
+func main() i64 {
+    var w Window;
+    w.frame.origin.x = 10;
+    w.frame.origin.y = 20;
+    w.frame.size.x = 5;
+    w.frame.size.y = 8;
+    w.title = 3;
+
+    // 10 + 20 + (5*8) + 3 = 73
+    var result i64 = window_info(&w);
+
+    // Test modification through nested access
+    w.frame.origin.x = w.frame.origin.x + 5;  // 15
+    // Now: 15 + 20 + 40 + 3 = 78
+    result = window_info(&w);
+
+    return result;  // 78
+}

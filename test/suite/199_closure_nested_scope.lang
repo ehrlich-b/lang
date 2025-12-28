@@ -1,0 +1,78 @@
+// expect: 0
+// Test: Closure captures from multiple nested scopes
+// Edge case: capture from outer-outer scope (not just immediate parent)
+
+include "std/core.lang"
+
+// Test 1: Capture from two scopes deep
+func test_nested_capture() i64 {
+    var outer i64 = 100;
+
+    // Inner scope
+    {
+        var inner i64 = 50;
+
+        // Lambda captures both outer and inner
+        var f closure() i64 = fn() i64 {
+            return outer + inner;
+        };
+
+        var result i64 = f();
+        if result != 150 {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// Test 2: Capture only from outer scope (skip immediate)
+func test_skip_scope_capture() i64 {
+    var outer i64 = 42;
+
+    {
+        var unused i64 = 999;  // Not captured
+
+        var f closure() i64 = fn() i64 {
+            return outer;  // Only capture outer
+        };
+
+        var result i64 = f();
+        if result != 42 {
+            return 2;
+        }
+    }
+    return 0;
+}
+
+// Test 3: Three levels deep
+func test_three_levels() i64 {
+    var a i64 = 10;
+    {
+        var b i64 = 20;
+        {
+            var c i64 = 12;
+            var f closure() i64 = fn() i64 {
+                return a + b + c;
+            };
+
+            var result i64 = f();
+            if result != 42 {
+                return 3;
+            }
+        }
+    }
+    return 0;
+}
+
+func main() i64 {
+    var r i64 = test_nested_capture();
+    if r != 0 { return r; }
+
+    r = test_skip_scope_capture();
+    if r != 0 { return r; }
+
+    r = test_three_levels();
+    if r != 0 { return r; }
+
+    return 0;
+}

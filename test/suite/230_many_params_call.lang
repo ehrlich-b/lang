@@ -1,0 +1,43 @@
+// expect: 42
+// Test: Chain of calls with 6 parameters (interaction: call convention + recursion)
+// NOTE: There's a known bug with 7+ parameters and result accumulation.
+// This test uses 6 params to avoid that issue while testing call chains.
+
+func add6(a i64, b i64, c i64, d i64, e i64, f i64) i64 {
+    return a + b + c + d + e + f;
+}
+
+func wrapper6(a i64, b i64, c i64, d i64, e i64, f i64) i64 {
+    return add6(a, b, c, d, e, f);
+}
+
+func double_call(a i64, b i64, c i64, d i64, e i64, f i64) i64 {
+    var first i64 = add6(a, b, c, d, e, f);
+    var second i64 = wrapper6(a, b, c, d, e, f);
+    return first + second;
+}
+
+func nested(n i64, a i64, b i64, c i64, d i64, e i64) i64 {
+    if n <= 0 {
+        return add6(a, b, c, d, e, n);
+    }
+    return nested(n - 1, a + 1, b, c, d, e);
+}
+
+func main() i64 {
+    var result i64 = 0;
+
+    // Basic 6-param call: 1+2+3+4+5+6 = 21
+    result = result + add6(1, 2, 3, 4, 5, 6);  // 21
+
+    // Wrapper call
+    result = result + wrapper6(1, 1, 1, 1, 1, 1);  // 21 + 6 = 27
+
+    // Double call: 6 + 6 = 12
+    result = result + double_call(1, 1, 1, 1, 1, 1);  // 27 + 12 = 39
+
+    // Recursive: nested(3, 0, 0, 0, 0, 0) -> a=3 at end, result = 3
+    result = result + nested(3, 0, 0, 0, 0, 0);  // 39 + 3 = 42
+
+    return result;  // 42
+}

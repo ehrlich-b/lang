@@ -1,0 +1,42 @@
+// expect: 42
+// Test: Enum variable reassignment
+// Verifies enum variables can be reassigned to different variants
+
+include "std/core.lang"
+
+enum State {
+    Init,
+    Running(i64),
+    Done(i64),
+}
+
+func main() i64 {
+    var state State = State.Init;
+
+    // Start with Init
+    var r1 i64 = match &state {
+        State.Init => 0,
+        State.Running(x) => x,
+        State.Done(x) => x,
+    };
+    if r1 != 0 { return 1; }
+
+    // Transition to Running
+    state = State.Running(10);
+    var r2 i64 = match &state {
+        State.Init => 0,
+        State.Running(x) => x,
+        State.Done(x) => x,
+    };
+    if r2 != 10 { return 2; }
+
+    // Transition to Done
+    state = State.Done(42);
+    var r3 i64 = match &state {
+        State.Init => 0,
+        State.Running(x) => x,
+        State.Done(x) => x,
+    };
+
+    return r3;
+}

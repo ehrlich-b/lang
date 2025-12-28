@@ -1,0 +1,40 @@
+// expect: 42
+// Test: Enum as struct field
+// Verifies enums can be stored in structs
+
+include "std/core.lang"
+
+enum Status {
+    Pending,
+    Complete(i64),
+}
+
+struct Task {
+    id i64;
+    status Status;
+}
+
+func main() i64 {
+    var t1 Task;
+    t1.id = 1;
+    t1.status = Status.Pending;
+
+    var t2 Task;
+    t2.id = 2;
+    t2.status = Status.Complete(42);
+
+    // Check t1 is pending
+    var r1 i64 = match &t1.status {
+        Status.Pending => 0,
+        Status.Complete(x) => x,
+    };
+    if r1 != 0 { return 1; }
+
+    // Check t2 is complete with value 42
+    var r2 i64 = match &t2.status {
+        Status.Pending => 0,
+        Status.Complete(x) => x,
+    };
+
+    return r2;
+}

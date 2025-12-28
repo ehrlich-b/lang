@@ -1,0 +1,40 @@
+// expect: 55
+// Test: Closure captures struct field (interaction: closure + struct)
+
+include "std/core.lang"
+
+struct Counter {
+    value i64;
+}
+
+func main() i64 {
+    var c Counter;
+    c.value = 10;
+
+    // Capture struct field by copying its value
+    var captured i64 = c.value;
+    var getter closure() i64 = fn() i64 {
+        return captured;
+    };
+
+    var result i64 = getter();  // 10
+
+    // Modify struct, capture should not change (value semantics)
+    c.value = 20;
+    result = result + getter();  // 10 + 10 = 20
+
+    // Capture pointer to struct field
+    var ptr *i64 = &c.value;
+    var ptr_captured *i64 = ptr;
+    var ptr_getter closure() i64 = fn() i64 {
+        return *ptr_captured;
+    };
+
+    result = result + ptr_getter();  // 20 + 20 = 40
+
+    // Now modify via pointer, closure should see change
+    *ptr = 15;
+    result = result + ptr_getter();  // 40 + 15 = 55
+
+    return result;  // 55
+}

@@ -17,13 +17,11 @@ func main() i64 {
     var some Option = Option.Some(42);
 
     // Access memory layout directly: [tag:8][payload:8]
-    // Use byte pointer and manual offset to avoid pointer arithmetic scaling bug
-    var base *u8 = &some;
-    var tag_ptr *i64 = base;
+    var tag_ptr *i64 = &some;
     var tag i64 = *tag_ptr;
 
-    // Payload is at offset 8 from start
-    var payload_ptr *i64 = base + 8;
+    // Payload is at offset +1 (8 bytes for i64 pointer arithmetic)
+    var payload_ptr *i64 = tag_ptr + 1;
     var payload i64 = *payload_ptr;
 
     // tag should be 1 (Some is second variant), payload should be 42

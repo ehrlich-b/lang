@@ -1,0 +1,42 @@
+// expect: 0
+// Test multiple effect types in same handler
+
+include "std/core.lang"
+
+effect Read() i64
+effect Write(i64) i64
+
+var state i64 = 0;
+
+func use_both() i64 {
+    var x i64 = perform Read();
+    perform Write(x + 10);
+    return perform Read();
+}
+
+func main() i64 {
+    // Test: handler handles both Read and Write effects
+    state = 42;
+
+    var result i64 = handle { use_both(); } with {
+        return(v) => v,
+        Read(k) => {
+            resume k(state);
+        },
+        Write(n, k) => {
+            state = n;
+            resume k(0);
+        }
+    };
+
+    // use_both: Read() returns 42, Write(52), Read() returns 52
+    if result != 52 {
+        return 1;
+    }
+
+    if state != 52 {
+        return 2;
+    }
+
+    return 0;
+}

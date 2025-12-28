@@ -56,6 +56,7 @@ var NODE_EFFECT_DECL i64 = 37;    // effect Name(params) ReturnType
 var NODE_PERFORM_EXPR i64 = 38;   // perform Effect(args)
 var NODE_HANDLE_EXPR i64 = 39;    // handle { expr } with { cases }
 var NODE_RESUME_EXPR i64 = 40;    // resume k(value) - for future use
+var NODE_BLOCK_EXPR i64 = 41;     // { stmts; tail_expr } - block as expression
 
 // Type kinds
 var TYPE_BASE i64 = 1;
@@ -870,6 +871,47 @@ func block_stmt_count(node *u8) i64 {
 func block_stmt_set_count(node *u8, count i64) void {
     var p *i64 = node + 16;
     *p = count;
+}
+
+// ============================================================
+// BlockExpr accessors (block as expression with tail value)
+// Layout: [kind:8][stmts:8][stmt_count:8][tail_expr:8] = 32 bytes
+// ============================================================
+
+func block_expr_alloc() *u8 {
+    var node *u8 = alloc(32);
+    node_set_kind(node, NODE_BLOCK_EXPR);
+    return node;
+}
+
+func block_expr_stmts(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func block_expr_set_stmts(node *u8, stmts *u8) void {
+    var p **u8 = node + 8;
+    *p = stmts;
+}
+
+func block_expr_count(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func block_expr_set_count(node *u8, count i64) void {
+    var p *i64 = node + 16;
+    *p = count;
+}
+
+func block_expr_tail(node *u8) *u8 {
+    var p **u8 = node + 24;
+    return *p;
+}
+
+func block_expr_set_tail(node *u8, tail *u8) void {
+    var p **u8 = node + 24;
+    *p = tail;
 }
 
 // ============================================================
@@ -2668,8 +2710,13 @@ func parse_primary() *u8 {
 
             parse_expect(TOKEN_ARROW, "expected '=>' after pattern");
 
-            // Parse body expression
-            var body *u8 = parse_expression();
+            // Parse body: can be expression or block expression
+            var body *u8 = nil;
+            if parse_check(TOKEN_LBRACE) {
+                body = parse_block_expr();
+            } else {
+                body = parse_expression();
+            }
 
             // Store arm
             var arm *u8 = get_match_arm(arms, arm_count);
@@ -2748,8 +2795,20 @@ func parse_primary() *u8 {
     if parse_match(TOKEN_HANDLE) {
         parse_expect(TOKEN_LBRACE, "expected '{' after 'handle'");
 
-        // Parse body expression/statement
-        var body *u8 = parse_expression();
+        // Parse body - always parse as block (statements until })
+        // This allows: handle { var x = 1; x + 2; } with { ... }
+        // and also: handle { func_call(); } with { ... }
+        var stmts *u8 = alloc(LIMIT_STMTS_PER_BLOCK * 8);
+        var stmt_count i64 = 0;
+        while !parse_check(TOKEN_RBRACE) && !parse_is_at_end() {
+            var stmt *u8 = parse_statement();
+            var p **u8 = stmts + (stmt_count * 8);
+            *p = stmt;
+            stmt_count = stmt_count + 1;
+        }
+        var body *u8 = block_stmt_alloc();
+        block_stmt_set_stmts(body, stmts);
+        block_stmt_set_count(body, stmt_count);
 
         parse_expect(TOKEN_RBRACE, "expected '}' after handle body");
         parse_expect(TOKEN_WITH, "expected 'with' after handle body");
@@ -2868,6 +2927,69 @@ func parse_block() *u8 {
     var node *u8 = block_stmt_alloc();
     block_stmt_set_stmts(node, stmts);
     block_stmt_set_count(node, stmt_count);
+    return node;
+}
+
+// Parse block as expression: { stmts; tail_expr }
+// The tail expression (without semicolon) becomes the block's value
+func parse_block_expr() *u8 {
+    parse_expect(TOKEN_LBRACE, "expected '{'");
+
+    var stmts *u8 = alloc(LIMIT_STMTS_PER_BLOCK * 8);
+    var stmt_count i64 = 0;
+    var tail_expr *u8 = nil;
+
+    while !parse_check(TOKEN_RBRACE) && !parse_is_at_end() {
+        // Try to parse a statement that has explicit statement syntax
+        // (var, if, while, return, break, continue, block)
+        if parse_check(TOKEN_VAR) || parse_check(TOKEN_IF) ||
+           parse_check(TOKEN_WHILE) || parse_check(TOKEN_RETURN) ||
+           parse_check(TOKEN_BREAK) || parse_check(TOKEN_CONTINUE) ||
+           parse_check(TOKEN_LBRACE) {
+            var stmt *u8 = parse_statement();
+            var p **u8 = stmts + (stmt_count * 8);
+            *p = stmt;
+            stmt_count = stmt_count + 1;
+        } else {
+            // Parse as expression
+            var expr *u8 = parse_expression();
+
+            if parse_check(TOKEN_SEMICOLON) {
+                // It's an expression statement
+                parse_advance();  // consume ;
+                var stmt *u8 = expr_stmt_alloc();
+                expr_stmt_set_expr(stmt, expr);
+                var p **u8 = stmts + (stmt_count * 8);
+                *p = stmt;
+                stmt_count = stmt_count + 1;
+            } else if parse_check(TOKEN_RBRACE) {
+                // It's the tail expression (no semicolon before })
+                tail_expr = expr;
+            } else {
+                // Check for assignment
+                if parse_check(TOKEN_EQ) {
+                    parse_advance();
+                    var val *u8 = parse_expression();
+                    parse_expect(TOKEN_SEMICOLON, "expected ';' after assignment");
+                    var stmt *u8 = assign_stmt_alloc();
+                    assign_stmt_set_target(stmt, expr);
+                    assign_stmt_set_value(stmt, val);
+                    var p **u8 = stmts + (stmt_count * 8);
+                    *p = stmt;
+                    stmt_count = stmt_count + 1;
+                } else {
+                    parse_error("expected ';' or '}' after expression in block");
+                }
+            }
+        }
+    }
+
+    parse_expect(TOKEN_RBRACE, "expected '}'");
+
+    var node *u8 = block_expr_alloc();
+    block_expr_set_stmts(node, stmts);
+    block_expr_set_count(node, stmt_count);
+    block_expr_set_tail(node, tail_expr);
     return node;
 }
 

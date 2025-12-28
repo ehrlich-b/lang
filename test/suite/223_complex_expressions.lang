@@ -1,0 +1,51 @@
+// expect: 100
+// Test: Complex expressions (stress test for expression codegen)
+
+func main() i64 {
+    var result i64 = 0;
+
+    // Deeply nested arithmetic
+    var a i64 = ((((1 + 2) * 3) - 4) + 5);  // (3*3-4)+5 = 9-4+5 = 10
+    result = result + a;  // 10
+
+    // Complex boolean expressions
+    var b i64 = 0;
+    if (1 < 2) && (3 < 4) && (5 < 6) && (7 < 8) {
+        b = 10;
+    }
+    result = result + b;  // 20
+
+    // Mixed operators with precedence
+    var c i64 = 2 + 3 * 4 - 5;  // 2 + 12 - 5 = 9
+    result = result + c;  // 29
+
+    // Comparison chains through temps
+    var x i64 = 5;
+    var y i64 = 10;
+    var z i64 = 15;
+    if (x < y) && (y < z) {
+        result = result + 11;  // 40
+    }
+
+    // Bitwise operations (no hex literals - not supported)
+    var e i64 = 7 & 3;  // 3
+    var f i64 = 7 | 8;  // 15
+    var g i64 = 7 ^ 5;  // 2
+    result = result + e + f + g;  // 40 + 3 + 15 + 2 = 60
+
+    // Shift operations
+    var h i64 = 1 << 5;  // 32
+    var i i64 = 64 >> 1;  // 32
+    if h == 32 && i == 32 {
+        result = result + 20;  // 80
+    }
+
+    // Modulo and division
+    var j i64 = 100 / 5;  // 20
+    var k i64 = 23 % 10;  // 3
+    if j == 20 && k == 3 {
+        result = result + 20;  // 100
+    }
+
+    return result;  // 100
+}

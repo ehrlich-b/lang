@@ -1,0 +1,44 @@
+// expect: 0
+// Test effect with resume through multiple call frames
+
+include "std/core.lang"
+
+effect Get() i64
+
+var counter i64 = 0;
+
+func level3() i64 {
+    var x i64 = perform Get();
+    return x * 2;
+}
+
+func level2() i64 {
+    var a i64 = level3();
+    return a + 100;
+}
+
+func level1() i64 {
+    var b i64 = level2();
+    return b + 1000;
+}
+
+func main() i64 {
+    counter = 5;
+
+    // Test: Resume returns through all frames correctly
+    var result i64 = handle { level1() } with {
+        return(v) => v,
+        Get(k) => {
+            resume k(counter);
+        }
+    };
+
+    // level3: Get() returns 5, *2 = 10
+    // level2: 10 + 100 = 110
+    // level1: 110 + 1000 = 1110
+    if result != 1110 {
+        return 1;
+    }
+
+    return 0;
+}
