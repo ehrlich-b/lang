@@ -1,0 +1,22 @@
+// expect: 42
+// Test: Basic enum declaration
+// Verifies enum declarations are parsed correctly
+
+include "std/core.lang"
+
+enum Color {
+    Red,
+    Green,
+    Blue,
+}
+
+enum Option {
+    None,
+    Some(i64),
+}
+
+func main() i64 {
+    // For now just test that enum declarations compile
+    // Variant construction and match expressions come next
+    return 42;
+}

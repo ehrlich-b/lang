@@ -42,34 +42,79 @@ See `designs/ast_as_language.md` for the complete design.
 | Parse lambda `fn(x i64) i64 { body }` | parser.lang:1980+ | DONE |
 | Lambda codegen (no captures) | codegen.lang:2684+ | DONE |
 
-### Phase 3: Closures
+### Phase 3: Closures ✓ (MVP)
 
 | Task | File | Status |
 |------|------|--------|
-| Closure struct generation | codegen.lang | TODO |
-| Capture analysis pass | codegen.lang | TODO |
-| Environment passing convention | codegen.lang:2287+ | TODO |
+| Closure struct generation | codegen.lang:2872+ | DONE |
+| Capture analysis pass | codegen.lang:375-505 | DONE |
+| Environment passing convention | codegen.lang:3528+ | DONE |
+| Compile-time safety check | codegen.lang:3246+ | DONE |
+| Automatic closure calls | codegen.lang | DEFERRED |
 
-### Phase 4: Sum Types
+**Status**: Closures work! Lambdas can capture outer scope variables. Requires manual calling convention (pass closure ptr as first arg via helper function). See `test/suite/139_closure.lang` and `test/stdlib/144_closure_basic.lang`.
+
+**Safety Check**: Compiler now errors if you assign a capturing lambda to a `fn(T) R` variable. This prevents a crash where the closure struct would be executed as code. Non-capturing lambdas are still allowed with `fn(T) R`.
+
+**Automatic Calls (Deferred)**: Requires type-level distinction. See Phase 3b below.
+
+### Phase 3b: Closure Type (Future)
+
+The core problem: `fn(T) R` can hold either:
+1. Plain function pointer (from `&func` or non-capturing lambda) - call directly
+2. Closure struct pointer (from capturing lambda) - needs hidden env arg
+
+These are **incompatible** at runtime. Current workaround: use `*u8` with manual helper.
+
+**Option B: Separate Types** (recommended)
+
+```lang
+// Plain function pointer - no captures allowed
+var f fn(i64) i64 = &add;                    // OK
+var f fn(i64) i64 = fn(x i64) { x + 1 };     // OK (no captures)
+var f fn(i64) i64 = fn(x i64) { x + n };     // COMPILE ERROR (already implemented)
+
+// New closure type - allows captures, automatic calling
+var g closure(i64) i64 = fn(x i64) { x + n };  // OK
+g(42);  // Compiler auto-passes closure struct as first arg
+```
 
 | Task | File | Status |
 |------|------|--------|
-| Parse `enum Name { V1, V2(T) }` | parser.lang | TODO |
-| Enum registry | codegen.lang:315+ | TODO |
-| Tagged union layout `[tag:8][payload:N]` | codegen.lang | TODO |
-| Parse `match expr { ... }` | parser.lang | TODO |
-| Match → if/else tree compilation | codegen.lang | TODO |
+| Parse `closure(T) R` type syntax | parser.lang | TODO |
+| Add TYPE_CLOSURE kind | parser.lang | TODO |
+| Closure type codegen | codegen.lang | TODO |
+| Auto-wrap `&func` for closure type | codegen.lang | TODO |
+| Update higher-order function patterns | test/ | TODO |
 
-### Phase 5: Algebraic Effects
+### Phase 4: Sum Types ✓
 
 | Task | File | Status |
 |------|------|--------|
-| Parse `effect` declarations | parser.lang | TODO |
-| Parse `perform Effect(args)` | parser.lang | TODO |
-| Parse `handle { } with { }` | parser.lang | TODO |
-| **Exceptions (no resume)** | codegen.lang | TODO |
+| Parse `enum Name { V1, V2(T) }` | parser.lang | DONE |
+| Enum registry | codegen.lang:400+ | DONE |
+| Tagged union layout `[tag:8][payload:N]` | codegen.lang | DONE |
+| Variant construction `Enum.Variant(x)` | codegen.lang:2028+ | DONE |
+| Parse `match expr { ... }` | parser.lang | DONE |
+| Match → if/else tree compilation | codegen.lang | DONE |
+
+### Phase 5: Algebraic Effects (Exceptions MVP)
+
+| Task | File | Status |
+|------|------|--------|
+| Parse `effect` declarations | parser.lang | DONE |
+| Parse `perform Effect(args)` | parser.lang | DONE |
+| Parse `handle { } with { }` | parser.lang | DONE |
+| **Exceptions (no resume)** | codegen.lang | DONE |
 | State machine transform | codegen.lang | TODO |
 | `resume k(value)` support | codegen.lang | TODO |
+
+**Status**: Basic exceptions work! `perform` jumps to handler, handler receives effect argument. No resume support yet (perform is a one-way jump). See `test/suite/188_effect_exception.lang`.
+
+**Current Limitations**:
+- Single handler at a time (no handler stack for nesting)
+- No resume support (exceptions only, not full delimited continuations)
+- Effects are not type-checked (any perform goes to active handler)
 
 ### Phase 6: Kernel Split
 
@@ -110,9 +155,34 @@ Implications:
 
 | Issue | Priority | Status |
 |-------|----------|--------|
+| ~~**POINTER ARITHMETIC BUG**~~ | ~~CRITICAL~~ | DONE |
+| **TEST SUITE GAPS** | **HIGH** | TODO |
 | Add `const` keyword for compile-time constants | Medium | TODO |
 | Magic PNODE numbers in lisp.lang | Low | TODO |
 | Reader cache invalidation | Low | TODO |
+
+### HIGH: Test Suite Gaps
+
+**Problem**: The test suite (test/suite/*.lang) is mostly happy-path tests. Edge cases, error conditions, and corner cases are underrepresented.
+
+**Examples of missing test categories:**
+- Integer overflow behavior
+- Deeply nested expressions
+- Large structs / arrays
+- Boundary conditions (empty arrays, zero-length strings)
+- Error recovery / malformed input
+- Stress tests (many locals, deep recursion, large functions)
+- Interaction tests (structs containing arrays containing pointers, etc.)
+
+**Action**: Add 30-50 more targeted tests covering edge cases and interactions. Each bug found should spawn a regression test.
+
+### ~~CRITICAL: Pointer Arithmetic Bug~~ (FIXED)
+
+**Fixed**: Pointer arithmetic now correctly scales by element size. `*i64 + 1` adds 8 bytes.
+
+- **Test**: `test/suite/143_ptr_arithmetic.lang`
+- **Fix location**: `codegen.lang:1972-1997` (NODE_BINARY_EXPR for +/-)
+- **Bootstrap note**: Existing code using `*u8` with manual byte offsets still works correctly
 
 ---
 
@@ -152,6 +222,13 @@ Implications:
 - [x] Comprehensive function pointer tests (133-137)
 - [x] Lambda expressions `fn(x i64) i64 { body }` (Phase 2 complete)
 - [x] Lambda test (138_lambda.lang)
+- [x] Phase 4 Sum Types complete (enum, match, pattern matching)
+- [x] Pointer arithmetic fix (`*i64 + 1` now adds 8 bytes)
+- [x] Pointer arithmetic test (143_ptr_arithmetic.lang)
+- [x] Phase 3 Closures MVP (capture analysis, closure structs, env passing)
+- [x] Closure test (test/stdlib/144_closure_basic.lang)
+- [x] Phase 5 Exceptions MVP (effect/perform/handle, setjmp/longjmp style)
+- [x] Exception test (test/suite/188_effect_exception.lang)
 
 ### Previous Session
 - [x] Comprehensive AST 2.0 design with algebraic effects

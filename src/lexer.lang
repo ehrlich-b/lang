@@ -105,6 +105,18 @@ var TOKEN_IN i64 = 72;            // in
 // Function type token
 var TOKEN_FN i64 = 73;            // fn (for function pointer types)
 
+// Sum types
+var TOKEN_ENUM i64 = 74;          // enum
+var TOKEN_MATCH i64 = 75;         // match
+var TOKEN_ARROW i64 = 76;         // => (fat arrow for match arms)
+
+// Algebraic effects
+var TOKEN_EFFECT i64 = 77;        // effect
+var TOKEN_PERFORM i64 = 78;       // perform
+var TOKEN_HANDLE i64 = 79;        // handle
+var TOKEN_WITH i64 = 80;          // with
+var TOKEN_RESUME i64 = 81;        // resume
+
 // ============================================================
 // Token struct
 // ============================================================
@@ -410,6 +422,13 @@ func check_keyword() i64 {
     if lexeme_eq("let") { return TOKEN_LET; }
     if lexeme_eq("in") { return TOKEN_IN; }
     if lexeme_eq("fn") { return TOKEN_FN; }
+    if lexeme_eq("enum") { return TOKEN_ENUM; }
+    if lexeme_eq("match") { return TOKEN_MATCH; }
+    if lexeme_eq("effect") { return TOKEN_EFFECT; }
+    if lexeme_eq("perform") { return TOKEN_PERFORM; }
+    if lexeme_eq("handle") { return TOKEN_HANDLE; }
+    if lexeme_eq("with") { return TOKEN_WITH; }
+    if lexeme_eq("resume") { return TOKEN_RESUME; }
     if lexeme_eq("true") { return TOKEN_TRUE; }
     if lexeme_eq("false") { return TOKEN_FALSE; }
     if lexeme_eq("nil") { return TOKEN_NIL; }
@@ -672,6 +691,7 @@ func scan_token() *u8 {
         return make_token(TOKEN_BANG);
     }
     if c == 61 {  // '='
+        if lex_match(62) { return make_token(TOKEN_ARROW); }  // '=>'
         if lex_match(61) { return make_token(TOKEN_EQEQ); }  // '=='
         return make_token(TOKEN_EQ);
     }
@@ -786,6 +806,14 @@ func print_token_type(t i64) void {
     if t == TOKEN_LET { print("let"); return; }
     if t == TOKEN_IN { print("in"); return; }
     if t == TOKEN_FN { print("fn"); return; }
+    if t == TOKEN_ENUM { print("enum"); return; }
+    if t == TOKEN_MATCH { print("match"); return; }
+    if t == TOKEN_ARROW { print("=>"); return; }
+    if t == TOKEN_EFFECT { print("effect"); return; }
+    if t == TOKEN_PERFORM { print("perform"); return; }
+    if t == TOKEN_HANDLE { print("handle"); return; }
+    if t == TOKEN_WITH { print("with"); return; }
+    if t == TOKEN_RESUME { print("resume"); return; }
     print("UNKNOWN");
 }
 
