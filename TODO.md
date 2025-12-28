@@ -168,10 +168,25 @@ g(42);  // Compiler auto-passes closure struct as first arg
 | AST S-expr format design | designs/ast_interchange.md | DONE |
 | `--emit-ast` flag | src/ast_emit.lang, src/main.lang | DONE |
 | `--from-ast` flag (parse S-expr AST) | kernel/sexpr.lang | TODO |
+| Recursive reader expansion | kernel/expand.lang | TODO |
 | Round-trip verification | test/ | TODO |
 | AST validation | kernel/ast.lang | TODO |
 | Extract lang_reader | readers/lang/ | TODO |
 | Verify fixed point | Makefile | TODO |
+
+**Recursive Reader Expansion**
+
+When the kernel receives AST (from `--from-ast` or a reader), it must expand `reader-expr` nodes:
+
+```
+expand(ast):
+  for each (reader-expr name content) in ast:
+    reader = find_or_compile_reader(name)
+    result = invoke_reader(reader, content)  // returns S-expr AST
+    replace node with expand(result)         // recurse!
+```
+
+This enables reader composition - a `sql` reader can emit `#lisp{}` invocations. See `designs/ast_interchange.md` for details.
 
 **Open Question: Parser Unification**
 
