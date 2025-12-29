@@ -68,6 +68,18 @@ The composed compiler parses `lang_reader.lang` using its built-in lang reader, 
 
 Lang source becomes AST becomes x86 becomes a compiler that reads lang source. The whole thing rests on `mmap`, `read`, `write`, and `exit`. Four syscalls. No libc.
 
+## How it got here
+
+1. Write a lang compiler in Go. No metaprogramming, just get something working.
+2. Rewrite the compiler in lang. Compile it with the Go version. Delete Go.
+3. Add reader macros. Now lang can extend itself.
+4. Add `--emit-ast`. Readers output S-expression AST instead of lang code.
+5. Split the compiler: kernel (AST → x86) and lang reader (lang → AST). Both written in lang.
+6. Compile each half to AST using the existing compiler.
+7. Bootstrap: kernel composes itself with the lang reader AST. Fixed point.
+
+The journey is in [devlog/](./devlog/). The full bootstrap chain lives in [bootstrap/](./bootstrap/) and [archive/](./archive/).
+
 ## Building
 
 ```bash
