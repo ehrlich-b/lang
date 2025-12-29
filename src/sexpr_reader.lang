@@ -813,6 +813,19 @@ func sexpr_to_node(node *PNode) *u8 {
         return n;
     }
 
+    // (reader_expr name "content")
+    if streq(head, "reader_expr") {
+        var n *u8 = reader_expr_alloc();
+        var name_node *PNode = sexpr_get(node, 1);
+        reader_expr_set_name(n, sexpr_strdup(name_node.text));
+        reader_expr_set_name_len(n, strlen(name_node.text));
+        var content_node *PNode = sexpr_get(node, 2);
+        var content *u8 = sexpr_parse_string(content_node.text);
+        reader_expr_set_content(n, content);
+        reader_expr_set_content_len(n, strlen(content));
+        return n;
+    }
+
     // Unknown node type
     eprint("Error: unknown S-expression node type: ");
     eprintln(head);
