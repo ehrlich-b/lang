@@ -21,7 +21,7 @@ The AST is the language. Syntax is a plugin. Effects unify control flow.
 
 ## 🔥 IMMEDIATE: Test Hardening Sprint
 
-**Before kernel split, the test suite must be comprehensive.** Currently 158 tests. Target: 150+ tests - **SPRINT COMPLETE!**
+**Before kernel split, the test suite must be comprehensive.** Currently 159 tests. Target: 150+ tests - **SPRINT COMPLETE!**
 
 See "Code Quality Debt → TEST SUITE GAPS" below for categories.
 
@@ -169,24 +169,22 @@ g(42);  // Compiler auto-passes closure struct as first arg
 | `--emit-ast` flag | src/ast_emit.lang, src/main.lang | DONE |
 | `--from-ast` flag (parse S-expr AST) | src/sexpr_reader.lang | DONE |
 | Round-trip verification | test/ | DONE |
-| Recursive reader expansion | kernel/expand.lang | TODO |
+| Recursive reader expansion | src/codegen.lang (existing) | DONE |
 | AST validation | kernel/ast.lang | TODO |
 | Extract lang_reader | readers/lang/ | TODO |
 | Verify fixed point | Makefile | TODO |
 
-**Recursive Reader Expansion**
+**Recursive Reader Expansion** ✓
 
-When the kernel receives AST (from `--from-ast` or a reader), it must expand `reader-expr` nodes:
+Reader expansion works recursively using existing codegen infrastructure:
+- `sexpr_reader.lang` parses `reader_expr` nodes from S-expression AST
+- `codegen.lang:process_decl_first_pass` handles `NODE_READER_EXPR` by invoking the reader
+- Reader output is parsed → may contain more `#reader{}` invocations
+- Those parse to `reader_expr` nodes → expanded recursively
 
-```
-expand(ast):
-  for each (reader-expr name content) in ast:
-    reader = find_or_compile_reader(name)
-    result = invoke_reader(reader, content)  // returns S-expr AST
-    replace node with expand(result)         // recurse!
-```
+**Test**: `test/suite/233_reader_recursive.lang` verifies nested reader expansion.
 
-This enables reader composition - a `sql` reader can emit `#lisp{}` invocations. See `designs/ast_interchange.md` for details.
+This enables reader composition - a `sql` reader can emit `#lisp{}` invocations.
 
 **Open Question: Parser Unification**
 
@@ -353,6 +351,11 @@ Same kernel, different linking.
 - [x] Closure type test (test/suite/189_closure_type.lang)
 - [x] Phase 5 Resume support (resume k(value) for resumable effects)
 - [x] Resume test (test/suite/190_effect_resume.lang)
+- [x] Better error for stray semicolons after include/import
+- [x] Centralized heap size in src/limits.lang (was hardcoded in std/core.lang)
+- [x] Recursive reader expansion - `reader_expr` parsing in sexpr_reader.lang
+- [x] Verified reader expansion works with --from-ast path
+- [x] Nested reader expansion test (233_reader_recursive.lang)
 
 ### Previous Session
 - [x] Comprehensive AST 2.0 design with algebraic effects

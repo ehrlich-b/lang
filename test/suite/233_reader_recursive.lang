@@ -1,0 +1,18 @@
+// expect: 42
+// Test: Recursive reader expansion - reader output contains another #reader{}
+reader double_val(text *u8) *u8 {
+    // Returns "(21 + 21)" which equals 42
+    return "(21 + 21)";
+}
+
+reader invoke_double(text *u8) *u8 {
+    // Outputs code that uses double_val reader
+    // This tests that reader output is parsed and reader-exprs are expanded
+    return "#double_val{}";
+}
+
+func main() i64 {
+    // invoke_double outputs: #double_val{}
+    // double_val outputs: (21 + 21) = 42
+    return #invoke_double{};
+}
