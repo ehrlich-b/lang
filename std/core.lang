@@ -1,6 +1,8 @@
 // std/core.lang - Standard library for language
 // Provides basic I/O, memory allocation, and string operations
 
+include "src/limits.lang"
+
 // ============================================================
 // Memory - Bump allocator (simple, never frees)
 // ============================================================
@@ -10,10 +12,10 @@ var heap_end *u8 = nil;
 
 func alloc(size i64) *u8 {
     if heap_pos == nil {
-        // mmap(NULL, 64MB, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
+        // mmap(NULL, SIZE_HEAP, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
         // syscall 9 = mmap, 3 = PROT_READ|PROT_WRITE, 34 = MAP_PRIVATE|MAP_ANONYMOUS
-        heap_pos = syscall(9, 0, 67108864, 3, 34, 0-1, 0);
-        heap_end = heap_pos + 67108864;
+        heap_pos = syscall(9, 0, SIZE_HEAP, 3, 34, 0-1, 0);
+        heap_end = heap_pos + SIZE_HEAP;
     }
     var ptr *u8 = heap_pos;
     heap_pos = heap_pos + size;

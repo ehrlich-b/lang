@@ -3444,6 +3444,13 @@ func parse_declaration() *u8 {
         return node;
     }
 
+    // Better error for stray semicolons (common C habit)
+    if parse_check(TOKEN_SEMICOLON) {
+        parse_error("unexpected ';' - lang doesn't use semicolons after include/import");
+        parse_advance();
+        return nil;
+    }
+
     parse_error("expected declaration");
     parse_advance();
     return nil;
