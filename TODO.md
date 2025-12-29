@@ -167,9 +167,9 @@ g(42);  // Compiler auto-passes closure struct as first arg
 |------|------|--------|
 | AST S-expr format design | designs/ast_interchange.md | DONE |
 | `--emit-ast` flag | src/ast_emit.lang, src/main.lang | DONE |
-| `--from-ast` flag (parse S-expr AST) | kernel/sexpr.lang | TODO |
+| `--from-ast` flag (parse S-expr AST) | src/sexpr_reader.lang | DONE |
+| Round-trip verification | test/ | DONE |
 | Recursive reader expansion | kernel/expand.lang | TODO |
-| Round-trip verification | test/ | TODO |
 | AST validation | kernel/ast.lang | TODO |
 | Extract lang_reader | readers/lang/ | TODO |
 | Verify fixed point | Makefile | TODO |
@@ -326,6 +326,11 @@ Same kernel, different linking.
 ## Completed
 
 ### This Session
+- [x] `--from-ast` flag using `#parser{}` (dogfooding parser generator!)
+- [x] S-expression parser in src/sexpr_reader.lang
+- [x] Round-trip verification: source → AST → codegen = identical assembly
+- [x] Increased limits (heap 256MB, code buffer 4MB, 1000 funcs, 3000 strings)
+- [x] AST node names use underscores not hyphens (tokenizer compatibility)
 - [x] Pre-flight checks all passing
 - [x] Dynamic stack sizing (deferred prologue generation)
 - [x] Function registry for `&funcname` support

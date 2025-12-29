@@ -188,21 +188,21 @@ func ast_emit_type(t *u8) void {
     var kind i64 = node_kind(t);
 
     if kind == TYPE_BASE {
-        ast_emit_str("(type-base ");
+        ast_emit_str("(type_base ");
         ast_emit_strn(base_type_name(t), base_type_name_len(t));
         ast_emit_str(")");
         return;
     }
 
     if kind == TYPE_PTR {
-        ast_emit_str("(type-ptr ");
+        ast_emit_str("(type_ptr ");
         ast_emit_type(ptr_type_elem(t));
         ast_emit_str(")");
         return;
     }
 
     if kind == TYPE_FUNC {
-        ast_emit_str("(type-func (");
+        ast_emit_str("(type_func (");
         var params *u8 = func_type_params(t);
         var count i64 = func_type_param_count(t);
         var i i64 = 0;
@@ -219,7 +219,7 @@ func ast_emit_type(t *u8) void {
     }
 
     if kind == TYPE_CLOSURE {
-        ast_emit_str("(type-closure (");
+        ast_emit_str("(type_closure (");
         var params *u8 = closure_type_params(t);
         var count i64 = closure_type_param_count(t);
         var i i64 = 0;
@@ -236,7 +236,7 @@ func ast_emit_type(t *u8) void {
     }
 
     // Unknown type kind
-    ast_emit_str("(type-unknown ");
+    ast_emit_str("(type_unknown ");
     ast_emit_int(kind);
     ast_emit_str(")");
 }
@@ -315,7 +315,7 @@ func ast_emit_node(node *u8) void {
         while i < count {
             if i > 0 { ast_emit_str(" "); }
             var field *u8 = get_struct_field(fields, i);
-            ast_emit_str("(field-decl ");
+            ast_emit_str("(field_decl ");
             ast_emit_strn(struct_field_name(field), struct_field_name_len(field));
             ast_emit_str(" ");
             ast_emit_type(struct_field_type(field));
@@ -336,7 +336,7 @@ func ast_emit_node(node *u8) void {
         while i < count {
             if i > 0 { ast_emit_str(" "); }
             var v *u8 = get_enum_variant(variants, i);
-            ast_emit_str("(variant-decl ");
+            ast_emit_str("(variant_decl ");
             ast_emit_strn(enum_variant_name(v), enum_variant_name_len(v));
             var payload *u8 = enum_variant_type(v);
             if payload != nil {
@@ -433,7 +433,7 @@ func ast_emit_node(node *u8) void {
     }
 
     if kind == NODE_BLOCK_EXPR {
-        ast_emit_str("(block-expr");
+        ast_emit_str("(block_expr");
         var stmts *u8 = block_expr_stmts(node);
         var count i64 = block_expr_count(node);
         ast_emit_indent = ast_emit_indent + 1;
@@ -516,7 +516,7 @@ func ast_emit_node(node *u8) void {
     }
 
     if kind == NODE_EXPR_STMT {
-        ast_emit_str("(expr-stmt ");
+        ast_emit_str("(expr_stmt ");
         ast_emit_node(expr_stmt_expr(node));
         ast_emit_str(")");
         return;
@@ -727,7 +727,7 @@ func ast_emit_node(node *u8) void {
         ast_emit_node(handle_expr_body(node));
         ast_emit_indent = ast_emit_indent + 1;
         ast_emit_newline();
-        ast_emit_str("(return-handler ");
+        ast_emit_str("(return_handler ");
         ast_emit_strn(handle_expr_ret_bind(node), handle_expr_ret_bind_len(node));
         ast_emit_str(" ");
         ast_emit_node(handle_expr_ret_body(node));
@@ -739,7 +739,7 @@ func ast_emit_node(node *u8) void {
         while i < count {
             ast_emit_newline();
             var h *u8 = get_effect_case(handlers, i);
-            ast_emit_str("(effect-handler ");
+            ast_emit_str("(effect_handler ");
             ast_emit_strn(effect_case_name(h), effect_case_name_len(h));
             ast_emit_str(" ");
             // Single binding parameter
@@ -792,7 +792,7 @@ func ast_emit_node(node *u8) void {
     }
 
     if kind == NODE_UNQUOTE_STRING_EXPR {
-        ast_emit_str("(unquote-string ");
+        ast_emit_str("(unquote_string ");
         ast_emit_strn(unquote_string_expr_name(node), unquote_string_expr_name_len(node));
         ast_emit_str(")");
         return;
@@ -800,7 +800,7 @@ func ast_emit_node(node *u8) void {
 
     if kind == NODE_READER_EXPR {
         // Reader invocation - kernel will recursively expand these
-        ast_emit_str("(reader-expr ");
+        ast_emit_str("(reader_expr ");
         ast_emit_strn(reader_expr_name(node), reader_expr_name_len(node));
         ast_emit_str(" ");
         ast_emit_quoted_string(reader_expr_content(node), reader_expr_content_len(node));
@@ -809,7 +809,7 @@ func ast_emit_node(node *u8) void {
     }
 
     // Unknown node type
-    ast_emit_str("(unknown-node ");
+    ast_emit_str("(unknown_node ");
     ast_emit_int(kind);
     ast_emit_str(")");
 }
@@ -827,7 +827,7 @@ func ast_emit_pattern(p *u8) void {
     var kind i64 = node_kind(p);
 
     if kind == NODE_PATTERN_VARIANT {
-        ast_emit_str("(pattern-variant ");
+        ast_emit_str("(pattern_variant ");
         ast_emit_strn(pattern_variant_enum_name(p), pattern_variant_enum_len(p));
         ast_emit_str(" ");
         ast_emit_strn(pattern_variant_name(p), pattern_variant_name_len(p));
@@ -841,12 +841,12 @@ func ast_emit_pattern(p *u8) void {
     }
 
     if kind == NODE_PATTERN_WILDCARD {
-        ast_emit_str("(pattern-wildcard)");
+        ast_emit_str("(pattern_wildcard)");
         return;
     }
 
     // Unknown pattern
-    ast_emit_str("(unknown-pattern ");
+    ast_emit_str("(unknown_pattern ");
     ast_emit_int(kind);
     ast_emit_str(")");
 }
