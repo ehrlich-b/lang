@@ -1,0 +1,55 @@
+// src/lang_reader.lang - Lang syntax as a reader
+//
+// This defines the "lang" reader - the syntax parser for .lang files.
+// It wraps lexer.lang, parser.lang, and ast_emit.lang into a reader
+// that transforms lang source code into S-expression AST.
+//
+// Usage: #lang{ func main() i64 { return 42; } }
+// Output: (program (func main () (type_base i64) (block (return (number 42)))))
+//
+// This makes lang's syntax a plugin - just another reader that emits AST.
+//
+// When composed with kernel via `-c`, this provides:
+// - The lang reader function
+// - reader_transform glue for compiler.lang
+//
+// Note: Includes are idempotent, so duplicate includes with kernel are fine.
+
+include "std/core.lang"
+include "src/limits.lang"
+include "src/lexer.lang"
+include "src/parser.lang"
+include "src/ast_emit.lang"
+
+// The lang reader: parses lang syntax, emits S-expr AST
+reader lang(text *u8) *u8 {
+    // Tokenize the input
+    parser_tokenize(text);
+
+    // Check for lexer errors
+    var i i64 = 0;
+    while i < parser_token_count() {
+        var tok *u8 = get_token(i);
+        if tok_type(tok) == TOKEN_ERROR {
+            eprint("lang reader error: ");
+            eprintln(tok_lexeme(tok));
+            return nil;
+        }
+        i = i + 1;
+    }
+
+    // Parse to AST
+    var prog *u8 = parse_program();
+
+    if parse_error_count > 0 {
+        return nil;
+    }
+
+    // Emit as S-expression AST text
+    return ast_emit_program(prog);
+}
+
+// Glue for kernel_entry.lang - transforms input through lang reader
+func reader_transform(text *u8) *u8 {
+    return lang(text);
+}

@@ -206,8 +206,8 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
                 sb_str(rd.sb, "TOK_STRING");
             }
             else if str_eq_n(name, name_len, "operator", 8) {
-                // operator matches +, -, *, /, %, <, >, =
-                sb_str(rd.sb, "TOK_PLUS || tok_kind(t) == TOK_MINUS || tok_kind(t) == TOK_STAR || tok_kind(t) == TOK_SLASH || tok_kind(t) == TOK_PERCENT || tok_kind(t) == TOK_LT || tok_kind(t) == TOK_GT || tok_kind(t) == TOK_EQ");
+                // operator matches +, -, *, /, %, <, >, =, !, &, |, ^
+                sb_str(rd.sb, "TOK_PLUS || tok_kind(t) == TOK_MINUS || tok_kind(t) == TOK_STAR || tok_kind(t) == TOK_SLASH || tok_kind(t) == TOK_PERCENT || tok_kind(t) == TOK_LT || tok_kind(t) == TOK_GT || tok_kind(t) == TOK_EQ || tok_kind(t) == TOK_BANG || tok_kind(t) == TOK_AMP || tok_kind(t) == TOK_PIPE || tok_kind(t) == TOK_CARET");
             }
             sb_str(rd.sb, " {");
             rdgen_newline(rd);

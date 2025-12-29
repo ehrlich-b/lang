@@ -1,4 +1,4 @@
-# language - Design Specification
+# lang - Design Specification
 
 ## Philosophy
 

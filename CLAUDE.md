@@ -1,4 +1,4 @@
-# language
+# lang
 
 *"There are many like it but this one is mine."*
 
@@ -20,8 +20,8 @@ Lang + reader macro = native compiler for any syntax. No runtime, no VM, just x8
 ## Project Structure
 
 ```
-language/
-├── src/            # Compiler (written in language)
+lang/
+├── src/            # Compiler (written in lang)
 ├── std/            # Standard library
 ├── test/           # Test programs
 ├── example/        # Example programs (lisp reader, etc.)
@@ -116,6 +116,21 @@ func baz() void;  // ERROR: expected '{'
 ```
 
 **Why we keep hitting this**: Coming from C, the instinct is to forward-declare mutually recursive functions. In lang, the two-pass parser handles this automatically.
+
+### Identifiers Cannot Contain `-` (Hyphen)
+
+**THE BUG**: Using `-` in identifiers (like `my-var` or `foo-bar`) will fail. The tokenizer sees `-` as the minus operator.
+
+**THE FIX**: Use underscores instead: `my_var`, `foo_bar`.
+
+**Why this matters**: When working with S-expression AST (sexpr_reader), operator symbols like `-`, `+`, `==` must be handled specially. They're parsed as operator tokens, not identifiers. The grammar must include `operator` to match them:
+
+```
+#parser{
+    sexpr = number | symbol | string | operator | list  // 'operator' required for +, -, etc.
+    list = '(' sexpr* ')'
+}
+```
 
 ## Error Handling Policy
 

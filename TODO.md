@@ -1,4 +1,4 @@
-# language - TODO
+# lang - TODO
 
 ## Vision
 
@@ -13,9 +13,9 @@ The AST is the language. Syntax is a plugin. Effects unify control flow.
 1. ✓ Self-hosting compiler (x86 fixed point)
 2. ✓ Reader macro infrastructure (`#parser{}`, `#lisp{}`)
 3. ✓ Language polish (break/continue, bitwise ops, char literals)
-4. → **AST 2.0: Universal Semantics** ← CURRENT
-5. → Kernel/reader split (lang as a reader)
-6. → Multiple backends (WASM, LLVM IR)
+4. ✓ **AST 2.0: Universal Semantics** (closures, effects, sum types)
+5. ✓ **Kernel/reader split** (lang as a reader, bootstrap verified!)
+6. → Multiple backends (WASM, LLVM IR) ← NEXT
 
 ---
 
@@ -161,7 +161,7 @@ g(42);  // Compiler auto-passes closure struct as first arg
 - Effects are not type-checked (any perform goes to active handler)
 - No tail-resumptive optimization yet
 
-### Phase 6: Kernel Split
+### Phase 6: Kernel Split ✓
 
 | Task | File | Status |
 |------|------|--------|
@@ -170,9 +170,11 @@ g(42);  // Compiler auto-passes closure struct as first arg
 | `--from-ast` flag (parse S-expr AST) | src/sexpr_reader.lang | DONE |
 | Round-trip verification | test/ | DONE |
 | Recursive reader expansion | src/codegen.lang (existing) | DONE |
-| AST validation | kernel/ast.lang | TODO |
-| Extract lang_reader | readers/lang/ | TODO |
-| Verify fixed point | Makefile | TODO |
+| Kernel/reader split | src/kernel_main.lang, src/compiler.lang | DONE |
+| Extract lang_reader | src/lang_reader.lang | DONE |
+| Composition: kernel -c reader.ast | Makefile (test-composition) | DONE |
+| Bootstrap: composed -c reader.lang | Makefile (test-bootstrap) | DONE |
+| Fixed point verification | Makefile (test-bootstrap) | DONE |
 
 **Recursive Reader Expansion** ✓
 
@@ -324,6 +326,13 @@ Same kernel, different linking.
 ## Completed
 
 ### This Session
+- [x] **Kernel/Reader Split Bootstrap Achieved!**
+  - `make test-composition`: kernel -c lang_reader.ast → working compiler
+  - `make test-bootstrap`: composed compiler -c lang_reader.lang → IDENTICAL output
+  - Fixed point: bootstrapped compiler can bootstrap itself
+  - Fixed `___main` duplication in AST emit mode
+  - Fixed operator tokenization for S-expression parser (`-`, `==`, etc.)
+  - Fixed reader node parsing in sexpr_reader.lang
 - [x] `--from-ast` flag using `#parser{}` (dogfooding parser generator!)
 - [x] S-expression parser in src/sexpr_reader.lang
 - [x] Round-trip verification: source → AST → codegen = identical assembly

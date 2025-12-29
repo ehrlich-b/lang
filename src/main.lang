@@ -195,9 +195,11 @@ func main(argc i64, argv **u8) i64 {
             i = i + 1;
         }
 
-        // Add ___main wrapper that calls user's main
+        // Add ___main wrapper that calls user's main (skip in --emit-ast mode for composition)
         // Passes argc/argv - arg count check skipped for 'main' to support both signatures
-        append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8) i64 { return main(argc, argv); }\n");
+        if emit_ast_mode == 0 {
+            append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8) i64 { return main(argc, argv); }\n");
+        }
     }
 
     // Null-terminate

@@ -1,0 +1,319 @@
+// src/compiler.lang - Generic compiler entry point
+//
+// This is the "compiler" template for the split architecture.
+// Composed: kernel_core + reader + compiler.lang = working compiler
+//
+// The reader must define:
+//   func reader_transform(text *u8) *u8
+// Which transforms source text to S-expr AST text.
+//
+// This main():
+// 1. Reads input files
+// 2. Transforms each through reader_transform
+// 3. Parses resulting AST via parse_ast_from_string (from kernel)
+// 4. Combines all ASTs
+// 5. Calls generate() to emit x86
+
+// Get argv[i]
+func compiler_get_arg(argv **u8, i i64) *u8 {
+    var base *u8 = argv;
+    var p **u8 = base + (i * 8);
+    return *p;
+}
+
+func compiler_read_file(path *u8) *u8 {
+    var fd i64 = file_open(path, 0);
+    if fd < 0 {
+        eprint("Error: cannot open file: ");
+        eprintln(path);
+        return nil;
+    }
+    var buf *u8 = alloc(4194304);
+    var n i64 = file_read(fd, buf, 4194304);
+    file_close(fd);
+    if n < 0 {
+        eprintln("Error: cannot read file");
+        return nil;
+    }
+    *(buf + n) = 0;
+    return buf;
+}
+
+// Combine multiple AST programs into one
+func compiler_combine_asts(asts *u8, count i64) *u8 {
+    if count == 0 {
+        return nil;
+    }
+
+    // Count total declarations
+    var total_decls i64 = 0;
+    var i i64 = 0;
+    while i < count {
+        var ast **u8 = asts + (i * 8);
+        var prog *u8 = *ast;
+        if prog != nil {
+            total_decls = total_decls + program_decl_count(prog);
+        }
+        i = i + 1;
+    }
+
+    // Allocate combined decls array
+    var combined_decls *u8 = alloc(total_decls * 8);
+    var out_idx i64 = 0;
+
+    // Copy all declarations
+    i = 0;
+    while i < count {
+        var ast **u8 = asts + (i * 8);
+        var prog *u8 = *ast;
+        if prog != nil {
+            var decls *u8 = program_decls(prog);
+            var decl_count i64 = program_decl_count(prog);
+            var j i64 = 0;
+            while j < decl_count {
+                var src **u8 = decls + (j * 8);
+                var dst **u8 = combined_decls + (out_idx * 8);
+                *dst = *src;
+                out_idx = out_idx + 1;
+                j = j + 1;
+            }
+        }
+        i = i + 1;
+    }
+
+    // Build program node
+    var prog *u8 = alloc(16);
+    var pd **u8 = prog;
+    *pd = combined_decls;
+    var pc *i64 = prog + 8;
+    *pc = total_decls;
+
+    return prog;
+}
+
+// Check if path ends with given extension
+func has_extension(path *u8, ext *u8) i64 {
+    var path_len i64 = strlen(path);
+    var ext_len i64 = strlen(ext);
+    if path_len < ext_len { return 0; }
+    var p *u8 = path + path_len - ext_len;
+    return streq(p, ext);
+}
+
+func main(argc i64, argv **u8) i64 {
+    if argc < 2 {
+        eprintln("Usage: <compiler> <file>... [-o output.s]");
+        eprintln("       <compiler> -c <reader.lang> [-o output.s]");
+        return 1;
+    }
+
+    var output_file *u8 = nil;
+    var compose_file *u8 = nil;  // -c mode
+    var kernel_ast_file *u8 = nil;
+    var compiler_ast_file *u8 = nil;
+    var input_files *u8 = vec_new(16);
+
+    var i i64 = 1;
+    while i < argc {
+        var arg *u8 = compiler_get_arg(argv, i);
+
+        // -o output
+        if *arg == '-' && *(arg + 1) == 'o' && *(arg + 2) == 0 {
+            i = i + 1;
+            if i < argc {
+                output_file = compiler_get_arg(argv, i);
+            }
+            i = i + 1;
+            continue;
+        }
+
+        // -c compose mode
+        if *arg == '-' && *(arg + 1) == 'c' && *(arg + 2) == 0 {
+            i = i + 1;
+            if i < argc {
+                compose_file = compiler_get_arg(argv, i);
+            }
+            i = i + 1;
+            continue;
+        }
+
+        // --kernel-ast
+        if *arg == '-' && *(arg + 1) == '-' {
+            if memcmp(arg + 2, "kernel-ast", 10) {
+                i = i + 1;
+                if i < argc { kernel_ast_file = compiler_get_arg(argv, i); }
+                i = i + 1;
+                continue;
+            }
+            if memcmp(arg + 2, "compiler-ast", 12) {
+                i = i + 1;
+                if i < argc { compiler_ast_file = compiler_get_arg(argv, i); }
+                i = i + 1;
+                continue;
+            }
+        }
+
+        // Input file
+        vec_push(input_files, arg);
+        i = i + 1;
+    }
+
+    if output_file == nil {
+        output_file = "a.s";
+    }
+
+    // ================================================================
+    // COMPOSE MODE: -c reader.lang → new compiler with that reader
+    // ================================================================
+    if compose_file != nil {
+        // Default paths for kernel and compiler AST
+        if kernel_ast_file == nil {
+            kernel_ast_file = "out/ast/kernel.ast";
+        }
+        if compiler_ast_file == nil {
+            compiler_ast_file = "out/ast/compiler.ast";
+        }
+
+        // Read kernel AST
+        var kernel_source *u8 = compiler_read_file(kernel_ast_file);
+        if kernel_source == nil {
+            eprint("Error: cannot read kernel AST from ");
+            eprintln(kernel_ast_file);
+            return 1;
+        }
+        var kernel_prog *u8 = parse_ast_from_string(kernel_source);
+        if kernel_prog == nil {
+            eprintln("Error: failed to parse kernel AST");
+            return 1;
+        }
+
+        // Read and parse the reader file
+        var reader_content *u8 = compiler_read_file(compose_file);
+        if reader_content == nil {
+            return 1;
+        }
+
+        var reader_prog *u8 = nil;
+        if has_extension(compose_file, ".lang") {
+            // Use built-in reader to parse .lang file
+            var ast_text *u8 = reader_transform(reader_content);
+            if ast_text == nil {
+                eprint("Error: reader failed on ");
+                eprintln(compose_file);
+                return 1;
+            }
+            reader_prog = parse_ast_from_string(ast_text);
+        } else {
+            // Assume .ast format
+            reader_prog = parse_ast_from_string(reader_content);
+        }
+        if reader_prog == nil {
+            eprintln("Error: failed to parse reader");
+            return 1;
+        }
+
+        // Read compiler entry point AST
+        var compiler_source *u8 = compiler_read_file(compiler_ast_file);
+        if compiler_source == nil {
+            eprint("Error: cannot read compiler AST from ");
+            eprintln(compiler_ast_file);
+            return 1;
+        }
+        var compiler_prog *u8 = parse_ast_from_string(compiler_source);
+        if compiler_prog == nil {
+            eprintln("Error: failed to parse compiler AST");
+            return 1;
+        }
+
+        // Combine: kernel + reader + compiler
+        var asts *u8 = alloc(24);
+        var a0 **u8 = asts;
+        *a0 = kernel_prog;
+        var a1 **u8 = asts + 8;
+        *a1 = reader_prog;
+        var a2 **u8 = asts + 16;
+        *a2 = compiler_prog;
+        var combined *u8 = compiler_combine_asts(asts, 3);
+
+        // Generate
+        generate(combined, output_file);
+
+        print("Wrote ");
+        println(output_file);
+        return 0;
+    }
+
+    // ================================================================
+    // NORMAL MODE: compile files to executable
+    // ================================================================
+    if vec_len(input_files) == 0 {
+        eprintln("Error: no input files");
+        return 1;
+    }
+
+    // Transform each input file through reader, collect AST programs
+    var asts *u8 = alloc(vec_len(input_files) * 8);
+    var ast_count i64 = 0;
+
+    i = 0;
+    while i < vec_len(input_files) {
+        var path *u8 = vec_get(input_files, i);
+        var content *u8 = compiler_read_file(path);
+        if content == nil {
+            return 1;
+        }
+
+        // Transform through reader (defined by reader AST)
+        var ast_text *u8 = reader_transform(content);
+        if ast_text == nil {
+            eprint("Error: reader failed on ");
+            eprintln(path);
+            return 1;
+        }
+
+        // Parse AST text to internal AST (parse_ast_from_string from kernel)
+        var prog *u8 = parse_ast_from_string(ast_text);
+        if prog == nil {
+            eprint("Error: failed to parse AST from ");
+            eprintln(path);
+            return 1;
+        }
+
+        var astp **u8 = asts + (ast_count * 8);
+        *astp = prog;
+        ast_count = ast_count + 1;
+        i = i + 1;
+    }
+
+    // Combine all ASTs
+    var combined *u8 = compiler_combine_asts(asts, ast_count);
+    if combined == nil {
+        eprintln("Error: no AST to compile");
+        return 1;
+    }
+
+    // Add ___main wrapper for user's main (entry point for their program)
+    var main_wrapper *u8 = "(program (func ___main ((param argc (type_base i64)) (param argv (type_ptr (type_ptr (type_base u8))))) (type_base i64) (block (return (call (ident main) (ident argc) (ident argv))))))";
+    var wrapper_prog *u8 = parse_ast_from_string(main_wrapper);
+    if wrapper_prog != nil {
+        // Combine: user's code + ___main wrapper
+        var wrapper_asts *u8 = alloc(16);
+        var wa0 **u8 = wrapper_asts;
+        *wa0 = combined;
+        var wa1 **u8 = wrapper_asts + 8;
+        *wa1 = wrapper_prog;
+        combined = compiler_combine_asts(wrapper_asts, 2);
+    }
+
+    // Generate x86 (generate() from kernel)
+    generate(combined, output_file);
+
+    print("Wrote ");
+    println(output_file);
+    return 0;
+}
+
+// Entry point wrapper - compiler owns this
+func ___main(argc i64, argv **u8) i64 {
+    return main(argc, argv);
+}

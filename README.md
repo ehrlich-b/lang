@@ -1,72 +1,95 @@
-# language
+# lang
 
-A self-hosted compiler compiler (not a typo).
+A self-hosted compiler where syntax is a plugin.
 
-Write a reader macro that parses some syntax. It outputs lang source. That gets compiled to x86. You now have a native compiler for whatever syntax you defined.
+## Layer 1: It's just a language
 
 ```lang
-// Define a reader that handles lisp syntax
-reader lisp(text *u8) *u8 { /* parse s-exprs, emit lang */ }
-
-// Use it inline - this compiles to native code
-var answer i64 = #lisp{(* (+ 3 3) (+ 3 4))};  // 42
+func main() void {
+    print("Hello, world!\n");
+}
 ```
 
-The compiler compiles itself. Reader macros are compiled to native executables and invoked during compilation. There's no interpreter, no VM, no runtime.
-
-This works today:
+Compile it:
 
 ```bash
-# Build-time: file extension selects the reader
-# .lisp files get wrapped in #lisp{ ... } automatically
-./out/lang std/core.lang example/lisp/lisp.lang program.lisp -o program.s
-
-# Or generate a standalone compiler (no dependencies at runtime!)
-./out/lang -c lisp std/core.lang example/lisp/lisp.lang -o lisp_compiler.s
-as lisp_compiler.s -o lisp_compiler.o && ld lisp_compiler.o -o lisp_compiler
-./lisp_compiler program.lisp -o program.s
+./out/lang hello.lang -o hello.s
+as hello.s -o hello.o
+ld hello.o -o hello
+./hello
+Hello, world!
 ```
 
-The file extension *is* the reader name. A `.lisp` file gets wrapped in `#lisp{ contents }`. A `.bf` file would use `#bf{ contents }`. Mix `.lang` files with any other extension - one of them needs a main.
+That's it. Lang compiles to x86 assembly. Functions, structs, pointers, the usual. See [LANG.md](./LANG.md) for the full reference.
 
-## Status
+## Layer 2: It outputs compilers
 
-Self-hosted and at fixed point. File extension dispatch works. Standalone compiler generation works. Next: `lang_reader.lang` (define lang's syntax as a reader macro).
+The compiler has two parts: a kernel (AST to x86) and readers (syntax to AST).
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   .lang file    │     │   .lisp file    │     │   .whatever     │
+└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+         │ lang reader           │ lisp reader           │ your reader
+         ▼                       ▼                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                              AST                                │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         │ kernel
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                             x86                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+The kernel can compose itself with any reader to produce a standalone compiler:
+
+```bash
+./out/kernel -c lisp_reader.ast -o lisp_compiler.s
+# Now you have a native Lisp-to-x86 compiler
+```
+
+Define a reader for SQL, or a DSL for your domain, or Brainfuck. The kernel doesn't care what the surface syntax looks like. It just processes AST.
+
+## Layer 3: The loop
+
+Here's the thing.
+
+The lang reader - the one that parses `func`, `if`, `while` - is written in lang. The kernel is written in lang. The whole compiler is written in the language it compiles.
+
+And you can verify this:
+
+```bash
+# Compose kernel with lang reader (from AST)
+./out/kernel -c lang_reader.ast --kernel-ast kernel.ast -o lang_composed.s
+
+# Use that compiler to compile its own reader from source
+./out/lang_composed -c lang_reader.lang --kernel-ast kernel.ast -o lang_bootstrap.s
+
+# These are identical
+diff lang_composed.s lang_bootstrap.s  # no output
+```
+
+The composed compiler parses `lang_reader.lang` using its built-in lang reader, then composes a new compiler from that. Same output. Fixed point.
+
+The entire project is a closed loop. Lang source becomes AST becomes x86 becomes a compiler that reads lang source. And it all rests on `mmap`, `read`, `write`, and `exit`. Four syscalls. No libc. No runtime.
 
 ## Building
 
 ```bash
-# Bootstrap from preserved assembly (first time)
-make bootstrap
-
-# Build compiler from source
-make build
-
-# Verify fixed point and promote
-make verify && make promote
-
-# Compile and run a program
-make run FILE=test/hello.lang
-
-# With stdlib
-make stdlib-run FILE=test/vec_test.lang
+make bootstrap    # First time: assemble from preserved .s
+make build        # Compile from source
+make verify       # Check fixed point + run tests
+make promote      # Update stable compiler
 ```
 
 ## Docs
 
 - [LANG.md](./LANG.md) - Language reference
 - [TODO.md](./TODO.md) - Roadmap
-- [designs/reader_v2_design.md](./designs/reader_v2_design.md) - Reader macros V2 design
-- [designs/macro_design.md](./designs/macro_design.md) - AST macro design
-- [devlog/](./devlog/) - Development journal
-
-## Editor Support
-
-VSCode extension in `editor/vscode/`:
-```bash
-ln -s $(pwd)/editor/vscode ~/.vscode/extensions/language-lang
-```
+- [designs/ast_as_language.md](./designs/ast_as_language.md) - Architecture
 
 ## License
 
-Do whatever you want with it.
+[MIT](./LICENSE)

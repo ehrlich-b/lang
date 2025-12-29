@@ -1,0 +1,143 @@
+// src/reader_main.lang - Lang reader entry point: lang source -> S-expr AST
+//
+// This is the "lang_reader" half of the compiler split.
+// It reads lang source files and emits AST as S-expressions.
+//
+// Usage: lang_reader <file.lang>... [-o output.ast]
+//        Output goes to stdout if no -o specified
+
+// Get argv[i] - argv is array of char pointers
+func get_arg(argv **u8, i i64) *u8 {
+    var base *u8 = argv;
+    var p **u8 = base + (i * 8);
+    return *p;
+}
+
+func read_file(path *u8) *u8 {
+    var fd i64 = file_open(path, 0);  // O_RDONLY
+    if fd < 0 {
+        eprint("Error: cannot open file: ");
+        eprintln(path);
+        return nil;
+    }
+
+    var buf *u8 = alloc(1048576);  // 1MB max file size
+    var n i64 = file_read(fd, buf, 1048576);
+    file_close(fd);
+
+    if n < 0 {
+        eprintln("Error: cannot read file");
+        return nil;
+    }
+
+    // Null-terminate
+    *(buf + n) = 0;
+    return buf;
+}
+
+// Helper to append string to source buffer
+func append_str(buf *u8, len *i64, s *u8) void {
+    while *s != 0 {
+        *(buf + *len) = *s;
+        *len = *len + 1;
+        s = s + 1;
+    }
+}
+
+func main(argc i64, argv **u8) i64 {
+    if argc < 2 {
+        eprintln("Usage: lang_reader <file.lang>... [-o output.ast]");
+        return 1;
+    }
+
+    // Parse arguments
+    var output_file *u8 = nil;
+    var input_files *u8 = vec_new(16);
+
+    var i i64 = 1;
+    while i < argc {
+        var arg *u8 = get_arg(argv, i);
+
+        // Check for -o flag
+        if *arg == '-' && *(arg + 1) == 'o' && *(arg + 2) == 0 {
+            i = i + 1;
+            if i < argc {
+                output_file = get_arg(argv, i);
+            }
+        } else {
+            // Input file
+            vec_push(input_files, arg);
+        }
+        i = i + 1;
+    }
+
+    if vec_len(input_files) == 0 {
+        eprintln("Error: no input files");
+        return 1;
+    }
+
+    // Build source by including all input files
+    var source_buf *u8 = alloc(4194304);  // 4MB for all sources
+    var source_len i64 = 0;
+
+    i = 0;
+    while i < vec_len(input_files) {
+        var path *u8 = vec_get(input_files, i);
+        append_str(source_buf, &source_len, "include \"");
+        append_str(source_buf, &source_len, path);
+        append_str(source_buf, &source_len, "\"\n");
+        i = i + 1;
+    }
+
+    // Add ___main wrapper
+    append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8) i64 { return main(argc, argv); }\n");
+
+    // Null-terminate
+    *(source_buf + source_len) = 0;
+
+    // Tokenize
+    parser_tokenize(source_buf);
+
+    // Check for lexer errors
+    i = 0;
+    while i < parser_token_count() {
+        var tok *u8 = get_token(i);
+        if tok_type(tok) == TOKEN_ERROR {
+            eprint("Error: ");
+            eprintln(tok_lexeme(tok));
+            return 1;
+        }
+        i = i + 1;
+    }
+
+    // Parse
+    var prog *u8 = parse_program();
+
+    if parse_error_count > 0 {
+        return 1;
+    }
+
+    // Emit AST as S-expressions
+    var ast_str *u8 = ast_emit_program(prog);
+
+    // Write to output
+    if output_file != nil {
+        // Write to file: O_WRONLY=1 | O_CREAT=64 | O_TRUNC=512 = 577
+        var fd i64 = file_open(output_file, 577);
+        if fd < 0 {
+            eprint("Error: cannot open output file: ");
+            eprintln(output_file);
+            return 1;
+        }
+        file_write(fd, ast_str, strlen(ast_str));
+        file_close(fd);
+
+        eprint("Wrote AST to ");
+        eprintln(output_file);
+    } else {
+        // Write to stdout
+        print(ast_str);
+    }
+
+    return 0;
+}

@@ -43,6 +43,7 @@ var TOK_GT i64 = 21;
 var TOK_BANG i64 = 22;
 var TOK_AMP i64 = 23;
 var TOK_PIPE i64 = 24;
+var TOK_CARET i64 = 25;
 var TOK_UNKNOWN i64 = 99;
 
 // ============================================================
@@ -144,16 +145,57 @@ func tok_next(t *Tokenizer) void {
     if c == 42 { t.tok_kind = TOK_STAR; t.tok_len = 1; tok_advance_char(t); return; }
     if c == 47 { t.tok_kind = TOK_SLASH; t.tok_len = 1; tok_advance_char(t); return; }
     if c == 37 { t.tok_kind = TOK_PERCENT; t.tok_len = 1; tok_advance_char(t); return; }
+    if c == 94 { t.tok_kind = TOK_CARET; t.tok_len = 1; tok_advance_char(t); return; }  // ^
     if c == 44 { t.tok_kind = TOK_COMMA; t.tok_len = 1; tok_advance_char(t); return; }
     if c == 58 { t.tok_kind = TOK_COLON; t.tok_len = 1; tok_advance_char(t); return; }
     if c == 59 { t.tok_kind = TOK_SEMI; t.tok_len = 1; tok_advance_char(t); return; }
     if c == 46 { t.tok_kind = TOK_DOT; t.tok_len = 1; tok_advance_char(t); return; }
-    if c == 61 { t.tok_kind = TOK_EQ; t.tok_len = 1; tok_advance_char(t); return; }
-    if c == 60 { t.tok_kind = TOK_LT; t.tok_len = 1; tok_advance_char(t); return; }
-    if c == 62 { t.tok_kind = TOK_GT; t.tok_len = 1; tok_advance_char(t); return; }
-    if c == 33 { t.tok_kind = TOK_BANG; t.tok_len = 1; tok_advance_char(t); return; }
-    if c == 38 { t.tok_kind = TOK_AMP; t.tok_len = 1; tok_advance_char(t); return; }
-    if c == 124 { t.tok_kind = TOK_PIPE; t.tok_len = 1; tok_advance_char(t); return; }
+
+    // Multi-char operators: ==, !=, <=, >=, <<, >>, &&, ||
+    if c == 61 {  // = or ==
+        tok_advance_char(t);
+        if tok_peek_char(t) == 61 { tok_advance_char(t); t.tok_len = 2; }
+        else { t.tok_len = 1; }
+        t.tok_kind = TOK_EQ;
+        return;
+    }
+    if c == 60 {  // < or <= or <<
+        tok_advance_char(t);
+        var next i64 = tok_peek_char(t);
+        if next == 61 || next == 60 { tok_advance_char(t); t.tok_len = 2; }
+        else { t.tok_len = 1; }
+        t.tok_kind = TOK_LT;
+        return;
+    }
+    if c == 62 {  // > or >= or >>
+        tok_advance_char(t);
+        var next i64 = tok_peek_char(t);
+        if next == 61 || next == 62 { tok_advance_char(t); t.tok_len = 2; }
+        else { t.tok_len = 1; }
+        t.tok_kind = TOK_GT;
+        return;
+    }
+    if c == 33 {  // ! or !=
+        tok_advance_char(t);
+        if tok_peek_char(t) == 61 { tok_advance_char(t); t.tok_len = 2; }
+        else { t.tok_len = 1; }
+        t.tok_kind = TOK_BANG;
+        return;
+    }
+    if c == 38 {  // & or &&
+        tok_advance_char(t);
+        if tok_peek_char(t) == 38 { tok_advance_char(t); t.tok_len = 2; }
+        else { t.tok_len = 1; }
+        t.tok_kind = TOK_AMP;
+        return;
+    }
+    if c == 124 {  // | or ||
+        tok_advance_char(t);
+        if tok_peek_char(t) == 124 { tok_advance_char(t); t.tok_len = 2; }
+        else { t.tok_len = 1; }
+        t.tok_kind = TOK_PIPE;
+        return;
+    }
 
     // Minus or negative number
     if c == 45 {
