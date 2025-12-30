@@ -198,6 +198,71 @@ func llvm_is_local(name *u8, len i64) i64 {
     return map_has(llvm_locals, key);
 }
 
+// Let binding stack for name remapping (SSA unique names)
+// Each entry: [orig_name:8][orig_len:8][unique_name:8][unique_len:8] = 32 bytes
+var llvm_let_bindings *u8 = nil;
+var llvm_let_depth i64 = 0;
+
+func llvm_init_let_bindings() void {
+    llvm_let_bindings = alloc(256 * 32);  // Max 256 nested let bindings
+    llvm_let_depth = 0;
+}
+
+func llvm_push_let_binding(name *u8, name_len i64, unique *u8, unique_len i64) void {
+    var entry *u8 = llvm_let_bindings + (llvm_let_depth * 32);
+    var p_name **u8 = entry;
+    *p_name = name;
+    var p_name_len *i64 = entry + 8;
+    *p_name_len = name_len;
+    var p_unique **u8 = entry + 16;
+    *p_unique = unique;
+    var p_unique_len *i64 = entry + 24;
+    *p_unique_len = unique_len;
+    llvm_let_depth = llvm_let_depth + 1;
+}
+
+func llvm_pop_let_binding() void {
+    if llvm_let_depth > 0 {
+        llvm_let_depth = llvm_let_depth - 1;
+    }
+}
+
+// Look up let binding and return unique name if found
+// Returns nil if not found
+func llvm_find_let_binding(name *u8, name_len i64) *u8 {
+    var i i64 = llvm_let_depth - 1;
+    while i >= 0 {
+        var entry *u8 = llvm_let_bindings + (i * 32);
+        var p_name **u8 = entry;
+        var p_name_len *i64 = entry + 8;
+        if *p_name_len == name_len {
+            var j i64 = 0;
+            var same i64 = 1;
+            while j < name_len {
+                if *(*p_name + j) != *(name + j) {
+                    same = 0;
+                }
+                j = j + 1;
+            }
+            if same != 0 {
+                return entry;  // Return entry pointer (unique name at offset 16)
+            }
+        }
+        i = i - 1;
+    }
+    return nil;
+}
+
+func llvm_let_unique_name(entry *u8) *u8 {
+    var p **u8 = entry + 16;
+    return *p;
+}
+
+func llvm_let_unique_len(entry *u8) i64 {
+    var p *i64 = entry + 24;
+    return *p;
+}
+
 // Global variable table
 var llvm_globals *u8 = nil;
 
@@ -542,7 +607,20 @@ func llvm_emit_expr(expr *u8) void {
         var name *u8 = ident_expr_name(expr);
         var len i64 = ident_expr_name_len(expr);
 
-        if llvm_is_local(name, len) {
+        // Check for let binding first (SSA unique names)
+        var let_entry *u8 = llvm_find_let_binding(name, len);
+        if let_entry != nil {
+            // Let binding: use unique name
+            var unique *u8 = llvm_let_unique_name(let_entry);
+            var unique_len i64 = llvm_let_unique_len(let_entry);
+            var temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(temp);
+            llvm_emit_str(" = load i64, i64* %");
+            llvm_emit_n(unique, unique_len);
+            llvm_emit_char(10);
+            llvm_set_result_temp(temp);
+        } else if llvm_is_local(name, len) {
             // Local variable: emit load
             var temp i64 = llvm_next_temp();
             llvm_emit_str("    %t");
@@ -1090,6 +1168,69 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_char(10);
             llvm_set_result_temp(temp);
         }
+        return;
+    }
+
+    if k == NODE_LET_EXPR {
+        // Save local scope for restoration after body
+        var saved_local_count i64 = cg_local_count;
+
+        var name *u8 = let_expr_name(expr);
+        var name_len i64 = let_expr_name_len(expr);
+        var var_type *u8 = let_expr_type(expr);
+
+        // Generate unique name for this let binding (SSA requires unique names)
+        var let_id i64 = llvm_next_temp();
+        var unique_name *u8 = alloc(64);
+        var pos i64 = 0;
+        var i i64 = 0;
+        while i < name_len {
+            *(unique_name + pos) = *(name + i);
+            pos = pos + 1;
+            i = i + 1;
+        }
+        *(unique_name + pos) = 46;  // '.'
+        pos = pos + 1;
+        // Append number
+        var tmp *u8 = alloc(16);
+        itoa(let_id, tmp);
+        i = 0;
+        while *(tmp + i) != 0 {
+            *(unique_name + pos) = *(tmp + i);
+            pos = pos + 1;
+            i = i + 1;
+        }
+        *(unique_name + pos) = 0;
+        var unique_len i64 = pos;
+
+        // Register type info for get_expr_type
+        add_local(name, name_len, 0, var_type);
+
+        // Push let binding for name->unique_name mapping
+        llvm_push_let_binding(name, name_len, unique_name, unique_len);
+
+        // Allocate stack slot for let binding
+        llvm_emit_str("    %");
+        llvm_emit_n(unique_name, unique_len);
+        llvm_emit_line(" = alloca i64");
+
+        // Generate init expression
+        llvm_emit_expr(let_expr_init(expr));
+        var init_val *u8 = str_dup(llvm_expr_result);
+
+        // Store init value
+        llvm_emit_str("    store i64 ");
+        llvm_emit_str(init_val);
+        llvm_emit_str(", i64* %");
+        llvm_emit_n(unique_name, unique_len);
+        llvm_emit_char(10);
+
+        // Generate body expression (result becomes the let expression's result)
+        llvm_emit_expr(let_expr_body(expr));
+
+        // Pop let binding and restore local scope
+        llvm_pop_let_binding();
+        cg_local_count = saved_local_count;
         return;
     }
 
@@ -1745,6 +1886,7 @@ func generate_llvm(prog *u8, output_file *u8) void {
     llvm_init_globals();
     llvm_init_loop_stack();
     llvm_init_strings();
+    llvm_init_let_bindings();
 
     // Initialize x86 backend's local tracking (for type info via get_expr_type)
     cg_locals = alloc(LIMIT_LOCALS * 32);
