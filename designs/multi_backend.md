@@ -33,30 +33,48 @@ Add LLVM IR as alternative codegen output.
 | B1 | Create `std/os/libc.lang` with extern declarations (write, read, exit, malloc) | new | TODO |
 | B2 | Add `LANGBE=llvm` env var support to compiler | src/main.lang | TODO |
 | B3 | Implement LLVM IR emitter (text output, like current x86 asm) | src/codegen.lang or new | TODO |
-| B4 | Test: compile hello world → .ll → clang → binary | test/ | TODO |
+| B4 | Test: compile hello world → .ll → manual clang → binary | test/ | TODO |
 | B5 | Handle all AST node types in LLVM backend | - | TODO |
 | B6 | Test full bootstrap through LLVM path | make verify | TODO |
 
 **Deliverable**: `LANGBE=llvm ./out/lang program.lang -o program.ll` produces valid LLVM IR that clang can compile.
 
-### Why These Two Tracks?
+### Track C: Toolchain Integration (Lang = Full Compiler)
+
+Make lang invoke toolchains automatically so users get binaries, not intermediate files.
+
+| Step | Task | Files | Status |
+|------|------|-------|--------|
+| C1 | Add `exec()` / `fork()` syscall wrappers to stdlib | std/os.lang | TODO |
+| C2 | Implement `find_tool(name)` - PATH search + common locations | src/toolchain.lang | TODO |
+| C3 | Auto-invoke `as` + `ld` after x86 codegen | src/main.lang | TODO |
+| C4 | Auto-invoke `clang` after LLVM codegen | src/main.lang | TODO |
+| C5 | Infer intent from output extension (`.ll` = stop at IR) | src/main.lang | TODO |
+| C6 | Implement `lang env` command | src/main.lang | TODO |
+
+**Deliverable**: `./out/lang program.lang -o program` produces a runnable binary. No user knowledge of clang/as/ld required.
+
+### Why Three Tracks?
 
 ```
-Track A (OS abstraction):  Same backend, different OS syscalls
-Track B (LLVM backend):    Different backend, uses libc (portable)
+Track A (OS abstraction):     Same backend, different OS syscalls
+Track B (LLVM backend):       Different backend, portable codegen
+Track C (Toolchain integration): Lang produces binaries, not intermediates
 ```
 
 They compose:
-- Track A alone: Direct ARM64 backend for Mac (fast, no deps)
-- Track B alone: LLVM backend on Linux with libc (different linking)
-- Both: Full matrix of backends × platforms
+- Track A alone: Direct x86/ARM64 backends work on multiple OSes
+- Track B alone: LLVM backend works (user manually invokes clang)
+- Track C alone: Current x86 backend auto-invokes as+ld
+- All three: `lang foo.lang -o foo` just works on any platform
 
 ### Recommended Order
 
 1. **Track A first** (simpler) - proves the OS abstraction works
-2. **Track B second** - LLVM IR is more work but unlocks everything
+2. **Track B second** - LLVM IR is more work but unlocks portability
+3. **Track C third** - polish, but can be done incrementally alongside B
 
-Or work in parallel - they're mostly independent.
+Track C can start early (C1-C3 for x86) while B is in progress.
 
 ---
 
@@ -264,6 +282,126 @@ clang program.ll -lc -o program
 - Matches Go convention developers know
 - Can be set once in shell profile for consistent target
 - Build scripts don't need to thread flags through
+
+### Lang is a Compiler, Not a Transpiler
+
+**Principle**: `lang foo.lang -o foo` should produce a runnable binary. Users shouldn't need to know about LLVM IR, clang, assemblers, or linkers.
+
+```bash
+# This is what users type:
+./out/lang program.lang -o program
+./program
+
+# NOT this (implementation detail leakage):
+./out/lang program.lang -o program.ll
+clang program.ll -o program  # user has to know this!
+```
+
+Lang handles the full pipeline internally:
+1. Parse source → AST
+2. Generate backend output (LLVM IR, x86 asm, etc.)
+3. **Invoke toolchain** (clang, as+ld) to produce final binary
+4. Clean up intermediates (unless `--keep-temps`)
+
+### Toolchain Detection
+
+Lang must detect and invoke platform toolchains. Like Go's toolchain management:
+
+**Linux:**
+- LLVM backend: `clang` (from package manager or llvm.org)
+- x86 backend: `as`, `ld` (binutils, always present)
+
+**macOS:**
+- LLVM backend: `clang` (Xcode CLT)
+- arm64 backend: `as`, `ld` (Xcode CLT)
+- Detection: `xcode-select -p` or check `/usr/bin/clang`
+
+**Windows:**
+- LLVM backend: `clang` (LLVM installer or Visual Studio)
+- Detection: Check PATH, Program Files, VS installation
+
+### `lang env` Command
+
+Show detected toolchain and configuration:
+
+```bash
+$ lang env
+LANGOS=linux        # detected from uname
+LANGBE=llvm         # default
+LANGLIBC=none       # default
+
+Toolchain:
+  clang:    /usr/bin/clang (version 17.0.1)
+  as:       /usr/bin/as (GNU assembler)
+  ld:       /usr/bin/ld (GNU ld)
+
+Status: Ready (all required tools found)
+
+$ LANGBE=x86 lang env
+LANGOS=linux
+LANGBE=x86
+LANGLIBC=none
+
+Toolchain:
+  as:       /usr/bin/as (GNU assembler)
+  ld:       /usr/bin/ld (GNU ld)
+
+Status: Ready
+```
+
+If tools are missing:
+```bash
+$ lang env
+LANGOS=linux
+LANGBE=llvm
+LANGLIBC=none
+
+Toolchain:
+  clang:    NOT FOUND
+
+Status: INCOMPLETE
+  Install clang: sudo apt install clang
+  Or use x86 backend: LANGBE=x86 lang ...
+```
+
+### Implementation
+
+```lang
+func find_clang() *u8 {
+    // Try common locations
+    var paths []*u8 = [
+        "/usr/bin/clang",
+        "/usr/local/bin/clang",
+        "/opt/homebrew/bin/clang",  // macOS ARM homebrew
+        // ... platform-specific paths
+    ];
+    // Also check PATH via which/where
+    return first_existing(paths);
+}
+
+func compile_to_binary(ll_file *u8, output *u8) i64 {
+    var clang *u8 = find_clang();
+    if clang == nil {
+        eprintln("Error: clang not found. Install LLVM or use LANGBE=x86");
+        return 1;
+    }
+    // Fork/exec: clang -o output ll_file
+    return exec(clang, ["-o", output, ll_file]);
+}
+```
+
+### Output Extension Inference
+
+Like Go, infer what user wants from output name:
+
+| Output | Behavior |
+|--------|----------|
+| `-o program` | Full compile → binary |
+| `-o program.ll` | Stop at LLVM IR |
+| `-o program.s` | Stop at assembly |
+| `-o program.o` | Stop at object file |
+| `-S` (no -o) | Emit asm to stdout |
+| `--emit=ast` | Emit AST (existing) |
 
 ## Decision Matrix
 
