@@ -47,9 +47,9 @@ Make lang invoke toolchains automatically so users get binaries, not intermediat
 |------|------|-------|--------|
 | C1 | Add `exec()` / `fork()` syscall wrappers to stdlib | std/os.lang | TODO |
 | C2 | Implement `find_tool(name)` - PATH search + common locations | src/toolchain.lang | TODO |
-| C3 | Auto-invoke `as` + `ld` after x86 codegen | src/main.lang | TODO |
-| C4 | Auto-invoke `clang` after LLVM codegen | src/main.lang | TODO |
-| C5 | Infer intent from output extension (`.ll` = stop at IR) | src/main.lang | TODO |
+| C3 | Auto-invoke `as` + `ld` after x86 codegen (new default) | src/main.lang | TODO |
+| C4 | Auto-invoke `clang` after LLVM codegen (new default) | src/main.lang | TODO |
+| C5 | Add `-S` flag to stop at assembly/IR (current behavior) | src/main.lang | TODO |
 | C6 | Implement `lang env` command | src/main.lang | TODO |
 
 **Deliverable**: `./out/lang program.lang -o program` produces a runnable binary. No user knowledge of clang/as/ld required.
@@ -390,18 +390,32 @@ func compile_to_binary(ll_file *u8, output *u8) i64 {
 }
 ```
 
-### Output Extension Inference
+### Compilation Flags (Like GCC)
 
-Like Go, infer what user wants from output name:
+No extension guessing. Explicit flags control output stage:
 
-| Output | Behavior |
-|--------|----------|
-| `-o program` | Full compile → binary |
-| `-o program.ll` | Stop at LLVM IR |
-| `-o program.s` | Stop at assembly |
-| `-o program.o` | Stop at object file |
-| `-S` (no -o) | Emit asm to stdout |
-| `--emit=ast` | Emit AST (existing) |
+| Flag | Output | Notes |
+|------|--------|-------|
+| (none) | **Binary** | DEFAULT. Full compile, invoke toolchain |
+| `-S` | Assembly/IR | Stop at kernel output (current behavior) |
+| `-c` | Standalone compiler | Existing meaning (embed reader) |
+| `--emit=ast` | AST | Existing meaning |
+
+```bash
+# Default: full compile to binary
+./out/lang program.lang -o program
+./program  # runs!
+
+# Stop at assembly (current behavior, now opt-in)
+./out/lang program.lang -S -o program.s
+as program.s -o program.o && ld ...  # user's problem
+
+# Stop at LLVM IR
+LANGBE=llvm ./out/lang program.lang -S -o program.ll
+clang program.ll -o program  # user's problem
+```
+
+**Key insight**: What we do TODAY (emit .s) becomes the `-S` behavior. The new DEFAULT is full compilation to binary.
 
 ## Decision Matrix
 
