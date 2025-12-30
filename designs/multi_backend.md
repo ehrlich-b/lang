@@ -237,23 +237,26 @@ Like Go's `GOOS`/`GOARCH`, we use environment variables for cross-compilation:
 
 | Variable | Values | Default | Description |
 |----------|--------|---------|-------------|
-| `LANGOS` | `linux`, `macos`, `windows` | (host) | Target operating system |
-| `LANGBE` | `x86`, `arm64`, `llvm`, `wasm` | `x86` | Backend (codegen target) |
-| `LANGLIBC` | `none`, `libc` | `none` | Link against system libc |
+| `LANGOS` | `linux`, `macos`, `windows` | (current OS) | Target operating system |
+| `LANGBE` | `x86`, `arm64`, `llvm`, `wasm` | `llvm` | Backend (codegen target) |
+| `LANGLIBC` | `none`, `libc` | `none` | Link against system libc (`none` = lang's own)
 
 ```bash
-# Current behavior (all defaults)
-./out/lang program.lang -o program.s
+# Current behavior (all defaults: LANGOS=<current>, LANGBE=llvm, LANGLIBC=none)
+./out/lang program.lang -o program.ll
+clang program.ll -o program
 
-# Cross-compile for Mac
-LANGOS=macos LANGBE=arm64 ./out/lang program.lang -o program.s
-
-# Use LLVM backend with libc
-LANGBE=llvm LANGLIBC=libc ./out/lang program.lang -o program.ll
-
-# Full cross-compile example
-LANGOS=macos LANGBE=llvm LANGLIBC=libc ./out/lang program.lang -o program.ll
+# Cross-compile for Mac (still LLVM, just different OS layer)
+LANGOS=macos ./out/lang program.lang -o program.ll
 clang -target arm64-apple-macos program.ll -o program
+
+# Use direct x86 backend (fast iteration, educational)
+LANGBE=x86 ./out/lang program.lang -o program.s
+as program.s -o program.o && ld program.o -o program
+
+# LLVM with system libc
+LANGLIBC=libc ./out/lang program.lang -o program.ll
+clang program.ll -lc -o program
 ```
 
 **Why env vars over flags?**
