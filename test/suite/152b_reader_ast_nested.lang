@@ -1,0 +1,10 @@
+// expect: 14
+// Test: V2 reader returning raw AST nested expression
+// (2 + 3) * 2 + 4 = 14
+reader complex(text *u8) *u8 {
+    return "(binop + (binop * (binop + (number 2) (number 3)) (number 2)) (number 4))";
+}
+
+func main() i64 {
+    return #complex{};
+}

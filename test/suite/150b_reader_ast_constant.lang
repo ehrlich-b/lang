@@ -1,0 +1,9 @@
+// expect: 42
+// Test: V2 reader returning raw AST
+reader answer(text *u8) *u8 {
+    return "(number 42)";
+}
+
+func main() i64 {
+    return #answer{ignored};
+}

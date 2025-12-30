@@ -1,8 +1,9 @@
-//ignore
 // expect: 14
-// Test: V2 reader with nested expression
+// Test: V2 reader via lang() composition
+include "src/lang_reader.lang"
+
 reader complex(text *u8) *u8 {
-    return "((2 + 3) * 2 + 4)";
+    return lang("(2 + 3) * 2 + 4");
 }
 
 func main() i64 {

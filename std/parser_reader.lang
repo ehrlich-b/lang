@@ -168,8 +168,10 @@
 
 // rdgen.lang includes grammar.lang which includes tok.lang and emit.lang
 include "std/rdgen.lang"
+include "src/lang_reader.lang"
 
 reader parser(text *u8) *u8 {
     var g *Grammar = grammar_parse(text);
-    return rdgen_generate(g);
+    var lang_code *u8 = rdgen_generate(g);
+    return lang(lang_code);
 }

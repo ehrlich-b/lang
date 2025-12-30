@@ -1,4 +1,4 @@
-//ignore
+//ignore - minilisp WIP, example/lisp/ deleted
 // expect: 0
 // Test: lisp reader with #lisp{} invocation
 // This tests the reader when included (core functionality)

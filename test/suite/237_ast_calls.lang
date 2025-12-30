@@ -1,4 +1,4 @@
-//ignore
+// expect: 0
 // Test: AST builder - function calls
 include "std/core.lang"
 include "std/ast.lang"

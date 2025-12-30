@@ -1,9 +1,8 @@
-//ignore
 // expect: 42
-// Test: V2 lisp-style reader macro
-// V2 readers output lang source text, not AST nodes
+// Test: V2 lisp-style reader macro via lang() composition
 
 include "std/core.lang"
+include "src/lang_reader.lang"
 
 reader lisp(text *u8) *u8 {
     // Simple parser for "OP a b" -> "(a OP b)"
@@ -63,7 +62,7 @@ reader lisp(text *u8) *u8 {
     // Null terminate
     *(result + rp) = 0;
 
-    return result;
+    return lang(result);
 }
 
 func main() i64 {
