@@ -1,11 +1,32 @@
 .PHONY: all bootstrap build verify promote release test test-suite test-run clean distclean \
         build-kernel build-lang-reader emit-kernel-ast emit-lang-reader-ast emit-compiler-ast \
-        seed-bootstrap test-composition kernel-verify kernel-promote lang-reader-verify lang-reader-promote
+        seed-bootstrap test-composition kernel-verify kernel-promote lang-reader-verify lang-reader-promote \
+        generate-os-layer
 
 # Get git info
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_DIRTY := $(shell git diff --quiet 2>/dev/null || echo "-dirty")
 VERSION := $(GIT_COMMIT)$(GIT_DIRTY)
+
+# Target selection (environment variables)
+# LANGOS: linux (default), macos
+# LANGBE: x86 (default for now), llvm (future)
+# LANGLIBC: none (default, use raw syscalls), libc (use system libc)
+LANGOS ?= linux
+LANGBE ?= x86
+LANGLIBC ?= none
+
+# OS layer file selection
+# LANGLIBC=libc overrides LANGOS selection
+ifeq ($(LANGLIBC),libc)
+    OS_LAYER := std/os/libc.lang
+else ifeq ($(LANGOS),linux)
+    OS_LAYER := std/os/linux_x86_64.lang
+else ifeq ($(LANGOS),macos)
+    OS_LAYER := std/os/macos_arm64.lang
+else
+    $(error Unknown LANGOS: $(LANGOS). Valid values: linux, macos)
+endif
 
 # Bootstrap: prefer new structure (bootstrap/current/compiler.s), fallback to legacy (bootstrap/current.s)
 BOOTSTRAP := $(shell if [ -f bootstrap/current/compiler.s ]; then echo bootstrap/current/compiler.s; else echo bootstrap/current.s; fi)
@@ -16,6 +37,10 @@ LANG_NEXT := out/lang_next
 
 # Default target
 all: build
+
+# Generate std/os.lang based on LANGOS
+generate-os-layer:
+	@echo 'include "$(OS_LAYER)"' > std/os.lang
 
 # Bootstrap: assemble from bootstrap/current.s, create lang symlink
 bootstrap:
@@ -28,12 +53,12 @@ bootstrap:
 	@echo "Created: $(LANG) -> lang_bootstrap"
 
 # Build: compile src/*.lang using lang -> lang_next
-build:
+build: generate-os-layer
 	@if [ ! -L $(LANG) ]; then \
 		$(MAKE) bootstrap; \
 	fi
 	@mkdir -p out
-	$(LANG) std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/lang_$(VERSION).s
+	$(LANG) std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/lang_$(VERSION).s
 	as out/lang_$(VERSION).s -o out/lang_$(VERSION).o
 	ld out/lang_$(VERSION).o -o out/lang_$(VERSION)
 	rm -f out/lang_$(VERSION).o

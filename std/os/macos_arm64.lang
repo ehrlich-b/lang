@@ -1,0 +1,82 @@
+// std/os/macos_arm64.lang - macOS ARM64 syscall wrappers
+//
+// NOTE: macOS syscalls are not a stable ABI (unlike Linux). Apple recommends
+// using libSystem.dylib (libc) instead of raw syscalls. This file exists for
+// completeness, but std/os/libc.lang is the recommended approach for macOS.
+//
+// macOS syscall numbers use BSD numbering with 0x2000000 class prefix.
+// ARM64 uses different syscall convention than x86_64 (svc #0x80 instruction).
+
+// Core syscalls - these match the abstract interface in std/core.lang
+
+func os_read(fd i64, buf *u8, count i64) i64 {
+    // syscall 0x2000003 = read
+    return syscall(0x2000003, fd, buf, count);
+}
+
+func os_write(fd i64, buf *u8, count i64) i64 {
+    // syscall 0x2000004 = write
+    return syscall(0x2000004, fd, buf, count);
+}
+
+func os_open(path *u8, flags i64, mode i64) i64 {
+    // syscall 0x2000005 = open
+    return syscall(0x2000005, path, flags, mode);
+}
+
+func os_close(fd i64) i64 {
+    // syscall 0x2000006 = close
+    return syscall(0x2000006, fd);
+}
+
+func os_mmap(addr *u8, len i64, prot i64, flags i64, fd i64, offset i64) *u8 {
+    // syscall 0x20000C5 = mmap (197)
+    // Note: macOS mmap flags differ from Linux:
+    // MAP_PRIVATE = 0x2, MAP_ANON = 0x1000
+    // So MAP_PRIVATE|MAP_ANON = 0x1002 (not 34 like Linux)
+    return syscall(0x20000C5, addr, len, prot, flags, fd, offset);
+}
+
+func os_exit(code i64) void {
+    // syscall 0x2000001 = exit
+    syscall(0x2000001, code);
+}
+
+// Extended syscalls - used by std/os.lang utilities
+
+func os_stat(path *u8, statbuf *u8) i64 {
+    // syscall 0x2000152 = stat (338)
+    // Note: struct stat layout differs between Linux and macOS
+    return syscall(0x2000152, path, statbuf);
+}
+
+func os_getpid() i64 {
+    // syscall 0x2000014 = getpid (20)
+    return syscall(0x2000014);
+}
+
+func os_getppid() i64 {
+    // syscall 0x2000027 = getppid (39)
+    return syscall(0x2000027);
+}
+
+func os_getcwd(buf *u8, size i64) i64 {
+    // macOS doesn't have getcwd syscall - must use __getcwd or libc
+    // This is a stub that returns error
+    return 0 - 1;
+}
+
+func os_mkdir(path *u8, mode i64) i64 {
+    // syscall 0x2000088 = mkdir (136)
+    return syscall(0x2000088, path, mode);
+}
+
+func os_unlink(path *u8) i64 {
+    // syscall 0x200000A = unlink (10)
+    return syscall(0x200000A, path);
+}
+
+func os_rmdir(path *u8) i64 {
+    // syscall 0x2000089 = rmdir (137)
+    return syscall(0x2000089, path);
+}

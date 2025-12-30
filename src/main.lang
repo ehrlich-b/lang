@@ -248,8 +248,8 @@ func main(argc i64, argv **u8) i64 {
         // 3. Include standalone template (provides main and compiler infrastructure)
         append_str(source_buf, &source_len, "include \"src/standalone.lang\"\n");
 
-        // 4. Add ___main wrapper
-        append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8) i64 { return main(argc, argv); }\n");
+        // 4. Add ___main wrapper (receives envp from _start)
+        append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { init_environ(envp); return main(argc, argv); }\n");
 
     } else {
         // Normal mode: Compile user program
@@ -281,8 +281,15 @@ func main(argc i64, argv **u8) i64 {
 
         // Add ___main wrapper that calls user's main (skip in --emit-ast mode for composition)
         // Passes argc/argv - arg count check skipped for 'main' to support both signatures
-        if emit_ast_mode == 0 {
-            append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8) i64 { return main(argc, argv); }\n");
+        // Also initializes environ from envp passed by _start
+        // Skip for LLVM backend - clang provides entry point
+        var langbe_check *u8 = getenv("LANGBE");
+        var is_llvm i64 = 0;
+        if langbe_check != nil && streq(langbe_check, "llvm") {
+            is_llvm = 1;
+        }
+        if emit_ast_mode == 0 && is_llvm == 0 {
+            append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { init_environ(envp); return main(argc, argv); }\n");
         }
     }
 
@@ -398,8 +405,15 @@ func main(argc i64, argv **u8) i64 {
         print("Wrote AST to ");
         println(output_file);
     } else {
-        // Generate assembly
-        generate(prog, output_file);
+        // Check LANGBE environment variable for backend selection
+        var langbe *u8 = getenv("LANGBE");
+        if langbe != nil && streq(langbe, "llvm") {
+            // LLVM IR backend
+            generate_llvm(prog, output_file);
+        } else {
+            // Default: x86 assembly backend
+            generate(prog, output_file);
+        }
 
         print("Wrote ");
         println(output_file);

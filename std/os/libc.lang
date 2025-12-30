@@ -1,0 +1,100 @@
+// std/os/libc.lang - OS abstraction via system libc
+//
+// This file provides the os_* abstraction layer using extern declarations to
+// the system's libc. Use this when compiling with LLVM backend to get portable
+// binaries that link against the platform's libc.
+//
+// Unlike linux_x86_64.lang which uses raw syscalls, this approach:
+// - Works on any OS where clang can target (macOS, Linux, Windows, etc.)
+// - Links against system libc (-lc)
+// - Is more portable but requires libc at runtime
+
+// ============================================================
+// External libc declarations
+// ============================================================
+
+// File I/O
+extern func read(fd i64, buf *u8, count i64) i64;
+extern func write(fd i64, buf *u8, count i64) i64;
+extern func open(path *u8, flags i64, mode i64) i64;
+extern func close(fd i64) i64;
+
+// Memory
+extern func mmap(addr *u8, len i64, prot i64, flags i64, fd i64, offset i64) *u8;
+extern func munmap(addr *u8, len i64) i64;
+extern func malloc(size i64) *u8;
+extern func free(ptr *u8) void;
+
+// Process
+extern func exit(code i64) void;
+extern func getpid() i64;
+extern func getppid() i64;
+
+// File system
+extern func stat(path *u8, statbuf *u8) i64;
+extern func mkdir(path *u8, mode i64) i64;
+extern func unlink(path *u8) i64;
+extern func rmdir(path *u8) i64;
+extern func getcwd(buf *u8, size i64) *u8;
+
+// ============================================================
+// OS abstraction layer (same interface as linux_x86_64.lang)
+// ============================================================
+
+func os_read(fd i64, buf *u8, count i64) i64 {
+    return read(fd, buf, count);
+}
+
+func os_write(fd i64, buf *u8, count i64) i64 {
+    return write(fd, buf, count);
+}
+
+func os_open(path *u8, flags i64, mode i64) i64 {
+    return open(path, flags, mode);
+}
+
+func os_close(fd i64) i64 {
+    return close(fd);
+}
+
+func os_mmap(addr *u8, len i64, prot i64, flags i64, fd i64, offset i64) *u8 {
+    return mmap(addr, len, prot, flags, fd, offset);
+}
+
+func os_exit(code i64) void {
+    exit(code);
+}
+
+// Extended syscalls
+
+func os_stat(path *u8, statbuf *u8) i64 {
+    return stat(path, statbuf);
+}
+
+func os_getpid() i64 {
+    return getpid();
+}
+
+func os_getppid() i64 {
+    return getppid();
+}
+
+func os_getcwd(buf *u8, size i64) i64 {
+    var result *u8 = getcwd(buf, size);
+    if result == nil {
+        return 0 - 1;
+    }
+    return 0;
+}
+
+func os_mkdir(path *u8, mode i64) i64 {
+    return mkdir(path, mode);
+}
+
+func os_unlink(path *u8) i64 {
+    return unlink(path);
+}
+
+func os_rmdir(path *u8) i64 {
+    return rmdir(path);
+}
