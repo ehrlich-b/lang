@@ -1,0 +1,82 @@
+//ignore
+// Test: AST builder - literals (number, string, bool, nil, ident)
+include "std/core.lang"
+include "std/ast.lang"
+
+// Reader that emits a number literal
+reader num42(text *u8) *u8 {
+    return ast_number("42");
+}
+
+// Reader that emits number from int
+reader num100(text *u8) *u8 {
+    return ast_int(100);
+}
+
+// Reader that emits a string literal
+reader hello(text *u8) *u8 {
+    return ast_string("hello");
+}
+
+// Reader that emits string with escapes
+reader escaped(text *u8) *u8 {
+    return ast_string("line1\nline2");
+}
+
+// Reader that emits bool true
+reader yes(text *u8) *u8 {
+    return ast_bool(true);
+}
+
+// Reader that emits bool false
+reader no(text *u8) *u8 {
+    return ast_bool(false);
+}
+
+// Reader that emits nil
+reader nothing(text *u8) *u8 {
+    return ast_nil();
+}
+
+// Reader that emits identifier reference
+reader getx(text *u8) *u8 {
+    return ast_ident("x");
+}
+
+func main() i64 {
+    // Test number
+    var a i64 = #num42{};
+    if a != 42 { return 1; }
+
+    // Test number from int
+    var b i64 = #num100{};
+    if b != 100 { return 2; }
+
+    // Test string
+    var s *u8 = #hello{};
+    if streq(s, "hello") == false { return 3; }
+
+    // Test string with escapes
+    var e *u8 = #escaped{};
+    if *e != 'l' { return 4; }  // "line1..."
+
+    // Test bool true
+    var t bool = #yes{};
+    if t == false { return 5; }
+
+    // Test bool false
+    var f bool = #no{};
+    if f == true { return 6; }
+
+    // Test nil
+    var n *u8 = #nothing{};
+    if n != nil { return 7; }
+
+    // Test ident (references variable x)
+    var x i64 = 999;
+    var v i64 = #getx{};
+    if v != 999 { return 8; }
+
+    print("PASS\n");
+    return 0;
+}

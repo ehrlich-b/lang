@@ -1,0 +1,95 @@
+//ignore - BUG: block_expr scope collision with outer variables
+// When outer code has `var x` and block_expr also creates `var x`,
+// the inner x shadows incorrectly or uses the outer x's slot.
+// Test: AST builder - statements (if, while, return, block, assign)
+include "std/core.lang"
+include "std/ast.lang"
+
+// ============================================================
+// Test 1: If expression
+// ============================================================
+reader if_true(text *u8) *u8 {
+    return ast_if(ast_bool(true), ast_int(10), ast_int(20));
+}
+
+reader if_false(text *u8) *u8 {
+    return ast_if(ast_bool(false), ast_int(10), ast_int(20));
+}
+
+// ============================================================
+// Test 2: Return statement inside a function
+// ============================================================
+reader ret_42(text *u8) *u8 {
+    return ast_return(ast_int(42));
+}
+
+func return_test() i64 {
+    #ret_42{};
+    return 0;  // unreachable
+}
+
+// ============================================================
+// Test 3: Block expression with final value
+// ============================================================
+reader block_expr_test(text *u8) *u8 {
+    // { var x = 10; x + 5 }
+    var stmts *u8 = ast_vec();
+    ast_push(stmts, ast_var("x", ast_type_i64(), ast_int(10)));
+    return ast_block_expr(stmts, ast_add(ast_ident("x"), ast_int(5)));
+}
+
+// ============================================================
+// Test 4: Assignment in block
+// ============================================================
+reader assign_test(text *u8) *u8 {
+    // { var y = 5; y = 10; y }
+    var stmts *u8 = ast_vec();
+    ast_push(stmts, ast_var("y", ast_type_i64(), ast_int(5)));
+    ast_push(stmts, ast_assign(ast_ident("y"), ast_int(10)));
+    return ast_block_expr(stmts, ast_ident("y"));
+}
+
+// ============================================================
+// Test 5: While loop
+// ============================================================
+reader while_test(text *u8) *u8 {
+    // { var i = 1; var sum = 0; while (i <= 5) { sum = sum + i; i = i + 1; }; sum }
+    var stmts *u8 = ast_vec();
+    ast_push(stmts, ast_var("i", ast_type_i64(), ast_int(1)));
+    ast_push(stmts, ast_var("sum", ast_type_i64(), ast_int(0)));
+
+    var body_stmts *u8 = ast_vec();
+    ast_push(body_stmts, ast_assign(ast_ident("sum"), ast_add(ast_ident("sum"), ast_ident("i"))));
+    ast_push(body_stmts, ast_assign(ast_ident("i"), ast_add(ast_ident("i"), ast_int(1))));
+
+    ast_push(stmts, ast_while(ast_lte(ast_ident("i"), ast_int(5)), ast_block(body_stmts)));
+    return ast_block_expr(stmts, ast_ident("sum"));
+}
+
+func main() i64 {
+    // Test if true branch
+    var if_t i64 = #if_true{};
+    if if_t != 10 { return 1; }
+
+    // Test if false branch
+    var if_f i64 = #if_false{};
+    if if_f != 20 { return 2; }
+
+    // Test return
+    if return_test() != 42 { return 3; }
+
+    // Test block expression
+    var block_result i64 = #block_expr_test{};
+    if block_result != 15 { return 4; }
+
+    // Test assign
+    var assign_result i64 = #assign_test{};
+    if assign_result != 10 { return 5; }
+
+    // Test while
+    var while_result i64 = #while_test{};
+    if while_result != 15 { return 6; }
+
+    print("PASS\n");
+    return 0;
+}

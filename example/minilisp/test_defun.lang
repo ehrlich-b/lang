@@ -1,0 +1,30 @@
+// minilisp defun - define functions in s-expression syntax
+include "std/core.lang"
+include "example/minilisp/minilisp.lang"
+
+// Functions defined in minilisp, callable from lang
+#minilisp{ (defun add (a b) (+ a b)) }
+#minilisp{ (defun square (x) (* x x)) }
+#minilisp{ (defun factorial (n) (if (< n 2) 1 (* n (factorial (- n 1))))) }
+
+func main() i64 {
+    print("add(3, 4) = ");
+    print_int(add(3, 4));
+    print("\n");
+
+    print("square(5) = ");
+    print_int(square(5));
+    print("\n");
+
+    print("factorial(5) = ");
+    print_int(factorial(5));
+    print("\n");
+
+    // Verify
+    if add(3, 4) != 7 { return 1; }
+    if square(5) != 25 { return 1; }
+    if factorial(5) != 120 { return 1; }
+
+    print("\nPASS\n");
+    return 0;
+}

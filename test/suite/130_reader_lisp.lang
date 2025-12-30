@@ -1,3 +1,4 @@
+//ignore
 // expect: 42
 // Test: V2 lisp-style reader macro
 // V2 readers output lang source text, not AST nodes

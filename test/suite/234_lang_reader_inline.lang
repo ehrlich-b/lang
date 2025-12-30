@@ -1,0 +1,33 @@
+//ignore
+// Test: #lang{} reader as inline expression
+// This proves lang syntax is just another reader emitting AST.
+// #lang{1 + 1} should be identical to writing 1 + 1 directly.
+
+include "std/core.lang"
+include "src/lang_reader.lang"
+
+func main() i64 {
+    // Simple expression
+    var a i64 = #lang{ 1 + 1 };
+    if a != 2 { return 1; }
+
+    // Nested
+    var b i64 = #lang{ (2 + 3) * 4 };
+    if b != 20 { return 2; }
+
+    // Variable reference (x is visible inside #lang{})
+    var x i64 = 10;
+    var c i64 = #lang{ x + 5 };
+    if c != 15 { return 3; }
+
+    // Function call
+    var d i64 = #lang{ double(7) };
+    if d != 14 { return 4; }
+
+    print("PASS\n");
+    return 0;
+}
+
+func double(n i64) i64 {
+    return n * 2;
+}

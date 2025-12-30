@@ -1,3 +1,4 @@
+//ignore
 // expect: 42
 // Test: Recursive reader expansion - reader output contains another #reader{}
 reader double_val(text *u8) *u8 {

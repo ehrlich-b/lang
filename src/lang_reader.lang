@@ -4,16 +4,11 @@
 // It wraps lexer.lang, parser.lang, and ast_emit.lang into a reader
 // that transforms lang source code into S-expression AST.
 //
-// Usage: #lang{ func main() i64 { return 42; } }
-// Output: (program (func main () (type_base i64) (block (return (number 42)))))
+// Smart about context:
+//   #lang{ 1 + 1 }  → (binop + (number 1) (number 1))  (expression)
+//   #lang{ func f() i64 { return 1; } }  → (program (func ...))  (declaration)
 //
 // This makes lang's syntax a plugin - just another reader that emits AST.
-//
-// When composed with kernel via `-c`, this provides:
-// - The lang reader function
-// - reader_transform glue for compiler.lang
-//
-// Note: Includes are idempotent, so duplicate includes with kernel are fine.
 
 include "std/core.lang"
 include "src/limits.lang"
@@ -21,7 +16,15 @@ include "src/lexer.lang"
 include "src/parser.lang"
 include "src/ast_emit.lang"
 
+// Check if token type indicates a declaration
+func is_decl_token(t i64) bool {
+    return t == TOKEN_FUNC || t == TOKEN_VAR || t == TOKEN_STRUCT ||
+           t == TOKEN_ENUM || t == TOKEN_EFFECT || t == TOKEN_MACRO ||
+           t == TOKEN_READER || t == TOKEN_INCLUDE || t == TOKEN_IMPORT;
+}
+
 // The lang reader: parses lang syntax, emits S-expr AST
+// Smart: detects whether input is expression or declarations
 reader lang(text *u8) *u8 {
     // Tokenize the input
     parser_tokenize(text);
@@ -38,15 +41,23 @@ reader lang(text *u8) *u8 {
         i = i + 1;
     }
 
-    // Parse to AST
-    var prog *u8 = parse_program();
-
-    if parse_error_count > 0 {
-        return nil;
+    // Check first token to determine parse mode
+    var first_type i64 = TOKEN_EOF;
+    if parser_token_count() > 0 {
+        first_type = tok_type(get_token(0));
     }
 
-    // Emit as S-expression AST text
-    return ast_emit_program(prog);
+    if is_decl_token(first_type) {
+        // Parse as program (declarations)
+        var prog *u8 = parse_program();
+        if parse_error_count > 0 { return nil; }
+        return ast_emit_program(prog);
+    } else {
+        // Parse as expression
+        var expr *u8 = parse_expression();
+        if parse_error_count > 0 { return nil; }
+        return ast_emit_expression(expr);
+    }
 }
 
 // Glue for kernel_entry.lang - transforms input through lang reader
