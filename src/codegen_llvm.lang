@@ -205,6 +205,80 @@ func llvm_is_global(name *u8, len i64) i64 {
     return map_has(llvm_globals, key);
 }
 
+// Loop stack for break/continue
+// Each entry: [name_ptr:8][name_len:8][break_label:8][continue_label:8] = 32 bytes
+var llvm_loop_stack *u8 = nil;
+var llvm_loop_depth i64 = 0;
+
+func llvm_init_loop_stack() void {
+    llvm_loop_stack = alloc(256 * 32);  // Max 256 nested loops
+    llvm_loop_depth = 0;
+}
+
+func llvm_push_loop_labeled(name *u8, name_len i64, break_label i64, continue_label i64) void {
+    var entry *u8 = llvm_loop_stack + (llvm_loop_depth * 32);
+    var p_name **u8 = entry;
+    *p_name = name;
+    var p_len *i64 = entry + 8;
+    *p_len = name_len;
+    var p_break *i64 = entry + 16;
+    *p_break = break_label;
+    var p_cont *i64 = entry + 24;
+    *p_cont = continue_label;
+    llvm_loop_depth = llvm_loop_depth + 1;
+}
+
+func llvm_push_loop(break_label i64, continue_label i64) void {
+    llvm_push_loop_labeled(nil, 0, break_label, continue_label);
+}
+
+func llvm_pop_loop() void {
+    llvm_loop_depth = llvm_loop_depth - 1;
+}
+
+func llvm_find_loop(name *u8, name_len i64) *u8 {
+    // Search from top of stack (innermost loop first)
+    var i i64 = llvm_loop_depth - 1;
+    while i >= 0 {
+        var entry *u8 = llvm_loop_stack + (i * 32);
+        var p_name **u8 = entry;
+        var entry_name *u8 = *p_name;
+        var p_len *i64 = entry + 8;
+        var entry_len i64 = *p_len;
+
+        if name == nil {
+            // No label specified, return innermost loop
+            return entry;
+        }
+        if entry_name != nil && entry_len == name_len {
+            // Compare names
+            var is_match i64 = 1;
+            var j i64 = 0;
+            while j < name_len {
+                if *(name + j) != *(entry_name + j) {
+                    is_match = 0;
+                }
+                j = j + 1;
+            }
+            if is_match == 1 {
+                return entry;
+            }
+        }
+        i = i - 1;
+    }
+    return nil;
+}
+
+func llvm_loop_break_label(entry *u8) i64 {
+    var p *i64 = entry + 16;
+    return *p;
+}
+
+func llvm_loop_continue_label(entry *u8) i64 {
+    var p *i64 = entry + 24;
+    return *p;
+}
+
 // Function table: track return types (1=void, 0=non-void)
 var llvm_func_ret_types *u8 = nil;
 
@@ -318,6 +392,18 @@ func llvm_emit_expr(expr *u8) void {
         return;
     }
 
+    if k == NODE_BOOL_EXPR {
+        // Emit boolean: true=1, false=0
+        var val i64 = bool_expr_value(expr);
+        if val != 0 {
+            *(llvm_expr_result) = 49;  // '1'
+        } else {
+            *(llvm_expr_result) = 48;  // '0'
+        }
+        *(llvm_expr_result + 1) = 0;
+        return;
+    }
+
     if k == NODE_IDENT_EXPR {
         var name *u8 = ident_expr_name(expr);
         var len i64 = ident_expr_name_len(expr);
@@ -383,19 +469,35 @@ func llvm_emit_expr(expr *u8) void {
         // Check if function returns void
         var is_void i64 = llvm_func_returns_void(func_name, func_name_len);
 
+        // Check if this is syscall (variadic)
+        var is_syscall i64 = 0;
+        if func_name_len == 7 {
+            if memcmp(func_name, "syscall", 7) {
+                is_syscall = 1;
+            }
+        }
+
         // Now emit the call with pre-computed argument values
         if is_void {
             // Void function: no result assignment
             llvm_emit_str("    call void @");
+            llvm_emit_n(func_name, func_name_len);
+            llvm_emit_str("(");
+        } else if is_syscall {
+            // Syscall is variadic: call i64 (i64, ...) @syscall(...)
+            var temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(temp);
+            llvm_emit_str(" = call i64 (i64, ...) @syscall(");
         } else {
             // Non-void function: assign result to temp
             var temp i64 = llvm_next_temp();
             llvm_emit_str("    %t");
             llvm_emit_int(temp);
             llvm_emit_str(" = call i64 @");
+            llvm_emit_n(func_name, func_name_len);
+            llvm_emit_str("(");
         }
-        llvm_emit_n(func_name, func_name_len);
-        llvm_emit_str("(");
 
         i = 0;
         while i < arg_count {
@@ -421,15 +523,7 @@ func llvm_emit_expr(expr *u8) void {
         var left *u8 = binary_expr_left(expr);
         var right *u8 = binary_expr_right(expr);
 
-        // Emit left operand
-        llvm_emit_expr(left);
-        var left_val *u8 = str_dup(llvm_expr_result);
-
-        // Emit right operand
-        llvm_emit_expr(right);
-        var right_val *u8 = str_dup(llvm_expr_result);
-
-        // Check for assignment (op == 32 is TOKEN_EQ)
+        // Check for assignment first (op == 32 is TOKEN_EQ)
         if op == 32 {
             // Assignment: store to left (must be ident)
             if node_kind(left) == NODE_IDENT_EXPR {
@@ -440,12 +534,20 @@ func llvm_emit_expr(expr *u8) void {
                 llvm_emit_expr(right);
                 var val *u8 = str_dup(llvm_expr_result);
 
-                // Store to local
-                llvm_emit_str("    store i64 ");
-                llvm_emit_str(val);
-                llvm_emit_str(", i64* %");
-                llvm_emit_n(name, len);
-                llvm_emit_char(10);
+                // Check if local or global
+                if llvm_is_local(name, len) {
+                    llvm_emit_str("    store i64 ");
+                    llvm_emit_str(val);
+                    llvm_emit_str(", i64* %");
+                    llvm_emit_n(name, len);
+                    llvm_emit_char(10);
+                } else if llvm_is_global(name, len) {
+                    llvm_emit_str("    store i64 ");
+                    llvm_emit_str(val);
+                    llvm_emit_str(", i64* @");
+                    llvm_emit_n(name, len);
+                    llvm_emit_char(10);
+                }
 
                 // Assignment result is the value
                 var i i64 = 0;
@@ -458,88 +560,164 @@ func llvm_emit_expr(expr *u8) void {
             }
         }
 
-        // Handle logical operators (&&, ||) specially
+        // Handle short-circuit && with control flow
         if op == 39 {  // TOKEN_AMPAMP (&&)
+            // a && b: if a is false, result is 0, don't evaluate b
+            var right_label i64 = llvm_next_label();
+            var end_label i64 = llvm_next_label();
+
+            // Allocate result slot
+            var result_slot i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(result_slot);
+            llvm_emit_line(" = alloca i64");
+            llvm_emit_str("    store i64 0, i64* %t");
+            llvm_emit_int(result_slot);
+            llvm_emit_char(10);
+
+            // Evaluate left
+            llvm_emit_expr(left);
+            var left_val *u8 = str_dup(llvm_expr_result);
+
+            // Check left - if non-zero, evaluate right
             var l_bool i64 = llvm_next_temp();
-            var r_bool i64 = llvm_next_temp();
-            var and_res i64 = llvm_next_temp();
-            var temp i64 = llvm_next_temp();
             llvm_emit_str("    %t");
             llvm_emit_int(l_bool);
             llvm_emit_str(" = icmp ne i64 ");
             llvm_emit_str(left_val);
             llvm_emit_line(", 0");
+            llvm_emit_str("    br i1 %t");
+            llvm_emit_int(l_bool);
+            llvm_emit_str(", label %L");
+            llvm_emit_int(right_label);
+            llvm_emit_str(", label %L");
+            llvm_emit_int(end_label);
+            llvm_emit_char(10);
+
+            // Right label - evaluate right and store result
+            llvm_emit_str("L");
+            llvm_emit_int(right_label);
+            llvm_emit_line(":");
+            llvm_emit_expr(right);
+            var right_val *u8 = str_dup(llvm_expr_result);
+            var r_bool i64 = llvm_next_temp();
+            var r_ext i64 = llvm_next_temp();
             llvm_emit_str("    %t");
             llvm_emit_int(r_bool);
             llvm_emit_str(" = icmp ne i64 ");
             llvm_emit_str(right_val);
             llvm_emit_line(", 0");
             llvm_emit_str("    %t");
-            llvm_emit_int(and_res);
-            llvm_emit_str(" = and i1 %t");
-            llvm_emit_int(l_bool);
-            llvm_emit_str(", %t");
-            llvm_emit_int(r_bool);
-            llvm_emit_char(10);
-            llvm_emit_str("    %t");
-            llvm_emit_int(temp);
+            llvm_emit_int(r_ext);
             llvm_emit_str(" = zext i1 %t");
-            llvm_emit_int(and_res);
+            llvm_emit_int(r_bool);
             llvm_emit_line(" to i64");
-            *(llvm_expr_result) = 37; *(llvm_expr_result + 1) = 116;
-            var pos i64 = 2;
-            if temp == 0 { *(llvm_expr_result + pos) = 48; pos = pos + 1; }
-            else {
-                var digits i64 = 0; var tmp i64 = temp;
-                while tmp > 0 { digits = digits + 1; tmp = tmp / 10; }
-                pos = 2 + digits - 1; var t2 i64 = temp;
-                while t2 > 0 { *(llvm_expr_result + pos) = 48 + (t2 % 10); t2 = t2 / 10; pos = pos - 1; }
-                pos = 2 + digits;
-            }
-            *(llvm_expr_result + pos) = 0;
+            llvm_emit_str("    store i64 %t");
+            llvm_emit_int(r_ext);
+            llvm_emit_str(", i64* %t");
+            llvm_emit_int(result_slot);
+            llvm_emit_char(10);
+            llvm_emit_str("    br label %L");
+            llvm_emit_int(end_label);
+            llvm_emit_char(10);
+
+            // End label - load result
+            llvm_emit_str("L");
+            llvm_emit_int(end_label);
+            llvm_emit_line(":");
+            var result i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(result);
+            llvm_emit_str(" = load i64, i64* %t");
+            llvm_emit_int(result_slot);
+            llvm_emit_char(10);
+
+            llvm_set_result_temp(result);
             return;
         }
 
+        // Handle short-circuit || with control flow
         if op == 40 {  // TOKEN_PIPEPIPE (||)
+            // a || b: if a is true, result is 1, don't evaluate b
+            var right_label i64 = llvm_next_label();
+            var end_label i64 = llvm_next_label();
+
+            // Allocate result slot
+            var result_slot i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(result_slot);
+            llvm_emit_line(" = alloca i64");
+            llvm_emit_str("    store i64 1, i64* %t");  // Default to 1 (true)
+            llvm_emit_int(result_slot);
+            llvm_emit_char(10);
+
+            // Evaluate left
+            llvm_emit_expr(left);
+            var left_val *u8 = str_dup(llvm_expr_result);
+
+            // Check left - if zero, evaluate right
             var l_bool i64 = llvm_next_temp();
-            var r_bool i64 = llvm_next_temp();
-            var or_res i64 = llvm_next_temp();
-            var temp i64 = llvm_next_temp();
             llvm_emit_str("    %t");
             llvm_emit_int(l_bool);
-            llvm_emit_str(" = icmp ne i64 ");
+            llvm_emit_str(" = icmp eq i64 ");  // eq 0 means false
             llvm_emit_str(left_val);
             llvm_emit_line(", 0");
+            llvm_emit_str("    br i1 %t");
+            llvm_emit_int(l_bool);
+            llvm_emit_str(", label %L");
+            llvm_emit_int(right_label);
+            llvm_emit_str(", label %L");
+            llvm_emit_int(end_label);
+            llvm_emit_char(10);
+
+            // Right label - evaluate right and store result
+            llvm_emit_str("L");
+            llvm_emit_int(right_label);
+            llvm_emit_line(":");
+            llvm_emit_expr(right);
+            var right_val *u8 = str_dup(llvm_expr_result);
+            var r_bool i64 = llvm_next_temp();
+            var r_ext i64 = llvm_next_temp();
             llvm_emit_str("    %t");
             llvm_emit_int(r_bool);
             llvm_emit_str(" = icmp ne i64 ");
             llvm_emit_str(right_val);
             llvm_emit_line(", 0");
             llvm_emit_str("    %t");
-            llvm_emit_int(or_res);
-            llvm_emit_str(" = or i1 %t");
-            llvm_emit_int(l_bool);
-            llvm_emit_str(", %t");
-            llvm_emit_int(r_bool);
-            llvm_emit_char(10);
-            llvm_emit_str("    %t");
-            llvm_emit_int(temp);
+            llvm_emit_int(r_ext);
             llvm_emit_str(" = zext i1 %t");
-            llvm_emit_int(or_res);
+            llvm_emit_int(r_bool);
             llvm_emit_line(" to i64");
-            *(llvm_expr_result) = 37; *(llvm_expr_result + 1) = 116;
-            var pos i64 = 2;
-            if temp == 0 { *(llvm_expr_result + pos) = 48; pos = pos + 1; }
-            else {
-                var digits i64 = 0; var tmp i64 = temp;
-                while tmp > 0 { digits = digits + 1; tmp = tmp / 10; }
-                pos = 2 + digits - 1; var t2 i64 = temp;
-                while t2 > 0 { *(llvm_expr_result + pos) = 48 + (t2 % 10); t2 = t2 / 10; pos = pos - 1; }
-                pos = 2 + digits;
-            }
-            *(llvm_expr_result + pos) = 0;
+            llvm_emit_str("    store i64 %t");
+            llvm_emit_int(r_ext);
+            llvm_emit_str(", i64* %t");
+            llvm_emit_int(result_slot);
+            llvm_emit_char(10);
+            llvm_emit_str("    br label %L");
+            llvm_emit_int(end_label);
+            llvm_emit_char(10);
+
+            // End label - load result
+            llvm_emit_str("L");
+            llvm_emit_int(end_label);
+            llvm_emit_line(":");
+            var result i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(result);
+            llvm_emit_str(" = load i64, i64* %t");
+            llvm_emit_int(result_slot);
+            llvm_emit_char(10);
+
+            llvm_set_result_temp(result);
             return;
         }
+
+        // For other operations, evaluate both operands
+        llvm_emit_expr(left);
+        var left_val *u8 = str_dup(llvm_expr_result);
+
+        llvm_emit_expr(right);
+        var right_val *u8 = str_dup(llvm_expr_result);
 
         // Check if it's a comparison
         var is_cmp i64 = 0;
@@ -814,6 +992,8 @@ func llvm_emit_stmt(stmt *u8) void {
     if k == NODE_WHILE_STMT {
         var cond *u8 = while_stmt_cond(stmt);
         var body *u8 = while_stmt_body(stmt);
+        var loop_name *u8 = while_stmt_label(stmt);
+        var loop_name_len i64 = while_stmt_label_len(stmt);
 
         var cond_label i64 = llvm_next_label();
         var body_label i64 = llvm_next_label();
@@ -850,15 +1030,52 @@ func llvm_emit_stmt(stmt *u8) void {
         llvm_emit_str("L");
         llvm_emit_int(body_label);
         llvm_emit_line(":");
+
+        // Push loop for break/continue (with label if present)
+        llvm_push_loop_labeled(loop_name, loop_name_len, end_label, cond_label);
         llvm_emit_block(body);
-        llvm_emit_str("    br label %L");
-        llvm_emit_int(cond_label);
-        llvm_emit_char(10);
+        llvm_pop_loop();
+
+        // Only emit branch if no terminator (break/continue/return)
+        if llvm_emitted_terminator == 0 {
+            llvm_emit_str("    br label %L");
+            llvm_emit_int(cond_label);
+            llvm_emit_char(10);
+        }
+        llvm_emitted_terminator = 0;
 
         // End label
         llvm_emit_str("L");
         llvm_emit_int(end_label);
         llvm_emit_line(":");
+        return;
+    }
+
+    if k == NODE_BREAK_STMT {
+        var label *u8 = break_stmt_label(stmt);
+        var label_len i64 = break_stmt_label_len(stmt);
+        var entry *u8 = llvm_find_loop(label, label_len);
+        if entry != nil {
+            var target i64 = llvm_loop_break_label(entry);
+            llvm_emit_str("    br label %L");
+            llvm_emit_int(target);
+            llvm_emit_char(10);
+            llvm_emitted_terminator = 1;
+        }
+        return;
+    }
+
+    if k == NODE_CONTINUE_STMT {
+        var label *u8 = continue_stmt_label(stmt);
+        var label_len i64 = continue_stmt_label_len(stmt);
+        var entry *u8 = llvm_find_loop(label, label_len);
+        if entry != nil {
+            var target i64 = llvm_loop_continue_label(entry);
+            llvm_emit_str("    br label %L");
+            llvm_emit_int(target);
+            llvm_emit_char(10);
+            llvm_emitted_terminator = 1;
+        }
         return;
     }
 
@@ -954,6 +1171,10 @@ func llvm_emit_block(block *u8) void {
         var stmt_ptr *u8 = stmts + (i * 8);
         var stmt **u8 = stmt_ptr;
         llvm_emit_stmt(*stmt);
+        // Stop emitting if we hit a terminator (return, break, continue)
+        if llvm_emitted_terminator == 1 {
+            return;
+        }
         i = i + 1;
     }
 }
@@ -1162,6 +1383,7 @@ func generate_llvm(prog *u8, output_file *u8) void {
     llvm_included_files = map_new();
     llvm_init_func_table();
     llvm_init_globals();
+    llvm_init_loop_stack();
 
     // First pass: register all functions to track return types
     llvm_register_all_funcs(prog);
@@ -1169,6 +1391,10 @@ func generate_llvm(prog *u8, output_file *u8) void {
     // Module header
     llvm_emit_line("; LLVM IR generated by lang compiler");
     llvm_emit_line("target triple = \"x86_64-unknown-linux-gnu\"");
+    llvm_emit_char(10);
+
+    // Declare external syscall (variadic)
+    llvm_emit_line("declare i64 @syscall(i64, ...)");
     llvm_emit_char(10);
 
     // Emit all declarations
