@@ -918,6 +918,68 @@ func exec_run(program *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8) i64
     return (*status / 256) % 256;  // extract exit code
 }
 
+// Build reader cache path: .lang-cache/readers/<name>
+func build_reader_cache_path(name *u8, name_len i64) *u8 {
+    var path *u8 = alloc(256);
+    var i i64 = 0;
+
+    var prefix *u8 = ".lang-cache/readers/";
+    while *prefix != 0 {
+        *(path + i) = *prefix;
+        i = i + 1;
+        prefix = prefix + 1;
+    }
+
+    var j i64 = 0;
+    while j < name_len {
+        *(path + i) = *(name + j);
+        i = i + 1;
+        j = j + 1;
+    }
+
+    *(path + i) = 0;
+    return path;
+}
+
+// Get file modification time (seconds since epoch)
+// Returns 0 if file doesn't exist
+func cg_file_mtime(path *u8) i64 {
+    // syscall 4 = stat, struct stat is 144 bytes, st_mtime at offset 88
+    var statbuf *u8 = alloc(144);
+    var result i64 = syscall(4, path, statbuf);
+    if result < 0 {
+        return 0;
+    }
+    var mtime_ptr *i64 = statbuf + 88;
+    return *mtime_ptr;
+}
+
+// Check if reader cache is valid (mtime-based)
+// Returns 1 if should recompile, 0 if cache is valid
+func should_recompile_reader(cached_exe *u8) i64 {
+    var exe_mtime i64 = cg_file_mtime(cached_exe);
+    if exe_mtime == 0 {
+        return 1;  // doesn't exist
+    }
+
+    // Check if stable compiler is newer than cached reader
+    if cg_file_mtime("./out/lang") > exe_mtime {
+        return 1;
+    }
+
+    // Check if dev compiler is newer (for make verify)
+    if cg_file_mtime("./out/lang_next") > exe_mtime {
+        return 1;
+    }
+
+    // Check if stdlib is newer than cached reader
+    if cg_file_mtime("std/core.lang") > exe_mtime {
+        return 1;
+    }
+
+    return 0;  // cache is valid
+}
+
 // Generate and compile reader to executable
 func compile_reader_to_executable(decl *u8) void {
     var name *u8 = reader_decl_name(decl);
@@ -926,31 +988,26 @@ func compile_reader_to_executable(decl *u8) void {
     var param_len i64 = reader_decl_param_len(decl);
     var body *u8 = reader_decl_body(decl);
 
+    // Build cache path: .lang-cache/readers/<name>
+    var base_path *u8 = build_reader_cache_path(name, name_len);
+    var exe_path *u8 = str_dup(base_path);
+
+    // Check if cache is valid (mtime-based)
+    if should_recompile_reader(exe_path) == 0 {
+        return;  // cache is valid, skip recompilation
+    }
+
     // Create .lang-cache/readers/ directories
     syscall(83, ".lang-cache", 493);  // mkdir
     syscall(83, ".lang-cache/readers", 493);
 
-    // Build paths
-    var base_path *u8 = alloc(256);
-    var i i64 = 0;
-    var src *u8 = ".lang-cache/readers/";
-    while *src != 0 {
-        *(base_path + i) = *src;
-        src = src + 1;
-        i = i + 1;
-    }
-    var j i64 = 0;
-    while j < name_len {
-        *(base_path + i) = *(name + j);
-        i = i + 1;
-        j = j + 1;
-    }
-    *(base_path + i) = 0;
-
     var src_path *u8 = str_concat(base_path, ".lang");
     var asm_path *u8 = str_concat(base_path, ".s");
     var obj_path *u8 = str_concat(base_path, ".o");
-    var exe_path *u8 = str_dup(base_path);
+
+    // Loop variables used throughout function
+    var i i64 = 0;
+    var j i64 = 0;
 
     // Build wrapper source with sibling declarations from current file
     var wrapper *u8 = alloc(262144);  // 256KB for larger reader files
@@ -1008,13 +1065,7 @@ func compile_reader_to_executable(decl *u8) void {
                 var rcontent_len i64 = reader_expr_content_len(sibling);
 
                 // Build executable path
-                var rexe_path *u8 = alloc(256);
-                var ri i64 = 0;
-                var rbase *u8 = ".lang-cache/readers/";
-                while *rbase != 0 { *(rexe_path + ri) = *rbase; ri = ri + 1; rbase = rbase + 1; }
-                var rj i64 = 0;
-                while rj < rname_len { *(rexe_path + ri) = *(rname + rj); ri = ri + 1; rj = rj + 1; }
-                *(rexe_path + ri) = 0;
+                var rexe_path *u8 = build_reader_cache_path(rname, rname_len);
 
                 // Execute reader and get output
                 var rout *u8 = alloc(131072);
@@ -1152,14 +1203,8 @@ func find_reader(name *u8, name_len i64) *u8 {
         i = i + 1;
     }
 
-    // Fall back to checking for pre-compiled reader in .lang-cache/readers/
-    var exe_path *u8 = alloc(256);
-    i = 0;
-    var base *u8 = ".lang-cache/readers/";
-    while *base != 0 { *(exe_path + i) = *base; i = i + 1; base = base + 1; }
-    var j i64 = 0;
-    while j < name_len { *(exe_path + i) = *(name + j); i = i + 1; j = j + 1; }
-    *(exe_path + i) = 0;
+    // Fall back to checking for pre-compiled reader in /tmp
+    var exe_path *u8 = build_reader_cache_path(name, name_len);
 
     // Check if file exists by trying to open it
     var fd i64 = file_open(exe_path, 0);  // O_RDONLY = 0
@@ -1327,13 +1372,7 @@ func process_decl_first_pass(decl *u8) void {
         }
 
         // Build path to reader executable
-        var exe_path *u8 = alloc(256);
-        var i i64 = 0;
-        var base *u8 = ".lang-cache/readers/";
-        while *base != 0 { *(exe_path + i) = *base; i = i + 1; base = base + 1; }
-        var j i64 = 0;
-        while j < name_len { *(exe_path + i) = *(name + j); i = i + 1; j = j + 1; }
-        *(exe_path + i) = 0;
+        var exe_path *u8 = build_reader_cache_path(name, name_len);
 
         // Execute reader with content as input
         var output *u8 = alloc(131072);  // 128KB
@@ -1360,10 +1399,10 @@ func process_decl_first_pass(decl *u8) void {
         // Process each generated declaration
         var gen_decls *u8 = program_decls(prog);
         var gen_count i64 = program_decl_count(prog);
-        i = 0;
-        while i < gen_count {
-            process_decl_first_pass(get_decl(gen_decls, i));
-            i = i + 1;
+        var gi i64 = 0;
+        while gi < gen_count {
+            process_decl_first_pass(get_decl(gen_decls, gi));
+            gi = gi + 1;
         }
         return;
     }
@@ -3075,13 +3114,7 @@ func gen_expr(expr *u8) void {
         }
 
         // Build path to reader executable
-        var exe_path *u8 = alloc(256);
-        var i i64 = 0;
-        var base *u8 = ".lang-cache/readers/";
-        while *base != 0 { *(exe_path + i) = *base; i = i + 1; base = base + 1; }
-        var j i64 = 0;
-        while j < name_len { *(exe_path + i) = *(name + j); i = i + 1; j = j + 1; }
-        *(exe_path + i) = 0;
+        var exe_path *u8 = build_reader_cache_path(name, name_len);
 
         // Execute reader with content as input
         var output *u8 = alloc(65536);
@@ -4637,13 +4670,7 @@ func gen_decl(decl *u8) void {
         }
 
         // Build path to reader executable
-        var exe_path *u8 = alloc(256);
-        var i i64 = 0;
-        var base *u8 = ".lang-cache/readers/";
-        while *base != 0 { *(exe_path + i) = *base; i = i + 1; base = base + 1; }
-        var j i64 = 0;
-        while j < name_len { *(exe_path + i) = *(name + j); i = i + 1; j = j + 1; }
-        *(exe_path + i) = 0;
+        var exe_path *u8 = build_reader_cache_path(name, name_len);
 
         // Execute reader with content as input
         var output *u8 = alloc(131072);  // 128KB

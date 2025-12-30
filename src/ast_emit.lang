@@ -607,7 +607,8 @@ func ast_emit_node(node *u8) void {
 
     if kind == NODE_STRING_EXPR {
         ast_emit_str("(string ");
-        ast_emit_quoted_string(string_expr_value(node), string_expr_value_len(node));
+        // String value already includes quotes from source, emit directly
+        ast_emit_strn(string_expr_value(node), string_expr_value_len(node));
         ast_emit_str(")");
         return;
     }

@@ -1,5 +1,61 @@
 # Compiler Layers: Bootstrap, Composition, and Emission
 
+> **TL;DR - Critical Sections:**
+> - **"Critical Bug"** - Why composition was failing (include deduplication)
+> - **"The Two Flags: `-r` vs `-c`"** - The correct implementation
+> - **"The Fix: Embed Readers as Unexpanded AST"** - The key insight
+
+---
+
+## Reader Caching: mtime Heuristics
+
+**Decision:** Cache readers in `.lang-cache/readers/` with mtime-based invalidation.
+
+**The heuristic (catches 95% of cases):**
+
+```
+Recompile reader if:
+1. reader_source.mtime > cached_binary.mtime   (direct source change)
+2. compiler.mtime > cached_binary.mtime        (compiler rebuilt)
+3. std/core.lang.mtime > cached_binary.mtime   (stdlib changed)
+4. cached_binary doesn't exist                 (first compile)
+```
+
+**What this catches:**
+- Compiler changes → all readers recompile (correct)
+- Stdlib changes → all readers recompile (correct, stdlib is common dep)
+- Direct reader source changes → that reader recompiles (correct)
+
+**What this misses:**
+- Transitive dependency changes in user helper files
+- User can `rm -rf .lang-cache` if stuck (rare)
+
+**Why this is good enough:**
+- Fast: only recompiles when needed
+- Simple: no manifest files, no hash computation
+- Correct for common cases: compiler rebuild, stdlib change, direct edit
+- The miss case (transitive user deps) is rare and has easy escape hatch
+
+**Implementation (in src/codegen.lang):**
+```lang
+func should_recompile_reader(cached_exe *u8) i64 {
+    var exe_mtime i64 = cg_file_mtime(cached_exe);
+    if exe_mtime == 0 { return 1; }  // doesn't exist
+
+    if cg_file_mtime("./out/lang") > exe_mtime { return 1; }
+    if cg_file_mtime("./out/lang_next") > exe_mtime { return 1; }  // dev compiler
+    if cg_file_mtime("std/core.lang") > exe_mtime { return 1; }
+
+    return 0;  // cache is valid
+}
+```
+
+**Cache location:** `.lang-cache/readers/<name>` (executable, no extension)
+
+**Note:** We check both `./out/lang` (stable) and `./out/lang_next` (dev) to ensure cache invalidates during `make verify`.
+
+---
+
 ## The Core Equation
 
 ```
@@ -863,24 +919,266 @@ func register_reader(name *u8, handler fn(*u8) *u8) void {
 }
 ```
 
-### What `-c` Emits
+### What `-c` and `-r` Emit
 
-When `-c` emits a new compiler:
+**CRITICAL:** See "The Two Flags: `-r` vs `-c`" section below for the correct implementation.
+
+When composing a new compiler:
 1. Copy kernel code (unchanged)
-2. Copy ALL existing readers (serialized)
-3. Compile new reader
-4. Upsert into reader table
-5. Emit combined binary with updated dispatch table
+2. Copy ALL existing reader **ASTs** (with includes UNEXPANDED)
+3. Parse new reader source with appropriate reader → get AST (includes UNEXPANDED)
+4. Upsert AST into reader table by name
+5. Emit combined binary with reader ASTs embedded as data
+
+**The key:** Readers are stored as AST strings, NOT compiled x86. They're compiled on-demand at runtime with proper include deduplication.
+
+---
+
+## Critical Bug: AST Merging Produces Broken Compilers
+
+### The REAL Problem (December 2024)
+
+The composition flow doesn't just have include deduplication issues - **it produces compilers that generate semantically wrong code**.
+
+Test case `090_expr_assign_result.lang`:
+```lang
+var x i64 = 0;
+var y i64 = 0;
+y = (x = 42);  // y should be 42 (result of assignment)
+```
+
+**Monolithic compiler (correct):**
+```asm
+mov $42, %rax
+mov %rax, -8(%rbp)   # x = 42
+mov %rax, -16(%rbp)  # y = 42 (assignment result)
+```
+
+**Composed compiler (WRONG):**
+```asm
+mov -8(%rbp), %rax   # load x (which is 0!)
+push %rax            # save 0
+mov $42, %rax        # load 42
+mov %rax, %rcx       # ???
+pop %rax             # restore 0
+mov %rax, -16(%rbp)  # y = 0 (WRONG!)
+```
+
+The composed compiler generates completely different code - as if the AST structure for assignment expressions is wrong.
+
+### Root Cause: AST Round-Trip Corruption
+
+The composition flow does:
+1. `--emit-ast` converts internal AST → S-expression text
+2. `parse_ast_from_string` converts S-expression text → internal AST
+3. Multiple ASTs are concatenated
+4. `generate()` compiles the combined AST
+
+**The problem:** If there's ANY discrepancy in the AST round-trip (emit → parse), the resulting AST has wrong structure. The codegen then produces wrong code.
+
+This is NOT about include deduplication. The AST merging approach is fundamentally flawed because:
+1. `ast_emit.lang` and `sexpr_reader.lang` must be perfectly symmetric
+2. Any edge case where they differ corrupts the AST
+3. The corruption manifests as wrong codegen, not parse errors
+
+### Why Monolithic Works
+
+The monolithic flow never does AST round-trip:
+1. Source → parser → internal AST
+2. Internal AST → codegen → x86
+
+The AST stays in internal representation. No serialization/deserialization.
+
+### The Original Include Deduplication Issue (Still Valid)
+
+Composed compilers also have include deduplication issues:
+
+```
+.lang-cache/readers/magic.s:496: alloc:
+.lang-cache/readers/magic.s:8653: Error: symbol `alloc' is already defined
+```
+
+But this is a SECONDARY issue. Even if includes were deduplicated correctly, the AST round-trip corruption would still cause wrong code generation.
+
+### Why We Failed (December 2024 Attempt)
+
+We tried to "fix" the composition flow by:
+1. Investigating the existing broken implementation
+2. Creating a bypass (`simple-verify`) instead of fixing the root cause
+3. Not implementing the actual `-r`/`-c` embedding architecture
+
+**The lesson:** Don't investigate broken code. Replace it with correct code.
+
+The correct approach is NOT to fix AST merging. The correct approach is:
+1. **Don't merge ASTs at all**
+2. Embed reader AST as DATA (string constants in .rodata)
+3. At runtime, compile the embedded AST in a SEPARATE compilation pass
+4. Each compilation pass has fresh state - no cross-contamination
+
+### The Correct Implementation: Embedded Reader Data
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  WRONG: AST Merging (current broken approach)                │
+│                                                               │
+│  kernel.ast + reader.ast → merged_ast → generate() → broken  │
+│                                                               │
+│  Problem: AST round-trip corrupts structure                   │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│  CORRECT: Embedded Reader Data                                │
+│                                                               │
+│  1. Build kernel binary normally (from source)                │
+│  2. Embed reader AST as STRING CONSTANT in .rodata            │
+│  3. At runtime, when reader needed:                           │
+│     a. Extract embedded AST string                            │
+│     b. Write to temp file                                     │
+│     c. Spawn fresh compilation: kernel temp.ast -o reader     │
+│     d. Run reader executable                                  │
+│                                                               │
+│  Key: Each compilation is ISOLATED - no state sharing         │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### The Fix: Embed Readers as Unexpanded AST
+
+Instead of pre-compiling readers to x86 during composition:
+
+**OLD (broken):**
+```
+kernel -c lang_reader.lang → expand all includes → compile to x86 → bake into binary
+```
+
+**NEW (correct):**
+```
+kernel -r lang_reader.ast → embed AST with (include "std/core.lang") UNEXPANDED
+                          → at runtime, compile on-demand with normal include tracking
+```
+
+At runtime when the embedded reader is needed:
+1. Load embedded lang_reader AST (still has `(include "std/core.lang")` as directive)
+2. Compile it with normal include deduplication
+3. `(include "std/core.lang")` gets tracked in `include_map`
+4. If reader output also has `(include "std/core.lang")`, it's already in `include_map`
+5. **Deduplicated correctly!**
+
+This is like Go's `//go:embed` - you embed the source/AST representation, not the compiled binary.
+
+### Why This Works
+
+1. **No pre-expansion of includes** - readers stay as AST with include directives intact
+2. **Runtime include tracking** - when readers are compiled on-demand, they go through normal include path
+3. **Deduplication works** - same mechanism that works for regular multi-file compilation
+
+### Bootstrapping: Kernel Uses S-expr, Not Lang
+
+The kernel can read the embedded AST because:
+1. Kernel has `sexpr_reader` built-in (can read S-expr AST directly)
+2. Embedded lang_reader is S-expr AST format
+3. Kernel reads embedded lang_reader AST with sexpr_reader
+4. Kernel compiles it to x86 on-demand
+5. Now we can parse lang syntax
+
+No circular dependency - the kernel bootstraps the lang reader from S-expr, not from lang syntax.
+
+---
+
+## The Two Flags: `-r` vs `-c`
+
+### `-r`: Embed Pre-Built Reader AST (Raw)
+
+```bash
+kernel -r lang_reader.ast -o lang_compiler
+```
+
+**Semantics:**
+- "Here's a pre-built reader AST file"
+- Embed it directly, don't try to compile it first
+- The AST format is S-expr (what the kernel can read)
+- Replace any existing reader with the same name
+
+**When to use:**
+- **Bootstrap**: `kernel -r lang_reader.ast` - kernel only knows S-expr, can't compile .lang
+- When you already have AST and don't need to parse source
+
+### `-c`: Compile and Embed Reader Source
+
+```bash
+lang_compiler -c lisp_reader.lang -o polyglot
+```
+
+**Semantics:**
+- "Compile this source file with the appropriate reader for its extension"
+- `.lang` extension → use embedded `lang` reader to parse
+- `.lisp` extension → use embedded `lisp` reader to parse
+- Result: AST (with includes unexpanded!)
+- Embed that AST into output compiler
+- Replace any existing reader with the same name
+
+**When to use:**
+- Adding new readers to an existing compiler
+- Updating readers (lang_reader_v2.lang → replaces lang_reader_v1)
+
+### The Bootstrap Sequence
+
+```bash
+# Step 1: Kernel + lang_reader (kernel uses -r because it only knows S-expr)
+kernel -r lang_reader.ast -o lang_compiler
+
+# Step 2: lang_compiler + lisp_reader (can use -c because we have lang reader)
+lang_compiler -c lisp_reader.lang -o lang_lisp
+
+# Step 3: Update lang_reader (can use -c now!)
+lang_lisp -c lang_reader_v2.lang -o lang_lisp_v2
+```
+
+After step 1, we have a compiler that understands `.lang` files. After that, `-c` works for any extension we have a reader for.
+
+### The Key Distinction
+
+| Flag | Input | Parser Used | Output |
+|------|-------|-------------|--------|
+| `-r` | AST file | None (direct embed) | Compiler with reader embedded |
+| `-c` | Source file | Reader for file extension | Compiler with reader embedded |
+
+Both flags result in the reader being embedded as **unexpanded AST** - the includes remain as directives, not expanded code. This is what enables proper deduplication at runtime.
+
+### Upsert Semantics (Both Flags)
+
+Both `-r` and `-c` use upsert semantics for reader names:
+
+```bash
+# If 'lang' reader exists: REPLACE
+# If 'lang' reader doesn't exist: ADD
+# All other readers: PRESERVED
+
+{kernel + lang_v1 + lisp} -c lang_v2.lang = {kernel + lang_v2 + lisp}
+{kernel + lang_v1 + lisp} -r lang_v2.ast  = {kernel + lang_v2 + lisp}
+```
+
+### Implementation Notes
+
+The embedded readers are stored as:
+1. S-expr AST string (debuggable, compresses well)
+2. Keyed by reader name
+3. With `(include ...)` directives intact (NOT expanded!)
+
+When a reader is invoked at runtime:
+1. Look up reader by name in embedded table
+2. If not yet compiled, compile the AST on-demand
+3. Compilation goes through normal include tracking
+4. Cache the compiled reader for subsequent uses
 
 ---
 
 ## The Vision: Layered Compilers
 
 ```bash
-# Start with kernel
-./kernel -c lang_reader.ast -o lang
+# Start with kernel (uses -r because kernel only knows S-expr)
+./kernel -r lang_reader.ast -o lang
 
-# Add lisp
+# Add lisp (uses -c because we now have lang reader)
 ./lang -c lisp_reader.lang -o lang_lisp
 
 # Add sql
@@ -947,19 +1245,27 @@ polyglot.kernel = kernel_v1
 
 **What we're doing:** Extracting them into separately-bootstrappable components.
 
+**The critical insight:** Readers must be embedded as **unexpanded AST** (with `(include ...)` directives intact), NOT as compiled x86. This enables runtime include deduplication. The old approach of pre-compiling readers caused duplicate symbol errors.
+
+**The two flags:**
+- `-r reader.ast` - Embed pre-built AST directly (for kernel bootstrap)
+- `-c reader.lang` - Compile source with appropriate reader, embed resulting AST
+
 **Why it matters:**
 - Kernel changes are rare → assembly bootstrap is rare
 - Reader changes are common → AST bootstrap is fast
 - Composition becomes natural → compiler compiler vision realized
+- Include deduplication works → no more duplicate symbol errors
 
 **The equation:**
 ```
-out/lang = kernel + lang_reader
+out/lang = kernel + [embedded reader ASTs]
 
-bootstrap/kernel/current.ast   ← built by {kernel + lang_reader}
-bootstrap/lang_reader/current.ast ← built by {kernel + lang_reader}
+Bootstrap:
+  kernel -r lang_reader.ast → lang_compiler    # kernel uses -r (S-expr only)
+  lang_compiler -c lisp.lang → polyglot        # can use -c (has lang reader)
 
-Fixed point: {kernel + lang_reader} can rebuild both .ast files identically.
+Fixed point: compiler can rebuild its own readers identically.
 ```
 
 This is the compiler compiler.

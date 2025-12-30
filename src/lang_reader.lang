@@ -60,7 +60,3 @@ reader lang(text *u8) *u8 {
     }
 }
 
-// Glue for kernel_entry.lang - transforms input through lang reader
-func reader_transform(text *u8) *u8 {
-    return lang(text);
-}

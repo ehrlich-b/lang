@@ -1,8 +1,8 @@
 // src/standalone.lang - Template for standalone compilers
 //
 // Usage: Generate source that:
-//   1. Includes reader source (so the reader gets compiled to .lang-cache)
-//   2. Defines: var standalone_reader_path *u8 = ".lang-cache/readers/<name>";
+//   1. Includes reader source (so the reader gets compiled to /tmp)
+//   2. Defines reader_transform() glue function
 //   3. Includes this file
 //
 // This template provides the compiler infrastructure and main().
@@ -10,6 +10,7 @@
 include "src/lexer.lang"
 include "src/parser.lang"
 include "src/codegen.lang"
+include "src/sexpr_reader.lang"
 
 // Helper to append string to buffer
 func standalone_append(buf *u8, len *i64, s *u8) void {
@@ -54,12 +55,11 @@ func main(argc i64, argv **u8) i64 {
     }
 
     var output_file *u8 = nil;
-    var source_buf *u8 = alloc(4194304);
-    var source_len i64 = 0;
+    var ast_buf *u8 = alloc(4194304);
+    var ast_len i64 = 0;
 
-    // Start with std/core.lang include for the compiled program
-    var core_include *u8 = "include \"std/core.lang\"\n";
-    standalone_append(source_buf, &source_len, core_include);
+    // Start with "(program " wrapper - we'll collect all declarations
+    standalone_append(ast_buf, &ast_len, "(program\n");
 
     var i i64 = 1;
     while i < argc {
@@ -78,27 +78,62 @@ func main(argc i64, argv **u8) i64 {
                 return 1;
             }
 
-            // Transform through reader
-            var transformed *u8 = reader_transform(content);
-            if transformed == nil {
+            // Transform through reader → S-expression AST
+            var ast *u8 = reader_transform(content);
+            if ast == nil {
                 return 1;
             }
 
-            // Append transformed source
-            standalone_append(source_buf, &source_len, transformed);
-            *(source_buf + source_len) = 10;  // newline
-            source_len = source_len + 1;
+            // Reader outputs "(program ...)" - skip the outer wrapper
+            // Find opening paren and skip "program" keyword
+            var p *u8 = ast;
+            while *p == 32 || *p == 10 || *p == 13 || *p == 9 { p = p + 1; }
+            if *p == 40 {  // '('
+                p = p + 1;
+                while *p == 32 || *p == 10 { p = p + 1; }
+                // Skip "program" if present
+                if *p == 112 && *(p+1) == 114 && *(p+2) == 111 && *(p+3) == 103 &&
+                   *(p+4) == 114 && *(p+5) == 97 && *(p+6) == 109 {  // "program"
+                    p = p + 7;
+                    // Now p points to the declarations - find the closing paren
+                    // and copy everything before it
+                    var end *u8 = p;
+                    var depth i64 = 1;
+                    while *end != 0 && depth > 0 {
+                        if *end == 40 { depth = depth + 1; }
+                        if *end == 41 { depth = depth - 1; }
+                        end = end + 1;
+                    }
+                    // end is one past the closing paren of (program ...)
+                    // back up to exclude that closing paren
+                    if depth == 0 { end = end - 1; }
+                    // Copy everything from p to end (the declarations)
+                    while p < end {
+                        *(ast_buf + ast_len) = *p;
+                        ast_len = ast_len + 1;
+                        p = p + 1;
+                    }
+                } else {
+                    // Not a program, just append as-is
+                    standalone_append(ast_buf, &ast_len, ast);
+                }
+            } else {
+                standalone_append(ast_buf, &ast_len, ast);
+            }
+            *(ast_buf + ast_len) = 10;  // newline
+            ast_len = ast_len + 1;
         }
         i = i + 1;
     }
 
-    // Add ___main wrapper
-    var wrapper *u8 = "func ___main(argc i64, argv **u8) i64 { return main(argc, argv); }\n";
-    standalone_append(source_buf, &source_len, wrapper);
+    // Add ___main wrapper as AST
+    standalone_append(ast_buf, &ast_len, "(func ___main ((param argc (type_base i64)) (param argv (type_ptr (type_ptr (type_base u8))))) (type_base i64) (block (return (call (ident main) (ident argc) (ident argv)))))\n");
 
-    *(source_buf + source_len) = 0;
+    // Close the program wrapper
+    standalone_append(ast_buf, &ast_len, ")\n");
+    *(ast_buf + ast_len) = 0;
 
-    if source_len == 0 {
+    if ast_len <= 12 {  // "(program\n)\n" is 11 chars
         eprintln("Error: no input files");
         return 1;
     }
@@ -107,24 +142,10 @@ func main(argc i64, argv **u8) i64 {
         output_file = "a.s";
     }
 
-    // Compile
-    parser_tokenize(source_buf);
-
-    // Check for lexer errors
-    i = 0;
-    while i < parser_token_count() {
-        var tok *u8 = get_token(i);
-        if tok_type(tok) == TOKEN_ERROR {
-            eprint("Error: ");
-            eprintln(tok_lexeme(tok));
-            return 1;
-        }
-        i = i + 1;
-    }
-
-    var prog *u8 = parse_program();
-
-    if parse_error_count > 0 {
+    // Parse AST from reader output (S-expression format)
+    var prog *u8 = parse_ast_from_string(ast_buf);
+    if prog == nil {
+        eprintln("Error: failed to parse reader output");
         return 1;
     }
 

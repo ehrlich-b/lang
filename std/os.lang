@@ -1,0 +1,56 @@
+// std/os.lang - OS-level utilities
+//
+// Provides access to process info, environment, and other OS features.
+
+// Get current process ID
+func getpid() i64 {
+    // syscall 39 = getpid
+    return syscall(39);
+}
+
+// Get file modification time (seconds since epoch)
+// Returns 0 if file doesn't exist or error
+func file_mtime(path *u8) i64 {
+    // syscall 4 = stat
+    // struct stat is 144 bytes on x86-64 Linux
+    // st_mtime is at offset 88
+    var statbuf *u8 = alloc(144);
+    var result i64 = syscall(4, path, statbuf);
+    if result < 0 {
+        return 0;  // file doesn't exist or error
+    }
+    var mtime_ptr *i64 = statbuf + 88;
+    return *mtime_ptr;
+}
+
+// Get parent process ID
+func getppid() i64 {
+    // syscall 110 = getppid
+    return syscall(110);
+}
+
+// Get current working directory
+// Returns number of bytes written to buf, or negative on error
+func getcwd(buf *u8, size i64) i64 {
+    // syscall 79 = getcwd
+    return syscall(79, buf, size);
+}
+
+// Create directory with mode 0755
+func mkdir(path *u8) i64 {
+    // syscall 83 = mkdir, 493 = 0755
+    return syscall(83, path, 493);
+}
+
+// Remove file
+func unlink(path *u8) i64 {
+    // syscall 87 = unlink
+    return syscall(87, path);
+}
+
+// Remove directory
+func rmdir(path *u8) i64 {
+    // syscall 84 = rmdir
+    return syscall(84, path);
+}
+

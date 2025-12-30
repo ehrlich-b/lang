@@ -1,73 +1,19 @@
-// src/kernel_main.lang - Kernel entry point: AST -> x86 with composition
+// src/kernel_main.lang - Kernel entry point: AST -> x86
 //
 // The kernel is the core compiler that processes S-expression AST.
-// It supports two modes:
+// It ONLY knows AST - no lang syntax, no readers.
 //
-// 1. Normal mode: Compile AST to x86
-//    kernel input.ast -o output.s
+// Modes:
+//   1. Normal: kernel input.ast -o output.s
+//      Compile S-expression AST to x86 assembly
 //
-// 2. Compose mode: Combine kernel + reader AST to produce a new compiler
-//    kernel -c reader.ast -o compiler.s
-//    kernel -c reader.lang -o compiler.s   (parses .lang directly!)
+//   2. Compose: kernel -c reader.ast -o compiler.s
+//      Combine kernel + reader AST to produce a new compiler
+//      WARNING: Composition is known to be broken (AST round-trip corruption)
 //
-// In compose mode, the output is a compiler binary that:
-// - Has the reader compiled in
-// - Accepts source files, transforms through reader, compiles result
-//
-// Bootstrap: kernel -c lang_reader.lang uses built-in parser to read
-// the lang source, producing identical output to kernel -c lang_reader.ast
+// The correct approach for generating compilers with readers is to use
+// the main compiler with --emit-expanded-ast and -r flags instead.
 
-// Check if path ends with ".lang"
-func is_lang_file(path *u8) i64 {
-    var len i64 = strlen(path);
-    if len < 5 { return 0; }
-    var ext *u8 = path + len - 5;
-    // Check ".lang"
-    if *ext == '.' && *(ext+1) == 'l' && *(ext+2) == 'a' && *(ext+3) == 'n' && *(ext+4) == 'g' {
-        return 1;
-    }
-    return 0;
-}
-
-// Parse a .lang file using built-in parser, returns internal AST
-func parse_lang_file(path *u8) *u8 {
-    var fd i64 = file_open(path, 0);
-    if fd < 0 {
-        eprint("Error: cannot open file: ");
-        eprintln(path);
-        return nil;
-    }
-    var buf *u8 = alloc(4194304);
-    var n i64 = file_read(fd, buf, 4194304);
-    file_close(fd);
-    if n < 0 {
-        eprintln("Error: cannot read file");
-        return nil;
-    }
-    *(buf + n) = 0;
-
-    // Use built-in parser
-    parser_tokenize(buf);
-
-    // Check for lexer errors
-    var i i64 = 0;
-    while i < parser_token_count() {
-        var tok *u8 = get_token(i);
-        if tok_type(tok) == TOKEN_ERROR {
-            eprint("Error: ");
-            eprintln(tok_lexeme(tok));
-            return nil;
-        }
-        i = i + 1;
-    }
-
-    // Parse to AST
-    var prog *u8 = parse_program();
-    if parse_error_count > 0 {
-        return nil;
-    }
-    return prog;
-}
 
 // Get argv[i]
 func get_arg(argv **u8, i i64) *u8 {

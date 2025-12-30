@@ -73,8 +73,87 @@ func append_str(buf *u8, len *i64, s *u8) void {
 
 // Global flags for AST modes
 var emit_ast_mode i64 = 0;
+var emit_expanded_ast_mode i64 = 0;  // Emit with includes fully expanded
 var from_ast_mode i64 = 0;
 var from_ast_file *u8 = nil;
+
+// Include expansion state for --emit-expanded-ast
+var expand_included_map *u8 = nil;
+var expand_collected_decls *u8 = nil;  // Vec of declarations
+
+// Recursively expand includes and collect declarations
+func expand_collect_decl(decl *u8) void {
+    var k i64 = node_kind(decl);
+
+    if k == NODE_INCLUDE_DECL {
+        var path *u8 = include_decl_path(decl);
+        var path_len i64 = include_decl_path_len(decl);
+
+        // Skip if already included
+        var path_str *u8 = str_dup_n(path, path_len);
+        if map_has(expand_included_map, path_str) {
+            return;
+        }
+        map_set(expand_included_map, path_str, 1);
+
+        // Read and parse file
+        var buf *u8 = alloc(1048576);
+        var fd i64 = file_open(path_str, 0);
+        if fd < 0 {
+            eprint("Error: cannot open include file: ");
+            eprintln(path_str);
+            return;
+        }
+        var n i64 = file_read(fd, buf, 1048576);
+        file_close(fd);
+        if n < 0 { return; }
+        *(buf + n) = 0;
+
+        // Parse
+        parser_tokenize(buf);
+        var prog *u8 = parse_program();
+        if prog == nil || parse_error_count > 0 {
+            eprint("Error: cannot parse include file: ");
+            eprintln(path_str);
+            return;
+        }
+
+        // Recursively collect declarations
+        var inc_decls *u8 = program_decls(prog);
+        var inc_count i64 = program_decl_count(prog);
+        var j i64 = 0;
+        while j < inc_count {
+            expand_collect_decl(get_decl(inc_decls, j));
+            j = j + 1;
+        }
+    } else {
+        // Non-include declaration - add to collected list
+        vec_push(expand_collected_decls, decl);
+    }
+}
+
+// Build expanded program from collected declarations
+func build_expanded_program() *u8 {
+    var count i64 = vec_len(expand_collected_decls);
+    var decls *u8 = alloc(count * 8);
+
+    var i i64 = 0;
+    while i < count {
+        var d *u8 = vec_get(expand_collected_decls, i);
+        var dp **u8 = decls + (i * 8);
+        *dp = d;
+        i = i + 1;
+    }
+
+    // Build program node
+    var prog *u8 = alloc(16);
+    var pd **u8 = prog;
+    *pd = decls;
+    var pc *i64 = prog + 8;
+    *pc = count;
+
+    return prog;
+}
 
 func main(argc i64, argv **u8) i64 {
     if argc < 2 {
@@ -101,6 +180,11 @@ func main(argc i64, argv **u8) i64 {
             // Check for --emit-ast flag
             if handled == 0 && memcmp(arg + 2, "emit-ast", 8) {
                 emit_ast_mode = 1;
+                handled = 1;
+            }
+            // Check for --emit-expanded-ast flag (fully expand includes)
+            if handled == 0 && memcmp(arg + 2, "emit-expanded-ast", 17) {
+                emit_expanded_ast_mode = 1;
                 handled = 1;
             }
             // Check for --from-ast flag
@@ -264,8 +348,40 @@ func main(argc i64, argv **u8) i64 {
     }
 
     // Output based on mode
-    if emit_ast_mode != 0 {
-        // Emit AST as S-expressions
+    if emit_expanded_ast_mode != 0 {
+        // Emit FULLY EXPANDED AST (all includes resolved inline)
+        expand_included_map = map_new();
+        expand_collected_decls = vec_new(1024);
+
+        // Process all declarations, expanding includes
+        var decls *u8 = program_decls(prog);
+        var decl_count i64 = program_decl_count(prog);
+        i = 0;
+        while i < decl_count {
+            expand_collect_decl(get_decl(decls, i));
+            i = i + 1;
+        }
+
+        // Build expanded program
+        var expanded_prog *u8 = build_expanded_program();
+
+        // Emit as S-expressions
+        var ast_str *u8 = ast_emit_program(expanded_prog);
+
+        // Write to output file
+        var fd i64 = file_open(output_file, 577);
+        if fd < 0 {
+            eprint("Error: cannot open output file: ");
+            eprintln(output_file);
+            return 1;
+        }
+        file_write(fd, ast_str, strlen(ast_str));
+        file_close(fd);
+
+        print("Wrote expanded AST to ");
+        println(output_file);
+    } else if emit_ast_mode != 0 {
+        // Emit AST as S-expressions (includes stay as directives)
         var ast_str *u8 = ast_emit_program(prog);
 
         // Write to output file
