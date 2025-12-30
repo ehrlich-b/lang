@@ -315,6 +315,9 @@ reader block_test(text *u8) *u8 {
 
 ## Backlog (Post 2.0)
 
+### Language Features
+- [ ] **Interfaces** - trait/protocol system for polymorphism
+- [ ] **Variadic function parameters** - `func printf(fmt *u8, ...) i64`
 - [ ] Floating point (f32, f64)
 - [ ] Struct literals `Point{x: 1, y: 2}`
 - [ ] Pass/return structs by value
@@ -322,6 +325,15 @@ reader block_test(text *u8) *u8 {
 - [ ] Type aliases `type Fd = i64`
 - [ ] `for` loop sugar
 - [ ] Generics (monomorphization)
+
+### Compiler Quality
+- [ ] **Semantic checks** - undefined variables currently reach output. Add checks for:
+  - Undefined variable use
+  - Type mismatches
+  - Unreachable code
+  - Unused variables (warning)
+  - Missing return statements
+  - Use-before-initialization
 
 ---
 
