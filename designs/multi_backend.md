@@ -53,139 +53,13 @@ src/codegen_llvm.lang      # LLVM IR emitter
 
 ---
 
-## Current State
+## Architecture
 
 ```
-AST → kernel → x86 assembly → as → native binary
+        ┌→ x86 asm  → as     → Linux binary (current, keep for fast iteration)
+AST → kernel ─┤
+        └→ LLVM IR  → clang  → {anything} (new, for portability)
 ```
-
-Single target, single toolchain. Works on Linux x86_64.
-
-## The Question
-
-Should the architecture be:
-
-**A) Many direct backends**
-```
-        ┌→ x86 asm  → as     → Linux binary
-AST → kernel ─┼→ ARM asm  → as     → Mac binary
-        ├→ WASM     → (browser interprets)
-        └→ LLVM IR  → clang  → any native
-```
-
-**B) LLVM as universal backend**
-```
-AST → kernel → LLVM IR → clang/llc → {x86, ARM, WASM, RISC-V, ...}
-```
-
-## Comparative Analysis
-
-### Option A: Direct Backends
-
-| Backend | Effort | Value | Dependencies |
-|---------|--------|-------|--------------|
-| x86 asm | Done | High (current) | `as`, `ld` (ubiquitous) |
-| ARM asm | Medium | Medium | `as` (Xcode CLT) |
-| WASM | Medium | High (browser) | None (browser native) |
-| LLVM IR | Medium | High (portability) | `clang` or `llc` |
-
-**Pros:**
-- Educational (we understand every instruction)
-- Fast compilation (no LLVM overhead)
-- Minimal dependencies (just assembler/linker)
-- Full control over output
-
-**Cons:**
-- Each backend is ~2000 LOC
-- No optimizations
-- Platform-specific bugs multiply
-
-### Option B: LLVM-Only
-
-| Aspect | Assessment |
-|--------|------------|
-| Effort | One backend (~2000 LOC) |
-| Targets | All LLVM targets (x86, ARM, WASM, RISC-V, ...) |
-| Optimization | -O2 comes free |
-| Dependencies | LLVM/Clang (~500MB) |
-
-**Pros:**
-- One backend → many targets
-- World-class optimizations
-- Battle-tested codegen
-- WASM via `--target=wasm32`
-
-**Cons:**
-- Huge dependency
-- Compile time overhead
-- Less educational
-- "Magic" we don't control
-
-## The Honest Assessment
-
-### ARM Direct: Is It Worth It?
-
-**Effort**: ARM64 codegen is ~90% similar to x86_64:
-- Same register calling convention style
-- Similar instruction patterns
-- Different register names, syntax
-
-Estimate: 1-2 days to port x86 backend to ARM.
-
-**Value**: Native Mac binaries without LLVM.
-
-**Verdict**: Low effort, moderate value. Worth doing if we want Mac support without LLVM dependency.
-
-### WASM Direct: Is It Worth It?
-
-**Effort**: WASM is a stack machine, fundamentally different:
-- No registers (stack-based)
-- Different memory model
-- Different function call ABI
-
-Estimate: 1-2 weeks, significant restructuring.
-
-**Value**: High - browser deployment, sandboxed execution.
-
-**Verdict**: Medium effort, high value. But LLVM also outputs WASM...
-
-### LLVM IR: The Pragmatic Choice?
-
-**Effort**: LLVM IR is well-documented, straightforward:
-- SSA form (we already think in SSA-ish patterns)
-- Text format (just emit strings like we do for asm)
-- One backend serves all targets
-
-Estimate: 1 week for basic LLVM IR output.
-
-**Value**: Extremely high - all platforms, optimizations, WASM.
-
-**Verdict**: This is probably the "smart" engineering choice.
-
-## Recommended Architecture
-
-**Hybrid approach**: Keep direct backends for education/speed, add LLVM for production.
-
-```
-        ┌→ x86 asm  → as     → Linux binary (fast, educational)
-AST → kernel ─┼→ LLVM IR  → clang  → {anything} (portable, optimized)
-        └→ WASM     → (direct) → browser (no deps)
-```
-
-### Phase 1: Add LLVM IR Backend (recommended first)
-- One backend → immediate Mac/Windows/WASM support
-- Text output like current x86 (just different syntax)
-- Use `clang` to compile (already on most systems)
-
-### Phase 2: Direct WASM (optional)
-- Browser deployment without toolchain
-- Educational value (stack machine is different)
-- Skip if LLVM WASM output is sufficient
-
-### Phase 3: Direct ARM (optional)
-- Native Mac without LLVM
-- Mostly a port of x86 backend
-- Skip if LLVM is acceptable
 
 ## Toolchain Dependencies
 
@@ -392,29 +266,6 @@ clang program.ll -o program  # user's problem
 
 **Key insight**: What we do TODAY (emit .s) becomes the `-S` behavior. The new DEFAULT is full compilation to binary.
 
-## Decision Matrix
-
-| If you want... | Use... |
-|----------------|--------|
-| Fast iteration, understanding codegen | Direct x86 |
-| Mac support today | LLVM IR → clang |
-| Browser deployment | LLVM IR → wasm32 (or direct WASM later) |
-| Maximum portability | LLVM IR |
-| Minimal dependencies | Direct backends |
-| Best optimization | LLVM IR with -O2 |
-
-## Recommendation
-
-1. **Keep x86 direct backend** - It works, it's educational, it's fast
-2. **Add LLVM IR backend next** - Maximum leverage for effort
-3. **Direct WASM later if needed** - Only if LLVM WASM isn't good enough
-4. **Direct ARM optional** - Nice to have, low effort, but LLVM covers it
-
-The kernel's job is "AST → runnable code". LLVM IR is "runnable code" in the sense that every platform has clang. Direct x86 remains valuable for:
-- Fast edit-compile-run cycle (no LLVM overhead)
-- Educational purposes (we know every instruction)
-- Environments without LLVM
-
 ## Cross-Platform Syscalls
 
 **Critical Issue**: The stdlib uses Linux x86_64 syscall numbers directly. These differ across platforms.
@@ -471,11 +322,7 @@ std/
     └── libc.lang          # extern declarations, links -lc
 ```
 
-### How Include Selection Works (The Mechanical Question)
-
-We don't have conditional compilation or dynamic includes. So how does `std/core.lang` know which OS implementation to use?
-
-**Option 1: Generated std/os.lang (Build System)**
+### Include Selection: Generated std/os.lang
 
 The Makefile generates `std/os.lang` based on target before compilation:
 
@@ -484,84 +331,12 @@ The Makefile generates `std/os.lang` based on target before compilation:
 build-linux-x86_64:
     echo 'include "std/os/linux_x86_64.lang"' > std/os.lang
     ./out/lang program.lang -o program.s
-
-build-with-libc:
-    echo 'include "std/os/libc.lang"' > std/os.lang
-    ./out/lang program.lang -o program.s
 ```
 
 Then `std/core.lang` just does:
 ```lang
 include "std/os.lang"  // Gets the generated file
 ```
-
-**Pros**: Simple, no compiler changes, works today
-**Cons**: std/os.lang is gitignored/generated artifact, slightly ugly
-
-**Option 2: Environment Variable Overrides Include Path**
-
-The compiler reads `LANGOS` and `LANGLIBC` env vars to redirect includes:
-
-```bash
-LANGOS=linux ./out/lang program.lang    # include "std/os.lang" → "std/os/linux_x86_64.lang"
-LANGLIBC=libc ./out/lang program.lang   # include "std/os.lang" → "std/os/libc.lang"
-```
-
-Implementation in compiler:
-```lang
-func resolve_include(path *u8) *u8 {
-    if streq(path, "std/os.lang") {
-        var os *u8 = getenv("LANGOS");
-        var libc *u8 = getenv("LANGLIBC");
-        if libc != nil && streq(libc, "libc") {
-            return "std/os/libc.lang";
-        }
-        // Build path from LANGOS + LANGBE
-        return str_concat3("std/os/", os, "_", arch, ".lang");
-    }
-    return path;
-}
-```
-
-**Pros**: Clean, explicit, no generated files, composable with make
-**Cons**: Requires compiler modification, needs getenv() support
-
-**Option 3: Conditional Compilation (#if)**
-
-Add `#if` to the language:
-```lang
-// std/os.lang
-#if TARGET == "linux-x86_64" {
-    include "std/os/linux_x86_64.lang"
-}
-#if TARGET == "libc" {
-    include "std/os/libc.lang"
-}
-```
-
-**Pros**: General solution, useful beyond OS layer
-**Cons**: New language feature, more complex
-
-**Option 4: Reader Macro for Target Selection**
-
-Since we have reader macros, add a `#target{}` reader:
-```lang
-#target{
-    linux-x86_64: include "std/os/linux_x86_64.lang",
-    linux-arm64:  include "std/os/linux_arm64.lang",
-    libc:         include "std/os/libc.lang"
-}
-```
-
-**Pros**: Uses existing infrastructure, declarative
-**Cons**: Reader macro complexity, still needs compiler to set target variable
-
-**Recommendation: Option 1 (Generated) for Now, Option 2 Later**
-
-Phase 1: Use generated `std/os.lang` - works immediately, no compiler changes
-Phase 2: Add `LANGOS`/`LANGLIBC` env var support to compiler for cleaner UX
-
-The generated file approach is how many real build systems work (autoconf generates config.h, CMake generates headers, etc.). It's pragmatic.
 
 ### The Full Picture
 
@@ -756,81 +531,9 @@ func alloc(size i64) *u8 {
 }
 ```
 
-**WASM backend**:
-```lang
-// Use WASM linear memory
-var wasm_heap_ptr i32 = 0;  // Offset into linear memory
+**Allocation Strategy**:
+- Direct backends (x86): `os_mmap` + bump allocator
+- LLVM backend: libc `malloc`
 
-func alloc(size i64) *u8 {
-    var ptr i32 = wasm_heap_ptr;
-    wasm_heap_ptr = wasm_heap_ptr + size;
-    // Grow memory if needed
-    if wasm_heap_ptr > memory_size() {
-        memory_grow(1);  // Add 64KB page
-    }
-    return ptr;
-}
-```
+`std/core.lang` uses `os_*` functions; `std/os/*.lang` provides platform implementations.
 
-**Allocation Strategy Summary**:
-| Backend | Strategy | Implementation |
-|---------|----------|----------------|
-| x86 asm | os_mmap + bump | linux_x86_64.lang |
-| LLVM IR | libc malloc | libc.lang |
-| WASM | linear memory + bump | wasm.lang |
-
-This means `std/core.lang` needs to be backend-aware OR we split it:
-- `std/core.lang` - pure lang (no syscalls), uses os_* functions
-- `std/os/*.lang` - platform-specific implementations
-
-### WASM Considerations
-
-WebAssembly is special:
-- No filesystem (unless using WASI)
-- Memory is a flat array, no mmap
-- No process exit (just return from main)
-- I/O through imports (JavaScript provides implementations)
-
-```lang
-// std/os/wasm.lang
-// Memory: WASM linear memory, bump allocator works
-func os_mmap(addr *u8, len i64, ...) *u8 {
-    // WASM: use memory.grow or pre-allocated heap
-    return wasm_heap_alloc(len);
-}
-
-// I/O: imports from JavaScript environment
-@import("env", "print") func wasm_print(ptr i32, len i32) void;
-
-func os_write(fd i64, buf *u8, count i64) i64 {
-    if fd == 1 || fd == 2 {  // stdout/stderr
-        wasm_print(buf, count);
-        return count;
-    }
-    return -1;  // No filesystem
-}
-```
-
-## Open Questions
-
-1. **Should LLVM be the default?** Probably not - direct x86 is faster for development
-2. **Bundle LLVM?** No - assume it's installed or installable
-3. **Support Windows?** LLVM + libc makes this possible; raw syscalls impossible (unstable ABI)
-4. **What about optimization?** Let LLVM handle it; direct backends stay simple
-5. **WASI for WASM?** Maybe - WASI provides POSIX-like syscalls for WASM, could use libc.lang
-
-## Conclusion
-
-The answer to "AST → LLVM → native always?" is **no, but LLVM should be an option**.
-
-Direct backends have value:
-- Speed (no LLVM startup cost)
-- Education (full understanding)
-- Minimal deps (just assembler)
-
-LLVM has value:
-- Portability (one effort → all platforms)
-- Optimization (free -O2)
-- WASM (browser deployment)
-
-Both can coexist. The kernel becomes a multi-backend emitter, selected at compile time. Cost is ~2000 LOC per backend, but we only need 2-3 total (x86 direct, LLVM, maybe WASM direct).
