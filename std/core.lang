@@ -2,6 +2,7 @@
 // Provides basic I/O, memory allocation, and string operations
 
 include "src/limits.lang"
+include "std/os.lang"
 
 // ============================================================
 // Memory - Bump allocator (simple, never frees)
@@ -13,8 +14,8 @@ var heap_end *u8 = nil;
 func alloc(size i64) *u8 {
     if heap_pos == nil {
         // mmap(NULL, SIZE_HEAP, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
-        // syscall 9 = mmap, 3 = PROT_READ|PROT_WRITE, 34 = MAP_PRIVATE|MAP_ANONYMOUS
-        heap_pos = syscall(9, 0, SIZE_HEAP, 3, 34, 0-1, 0);
+        // 3 = PROT_READ|PROT_WRITE, 34 = MAP_PRIVATE|MAP_ANONYMOUS
+        heap_pos = os_mmap(nil, SIZE_HEAP, 3, 34, 0-1, 0);
         heap_end = heap_pos + SIZE_HEAP;
     }
     var ptr *u8 = heap_pos;
@@ -444,23 +445,20 @@ func map_get_n(m *u8, key *u8, key_len i64) i64 {
 // ============================================================
 
 func file_open(path *u8, flags i64) i64 {
-    // syscall 2 = open, 420 = 0644 permissions
-    return syscall(2, path, flags, 420);
+    // 420 = 0644 permissions
+    return os_open(path, flags, 420);
 }
 
 func file_read(fd i64, buf *u8, n i64) i64 {
-    // syscall 0 = read
-    return syscall(0, fd, buf, n);
+    return os_read(fd, buf, n);
 }
 
 func file_write(fd i64, buf *u8, n i64) i64 {
-    // syscall 1 = write
-    return syscall(1, fd, buf, n);
+    return os_write(fd, buf, n);
 }
 
 func file_close(fd i64) {
-    // syscall 3 = close
-    syscall(3, fd);
+    os_close(fd);
 }
 
 // ============================================================
@@ -600,8 +598,7 @@ func eprint_i64(n i64) {
 // ============================================================
 
 func exit(code i64) {
-    // syscall 60 = exit
-    syscall(60, code);
+    os_exit(code);
 }
 
 // ============================================================
@@ -674,4 +671,103 @@ func itoa(n i64, buf *u8) i64 {
     }
 
     return pos;
+}
+
+// ============================================================
+// OS utilities (higher-level, use alloc)
+// ============================================================
+
+// Get current process ID
+func getpid() i64 {
+    return os_getpid();
+}
+
+// Get parent process ID
+func getppid() i64 {
+    return os_getppid();
+}
+
+// Get file modification time (seconds since epoch)
+// Returns 0 if file doesn't exist or error
+func file_mtime(path *u8) i64 {
+    // struct stat is 144 bytes on x86-64 Linux
+    // st_mtime is at offset 88
+    var statbuf *u8 = alloc(144);
+    var result i64 = os_stat(path, statbuf);
+    if result < 0 {
+        return 0;  // file doesn't exist or error
+    }
+    var mtime_ptr *i64 = statbuf + 88;
+    return *mtime_ptr;
+}
+
+// Get current working directory
+// Returns number of bytes written to buf, or negative on error
+func getcwd(buf *u8, size i64) i64 {
+    return os_getcwd(buf, size);
+}
+
+// Create directory with mode 0755
+func mkdir(path *u8) i64 {
+    return os_mkdir(path, 493);  // 493 = 0755
+}
+
+// Remove file
+func unlink(path *u8) i64 {
+    return os_unlink(path);
+}
+
+// Remove directory
+func rmdir(path *u8) i64 {
+    return os_rmdir(path);
+}
+
+// ============================================================
+// Environment variables
+// ============================================================
+
+// Global pointer to environment variables (set by init_environ)
+var environ **u8 = nil;
+
+// Initialize environment pointer - call once at program start
+// envp is the third argument passed from _start
+func init_environ(envp **u8) void {
+    environ = envp;
+}
+
+// Get environment variable value by name
+// Returns pointer to value part (after '='), or nil if not found
+func getenv(name *u8) *u8 {
+    if environ == nil {
+        return nil;
+    }
+
+    var name_len i64 = strlen(name);
+    var i i64 = 0;
+
+    while true {
+        var entry *u8 = *(environ + i);
+        if entry == nil {
+            return nil;  // End of environment
+        }
+
+        // Check if entry starts with "name="
+        var j i64 = 0;
+        var matched i64 = 1;
+        while j < name_len {
+            if *(entry + j) != *(name + j) {
+                matched = 0;
+                j = name_len;  // break
+            }
+            j = j + 1;
+        }
+
+        // Check for '=' after name
+        if matched == 1 && *(entry + name_len) == 61 {  // 61 = '='
+            return entry + name_len + 1;  // Return pointer after '='
+        }
+
+        i = i + 1;
+    }
+    return nil;  // unreachable
 }

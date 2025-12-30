@@ -75,10 +75,48 @@ See **`designs/multi_backend.md`** for the complete design with dev plan.
 ### Summary
 
 Two independent tracks:
-- **Track A: Cross-OS Support** — macOS as first +1 target (syscall abstraction layer)
+- **Track A: Cross-OS Support** — macOS as first +1 target (syscall abstraction layer) **✓ COMPLETE**
 - **Track B: LLVM Backend** — LLVM IR as +1 compiler target (portability + optimization)
 
-Goal: Float dev between Mac and Linux, proving each track by induction before adding more platforms.
+### Track A Progress (Cross-OS Support) ✓
+- [x] Created `std/os/linux_x86_64.lang` with `os_read()`, `os_write()`, `os_mmap()`, `os_exit()` wrappers
+- [x] Updated `std/core.lang` to use `os_*` functions instead of raw `syscall()`
+- [x] Created `std/os/macos_arm64.lang` with macOS syscall numbers
+- [x] Added Makefile `LANGOS` env var support — generates `std/os.lang` from target
+- [x] All 165 tests passing
+
+### Track B Progress (LLVM Backend)
+Enables ARM64 codegen via LLVM IR → clang. After this, macOS testing becomes possible.
+
+**Status: 57/165 tests passing (35%)**
+
+- [x] B1: `extern func` for FFI declarations
+- [x] B2: `LANGBE=llvm` env var selects LLVM backend
+- [x] B3: `src/codegen_llvm.lang` - basic LLVM IR emitter
+- [x] B4: Pipeline works: `LANGBE=llvm ./compiler foo.lang -o foo.ll && clang foo.ll -o foo`
+- [x] Skip `___main` wrapper for LLVM (clang provides entry)
+- [x] Test harness: `test/run_llvm_suite.sh` (uses `lli` for fast execution)
+
+**Working features:**
+- Numbers, identifiers, function calls
+- Binary ops: `+ - * / % << >> & | ^`
+- Comparisons: `== != < > <= >=`
+- Logic: `&& ||` (non-short-circuit)
+- Unary: `-x`, `!x`
+- Parentheses
+- If/else, while loops
+- Local variables (alloca/load/store)
+- Assignment statements
+
+**Not yet implemented:**
+- Pointer dereference (`*ptr`), address-of (`&var`)
+- Globals
+- Structs
+- String literals
+- Closures, effects, enums, match
+
+### Future: Track D (Release Distribution)
+Ship `.s` assembly files that users assemble with open source toolchains (`as`/`ld` or `clang`). Avoids binary distribution complexity.
 
 ---
 
@@ -355,36 +393,36 @@ reader block_test(text *u8) *u8 {
 
 > **See `designs/multi_backend.md`** for the OS abstraction layer and libc integration design.
 
-**Current state**: Freestanding. `std/core.lang` uses raw Linux syscalls (mmap, read, write, exit). No libc, no runtime.
+**Current state**: OS abstraction layer complete. `std/os/linux_x86_64.lang` provides `os_*` wrappers over raw syscalls. `extern func` syntax implemented.
 
 **Goal**: "Bring your own runtime" - readers choose what they link against.
 
 | Task | Status |
 |------|--------|
-| `extern` declarations (FFI to C) | TODO |
+| `extern` declarations (FFI to C) | ✅ Done |
+| OS abstraction layer (`std/os/*.lang`) | ✅ Done |
+| `LANGLIBC` env var for libc linking | ✅ Done |
 | Calling convention selection | TODO |
 | Linker script control | TODO |
-| Platform abstraction (`std/platform/linux.lang`, etc.) | TODO |
 
 ### Runtime Options (by reader choice)
 
 ```
-std/runtime/freestanding.lang  - raw syscalls (current)
-std/runtime/libc.lang          - link against libc
-std/runtime/baremetal.lang     - no OS, hardware direct
-std/runtime/wasm.lang          - WASM imports
+std/os/linux_x86_64.lang  - raw Linux syscalls (default)
+std/os/macos_arm64.lang   - raw macOS syscalls
+std/os/libc.lang          - link against libc (extern declarations)
 ```
 
-### FFI Design Sketch
+### FFI Syntax (implemented)
 
 ```lang
-// Declare external C functions
+// Declare external C functions (no body, ends with semicolon)
 extern func malloc(size i64) *u8;
-extern func printf(fmt *u8, ...) i64;
+extern func write(fd i64, buf *u8, count i64) i64;
+extern func exit(code i64) void;
 
-// Calling convention attribute (future)
-@cdecl extern func callback(f fn(i64) i64) void;
-@stdcall extern func WinMain(...) i64;
+// Use them like normal functions
+var ptr *u8 = malloc(1024);
 ```
 
 ### Why This Matters

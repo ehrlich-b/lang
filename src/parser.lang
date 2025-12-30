@@ -150,7 +150,7 @@ func node_set_kind(node *u8, k i64) void {
 // ============================================================
 
 func func_decl_alloc() *u8 {
-    var node *u8 = alloc(56);
+    var node *u8 = alloc(64);
     node_set_kind(node, NODE_FUNC_DECL);
     return node;
 }
@@ -213,6 +213,16 @@ func func_decl_body(node *u8) *u8 {
 func func_decl_set_body(node *u8, body *u8) void {
     var p **u8 = node + 48;
     *p = body;
+}
+
+func func_decl_is_extern(node *u8) i64 {
+    var p *i64 = node + 56;
+    return *p;
+}
+
+func func_decl_set_is_extern(node *u8, is_extern i64) void {
+    var p *i64 = node + 56;
+    *p = is_extern;
 }
 
 // ============================================================
@@ -3153,7 +3163,7 @@ func parse_expr_stmt() *u8 {
 // Declaration parsing
 // ============================================================
 
-func parse_func_decl() *u8 {
+func parse_func_decl_impl(is_extern i64) *u8 {
     var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected function name");
     parse_expect(TOKEN_LPAREN, "expected '(' after function name");
 
@@ -3181,11 +3191,21 @@ func parse_func_decl() *u8 {
     parse_expect(TOKEN_RPAREN, "expected ')' after parameters");
 
     var ret_type *u8 = nil;
-    if !parse_check(TOKEN_LBRACE) {
-        ret_type = parse_type();
-    }
+    var body *u8 = nil;
 
-    var body *u8 = parse_block();
+    if is_extern {
+        // Extern functions: expect return type then semicolon, no body
+        if !parse_check(TOKEN_SEMICOLON) {
+            ret_type = parse_type();
+        }
+        parse_expect(TOKEN_SEMICOLON, "expected ';' after extern function declaration");
+    } else {
+        // Regular functions: optional return type, then body
+        if !parse_check(TOKEN_LBRACE) {
+            ret_type = parse_type();
+        }
+        body = parse_block();
+    }
 
     var node *u8 = func_decl_alloc();
     func_decl_set_name(node, tok_lexeme(name_tok));
@@ -3194,7 +3214,16 @@ func parse_func_decl() *u8 {
     func_decl_set_param_count(node, param_count);
     func_decl_set_ret_type(node, ret_type);
     func_decl_set_body(node, body);
+    func_decl_set_is_extern(node, is_extern);
     return node;
+}
+
+func parse_func_decl() *u8 {
+    return parse_func_decl_impl(0);
+}
+
+func parse_extern_func_decl() *u8 {
+    return parse_func_decl_impl(1);
 }
 
 func parse_struct_decl() *u8 {
@@ -3406,6 +3435,11 @@ func parse_include() *u8 {
 }
 
 func parse_declaration() *u8 {
+    if parse_match(TOKEN_EXTERN) {
+        // extern func name(...) type;
+        parse_expect(TOKEN_FUNC, "expected 'func' after 'extern'");
+        return parse_extern_func_decl();
+    }
     if parse_match(TOKEN_FUNC) {
         return parse_func_decl();
     }

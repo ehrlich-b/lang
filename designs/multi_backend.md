@@ -6,16 +6,18 @@
 
 ## TODO (Implementation Checklist)
 
-### Track A: OS Abstraction (do first)
-- [ ] **A1**: Create `std/os/linux_x86_64.lang` — wrap syscalls as `os_read()`, `os_write()`, `os_exit()`, `os_mmap()`
-- [ ] **A2**: Update `std/core.lang` — replace `syscall(1, ...)` with `os_write(...)` etc
-- [ ] **A3**: `make verify` — confirm fixed point still works
-- [ ] **A4**: Create `std/os/macos_arm64.lang` — same `os_*` API, macOS syscall numbers
-- [ ] **A5**: Makefile target selection — generate `std/os.lang` from `LANGOS` env var
-- [ ] **A6**: Test on Mac
+### Track A: OS Abstraction (do first) ✓
+- [x] **A1**: Create `std/os/linux_x86_64.lang` — wrap syscalls as `os_read()`, `os_write()`, `os_exit()`, `os_mmap()`
+- [x] **A2**: Update `std/core.lang` — replace `syscall(1, ...)` with `os_write(...)` etc
+- [x] **A3**: `make verify` — confirm fixed point still works
+- [x] **A4**: Create `std/os/macos_arm64.lang` — same `os_*` API, macOS syscall numbers
+- [x] **A5**: Makefile target selection — generate `std/os.lang` from `LANGOS` env var
 
 ### Track B: LLVM Backend (do second)
-- [ ] **B1**: Create `std/os/libc.lang` — `extern func write()`, `extern func malloc()`, etc
+- [x] **B1**: Create `std/os/libc.lang` — `extern func write()`, `extern func malloc()`, etc ✓
+  - Added `extern func` syntax to lexer/parser
+  - Created `std/os/libc.lang` with os_* wrappers via libc
+  - Added `LANGLIBC` env var to Makefile
 - [ ] **B2**: Read `LANGBE` env var in `src/main.lang`
 - [ ] **B3**: Create `src/codegen_llvm.lang` — emit LLVM IR text (like x86 asm emitter)
 - [ ] **B4**: Test: hello.lang → hello.ll → `clang hello.ll -o hello` → runs
@@ -29,6 +31,13 @@
 - [ ] **C4**: Auto-invoke `clang` after LLVM codegen
 - [ ] **C5**: `-S` flag to stop at assembly/IR (current behavior becomes opt-in)
 - [ ] **C6**: `lang env` command
+
+### Track D: Release Distribution (after LLVM backend)
+- [ ] **D1**: Test macOS ARM64 via LLVM backend
+- [ ] **D2**: `make release-asm` — emit .s files for each target OS
+- [ ] **D3**: Distribution: ship assembly files that users assemble with open source toolchains
+
+**Philosophy**: Distribute `.s` files, not binaries. Users assemble with platform-native `as`/`ld` or `clang`. This avoids binary distribution complexity and lets users verify the compiler output.
 
 ### Key Files to Create
 ```
