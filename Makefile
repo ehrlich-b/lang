@@ -257,25 +257,23 @@ test-composition: build-kernel emit-kernel-ast emit-lang-reader-ast emit-compile
 	ld /tmp/hello_composed.o -o /tmp/hello_composed
 	@/tmp/hello_composed && echo "SUCCESS: Composed compiler works!"
 
-# Test bootstrap: lang_composed -c lang_reader.lang should produce identical output
+# Test bootstrap: verify true fixed point
+# The fixed point is: A -c lang.lang === B -c lang.lang
+# where A = {kernel -c lang.ast} -c lang.lang
+# NOT: {kernel -c lang.ast} === A (AST-built vs source-built may differ)
 test-bootstrap: test-composition
 	@echo ""
-	@echo "=== Testing bootstrap: lang_composed -c lang_reader.lang ==="
+	@echo "=== Building first generation: lang_composed -c lang_reader.lang ==="
 	./out/lang_composed -c src/lang_reader.lang \
 		--kernel-ast out/ast/kernel.ast \
 		--compiler-ast out/ast/compiler.ast \
 		-o out/lang_bootstrap.s
-	@if diff -q out/lang_composed.s out/lang_bootstrap.s > /dev/null; then \
-		echo "BOOTSTRAP VERIFIED: lang_composed.s == lang_bootstrap.s"; \
-	else \
-		echo "ERROR: Bootstrap mismatch!"; \
-		exit 1; \
-	fi
-	@echo ""
-	@echo "=== Testing fixed point: lang_bootstrap -c lang_reader.lang ==="
 	as out/lang_bootstrap.s -o out/lang_bootstrap.o
 	ld out/lang_bootstrap.o -o out/lang_bootstrap
 	rm -f out/lang_bootstrap.o
+	@echo "Built: out/lang_bootstrap"
+	@echo ""
+	@echo "=== Testing fixed point: lang_bootstrap -c lang_reader.lang ==="
 	./out/lang_bootstrap -c src/lang_reader.lang \
 		--kernel-ast out/ast/kernel.ast \
 		--compiler-ast out/ast/compiler.ast \
