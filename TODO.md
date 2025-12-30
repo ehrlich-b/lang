@@ -220,11 +220,36 @@ Implications:
 |-------|----------|--------|
 | ~~**POINTER ARITHMETIC BUG**~~ | ~~CRITICAL~~ | DONE |
 | ~~**7+ PARAM ACCUMULATOR BUG**~~ | ~~MEDIUM~~ | DONE |
+| **COMPOSITION FLOW BROKEN** | **HIGH** | TODO |
+| **INCLUDE DEDUP FOR CLI FILES** | **MEDIUM** | TODO |
 | **BLOCK_EXPR SCOPE COLLISION** | **MEDIUM** | TODO |
 | **TEST SUITE GAPS** | **HIGH** | TODO |
 | Add `const` keyword for compile-time constants | Medium | TODO |
 | Magic PNODE numbers in lisp.lang | Low | TODO |
 | Reader cache invalidation | Low | TODO |
+
+### HIGH: Composition Flow Produces Broken Compiler
+
+**Problem**: When using the composition flow (`kernel -c lang_reader.ast`), the resulting compiler works for simple tests but produces broken output when compiling the full compiler sources.
+
+**Symptoms**:
+- `lang_gen2` (from composition) can compile `hello.lang` directly
+- But `lang_gen2 src/*.lang` produces a compiler that errors on all input
+- Error message: `"Error at "1":"1": ""expected declaration"""`
+
+**Root cause**: Unknown. The composition flow and monolithic flow should produce equivalent compilers but don't.
+
+**Workaround**: Use bootstrap flow (`make bootstrap` + `make build`) for stable compiler. The composition flow tests verify fixed point but don't promote.
+
+**Impact**: `make verify` (alias for `lang-reader-verify`) runs tests with composition-built compiler, which may have subtle bugs. Consider reverting verify to monolithic flow until fixed.
+
+### MEDIUM: Include Deduplication for CLI Files
+
+**Problem**: Files listed on command line are not deduplicated against files that are `include`d. If `std/core.lang` includes `src/limits.lang`, and you also pass `src/limits.lang` on the CLI, symbols are duplicated.
+
+**Workaround**: Don't list files on CLI that are already included. Removed `src/limits.lang` from Makefile's KERNEL_CORE and LANG_READER_SOURCES.
+
+**Fix needed**: Command-line files should be added to the include tracking set before processing.
 
 ### MEDIUM: Block Expression Scope Collision
 
@@ -357,6 +382,15 @@ Same kernel, different linking.
   - Fixed `___main` duplication in AST emit mode
   - Fixed operator tokenization for S-expression parser (`-`, `==`, etc.)
   - Fixed reader node parsing in sexpr_reader.lang
+- [x] **Hand-wrote S-expression parser in sexpr_reader.lang**
+  - Broke the kernel → parser_reader → lang_reader dependency chain
+  - Simple 60-line recursive descent parser replaces `#parser{}` usage
+  - Kernel is now truly independent of lang syntax
+- [x] **Added split verify/promote targets**
+  - `make kernel-verify` / `make kernel-promote`: kernel fixed point
+  - `make lang-reader-verify` / `make lang-reader-promote`: reader fixed point
+  - `make verify` and `make promote` are aliases to lang-reader-*
+  - NOTE: Composition flow has bugs, use bootstrap flow for promotion
 - [x] `--from-ast` flag using `#parser{}` (dogfooding parser generator!)
 - [x] S-expression parser in src/sexpr_reader.lang
 - [x] Round-trip verification: source → AST → codegen = identical assembly
