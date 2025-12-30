@@ -536,6 +536,12 @@ func llvm_set_result_temp(n i64) void {
     *(buf + idx) = 0;
 }
 
+// Set llvm_expr_result to an integer literal
+func llvm_set_result_int(n i64) void {
+    var buf *u8 = llvm_expr_result;
+    itoa(n, buf);
+}
+
 // Emit expression, return the LLVM value reference (e.g., "%1" or "42")
 // Result is written to a temp buffer that caller must use immediately
 var llvm_expr_result *u8 = nil;
@@ -951,6 +957,34 @@ func llvm_emit_expr(expr *u8) void {
         llvm_emit_expr(right);
         var right_val *u8 = str_dup(llvm_expr_result);
 
+        // Pointer arithmetic scaling: ptr + n -> ptr + (n * sizeof(*ptr))
+        if op == 25 || op == 26 {  // TOKEN_PLUS or TOKEN_MINUS
+            var left_type *u8 = get_expr_type(left);
+            if left_type != nil && type_kind(left_type) == TYPE_PTR {
+                var elem_type *u8 = ptr_type_elem(left_type);
+                var elem_size i64 = 8;  // default
+                if elem_type != nil {
+                    elem_size = get_type_size(elem_type);
+                }
+                if elem_size > 1 {
+                    // Multiply right operand by element size
+                    var scale_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(scale_temp);
+                    llvm_emit_str(" = mul i64 ");
+                    llvm_emit_str(right_val);
+                    llvm_emit_str(", ");
+                    llvm_emit_int(elem_size);
+                    llvm_emit_char(10);
+                    // Replace right_val with scaled value
+                    var buf *u8 = alloc(32);
+                    *buf = 37; *(buf+1) = 116;  // "%t"
+                    itoa(scale_temp, buf + 2);
+                    right_val = buf;
+                }
+            }
+        }
+
         // Check if it's a comparison
         var is_cmp i64 = 0;
         if op >= 33 && op <= 38 { is_cmp = 1; }
@@ -1042,10 +1076,29 @@ func llvm_emit_expr(expr *u8) void {
             if node_kind(inner) == NODE_IDENT_EXPR {
                 var name *u8 = ident_expr_name(inner);
                 var len i64 = ident_expr_name_len(inner);
+
+                // Check if inner is a struct type (needs different LLVM type)
+                var inner_type *u8 = get_expr_type(inner);
+                var struct_size i64 = 0;
+                if inner_type != nil && type_kind(inner_type) == TYPE_BASE {
+                    var type_name *u8 = base_type_name(inner_type);
+                    var type_name_len i64 = base_type_name_len(inner_type);
+                    var struct_decl *u8 = find_struct(type_name, type_name_len);
+                    if struct_decl != nil {
+                        struct_size = get_struct_size(struct_decl);
+                    }
+                }
+
                 // ptrtoint converts pointer to integer
                 llvm_emit_str("    %t");
                 llvm_emit_int(temp);
-                llvm_emit_str(" = ptrtoint i64* %");
+                if struct_size > 8 {
+                    llvm_emit_str(" = ptrtoint [");
+                    llvm_emit_int(struct_size);
+                    llvm_emit_str(" x i8]* %");
+                } else {
+                    llvm_emit_str(" = ptrtoint i64* %");
+                }
                 llvm_emit_n(name, len);
                 llvm_emit_line(" to i64");
                 llvm_set_result_temp(temp);
@@ -1231,6 +1284,191 @@ func llvm_emit_expr(expr *u8) void {
         // Pop let binding and restore local scope
         llvm_pop_let_binding();
         cg_local_count = saved_local_count;
+        return;
+    }
+
+    if k == NODE_FIELD_EXPR {
+        var base_expr *u8 = field_expr_expr(expr);
+        var field_name *u8 = field_expr_field(expr);
+        var field_len i64 = field_expr_field_len(expr);
+
+        // Get type of base expression to find struct
+        var base_type *u8 = get_expr_type(base_expr);
+        if base_type == nil {
+            llvm_set_result_int(0);
+            return;
+        }
+
+        var struct_name *u8 = nil;
+        var struct_name_len i64 = 0;
+        var is_pointer i64 = 0;
+
+        // Check if base is a direct struct or pointer to struct
+        if type_kind(base_type) == TYPE_BASE {
+            struct_name = base_type_name(base_type);
+            struct_name_len = base_type_name_len(base_type);
+        } else if type_kind(base_type) == TYPE_PTR {
+            var pointed_type *u8 = ptr_type_elem(base_type);
+            if pointed_type != nil && type_kind(pointed_type) == TYPE_BASE {
+                struct_name = base_type_name(pointed_type);
+                struct_name_len = base_type_name_len(pointed_type);
+                is_pointer = 1;
+            }
+        }
+
+        if struct_name == nil {
+            llvm_set_result_int(0);
+            return;
+        }
+
+        // Find struct and get field offset
+        var struct_decl *u8 = find_struct(struct_name, struct_name_len);
+        if struct_decl == nil {
+            llvm_set_result_int(0);
+            return;
+        }
+
+        var field_offset i64 = get_field_offset(struct_decl, field_name, field_len);
+        if field_offset < 0 {
+            llvm_set_result_int(0);
+            return;
+        }
+
+        // Get base address
+        if is_pointer != 0 {
+            // Pointer to struct - evaluate to get address
+            llvm_emit_expr(base_expr);
+            var ptr_val *u8 = str_dup(llvm_expr_result);
+
+            // Add offset if needed
+            var addr_val *u8 = ptr_val;
+            if field_offset > 0 {
+                var offset_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(offset_temp);
+                llvm_emit_str(" = add i64 ");
+                llvm_emit_str(ptr_val);
+                llvm_emit_str(", ");
+                llvm_emit_int(field_offset);
+                llvm_emit_char(10);
+                var buf *u8 = alloc(32);
+                *buf = 37; *(buf+1) = 116;  // "%t"
+                itoa(offset_temp, buf + 2);
+                addr_val = buf;
+            }
+
+            // Load value from field
+            var ptr_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(ptr_temp);
+            llvm_emit_str(" = inttoptr i64 ");
+            llvm_emit_str(addr_val);
+            llvm_emit_line(" to i64*");
+
+            var load_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(load_temp);
+            llvm_emit_str(" = load i64, i64* %t");
+            llvm_emit_int(ptr_temp);
+            llvm_emit_char(10);
+
+            llvm_set_result_temp(load_temp);
+        } else {
+            // Direct struct - base is the local variable, need its address
+            if node_kind(base_expr) == NODE_IDENT_EXPR {
+                var name *u8 = ident_expr_name(base_expr);
+                var name_len i64 = ident_expr_name_len(base_expr);
+
+                // Get address of struct and add offset
+                var addr_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(addr_temp);
+                llvm_emit_str(" = ptrtoint [");
+                // Get struct size
+                var struct_size i64 = get_struct_size(struct_decl);
+                llvm_emit_int(struct_size);
+                llvm_emit_str(" x i8]* %");
+                llvm_emit_n(name, name_len);
+                llvm_emit_line(" to i64");
+
+                // Add offset
+                var addr_val *u8 = nil;
+                if field_offset > 0 {
+                    var offset_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(offset_temp);
+                    llvm_emit_str(" = add i64 %t");
+                    llvm_emit_int(addr_temp);
+                    llvm_emit_str(", ");
+                    llvm_emit_int(field_offset);
+                    llvm_emit_char(10);
+                    var buf *u8 = alloc(32);
+                    *buf = 37; *(buf+1) = 116;  // "%t"
+                    itoa(offset_temp, buf + 2);
+                    addr_val = buf;
+                } else {
+                    var buf *u8 = alloc(32);
+                    *buf = 37; *(buf+1) = 116;  // "%t"
+                    itoa(addr_temp, buf + 2);
+                    addr_val = buf;
+                }
+
+                // Load value from field
+                var ptr_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(ptr_temp);
+                llvm_emit_str(" = inttoptr i64 ");
+                llvm_emit_str(addr_val);
+                llvm_emit_line(" to i64*");
+
+                var load_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(load_temp);
+                llvm_emit_str(" = load i64, i64* %t");
+                llvm_emit_int(ptr_temp);
+                llvm_emit_char(10);
+
+                llvm_set_result_temp(load_temp);
+            } else {
+                // Nested field access - evaluate base, load field
+                llvm_emit_expr(base_expr);
+                var base_val *u8 = str_dup(llvm_expr_result);
+
+                // Add offset
+                var addr_val *u8 = base_val;
+                if field_offset > 0 {
+                    var offset_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(offset_temp);
+                    llvm_emit_str(" = add i64 ");
+                    llvm_emit_str(base_val);
+                    llvm_emit_str(", ");
+                    llvm_emit_int(field_offset);
+                    llvm_emit_char(10);
+                    var buf *u8 = alloc(32);
+                    *buf = 37; *(buf+1) = 116;  // "%t"
+                    itoa(offset_temp, buf + 2);
+                    addr_val = buf;
+                }
+
+                // Load value from field
+                var ptr_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(ptr_temp);
+                llvm_emit_str(" = inttoptr i64 ");
+                llvm_emit_str(addr_val);
+                llvm_emit_line(" to i64*");
+
+                var load_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(load_temp);
+                llvm_emit_str(" = load i64, i64* %t");
+                llvm_emit_int(ptr_temp);
+                llvm_emit_char(10);
+
+                llvm_set_result_temp(load_temp);
+            }
+        }
         return;
     }
 
@@ -1470,10 +1708,30 @@ func llvm_emit_stmt(stmt *u8) void {
         llvm_add_local(name, name_len);
         add_local(name, name_len, 0, var_type);  // 0 offset, use var_type
 
-        // Allocate stack slot
+        // Calculate allocation size - structs need more than 8 bytes
+        var alloc_size i64 = 8;
+        if var_type != nil {
+            if type_kind(var_type) == TYPE_BASE {
+                var type_name *u8 = base_type_name(var_type);
+                var type_name_len i64 = base_type_name_len(var_type);
+                var struct_decl *u8 = find_struct(type_name, type_name_len);
+                if struct_decl != nil {
+                    alloc_size = get_struct_size(struct_decl);
+                }
+            }
+        }
+
+        // Allocate stack slot with correct size
         llvm_emit_str("    %");
         llvm_emit_n(name, name_len);
-        llvm_emit_line(" = alloca i64");
+        if alloc_size <= 8 {
+            llvm_emit_line(" = alloca i64");
+        } else {
+            // Allocate as byte array for structs
+            llvm_emit_str(" = alloca [");
+            llvm_emit_int(alloc_size);
+            llvm_emit_line(" x i8]");
+        }
 
         // Initialize if there's an init expression
         if init != nil {
@@ -1587,6 +1845,134 @@ func llvm_emit_stmt(stmt *u8) void {
                     llvm_emit_char(10);
                 }
                 return;
+            }
+        }
+
+        // Check for field assignment (p.x = value)
+        if node_kind(target) == NODE_FIELD_EXPR {
+            var base_expr *u8 = field_expr_expr(target);
+            var field_name *u8 = field_expr_field(target);
+            var field_len i64 = field_expr_field_len(target);
+
+            // Get type of base expression to find struct
+            var base_type *u8 = get_expr_type(base_expr);
+            if base_type != nil {
+                var struct_name *u8 = nil;
+                var struct_name_len i64 = 0;
+                var is_pointer i64 = 0;
+
+                // Check if base is a direct struct or pointer to struct
+                if type_kind(base_type) == TYPE_BASE {
+                    struct_name = base_type_name(base_type);
+                    struct_name_len = base_type_name_len(base_type);
+                } else if type_kind(base_type) == TYPE_PTR {
+                    var pointed_type *u8 = ptr_type_elem(base_type);
+                    if pointed_type != nil && type_kind(pointed_type) == TYPE_BASE {
+                        struct_name = base_type_name(pointed_type);
+                        struct_name_len = base_type_name_len(pointed_type);
+                        is_pointer = 1;
+                    }
+                }
+
+                if struct_name != nil {
+                    var struct_decl *u8 = find_struct(struct_name, struct_name_len);
+                    if struct_decl != nil {
+                        var field_offset i64 = get_field_offset(struct_decl, field_name, field_len);
+                        if field_offset >= 0 {
+                            // Get base address
+                            if is_pointer != 0 {
+                                // Pointer to struct - evaluate to get address
+                                llvm_emit_expr(base_expr);
+                                var ptr_val *u8 = str_dup(llvm_expr_result);
+
+                                // Add offset if needed
+                                var addr_val *u8 = ptr_val;
+                                if field_offset > 0 {
+                                    var offset_temp i64 = llvm_next_temp();
+                                    llvm_emit_str("    %t");
+                                    llvm_emit_int(offset_temp);
+                                    llvm_emit_str(" = add i64 ");
+                                    llvm_emit_str(ptr_val);
+                                    llvm_emit_str(", ");
+                                    llvm_emit_int(field_offset);
+                                    llvm_emit_char(10);
+                                    var buf *u8 = alloc(32);
+                                    *buf = 37; *(buf+1) = 116;  // "%t"
+                                    itoa(offset_temp, buf + 2);
+                                    addr_val = buf;
+                                }
+
+                                // Store value to field
+                                var ptr_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(ptr_temp);
+                                llvm_emit_str(" = inttoptr i64 ");
+                                llvm_emit_str(addr_val);
+                                llvm_emit_line(" to i64*");
+
+                                llvm_emit_str("    store i64 ");
+                                llvm_emit_str(val);
+                                llvm_emit_str(", i64* %t");
+                                llvm_emit_int(ptr_temp);
+                                llvm_emit_char(10);
+                            } else {
+                                // Direct struct - base is the local variable
+                                if node_kind(base_expr) == NODE_IDENT_EXPR {
+                                    var name *u8 = ident_expr_name(base_expr);
+                                    var name_len i64 = ident_expr_name_len(base_expr);
+
+                                    // Get address of struct
+                                    var addr_temp i64 = llvm_next_temp();
+                                    llvm_emit_str("    %t");
+                                    llvm_emit_int(addr_temp);
+                                    llvm_emit_str(" = ptrtoint [");
+                                    var struct_size i64 = get_struct_size(struct_decl);
+                                    llvm_emit_int(struct_size);
+                                    llvm_emit_str(" x i8]* %");
+                                    llvm_emit_n(name, name_len);
+                                    llvm_emit_line(" to i64");
+
+                                    // Add offset
+                                    var addr_val *u8 = nil;
+                                    if field_offset > 0 {
+                                        var offset_temp i64 = llvm_next_temp();
+                                        llvm_emit_str("    %t");
+                                        llvm_emit_int(offset_temp);
+                                        llvm_emit_str(" = add i64 %t");
+                                        llvm_emit_int(addr_temp);
+                                        llvm_emit_str(", ");
+                                        llvm_emit_int(field_offset);
+                                        llvm_emit_char(10);
+                                        var buf *u8 = alloc(32);
+                                        *buf = 37; *(buf+1) = 116;  // "%t"
+                                        itoa(offset_temp, buf + 2);
+                                        addr_val = buf;
+                                    } else {
+                                        var buf *u8 = alloc(32);
+                                        *buf = 37; *(buf+1) = 116;  // "%t"
+                                        itoa(addr_temp, buf + 2);
+                                        addr_val = buf;
+                                    }
+
+                                    // Store value to field
+                                    var ptr_temp i64 = llvm_next_temp();
+                                    llvm_emit_str("    %t");
+                                    llvm_emit_int(ptr_temp);
+                                    llvm_emit_str(" = inttoptr i64 ");
+                                    llvm_emit_str(addr_val);
+                                    llvm_emit_line(" to i64*");
+
+                                    llvm_emit_str("    store i64 ");
+                                    llvm_emit_str(val);
+                                    llvm_emit_str(", i64* %t");
+                                    llvm_emit_int(ptr_temp);
+                                    llvm_emit_char(10);
+                                }
+                            }
+                            return;
+                        }
+                    }
+                }
             }
         }
 
@@ -1862,19 +2248,76 @@ func llvm_emit_decl(decl *u8) void {
     // TODO: other declaration types (structs, etc.)
 }
 
-// First pass: register top-level function declarations (includes handled separately)
-func llvm_register_all_funcs(prog *u8) void {
+// Map to track included files for first pass
+var llvm_first_pass_included *u8 = nil;
+
+// First pass helper: process a single declaration
+func llvm_register_decl(decl *u8) void {
+    if decl == nil {
+        return;
+    }
+    var k i64 = node_kind(decl);
+    if k == NODE_STRUCT_DECL {
+        add_struct(decl);
+    } else if k == NODE_FUNC_DECL {
+        var name *u8 = func_decl_name(decl);
+        var name_len i64 = func_decl_name_len(decl);
+        var ret_type *u8 = func_decl_ret_type(decl);
+        llvm_register_func(name, name_len, ret_type);
+    } else if k == NODE_INCLUDE_DECL {
+        // Recursively process included file
+        var path *u8 = include_decl_path(decl);
+        var path_len i64 = include_decl_path_len(decl);
+
+        // Skip if already included
+        var path_key *u8 = str_dup_n(path, path_len);
+        if map_has(llvm_first_pass_included, path_key) {
+            return;
+        }
+        map_set(llvm_first_pass_included, path_key, 1);
+
+        // Build path string
+        var path_str *u8 = str_dup_n(path, path_len);
+
+        // Read and parse include file
+        var buf *u8 = alloc(1024 * 1024);  // 1MB buffer
+        var buf_cap i64 = 1024 * 1024;
+        var fd i64 = file_open(path_str, 0);
+        if fd < 0 {
+            return;
+        }
+        var n i64 = file_read(fd, buf, buf_cap);
+        file_close(fd);
+        if n < 0 {
+            return;
+        }
+        *(buf + n) = 0;
+
+        // Parse file
+        var inc_prog *u8 = parse_program_from_string(buf);
+        if inc_prog == nil {
+            return;
+        }
+
+        // Process declarations from included file
+        var inc_decls *u8 = program_decls(inc_prog);
+        var inc_count i64 = program_decl_count(inc_prog);
+        var i i64 = 0;
+        while i < inc_count {
+            llvm_register_decl(get_decl(inc_decls, i));
+            i = i + 1;
+        }
+    }
+}
+
+// First pass: register top-level declarations (structs and functions)
+func llvm_register_all_decls(prog *u8) void {
+    llvm_first_pass_included = map_new();
     var decls *u8 = program_decls(prog);
     var count i64 = program_decl_count(prog);
     var i i64 = 0;
     while i < count {
-        var decl *u8 = get_decl(decls, i);
-        if node_kind(decl) == NODE_FUNC_DECL {
-            var name *u8 = func_decl_name(decl);
-            var name_len i64 = func_decl_name_len(decl);
-            var ret_type *u8 = func_decl_ret_type(decl);
-            llvm_register_func(name, name_len, ret_type);
-        }
+        llvm_register_decl(get_decl(decls, i));
         i = i + 1;
     }
 }
@@ -1888,12 +2331,14 @@ func generate_llvm(prog *u8, output_file *u8) void {
     llvm_init_strings();
     llvm_init_let_bindings();
 
-    // Initialize x86 backend's local tracking (for type info via get_expr_type)
+    // Initialize x86 backend's shared tracking
     cg_locals = alloc(LIMIT_LOCALS * 32);
     cg_local_count = 0;
+    cg_structs = alloc(LIMIT_STRUCTS * 24);
+    cg_struct_count = 0;
 
-    // First pass: register all functions to track return types
-    llvm_register_all_funcs(prog);
+    // First pass: register structs and functions
+    llvm_register_all_decls(prog);
 
     // Module header
     llvm_emit_line("; LLVM IR generated by lang compiler");
