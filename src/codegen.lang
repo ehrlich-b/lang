@@ -111,7 +111,7 @@ var cg_include_count i64 = 0;
 var cg_included_files *u8 = nil;
 
 // Debug flag: print macro expansions
-var cg_expand_macros i64 = 0;
+var cg_expand_macros i64 = 0;  // v2
 
 // Loop label stack for break/continue
 // Each entry: [name_ptr:8][name_len:8][break_label:8][continue_label:8] = 32 bytes

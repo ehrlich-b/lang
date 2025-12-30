@@ -2037,7 +2037,7 @@ func param_set_type(p *u8, t *u8) void {
 
 var parse_tokens *u8 = nil;      // vec of token pointers
 var parse_current i64 = 0;
-var parse_error_count i64 = 0;
+var parse_error_count i64 = 0;  // v2
 var parse_max_errors i64 = 10;   // Stop after this many errors
 
 // ============================================================
