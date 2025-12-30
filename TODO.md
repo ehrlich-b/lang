@@ -220,7 +220,7 @@ Implications:
 |-------|----------|--------|
 | ~~**POINTER ARITHMETIC BUG**~~ | ~~CRITICAL~~ | DONE |
 | ~~**7+ PARAM ACCUMULATOR BUG**~~ | ~~MEDIUM~~ | DONE |
-| **COMPOSITION FLOW BROKEN** | **HIGH** | TODO |
+| ~~**COMPOSITION FLOW BROKEN**~~ | ~~HIGH~~ | FIXED (was symlink corruption) |
 | **INCLUDE DEDUP FOR CLI FILES** | **MEDIUM** | TODO |
 | **BLOCK_EXPR SCOPE COLLISION** | **MEDIUM** | TODO |
 | **TEST SUITE GAPS** | **HIGH** | TODO |
