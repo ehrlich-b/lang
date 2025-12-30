@@ -1772,570 +1772,576 @@
 .str885:
     .ascii "\\000\000"
 .str886:
-    .ascii "Error: expected ')' in S-expression\000"
-.str887:
-    .ascii "Error: unexpected token in S-expression: \000"
-.str888:
     .ascii "+\000"
-.str889:
+.str887:
     .ascii "-\000"
-.str890:
+.str888:
     .ascii "*\000"
-.str891:
+.str889:
     .ascii "/\000"
-.str892:
+.str890:
     .ascii "%\000"
-.str893:
+.str891:
     .ascii "&\000"
-.str894:
+.str892:
     .ascii "|\000"
-.str895:
+.str893:
     .ascii "^\000"
-.str896:
+.str894:
     .ascii "<<\000"
-.str897:
+.str895:
     .ascii ">>\000"
-.str898:
+.str896:
     .ascii "==\000"
-.str899:
+.str897:
     .ascii "!=\000"
-.str900:
+.str898:
     .ascii "<\000"
-.str901:
+.str899:
     .ascii ">\000"
-.str902:
+.str900:
     .ascii "<=\000"
-.str903:
+.str901:
     .ascii ">=\000"
-.str904:
+.str902:
     .ascii "&&\000"
-.str905:
+.str903:
     .ascii "||\000"
-.str906:
+.str904:
     .ascii "!\000"
+.str905:
+    .ascii "=\000"
+.str906:
+    .ascii "op\000"
 .str907:
     .ascii "nil\000"
 .str908:
-    .ascii "type_base\000"
-.str909:
-    .ascii "type_ptr\000"
-.str910:
-    .ascii "type_func\000"
-.str911:
-    .ascii "type_closure\000"
-.str912:
-    .ascii "pattern_wildcard\000"
-.str913:
-    .ascii "pattern_variant\000"
-.str914:
-    .ascii "nil\000"
-.str915:
-    .ascii "Error: expected S-expression list\000"
-.str916:
-    .ascii "Error: empty S-expression\000"
-.str917:
-    .ascii "func\000"
-.str918:
-    .ascii "var\000"
-.str919:
-    .ascii "struct\000"
-.str920:
-    .ascii "enum\000"
-.str921:
-    .ascii "effect\000"
-.str922:
-    .ascii "include\000"
-.str923:
-    .ascii "reader\000"
-.str924:
-    .ascii "block\000"
-.str925:
-    .ascii "block_expr\000"
-.str926:
-    .ascii "if\000"
-.str927:
-    .ascii "while\000"
-.str928:
-    .ascii "return\000"
-.str929:
-    .ascii "break\000"
-.str930:
-    .ascii "continue\000"
-.str931:
-    .ascii "expr_stmt\000"
-.str932:
-    .ascii "assign\000"
-.str933:
-    .ascii "ident\000"
-.str934:
-    .ascii "number\000"
-.str935:
-    .ascii "string\000"
-.str936:
-    .ascii "bool\000"
-.str937:
-    .ascii "true\000"
-.str938:
-    .ascii "nil\000"
-.str939:
-    .ascii "binop\000"
-.str940:
-    .ascii "unop\000"
-.str941:
-    .ascii "call\000"
-.str942:
-    .ascii "field\000"
-.str943:
-    .ascii "index\000"
-.str944:
-    .ascii "let\000"
-.str945:
-    .ascii "type_base\000"
-.str946:
-    .ascii "type_ptr\000"
-.str947:
-    .ascii "lambda\000"
-.str948:
-    .ascii "match\000"
-.str949:
-    .ascii "perform\000"
-.str950:
-    .ascii "handle\000"
-.str951:
-    .ascii "_\000"
-.str952:
-    .ascii "resume\000"
-.str953:
-    .ascii "reader_expr\000"
-.str954:
-    .ascii "Error: unknown S-expression node type: \000"
-.str955:
-    .ascii "Error: expected (program ...)\000"
-.str956:
-    .ascii "program\000"
-.str957:
-    .ascii "Error: expected (program ...)\000"
-.str958:
-    .ascii "Error: failed to parse S-expression\000"
-.str959:
-    .ascii "Error: failed to parse S-expression\000"
-.str960:
-    .ascii "+\000"
-.str961:
-    .ascii "-\000"
-.str962:
-    .ascii "*\000"
-.str963:
-    .ascii "/\000"
-.str964:
-    .ascii "%\000"
-.str965:
-    .ascii "&\000"
-.str966:
-    .ascii "|\000"
-.str967:
-    .ascii "^\000"
-.str968:
-    .ascii "<<\000"
-.str969:
-    .ascii ">>\000"
-.str970:
-    .ascii "==\000"
-.str971:
-    .ascii "!=\000"
-.str972:
-    .ascii "<\000"
-.str973:
-    .ascii ">\000"
-.str974:
-    .ascii "<=\000"
-.str975:
-    .ascii ">=\000"
-.str976:
-    .ascii "&&\000"
-.str977:
-    .ascii "||\000"
-.str978:
-    .ascii "!\000"
-.str979:
-    .ascii "=\000"
-.str980:
-    .ascii "op\000"
-.str981:
-    .ascii "nil\000"
-.str982:
     .ascii "(type_base \000"
-.str983:
+.str909:
     .ascii ")\000"
-.str984:
+.str910:
     .ascii "(type_ptr \000"
-.str985:
+.str911:
     .ascii ")\000"
-.str986:
+.str912:
     .ascii "(type_func (\000"
-.str987:
+.str913:
     .ascii " \000"
-.str988:
+.str914:
     .ascii ") \000"
+.str915:
+    .ascii ")\000"
+.str916:
+    .ascii "(type_closure (\000"
+.str917:
+    .ascii " \000"
+.str918:
+    .ascii ") \000"
+.str919:
+    .ascii ")\000"
+.str920:
+    .ascii "(type_unknown \000"
+.str921:
+    .ascii ")\000"
+.str922:
+    .ascii "(param \000"
+.str923:
+    .ascii " \000"
+.str924:
+    .ascii ")\000"
+.str925:
+    .ascii "nil\000"
+.str926:
+    .ascii "(func \000"
+.str927:
+    .ascii " (\000"
+.str928:
+    .ascii " \000"
+.str929:
+    .ascii ") \000"
+.str930:
+    .ascii ")\000"
+.str931:
+    .ascii "(var \000"
+.str932:
+    .ascii " \000"
+.str933:
+    .ascii " \000"
+.str934:
+    .ascii ")\000"
+.str935:
+    .ascii "(struct \000"
+.str936:
+    .ascii " (\000"
+.str937:
+    .ascii " \000"
+.str938:
+    .ascii "(field_decl \000"
+.str939:
+    .ascii " \000"
+.str940:
+    .ascii ")\000"
+.str941:
+    .ascii "))\000"
+.str942:
+    .ascii "(enum \000"
+.str943:
+    .ascii " (\000"
+.str944:
+    .ascii " \000"
+.str945:
+    .ascii "(variant_decl \000"
+.str946:
+    .ascii " \000"
+.str947:
+    .ascii ")\000"
+.str948:
+    .ascii "))\000"
+.str949:
+    .ascii "(effect \000"
+.str950:
+    .ascii " (\000"
+.str951:
+    .ascii " \000"
+.str952:
+    .ascii ") \000"
+.str953:
+    .ascii ")\000"
+.str954:
+    .ascii "(macro \000"
+.str955:
+    .ascii " (\000"
+.str956:
+    .ascii " \000"
+.str957:
+    .ascii ") \000"
+.str958:
+    .ascii ")\000"
+.str959:
+    .ascii "(reader \000"
+.str960:
+    .ascii " \000"
+.str961:
+    .ascii " \000"
+.str962:
+    .ascii ")\000"
+.str963:
+    .ascii "(include \000"
+.str964:
+    .ascii ")\000"
+.str965:
+    .ascii "(import \000"
+.str966:
+    .ascii ")\000"
+.str967:
+    .ascii "(block\000"
+.str968:
+    .ascii ")\000"
+.str969:
+    .ascii "(block_expr\000"
+.str970:
+    .ascii ")\000"
+.str971:
+    .ascii "(if \000"
+.str972:
+    .ascii ")\000"
+.str973:
+    .ascii "(while \000"
+.str974:
+    .ascii " \000"
+.str975:
+    .ascii ")\000"
+.str976:
+    .ascii "(return\000"
+.str977:
+    .ascii " \000"
+.str978:
+    .ascii ")\000"
+.str979:
+    .ascii "(break\000"
+.str980:
+    .ascii " \000"
+.str981:
+    .ascii ")\000"
+.str982:
+    .ascii "(continue\000"
+.str983:
+    .ascii " \000"
+.str984:
+    .ascii ")\000"
+.str985:
+    .ascii "(expr_stmt \000"
+.str986:
+    .ascii ")\000"
+.str987:
+    .ascii "(assign \000"
+.str988:
+    .ascii " \000"
 .str989:
     .ascii ")\000"
 .str990:
-    .ascii "(type_closure (\000"
+    .ascii "(binop \000"
 .str991:
     .ascii " \000"
 .str992:
-    .ascii ") \000"
+    .ascii " \000"
 .str993:
     .ascii ")\000"
 .str994:
-    .ascii "(type_unknown \000"
+    .ascii "(unop \000"
 .str995:
-    .ascii ")\000"
+    .ascii " \000"
 .str996:
-    .ascii "(param \000"
+    .ascii ")\000"
 .str997:
-    .ascii " \000"
+    .ascii "(call \000"
 .str998:
-    .ascii ")\000"
+    .ascii " \000"
 .str999:
-    .ascii "nil\000"
+    .ascii ")\000"
 .str1000:
-    .ascii "(func \000"
+    .ascii "(field \000"
 .str1001:
-    .ascii " (\000"
+    .ascii " \000"
 .str1002:
-    .ascii " \000"
+    .ascii ")\000"
 .str1003:
-    .ascii ") \000"
+    .ascii "(index \000"
 .str1004:
-    .ascii ")\000"
+    .ascii " \000"
 .str1005:
-    .ascii "(var \000"
+    .ascii ")\000"
 .str1006:
-    .ascii " \000"
+    .ascii "(ident \000"
 .str1007:
-    .ascii " \000"
+    .ascii ")\000"
 .str1008:
-    .ascii ")\000"
+    .ascii "(number \000"
 .str1009:
-    .ascii "(struct \000"
-.str1010:
-    .ascii " (\000"
-.str1011:
-    .ascii " \000"
-.str1012:
-    .ascii "(field_decl \000"
-.str1013:
-    .ascii " \000"
-.str1014:
     .ascii ")\000"
+.str1010:
+    .ascii "(string \000"
+.str1011:
+    .ascii ")\000"
+.str1012:
+    .ascii "(bool \000"
+.str1013:
+    .ascii "true\000"
+.str1014:
+    .ascii "false\000"
 .str1015:
-    .ascii "))\000"
+    .ascii ")\000"
 .str1016:
-    .ascii "(enum \000"
+    .ascii "(nil)\000"
 .str1017:
-    .ascii " (\000"
+    .ascii "(let \000"
 .str1018:
     .ascii " \000"
 .str1019:
-    .ascii "(variant_decl \000"
+    .ascii " \000"
 .str1020:
     .ascii " \000"
 .str1021:
     .ascii ")\000"
 .str1022:
-    .ascii "))\000"
+    .ascii "(lambda (\000"
 .str1023:
-    .ascii "(effect \000"
+    .ascii " \000"
 .str1024:
-    .ascii " (\000"
+    .ascii ") \000"
 .str1025:
     .ascii " \000"
 .str1026:
-    .ascii ") \000"
-.str1027:
     .ascii ")\000"
+.str1027:
+    .ascii "(match \000"
 .str1028:
-    .ascii "(macro \000"
-.str1029:
     .ascii " (\000"
+.str1029:
+    .ascii "(case \000"
 .str1030:
     .ascii " \000"
 .str1031:
-    .ascii ") \000"
-.str1032:
     .ascii ")\000"
+.str1032:
+    .ascii "))\000"
 .str1033:
-    .ascii "(reader \000"
+    .ascii "(perform \000"
 .str1034:
     .ascii " \000"
 .str1035:
-    .ascii " \000"
+    .ascii ")\000"
 .str1036:
-    .ascii ")\000"
+    .ascii "(handle \000"
 .str1037:
-    .ascii "(include \000"
+    .ascii "(return_handler \000"
 .str1038:
-    .ascii ")\000"
+    .ascii " \000"
 .str1039:
-    .ascii "(import \000"
+    .ascii ")\000"
 .str1040:
-    .ascii ")\000"
+    .ascii "(effect_handler \000"
 .str1041:
-    .ascii "(block\000"
+    .ascii " \000"
 .str1042:
-    .ascii ")\000"
+    .ascii "_\000"
 .str1043:
-    .ascii "(block_expr\000"
+    .ascii " \000"
 .str1044:
-    .ascii ")\000"
+    .ascii " \000"
 .str1045:
-    .ascii "(if \000"
+    .ascii ")\000"
 .str1046:
     .ascii ")\000"
 .str1047:
-    .ascii "(while \000"
+    .ascii "(resume \000"
 .str1048:
     .ascii " \000"
 .str1049:
     .ascii ")\000"
 .str1050:
-    .ascii "(return\000"
+    .ascii "(quote \000"
 .str1051:
-    .ascii " \000"
-.str1052:
     .ascii ")\000"
+.str1052:
+    .ascii "(unquote \000"
 .str1053:
-    .ascii "(break\000"
+    .ascii ")\000"
 .str1054:
-    .ascii " \000"
+    .ascii "(unquote_string \000"
 .str1055:
     .ascii ")\000"
 .str1056:
-    .ascii "(continue\000"
+    .ascii "(reader_expr \000"
 .str1057:
     .ascii " \000"
 .str1058:
     .ascii ")\000"
 .str1059:
-    .ascii "(expr_stmt \000"
+    .ascii "(unknown_node \000"
 .str1060:
     .ascii ")\000"
 .str1061:
-    .ascii "(assign \000"
+    .ascii "nil\000"
 .str1062:
-    .ascii " \000"
+    .ascii "(pattern_variant \000"
 .str1063:
-    .ascii ")\000"
+    .ascii " \000"
 .str1064:
-    .ascii "(binop \000"
+    .ascii " \000"
 .str1065:
-    .ascii " \000"
-.str1066:
-    .ascii " \000"
-.str1067:
     .ascii ")\000"
+.str1066:
+    .ascii "(pattern_wildcard)\000"
+.str1067:
+    .ascii "(unknown_pattern \000"
 .str1068:
-    .ascii "(unop \000"
+    .ascii ")\000"
 .str1069:
-    .ascii " \000"
+    .ascii "(program\000"
 .str1070:
     .ascii ")\000"
 .str1071:
-    .ascii "(call \000"
+    .ascii "Error: expected ')' in S-expression\000"
 .str1072:
-    .ascii " \000"
+    .ascii "Error: unexpected token in S-expression: \000"
 .str1073:
-    .ascii ")\000"
+    .ascii "+\000"
 .str1074:
-    .ascii "(field \000"
+    .ascii "-\000"
 .str1075:
-    .ascii " \000"
+    .ascii "*\000"
 .str1076:
-    .ascii ")\000"
+    .ascii "/\000"
 .str1077:
-    .ascii "(index \000"
+    .ascii "%\000"
 .str1078:
-    .ascii " \000"
+    .ascii "&\000"
 .str1079:
-    .ascii ")\000"
+    .ascii "|\000"
 .str1080:
-    .ascii "(ident \000"
+    .ascii "^\000"
 .str1081:
-    .ascii ")\000"
+    .ascii "<<\000"
 .str1082:
-    .ascii "(number \000"
+    .ascii ">>\000"
 .str1083:
-    .ascii ")\000"
+    .ascii "==\000"
 .str1084:
-    .ascii "(string \000"
+    .ascii "!=\000"
 .str1085:
-    .ascii ")\000"
+    .ascii "<\000"
 .str1086:
-    .ascii "(bool \000"
+    .ascii ">\000"
 .str1087:
-    .ascii "true\000"
+    .ascii "<=\000"
 .str1088:
-    .ascii "false\000"
+    .ascii ">=\000"
 .str1089:
-    .ascii ")\000"
+    .ascii "&&\000"
 .str1090:
-    .ascii "(nil)\000"
+    .ascii "||\000"
 .str1091:
-    .ascii "(let \000"
+    .ascii "!\000"
 .str1092:
-    .ascii " \000"
-.str1093:
-    .ascii " \000"
-.str1094:
-    .ascii " \000"
-.str1095:
-    .ascii ")\000"
-.str1096:
-    .ascii "(lambda (\000"
-.str1097:
-    .ascii " \000"
-.str1098:
-    .ascii ") \000"
-.str1099:
-    .ascii " \000"
-.str1100:
-    .ascii ")\000"
-.str1101:
-    .ascii "(match \000"
-.str1102:
-    .ascii " (\000"
-.str1103:
-    .ascii "(case \000"
-.str1104:
-    .ascii " \000"
-.str1105:
-    .ascii ")\000"
-.str1106:
-    .ascii "))\000"
-.str1107:
-    .ascii "(perform \000"
-.str1108:
-    .ascii " \000"
-.str1109:
-    .ascii ")\000"
-.str1110:
-    .ascii "(handle \000"
-.str1111:
-    .ascii "(return_handler \000"
-.str1112:
-    .ascii " \000"
-.str1113:
-    .ascii ")\000"
-.str1114:
-    .ascii "(effect_handler \000"
-.str1115:
-    .ascii " \000"
-.str1116:
-    .ascii "_\000"
-.str1117:
-    .ascii " \000"
-.str1118:
-    .ascii " \000"
-.str1119:
-    .ascii ")\000"
-.str1120:
-    .ascii ")\000"
-.str1121:
-    .ascii "(resume \000"
-.str1122:
-    .ascii " \000"
-.str1123:
-    .ascii ")\000"
-.str1124:
-    .ascii "(quote \000"
-.str1125:
-    .ascii ")\000"
-.str1126:
-    .ascii "(unquote \000"
-.str1127:
-    .ascii ")\000"
-.str1128:
-    .ascii "(unquote_string \000"
-.str1129:
-    .ascii ")\000"
-.str1130:
-    .ascii "(reader_expr \000"
-.str1131:
-    .ascii " \000"
-.str1132:
-    .ascii ")\000"
-.str1133:
-    .ascii "(unknown_node \000"
-.str1134:
-    .ascii ")\000"
-.str1135:
     .ascii "nil\000"
+.str1093:
+    .ascii "type_base\000"
+.str1094:
+    .ascii "type_ptr\000"
+.str1095:
+    .ascii "type_func\000"
+.str1096:
+    .ascii "type_closure\000"
+.str1097:
+    .ascii "pattern_wildcard\000"
+.str1098:
+    .ascii "pattern_variant\000"
+.str1099:
+    .ascii "nil\000"
+.str1100:
+    .ascii "Error: expected S-expression list\000"
+.str1101:
+    .ascii "Error: empty S-expression\000"
+.str1102:
+    .ascii "func\000"
+.str1103:
+    .ascii "var\000"
+.str1104:
+    .ascii "struct\000"
+.str1105:
+    .ascii "enum\000"
+.str1106:
+    .ascii "effect\000"
+.str1107:
+    .ascii "include\000"
+.str1108:
+    .ascii "reader\000"
+.str1109:
+    .ascii "block\000"
+.str1110:
+    .ascii "block_expr\000"
+.str1111:
+    .ascii "if\000"
+.str1112:
+    .ascii "while\000"
+.str1113:
+    .ascii "return\000"
+.str1114:
+    .ascii "break\000"
+.str1115:
+    .ascii "continue\000"
+.str1116:
+    .ascii "expr_stmt\000"
+.str1117:
+    .ascii "assign\000"
+.str1118:
+    .ascii "ident\000"
+.str1119:
+    .ascii "number\000"
+.str1120:
+    .ascii "string\000"
+.str1121:
+    .ascii "bool\000"
+.str1122:
+    .ascii "true\000"
+.str1123:
+    .ascii "nil\000"
+.str1124:
+    .ascii "binop\000"
+.str1125:
+    .ascii "unop\000"
+.str1126:
+    .ascii "call\000"
+.str1127:
+    .ascii "field\000"
+.str1128:
+    .ascii "index\000"
+.str1129:
+    .ascii "let\000"
+.str1130:
+    .ascii "type_base\000"
+.str1131:
+    .ascii "type_ptr\000"
+.str1132:
+    .ascii "lambda\000"
+.str1133:
+    .ascii "match\000"
+.str1134:
+    .ascii "perform\000"
+.str1135:
+    .ascii "handle\000"
 .str1136:
-    .ascii "(pattern_variant \000"
+    .ascii "_\000"
 .str1137:
-    .ascii " \000"
+    .ascii "resume\000"
 .str1138:
-    .ascii " \000"
+    .ascii "reader_expr\000"
 .str1139:
-    .ascii ")\000"
+    .ascii "Error: unknown S-expression node type: \000"
 .str1140:
-    .ascii "(pattern_wildcard)\000"
+    .ascii "Error: expected (program ...)\000"
 .str1141:
-    .ascii "(unknown_pattern \000"
+    .ascii "program\000"
 .str1142:
-    .ascii ")\000"
+    .ascii "Error: expected (program ...)\000"
 .str1143:
-    .ascii "(program\000"
+    .ascii "Error: failed to parse S-expression\000"
 .str1144:
-    .ascii ")\000"
+    .ascii "Error: failed to parse S-expression\000"
 .str1145:
-    .ascii "lang reader error: \000"
-.str1146:
     .ascii "Error: cannot open file: \000"
-.str1147:
+.str1146:
     .ascii "Error: cannot read file\000"
+.str1147:
+    .ascii "Usage: lang <file.lang>... [-o output.s] [--expand-macros] [--emit-ast] [--from-ast] [-c reader]\000"
 .str1148:
-    .ascii "Usage: <compiler> <file>... [-o output.s]\000"
+    .ascii "expand-macros\000"
 .str1149:
-    .ascii "       <compiler> -c <reader.lang> [-o output.s]\000"
+    .ascii "emit-ast\000"
 .str1150:
-    .ascii "kernel-ast\000"
+    .ascii "from-ast\000"
 .str1151:
-    .ascii "compiler-ast\000"
+    .ascii "include \"\000"
 .str1152:
-    .ascii "a.s\000"
+    .ascii "\"\012\000"
 .str1153:
-    .ascii "out/ast/kernel.ast\000"
+    .ascii "func reader_transform(t *u8) *u8 { return \000"
 .str1154:
-    .ascii "out/ast/compiler.ast\000"
+    .ascii "(t); }\012\000"
 .str1155:
-    .ascii "Error: cannot read kernel AST from \000"
+    .ascii "include \"src/standalone.lang\"\012\000"
 .str1156:
-    .ascii "Error: failed to parse kernel AST\000"
+    .ascii "func ___main(argc i64, argv **u8) i64 { return main(argc, argv); }\012\000"
 .str1157:
-    .ascii ".lang\000"
+    .ascii "#\000"
 .str1158:
-    .ascii "Error: reader failed on \000"
+    .ascii "{\000"
 .str1159:
-    .ascii "Error: failed to parse reader\000"
+    .ascii "}\012\000"
 .str1160:
-    .ascii "Error: cannot read compiler AST from \000"
+    .ascii "include \"\000"
 .str1161:
-    .ascii "Error: failed to parse compiler AST\000"
+    .ascii "\"\012\000"
 .str1162:
-    .ascii "Wrote \000"
+    .ascii "func ___main(argc i64, argv **u8) i64 { return main(argc, argv); }\012\000"
 .str1163:
-    .ascii "Error: no input files\000"
+    .ascii "a.s\000"
 .str1164:
-    .ascii "Error: reader failed on \000"
+    .ascii "Error: no input file for --from-ast\000"
 .str1165:
-    .ascii "Error: failed to parse AST from \000"
+    .ascii "Error: failed to parse AST\000"
 .str1166:
-    .ascii "Error: no AST to compile\000"
+    .ascii "Wrote \000"
 .str1167:
-    .ascii "(program (func ___main ((param argc (type_base i64)) (param argv (type_ptr (type_ptr (type_base u8))))) (type_base i64) (block (return (call (ident main) (ident argc) (ident argv))))))\000"
+    .ascii "Error: no input files\000"
 .str1168:
+    .ascii "Error: \000"
+.str1169:
+    .ascii "Error: cannot open output file: \000"
+.str1170:
+    .ascii "Wrote AST to \000"
+.str1171:
     .ascii "Wrote \000"
 LIMIT_STMTS_PER_BLOCK:
     .quad 1024
@@ -2787,6 +2793,14 @@ ast_str_pos:
     .quad 0
 ast_str_cap:
     .quad 0
+ast_emit_buf:
+    .quad 0
+ast_emit_len:
+    .quad 0
+ast_emit_cap:
+    .quad 0
+ast_emit_indent:
+    .quad 0
 TOK_EOF:
     .quad 0
 TOK_NUMBER:
@@ -2851,13 +2865,11 @@ PNODE_LIST:
     .quad 4
 PNODE_OPERATOR:
     .quad 5
-ast_emit_buf:
+emit_ast_mode:
     .quad 0
-ast_emit_len:
+from_ast_mode:
     .quad 0
-ast_emit_cap:
-    .quad 0
-ast_emit_indent:
+from_ast_file:
     .quad 0
 
 .section .text
@@ -48731,7922 +48743,6 @@ write_ascii_string:
     leave
     ret
 
-.globl tok_new
-tok_new:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov $48, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -16(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov $0, %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 8(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 16(%rcx)
-    mov $0, %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 24(%rcx)
-    mov $0, %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov TOK_EOF(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_next
-    mov -16(%rbp), %rax
-    leave
-    ret
-
-.globl tok_is_digit
-tok_is_digit:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    mov $48, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setge %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2395
-    mov -8(%rbp), %rax
-    push %rax
-    mov $57, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setle %al
-    movzx %al, %rax
-.L2395:
-    leave
-    ret
-
-.globl tok_is_alpha
-tok_is_alpha:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    mov $65, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setge %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2398
-    mov -8(%rbp), %rax
-    push %rax
-    mov $90, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setle %al
-    movzx %al, %rax
-.L2398:
-    test %rax, %rax
-    jnz .L2397
-    mov -8(%rbp), %rax
-    push %rax
-    mov $97, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setge %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2399
-    mov -8(%rbp), %rax
-    push %rax
-    mov $122, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setle %al
-    movzx %al, %rax
-.L2399:
-.L2397:
-    test %rax, %rax
-    jnz .L2396
-    mov -8(%rbp), %rax
-    push %rax
-    mov $95, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2396:
-    leave
-    ret
-
-.globl tok_is_alnum
-tok_is_alnum:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_is_digit
-    test %rax, %rax
-    jnz .L2400
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_is_alpha
-.L2400:
-    leave
-    ret
-
-.globl tok_is_space
-tok_is_space:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    mov $32, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jnz .L2403
-    mov -8(%rbp), %rax
-    push %rax
-    mov $9, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2403:
-    test %rax, %rax
-    jnz .L2402
-    mov -8(%rbp), %rax
-    push %rax
-    mov $10, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2402:
-    test %rax, %rax
-    jnz .L2401
-    mov -8(%rbp), %rax
-    push %rax
-    mov $13, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2401:
-    leave
-    ret
-
-.globl tok_peek_char
-tok_peek_char:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 16(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setge %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2405
-    mov $0, %rax
-    leave
-    ret
-.L2405:
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    movzbl (%rax), %eax
-    leave
-    ret
-
-.globl tok_peek_char_at
-tok_peek_char_at:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov %rsi, -16(%rbp)
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 16(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setge %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2407
-    mov $0, %rax
-    leave
-    ret
-.L2407:
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    movzbl (%rax), %eax
-    leave
-    ret
-
-.globl tok_advance_char
-tok_advance_char:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 16(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2409
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 8(%rcx)
-.L2409:
-    xor %rax, %rax
-    leave
-    ret
-
-.globl tok_skip_whitespace
-tok_skip_whitespace:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-.L2410:
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 16(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2412
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    pop %rdi
-    call tok_is_space
-.L2412:
-    test %rax, %rax
-    jz .L2411
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    jmp .L2410
-.L2411:
-    xor %rax, %rax
-    leave
-    ret
-
-.globl tok_next
-tok_next:
-    push %rbp
-    mov %rsp, %rbp
-    sub $32, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_skip_whitespace
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 24(%rcx)
-    mov $0, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 16(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setge %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2414
-    mov TOK_EOF(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    xor %rax, %rax
-    leave
-    ret
-.L2414:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    mov %rax, -16(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    mov $40, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2416
-    mov TOK_LPAREN(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2416:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $41, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2418
-    mov TOK_RPAREN(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2418:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $91, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2420
-    mov TOK_LBRACKET(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2420:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $93, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2422
-    mov TOK_RBRACKET(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2422:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $123, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2424
-    mov TOK_LBRACE(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2424:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $125, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2426
-    mov TOK_RBRACE(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2426:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $43, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2428
-    mov TOK_PLUS(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2428:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $42, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2430
-    mov TOK_STAR(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2430:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $47, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2432
-    mov TOK_SLASH(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2432:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $37, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2434
-    mov TOK_PERCENT(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2434:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $94, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2436
-    mov TOK_CARET(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2436:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $44, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2438
-    mov TOK_COMMA(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2438:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $58, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2440
-    mov TOK_COLON(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2440:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $59, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2442
-    mov TOK_SEMI(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2442:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $46, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2444
-    mov TOK_DOT(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2444:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $61, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2446
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    mov $61, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2447
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    jmp .L2448
-.L2447:
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-.L2448:
-    mov TOK_EQ(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    xor %rax, %rax
-    leave
-    ret
-.L2446:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $60, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2450
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    mov %rax, -24(%rbp)
-    mov -24(%rbp), %rax
-    push %rax
-    mov $61, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jnz .L2453
-    mov -24(%rbp), %rax
-    push %rax
-    mov $60, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2453:
-    test %rax, %rax
-    jz .L2451
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    jmp .L2452
-.L2451:
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-.L2452:
-    mov TOK_LT(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    xor %rax, %rax
-    leave
-    ret
-.L2450:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $62, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2455
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    mov %rax, -32(%rbp)
-    mov -32(%rbp), %rax
-    push %rax
-    mov $61, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jnz .L2458
-    mov -32(%rbp), %rax
-    push %rax
-    mov $62, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2458:
-    test %rax, %rax
-    jz .L2456
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    jmp .L2457
-.L2456:
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-.L2457:
-    mov TOK_GT(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    xor %rax, %rax
-    leave
-    ret
-.L2455:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $33, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2460
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    mov $61, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2461
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    jmp .L2462
-.L2461:
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-.L2462:
-    mov TOK_BANG(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    xor %rax, %rax
-    leave
-    ret
-.L2460:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $38, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2464
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    mov $38, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2465
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    jmp .L2466
-.L2465:
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-.L2466:
-    mov TOK_AMP(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    xor %rax, %rax
-    leave
-    ret
-.L2464:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $124, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2468
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    mov $124, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2469
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    jmp .L2470
-.L2469:
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-.L2470:
-    mov TOK_PIPE(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    xor %rax, %rax
-    leave
-    ret
-.L2468:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $45, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2472
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call tok_peek_char_at
-    push %rax
-    pop %rdi
-    call tok_is_digit
-    test %rax, %rax
-    jz .L2474
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-.L2475:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    pop %rdi
-    call tok_is_digit
-    test %rax, %rax
-    jz .L2476
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    jmp .L2475
-.L2476:
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 24(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov TOK_NUMBER(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    xor %rax, %rax
-    leave
-    ret
-.L2474:
-    mov TOK_MINUS(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-.L2472:
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_is_digit
-    test %rax, %rax
-    jz .L2478
-.L2479:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    pop %rdi
-    call tok_is_digit
-    test %rax, %rax
-    jz .L2480
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    jmp .L2479
-.L2480:
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 24(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov TOK_NUMBER(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    xor %rax, %rax
-    leave
-    ret
-.L2478:
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_is_alpha
-    test %rax, %rax
-    jz .L2482
-.L2483:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    pop %rdi
-    call tok_is_alnum
-    test %rax, %rax
-    jz .L2484
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    jmp .L2483
-.L2484:
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 24(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov TOK_IDENT(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    xor %rax, %rax
-    leave
-    ret
-.L2482:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $34, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2486
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-.L2487:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    mov $0, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2489
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    mov $34, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-.L2489:
-    test %rax, %rax
-    jz .L2488
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    mov $92, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2491
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-.L2491:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    jmp .L2487
-.L2488:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    mov $34, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2493
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-.L2493:
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 24(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov TOK_STRING(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    xor %rax, %rax
-    leave
-    ret
-.L2486:
-    mov -16(%rbp), %rax
-    push %rax
-    mov $39, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2495
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-.L2496:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    mov $0, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2498
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    mov $39, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-.L2498:
-    test %rax, %rax
-    jz .L2497
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    mov $92, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2500
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-.L2500:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    jmp .L2496
-.L2497:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_peek_char
-    push %rax
-    mov $39, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2502
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-.L2502:
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 24(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov TOK_STRING(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    xor %rax, %rax
-    leave
-    ret
-.L2495:
-    mov TOK_UNKNOWN(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 40(%rcx)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 32(%rcx)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_advance_char
-    xor %rax, %rax
-    leave
-    ret
-
-.globl tok_kind
-tok_kind:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    mov 40(%rax), %rax
-    leave
-    ret
-
-.globl tok_eof
-tok_eof:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    mov 40(%rax), %rax
-    push %rax
-    mov TOK_EOF(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    leave
-    ret
-
-.globl tok_text_ptr
-tok_text_ptr:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 24(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    leave
-    ret
-
-.globl tok_text_len
-tok_text_len:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    mov 32(%rax), %rax
-    leave
-    ret
-
-.globl tok_text
-tok_text:
-    push %rbp
-    mov %rsp, %rbp
-    sub $32, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    mov 32(%rax), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -16(%rbp)
-    mov $0, %rax
-    mov %rax, -24(%rbp)
-.L2503:
-    mov -24(%rbp), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 32(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2504
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 24(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov -24(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    movzbl (%rax), %eax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    mov -24(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -24(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -24(%rbp)
-    jmp .L2503
-.L2504:
-    mov $0, %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 32(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -16(%rbp), %rax
-    leave
-    ret
-
-.globl tok_number
-tok_number:
-    push %rbp
-    mov %rsp, %rbp
-    sub $48, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 24(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -16(%rbp)
-    mov -8(%rbp), %rax
-    mov 32(%rax), %rax
-    mov %rax, -24(%rbp)
-    mov $0, %rax
-    mov %rax, -32(%rbp)
-    mov $0, %rax
-    mov %rax, -40(%rbp)
-    mov -24(%rbp), %rax
-    push %rax
-    mov $0, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setg %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2507
-    mov -16(%rbp), %rax
-    movzbl (%rax), %eax
-    push %rax
-    mov $45, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2507:
-    test %rax, %rax
-    jz .L2506
-    mov $1, %rax
-    mov %rax, -32(%rbp)
-    mov $1, %rax
-    mov %rax, -40(%rbp)
-.L2506:
-    mov $0, %rax
-    mov %rax, -48(%rbp)
-.L2508:
-    mov -40(%rbp), %rax
-    push %rax
-    mov -24(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2509
-    mov -48(%rbp), %rax
-    push %rax
-    mov $10, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    mov -40(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    movzbl (%rax), %eax
-    push %rax
-    mov $48, %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -48(%rbp)
-    mov -40(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-    jmp .L2508
-.L2509:
-    mov -32(%rbp), %rax
-    push %rax
-    mov $0, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2511
-    mov $0, %rax
-    push %rax
-    mov -48(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    leave
-    ret
-.L2511:
-    mov -48(%rbp), %rax
-    leave
-    ret
-
-.globl tok_string_value
-tok_string_value:
-    push %rbp
-    mov %rsp, %rbp
-    sub $64, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 24(%rax), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -16(%rbp)
-    mov -8(%rbp), %rax
-    mov 32(%rax), %rax
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    mov %rax, -24(%rbp)
-    mov -24(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -32(%rbp)
-    mov $0, %rax
-    mov %rax, -40(%rbp)
-    mov $0, %rax
-    mov %rax, -48(%rbp)
-.L2512:
-    mov -40(%rbp), %rax
-    push %rax
-    mov -24(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2513
-    mov -16(%rbp), %rax
-    push %rax
-    mov -40(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    movzbl (%rax), %eax
-    mov %rax, -56(%rbp)
-    mov -56(%rbp), %rax
-    push %rax
-    mov $92, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2516
-    mov -40(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov -24(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-.L2516:
-    test %rax, %rax
-    jz .L2515
-    mov -40(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    mov -40(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    movzbl (%rax), %eax
-    mov %rax, -64(%rbp)
-    mov -64(%rbp), %rax
-    push %rax
-    mov $110, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2517
-    mov $10, %rax
-    mov %rax, -56(%rbp)
-    jmp .L2518
-.L2517:
-    mov -64(%rbp), %rax
-    push %rax
-    mov $114, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2519
-    mov $13, %rax
-    mov %rax, -56(%rbp)
-    jmp .L2520
-.L2519:
-    mov -64(%rbp), %rax
-    push %rax
-    mov $116, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2521
-    mov $9, %rax
-    mov %rax, -56(%rbp)
-    jmp .L2522
-.L2521:
-    mov -64(%rbp), %rax
-    push %rax
-    mov $34, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2523
-    mov $34, %rax
-    mov %rax, -56(%rbp)
-    jmp .L2524
-.L2523:
-    mov -64(%rbp), %rax
-    push %rax
-    mov $92, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2525
-    mov $92, %rax
-    mov %rax, -56(%rbp)
-    jmp .L2526
-.L2525:
-    mov -64(%rbp), %rax
-    mov %rax, -56(%rbp)
-.L2526:
-.L2524:
-.L2522:
-.L2520:
-.L2518:
-.L2515:
-    mov -56(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    push %rax
-    mov -48(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -40(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-    mov -48(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -48(%rbp)
-    jmp .L2512
-.L2513:
-    mov $0, %rax
-    push %rax
-    mov -32(%rbp), %rax
-    push %rax
-    mov -48(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -32(%rbp), %rax
-    leave
-    ret
-
-.globl tok_check
-tok_check:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov %rsi, -16(%rbp)
-    mov -8(%rbp), %rax
-    mov 40(%rax), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    leave
-    ret
-
-.globl tok_match
-tok_match:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov %rsi, -16(%rbp)
-    mov -8(%rbp), %rax
-    mov 40(%rax), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2528
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_next
-    mov $1, %rax
-    leave
-    ret
-.L2528:
-    xor %rax, %rax
-    leave
-    ret
-
-.globl tok_expect
-tok_expect:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov %rsi, -16(%rbp)
-    mov -8(%rbp), %rax
-    mov 40(%rax), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2530
-    xor %rax, %rax
-    leave
-    ret
-.L2530:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_next
-    mov $1, %rax
-    leave
-    ret
-
-.globl pnode_new
-pnode_new:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov $24, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -16(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    xor %rax, %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 8(%rcx)
-    xor %rax, %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 16(%rcx)
-    mov -16(%rbp), %rax
-    leave
-    ret
-
-.globl pnode_atom
-pnode_atom:
-    push %rbp
-    mov %rsp, %rbp
-    sub $32, %rsp
-    mov %rdi, -8(%rbp)
-    mov %rsi, -16(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call pnode_new
-    mov %rax, -24(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    mov -24(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 8(%rcx)
-    mov -24(%rbp), %rax
-    leave
-    ret
-
-.globl pnode_list
-pnode_list:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov PNODE_LIST(%rip), %rax
-    push %rax
-    pop %rdi
-    call pnode_new
-    mov %rax, -16(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, 16(%rcx)
-    mov -16(%rbp), %rax
-    leave
-    ret
-
-.globl is_operator_token
-is_operator_token:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOK_PLUS(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jnz .L2541
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOK_MINUS(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2541:
-    test %rax, %rax
-    jnz .L2540
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOK_STAR(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2540:
-    test %rax, %rax
-    jnz .L2539
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOK_SLASH(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2539:
-    test %rax, %rax
-    jnz .L2538
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOK_PERCENT(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2538:
-    test %rax, %rax
-    jnz .L2537
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOK_AMP(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2537:
-    test %rax, %rax
-    jnz .L2536
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOK_PIPE(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2536:
-    test %rax, %rax
-    jnz .L2535
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOK_CARET(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2535:
-    test %rax, %rax
-    jnz .L2534
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOK_LT(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2534:
-    test %rax, %rax
-    jnz .L2533
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOK_GT(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2533:
-    test %rax, %rax
-    jnz .L2532
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOK_BANG(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2532:
-    test %rax, %rax
-    jnz .L2531
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOK_EQ(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2531:
-    leave
-    ret
-
-.globl parse_sexpr
-parse_sexpr:
-    push %rbp
-    mov %rsp, %rbp
-    sub $64, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_kind
-    mov %rax, -16(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    mov TOK_NUMBER(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2543
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_text
-    mov %rax, -24(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_next
-    mov -24(%rbp), %rax
-    push %rax
-    mov PNODE_NUMBER(%rip), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call pnode_atom
-    leave
-    ret
-.L2543:
-    mov -16(%rbp), %rax
-    push %rax
-    mov TOK_IDENT(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2545
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_text
-    mov %rax, -32(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_next
-    mov -32(%rbp), %rax
-    push %rax
-    mov PNODE_SYMBOL(%rip), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call pnode_atom
-    leave
-    ret
-.L2545:
-    mov -16(%rbp), %rax
-    push %rax
-    mov TOK_STRING(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2547
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_text
-    mov %rax, -40(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_next
-    mov -40(%rbp), %rax
-    push %rax
-    mov PNODE_STRING(%rip), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call pnode_atom
-    leave
-    ret
-.L2547:
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    call is_operator_token
-    test %rax, %rax
-    jz .L2549
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_text
-    mov %rax, -48(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_next
-    mov -48(%rbp), %rax
-    push %rax
-    mov PNODE_OPERATOR(%rip), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call pnode_atom
-    leave
-    ret
-.L2549:
-    mov -16(%rbp), %rax
-    push %rax
-    mov TOK_LPAREN(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2551
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_next
-    mov $8, %rax
-    push %rax
-    pop %rdi
-    call vec_new
-    mov %rax, -56(%rbp)
-.L2552:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_kind
-    push %rax
-    mov TOK_RPAREN(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2554
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_kind
-    push %rax
-    mov TOK_EOF(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-.L2554:
-    test %rax, %rax
-    jz .L2553
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call parse_sexpr
-    mov %rax, -64(%rbp)
-    mov -64(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2556
-    xor %rax, %rax
-    leave
-    ret
-.L2556:
-    mov -64(%rbp), %rax
-    push %rax
-    mov -56(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call vec_push
-    jmp .L2552
-.L2553:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_kind
-    push %rax
-    mov TOK_RPAREN(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2558
-    lea .str886(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    xor %rax, %rax
-    leave
-    ret
-.L2558:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_next
-    mov -56(%rbp), %rax
-    push %rax
-    pop %rdi
-    call pnode_list
-    leave
-    ret
-.L2551:
-    lea .str887(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprint
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_text
-    push %rax
-    pop %rdi
-    call eprintln
-    xor %rax, %rax
-    leave
-    ret
-
-.globl sexpr_get
-sexpr_get:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov %rsi, -16(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call vec_get
-    leave
-    ret
-
-.globl sexpr_len
-sexpr_len:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    call vec_len
-    leave
-    ret
-
-.globl sexpr_inner
-sexpr_inner:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    leave
-    ret
-
-.globl sexpr_is
-sexpr_is:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov %rsi, -16(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2560
-    xor %rax, %rax
-    leave
-    ret
-.L2560:
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov PNODE_SYMBOL(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2562
-    xor %rax, %rax
-    leave
-    ret
-.L2562:
-    mov -16(%rbp), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    leave
-    ret
-
-.globl sexpr_head
-sexpr_head:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2564
-    xor %rax, %rax
-    leave
-    ret
-.L2564:
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov PNODE_LIST(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2566
-    xor %rax, %rax
-    leave
-    ret
-.L2566:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $0, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2568
-    xor %rax, %rax
-    leave
-    ret
-.L2568:
-    mov $0, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -16(%rbp)
-    mov -16(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov PNODE_SYMBOL(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2570
-    xor %rax, %rax
-    leave
-    ret
-.L2570:
-    mov -16(%rbp), %rax
-    mov 8(%rax), %rax
-    leave
-    ret
-
-.globl sexpr_strdup
-sexpr_strdup:
-    push %rbp
-    mov %rsp, %rbp
-    sub $32, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    mov %rax, -16(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -24(%rbp)
-    mov $0, %rax
-    mov %rax, -32(%rbp)
-.L2571:
-    mov -32(%rbp), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2572
-    mov -8(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    movzbl (%rax), %eax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -32(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -32(%rbp)
-    jmp .L2571
-.L2572:
-    mov $0, %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -24(%rbp), %rax
-    leave
-    ret
-
-.globl sexpr_parse_string
-sexpr_parse_string:
-    push %rbp
-    mov %rsp, %rbp
-    sub $64, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    mov %rax, -16(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -24(%rbp)
-    mov $0, %rax
-    mov %rax, -32(%rbp)
-    mov $1, %rax
-    mov %rax, -40(%rbp)
-.L2573:
-    mov -40(%rbp), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2574
-    mov -8(%rbp), %rax
-    push %rax
-    mov -40(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    movzbl (%rax), %eax
-    mov %rax, -48(%rbp)
-    mov -48(%rbp), %rax
-    push %rax
-    mov $92, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2577
-    mov -40(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-.L2577:
-    test %rax, %rax
-    jz .L2575
-    mov -8(%rbp), %rax
-    push %rax
-    mov -40(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    movzbl (%rax), %eax
-    mov %rax, -56(%rbp)
-    mov -56(%rbp), %rax
-    push %rax
-    mov $110, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2578
-    mov $10, %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -32(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -32(%rbp)
-    mov -40(%rbp), %rax
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-    jmp .L2579
-.L2578:
-    mov -56(%rbp), %rax
-    push %rax
-    mov $116, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2580
-    mov $9, %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -32(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -32(%rbp)
-    mov -40(%rbp), %rax
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-    jmp .L2581
-.L2580:
-    mov -56(%rbp), %rax
-    push %rax
-    mov $114, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2582
-    mov $13, %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -32(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -32(%rbp)
-    mov -40(%rbp), %rax
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-    jmp .L2583
-.L2582:
-    mov -56(%rbp), %rax
-    push %rax
-    mov $48, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2584
-    mov $0, %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -32(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -32(%rbp)
-    mov -40(%rbp), %rax
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-    jmp .L2585
-.L2584:
-    mov -56(%rbp), %rax
-    push %rax
-    mov $34, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2586
-    mov $34, %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -32(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -32(%rbp)
-    mov -40(%rbp), %rax
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-    jmp .L2587
-.L2586:
-    mov -56(%rbp), %rax
-    push %rax
-    mov $92, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2588
-    mov $92, %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -32(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -32(%rbp)
-    mov -40(%rbp), %rax
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-    jmp .L2589
-.L2588:
-    mov -48(%rbp), %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -32(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -32(%rbp)
-    mov -40(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-.L2589:
-.L2587:
-.L2585:
-.L2583:
-.L2581:
-.L2579:
-    jmp .L2576
-.L2575:
-    mov -48(%rbp), %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -32(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -32(%rbp)
-    mov -40(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-.L2576:
-    jmp .L2573
-.L2574:
-    mov $0, %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -24(%rbp), %rax
-    leave
-    ret
-
-.globl sexpr_op_to_token
-sexpr_op_to_token:
-    push %rbp
-    mov %rsp, %rbp
-    sub $16, %rsp
-    mov %rdi, -8(%rbp)
-    lea .str888(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2591
-    mov TOKEN_PLUS(%rip), %rax
-    leave
-    ret
-.L2591:
-    lea .str889(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2593
-    mov TOKEN_MINUS(%rip), %rax
-    leave
-    ret
-.L2593:
-    lea .str890(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2595
-    mov TOKEN_STAR(%rip), %rax
-    leave
-    ret
-.L2595:
-    lea .str891(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2597
-    mov TOKEN_SLASH(%rip), %rax
-    leave
-    ret
-.L2597:
-    lea .str892(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2599
-    mov TOKEN_PERCENT(%rip), %rax
-    leave
-    ret
-.L2599:
-    lea .str893(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2601
-    mov TOKEN_AMP(%rip), %rax
-    leave
-    ret
-.L2601:
-    lea .str894(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2603
-    mov TOKEN_PIPE(%rip), %rax
-    leave
-    ret
-.L2603:
-    lea .str895(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2605
-    mov TOKEN_CARET(%rip), %rax
-    leave
-    ret
-.L2605:
-    lea .str896(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2607
-    mov TOKEN_LTLT(%rip), %rax
-    leave
-    ret
-.L2607:
-    lea .str897(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2609
-    mov TOKEN_GTGT(%rip), %rax
-    leave
-    ret
-.L2609:
-    lea .str898(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2611
-    mov TOKEN_EQEQ(%rip), %rax
-    leave
-    ret
-.L2611:
-    lea .str899(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2613
-    mov TOKEN_BANGEQ(%rip), %rax
-    leave
-    ret
-.L2613:
-    lea .str900(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2615
-    mov TOKEN_LT(%rip), %rax
-    leave
-    ret
-.L2615:
-    lea .str901(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2617
-    mov TOKEN_GT(%rip), %rax
-    leave
-    ret
-.L2617:
-    lea .str902(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2619
-    mov TOKEN_LTEQ(%rip), %rax
-    leave
-    ret
-.L2619:
-    lea .str903(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2621
-    mov TOKEN_GTEQ(%rip), %rax
-    leave
-    ret
-.L2621:
-    lea .str904(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2623
-    mov TOKEN_AMPAMP(%rip), %rax
-    leave
-    ret
-.L2623:
-    lea .str905(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2625
-    mov TOKEN_PIPEPIPE(%rip), %rax
-    leave
-    ret
-.L2625:
-    lea .str906(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2627
-    mov TOKEN_BANG(%rip), %rax
-    leave
-    ret
-.L2627:
-    mov $0, %rax
-    leave
-    ret
-
-.globl sexpr_to_type
-sexpr_to_type:
-    push %rbp
-    mov %rsp, %rbp
-    sub $160, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2629
-    xor %rax, %rax
-    leave
-    ret
-.L2629:
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov PNODE_SYMBOL(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2632
-    lea .str907(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-.L2632:
-    test %rax, %rax
-    jz .L2631
-    xor %rax, %rax
-    leave
-    ret
-.L2631:
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov PNODE_LIST(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2634
-    xor %rax, %rax
-    leave
-    ret
-.L2634:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_head
-    mov %rax, -16(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2636
-    xor %rax, %rax
-    leave
-    ret
-.L2636:
-    lea .str908(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2638
-    call base_type_alloc
-    mov %rax, -24(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -32(%rbp)
-    mov -32(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call base_type_set_name
-    mov -32(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call base_type_set_name_len
-    mov -24(%rbp), %rax
-    leave
-    ret
-.L2638:
-    lea .str909(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2640
-    call ptr_type_alloc
-    mov %rax, -40(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    push %rax
-    mov -40(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call ptr_type_set_elem
-    mov -40(%rbp), %rax
-    leave
-    ret
-.L2640:
-    lea .str910(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2642
-    call func_type_alloc
-    mov %rax, -48(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -56(%rbp)
-    mov -56(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_inner
-    mov %rax, -64(%rbp)
-    mov -64(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    call vec_len
-    mov %rax, -72(%rbp)
-    mov -72(%rbp), %rax
-    push %rax
-    pop %rdi
-    call vec_new
-    mov %rax, -80(%rbp)
-    mov $0, %rax
-    mov %rax, -88(%rbp)
-.L2643:
-    mov -88(%rbp), %rax
-    push %rax
-    mov -72(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2644
-    mov -88(%rbp), %rax
-    push %rax
-    mov -64(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call vec_get
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    mov %rax, -96(%rbp)
-    mov -96(%rbp), %rax
-    push %rax
-    mov -80(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call vec_push
-    mov -88(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -88(%rbp)
-    jmp .L2643
-.L2644:
-    mov -80(%rbp), %rax
-    push %rax
-    mov -48(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call func_type_set_params
-    mov -72(%rbp), %rax
-    push %rax
-    mov -48(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call func_type_set_param_count
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    push %rax
-    mov -48(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call func_type_set_ret
-    mov -48(%rbp), %rax
-    leave
-    ret
-.L2642:
-    lea .str911(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2646
-    call closure_type_alloc
-    mov %rax, -104(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -112(%rbp)
-    mov -112(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_inner
-    mov %rax, -120(%rbp)
-    mov -120(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    call vec_len
-    mov %rax, -128(%rbp)
-    mov -128(%rbp), %rax
-    push %rax
-    pop %rdi
-    call vec_new
-    mov %rax, -136(%rbp)
-    mov $0, %rax
-    mov %rax, -144(%rbp)
-.L2647:
-    mov -144(%rbp), %rax
-    push %rax
-    mov -128(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2648
-    mov -144(%rbp), %rax
-    push %rax
-    mov -120(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call vec_get
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    mov %rax, -152(%rbp)
-    mov -152(%rbp), %rax
-    push %rax
-    mov -136(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call vec_push
-    mov -144(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -144(%rbp)
-    jmp .L2647
-.L2648:
-    mov -136(%rbp), %rax
-    push %rax
-    mov -104(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call closure_type_set_params
-    mov -128(%rbp), %rax
-    push %rax
-    mov -104(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call closure_type_set_param_count
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    push %rax
-    mov -104(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call closure_type_set_ret
-    mov -104(%rbp), %rax
-    leave
-    ret
-.L2646:
-    xor %rax, %rax
-    leave
-    ret
-
-.globl sexpr_to_pattern
-sexpr_to_pattern:
-    push %rbp
-    mov %rsp, %rbp
-    sub $48, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2650
-    xor %rax, %rax
-    leave
-    ret
-.L2650:
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov PNODE_LIST(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2652
-    xor %rax, %rax
-    leave
-    ret
-.L2652:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_head
-    mov %rax, -16(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2654
-    xor %rax, %rax
-    leave
-    ret
-.L2654:
-    lea .str912(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2656
-    call pattern_wildcard_alloc
-    leave
-    ret
-.L2656:
-    lea .str913(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2658
-    call pattern_variant_alloc
-    mov %rax, -24(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -32(%rbp)
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -40(%rbp)
-    mov -32(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call pattern_variant_set_enum_name
-    mov -32(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call pattern_variant_set_enum_len
-    mov -40(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call pattern_variant_set_name
-    mov -40(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call pattern_variant_set_name_len
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $3, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setg %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2659
-    mov $3, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -48(%rbp)
-    mov -48(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call pattern_variant_set_binding
-    mov -48(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call pattern_variant_set_binding_len
-    jmp .L2660
-.L2659:
-    xor %rax, %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call pattern_variant_set_binding
-    mov $0, %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call pattern_variant_set_binding_len
-.L2660:
-    mov -24(%rbp), %rax
-    leave
-    ret
-.L2658:
-    xor %rax, %rax
-    leave
-    ret
-
-.globl sexpr_to_param
-sexpr_to_param:
-    push %rbp
-    mov %rsp, %rbp
-    sub $48, %rsp
-    mov %rdi, -8(%rbp)
-    mov %rsi, -16(%rbp)
-    mov %rdx, -24(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -32(%rbp)
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -40(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    mov $24, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -48(%rbp)
-    mov -32(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -48(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call param_set_name
-    mov -32(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -48(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call param_set_name_len
-    mov -40(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    push %rax
-    mov -48(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call param_set_type
-    xor %rax, %rax
-    leave
-    ret
-
-.globl sexpr_to_node
-sexpr_to_node:
-    push %rbp
-    mov %rsp, %rbp
-    sub $1152, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2662
-    xor %rax, %rax
-    leave
-    ret
-.L2662:
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov PNODE_SYMBOL(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2665
-    lea .str914(%rip), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-.L2665:
-    test %rax, %rax
-    jz .L2664
-    xor %rax, %rax
-    leave
-    ret
-.L2664:
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov PNODE_LIST(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2667
-    lea .str915(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    xor %rax, %rax
-    leave
-    ret
-.L2667:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_head
-    mov %rax, -16(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2669
-    lea .str916(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    xor %rax, %rax
-    leave
-    ret
-.L2669:
-    lea .str917(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2671
-    call func_decl_alloc
-    mov %rax, -24(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -32(%rbp)
-    mov -32(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call func_decl_set_name
-    mov -32(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call func_decl_set_name_len
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -40(%rbp)
-    mov -40(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_inner
-    mov %rax, -48(%rbp)
-    mov -48(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    call vec_len
-    mov %rax, -56(%rbp)
-    mov -56(%rbp), %rax
-    push %rax
-    mov $24, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -64(%rbp)
-    mov $0, %rax
-    mov %rax, -72(%rbp)
-.L2672:
-    mov -72(%rbp), %rax
-    push %rax
-    mov -56(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2673
-    mov -72(%rbp), %rax
-    push %rax
-    mov -64(%rbp), %rax
-    push %rax
-    mov -72(%rbp), %rax
-    push %rax
-    mov -48(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call vec_get
-    push %rax
-    pop %rdi
-    pop %rsi
-    pop %rdx
-    call sexpr_to_param
-    mov -72(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -72(%rbp)
-    jmp .L2672
-.L2673:
-    mov -64(%rbp), %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call func_decl_set_params
-    mov -56(%rbp), %rax
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call func_decl_set_param_count
-    mov $3, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call func_decl_set_ret_type
-    mov $4, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call func_decl_set_body
-    mov -24(%rbp), %rax
-    leave
-    ret
-.L2671:
-    lea .str918(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2675
-    call var_decl_alloc
-    mov %rax, -80(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -88(%rbp)
-    mov -88(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -80(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call var_decl_set_name
-    mov -88(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -80(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call var_decl_set_name_len
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    push %rax
-    mov -80(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call var_decl_set_type
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $3, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setg %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2676
-    mov $3, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -80(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call var_decl_set_init
-    jmp .L2677
-.L2676:
-    xor %rax, %rax
-    push %rax
-    mov -80(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call var_decl_set_init
-.L2677:
-    mov -80(%rbp), %rax
-    leave
-    ret
-.L2675:
-    lea .str919(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2679
-    call struct_decl_alloc
-    mov %rax, -96(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -104(%rbp)
-    mov -104(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -96(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call struct_decl_set_name
-    mov -104(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -96(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call struct_decl_set_name_len
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -112(%rbp)
-    mov -112(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_inner
-    mov %rax, -120(%rbp)
-    mov -120(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    call vec_len
-    mov %rax, -128(%rbp)
-    mov -128(%rbp), %rax
-    push %rax
-    mov $24, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -136(%rbp)
-    mov $0, %rax
-    mov %rax, -144(%rbp)
-.L2680:
-    mov -144(%rbp), %rax
-    push %rax
-    mov -128(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2681
-    mov -144(%rbp), %rax
-    push %rax
-    mov -120(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call vec_get
-    mov %rax, -152(%rbp)
-    mov -136(%rbp), %rax
-    push %rax
-    mov -144(%rbp), %rax
-    push %rax
-    mov $24, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -160(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -152(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -168(%rbp)
-    mov -168(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -160(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call struct_field_set_name
-    mov -168(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -160(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call struct_field_set_name_len
-    mov $2, %rax
-    push %rax
-    mov -152(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    push %rax
-    mov -160(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call struct_field_set_type
-    mov -144(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -144(%rbp)
-    jmp .L2680
-.L2681:
-    mov -136(%rbp), %rax
-    push %rax
-    mov -96(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call struct_decl_set_fields
-    mov -128(%rbp), %rax
-    push %rax
-    mov -96(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call struct_decl_set_field_count
-    mov -96(%rbp), %rax
-    leave
-    ret
-.L2679:
-    lea .str920(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2683
-    call enum_decl_alloc
-    mov %rax, -176(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -184(%rbp)
-    mov -184(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -176(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call enum_decl_set_name
-    mov -184(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -176(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call enum_decl_set_name_len
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -192(%rbp)
-    mov -192(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_inner
-    mov %rax, -200(%rbp)
-    mov -200(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    call vec_len
-    mov %rax, -208(%rbp)
-    mov -208(%rbp), %rax
-    push %rax
-    mov $32, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -216(%rbp)
-    mov $0, %rax
-    mov %rax, -224(%rbp)
-.L2684:
-    mov -224(%rbp), %rax
-    push %rax
-    mov -208(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2685
-    mov -224(%rbp), %rax
-    push %rax
-    mov -200(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call vec_get
-    mov %rax, -232(%rbp)
-    mov -216(%rbp), %rax
-    push %rax
-    mov -224(%rbp), %rax
-    push %rax
-    mov $32, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -240(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -232(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -248(%rbp)
-    mov -248(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -240(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call enum_variant_set_name
-    mov -248(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -240(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call enum_variant_set_name_len
-    mov -232(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setg %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2686
-    mov $2, %rax
-    push %rax
-    mov -232(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    push %rax
-    mov -240(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call enum_variant_set_type
-    jmp .L2687
-.L2686:
-    xor %rax, %rax
-    push %rax
-    mov -240(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call enum_variant_set_type
-.L2687:
-    mov -224(%rbp), %rax
-    push %rax
-    mov -240(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call enum_variant_set_tag
-    mov -224(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -224(%rbp)
-    jmp .L2684
-.L2685:
-    mov -216(%rbp), %rax
-    push %rax
-    mov -176(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call enum_decl_set_variants
-    mov -208(%rbp), %rax
-    push %rax
-    mov -176(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call enum_decl_set_variant_count
-    mov -176(%rbp), %rax
-    leave
-    ret
-.L2683:
-    lea .str921(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2689
-    call effect_decl_alloc
-    mov %rax, -256(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -264(%rbp)
-    mov -264(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -256(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call effect_decl_set_name
-    mov -264(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -256(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call effect_decl_set_name_len
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -272(%rbp)
-    mov -272(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_inner
-    mov %rax, -280(%rbp)
-    mov -280(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    call vec_len
-    mov %rax, -288(%rbp)
-    mov -288(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -296(%rbp)
-    mov $0, %rax
-    mov %rax, -304(%rbp)
-.L2690:
-    mov -304(%rbp), %rax
-    push %rax
-    mov -288(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2691
-    mov -304(%rbp), %rax
-    push %rax
-    mov -280(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call vec_get
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    mov %rax, -312(%rbp)
-    mov -296(%rbp), %rax
-    push %rax
-    mov -304(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -320(%rbp)
-    mov -312(%rbp), %rax
-    push %rax
-    mov -320(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -304(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -304(%rbp)
-    jmp .L2690
-.L2691:
-    mov -296(%rbp), %rax
-    push %rax
-    mov -256(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call effect_decl_set_param_types
-    mov -288(%rbp), %rax
-    push %rax
-    mov -256(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call effect_decl_set_param_type_count
-    mov $3, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    push %rax
-    mov -256(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call effect_decl_set_return_type
-    mov -256(%rbp), %rax
-    leave
-    ret
-.L2689:
-    lea .str922(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2693
-    call include_decl_alloc
-    mov %rax, -328(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -336(%rbp)
-    mov -336(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_parse_string
-    mov %rax, -344(%rbp)
-    mov -344(%rbp), %rax
-    push %rax
-    mov -328(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call include_decl_set_path
-    mov -344(%rbp), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -328(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call include_decl_set_path_len
-    mov -328(%rbp), %rax
-    leave
-    ret
-.L2693:
-    lea .str923(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2695
-    call reader_decl_alloc
-    mov %rax, -352(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -360(%rbp)
-    mov -360(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -352(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call reader_decl_set_name
-    mov -360(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -352(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call reader_decl_set_name_len
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -368(%rbp)
-    mov -368(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -352(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call reader_decl_set_param_name
-    mov -368(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -352(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call reader_decl_set_param_len
-    mov $3, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -352(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call reader_decl_set_body
-    mov -352(%rbp), %rax
-    leave
-    ret
-.L2695:
-    lea .str924(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2697
-    call block_stmt_alloc
-    mov %rax, -376(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    mov %rax, -384(%rbp)
-    mov -384(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -392(%rbp)
-    mov $0, %rax
-    mov %rax, -400(%rbp)
-.L2698:
-    mov -400(%rbp), %rax
-    push %rax
-    mov -384(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2699
-    mov -400(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    mov %rax, -408(%rbp)
-    mov -392(%rbp), %rax
-    push %rax
-    mov -400(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -416(%rbp)
-    mov -408(%rbp), %rax
-    push %rax
-    mov -416(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -400(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -400(%rbp)
-    jmp .L2698
-.L2699:
-    mov -392(%rbp), %rax
-    push %rax
-    mov -376(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call block_stmt_set_stmts
-    mov -384(%rbp), %rax
-    push %rax
-    mov -376(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call block_stmt_set_count
-    mov -376(%rbp), %rax
-    leave
-    ret
-.L2697:
-    lea .str925(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2701
-    call block_expr_alloc
-    mov %rax, -424(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    mov %rax, -432(%rbp)
-    mov -432(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    mov %rax, -440(%rbp)
-    mov -440(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -448(%rbp)
-    mov $0, %rax
-    mov %rax, -456(%rbp)
-.L2702:
-    mov -456(%rbp), %rax
-    push %rax
-    mov -440(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2703
-    mov -456(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    mov %rax, -464(%rbp)
-    mov -448(%rbp), %rax
-    push %rax
-    mov -456(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -472(%rbp)
-    mov -464(%rbp), %rax
-    push %rax
-    mov -472(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -456(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -456(%rbp)
-    jmp .L2702
-.L2703:
-    mov -448(%rbp), %rax
-    push %rax
-    mov -424(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call block_expr_set_stmts
-    mov -440(%rbp), %rax
-    push %rax
-    mov -424(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call block_expr_set_count
-    mov -432(%rbp), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -424(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call block_expr_set_tail
-    mov -424(%rbp), %rax
-    leave
-    ret
-.L2701:
-    lea .str926(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2705
-    call if_stmt_alloc
-    mov %rax, -480(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -480(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call if_stmt_set_cond
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -480(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call if_stmt_set_then
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $3, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setg %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2706
-    mov $3, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -480(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call if_stmt_set_else
-    jmp .L2707
-.L2706:
-    xor %rax, %rax
-    push %rax
-    mov -480(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call if_stmt_set_else
-.L2707:
-    mov -480(%rbp), %rax
-    leave
-    ret
-.L2705:
-    lea .str927(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2709
-    call while_stmt_alloc
-    mov %rax, -488(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -488(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call while_stmt_set_cond
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -488(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call while_stmt_set_body
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $3, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setg %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2710
-    mov $3, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -496(%rbp)
-    mov -496(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -488(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call while_stmt_set_label
-    mov -496(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -488(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call while_stmt_set_label_len
-    jmp .L2711
-.L2710:
-    xor %rax, %rax
-    push %rax
-    mov -488(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call while_stmt_set_label
-    mov $0, %rax
-    push %rax
-    mov -488(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call while_stmt_set_label_len
-.L2711:
-    mov -488(%rbp), %rax
-    leave
-    ret
-.L2709:
-    lea .str928(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2713
-    call return_stmt_alloc
-    mov %rax, -504(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setg %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2714
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -504(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call return_stmt_set_value
-    jmp .L2715
-.L2714:
-    xor %rax, %rax
-    push %rax
-    mov -504(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call return_stmt_set_value
-.L2715:
-    mov -504(%rbp), %rax
-    leave
-    ret
-.L2713:
-    lea .str929(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2717
-    call break_stmt_alloc
-    mov %rax, -512(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setg %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2718
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -520(%rbp)
-    mov -520(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -512(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call break_stmt_set_label
-    mov -520(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -512(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call break_stmt_set_label_len
-    jmp .L2719
-.L2718:
-    xor %rax, %rax
-    push %rax
-    mov -512(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call break_stmt_set_label
-    mov $0, %rax
-    push %rax
-    mov -512(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call break_stmt_set_label_len
-.L2719:
-    mov -512(%rbp), %rax
-    leave
-    ret
-.L2717:
-    lea .str930(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2721
-    call continue_stmt_alloc
-    mov %rax, -528(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setg %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2722
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -536(%rbp)
-    mov -536(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -528(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call continue_stmt_set_label
-    mov -536(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -528(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call continue_stmt_set_label_len
-    jmp .L2723
-.L2722:
-    xor %rax, %rax
-    push %rax
-    mov -528(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call continue_stmt_set_label
-    mov $0, %rax
-    push %rax
-    mov -528(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call continue_stmt_set_label_len
-.L2723:
-    mov -528(%rbp), %rax
-    leave
-    ret
-.L2721:
-    lea .str931(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2725
-    call expr_stmt_alloc
-    mov %rax, -544(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -544(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call expr_stmt_set_expr
-    mov -544(%rbp), %rax
-    leave
-    ret
-.L2725:
-    lea .str932(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2727
-    call assign_stmt_alloc
-    mov %rax, -552(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -552(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call assign_stmt_set_target
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -552(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call assign_stmt_set_value
-    mov -552(%rbp), %rax
-    leave
-    ret
-.L2727:
-    lea .str933(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2729
-    call ident_expr_alloc
-    mov %rax, -560(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -568(%rbp)
-    mov -568(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -560(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call ident_expr_set_name
-    mov -568(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -560(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call ident_expr_set_name_len
-    mov -560(%rbp), %rax
-    leave
-    ret
-.L2729:
-    lea .str934(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2731
-    call number_expr_alloc
-    mov %rax, -576(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -584(%rbp)
-    mov -584(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -576(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call number_expr_set_value
-    mov -584(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -576(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call number_expr_set_value_len
-    mov -576(%rbp), %rax
-    leave
-    ret
-.L2731:
-    lea .str935(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2733
-    call string_expr_alloc
-    mov %rax, -592(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -600(%rbp)
-    mov -600(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    mov -592(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call string_expr_set_value
-    mov -600(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -592(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call string_expr_set_value_len
-    mov -592(%rbp), %rax
-    leave
-    ret
-.L2733:
-    lea .str936(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2735
-    call bool_expr_alloc
-    mov %rax, -608(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -616(%rbp)
-    lea .str937(%rip), %rax
-    push %rax
-    mov -616(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2736
-    mov $1, %rax
-    push %rax
-    mov -608(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call bool_expr_set_value
-    jmp .L2737
-.L2736:
-    mov $0, %rax
-    push %rax
-    mov -608(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call bool_expr_set_value
-.L2737:
-    mov -608(%rbp), %rax
-    leave
-    ret
-.L2735:
-    lea .str938(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2739
-    call nil_expr_alloc
-    leave
-    ret
-.L2739:
-    lea .str939(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2741
-    call binary_expr_alloc
-    mov %rax, -624(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -632(%rbp)
-    mov -632(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_op_to_token
-    push %rax
-    mov -624(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call binary_expr_set_op
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -624(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call binary_expr_set_left
-    mov $3, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -624(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call binary_expr_set_right
-    mov -624(%rbp), %rax
-    leave
-    ret
-.L2741:
-    lea .str940(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2743
-    call unary_expr_alloc
-    mov %rax, -640(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -648(%rbp)
-    mov -648(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_op_to_token
-    push %rax
-    mov -640(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call unary_expr_set_op
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -640(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call unary_expr_set_expr
-    mov -640(%rbp), %rax
-    leave
-    ret
-.L2743:
-    lea .str941(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2745
-    call call_expr_alloc
-    mov %rax, -656(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -656(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call call_expr_set_func
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    mov %rax, -664(%rbp)
-    mov -664(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -672(%rbp)
-    mov $0, %rax
-    mov %rax, -680(%rbp)
-.L2746:
-    mov -680(%rbp), %rax
-    push %rax
-    mov -664(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2747
-    mov -680(%rbp), %rax
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    mov %rax, -688(%rbp)
-    mov -672(%rbp), %rax
-    push %rax
-    mov -680(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -696(%rbp)
-    mov -688(%rbp), %rax
-    push %rax
-    mov -696(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -680(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -680(%rbp)
-    jmp .L2746
-.L2747:
-    mov -672(%rbp), %rax
-    push %rax
-    mov -656(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call call_expr_set_args
-    mov -664(%rbp), %rax
-    push %rax
-    mov -656(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call call_expr_set_arg_count
-    mov -656(%rbp), %rax
-    leave
-    ret
-.L2745:
-    lea .str942(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2749
-    mov $32, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -704(%rbp)
-    mov NODE_FIELD_EXPR(%rip), %rax
-    push %rax
-    mov -704(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call node_set_kind
-    mov -704(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -712(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -712(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -720(%rbp)
-    mov -704(%rbp), %rax
-    push %rax
-    mov $16, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -728(%rbp)
-    mov -720(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -728(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -704(%rbp), %rax
-    push %rax
-    mov $24, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -736(%rbp)
-    mov -720(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -736(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -704(%rbp), %rax
-    leave
-    ret
-.L2749:
-    lea .str943(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2751
-    mov $24, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -744(%rbp)
-    mov NODE_INDEX_EXPR(%rip), %rax
-    push %rax
-    mov -744(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call node_set_kind
-    mov -744(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -752(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -752(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -744(%rbp), %rax
-    push %rax
-    mov $16, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -760(%rbp)
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -760(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -744(%rbp), %rax
-    leave
-    ret
-.L2751:
-    lea .str944(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2753
-    call let_expr_alloc
-    mov %rax, -768(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -776(%rbp)
-    mov -776(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -768(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call let_expr_set_name
-    mov -776(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -768(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call let_expr_set_name_len
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -784(%rbp)
-    mov -784(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov PNODE_LIST(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2756
-    lea .str945(%rip), %rax
-    push %rax
-    mov -784(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_head
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-.L2756:
-    test %rax, %rax
-    jz .L2754
-    mov -784(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    push %rax
-    mov -768(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call let_expr_set_type
-    mov $3, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -768(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call let_expr_set_init
-    mov $4, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -768(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call let_expr_set_body
-    jmp .L2755
-.L2754:
-    mov -784(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov PNODE_LIST(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2759
-    lea .str946(%rip), %rax
-    push %rax
-    mov -784(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_head
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-.L2759:
-    test %rax, %rax
-    jz .L2757
-    mov -784(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    push %rax
-    mov -768(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call let_expr_set_type
-    mov $3, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -768(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call let_expr_set_init
-    mov $4, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -768(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call let_expr_set_body
-    jmp .L2758
-.L2757:
-    xor %rax, %rax
-    push %rax
-    mov -768(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call let_expr_set_type
-    mov -784(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -768(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call let_expr_set_init
-    mov $3, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -768(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call let_expr_set_body
-.L2758:
-.L2755:
-    mov -768(%rbp), %rax
-    leave
-    ret
-.L2753:
-    lea .str947(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2761
-    call lambda_expr_alloc
-    mov %rax, -792(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -800(%rbp)
-    mov -800(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_inner
-    mov %rax, -808(%rbp)
-    mov -808(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    call vec_len
-    mov %rax, -816(%rbp)
-    mov -816(%rbp), %rax
-    push %rax
-    mov $24, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -824(%rbp)
-    mov $0, %rax
-    mov %rax, -832(%rbp)
-.L2762:
-    mov -832(%rbp), %rax
-    push %rax
-    mov -816(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2763
-    mov -832(%rbp), %rax
-    push %rax
-    mov -824(%rbp), %rax
-    push %rax
-    mov -832(%rbp), %rax
-    push %rax
-    mov -808(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call vec_get
-    push %rax
-    pop %rdi
-    pop %rsi
-    pop %rdx
-    call sexpr_to_param
-    mov -832(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -832(%rbp)
-    jmp .L2762
-.L2763:
-    mov -824(%rbp), %rax
-    push %rax
-    mov -792(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call lambda_expr_set_params
-    mov -816(%rbp), %rax
-    push %rax
-    mov -792(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call lambda_expr_set_param_count
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_type
-    push %rax
-    mov -792(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call lambda_expr_set_ret_type
-    mov $3, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -792(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call lambda_expr_set_body
-    mov -792(%rbp), %rax
-    leave
-    ret
-.L2761:
-    lea .str948(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2765
-    call match_expr_alloc
-    mov %rax, -840(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -840(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call match_expr_set_scrutinee
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -848(%rbp)
-    mov -848(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_inner
-    mov %rax, -856(%rbp)
-    mov -856(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    call vec_len
-    mov %rax, -864(%rbp)
-    mov -864(%rbp), %rax
-    push %rax
-    mov $16, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -872(%rbp)
-    mov $0, %rax
-    mov %rax, -880(%rbp)
-.L2766:
-    mov -880(%rbp), %rax
-    push %rax
-    mov -864(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2767
-    mov -880(%rbp), %rax
-    push %rax
-    mov -856(%rbp), %rax
-    mov 16(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call vec_get
-    mov %rax, -888(%rbp)
-    mov -872(%rbp), %rax
-    push %rax
-    mov -880(%rbp), %rax
-    push %rax
-    mov $16, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -896(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -888(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_pattern
-    push %rax
-    mov -896(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call match_arm_set_pattern
-    mov $2, %rax
-    push %rax
-    mov -888(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -896(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call match_arm_set_body
-    mov -880(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -880(%rbp)
-    jmp .L2766
-.L2767:
-    mov -872(%rbp), %rax
-    push %rax
-    mov -840(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call match_expr_set_arms
-    mov -864(%rbp), %rax
-    push %rax
-    mov -840(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call match_expr_set_arm_count
-    mov -840(%rbp), %rax
-    leave
-    ret
-.L2765:
-    lea .str949(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2769
-    call perform_expr_alloc
-    mov %rax, -904(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -912(%rbp)
-    mov -912(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -904(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call perform_expr_set_name
-    mov -912(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -904(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call perform_expr_set_name_len
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    mov %rax, -920(%rbp)
-    mov -920(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -928(%rbp)
-    mov $0, %rax
-    mov %rax, -936(%rbp)
-.L2770:
-    mov -936(%rbp), %rax
-    push %rax
-    mov -920(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2771
-    mov -936(%rbp), %rax
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    mov %rax, -944(%rbp)
-    mov -928(%rbp), %rax
-    push %rax
-    mov -936(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -952(%rbp)
-    mov -944(%rbp), %rax
-    push %rax
-    mov -952(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -936(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -936(%rbp)
-    jmp .L2770
-.L2771:
-    mov -928(%rbp), %rax
-    push %rax
-    mov -904(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call perform_expr_set_args
-    mov -920(%rbp), %rax
-    push %rax
-    mov -904(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call perform_expr_set_arg_count
-    mov -904(%rbp), %rax
-    leave
-    ret
-.L2769:
-    lea .str950(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2773
-    call handle_expr_alloc
-    mov %rax, -960(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -960(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call handle_expr_set_body
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -968(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -968(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -976(%rbp)
-    mov -976(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -960(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call handle_expr_set_ret_bind
-    mov -976(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -960(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call handle_expr_set_ret_bind_len
-    mov $2, %rax
-    push %rax
-    mov -968(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -960(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call handle_expr_set_ret_body
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $3, %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    mov %rax, -984(%rbp)
-    mov -984(%rbp), %rax
-    push %rax
-    mov $56, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -992(%rbp)
-    mov $0, %rax
-    mov %rax, -1000(%rbp)
-.L2774:
-    mov -1000(%rbp), %rax
-    push %rax
-    mov -984(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2775
-    mov -1000(%rbp), %rax
-    push %rax
-    mov $3, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -1008(%rbp)
-    mov -992(%rbp), %rax
-    push %rax
-    mov -1000(%rbp), %rax
-    push %rax
-    mov $56, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -1016(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -1008(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -1024(%rbp)
-    mov -1016(%rbp), %rax
-    mov %rax, -1032(%rbp)
-    mov -1024(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -1032(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -1016(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -1040(%rbp)
-    mov -1024(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -1040(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov $2, %rax
-    push %rax
-    mov -1008(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -1048(%rbp)
-    mov -1016(%rbp), %rax
-    push %rax
-    mov $16, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -1056(%rbp)
-    lea .str951(%rip), %rax
-    push %rax
-    mov -1048(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2776
-    xor %rax, %rax
-    push %rax
-    mov -1056(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -1016(%rbp), %rax
-    push %rax
-    mov $24, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -1064(%rbp)
-    mov $0, %rax
-    push %rax
-    mov -1064(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    jmp .L2777
-.L2776:
-    mov -1048(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -1056(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -1016(%rbp), %rax
-    push %rax
-    mov $24, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -1072(%rbp)
-    mov -1048(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -1072(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-.L2777:
-    mov $3, %rax
-    push %rax
-    mov -1008(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -1080(%rbp)
-    mov -1016(%rbp), %rax
-    push %rax
-    mov $32, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -1088(%rbp)
-    mov -1080(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -1088(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -1016(%rbp), %rax
-    push %rax
-    mov $40, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -1096(%rbp)
-    mov -1080(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -1096(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -1016(%rbp), %rax
-    push %rax
-    mov $48, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -1104(%rbp)
-    mov $4, %rax
-    push %rax
-    mov -1008(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -1104(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -1000(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -1000(%rbp)
-    jmp .L2774
-.L2775:
-    mov -992(%rbp), %rax
-    push %rax
-    mov -960(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call handle_expr_set_cases
-    mov -984(%rbp), %rax
-    push %rax
-    mov -960(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call handle_expr_set_case_count
-    mov -960(%rbp), %rax
-    leave
-    ret
-.L2773:
-    lea .str952(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2779
-    call resume_expr_alloc
-    mov %rax, -1112(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -1112(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call resume_expr_set_k
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setg %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2780
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    push %rax
-    mov -1112(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call resume_expr_set_value
-    jmp .L2781
-.L2780:
-    xor %rax, %rax
-    push %rax
-    mov -1112(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call resume_expr_set_value
-.L2781:
-    mov -1112(%rbp), %rax
-    leave
-    ret
-.L2779:
-    lea .str953(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    test %rax, %rax
-    jz .L2783
-    call reader_expr_alloc
-    mov %rax, -1120(%rbp)
-    mov $1, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -1128(%rbp)
-    mov -1128(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_strdup
-    push %rax
-    mov -1120(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call reader_expr_set_name
-    mov -1128(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -1120(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call reader_expr_set_name_len
-    mov $2, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    mov %rax, -1136(%rbp)
-    mov -1136(%rbp), %rax
-    mov 8(%rax), %rax
-    push %rax
-    pop %rdi
-    call sexpr_parse_string
-    mov %rax, -1144(%rbp)
-    mov -1144(%rbp), %rax
-    push %rax
-    mov -1120(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call reader_expr_set_content
-    mov -1144(%rbp), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    push %rax
-    mov -1120(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call reader_expr_set_content_len
-    mov -1120(%rbp), %rax
-    leave
-    ret
-.L2783:
-    lea .str954(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprint
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    xor %rax, %rax
-    leave
-    ret
-
-.globl sexpr_to_program
-sexpr_to_program:
-    push %rbp
-    mov %rsp, %rbp
-    sub $80, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov PNODE_LIST(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2785
-    lea .str955(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    xor %rax, %rax
-    leave
-    ret
-.L2785:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_head
-    mov %rax, -16(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jnz .L2788
-    lea .str956(%rip), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L2788:
-    test %rax, %rax
-    jz .L2787
-    lea .str957(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    xor %rax, %rax
-    leave
-    ret
-.L2787:
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_len
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    sub %rcx, %rax
-    mov %rax, -24(%rbp)
-    mov -24(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -32(%rbp)
-    mov $0, %rax
-    mov %rax, -40(%rbp)
-.L2789:
-    mov -40(%rbp), %rax
-    push %rax
-    mov -24(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2790
-    mov -40(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call sexpr_get
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    mov %rax, -48(%rbp)
-    mov -32(%rbp), %rax
-    push %rax
-    mov -40(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -56(%rbp)
-    mov -48(%rbp), %rax
-    push %rax
-    mov -56(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -40(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-    jmp .L2789
-.L2790:
-    mov $16, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -64(%rbp)
-    mov -64(%rbp), %rax
-    mov %rax, -72(%rbp)
-    mov -32(%rbp), %rax
-    push %rax
-    mov -72(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -64(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -80(%rbp)
-    mov -24(%rbp), %rax
-    push %rax
-    mov -80(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -64(%rbp), %rax
-    leave
-    ret
-
-.globl parse_ast_from_string
-parse_ast_from_string:
-    push %rbp
-    mov %rsp, %rbp
-    sub $32, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_new
-    mov %rax, -16(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    call parse_sexpr
-    mov %rax, -24(%rbp)
-    mov -24(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2792
-    lea .str958(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    xor %rax, %rax
-    leave
-    ret
-.L2792:
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_to_program
-    leave
-    ret
-
-.globl parse_ast_expression_from_string
-parse_ast_expression_from_string:
-    push %rbp
-    mov %rsp, %rbp
-    sub $32, %rsp
-    mov %rdi, -8(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_new
-    mov %rax, -16(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    call parse_sexpr
-    mov %rax, -24(%rbp)
-    mov -24(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L2794
-    lea .str959(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    xor %rax, %rax
-    leave
-    ret
-.L2794:
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    call sexpr_to_node
-    leave
-    ret
-
 .globl get_param
 get_param:
     push %rbp
@@ -56777,7 +48873,7 @@ ast_emit_char:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2796
+    jz .L2396
     mov -8(%rbp), %rax
     push %rax
     mov ast_emit_buf(%rip), %rax
@@ -56796,7 +48892,7 @@ ast_emit_char:
     pop %rax
     add %rcx, %rax
     mov %rax, ast_emit_len(%rip)
-.L2796:
+.L2396:
     xor %rax, %rax
     leave
     ret
@@ -56807,7 +48903,7 @@ ast_emit_str:
     mov %rsp, %rbp
     sub $16, %rsp
     mov %rdi, -8(%rbp)
-.L2797:
+.L2397:
     mov -8(%rbp), %rax
     movzbl (%rax), %eax
     push %rax
@@ -56818,7 +48914,7 @@ ast_emit_str:
     setne %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2798
+    jz .L2398
     mov -8(%rbp), %rax
     movzbl (%rax), %eax
     push %rax
@@ -56831,8 +48927,8 @@ ast_emit_str:
     pop %rax
     add %rcx, %rax
     mov %rax, -8(%rbp)
-    jmp .L2797
-.L2798:
+    jmp .L2397
+.L2398:
     xor %rax, %rax
     leave
     ret
@@ -56846,7 +48942,7 @@ ast_emit_strn:
     mov %rsi, -16(%rbp)
     mov $0, %rax
     mov %rax, -24(%rbp)
-.L2799:
+.L2399:
     mov -24(%rbp), %rax
     push %rax
     mov -16(%rbp), %rax
@@ -56856,7 +48952,7 @@ ast_emit_strn:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2800
+    jz .L2400
     mov -8(%rbp), %rax
     push %rax
     mov -24(%rbp), %rax
@@ -56874,8 +48970,8 @@ ast_emit_strn:
     pop %rax
     add %rcx, %rax
     mov %rax, -24(%rbp)
-    jmp .L2799
-.L2800:
+    jmp .L2399
+.L2400:
     xor %rax, %rax
     leave
     ret
@@ -56895,7 +48991,7 @@ ast_emit_int:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2802
+    jz .L2402
     mov $45, %rax
     push %rax
     pop %rdi
@@ -56907,7 +49003,7 @@ ast_emit_int:
     pop %rax
     sub %rcx, %rax
     mov %rax, -8(%rbp)
-.L2802:
+.L2402:
     mov -8(%rbp), %rax
     push %rax
     mov $0, %rax
@@ -56917,7 +49013,7 @@ ast_emit_int:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2804
+    jz .L2404
     mov $48, %rax
     push %rax
     pop %rdi
@@ -56925,7 +49021,7 @@ ast_emit_int:
     xor %rax, %rax
     leave
     ret
-.L2804:
+.L2404:
     mov $32, %rax
     push %rax
     pop %rdi
@@ -56933,7 +49029,7 @@ ast_emit_int:
     mov %rax, -16(%rbp)
     mov $0, %rax
     mov %rax, -24(%rbp)
-.L2805:
+.L2405:
     mov -8(%rbp), %rax
     push %rax
     mov $0, %rax
@@ -56943,7 +49039,7 @@ ast_emit_int:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2806
+    jz .L2406
     mov -8(%rbp), %rax
     push %rax
     mov $10, %rax
@@ -56982,9 +49078,9 @@ ast_emit_int:
     pop %rax
     add %rcx, %rax
     mov %rax, -24(%rbp)
-    jmp .L2805
-.L2806:
-.L2807:
+    jmp .L2405
+.L2406:
+.L2407:
     mov -24(%rbp), %rax
     push %rax
     mov $0, %rax
@@ -56994,7 +49090,7 @@ ast_emit_int:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2808
+    jz .L2408
     mov -24(%rbp), %rax
     push %rax
     mov $1, %rax
@@ -57012,8 +49108,8 @@ ast_emit_int:
     push %rax
     pop %rdi
     call ast_emit_char
-    jmp .L2807
-.L2808:
+    jmp .L2407
+.L2408:
     xor %rax, %rax
     leave
     ret
@@ -57029,7 +49125,7 @@ ast_emit_newline:
     call ast_emit_char
     mov $0, %rax
     mov %rax, -8(%rbp)
-.L2809:
+.L2409:
     mov -8(%rbp), %rax
     push %rax
     mov ast_emit_indent(%rip), %rax
@@ -57039,7 +49135,7 @@ ast_emit_newline:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2810
+    jz .L2410
     mov $32, %rax
     push %rax
     pop %rdi
@@ -57055,8 +49151,8 @@ ast_emit_newline:
     pop %rax
     add %rcx, %rax
     mov %rax, -8(%rbp)
-    jmp .L2809
-.L2810:
+    jmp .L2409
+.L2410:
     xor %rax, %rax
     leave
     ret
@@ -57094,7 +49190,7 @@ ast_emit_quoted_string:
     call ast_emit_char
     mov $0, %rax
     mov %rax, -24(%rbp)
-.L2811:
+.L2411:
     mov -24(%rbp), %rax
     push %rax
     mov -16(%rbp), %rax
@@ -57104,7 +49200,7 @@ ast_emit_quoted_string:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2812
+    jz .L2412
     mov -8(%rbp), %rax
     push %rax
     mov -24(%rbp), %rax
@@ -57122,7 +49218,7 @@ ast_emit_quoted_string:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2813
+    jz .L2413
     mov $92, %rax
     push %rax
     pop %rdi
@@ -57131,8 +49227,8 @@ ast_emit_quoted_string:
     push %rax
     pop %rdi
     call ast_emit_char
-    jmp .L2814
-.L2813:
+    jmp .L2414
+.L2413:
     mov -32(%rbp), %rax
     push %rax
     mov $92, %rax
@@ -57142,7 +49238,7 @@ ast_emit_quoted_string:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2815
+    jz .L2415
     mov $92, %rax
     push %rax
     pop %rdi
@@ -57151,8 +49247,8 @@ ast_emit_quoted_string:
     push %rax
     pop %rdi
     call ast_emit_char
-    jmp .L2816
-.L2815:
+    jmp .L2416
+.L2415:
     mov -32(%rbp), %rax
     push %rax
     mov $10, %rax
@@ -57162,7 +49258,7 @@ ast_emit_quoted_string:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2817
+    jz .L2417
     mov $92, %rax
     push %rax
     pop %rdi
@@ -57171,8 +49267,8 @@ ast_emit_quoted_string:
     push %rax
     pop %rdi
     call ast_emit_char
-    jmp .L2818
-.L2817:
+    jmp .L2418
+.L2417:
     mov -32(%rbp), %rax
     push %rax
     mov $9, %rax
@@ -57182,7 +49278,7 @@ ast_emit_quoted_string:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2819
+    jz .L2419
     mov $92, %rax
     push %rax
     pop %rdi
@@ -57191,8 +49287,8 @@ ast_emit_quoted_string:
     push %rax
     pop %rdi
     call ast_emit_char
-    jmp .L2820
-.L2819:
+    jmp .L2420
+.L2419:
     mov -32(%rbp), %rax
     push %rax
     mov $13, %rax
@@ -57202,7 +49298,7 @@ ast_emit_quoted_string:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2821
+    jz .L2421
     mov $92, %rax
     push %rax
     pop %rdi
@@ -57211,8 +49307,8 @@ ast_emit_quoted_string:
     push %rax
     pop %rdi
     call ast_emit_char
-    jmp .L2822
-.L2821:
+    jmp .L2422
+.L2421:
     mov -32(%rbp), %rax
     push %rax
     mov $0, %rax
@@ -57222,7 +49318,7 @@ ast_emit_quoted_string:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2823
+    jz .L2423
     mov $92, %rax
     push %rax
     pop %rdi
@@ -57231,18 +49327,18 @@ ast_emit_quoted_string:
     push %rax
     pop %rdi
     call ast_emit_char
-    jmp .L2824
-.L2823:
+    jmp .L2424
+.L2423:
     mov -32(%rbp), %rax
     push %rax
     pop %rdi
     call ast_emit_char
-.L2824:
-.L2822:
-.L2820:
-.L2818:
-.L2816:
-.L2814:
+.L2424:
+.L2422:
+.L2420:
+.L2418:
+.L2416:
+.L2414:
     mov -24(%rbp), %rax
     push %rax
     mov $1, %rax
@@ -57250,8 +49346,8 @@ ast_emit_quoted_string:
     pop %rax
     add %rcx, %rax
     mov %rax, -24(%rbp)
-    jmp .L2811
-.L2812:
+    jmp .L2411
+.L2412:
     mov $34, %rax
     push %rax
     pop %rdi
@@ -57275,15 +49371,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2826
-    lea .str960(%rip), %rax
+    jz .L2426
+    lea .str886(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2826:
+.L2426:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_MINUS(%rip), %rax
@@ -57293,15 +49389,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2828
-    lea .str961(%rip), %rax
+    jz .L2428
+    lea .str887(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2828:
+.L2428:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_STAR(%rip), %rax
@@ -57311,15 +49407,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2830
-    lea .str962(%rip), %rax
+    jz .L2430
+    lea .str888(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2830:
+.L2430:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_SLASH(%rip), %rax
@@ -57329,15 +49425,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2832
-    lea .str963(%rip), %rax
+    jz .L2432
+    lea .str889(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2832:
+.L2432:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_PERCENT(%rip), %rax
@@ -57347,15 +49443,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2834
-    lea .str964(%rip), %rax
+    jz .L2434
+    lea .str890(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2834:
+.L2434:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_AMP(%rip), %rax
@@ -57365,15 +49461,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2836
-    lea .str965(%rip), %rax
+    jz .L2436
+    lea .str891(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2836:
+.L2436:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_PIPE(%rip), %rax
@@ -57383,15 +49479,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2838
-    lea .str966(%rip), %rax
+    jz .L2438
+    lea .str892(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2838:
+.L2438:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_CARET(%rip), %rax
@@ -57401,15 +49497,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2840
-    lea .str967(%rip), %rax
+    jz .L2440
+    lea .str893(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2840:
+.L2440:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_LTLT(%rip), %rax
@@ -57419,15 +49515,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2842
-    lea .str968(%rip), %rax
+    jz .L2442
+    lea .str894(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2842:
+.L2442:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_GTGT(%rip), %rax
@@ -57437,15 +49533,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2844
-    lea .str969(%rip), %rax
+    jz .L2444
+    lea .str895(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2844:
+.L2444:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_EQEQ(%rip), %rax
@@ -57455,15 +49551,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2846
-    lea .str970(%rip), %rax
+    jz .L2446
+    lea .str896(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2846:
+.L2446:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_BANGEQ(%rip), %rax
@@ -57473,15 +49569,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2848
-    lea .str971(%rip), %rax
+    jz .L2448
+    lea .str897(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2848:
+.L2448:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_LT(%rip), %rax
@@ -57491,15 +49587,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2850
-    lea .str972(%rip), %rax
+    jz .L2450
+    lea .str898(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2850:
+.L2450:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_GT(%rip), %rax
@@ -57509,15 +49605,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2852
-    lea .str973(%rip), %rax
+    jz .L2452
+    lea .str899(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2852:
+.L2452:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_LTEQ(%rip), %rax
@@ -57527,15 +49623,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2854
-    lea .str974(%rip), %rax
+    jz .L2454
+    lea .str900(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2854:
+.L2454:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_GTEQ(%rip), %rax
@@ -57545,15 +49641,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2856
-    lea .str975(%rip), %rax
+    jz .L2456
+    lea .str901(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2856:
+.L2456:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_AMPAMP(%rip), %rax
@@ -57563,15 +49659,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2858
-    lea .str976(%rip), %rax
+    jz .L2458
+    lea .str902(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2858:
+.L2458:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_PIPEPIPE(%rip), %rax
@@ -57581,15 +49677,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2860
-    lea .str977(%rip), %rax
+    jz .L2460
+    lea .str903(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2860:
+.L2460:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_BANG(%rip), %rax
@@ -57599,15 +49695,15 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2862
-    lea .str978(%rip), %rax
+    jz .L2462
+    lea .str904(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2862:
+.L2462:
     mov -8(%rbp), %rax
     push %rax
     mov TOKEN_EQ(%rip), %rax
@@ -57617,16 +49713,16 @@ ast_emit_op:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2864
-    lea .str979(%rip), %rax
+    jz .L2464
+    lea .str905(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2864:
-    lea .str980(%rip), %rax
+.L2464:
+    lea .str906(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -57653,15 +49749,15 @@ ast_emit_type:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2866
-    lea .str981(%rip), %rax
+    jz .L2466
+    lea .str907(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2866:
+.L2466:
     mov -8(%rbp), %rax
     push %rax
     pop %rdi
@@ -57676,8 +49772,8 @@ ast_emit_type:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2868
-    lea .str982(%rip), %rax
+    jz .L2468
+    lea .str908(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -57694,14 +49790,14 @@ ast_emit_type:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str983(%rip), %rax
+    lea .str909(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2868:
+.L2468:
     mov -16(%rbp), %rax
     push %rax
     mov TYPE_PTR(%rip), %rax
@@ -57711,8 +49807,8 @@ ast_emit_type:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2870
-    lea .str984(%rip), %rax
+    jz .L2470
+    lea .str910(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -57723,14 +49819,14 @@ ast_emit_type:
     push %rax
     pop %rdi
     call ast_emit_type
-    lea .str985(%rip), %rax
+    lea .str911(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2870:
+.L2470:
     mov -16(%rbp), %rax
     push %rax
     mov TYPE_FUNC(%rip), %rax
@@ -57740,8 +49836,8 @@ ast_emit_type:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2872
-    lea .str986(%rip), %rax
+    jz .L2472
+    lea .str912(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -57757,7 +49853,7 @@ ast_emit_type:
     mov %rax, -32(%rbp)
     mov $0, %rax
     mov %rax, -40(%rbp)
-.L2873:
+.L2473:
     mov -40(%rbp), %rax
     push %rax
     mov -32(%rbp), %rax
@@ -57767,7 +49863,7 @@ ast_emit_type:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2874
+    jz .L2474
     mov -40(%rbp), %rax
     push %rax
     mov $0, %rax
@@ -57777,12 +49873,12 @@ ast_emit_type:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2876
-    lea .str987(%rip), %rax
+    jz .L2476
+    lea .str913(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
-.L2876:
+.L2476:
     mov -40(%rbp), %rax
     push %rax
     mov -24(%rbp), %rax
@@ -57802,9 +49898,9 @@ ast_emit_type:
     pop %rax
     add %rcx, %rax
     mov %rax, -40(%rbp)
-    jmp .L2873
-.L2874:
-    lea .str988(%rip), %rax
+    jmp .L2473
+.L2474:
+    lea .str914(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -57815,14 +49911,14 @@ ast_emit_type:
     push %rax
     pop %rdi
     call ast_emit_type
-    lea .str989(%rip), %rax
+    lea .str915(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2872:
+.L2472:
     mov -16(%rbp), %rax
     push %rax
     mov TYPE_CLOSURE(%rip), %rax
@@ -57832,8 +49928,8 @@ ast_emit_type:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2878
-    lea .str990(%rip), %rax
+    jz .L2478
+    lea .str916(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -57849,7 +49945,7 @@ ast_emit_type:
     mov %rax, -64(%rbp)
     mov $0, %rax
     mov %rax, -72(%rbp)
-.L2879:
+.L2479:
     mov -72(%rbp), %rax
     push %rax
     mov -64(%rbp), %rax
@@ -57859,7 +49955,7 @@ ast_emit_type:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2880
+    jz .L2480
     mov -72(%rbp), %rax
     push %rax
     mov $0, %rax
@@ -57869,12 +49965,12 @@ ast_emit_type:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2882
-    lea .str991(%rip), %rax
+    jz .L2482
+    lea .str917(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
-.L2882:
+.L2482:
     mov -72(%rbp), %rax
     push %rax
     mov -56(%rbp), %rax
@@ -57894,9 +49990,9 @@ ast_emit_type:
     pop %rax
     add %rcx, %rax
     mov %rax, -72(%rbp)
-    jmp .L2879
-.L2880:
-    lea .str992(%rip), %rax
+    jmp .L2479
+.L2480:
+    lea .str918(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -57907,15 +50003,15 @@ ast_emit_type:
     push %rax
     pop %rdi
     call ast_emit_type
-    lea .str993(%rip), %rax
+    lea .str919(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2878:
-    lea .str994(%rip), %rax
+.L2478:
+    lea .str920(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -57923,7 +50019,7 @@ ast_emit_type:
     push %rax
     pop %rdi
     call ast_emit_int
-    lea .str995(%rip), %rax
+    lea .str921(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -57937,7 +50033,7 @@ ast_emit_param:
     mov %rsp, %rbp
     sub $16, %rsp
     mov %rdi, -8(%rbp)
-    lea .str996(%rip), %rax
+    lea .str922(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -57954,7 +50050,7 @@ ast_emit_param:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str997(%rip), %rax
+    lea .str923(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -57965,7 +50061,7 @@ ast_emit_param:
     push %rax
     pop %rdi
     call ast_emit_type
-    lea .str998(%rip), %rax
+    lea .str924(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -57988,15 +50084,15 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2884
-    lea .str999(%rip), %rax
+    jz .L2484
+    lea .str925(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2884:
+.L2484:
     mov -8(%rbp), %rax
     push %rax
     pop %rdi
@@ -58011,8 +50107,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2886
-    lea .str1000(%rip), %rax
+    jz .L2486
+    lea .str926(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58029,7 +50125,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1001(%rip), %rax
+    lea .str927(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58045,7 +50141,7 @@ ast_emit_node:
     mov %rax, -32(%rbp)
     mov $0, %rax
     mov %rax, -40(%rbp)
-.L2887:
+.L2487:
     mov -40(%rbp), %rax
     push %rax
     mov -32(%rbp), %rax
@@ -58055,7 +50151,7 @@ ast_emit_node:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2888
+    jz .L2488
     mov -40(%rbp), %rax
     push %rax
     mov $0, %rax
@@ -58065,12 +50161,12 @@ ast_emit_node:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2890
-    lea .str1002(%rip), %rax
+    jz .L2490
+    lea .str928(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
-.L2890:
+.L2490:
     mov -40(%rbp), %rax
     push %rax
     mov -24(%rbp), %rax
@@ -58088,9 +50184,9 @@ ast_emit_node:
     pop %rax
     add %rcx, %rax
     mov %rax, -40(%rbp)
-    jmp .L2887
-.L2888:
-    lea .str1003(%rip), %rax
+    jmp .L2487
+.L2488:
+    lea .str929(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58116,7 +50212,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1004(%rip), %rax
+    lea .str930(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58130,7 +50226,7 @@ ast_emit_node:
     xor %rax, %rax
     leave
     ret
-.L2886:
+.L2486:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_VAR_DECL(%rip), %rax
@@ -58140,8 +50236,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2892
-    lea .str1005(%rip), %rax
+    jz .L2492
+    lea .str931(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58158,7 +50254,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1006(%rip), %rax
+    lea .str932(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58183,8 +50279,8 @@ ast_emit_node:
     setne %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2894
-    lea .str1007(%rip), %rax
+    jz .L2494
+    lea .str933(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58192,15 +50288,15 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-.L2894:
-    lea .str1008(%rip), %rax
+.L2494:
+    lea .str934(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2892:
+.L2492:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_STRUCT_DECL(%rip), %rax
@@ -58210,8 +50306,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2896
-    lea .str1009(%rip), %rax
+    jz .L2496
+    lea .str935(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58228,7 +50324,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1010(%rip), %rax
+    lea .str936(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58244,7 +50340,7 @@ ast_emit_node:
     mov %rax, -64(%rbp)
     mov $0, %rax
     mov %rax, -72(%rbp)
-.L2897:
+.L2497:
     mov -72(%rbp), %rax
     push %rax
     mov -64(%rbp), %rax
@@ -58254,7 +50350,7 @@ ast_emit_node:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2898
+    jz .L2498
     mov -72(%rbp), %rax
     push %rax
     mov $0, %rax
@@ -58264,12 +50360,12 @@ ast_emit_node:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2900
-    lea .str1011(%rip), %rax
+    jz .L2500
+    lea .str937(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
-.L2900:
+.L2500:
     mov -72(%rbp), %rax
     push %rax
     mov -56(%rbp), %rax
@@ -58278,7 +50374,7 @@ ast_emit_node:
     pop %rsi
     call get_struct_field
     mov %rax, -80(%rbp)
-    lea .str1012(%rip), %rax
+    lea .str938(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58295,7 +50391,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1013(%rip), %rax
+    lea .str939(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58306,7 +50402,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_type
-    lea .str1014(%rip), %rax
+    lea .str940(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58317,16 +50413,16 @@ ast_emit_node:
     pop %rax
     add %rcx, %rax
     mov %rax, -72(%rbp)
-    jmp .L2897
-.L2898:
-    lea .str1015(%rip), %rax
+    jmp .L2497
+.L2498:
+    lea .str941(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2896:
+.L2496:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_ENUM_DECL(%rip), %rax
@@ -58336,8 +50432,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2902
-    lea .str1016(%rip), %rax
+    jz .L2502
+    lea .str942(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58354,7 +50450,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1017(%rip), %rax
+    lea .str943(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58370,7 +50466,7 @@ ast_emit_node:
     mov %rax, -96(%rbp)
     mov $0, %rax
     mov %rax, -104(%rbp)
-.L2903:
+.L2503:
     mov -104(%rbp), %rax
     push %rax
     mov -96(%rbp), %rax
@@ -58380,7 +50476,7 @@ ast_emit_node:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2904
+    jz .L2504
     mov -104(%rbp), %rax
     push %rax
     mov $0, %rax
@@ -58390,12 +50486,12 @@ ast_emit_node:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2906
-    lea .str1018(%rip), %rax
+    jz .L2506
+    lea .str944(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
-.L2906:
+.L2506:
     mov -104(%rbp), %rax
     push %rax
     mov -88(%rbp), %rax
@@ -58404,7 +50500,7 @@ ast_emit_node:
     pop %rsi
     call get_enum_variant
     mov %rax, -112(%rbp)
-    lea .str1019(%rip), %rax
+    lea .str945(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58435,8 +50531,8 @@ ast_emit_node:
     setne %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2908
-    lea .str1020(%rip), %rax
+    jz .L2508
+    lea .str946(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58444,8 +50540,8 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_type
-.L2908:
-    lea .str1021(%rip), %rax
+.L2508:
+    lea .str947(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58456,16 +50552,16 @@ ast_emit_node:
     pop %rax
     add %rcx, %rax
     mov %rax, -104(%rbp)
-    jmp .L2903
-.L2904:
-    lea .str1022(%rip), %rax
+    jmp .L2503
+.L2504:
+    lea .str948(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2902:
+.L2502:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_EFFECT_DECL(%rip), %rax
@@ -58475,8 +50571,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2910
-    lea .str1023(%rip), %rax
+    jz .L2510
+    lea .str949(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58493,7 +50589,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1024(%rip), %rax
+    lea .str950(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58509,7 +50605,7 @@ ast_emit_node:
     mov %rax, -136(%rbp)
     mov $0, %rax
     mov %rax, -144(%rbp)
-.L2911:
+.L2511:
     mov -144(%rbp), %rax
     push %rax
     mov -136(%rbp), %rax
@@ -58519,7 +50615,7 @@ ast_emit_node:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2912
+    jz .L2512
     mov -144(%rbp), %rax
     push %rax
     mov $0, %rax
@@ -58529,12 +50625,12 @@ ast_emit_node:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2914
-    lea .str1025(%rip), %rax
+    jz .L2514
+    lea .str951(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
-.L2914:
+.L2514:
     mov -144(%rbp), %rax
     push %rax
     mov -128(%rbp), %rax
@@ -58552,9 +50648,9 @@ ast_emit_node:
     pop %rax
     add %rcx, %rax
     mov %rax, -144(%rbp)
-    jmp .L2911
-.L2912:
-    lea .str1026(%rip), %rax
+    jmp .L2511
+.L2512:
+    lea .str952(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58565,14 +50661,14 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_type
-    lea .str1027(%rip), %rax
+    lea .str953(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2910:
+.L2510:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_MACRO_DECL(%rip), %rax
@@ -58582,8 +50678,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2916
-    lea .str1028(%rip), %rax
+    jz .L2516
+    lea .str954(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58600,7 +50696,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1029(%rip), %rax
+    lea .str955(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58616,7 +50712,7 @@ ast_emit_node:
     mov %rax, -160(%rbp)
     mov $0, %rax
     mov %rax, -168(%rbp)
-.L2917:
+.L2517:
     mov -168(%rbp), %rax
     push %rax
     mov -160(%rbp), %rax
@@ -58626,7 +50722,7 @@ ast_emit_node:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2918
+    jz .L2518
     mov -168(%rbp), %rax
     push %rax
     mov $0, %rax
@@ -58636,12 +50732,12 @@ ast_emit_node:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2920
-    lea .str1030(%rip), %rax
+    jz .L2520
+    lea .str956(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
-.L2920:
+.L2520:
     mov -168(%rbp), %rax
     push %rax
     mov -152(%rbp), %rax
@@ -58670,9 +50766,9 @@ ast_emit_node:
     pop %rax
     add %rcx, %rax
     mov %rax, -168(%rbp)
-    jmp .L2917
-.L2918:
-    lea .str1031(%rip), %rax
+    jmp .L2517
+.L2518:
+    lea .str957(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58683,14 +50779,14 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1032(%rip), %rax
+    lea .str958(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2916:
+.L2516:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_READER_DECL(%rip), %rax
@@ -58700,8 +50796,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2922
-    lea .str1033(%rip), %rax
+    jz .L2522
+    lea .str959(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58718,7 +50814,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1034(%rip), %rax
+    lea .str960(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58735,7 +50831,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1035(%rip), %rax
+    lea .str961(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58746,14 +50842,14 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1036(%rip), %rax
+    lea .str962(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2922:
+.L2522:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_INCLUDE_DECL(%rip), %rax
@@ -58763,8 +50859,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2924
-    lea .str1037(%rip), %rax
+    jz .L2524
+    lea .str963(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58781,14 +50877,14 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_quoted_string
-    lea .str1038(%rip), %rax
+    lea .str964(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2924:
+.L2524:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_IMPORT(%rip), %rax
@@ -58798,8 +50894,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2926
-    lea .str1039(%rip), %rax
+    jz .L2526
+    lea .str965(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58816,14 +50912,14 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_quoted_string
-    lea .str1040(%rip), %rax
+    lea .str966(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2926:
+.L2526:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_BLOCK_STMT(%rip), %rax
@@ -58833,8 +50929,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2928
-    lea .str1041(%rip), %rax
+    jz .L2528
+    lea .str967(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58857,7 +50953,7 @@ ast_emit_node:
     mov %rax, ast_emit_indent(%rip)
     mov $0, %rax
     mov %rax, -200(%rbp)
-.L2929:
+.L2529:
     mov -200(%rbp), %rax
     push %rax
     mov -192(%rbp), %rax
@@ -58867,7 +50963,7 @@ ast_emit_node:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2930
+    jz .L2530
     call ast_emit_newline
     mov -200(%rbp), %rax
     push %rax
@@ -58886,9 +50982,9 @@ ast_emit_node:
     pop %rax
     add %rcx, %rax
     mov %rax, -200(%rbp)
-    jmp .L2929
-.L2930:
-    lea .str1042(%rip), %rax
+    jmp .L2529
+.L2530:
+    lea .str968(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58902,7 +50998,7 @@ ast_emit_node:
     xor %rax, %rax
     leave
     ret
-.L2928:
+.L2528:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_BLOCK_EXPR(%rip), %rax
@@ -58912,8 +51008,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2932
-    lea .str1043(%rip), %rax
+    jz .L2532
+    lea .str969(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58936,7 +51032,7 @@ ast_emit_node:
     mov %rax, ast_emit_indent(%rip)
     mov $0, %rax
     mov %rax, -224(%rbp)
-.L2933:
+.L2533:
     mov -224(%rbp), %rax
     push %rax
     mov -216(%rbp), %rax
@@ -58946,7 +51042,7 @@ ast_emit_node:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2934
+    jz .L2534
     call ast_emit_newline
     mov -224(%rbp), %rax
     push %rax
@@ -58965,8 +51061,8 @@ ast_emit_node:
     pop %rax
     add %rcx, %rax
     mov %rax, -224(%rbp)
-    jmp .L2933
-.L2934:
+    jmp .L2533
+.L2534:
     call ast_emit_newline
     mov -8(%rbp), %rax
     push %rax
@@ -58975,7 +51071,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1044(%rip), %rax
+    lea .str970(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -58989,7 +51085,7 @@ ast_emit_node:
     xor %rax, %rax
     leave
     ret
-.L2932:
+.L2532:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_IF_STMT(%rip), %rax
@@ -58999,8 +51095,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2936
-    lea .str1045(%rip), %rax
+    jz .L2536
+    lea .str971(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59040,14 +51136,14 @@ ast_emit_node:
     setne %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2938
+    jz .L2538
     call ast_emit_newline
     mov -232(%rbp), %rax
     push %rax
     pop %rdi
     call ast_emit_node
-.L2938:
-    lea .str1046(%rip), %rax
+.L2538:
+    lea .str972(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59061,7 +51157,7 @@ ast_emit_node:
     xor %rax, %rax
     leave
     ret
-.L2936:
+.L2536:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_WHILE_STMT(%rip), %rax
@@ -59071,8 +51167,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2940
-    lea .str1047(%rip), %rax
+    jz .L2540
+    lea .str973(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59112,8 +51208,8 @@ ast_emit_node:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2942
-    lea .str1048(%rip), %rax
+    jz .L2542
+    lea .str974(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59127,8 +51223,8 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-.L2942:
-    lea .str1049(%rip), %rax
+.L2542:
+    lea .str975(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59142,7 +51238,7 @@ ast_emit_node:
     xor %rax, %rax
     leave
     ret
-.L2940:
+.L2540:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_RETURN_STMT(%rip), %rax
@@ -59152,8 +51248,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2944
-    lea .str1050(%rip), %rax
+    jz .L2544
+    lea .str976(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59171,8 +51267,8 @@ ast_emit_node:
     setne %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2946
-    lea .str1051(%rip), %rax
+    jz .L2546
+    lea .str977(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59180,15 +51276,15 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-.L2946:
-    lea .str1052(%rip), %rax
+.L2546:
+    lea .str978(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2944:
+.L2544:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_BREAK_STMT(%rip), %rax
@@ -59198,8 +51294,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2948
-    lea .str1053(%rip), %rax
+    jz .L2548
+    lea .str979(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59217,8 +51313,8 @@ ast_emit_node:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2950
-    lea .str1054(%rip), %rax
+    jz .L2550
+    lea .str980(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59232,15 +51328,15 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-.L2950:
-    lea .str1055(%rip), %rax
+.L2550:
+    lea .str981(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2948:
+.L2548:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_CONTINUE_STMT(%rip), %rax
@@ -59250,8 +51346,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2952
-    lea .str1056(%rip), %rax
+    jz .L2552
+    lea .str982(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59269,8 +51365,8 @@ ast_emit_node:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2954
-    lea .str1057(%rip), %rax
+    jz .L2554
+    lea .str983(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59284,15 +51380,15 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-.L2954:
-    lea .str1058(%rip), %rax
+.L2554:
+    lea .str984(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2952:
+.L2552:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_EXPR_STMT(%rip), %rax
@@ -59302,8 +51398,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2956
-    lea .str1059(%rip), %rax
+    jz .L2556
+    lea .str985(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59314,14 +51410,14 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1060(%rip), %rax
+    lea .str986(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2956:
+.L2556:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_ASSIGN_STMT(%rip), %rax
@@ -59331,8 +51427,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2958
-    lea .str1061(%rip), %rax
+    jz .L2558
+    lea .str987(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59343,7 +51439,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1062(%rip), %rax
+    lea .str988(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59354,14 +51450,14 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1063(%rip), %rax
+    lea .str989(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2958:
+.L2558:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_BINARY_EXPR(%rip), %rax
@@ -59371,8 +51467,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2960
-    lea .str1064(%rip), %rax
+    jz .L2560
+    lea .str990(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59383,7 +51479,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_op
-    lea .str1065(%rip), %rax
+    lea .str991(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59394,7 +51490,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1066(%rip), %rax
+    lea .str992(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59405,14 +51501,14 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1067(%rip), %rax
+    lea .str993(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2960:
+.L2560:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_UNARY_EXPR(%rip), %rax
@@ -59422,8 +51518,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2962
-    lea .str1068(%rip), %rax
+    jz .L2562
+    lea .str994(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59434,7 +51530,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_op
-    lea .str1069(%rip), %rax
+    lea .str995(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59445,14 +51541,14 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1070(%rip), %rax
+    lea .str996(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2962:
+.L2562:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_CALL_EXPR(%rip), %rax
@@ -59462,8 +51558,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2964
-    lea .str1071(%rip), %rax
+    jz .L2564
+    lea .str997(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59486,7 +51582,7 @@ ast_emit_node:
     mov %rax, -280(%rbp)
     mov $0, %rax
     mov %rax, -288(%rbp)
-.L2965:
+.L2565:
     mov -288(%rbp), %rax
     push %rax
     mov -280(%rbp), %rax
@@ -59496,8 +51592,8 @@ ast_emit_node:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2966
-    lea .str1072(%rip), %rax
+    jz .L2566
+    lea .str998(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59518,16 +51614,16 @@ ast_emit_node:
     pop %rax
     add %rcx, %rax
     mov %rax, -288(%rbp)
-    jmp .L2965
-.L2966:
-    lea .str1073(%rip), %rax
+    jmp .L2565
+.L2566:
+    lea .str999(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2964:
+.L2564:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_FIELD_EXPR(%rip), %rax
@@ -59537,8 +51633,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2968
-    lea .str1074(%rip), %rax
+    jz .L2568
+    lea .str1000(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59549,7 +51645,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1075(%rip), %rax
+    lea .str1001(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59566,14 +51662,14 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1076(%rip), %rax
+    lea .str1002(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2968:
+.L2568:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_INDEX_EXPR(%rip), %rax
@@ -59583,8 +51679,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2970
-    lea .str1077(%rip), %rax
+    jz .L2570
+    lea .str1003(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59607,7 +51703,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1078(%rip), %rax
+    lea .str1004(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59616,14 +51712,14 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1079(%rip), %rax
+    lea .str1005(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2970:
+.L2570:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_IDENT_EXPR(%rip), %rax
@@ -59633,8 +51729,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2972
-    lea .str1080(%rip), %rax
+    jz .L2572
+    lea .str1006(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59651,14 +51747,14 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1081(%rip), %rax
+    lea .str1007(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2972:
+.L2572:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_NUMBER_EXPR(%rip), %rax
@@ -59668,8 +51764,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2974
-    lea .str1082(%rip), %rax
+    jz .L2574
+    lea .str1008(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59686,14 +51782,14 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1083(%rip), %rax
+    lea .str1009(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2974:
+.L2574:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_STRING_EXPR(%rip), %rax
@@ -59703,8 +51799,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2976
-    lea .str1084(%rip), %rax
+    jz .L2576
+    lea .str1010(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59721,14 +51817,14 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_quoted_string
-    lea .str1085(%rip), %rax
+    lea .str1011(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2976:
+.L2576:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_BOOL_EXPR(%rip), %rax
@@ -59738,8 +51834,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2978
-    lea .str1086(%rip), %rax
+    jz .L2578
+    lea .str1012(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59755,26 +51851,26 @@ ast_emit_node:
     setne %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2979
-    lea .str1087(%rip), %rax
+    jz .L2579
+    lea .str1013(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
-    jmp .L2980
-.L2979:
-    lea .str1088(%rip), %rax
+    jmp .L2580
+.L2579:
+    lea .str1014(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
-.L2980:
-    lea .str1089(%rip), %rax
+.L2580:
+    lea .str1015(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2978:
+.L2578:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_NIL_EXPR(%rip), %rax
@@ -59784,15 +51880,15 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2982
-    lea .str1090(%rip), %rax
+    jz .L2582
+    lea .str1016(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2982:
+.L2582:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_GROUP_EXPR(%rip), %rax
@@ -59802,7 +51898,7 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2984
+    jz .L2584
     mov -8(%rbp), %rax
     push %rax
     pop %rdi
@@ -59813,7 +51909,7 @@ ast_emit_node:
     xor %rax, %rax
     leave
     ret
-.L2984:
+.L2584:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_LET_EXPR(%rip), %rax
@@ -59823,8 +51919,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2986
-    lea .str1091(%rip), %rax
+    jz .L2586
+    lea .str1017(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59855,8 +51951,8 @@ ast_emit_node:
     setne %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2988
-    lea .str1092(%rip), %rax
+    jz .L2588
+    lea .str1018(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59864,8 +51960,8 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_type
-.L2988:
-    lea .str1093(%rip), %rax
+.L2588:
+    lea .str1019(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59876,7 +51972,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1094(%rip), %rax
+    lea .str1020(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59887,14 +51983,14 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1095(%rip), %rax
+    lea .str1021(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2986:
+.L2586:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_LAMBDA_EXPR(%rip), %rax
@@ -59904,8 +52000,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2990
-    lea .str1096(%rip), %rax
+    jz .L2590
+    lea .str1022(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59921,7 +52017,7 @@ ast_emit_node:
     mov %rax, -328(%rbp)
     mov $0, %rax
     mov %rax, -336(%rbp)
-.L2991:
+.L2591:
     mov -336(%rbp), %rax
     push %rax
     mov -328(%rbp), %rax
@@ -59931,7 +52027,7 @@ ast_emit_node:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2992
+    jz .L2592
     mov -336(%rbp), %rax
     push %rax
     mov $0, %rax
@@ -59941,12 +52037,12 @@ ast_emit_node:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2994
-    lea .str1097(%rip), %rax
+    jz .L2594
+    lea .str1023(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
-.L2994:
+.L2594:
     mov -336(%rbp), %rax
     push %rax
     mov -320(%rbp), %rax
@@ -59964,9 +52060,9 @@ ast_emit_node:
     pop %rax
     add %rcx, %rax
     mov %rax, -336(%rbp)
-    jmp .L2991
-.L2992:
-    lea .str1098(%rip), %rax
+    jmp .L2591
+.L2592:
+    lea .str1024(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59977,7 +52073,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_type
-    lea .str1099(%rip), %rax
+    lea .str1025(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -59988,14 +52084,14 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1100(%rip), %rax
+    lea .str1026(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L2990:
+.L2590:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_MATCH_EXPR(%rip), %rax
@@ -60005,8 +52101,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2996
-    lea .str1101(%rip), %rax
+    jz .L2596
+    lea .str1027(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60017,7 +52113,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1102(%rip), %rax
+    lea .str1028(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60040,7 +52136,7 @@ ast_emit_node:
     mov %rax, ast_emit_indent(%rip)
     mov $0, %rax
     mov %rax, -360(%rbp)
-.L2997:
+.L2597:
     mov -360(%rbp), %rax
     push %rax
     mov -352(%rbp), %rax
@@ -60050,7 +52146,7 @@ ast_emit_node:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L2998
+    jz .L2598
     call ast_emit_newline
     mov -360(%rbp), %rax
     push %rax
@@ -60060,7 +52156,7 @@ ast_emit_node:
     pop %rsi
     call get_match_arm
     mov %rax, -368(%rbp)
-    lea .str1103(%rip), %rax
+    lea .str1029(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60071,7 +52167,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_pattern
-    lea .str1104(%rip), %rax
+    lea .str1030(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60082,7 +52178,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1105(%rip), %rax
+    lea .str1031(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60093,9 +52189,9 @@ ast_emit_node:
     pop %rax
     add %rcx, %rax
     mov %rax, -360(%rbp)
-    jmp .L2997
-.L2998:
-    lea .str1106(%rip), %rax
+    jmp .L2597
+.L2598:
+    lea .str1032(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60109,7 +52205,7 @@ ast_emit_node:
     xor %rax, %rax
     leave
     ret
-.L2996:
+.L2596:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_PERFORM_EXPR(%rip), %rax
@@ -60119,8 +52215,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3000
-    lea .str1107(%rip), %rax
+    jz .L2600
+    lea .str1033(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60149,7 +52245,7 @@ ast_emit_node:
     mov %rax, -384(%rbp)
     mov $0, %rax
     mov %rax, -392(%rbp)
-.L3001:
+.L2601:
     mov -392(%rbp), %rax
     push %rax
     mov -384(%rbp), %rax
@@ -60159,8 +52255,8 @@ ast_emit_node:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3002
-    lea .str1108(%rip), %rax
+    jz .L2602
+    lea .str1034(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60181,16 +52277,16 @@ ast_emit_node:
     pop %rax
     add %rcx, %rax
     mov %rax, -392(%rbp)
-    jmp .L3001
-.L3002:
-    lea .str1109(%rip), %rax
+    jmp .L2601
+.L2602:
+    lea .str1035(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L3000:
+.L2600:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_HANDLE_EXPR(%rip), %rax
@@ -60200,8 +52296,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3004
-    lea .str1110(%rip), %rax
+    jz .L2604
+    lea .str1036(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60220,7 +52316,7 @@ ast_emit_node:
     add %rcx, %rax
     mov %rax, ast_emit_indent(%rip)
     call ast_emit_newline
-    lea .str1111(%rip), %rax
+    lea .str1037(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60237,7 +52333,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1112(%rip), %rax
+    lea .str1038(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60248,7 +52344,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1113(%rip), %rax
+    lea .str1039(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60264,7 +52360,7 @@ ast_emit_node:
     mov %rax, -408(%rbp)
     mov $0, %rax
     mov %rax, -416(%rbp)
-.L3005:
+.L2605:
     mov -416(%rbp), %rax
     push %rax
     mov -408(%rbp), %rax
@@ -60274,7 +52370,7 @@ ast_emit_node:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3006
+    jz .L2606
     call ast_emit_newline
     mov -416(%rbp), %rax
     push %rax
@@ -60284,7 +52380,7 @@ ast_emit_node:
     pop %rsi
     call get_effect_case
     mov %rax, -424(%rbp)
-    lea .str1114(%rip), %rax
+    lea .str1040(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60301,7 +52397,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1115(%rip), %rax
+    lea .str1041(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60319,7 +52415,7 @@ ast_emit_node:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3007
+    jz .L2607
     mov -432(%rbp), %rax
     push %rax
     mov -424(%rbp), %rax
@@ -60330,14 +52426,14 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    jmp .L3008
-.L3007:
-    lea .str1116(%rip), %rax
+    jmp .L2608
+.L2607:
+    lea .str1042(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
-.L3008:
-    lea .str1117(%rip), %rax
+.L2608:
+    lea .str1043(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60354,7 +52450,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1118(%rip), %rax
+    lea .str1044(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60365,7 +52461,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1119(%rip), %rax
+    lea .str1045(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60376,9 +52472,9 @@ ast_emit_node:
     pop %rax
     add %rcx, %rax
     mov %rax, -416(%rbp)
-    jmp .L3005
-.L3006:
-    lea .str1120(%rip), %rax
+    jmp .L2605
+.L2606:
+    lea .str1046(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60392,7 +52488,7 @@ ast_emit_node:
     xor %rax, %rax
     leave
     ret
-.L3004:
+.L2604:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_RESUME_EXPR(%rip), %rax
@@ -60402,8 +52498,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3010
-    lea .str1121(%rip), %rax
+    jz .L2610
+    lea .str1047(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60428,8 +52524,8 @@ ast_emit_node:
     setne %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3012
-    lea .str1122(%rip), %rax
+    jz .L2612
+    lea .str1048(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60437,15 +52533,15 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-.L3012:
-    lea .str1123(%rip), %rax
+.L2612:
+    lea .str1049(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L3010:
+.L2610:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_QUOTE_EXPR(%rip), %rax
@@ -60455,8 +52551,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3014
-    lea .str1124(%rip), %rax
+    jz .L2614
+    lea .str1050(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60467,14 +52563,14 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_node
-    lea .str1125(%rip), %rax
+    lea .str1051(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L3014:
+.L2614:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_UNQUOTE_EXPR(%rip), %rax
@@ -60484,8 +52580,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3016
-    lea .str1126(%rip), %rax
+    jz .L2616
+    lea .str1052(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60502,14 +52598,14 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1127(%rip), %rax
+    lea .str1053(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L3016:
+.L2616:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_UNQUOTE_STRING_EXPR(%rip), %rax
@@ -60519,8 +52615,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3018
-    lea .str1128(%rip), %rax
+    jz .L2618
+    lea .str1054(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60537,14 +52633,14 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1129(%rip), %rax
+    lea .str1055(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L3018:
+.L2618:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_READER_EXPR(%rip), %rax
@@ -60554,8 +52650,8 @@ ast_emit_node:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3020
-    lea .str1130(%rip), %rax
+    jz .L2620
+    lea .str1056(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60572,7 +52668,7 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1131(%rip), %rax
+    lea .str1057(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60589,15 +52685,15 @@ ast_emit_node:
     pop %rdi
     pop %rsi
     call ast_emit_quoted_string
-    lea .str1132(%rip), %rax
+    lea .str1058(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L3020:
-    lea .str1133(%rip), %rax
+.L2620:
+    lea .str1059(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60605,7 +52701,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     call ast_emit_int
-    lea .str1134(%rip), %rax
+    lea .str1060(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60628,15 +52724,15 @@ ast_emit_pattern:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3022
-    lea .str1135(%rip), %rax
+    jz .L2622
+    lea .str1061(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L3022:
+.L2622:
     mov -8(%rbp), %rax
     push %rax
     pop %rdi
@@ -60651,8 +52747,8 @@ ast_emit_pattern:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3024
-    lea .str1136(%rip), %rax
+    jz .L2624
+    lea .str1062(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60669,7 +52765,7 @@ ast_emit_pattern:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-    lea .str1137(%rip), %rax
+    lea .str1063(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60700,8 +52796,8 @@ ast_emit_pattern:
     setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3026
-    lea .str1138(%rip), %rax
+    jz .L2626
+    lea .str1064(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60715,15 +52811,15 @@ ast_emit_pattern:
     pop %rdi
     pop %rsi
     call ast_emit_strn
-.L3026:
-    lea .str1139(%rip), %rax
+.L2626:
+    lea .str1065(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L3024:
+.L2624:
     mov -16(%rbp), %rax
     push %rax
     mov NODE_PATTERN_WILDCARD(%rip), %rax
@@ -60733,16 +52829,16 @@ ast_emit_pattern:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3028
-    lea .str1140(%rip), %rax
+    jz .L2628
+    lea .str1066(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
     xor %rax, %rax
     leave
     ret
-.L3028:
-    lea .str1141(%rip), %rax
+.L2628:
+    lea .str1067(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60750,7 +52846,7 @@ ast_emit_pattern:
     push %rax
     pop %rdi
     call ast_emit_int
-    lea .str1142(%rip), %rax
+    lea .str1068(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60765,7 +52861,7 @@ ast_emit_program:
     sub $32, %rsp
     mov %rdi, -8(%rbp)
     call ast_emit_init
-    lea .str1143(%rip), %rax
+    lea .str1069(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60788,7 +52884,7 @@ ast_emit_program:
     mov %rax, ast_emit_indent(%rip)
     mov $0, %rax
     mov %rax, -32(%rbp)
-.L3029:
+.L2629:
     mov -32(%rbp), %rax
     push %rax
     mov -24(%rbp), %rax
@@ -60798,7 +52894,7 @@ ast_emit_program:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3030
+    jz .L2630
     call ast_emit_newline
     mov -32(%rbp), %rax
     push %rax
@@ -60817,9 +52913,9 @@ ast_emit_program:
     pop %rax
     add %rcx, %rax
     mov %rax, -32(%rbp)
-    jmp .L3029
-.L3030:
-    lea .str1144(%rip), %rax
+    jmp .L2629
+.L2630:
+    lea .str1070(%rip), %rax
     push %rax
     pop %rdi
     call ast_emit_str
@@ -60843,276 +52939,5040 @@ ast_emit_expression:
     leave
     ret
 
-.globl is_decl_token
-is_decl_token:
+.globl tok_new
+tok_new:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov $48, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -16(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov $0, %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 8(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 16(%rcx)
+    mov $0, %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 24(%rcx)
+    mov $0, %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov TOK_EOF(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_next
+    mov -16(%rbp), %rax
+    leave
+    ret
+
+.globl tok_is_digit
+tok_is_digit:
     push %rbp
     mov %rsp, %rbp
     sub $16, %rsp
     mov %rdi, -8(%rbp)
     mov -8(%rbp), %rax
     push %rax
-    mov TOKEN_FUNC(%rip), %rax
+    mov $48, %rax
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
-    sete %al
+    setge %al
     movzx %al, %rax
     test %rax, %rax
-    jnz .L3038
+    jz .L2631
     mov -8(%rbp), %rax
     push %rax
-    mov TOKEN_VAR(%rip), %rax
+    mov $57, %rax
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
-    sete %al
+    setle %al
     movzx %al, %rax
-.L3038:
-    test %rax, %rax
-    jnz .L3037
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOKEN_STRUCT(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L3037:
-    test %rax, %rax
-    jnz .L3036
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOKEN_ENUM(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L3036:
-    test %rax, %rax
-    jnz .L3035
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOKEN_EFFECT(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L3035:
-    test %rax, %rax
-    jnz .L3034
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOKEN_MACRO(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L3034:
-    test %rax, %rax
-    jnz .L3033
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOKEN_READER(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L3033:
-    test %rax, %rax
-    jnz .L3032
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOKEN_INCLUDE(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L3032:
-    test %rax, %rax
-    jnz .L3031
-    mov -8(%rbp), %rax
-    push %rax
-    mov TOKEN_IMPORT(%rip), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L3031:
+.L2631:
     leave
     ret
 
-.globl lang
-lang:
+.globl tok_is_alpha
+tok_is_alpha:
     push %rbp
     mov %rsp, %rbp
-    sub $48, %rsp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    mov $65, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setge %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2634
+    mov -8(%rbp), %rax
+    push %rax
+    mov $90, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setle %al
+    movzx %al, %rax
+.L2634:
+    test %rax, %rax
+    jnz .L2633
+    mov -8(%rbp), %rax
+    push %rax
+    mov $97, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setge %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2635
+    mov -8(%rbp), %rax
+    push %rax
+    mov $122, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setle %al
+    movzx %al, %rax
+.L2635:
+.L2633:
+    test %rax, %rax
+    jnz .L2632
+    mov -8(%rbp), %rax
+    push %rax
+    mov $95, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2632:
+    leave
+    ret
+
+.globl tok_is_alnum
+tok_is_alnum:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
     mov %rdi, -8(%rbp)
     mov -8(%rbp), %rax
     push %rax
     pop %rdi
-    call parser_tokenize
-    mov $0, %rax
-    mov %rax, -16(%rbp)
-.L3039:
-    mov -16(%rbp), %rax
+    call tok_is_digit
+    test %rax, %rax
+    jnz .L2636
+    mov -8(%rbp), %rax
     push %rax
-    call parser_token_count
+    pop %rdi
+    call tok_is_alpha
+.L2636:
+    leave
+    ret
+
+.globl tok_is_space
+tok_is_space:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    mov $32, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jnz .L2639
+    mov -8(%rbp), %rax
+    push %rax
+    mov $9, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2639:
+    test %rax, %rax
+    jnz .L2638
+    mov -8(%rbp), %rax
+    push %rax
+    mov $10, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2638:
+    test %rax, %rax
+    jnz .L2637
+    mov -8(%rbp), %rax
+    push %rax
+    mov $13, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2637:
+    leave
+    ret
+
+.globl tok_peek_char
+tok_peek_char:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 16(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setge %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2641
+    mov $0, %rax
+    leave
+    ret
+.L2641:
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    leave
+    ret
+
+.globl tok_peek_char_at
+tok_peek_char_at:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov %rsi, -16(%rbp)
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 16(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setge %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2643
+    mov $0, %rax
+    leave
+    ret
+.L2643:
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    leave
+    ret
+
+.globl tok_advance_char
+tok_advance_char:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 16(%rax), %rax
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3040
+    jz .L2645
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 8(%rcx)
+.L2645:
+    xor %rax, %rax
+    leave
+    ret
+
+.globl tok_skip_whitespace
+tok_skip_whitespace:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+.L2646:
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 16(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2648
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    pop %rdi
+    call tok_is_space
+.L2648:
+    test %rax, %rax
+    jz .L2647
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    jmp .L2646
+.L2647:
+    xor %rax, %rax
+    leave
+    ret
+
+.globl tok_next
+tok_next:
+    push %rbp
+    mov %rsp, %rbp
+    sub $32, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_skip_whitespace
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 24(%rcx)
+    mov $0, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 16(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setge %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2650
+    mov TOK_EOF(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    xor %rax, %rax
+    leave
+    ret
+.L2650:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    mov %rax, -16(%rbp)
     mov -16(%rbp), %rax
     push %rax
-    pop %rdi
-    call get_token
-    mov %rax, -24(%rbp)
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_type
-    push %rax
-    mov TOKEN_ERROR(%rip), %rax
+    mov $40, %rax
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3042
-    lea .str1145(%rip), %rax
+    jz .L2652
+    mov TOK_LPAREN(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
     push %rax
     pop %rdi
-    call eprint
-    mov -24(%rbp), %rax
-    push %rax
-    pop %rdi
-    call tok_lexeme
-    push %rax
-    pop %rdi
-    call eprintln
+    call tok_advance_char
     xor %rax, %rax
     leave
     ret
-.L3042:
+.L2652:
     mov -16(%rbp), %rax
+    push %rax
+    mov $41, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2654
+    mov TOK_RPAREN(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2654:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $91, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2656
+    mov TOK_LBRACKET(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2656:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $93, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2658
+    mov TOK_RBRACKET(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2658:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $123, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2660
+    mov TOK_LBRACE(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2660:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $125, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2662
+    mov TOK_RBRACE(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2662:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $43, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2664
+    mov TOK_PLUS(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2664:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $42, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2666
+    mov TOK_STAR(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2666:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $47, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2668
+    mov TOK_SLASH(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2668:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $37, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2670
+    mov TOK_PERCENT(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2670:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $94, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2672
+    mov TOK_CARET(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2672:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $44, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2674
+    mov TOK_COMMA(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2674:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $58, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2676
+    mov TOK_COLON(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2676:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $59, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2678
+    mov TOK_SEMI(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2678:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $46, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2680
+    mov TOK_DOT(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2680:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $61, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2682
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    mov $61, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2683
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    jmp .L2684
+.L2683:
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+.L2684:
+    mov TOK_EQ(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    xor %rax, %rax
+    leave
+    ret
+.L2682:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $60, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2686
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    mov %rax, -24(%rbp)
+    mov -24(%rbp), %rax
+    push %rax
+    mov $61, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jnz .L2689
+    mov -24(%rbp), %rax
+    push %rax
+    mov $60, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2689:
+    test %rax, %rax
+    jz .L2687
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    jmp .L2688
+.L2687:
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+.L2688:
+    mov TOK_LT(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    xor %rax, %rax
+    leave
+    ret
+.L2686:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $62, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2691
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    mov %rax, -32(%rbp)
+    mov -32(%rbp), %rax
+    push %rax
+    mov $61, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jnz .L2694
+    mov -32(%rbp), %rax
+    push %rax
+    mov $62, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2694:
+    test %rax, %rax
+    jz .L2692
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    jmp .L2693
+.L2692:
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+.L2693:
+    mov TOK_GT(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    xor %rax, %rax
+    leave
+    ret
+.L2691:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $33, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2696
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    mov $61, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2697
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    jmp .L2698
+.L2697:
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+.L2698:
+    mov TOK_BANG(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    xor %rax, %rax
+    leave
+    ret
+.L2696:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $38, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2700
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    mov $38, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2701
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    jmp .L2702
+.L2701:
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+.L2702:
+    mov TOK_AMP(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    xor %rax, %rax
+    leave
+    ret
+.L2700:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $124, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2704
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    mov $124, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2705
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    jmp .L2706
+.L2705:
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+.L2706:
+    mov TOK_PIPE(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    xor %rax, %rax
+    leave
+    ret
+.L2704:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $45, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2708
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call tok_peek_char_at
+    push %rax
+    pop %rdi
+    call tok_is_digit
+    test %rax, %rax
+    jz .L2710
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+.L2711:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    pop %rdi
+    call tok_is_digit
+    test %rax, %rax
+    jz .L2712
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    jmp .L2711
+.L2712:
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 24(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov TOK_NUMBER(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    xor %rax, %rax
+    leave
+    ret
+.L2710:
+    mov TOK_MINUS(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+.L2708:
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_is_digit
+    test %rax, %rax
+    jz .L2714
+.L2715:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    pop %rdi
+    call tok_is_digit
+    test %rax, %rax
+    jz .L2716
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    jmp .L2715
+.L2716:
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 24(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov TOK_NUMBER(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    xor %rax, %rax
+    leave
+    ret
+.L2714:
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_is_alpha
+    test %rax, %rax
+    jz .L2718
+.L2719:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    pop %rdi
+    call tok_is_alnum
+    test %rax, %rax
+    jz .L2720
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    jmp .L2719
+.L2720:
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 24(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov TOK_IDENT(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    xor %rax, %rax
+    leave
+    ret
+.L2718:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $34, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2722
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+.L2723:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2725
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    mov $34, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+.L2725:
+    test %rax, %rax
+    jz .L2724
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    mov $92, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2727
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+.L2727:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    jmp .L2723
+.L2724:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    mov $34, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2729
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+.L2729:
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 24(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov TOK_STRING(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    xor %rax, %rax
+    leave
+    ret
+.L2722:
+    mov -16(%rbp), %rax
+    push %rax
+    mov $39, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2731
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+.L2732:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2734
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    mov $39, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+.L2734:
+    test %rax, %rax
+    jz .L2733
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    mov $92, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2736
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+.L2736:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    jmp .L2732
+.L2733:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_peek_char
+    push %rax
+    mov $39, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2738
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+.L2738:
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 24(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov TOK_STRING(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    xor %rax, %rax
+    leave
+    ret
+.L2731:
+    mov TOK_UNKNOWN(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 40(%rcx)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 32(%rcx)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_advance_char
+    xor %rax, %rax
+    leave
+    ret
+
+.globl tok_kind
+tok_kind:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    mov 40(%rax), %rax
+    leave
+    ret
+
+.globl tok_eof
+tok_eof:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    mov 40(%rax), %rax
+    push %rax
+    mov TOK_EOF(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    leave
+    ret
+
+.globl tok_text_ptr
+tok_text_ptr:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 24(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    leave
+    ret
+
+.globl tok_text_len
+tok_text_len:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    mov 32(%rax), %rax
+    leave
+    ret
+
+.globl tok_text
+tok_text:
+    push %rbp
+    mov %rsp, %rbp
+    sub $32, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    mov 32(%rax), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -16(%rbp)
+    mov $0, %rax
+    mov %rax, -24(%rbp)
+.L2739:
+    mov -24(%rbp), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 32(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2740
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 24(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov -24(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    mov -24(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -24(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -24(%rbp)
+    jmp .L2739
+.L2740:
+    mov $0, %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 32(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -16(%rbp), %rax
+    leave
+    ret
+
+.globl tok_number
+tok_number:
+    push %rbp
+    mov %rsp, %rbp
+    sub $48, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 24(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -16(%rbp)
+    mov -8(%rbp), %rax
+    mov 32(%rax), %rax
+    mov %rax, -24(%rbp)
+    mov $0, %rax
+    mov %rax, -32(%rbp)
+    mov $0, %rax
+    mov %rax, -40(%rbp)
+    mov -24(%rbp), %rax
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setg %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2743
+    mov -16(%rbp), %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov $45, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2743:
+    test %rax, %rax
+    jz .L2742
+    mov $1, %rax
+    mov %rax, -32(%rbp)
+    mov $1, %rax
+    mov %rax, -40(%rbp)
+.L2742:
+    mov $0, %rax
+    mov %rax, -48(%rbp)
+.L2744:
+    mov -40(%rbp), %rax
+    push %rax
+    mov -24(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2745
+    mov -48(%rbp), %rax
+    push %rax
+    mov $10, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    mov -40(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov $48, %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -48(%rbp)
+    mov -40(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -40(%rbp)
+    jmp .L2744
+.L2745:
+    mov -32(%rbp), %rax
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2747
+    mov $0, %rax
+    push %rax
+    mov -48(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    leave
+    ret
+.L2747:
+    mov -48(%rbp), %rax
+    leave
+    ret
+
+.globl tok_string_value
+tok_string_value:
+    push %rbp
+    mov %rsp, %rbp
+    sub $64, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 24(%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
     push %rax
     mov $1, %rax
     mov %rax, %rcx
     pop %rax
     add %rcx, %rax
     mov %rax, -16(%rbp)
-    jmp .L3039
-.L3040:
-    mov TOKEN_EOF(%rip), %rax
-    mov %rax, -32(%rbp)
-    call parser_token_count
+    mov -8(%rbp), %rax
+    mov 32(%rax), %rax
     push %rax
-    mov $0, %rax
+    mov $2, %rax
     mov %rax, %rcx
     pop %rax
-    cmp %rcx, %rax
-    setg %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3044
-    mov $0, %rax
+    sub %rcx, %rax
+    mov %rax, -24(%rbp)
+    mov -24(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
     push %rax
     pop %rdi
-    call get_token
-    push %rax
-    pop %rdi
-    call tok_type
+    call alloc
     mov %rax, -32(%rbp)
-.L3044:
-    mov -32(%rbp), %rax
-    push %rax
-    pop %rdi
-    call is_decl_token
-    test %rax, %rax
-    jz .L3045
-    call parse_program
+    mov $0, %rax
     mov %rax, -40(%rbp)
-    mov parse_error_count(%rip), %rax
-    push %rax
     mov $0, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setg %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3048
-    xor %rax, %rax
-    leave
-    ret
-.L3048:
+    mov %rax, -48(%rbp)
+.L2748:
     mov -40(%rbp), %rax
     push %rax
-    pop %rdi
-    call ast_emit_program
-    leave
-    ret
-    jmp .L3046
-.L3045:
-    call parse_expression
-    mov %rax, -48(%rbp)
-    mov parse_error_count(%rip), %rax
-    push %rax
-    mov $0, %rax
+    mov -24(%rbp), %rax
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
-    setg %al
+    setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3050
-    xor %rax, %rax
-    leave
-    ret
-.L3050:
+    jz .L2749
+    mov -16(%rbp), %rax
+    push %rax
+    mov -40(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    mov %rax, -56(%rbp)
+    mov -56(%rbp), %rax
+    push %rax
+    mov $92, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2752
+    mov -40(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov -24(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+.L2752:
+    test %rax, %rax
+    jz .L2751
+    mov -40(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -40(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    mov -40(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    mov %rax, -64(%rbp)
+    mov -64(%rbp), %rax
+    push %rax
+    mov $110, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2753
+    mov $10, %rax
+    mov %rax, -56(%rbp)
+    jmp .L2754
+.L2753:
+    mov -64(%rbp), %rax
+    push %rax
+    mov $114, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2755
+    mov $13, %rax
+    mov %rax, -56(%rbp)
+    jmp .L2756
+.L2755:
+    mov -64(%rbp), %rax
+    push %rax
+    mov $116, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2757
+    mov $9, %rax
+    mov %rax, -56(%rbp)
+    jmp .L2758
+.L2757:
+    mov -64(%rbp), %rax
+    push %rax
+    mov $34, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2759
+    mov $34, %rax
+    mov %rax, -56(%rbp)
+    jmp .L2760
+.L2759:
+    mov -64(%rbp), %rax
+    push %rax
+    mov $92, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2761
+    mov $92, %rax
+    mov %rax, -56(%rbp)
+    jmp .L2762
+.L2761:
+    mov -64(%rbp), %rax
+    mov %rax, -56(%rbp)
+.L2762:
+.L2760:
+.L2758:
+.L2756:
+.L2754:
+.L2751:
+    mov -56(%rbp), %rax
+    push %rax
+    mov -32(%rbp), %rax
+    push %rax
+    mov -48(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -40(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -40(%rbp)
     mov -48(%rbp), %rax
     push %rax
-    pop %rdi
-    call ast_emit_expression
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -48(%rbp)
+    jmp .L2748
+.L2749:
+    mov $0, %rax
+    push %rax
+    mov -32(%rbp), %rax
+    push %rax
+    mov -48(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -32(%rbp), %rax
     leave
     ret
-.L3046:
 
-.globl reader_transform
-reader_transform:
+.globl tok_check
+tok_check:
     push %rbp
     mov %rsp, %rbp
     sub $16, %rsp
     mov %rdi, -8(%rbp)
+    mov %rsi, -16(%rbp)
     mov -8(%rbp), %rax
+    mov 40(%rax), %rax
     push %rax
-    pop %rdi
-    call lang
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
     leave
     ret
 
-.globl compiler_get_arg
-compiler_get_arg:
+.globl tok_match
+tok_match:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov %rsi, -16(%rbp)
+    mov -8(%rbp), %rax
+    mov 40(%rax), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2764
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_next
+    mov $1, %rax
+    leave
+    ret
+.L2764:
+    xor %rax, %rax
+    leave
+    ret
+
+.globl tok_expect
+tok_expect:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov %rsi, -16(%rbp)
+    mov -8(%rbp), %rax
+    mov 40(%rax), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2766
+    xor %rax, %rax
+    leave
+    ret
+.L2766:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_next
+    mov $1, %rax
+    leave
+    ret
+
+.globl pnode_new
+pnode_new:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov $24, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -16(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    xor %rax, %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 8(%rcx)
+    xor %rax, %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 16(%rcx)
+    mov -16(%rbp), %rax
+    leave
+    ret
+
+.globl pnode_atom
+pnode_atom:
     push %rbp
     mov %rsp, %rbp
     sub $32, %rsp
     mov %rdi, -8(%rbp)
     mov %rsi, -16(%rbp)
     mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call pnode_new
     mov %rax, -24(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    mov -24(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 8(%rcx)
+    mov -24(%rbp), %rax
+    leave
+    ret
+
+.globl pnode_list
+pnode_list:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov PNODE_LIST(%rip), %rax
+    push %rax
+    pop %rdi
+    call pnode_new
+    mov %rax, -16(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, 16(%rcx)
+    mov -16(%rbp), %rax
+    leave
+    ret
+
+.globl is_operator_token
+is_operator_token:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    mov TOK_PLUS(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jnz .L2777
+    mov -8(%rbp), %rax
+    push %rax
+    mov TOK_MINUS(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2777:
+    test %rax, %rax
+    jnz .L2776
+    mov -8(%rbp), %rax
+    push %rax
+    mov TOK_STAR(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2776:
+    test %rax, %rax
+    jnz .L2775
+    mov -8(%rbp), %rax
+    push %rax
+    mov TOK_SLASH(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2775:
+    test %rax, %rax
+    jnz .L2774
+    mov -8(%rbp), %rax
+    push %rax
+    mov TOK_PERCENT(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2774:
+    test %rax, %rax
+    jnz .L2773
+    mov -8(%rbp), %rax
+    push %rax
+    mov TOK_AMP(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2773:
+    test %rax, %rax
+    jnz .L2772
+    mov -8(%rbp), %rax
+    push %rax
+    mov TOK_PIPE(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2772:
+    test %rax, %rax
+    jnz .L2771
+    mov -8(%rbp), %rax
+    push %rax
+    mov TOK_CARET(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2771:
+    test %rax, %rax
+    jnz .L2770
+    mov -8(%rbp), %rax
+    push %rax
+    mov TOK_LT(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2770:
+    test %rax, %rax
+    jnz .L2769
+    mov -8(%rbp), %rax
+    push %rax
+    mov TOK_GT(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2769:
+    test %rax, %rax
+    jnz .L2768
+    mov -8(%rbp), %rax
+    push %rax
+    mov TOK_BANG(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2768:
+    test %rax, %rax
+    jnz .L2767
+    mov -8(%rbp), %rax
+    push %rax
+    mov TOK_EQ(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L2767:
+    leave
+    ret
+
+.globl parse_sexpr
+parse_sexpr:
+    push %rbp
+    mov %rsp, %rbp
+    sub $64, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_kind
+    mov %rax, -16(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    mov TOK_NUMBER(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2779
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_text
+    mov %rax, -24(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_next
+    mov -24(%rbp), %rax
+    push %rax
+    mov PNODE_NUMBER(%rip), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call pnode_atom
+    leave
+    ret
+.L2779:
+    mov -16(%rbp), %rax
+    push %rax
+    mov TOK_IDENT(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2781
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_text
+    mov %rax, -32(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_next
+    mov -32(%rbp), %rax
+    push %rax
+    mov PNODE_SYMBOL(%rip), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call pnode_atom
+    leave
+    ret
+.L2781:
+    mov -16(%rbp), %rax
+    push %rax
+    mov TOK_STRING(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2783
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_text
+    mov %rax, -40(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_next
+    mov -40(%rbp), %rax
+    push %rax
+    mov PNODE_STRING(%rip), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call pnode_atom
+    leave
+    ret
+.L2783:
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    call is_operator_token
+    test %rax, %rax
+    jz .L2785
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_text
+    mov %rax, -48(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_next
+    mov -48(%rbp), %rax
+    push %rax
+    mov PNODE_OPERATOR(%rip), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call pnode_atom
+    leave
+    ret
+.L2785:
+    mov -16(%rbp), %rax
+    push %rax
+    mov TOK_LPAREN(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2787
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_next
+    mov $8, %rax
+    push %rax
+    pop %rdi
+    call vec_new
+    mov %rax, -56(%rbp)
+.L2788:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_kind
+    push %rax
+    mov TOK_RPAREN(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2790
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_kind
+    push %rax
+    mov TOK_EOF(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+.L2790:
+    test %rax, %rax
+    jz .L2789
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call parse_sexpr
+    mov %rax, -64(%rbp)
+    mov -64(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2792
+    xor %rax, %rax
+    leave
+    ret
+.L2792:
+    mov -64(%rbp), %rax
+    push %rax
+    mov -56(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_push
+    jmp .L2788
+.L2789:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_kind
+    push %rax
+    mov TOK_RPAREN(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2794
+    lea .str1071(%rip), %rax
+    push %rax
+    pop %rdi
+    call eprintln
+    xor %rax, %rax
+    leave
+    ret
+.L2794:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_next
+    mov -56(%rbp), %rax
+    push %rax
+    pop %rdi
+    call pnode_list
+    leave
+    ret
+.L2787:
+    lea .str1072(%rip), %rax
+    push %rax
+    pop %rdi
+    call eprint
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_text
+    push %rax
+    pop %rdi
+    call eprintln
+    xor %rax, %rax
+    leave
+    ret
+
+.globl sexpr_get
+sexpr_get:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov %rsi, -16(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_get
+    leave
+    ret
+
+.globl sexpr_len
+sexpr_len:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    call vec_len
+    leave
+    ret
+
+.globl sexpr_inner
+sexpr_inner:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    leave
+    ret
+
+.globl sexpr_is
+sexpr_is:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov %rsi, -16(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2796
+    xor %rax, %rax
+    leave
+    ret
+.L2796:
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov PNODE_SYMBOL(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2798
+    xor %rax, %rax
+    leave
+    ret
+.L2798:
+    mov -16(%rbp), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    leave
+    ret
+
+.globl sexpr_head
+sexpr_head:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2800
+    xor %rax, %rax
+    leave
+    ret
+.L2800:
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov PNODE_LIST(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2802
+    xor %rax, %rax
+    leave
+    ret
+.L2802:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2804
+    xor %rax, %rax
+    leave
+    ret
+.L2804:
+    mov $0, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -16(%rbp)
+    mov -16(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov PNODE_SYMBOL(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2806
+    xor %rax, %rax
+    leave
+    ret
+.L2806:
+    mov -16(%rbp), %rax
+    mov 8(%rax), %rax
+    leave
+    ret
+
+.globl sexpr_strdup
+sexpr_strdup:
+    push %rbp
+    mov %rsp, %rbp
+    sub $32, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    mov %rax, -16(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -24(%rbp)
+    mov $0, %rax
+    mov %rax, -32(%rbp)
+.L2807:
+    mov -32(%rbp), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2808
+    mov -8(%rbp), %rax
+    push %rax
+    mov -32(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    mov -32(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -32(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -32(%rbp)
+    jmp .L2807
+.L2808:
+    mov $0, %rax
+    push %rax
     mov -24(%rbp), %rax
     push %rax
     mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -24(%rbp), %rax
+    leave
+    ret
+
+.globl sexpr_parse_string
+sexpr_parse_string:
+    push %rbp
+    mov %rsp, %rbp
+    sub $64, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    mov %rax, -16(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -24(%rbp)
+    mov $0, %rax
+    mov %rax, -32(%rbp)
+    mov $1, %rax
+    mov %rax, -40(%rbp)
+.L2809:
+    mov -40(%rbp), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2810
+    mov -8(%rbp), %rax
+    push %rax
+    mov -40(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    mov %rax, -48(%rbp)
+    mov -48(%rbp), %rax
+    push %rax
+    mov $92, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2813
+    mov -40(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+.L2813:
+    test %rax, %rax
+    jz .L2811
+    mov -8(%rbp), %rax
+    push %rax
+    mov -40(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    mov %rax, -56(%rbp)
+    mov -56(%rbp), %rax
+    push %rax
+    mov $110, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2814
+    mov $10, %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    mov -32(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -32(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -32(%rbp)
+    mov -40(%rbp), %rax
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -40(%rbp)
+    jmp .L2815
+.L2814:
+    mov -56(%rbp), %rax
+    push %rax
+    mov $116, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2816
+    mov $9, %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    mov -32(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -32(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -32(%rbp)
+    mov -40(%rbp), %rax
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -40(%rbp)
+    jmp .L2817
+.L2816:
+    mov -56(%rbp), %rax
+    push %rax
+    mov $114, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2818
+    mov $13, %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    mov -32(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -32(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -32(%rbp)
+    mov -40(%rbp), %rax
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -40(%rbp)
+    jmp .L2819
+.L2818:
+    mov -56(%rbp), %rax
+    push %rax
+    mov $48, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2820
+    mov $0, %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    mov -32(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -32(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -32(%rbp)
+    mov -40(%rbp), %rax
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -40(%rbp)
+    jmp .L2821
+.L2820:
+    mov -56(%rbp), %rax
+    push %rax
+    mov $34, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2822
+    mov $34, %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    mov -32(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -32(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -32(%rbp)
+    mov -40(%rbp), %rax
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -40(%rbp)
+    jmp .L2823
+.L2822:
+    mov -56(%rbp), %rax
+    push %rax
+    mov $92, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2824
+    mov $92, %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    mov -32(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -32(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -32(%rbp)
+    mov -40(%rbp), %rax
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -40(%rbp)
+    jmp .L2825
+.L2824:
+    mov -48(%rbp), %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    mov -32(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -32(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -32(%rbp)
+    mov -40(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -40(%rbp)
+.L2825:
+.L2823:
+.L2821:
+.L2819:
+.L2817:
+.L2815:
+    jmp .L2812
+.L2811:
+    mov -48(%rbp), %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    mov -32(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -32(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -32(%rbp)
+    mov -40(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -40(%rbp)
+.L2812:
+    jmp .L2809
+.L2810:
+    mov $0, %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    mov -32(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -24(%rbp), %rax
+    leave
+    ret
+
+.globl sexpr_op_to_token
+sexpr_op_to_token:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    lea .str1073(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2827
+    mov TOKEN_PLUS(%rip), %rax
+    leave
+    ret
+.L2827:
+    lea .str1074(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2829
+    mov TOKEN_MINUS(%rip), %rax
+    leave
+    ret
+.L2829:
+    lea .str1075(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2831
+    mov TOKEN_STAR(%rip), %rax
+    leave
+    ret
+.L2831:
+    lea .str1076(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2833
+    mov TOKEN_SLASH(%rip), %rax
+    leave
+    ret
+.L2833:
+    lea .str1077(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2835
+    mov TOKEN_PERCENT(%rip), %rax
+    leave
+    ret
+.L2835:
+    lea .str1078(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2837
+    mov TOKEN_AMP(%rip), %rax
+    leave
+    ret
+.L2837:
+    lea .str1079(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2839
+    mov TOKEN_PIPE(%rip), %rax
+    leave
+    ret
+.L2839:
+    lea .str1080(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2841
+    mov TOKEN_CARET(%rip), %rax
+    leave
+    ret
+.L2841:
+    lea .str1081(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2843
+    mov TOKEN_LTLT(%rip), %rax
+    leave
+    ret
+.L2843:
+    lea .str1082(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2845
+    mov TOKEN_GTGT(%rip), %rax
+    leave
+    ret
+.L2845:
+    lea .str1083(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2847
+    mov TOKEN_EQEQ(%rip), %rax
+    leave
+    ret
+.L2847:
+    lea .str1084(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2849
+    mov TOKEN_BANGEQ(%rip), %rax
+    leave
+    ret
+.L2849:
+    lea .str1085(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2851
+    mov TOKEN_LT(%rip), %rax
+    leave
+    ret
+.L2851:
+    lea .str1086(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2853
+    mov TOKEN_GT(%rip), %rax
+    leave
+    ret
+.L2853:
+    lea .str1087(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2855
+    mov TOKEN_LTEQ(%rip), %rax
+    leave
+    ret
+.L2855:
+    lea .str1088(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2857
+    mov TOKEN_GTEQ(%rip), %rax
+    leave
+    ret
+.L2857:
+    lea .str1089(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2859
+    mov TOKEN_AMPAMP(%rip), %rax
+    leave
+    ret
+.L2859:
+    lea .str1090(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2861
+    mov TOKEN_PIPEPIPE(%rip), %rax
+    leave
+    ret
+.L2861:
+    lea .str1091(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2863
+    mov TOKEN_BANG(%rip), %rax
+    leave
+    ret
+.L2863:
+    mov $0, %rax
+    leave
+    ret
+
+.globl sexpr_to_type
+sexpr_to_type:
+    push %rbp
+    mov %rsp, %rbp
+    sub $160, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2865
+    xor %rax, %rax
+    leave
+    ret
+.L2865:
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov PNODE_SYMBOL(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2868
+    lea .str1092(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+.L2868:
+    test %rax, %rax
+    jz .L2867
+    xor %rax, %rax
+    leave
+    ret
+.L2867:
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov PNODE_LIST(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2870
+    xor %rax, %rax
+    leave
+    ret
+.L2870:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_head
+    mov %rax, -16(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2872
+    xor %rax, %rax
+    leave
+    ret
+.L2872:
+    lea .str1093(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2874
+    call base_type_alloc
+    mov %rax, -24(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -32(%rbp)
+    mov -32(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call base_type_set_name
+    mov -32(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call base_type_set_name_len
+    mov -24(%rbp), %rax
+    leave
+    ret
+.L2874:
+    lea .str1094(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2876
+    call ptr_type_alloc
+    mov %rax, -40(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    push %rax
+    mov -40(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call ptr_type_set_elem
+    mov -40(%rbp), %rax
+    leave
+    ret
+.L2876:
+    lea .str1095(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2878
+    call func_type_alloc
+    mov %rax, -48(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -56(%rbp)
+    mov -56(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_inner
+    mov %rax, -64(%rbp)
+    mov -64(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    call vec_len
+    mov %rax, -72(%rbp)
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    call vec_new
+    mov %rax, -80(%rbp)
+    mov $0, %rax
+    mov %rax, -88(%rbp)
+.L2879:
+    mov -88(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2880
+    mov -88(%rbp), %rax
+    push %rax
+    mov -64(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_get
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    mov %rax, -96(%rbp)
+    mov -96(%rbp), %rax
+    push %rax
+    mov -80(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_push
+    mov -88(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -88(%rbp)
+    jmp .L2879
+.L2880:
+    mov -80(%rbp), %rax
+    push %rax
+    mov -48(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call func_type_set_params
+    mov -72(%rbp), %rax
+    push %rax
+    mov -48(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call func_type_set_param_count
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    push %rax
+    mov -48(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call func_type_set_ret
+    mov -48(%rbp), %rax
+    leave
+    ret
+.L2878:
+    lea .str1096(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2882
+    call closure_type_alloc
+    mov %rax, -104(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -112(%rbp)
+    mov -112(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_inner
+    mov %rax, -120(%rbp)
+    mov -120(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    call vec_len
+    mov %rax, -128(%rbp)
+    mov -128(%rbp), %rax
+    push %rax
+    pop %rdi
+    call vec_new
+    mov %rax, -136(%rbp)
+    mov $0, %rax
+    mov %rax, -144(%rbp)
+.L2883:
+    mov -144(%rbp), %rax
+    push %rax
+    mov -128(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2884
+    mov -144(%rbp), %rax
+    push %rax
+    mov -120(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_get
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    mov %rax, -152(%rbp)
+    mov -152(%rbp), %rax
+    push %rax
+    mov -136(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_push
+    mov -144(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -144(%rbp)
+    jmp .L2883
+.L2884:
+    mov -136(%rbp), %rax
+    push %rax
+    mov -104(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call closure_type_set_params
+    mov -128(%rbp), %rax
+    push %rax
+    mov -104(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call closure_type_set_param_count
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    push %rax
+    mov -104(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call closure_type_set_ret
+    mov -104(%rbp), %rax
+    leave
+    ret
+.L2882:
+    xor %rax, %rax
+    leave
+    ret
+
+.globl sexpr_to_pattern
+sexpr_to_pattern:
+    push %rbp
+    mov %rsp, %rbp
+    sub $48, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2886
+    xor %rax, %rax
+    leave
+    ret
+.L2886:
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov PNODE_LIST(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2888
+    xor %rax, %rax
+    leave
+    ret
+.L2888:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_head
+    mov %rax, -16(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2890
+    xor %rax, %rax
+    leave
+    ret
+.L2890:
+    lea .str1097(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2892
+    call pattern_wildcard_alloc
+    leave
+    ret
+.L2892:
+    lea .str1098(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2894
+    call pattern_variant_alloc
+    mov %rax, -24(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -32(%rbp)
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -40(%rbp)
+    mov -32(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call pattern_variant_set_enum_name
+    mov -32(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call pattern_variant_set_enum_len
+    mov -40(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call pattern_variant_set_name
+    mov -40(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call pattern_variant_set_name_len
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $3, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setg %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2895
+    mov $3, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -48(%rbp)
+    mov -48(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call pattern_variant_set_binding
+    mov -48(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call pattern_variant_set_binding_len
+    jmp .L2896
+.L2895:
+    xor %rax, %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call pattern_variant_set_binding
+    mov $0, %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call pattern_variant_set_binding_len
+.L2896:
+    mov -24(%rbp), %rax
+    leave
+    ret
+.L2894:
+    xor %rax, %rax
+    leave
+    ret
+
+.globl sexpr_to_param
+sexpr_to_param:
+    push %rbp
+    mov %rsp, %rbp
+    sub $48, %rsp
+    mov %rdi, -8(%rbp)
+    mov %rsi, -16(%rbp)
+    mov %rdx, -24(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -32(%rbp)
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -40(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    mov $24, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -48(%rbp)
+    mov -32(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -48(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call param_set_name
+    mov -32(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -48(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call param_set_name_len
+    mov -40(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    push %rax
+    mov -48(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call param_set_type
+    xor %rax, %rax
+    leave
+    ret
+
+.globl sexpr_to_node
+sexpr_to_node:
+    push %rbp
+    mov %rsp, %rbp
+    sub $1152, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2898
+    xor %rax, %rax
+    leave
+    ret
+.L2898:
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov PNODE_SYMBOL(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2901
+    lea .str1099(%rip), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+.L2901:
+    test %rax, %rax
+    jz .L2900
+    xor %rax, %rax
+    leave
+    ret
+.L2900:
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov PNODE_LIST(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2903
+    lea .str1100(%rip), %rax
+    push %rax
+    pop %rdi
+    call eprintln
+    xor %rax, %rax
+    leave
+    ret
+.L2903:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_head
+    mov %rax, -16(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2905
+    lea .str1101(%rip), %rax
+    push %rax
+    pop %rdi
+    call eprintln
+    xor %rax, %rax
+    leave
+    ret
+.L2905:
+    lea .str1102(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2907
+    call func_decl_alloc
+    mov %rax, -24(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -32(%rbp)
+    mov -32(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call func_decl_set_name
+    mov -32(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call func_decl_set_name_len
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -40(%rbp)
+    mov -40(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_inner
+    mov %rax, -48(%rbp)
+    mov -48(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    call vec_len
+    mov %rax, -56(%rbp)
+    mov -56(%rbp), %rax
+    push %rax
+    mov $24, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -64(%rbp)
+    mov $0, %rax
+    mov %rax, -72(%rbp)
+.L2908:
+    mov -72(%rbp), %rax
+    push %rax
+    mov -56(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2909
+    mov -72(%rbp), %rax
+    push %rax
+    mov -64(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    mov -48(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_get
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call sexpr_to_param
+    mov -72(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -72(%rbp)
+    jmp .L2908
+.L2909:
+    mov -64(%rbp), %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call func_decl_set_params
+    mov -56(%rbp), %rax
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call func_decl_set_param_count
+    mov $3, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call func_decl_set_ret_type
+    mov $4, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call func_decl_set_body
+    mov -24(%rbp), %rax
+    leave
+    ret
+.L2907:
+    lea .str1103(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2911
+    call var_decl_alloc
+    mov %rax, -80(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -88(%rbp)
+    mov -88(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -80(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call var_decl_set_name
+    mov -88(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -80(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call var_decl_set_name_len
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    push %rax
+    mov -80(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call var_decl_set_type
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $3, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setg %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2912
+    mov $3, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -80(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call var_decl_set_init
+    jmp .L2913
+.L2912:
+    xor %rax, %rax
+    push %rax
+    mov -80(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call var_decl_set_init
+.L2913:
+    mov -80(%rbp), %rax
+    leave
+    ret
+.L2911:
+    lea .str1104(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2915
+    call struct_decl_alloc
+    mov %rax, -96(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -104(%rbp)
+    mov -104(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -96(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call struct_decl_set_name
+    mov -104(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -96(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call struct_decl_set_name_len
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -112(%rbp)
+    mov -112(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_inner
+    mov %rax, -120(%rbp)
+    mov -120(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    call vec_len
+    mov %rax, -128(%rbp)
+    mov -128(%rbp), %rax
+    push %rax
+    mov $24, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -136(%rbp)
+    mov $0, %rax
+    mov %rax, -144(%rbp)
+.L2916:
+    mov -144(%rbp), %rax
+    push %rax
+    mov -128(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2917
+    mov -144(%rbp), %rax
+    push %rax
+    mov -120(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_get
+    mov %rax, -152(%rbp)
+    mov -136(%rbp), %rax
+    push %rax
+    mov -144(%rbp), %rax
+    push %rax
+    mov $24, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -160(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -152(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -168(%rbp)
+    mov -168(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -160(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call struct_field_set_name
+    mov -168(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -160(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call struct_field_set_name_len
+    mov $2, %rax
+    push %rax
+    mov -152(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    push %rax
+    mov -160(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call struct_field_set_type
+    mov -144(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -144(%rbp)
+    jmp .L2916
+.L2917:
+    mov -136(%rbp), %rax
+    push %rax
+    mov -96(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call struct_decl_set_fields
+    mov -128(%rbp), %rax
+    push %rax
+    mov -96(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call struct_decl_set_field_count
+    mov -96(%rbp), %rax
+    leave
+    ret
+.L2915:
+    lea .str1105(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2919
+    call enum_decl_alloc
+    mov %rax, -176(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -184(%rbp)
+    mov -184(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -176(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call enum_decl_set_name
+    mov -184(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -176(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call enum_decl_set_name_len
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -192(%rbp)
+    mov -192(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_inner
+    mov %rax, -200(%rbp)
+    mov -200(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    call vec_len
+    mov %rax, -208(%rbp)
+    mov -208(%rbp), %rax
+    push %rax
+    mov $32, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -216(%rbp)
+    mov $0, %rax
+    mov %rax, -224(%rbp)
+.L2920:
+    mov -224(%rbp), %rax
+    push %rax
+    mov -208(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2921
+    mov -224(%rbp), %rax
+    push %rax
+    mov -200(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_get
+    mov %rax, -232(%rbp)
+    mov -216(%rbp), %rax
+    push %rax
+    mov -224(%rbp), %rax
+    push %rax
+    mov $32, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -240(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -232(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -248(%rbp)
+    mov -248(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -240(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call enum_variant_set_name
+    mov -248(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -240(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call enum_variant_set_name_len
+    mov -232(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setg %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2922
+    mov $2, %rax
+    push %rax
+    mov -232(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    push %rax
+    mov -240(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call enum_variant_set_type
+    jmp .L2923
+.L2922:
+    xor %rax, %rax
+    push %rax
+    mov -240(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call enum_variant_set_type
+.L2923:
+    mov -224(%rbp), %rax
+    push %rax
+    mov -240(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call enum_variant_set_tag
+    mov -224(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -224(%rbp)
+    jmp .L2920
+.L2921:
+    mov -216(%rbp), %rax
+    push %rax
+    mov -176(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call enum_decl_set_variants
+    mov -208(%rbp), %rax
+    push %rax
+    mov -176(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call enum_decl_set_variant_count
+    mov -176(%rbp), %rax
+    leave
+    ret
+.L2919:
+    lea .str1106(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2925
+    call effect_decl_alloc
+    mov %rax, -256(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -264(%rbp)
+    mov -264(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -256(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call effect_decl_set_name
+    mov -264(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -256(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call effect_decl_set_name_len
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -272(%rbp)
+    mov -272(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_inner
+    mov %rax, -280(%rbp)
+    mov -280(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    call vec_len
+    mov %rax, -288(%rbp)
+    mov -288(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -296(%rbp)
+    mov $0, %rax
+    mov %rax, -304(%rbp)
+.L2926:
+    mov -304(%rbp), %rax
+    push %rax
+    mov -288(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2927
+    mov -304(%rbp), %rax
+    push %rax
+    mov -280(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_get
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    mov %rax, -312(%rbp)
+    mov -296(%rbp), %rax
+    push %rax
+    mov -304(%rbp), %rax
     push %rax
     mov $8, %rax
     mov %rax, %rcx
@@ -61121,14 +57981,3071 @@ compiler_get_arg:
     mov %rax, %rcx
     pop %rax
     add %rcx, %rax
-    mov %rax, -32(%rbp)
-    mov -32(%rbp), %rax
+    mov %rax, -320(%rbp)
+    mov -312(%rbp), %rax
+    push %rax
+    mov -320(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -304(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -304(%rbp)
+    jmp .L2926
+.L2927:
+    mov -296(%rbp), %rax
+    push %rax
+    mov -256(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call effect_decl_set_param_types
+    mov -288(%rbp), %rax
+    push %rax
+    mov -256(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call effect_decl_set_param_type_count
+    mov $3, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    push %rax
+    mov -256(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call effect_decl_set_return_type
+    mov -256(%rbp), %rax
+    leave
+    ret
+.L2925:
+    lea .str1107(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2929
+    call include_decl_alloc
+    mov %rax, -328(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -336(%rbp)
+    mov -336(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_parse_string
+    mov %rax, -344(%rbp)
+    mov -344(%rbp), %rax
+    push %rax
+    mov -328(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call include_decl_set_path
+    mov -344(%rbp), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -328(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call include_decl_set_path_len
+    mov -328(%rbp), %rax
+    leave
+    ret
+.L2929:
+    lea .str1108(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2931
+    call reader_decl_alloc
+    mov %rax, -352(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -360(%rbp)
+    mov -360(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -352(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call reader_decl_set_name
+    mov -360(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -352(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call reader_decl_set_name_len
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -368(%rbp)
+    mov -368(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -352(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call reader_decl_set_param_name
+    mov -368(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -352(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call reader_decl_set_param_len
+    mov $3, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -352(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call reader_decl_set_body
+    mov -352(%rbp), %rax
+    leave
+    ret
+.L2931:
+    lea .str1109(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2933
+    call block_stmt_alloc
+    mov %rax, -376(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    mov %rax, -384(%rbp)
+    mov -384(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -392(%rbp)
+    mov $0, %rax
+    mov %rax, -400(%rbp)
+.L2934:
+    mov -400(%rbp), %rax
+    push %rax
+    mov -384(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2935
+    mov -400(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    mov %rax, -408(%rbp)
+    mov -392(%rbp), %rax
+    push %rax
+    mov -400(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -416(%rbp)
+    mov -408(%rbp), %rax
+    push %rax
+    mov -416(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -400(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -400(%rbp)
+    jmp .L2934
+.L2935:
+    mov -392(%rbp), %rax
+    push %rax
+    mov -376(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call block_stmt_set_stmts
+    mov -384(%rbp), %rax
+    push %rax
+    mov -376(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call block_stmt_set_count
+    mov -376(%rbp), %rax
+    leave
+    ret
+.L2933:
+    lea .str1110(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2937
+    call block_expr_alloc
+    mov %rax, -424(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    mov %rax, -432(%rbp)
+    mov -432(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    mov %rax, -440(%rbp)
+    mov -440(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -448(%rbp)
+    mov $0, %rax
+    mov %rax, -456(%rbp)
+.L2938:
+    mov -456(%rbp), %rax
+    push %rax
+    mov -440(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2939
+    mov -456(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    mov %rax, -464(%rbp)
+    mov -448(%rbp), %rax
+    push %rax
+    mov -456(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -472(%rbp)
+    mov -464(%rbp), %rax
+    push %rax
+    mov -472(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -456(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -456(%rbp)
+    jmp .L2938
+.L2939:
+    mov -448(%rbp), %rax
+    push %rax
+    mov -424(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call block_expr_set_stmts
+    mov -440(%rbp), %rax
+    push %rax
+    mov -424(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call block_expr_set_count
+    mov -432(%rbp), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -424(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call block_expr_set_tail
+    mov -424(%rbp), %rax
+    leave
+    ret
+.L2937:
+    lea .str1111(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2941
+    call if_stmt_alloc
+    mov %rax, -480(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -480(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call if_stmt_set_cond
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -480(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call if_stmt_set_then
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $3, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setg %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2942
+    mov $3, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -480(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call if_stmt_set_else
+    jmp .L2943
+.L2942:
+    xor %rax, %rax
+    push %rax
+    mov -480(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call if_stmt_set_else
+.L2943:
+    mov -480(%rbp), %rax
+    leave
+    ret
+.L2941:
+    lea .str1112(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2945
+    call while_stmt_alloc
+    mov %rax, -488(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -488(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call while_stmt_set_cond
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -488(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call while_stmt_set_body
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $3, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setg %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2946
+    mov $3, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -496(%rbp)
+    mov -496(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -488(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call while_stmt_set_label
+    mov -496(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -488(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call while_stmt_set_label_len
+    jmp .L2947
+.L2946:
+    xor %rax, %rax
+    push %rax
+    mov -488(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call while_stmt_set_label
+    mov $0, %rax
+    push %rax
+    mov -488(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call while_stmt_set_label_len
+.L2947:
+    mov -488(%rbp), %rax
+    leave
+    ret
+.L2945:
+    lea .str1113(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2949
+    call return_stmt_alloc
+    mov %rax, -504(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setg %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2950
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -504(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call return_stmt_set_value
+    jmp .L2951
+.L2950:
+    xor %rax, %rax
+    push %rax
+    mov -504(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call return_stmt_set_value
+.L2951:
+    mov -504(%rbp), %rax
+    leave
+    ret
+.L2949:
+    lea .str1114(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2953
+    call break_stmt_alloc
+    mov %rax, -512(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setg %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2954
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -520(%rbp)
+    mov -520(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -512(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call break_stmt_set_label
+    mov -520(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -512(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call break_stmt_set_label_len
+    jmp .L2955
+.L2954:
+    xor %rax, %rax
+    push %rax
+    mov -512(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call break_stmt_set_label
+    mov $0, %rax
+    push %rax
+    mov -512(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call break_stmt_set_label_len
+.L2955:
+    mov -512(%rbp), %rax
+    leave
+    ret
+.L2953:
+    lea .str1115(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2957
+    call continue_stmt_alloc
+    mov %rax, -528(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setg %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2958
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -536(%rbp)
+    mov -536(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -528(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call continue_stmt_set_label
+    mov -536(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -528(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call continue_stmt_set_label_len
+    jmp .L2959
+.L2958:
+    xor %rax, %rax
+    push %rax
+    mov -528(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call continue_stmt_set_label
+    mov $0, %rax
+    push %rax
+    mov -528(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call continue_stmt_set_label_len
+.L2959:
+    mov -528(%rbp), %rax
+    leave
+    ret
+.L2957:
+    lea .str1116(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2961
+    call expr_stmt_alloc
+    mov %rax, -544(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -544(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call expr_stmt_set_expr
+    mov -544(%rbp), %rax
+    leave
+    ret
+.L2961:
+    lea .str1117(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2963
+    call assign_stmt_alloc
+    mov %rax, -552(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -552(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call assign_stmt_set_target
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -552(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call assign_stmt_set_value
+    mov -552(%rbp), %rax
+    leave
+    ret
+.L2963:
+    lea .str1118(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2965
+    call ident_expr_alloc
+    mov %rax, -560(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -568(%rbp)
+    mov -568(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -560(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call ident_expr_set_name
+    mov -568(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -560(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call ident_expr_set_name_len
+    mov -560(%rbp), %rax
+    leave
+    ret
+.L2965:
+    lea .str1119(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2967
+    call number_expr_alloc
+    mov %rax, -576(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -584(%rbp)
+    mov -584(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -576(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call number_expr_set_value
+    mov -584(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -576(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call number_expr_set_value_len
+    mov -576(%rbp), %rax
+    leave
+    ret
+.L2967:
+    lea .str1120(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2969
+    call string_expr_alloc
+    mov %rax, -592(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -600(%rbp)
+    mov -600(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    mov -592(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call string_expr_set_value
+    mov -600(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -592(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call string_expr_set_value_len
+    mov -592(%rbp), %rax
+    leave
+    ret
+.L2969:
+    lea .str1121(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2971
+    call bool_expr_alloc
+    mov %rax, -608(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -616(%rbp)
+    lea .str1122(%rip), %rax
+    push %rax
+    mov -616(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2972
+    mov $1, %rax
+    push %rax
+    mov -608(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call bool_expr_set_value
+    jmp .L2973
+.L2972:
+    mov $0, %rax
+    push %rax
+    mov -608(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call bool_expr_set_value
+.L2973:
+    mov -608(%rbp), %rax
+    leave
+    ret
+.L2971:
+    lea .str1123(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2975
+    call nil_expr_alloc
+    leave
+    ret
+.L2975:
+    lea .str1124(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2977
+    call binary_expr_alloc
+    mov %rax, -624(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -632(%rbp)
+    mov -632(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_op_to_token
+    push %rax
+    mov -624(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call binary_expr_set_op
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -624(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call binary_expr_set_left
+    mov $3, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -624(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call binary_expr_set_right
+    mov -624(%rbp), %rax
+    leave
+    ret
+.L2977:
+    lea .str1125(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2979
+    call unary_expr_alloc
+    mov %rax, -640(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -648(%rbp)
+    mov -648(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_op_to_token
+    push %rax
+    mov -640(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call unary_expr_set_op
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -640(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call unary_expr_set_expr
+    mov -640(%rbp), %rax
+    leave
+    ret
+.L2979:
+    lea .str1126(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2981
+    call call_expr_alloc
+    mov %rax, -656(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -656(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call call_expr_set_func
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    mov %rax, -664(%rbp)
+    mov -664(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -672(%rbp)
+    mov $0, %rax
+    mov %rax, -680(%rbp)
+.L2982:
+    mov -680(%rbp), %rax
+    push %rax
+    mov -664(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2983
+    mov -680(%rbp), %rax
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    mov %rax, -688(%rbp)
+    mov -672(%rbp), %rax
+    push %rax
+    mov -680(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -696(%rbp)
+    mov -688(%rbp), %rax
+    push %rax
+    mov -696(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -680(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -680(%rbp)
+    jmp .L2982
+.L2983:
+    mov -672(%rbp), %rax
+    push %rax
+    mov -656(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call call_expr_set_args
+    mov -664(%rbp), %rax
+    push %rax
+    mov -656(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call call_expr_set_arg_count
+    mov -656(%rbp), %rax
+    leave
+    ret
+.L2981:
+    lea .str1127(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2985
+    mov $32, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -704(%rbp)
+    mov NODE_FIELD_EXPR(%rip), %rax
+    push %rax
+    mov -704(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call node_set_kind
+    mov -704(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -712(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -712(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -720(%rbp)
+    mov -704(%rbp), %rax
+    push %rax
+    mov $16, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -728(%rbp)
+    mov -720(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -728(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -704(%rbp), %rax
+    push %rax
+    mov $24, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -736(%rbp)
+    mov -720(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -736(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -704(%rbp), %rax
+    leave
+    ret
+.L2985:
+    lea .str1128(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2987
+    mov $24, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -744(%rbp)
+    mov NODE_INDEX_EXPR(%rip), %rax
+    push %rax
+    mov -744(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call node_set_kind
+    mov -744(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -752(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -752(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -744(%rbp), %rax
+    push %rax
+    mov $16, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -760(%rbp)
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -760(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -744(%rbp), %rax
+    leave
+    ret
+.L2987:
+    lea .str1129(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2989
+    call let_expr_alloc
+    mov %rax, -768(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -776(%rbp)
+    mov -776(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -768(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call let_expr_set_name
+    mov -776(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -768(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call let_expr_set_name_len
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -784(%rbp)
+    mov -784(%rbp), %rax
     mov (%rax), %rax
+    push %rax
+    mov PNODE_LIST(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2992
+    lea .str1130(%rip), %rax
+    push %rax
+    mov -784(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_head
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+.L2992:
+    test %rax, %rax
+    jz .L2990
+    mov -784(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    push %rax
+    mov -768(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call let_expr_set_type
+    mov $3, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -768(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call let_expr_set_init
+    mov $4, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -768(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call let_expr_set_body
+    jmp .L2991
+.L2990:
+    mov -784(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov PNODE_LIST(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2995
+    lea .str1131(%rip), %rax
+    push %rax
+    mov -784(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_head
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+.L2995:
+    test %rax, %rax
+    jz .L2993
+    mov -784(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    push %rax
+    mov -768(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call let_expr_set_type
+    mov $3, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -768(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call let_expr_set_init
+    mov $4, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -768(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call let_expr_set_body
+    jmp .L2994
+.L2993:
+    xor %rax, %rax
+    push %rax
+    mov -768(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call let_expr_set_type
+    mov -784(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -768(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call let_expr_set_init
+    mov $3, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -768(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call let_expr_set_body
+.L2994:
+.L2991:
+    mov -768(%rbp), %rax
+    leave
+    ret
+.L2989:
+    lea .str1132(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L2997
+    call lambda_expr_alloc
+    mov %rax, -792(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -800(%rbp)
+    mov -800(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_inner
+    mov %rax, -808(%rbp)
+    mov -808(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    call vec_len
+    mov %rax, -816(%rbp)
+    mov -816(%rbp), %rax
+    push %rax
+    mov $24, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -824(%rbp)
+    mov $0, %rax
+    mov %rax, -832(%rbp)
+.L2998:
+    mov -832(%rbp), %rax
+    push %rax
+    mov -816(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L2999
+    mov -832(%rbp), %rax
+    push %rax
+    mov -824(%rbp), %rax
+    push %rax
+    mov -832(%rbp), %rax
+    push %rax
+    mov -808(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_get
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call sexpr_to_param
+    mov -832(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -832(%rbp)
+    jmp .L2998
+.L2999:
+    mov -824(%rbp), %rax
+    push %rax
+    mov -792(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call lambda_expr_set_params
+    mov -816(%rbp), %rax
+    push %rax
+    mov -792(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call lambda_expr_set_param_count
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_type
+    push %rax
+    mov -792(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call lambda_expr_set_ret_type
+    mov $3, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -792(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call lambda_expr_set_body
+    mov -792(%rbp), %rax
+    leave
+    ret
+.L2997:
+    lea .str1133(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L3001
+    call match_expr_alloc
+    mov %rax, -840(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -840(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call match_expr_set_scrutinee
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -848(%rbp)
+    mov -848(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_inner
+    mov %rax, -856(%rbp)
+    mov -856(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    call vec_len
+    mov %rax, -864(%rbp)
+    mov -864(%rbp), %rax
+    push %rax
+    mov $16, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -872(%rbp)
+    mov $0, %rax
+    mov %rax, -880(%rbp)
+.L3002:
+    mov -880(%rbp), %rax
+    push %rax
+    mov -864(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3003
+    mov -880(%rbp), %rax
+    push %rax
+    mov -856(%rbp), %rax
+    mov 16(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_get
+    mov %rax, -888(%rbp)
+    mov -872(%rbp), %rax
+    push %rax
+    mov -880(%rbp), %rax
+    push %rax
+    mov $16, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -896(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -888(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_pattern
+    push %rax
+    mov -896(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call match_arm_set_pattern
+    mov $2, %rax
+    push %rax
+    mov -888(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -896(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call match_arm_set_body
+    mov -880(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -880(%rbp)
+    jmp .L3002
+.L3003:
+    mov -872(%rbp), %rax
+    push %rax
+    mov -840(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call match_expr_set_arms
+    mov -864(%rbp), %rax
+    push %rax
+    mov -840(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call match_expr_set_arm_count
+    mov -840(%rbp), %rax
+    leave
+    ret
+.L3001:
+    lea .str1134(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L3005
+    call perform_expr_alloc
+    mov %rax, -904(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -912(%rbp)
+    mov -912(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -904(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call perform_expr_set_name
+    mov -912(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -904(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call perform_expr_set_name_len
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    mov %rax, -920(%rbp)
+    mov -920(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -928(%rbp)
+    mov $0, %rax
+    mov %rax, -936(%rbp)
+.L3006:
+    mov -936(%rbp), %rax
+    push %rax
+    mov -920(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3007
+    mov -936(%rbp), %rax
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    mov %rax, -944(%rbp)
+    mov -928(%rbp), %rax
+    push %rax
+    mov -936(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -952(%rbp)
+    mov -944(%rbp), %rax
+    push %rax
+    mov -952(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -936(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -936(%rbp)
+    jmp .L3006
+.L3007:
+    mov -928(%rbp), %rax
+    push %rax
+    mov -904(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call perform_expr_set_args
+    mov -920(%rbp), %rax
+    push %rax
+    mov -904(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call perform_expr_set_arg_count
+    mov -904(%rbp), %rax
+    leave
+    ret
+.L3005:
+    lea .str1135(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L3009
+    call handle_expr_alloc
+    mov %rax, -960(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -960(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call handle_expr_set_body
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -968(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -968(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -976(%rbp)
+    mov -976(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -960(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call handle_expr_set_ret_bind
+    mov -976(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -960(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call handle_expr_set_ret_bind_len
+    mov $2, %rax
+    push %rax
+    mov -968(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -960(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call handle_expr_set_ret_body
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $3, %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    mov %rax, -984(%rbp)
+    mov -984(%rbp), %rax
+    push %rax
+    mov $56, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -992(%rbp)
+    mov $0, %rax
+    mov %rax, -1000(%rbp)
+.L3010:
+    mov -1000(%rbp), %rax
+    push %rax
+    mov -984(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3011
+    mov -1000(%rbp), %rax
+    push %rax
+    mov $3, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -1008(%rbp)
+    mov -992(%rbp), %rax
+    push %rax
+    mov -1000(%rbp), %rax
+    push %rax
+    mov $56, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -1016(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -1008(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -1024(%rbp)
+    mov -1016(%rbp), %rax
+    mov %rax, -1032(%rbp)
+    mov -1024(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -1032(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -1016(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -1040(%rbp)
+    mov -1024(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -1040(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov $2, %rax
+    push %rax
+    mov -1008(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -1048(%rbp)
+    mov -1016(%rbp), %rax
+    push %rax
+    mov $16, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -1056(%rbp)
+    lea .str1136(%rip), %rax
+    push %rax
+    mov -1048(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L3012
+    xor %rax, %rax
+    push %rax
+    mov -1056(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -1016(%rbp), %rax
+    push %rax
+    mov $24, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -1064(%rbp)
+    mov $0, %rax
+    push %rax
+    mov -1064(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    jmp .L3013
+.L3012:
+    mov -1048(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -1056(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -1016(%rbp), %rax
+    push %rax
+    mov $24, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -1072(%rbp)
+    mov -1048(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -1072(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+.L3013:
+    mov $3, %rax
+    push %rax
+    mov -1008(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -1080(%rbp)
+    mov -1016(%rbp), %rax
+    push %rax
+    mov $32, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -1088(%rbp)
+    mov -1080(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -1088(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -1016(%rbp), %rax
+    push %rax
+    mov $40, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -1096(%rbp)
+    mov -1080(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -1096(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -1016(%rbp), %rax
+    push %rax
+    mov $48, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -1104(%rbp)
+    mov $4, %rax
+    push %rax
+    mov -1008(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -1104(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -1000(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -1000(%rbp)
+    jmp .L3010
+.L3011:
+    mov -992(%rbp), %rax
+    push %rax
+    mov -960(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call handle_expr_set_cases
+    mov -984(%rbp), %rax
+    push %rax
+    mov -960(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call handle_expr_set_case_count
+    mov -960(%rbp), %rax
+    leave
+    ret
+.L3009:
+    lea .str1137(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L3015
+    call resume_expr_alloc
+    mov %rax, -1112(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -1112(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call resume_expr_set_k
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setg %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3016
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    push %rax
+    mov -1112(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call resume_expr_set_value
+    jmp .L3017
+.L3016:
+    xor %rax, %rax
+    push %rax
+    mov -1112(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call resume_expr_set_value
+.L3017:
+    mov -1112(%rbp), %rax
+    leave
+    ret
+.L3015:
+    lea .str1138(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    test %rax, %rax
+    jz .L3019
+    call reader_expr_alloc
+    mov %rax, -1120(%rbp)
+    mov $1, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -1128(%rbp)
+    mov -1128(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_strdup
+    push %rax
+    mov -1120(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call reader_expr_set_name
+    mov -1128(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -1120(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call reader_expr_set_name_len
+    mov $2, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    mov %rax, -1136(%rbp)
+    mov -1136(%rbp), %rax
+    mov 8(%rax), %rax
+    push %rax
+    pop %rdi
+    call sexpr_parse_string
+    mov %rax, -1144(%rbp)
+    mov -1144(%rbp), %rax
+    push %rax
+    mov -1120(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call reader_expr_set_content
+    mov -1144(%rbp), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -1120(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call reader_expr_set_content_len
+    mov -1120(%rbp), %rax
+    leave
+    ret
+.L3019:
+    lea .str1139(%rip), %rax
+    push %rax
+    pop %rdi
+    call eprint
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    call eprintln
+    xor %rax, %rax
     leave
     ret
 
-.globl compiler_read_file
-compiler_read_file:
+.globl sexpr_to_program
+sexpr_to_program:
+    push %rbp
+    mov %rsp, %rbp
+    sub $80, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov PNODE_LIST(%rip), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3021
+    lea .str1140(%rip), %rax
+    push %rax
+    pop %rdi
+    call eprintln
+    xor %rax, %rax
+    leave
+    ret
+.L3021:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_head
+    mov %rax, -16(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jnz .L3024
+    lea .str1141(%rip), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call streq
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L3024:
+    test %rax, %rax
+    jz .L3023
+    lea .str1142(%rip), %rax
+    push %rax
+    pop %rdi
+    call eprintln
+    xor %rax, %rax
+    leave
+    ret
+.L3023:
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_len
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    mov %rax, -24(%rbp)
+    mov -24(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -32(%rbp)
+    mov $0, %rax
+    mov %rax, -40(%rbp)
+.L3025:
+    mov -40(%rbp), %rax
+    push %rax
+    mov -24(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3026
+    mov -40(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call sexpr_get
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    mov %rax, -48(%rbp)
+    mov -32(%rbp), %rax
+    push %rax
+    mov -40(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -56(%rbp)
+    mov -48(%rbp), %rax
+    push %rax
+    mov -56(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -40(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -40(%rbp)
+    jmp .L3025
+.L3026:
+    mov $16, %rax
+    push %rax
+    pop %rdi
+    call alloc
+    mov %rax, -64(%rbp)
+    mov -64(%rbp), %rax
+    mov %rax, -72(%rbp)
+    mov -32(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -64(%rbp), %rax
+    push %rax
+    mov $8, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -80(%rbp)
+    mov -24(%rbp), %rax
+    push %rax
+    mov -80(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -64(%rbp), %rax
+    leave
+    ret
+
+.globl parse_ast_from_string
+parse_ast_from_string:
+    push %rbp
+    mov %rsp, %rbp
+    sub $32, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_new
+    mov %rax, -16(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    call parse_sexpr
+    mov %rax, -24(%rbp)
+    mov -24(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3028
+    lea .str1143(%rip), %rax
+    push %rax
+    pop %rdi
+    call eprintln
+    xor %rax, %rax
+    leave
+    ret
+.L3028:
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_to_program
+    leave
+    ret
+
+.globl parse_ast_expression_from_string
+parse_ast_expression_from_string:
+    push %rbp
+    mov %rsp, %rbp
+    sub $32, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_new
+    mov %rax, -16(%rbp)
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    call parse_sexpr
+    mov %rax, -24(%rbp)
+    mov -24(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3030
+    lea .str1144(%rip), %rax
+    push %rax
+    pop %rdi
+    call eprintln
+    xor %rax, %rax
+    leave
+    ret
+.L3030:
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    call sexpr_to_node
+    leave
+    ret
+
+.globl get_extension
+get_extension:
+    push %rbp
+    mov %rsp, %rbp
+    sub $32, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    mov %rax, -16(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    mov %rax, -24(%rbp)
+.L3031:
+    mov -24(%rbp), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setge %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3032
+    mov -24(%rbp), %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov $46, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3034
+    mov -24(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    leave
+    ret
+.L3034:
+    mov -24(%rbp), %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov $47, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3036
+    xor %rax, %rax
+    leave
+    ret
+.L3036:
+    mov -24(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    sub %rcx, %rax
+    mov %rax, -24(%rbp)
+    jmp .L3031
+.L3032:
+    xor %rax, %rax
+    leave
+    ret
+
+.globl is_lang_extension
+is_lang_extension:
+    push %rbp
+    mov %rsp, %rbp
+    sub $16, %rsp
+    mov %rdi, -8(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3038
+    mov $0, %rax
+    leave
+    ret
+.L3038:
+    mov -8(%rbp), %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov $108, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3044
+    mov -8(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov $97, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L3044:
+    test %rax, %rax
+    jz .L3043
+    mov -8(%rbp), %rax
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov $110, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L3043:
+    test %rax, %rax
+    jz .L3042
+    mov -8(%rbp), %rax
+    push %rax
+    mov $3, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov $103, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L3042:
+    test %rax, %rax
+    jz .L3041
+    mov -8(%rbp), %rax
+    push %rax
+    mov $4, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L3041:
+    test %rax, %rax
+    jz .L3040
+    mov $1, %rax
+    leave
+    ret
+.L3040:
+    mov $0, %rax
+    leave
+    ret
+
+.globl read_file
+read_file:
     push %rbp
     mov %rsp, %rbp
     sub $32, %rsp
@@ -61150,8 +61067,8 @@ compiler_read_file:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3052
-    lea .str1146(%rip), %rax
+    jz .L3046
+    lea .str1145(%rip), %rax
     push %rax
     pop %rdi
     call eprint
@@ -61162,13 +61079,13 @@ compiler_read_file:
     xor %rax, %rax
     leave
     ret
-.L3052:
-    mov $4194304, %rax
+.L3046:
+    mov $1048576, %rax
     push %rax
     pop %rdi
     call alloc
     mov %rax, -24(%rbp)
-    mov $4194304, %rax
+    mov $1048576, %rax
     push %rax
     mov -24(%rbp), %rax
     push %rax
@@ -61192,15 +61109,15 @@ compiler_read_file:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3054
-    lea .str1147(%rip), %rax
+    jz .L3048
+    lea .str1146(%rip), %rax
     push %rax
     pop %rdi
     call eprintln
     xor %rax, %rax
     leave
     ret
-.L3054:
+.L3048:
     mov $0, %rax
     push %rax
     mov -24(%rbp), %rax
@@ -61216,297 +61133,87 @@ compiler_read_file:
     leave
     ret
 
-.globl compiler_combine_asts
-compiler_combine_asts:
+.globl get_arg
+get_arg:
     push %rbp
     mov %rsp, %rbp
-    sub $144, %rsp
+    sub $32, %rsp
     mov %rdi, -8(%rbp)
     mov %rsi, -16(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    mov $0, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3056
-    xor %rax, %rax
-    leave
-    ret
-.L3056:
-    mov $0, %rax
-    mov %rax, -24(%rbp)
-    mov $0, %rax
-    mov %rax, -32(%rbp)
-.L3057:
-    mov -32(%rbp), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3058
     mov -8(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -40(%rbp)
-    mov -40(%rbp), %rax
-    mov (%rax), %rax
-    mov %rax, -48(%rbp)
-    mov -48(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3060
-    mov -24(%rbp), %rax
-    push %rax
-    mov -48(%rbp), %rax
-    push %rax
-    pop %rdi
-    call program_decl_count
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
     mov %rax, -24(%rbp)
-.L3060:
-    mov -32(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -32(%rbp)
-    jmp .L3057
-.L3058:
     mov -24(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -56(%rbp)
-    mov $0, %rax
-    mov %rax, -64(%rbp)
-    mov $0, %rax
-    mov %rax, -32(%rbp)
-.L3061:
-    mov -32(%rbp), %rax
     push %rax
     mov -16(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3062
-    mov -8(%rbp), %rax
-    push %rax
-    mov -32(%rbp), %rax
     push %rax
     mov $8, %rax
     mov %rax, %rcx
     pop %rax
     imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -72(%rbp)
-    mov -72(%rbp), %rax
-    mov (%rax), %rax
-    mov %rax, -80(%rbp)
-    mov -80(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setne %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3064
-    mov -80(%rbp), %rax
-    push %rax
-    pop %rdi
-    call program_decls
-    mov %rax, -88(%rbp)
-    mov -80(%rbp), %rax
-    push %rax
-    pop %rdi
-    call program_decl_count
-    mov %rax, -96(%rbp)
-    mov $0, %rax
-    mov %rax, -104(%rbp)
-.L3065:
-    mov -104(%rbp), %rax
-    push %rax
-    mov -96(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3066
-    mov -88(%rbp), %rax
-    push %rax
-    mov -104(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -112(%rbp)
-    mov -56(%rbp), %rax
-    push %rax
-    mov -64(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -120(%rbp)
-    mov -112(%rbp), %rax
-    mov (%rax), %rax
-    push %rax
-    mov -120(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -64(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -64(%rbp)
-    mov -104(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -104(%rbp)
-    jmp .L3065
-.L3066:
-.L3064:
-    mov -32(%rbp), %rax
-    push %rax
-    mov $1, %rax
     mov %rax, %rcx
     pop %rax
     add %rcx, %rax
     mov %rax, -32(%rbp)
-    jmp .L3061
-.L3062:
-    mov $16, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -128(%rbp)
-    mov -128(%rbp), %rax
-    mov %rax, -136(%rbp)
-    mov -56(%rbp), %rax
-    push %rax
-    mov -136(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -128(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -144(%rbp)
-    mov -24(%rbp), %rax
-    push %rax
-    mov -144(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -128(%rbp), %rax
+    mov -32(%rbp), %rax
+    mov (%rax), %rax
     leave
     ret
 
-.globl has_extension
-has_extension:
+.globl append_str
+append_str:
     push %rbp
     mov %rsp, %rbp
-    sub $48, %rsp
+    sub $32, %rsp
     mov %rdi, -8(%rbp)
     mov %rsi, -16(%rbp)
-    mov -8(%rbp), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    mov %rax, -24(%rbp)
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    call strlen
-    mov %rax, -32(%rbp)
+    mov %rdx, -24(%rbp)
+.L3049:
     mov -24(%rbp), %rax
+    movzbl (%rax), %eax
     push %rax
-    mov -32(%rbp), %rax
+    mov $0, %rax
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
-    setl %al
+    setne %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3068
-    mov $0, %rax
-    leave
-    ret
-.L3068:
+    jz .L3050
+    mov -24(%rbp), %rax
+    movzbl (%rax), %eax
+    push %rax
     mov -8(%rbp), %rax
     push %rax
-    mov -24(%rbp), %rax
+    mov -16(%rbp), %rax
+    mov (%rax), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -16(%rbp), %rax
+    mov (%rax), %rax
+    push %rax
+    mov $1, %rax
     mov %rax, %rcx
     pop %rax
     add %rcx, %rax
     push %rax
-    mov -32(%rbp), %rax
+    mov -16(%rbp), %rax
     mov %rax, %rcx
     pop %rax
-    sub %rcx, %rax
-    mov %rax, -40(%rbp)
-    mov -16(%rbp), %rax
+    mov %rax, (%rcx)
+    mov -24(%rbp), %rax
     push %rax
-    mov -40(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call streq
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -24(%rbp)
+    jmp .L3049
+.L3050:
+    xor %rax, %rax
     leave
     ret
 
@@ -61514,7 +61221,7 @@ has_extension:
 main:
     push %rbp
     mov %rsp, %rbp
-    sub $272, %rsp
+    sub $176, %rsp
     mov %rdi, -8(%rbp)
     mov %rsi, -16(%rbp)
     mov -8(%rbp), %rax
@@ -61526,36 +61233,28 @@ main:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3070
-    lea .str1148(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    lea .str1149(%rip), %rax
+    jz .L3052
+    lea .str1147(%rip), %rax
     push %rax
     pop %rdi
     call eprintln
     mov $1, %rax
     leave
     ret
-.L3070:
+.L3052:
     xor %rax, %rax
     mov %rax, -24(%rbp)
     xor %rax, %rax
     mov %rax, -32(%rbp)
-    xor %rax, %rax
-    mov %rax, -40(%rbp)
-    xor %rax, %rax
-    mov %rax, -48(%rbp)
     mov $16, %rax
     push %rax
     pop %rdi
     call vec_new
-    mov %rax, -56(%rbp)
+    mov %rax, -40(%rbp)
     mov $1, %rax
-    mov %rax, -64(%rbp)
-.L3071:
-    mov -64(%rbp), %rax
+    mov %rax, -48(%rbp)
+.L3053:
+    mov -48(%rbp), %rax
     push %rax
     mov -8(%rbp), %rax
     mov %rax, %rcx
@@ -61564,16 +61263,18 @@ main:
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3072
-    mov -64(%rbp), %rax
+    jz .L3054
+    mov -48(%rbp), %rax
     push %rax
     mov -16(%rbp), %rax
     push %rax
     pop %rdi
     pop %rsi
-    call compiler_get_arg
-    mov %rax, -72(%rbp)
-    mov -72(%rbp), %rax
+    call get_arg
+    mov %rax, -56(%rbp)
+    mov $0, %rax
+    mov %rax, -64(%rbp)
+    mov -56(%rbp), %rax
     movzbl (%rax), %eax
     push %rax
     mov $45, %rax
@@ -61583,8 +61284,8 @@ main:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3076
-    mov -72(%rbp), %rax
+    jz .L3057
+    mov -56(%rbp), %rax
     push %rax
     mov $1, %rax
     mov %rax, %rcx
@@ -61592,22 +61293,38 @@ main:
     add %rcx, %rax
     movzbl (%rax), %eax
     push %rax
-    mov $111, %rax
+    mov $45, %rax
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
     sete %al
     movzx %al, %rax
-.L3076:
+.L3057:
     test %rax, %rax
-    jz .L3075
-    mov -72(%rbp), %rax
+    jz .L3056
+    mov $13, %rax
+    push %rax
+    lea .str1148(%rip), %rax
+    push %rax
+    mov -56(%rbp), %rax
     push %rax
     mov $2, %rax
     mov %rax, %rcx
     pop %rax
     add %rcx, %rax
-    movzbl (%rax), %eax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call memcmp
+    test %rax, %rax
+    jz .L3059
+    mov $1, %rax
+    mov %rax, cg_expand_macros(%rip)
+    mov $1, %rax
+    mov %rax, -64(%rbp)
+.L3059:
+    mov -64(%rbp), %rax
     push %rax
     mov $0, %rax
     mov %rax, %rcx
@@ -61615,45 +61332,76 @@ main:
     cmp %rcx, %rax
     sete %al
     movzx %al, %rax
-.L3075:
     test %rax, %rax
-    jz .L3074
-    mov -64(%rbp), %rax
+    jz .L3062
+    mov $8, %rax
     push %rax
-    mov $1, %rax
+    lea .str1149(%rip), %rax
+    push %rax
+    mov -56(%rbp), %rax
+    push %rax
+    mov $2, %rax
     mov %rax, %rcx
     pop %rax
     add %rcx, %rax
-    mov %rax, -64(%rbp)
-    mov -64(%rbp), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3078
-    mov -64(%rbp), %rax
-    push %rax
-    mov -16(%rbp), %rax
     push %rax
     pop %rdi
     pop %rsi
-    call compiler_get_arg
-    mov %rax, -24(%rbp)
-.L3078:
+    pop %rdx
+    call memcmp
+.L3062:
+    test %rax, %rax
+    jz .L3061
+    mov $1, %rax
+    mov %rax, emit_ast_mode(%rip)
+    mov $1, %rax
+    mov %rax, -64(%rbp)
+.L3061:
     mov -64(%rbp), %rax
     push %rax
-    mov $1, %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3065
+    mov $8, %rax
+    push %rax
+    lea .str1150(%rip), %rax
+    push %rax
+    mov -56(%rbp), %rax
+    push %rax
+    mov $2, %rax
     mov %rax, %rcx
     pop %rax
     add %rcx, %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call memcmp
+.L3065:
+    test %rax, %rax
+    jz .L3064
+    mov $1, %rax
+    mov %rax, from_ast_mode(%rip)
+    mov $1, %rax
     mov %rax, -64(%rbp)
-    jmp .L3071
-.L3074:
-    mov -72(%rbp), %rax
+.L3064:
+.L3056:
+    mov -64(%rbp), %rax
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3068
+    mov -56(%rbp), %rax
     movzbl (%rax), %eax
     push %rax
     mov $45, %rax
@@ -61662,9 +61410,10 @@ main:
     cmp %rcx, %rax
     sete %al
     movzx %al, %rax
+.L3068:
     test %rax, %rax
-    jz .L3082
-    mov -72(%rbp), %rax
+    jz .L3067
+    mov -56(%rbp), %rax
     push %rax
     mov $1, %rax
     mov %rax, %rcx
@@ -61678,10 +61427,9 @@ main:
     cmp %rcx, %rax
     sete %al
     movzx %al, %rax
-.L3082:
     test %rax, %rax
-    jz .L3081
-    mov -72(%rbp), %rax
+    jz .L3071
+    mov -56(%rbp), %rax
     push %rax
     mov $2, %rax
     mov %rax, %rcx
@@ -61695,206 +61443,141 @@ main:
     cmp %rcx, %rax
     sete %al
     movzx %al, %rax
-.L3081:
+.L3071:
+    test %rax, %rax
+    jz .L3070
+    mov -48(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -48(%rbp)
+    mov -48(%rbp), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3073
+    mov -48(%rbp), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call get_arg
+    mov %rax, -32(%rbp)
+.L3073:
+    mov $1, %rax
+    mov %rax, -64(%rbp)
+.L3070:
+.L3067:
+    mov -64(%rbp), %rax
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3076
+    mov -56(%rbp), %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov $45, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L3076:
+    test %rax, %rax
+    jz .L3075
+    mov -56(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    movzbl (%rax), %eax
+    push %rax
+    mov $111, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3078
+    mov -48(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -48(%rbp)
+    mov -48(%rbp), %rax
+    push %rax
+    mov -8(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
     test %rax, %rax
     jz .L3080
-    mov -64(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -64(%rbp)
-    mov -64(%rbp), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3084
-    mov -64(%rbp), %rax
+    mov -48(%rbp), %rax
     push %rax
     mov -16(%rbp), %rax
     push %rax
     pop %rdi
     pop %rsi
-    call compiler_get_arg
-    mov %rax, -32(%rbp)
-.L3084:
-    mov -64(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -64(%rbp)
-    jmp .L3071
+    call get_arg
+    mov %rax, -24(%rbp)
 .L3080:
-    mov -72(%rbp), %rax
-    movzbl (%rax), %eax
+    mov $1, %rax
+    mov %rax, -64(%rbp)
+.L3078:
+.L3075:
+    mov -64(%rbp), %rax
     push %rax
-    mov $45, %rax
+    mov $0, %rax
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3087
-    mov -72(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    movzbl (%rax), %eax
-    push %rax
-    mov $45, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-.L3087:
-    test %rax, %rax
-    jz .L3086
-    mov $10, %rax
-    push %rax
-    lea .str1150(%rip), %rax
-    push %rax
-    mov -72(%rbp), %rax
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    pop %rdx
-    call memcmp
-    test %rax, %rax
-    jz .L3089
-    mov -64(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -64(%rbp)
-    mov -64(%rbp), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3091
-    mov -64(%rbp), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call compiler_get_arg
-    mov %rax, -40(%rbp)
-.L3091:
-    mov -64(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -64(%rbp)
-    jmp .L3071
-.L3089:
-    mov $12, %rax
-    push %rax
-    lea .str1151(%rip), %rax
-    push %rax
-    mov -72(%rbp), %rax
-    push %rax
-    mov $2, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    pop %rdx
-    call memcmp
-    test %rax, %rax
-    jz .L3093
-    mov -64(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -64(%rbp)
-    mov -64(%rbp), %rax
-    push %rax
-    mov -8(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    setl %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3095
-    mov -64(%rbp), %rax
-    push %rax
-    mov -16(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call compiler_get_arg
-    mov %rax, -48(%rbp)
-.L3095:
-    mov -64(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -64(%rbp)
-    jmp .L3071
-.L3093:
-.L3086:
-    mov -72(%rbp), %rax
-    push %rax
+    jz .L3082
     mov -56(%rbp), %rax
+    push %rax
+    mov -40(%rbp), %rax
     push %rax
     pop %rdi
     pop %rsi
     call vec_push
-    mov -64(%rbp), %rax
+.L3082:
+    mov -48(%rbp), %rax
     push %rax
     mov $1, %rax
     mov %rax, %rcx
     pop %rax
     add %rcx, %rax
-    mov %rax, -64(%rbp)
-    jmp .L3071
-.L3072:
-    mov -24(%rbp), %rax
+    mov %rax, -48(%rbp)
+    jmp .L3053
+.L3054:
+    mov $4194304, %rax
     push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3097
-    lea .str1152(%rip), %rax
-    mov %rax, -24(%rbp)
-.L3097:
+    pop %rdi
+    call alloc
+    mov %rax, -72(%rbp)
+    mov $0, %rax
+    mov %rax, -80(%rbp)
     mov -32(%rbp), %rax
     push %rax
     xor %rax, %rax
@@ -61904,117 +61587,179 @@ main:
     setne %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3099
-    mov -40(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3101
-    lea .str1153(%rip), %rax
-    mov %rax, -40(%rbp)
-.L3101:
+    jz .L3083
+    mov $0, %rax
+    mov %rax, -48(%rbp)
+.L3085:
     mov -48(%rbp), %rax
     push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3103
-    lea .str1154(%rip), %rax
-    mov %rax, -48(%rbp)
-.L3103:
     mov -40(%rbp), %rax
     push %rax
     pop %rdi
-    call compiler_read_file
-    mov %rax, -80(%rbp)
-    mov -80(%rbp), %rax
-    push %rax
-    xor %rax, %rax
+    call vec_len
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
-    sete %al
+    setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3105
-    lea .str1155(%rip), %rax
+    jz .L3086
+    mov -48(%rbp), %rax
     push %rax
-    pop %rdi
-    call eprint
     mov -40(%rbp), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    mov $1, %rax
-    leave
-    ret
-.L3105:
-    mov -80(%rbp), %rax
-    push %rax
-    pop %rdi
-    call parse_ast_from_string
-    mov %rax, -88(%rbp)
-    mov -88(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3107
-    lea .str1156(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    mov $1, %rax
-    leave
-    ret
-.L3107:
-    mov -32(%rbp), %rax
-    push %rax
-    pop %rdi
-    call compiler_read_file
-    mov %rax, -96(%rbp)
-    mov -96(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3109
-    mov $1, %rax
-    leave
-    ret
-.L3109:
-    xor %rax, %rax
-    mov %rax, -104(%rbp)
-    lea .str1157(%rip), %rax
-    push %rax
-    mov -32(%rbp), %rax
     push %rax
     pop %rdi
     pop %rsi
-    call has_extension
+    call vec_get
+    mov %rax, -88(%rbp)
+    lea .str1151(%rip), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    mov -88(%rbp), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    lea .str1152(%rip), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    mov -48(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -48(%rbp)
+    jmp .L3085
+.L3086:
+    lea .str1153(%rip), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    mov -32(%rbp), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    lea .str1154(%rip), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    lea .str1155(%rip), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    lea .str1156(%rip), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    jmp .L3084
+.L3083:
+    mov $0, %rax
+    mov %rax, -48(%rbp)
+.L3087:
+    mov -48(%rbp), %rax
+    push %rax
+    mov -40(%rbp), %rax
+    push %rax
+    pop %rdi
+    call vec_len
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
     test %rax, %rax
-    jz .L3110
+    jz .L3088
+    mov -48(%rbp), %rax
+    push %rax
+    mov -40(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call vec_get
+    mov %rax, -96(%rbp)
     mov -96(%rbp), %rax
     push %rax
     pop %rdi
-    call reader_transform
+    call get_extension
+    mov %rax, -104(%rbp)
+    mov -104(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3091
+    mov -104(%rbp), %rax
+    push %rax
+    pop %rdi
+    call is_lang_extension
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+.L3091:
+    test %rax, %rax
+    jz .L3089
+    mov -96(%rbp), %rax
+    push %rax
+    pop %rdi
+    call read_file
     mov %rax, -112(%rbp)
     mov -112(%rbp), %rax
     push %rax
@@ -62025,33 +61770,137 @@ main:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3113
-    lea .str1158(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprint
-    mov -32(%rbp), %rax
-    push %rax
-    pop %rdi
-    call eprintln
+    jz .L3093
     mov $1, %rax
     leave
     ret
-.L3113:
+.L3093:
+    lea .str1157(%rip), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    mov -104(%rbp), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    lea .str1158(%rip), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
     mov -112(%rbp), %rax
     push %rax
-    pop %rdi
-    call parse_ast_from_string
-    mov %rax, -104(%rbp)
-    jmp .L3111
-.L3110:
-    mov -96(%rbp), %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
     push %rax
     pop %rdi
-    call parse_ast_from_string
-    mov %rax, -104(%rbp)
-.L3111:
-    mov -104(%rbp), %rax
+    pop %rsi
+    pop %rdx
+    call append_str
+    lea .str1159(%rip), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    jmp .L3090
+.L3089:
+    lea .str1160(%rip), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    mov -96(%rbp), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+    lea .str1161(%rip), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+.L3090:
+    mov -48(%rbp), %rax
+    push %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -48(%rbp)
+    jmp .L3087
+.L3088:
+    mov emit_ast_mode(%rip), %rax
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3095
+    lea .str1162(%rip), %rax
+    push %rax
+    lea -80(%rbp), %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    call append_str
+.L3095:
+.L3084:
+    mov $0, %rax
+    push %rax
+    mov -72(%rbp), %rax
+    push %rax
+    mov -80(%rbp), %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    mov %rax, (%rcx)
+    mov -24(%rbp), %rax
     push %rax
     xor %rax, %rax
     mov %rax, %rcx
@@ -62060,46 +61909,53 @@ main:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3115
-    lea .str1159(%rip), %rax
+    jz .L3097
+    lea .str1163(%rip), %rax
+    mov %rax, -24(%rbp)
+.L3097:
+    mov from_ast_mode(%rip), %rax
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setne %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3099
+    mov -40(%rbp), %rax
+    push %rax
+    pop %rdi
+    call vec_len
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3101
+    lea .str1164(%rip), %rax
     push %rax
     pop %rdi
     call eprintln
     mov $1, %rax
     leave
     ret
-.L3115:
-    mov -48(%rbp), %rax
+.L3101:
+    mov $0, %rax
+    push %rax
+    mov -40(%rbp), %rax
     push %rax
     pop %rdi
-    call compiler_read_file
+    pop %rsi
+    call vec_get
     mov %rax, -120(%rbp)
     mov -120(%rbp), %rax
     push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3117
-    lea .str1160(%rip), %rax
-    push %rax
     pop %rdi
-    call eprint
-    mov -48(%rbp), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    mov $1, %rax
-    leave
-    ret
-.L3117:
-    mov -120(%rbp), %rax
-    push %rax
-    pop %rdi
-    call parse_ast_from_string
+    call read_file
     mov %rax, -128(%rbp)
     mov -128(%rbp), %rax
     push %rax
@@ -62110,70 +61966,42 @@ main:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3119
-    lea .str1161(%rip), %rax
+    jz .L3103
+    mov $1, %rax
+    leave
+    ret
+.L3103:
+    mov -128(%rbp), %rax
+    push %rax
+    pop %rdi
+    call parse_ast_from_string
+    mov %rax, -136(%rbp)
+    mov -136(%rbp), %rax
+    push %rax
+    xor %rax, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    sete %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3105
+    lea .str1165(%rip), %rax
     push %rax
     pop %rdi
     call eprintln
     mov $1, %rax
     leave
     ret
-.L3119:
-    mov $24, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -136(%rbp)
-    mov -136(%rbp), %rax
-    mov %rax, -144(%rbp)
-    mov -88(%rbp), %rax
-    push %rax
-    mov -144(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -136(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -152(%rbp)
-    mov -104(%rbp), %rax
-    push %rax
-    mov -152(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -136(%rbp), %rax
-    push %rax
-    mov $16, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -160(%rbp)
-    mov -128(%rbp), %rax
-    push %rax
-    mov -160(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov $3, %rax
-    push %rax
-    mov -136(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call compiler_combine_asts
-    mov %rax, -168(%rbp)
+.L3105:
     mov -24(%rbp), %rax
     push %rax
-    mov -168(%rbp), %rax
+    mov -136(%rbp), %rax
     push %rax
     pop %rdi
     pop %rsi
     call generate
-    lea .str1162(%rip), %rax
+    lea .str1166(%rip), %rax
     push %rax
     pop %rdi
     call print
@@ -62185,10 +62013,7 @@ main:
     leave
     ret
 .L3099:
-    mov -56(%rbp), %rax
-    push %rax
-    pop %rdi
-    call vec_len
+    mov -80(%rbp), %rax
     push %rax
     mov $0, %rax
     mov %rax, %rcx
@@ -62197,247 +62022,153 @@ main:
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3121
-    lea .str1163(%rip), %rax
+    jz .L3107
+    lea .str1167(%rip), %rax
     push %rax
     pop %rdi
     call eprintln
     mov $1, %rax
     leave
     ret
-.L3121:
-    mov -56(%rbp), %rax
+.L3107:
+    mov -72(%rbp), %rax
     push %rax
     pop %rdi
-    call vec_len
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    push %rax
-    pop %rdi
-    call alloc
-    mov %rax, -176(%rbp)
+    call parser_tokenize
     mov $0, %rax
-    mov %rax, -184(%rbp)
-    mov $0, %rax
-    mov %rax, -64(%rbp)
-.L3122:
-    mov -64(%rbp), %rax
+    mov %rax, -48(%rbp)
+.L3108:
+    mov -48(%rbp), %rax
     push %rax
-    mov -56(%rbp), %rax
-    push %rax
-    pop %rdi
-    call vec_len
+    call parser_token_count
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
     setl %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3123
-    mov -64(%rbp), %rax
-    push %rax
-    mov -56(%rbp), %rax
+    jz .L3109
+    mov -48(%rbp), %rax
     push %rax
     pop %rdi
-    pop %rsi
-    call vec_get
-    mov %rax, -192(%rbp)
-    mov -192(%rbp), %rax
+    call get_token
+    mov %rax, -144(%rbp)
+    mov -144(%rbp), %rax
     push %rax
     pop %rdi
-    call compiler_read_file
-    mov %rax, -200(%rbp)
-    mov -200(%rbp), %rax
+    call tok_type
     push %rax
-    xor %rax, %rax
+    mov TOKEN_ERROR(%rip), %rax
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
     sete %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3125
-    mov $1, %rax
-    leave
-    ret
-.L3125:
-    mov -200(%rbp), %rax
-    push %rax
-    pop %rdi
-    call reader_transform
-    mov %rax, -208(%rbp)
-    mov -208(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3127
-    lea .str1164(%rip), %rax
+    jz .L3111
+    lea .str1168(%rip), %rax
     push %rax
     pop %rdi
     call eprint
-    mov -192(%rbp), %rax
+    mov -144(%rbp), %rax
+    push %rax
+    pop %rdi
+    call tok_lexeme
     push %rax
     pop %rdi
     call eprintln
     mov $1, %rax
     leave
     ret
-.L3127:
-    mov -208(%rbp), %rax
+.L3111:
+    mov -48(%rbp), %rax
     push %rax
-    pop %rdi
-    call parse_ast_from_string
-    mov %rax, -216(%rbp)
-    mov -216(%rbp), %rax
+    mov $1, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -48(%rbp)
+    jmp .L3108
+.L3109:
+    call parse_program
+    mov %rax, -152(%rbp)
+    mov parse_error_count(%rip), %rax
     push %rax
-    xor %rax, %rax
+    mov $0, %rax
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
-    sete %al
+    setg %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3129
-    lea .str1165(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprint
-    mov -192(%rbp), %rax
-    push %rax
-    pop %rdi
-    call eprintln
+    jz .L3113
     mov $1, %rax
     leave
     ret
-.L3129:
-    mov -176(%rbp), %rax
+.L3113:
+    mov emit_ast_mode(%rip), %rax
     push %rax
-    mov -184(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    imul %rcx, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -224(%rbp)
-    mov -216(%rbp), %rax
-    push %rax
-    mov -224(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -184(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -184(%rbp)
-    mov -64(%rbp), %rax
-    push %rax
-    mov $1, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -64(%rbp)
-    jmp .L3122
-.L3123:
-    mov -184(%rbp), %rax
-    push %rax
-    mov -176(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call compiler_combine_asts
-    mov %rax, -232(%rbp)
-    mov -232(%rbp), %rax
-    push %rax
-    xor %rax, %rax
-    mov %rax, %rcx
-    pop %rax
-    cmp %rcx, %rax
-    sete %al
-    movzx %al, %rax
-    test %rax, %rax
-    jz .L3131
-    lea .str1166(%rip), %rax
-    push %rax
-    pop %rdi
-    call eprintln
-    mov $1, %rax
-    leave
-    ret
-.L3131:
-    lea .str1167(%rip), %rax
-    mov %rax, -240(%rbp)
-    mov -240(%rbp), %rax
-    push %rax
-    pop %rdi
-    call parse_ast_from_string
-    mov %rax, -248(%rbp)
-    mov -248(%rbp), %rax
-    push %rax
-    xor %rax, %rax
+    mov $0, %rax
     mov %rax, %rcx
     pop %rax
     cmp %rcx, %rax
     setne %al
     movzx %al, %rax
     test %rax, %rax
-    jz .L3133
-    mov $16, %rax
+    jz .L3114
+    mov -152(%rbp), %rax
     push %rax
     pop %rdi
-    call alloc
-    mov %rax, -256(%rbp)
-    mov -256(%rbp), %rax
-    mov %rax, -264(%rbp)
-    mov -232(%rbp), %rax
+    call ast_emit_program
+    mov %rax, -160(%rbp)
+    mov $577, %rax
     push %rax
-    mov -264(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov -256(%rbp), %rax
-    push %rax
-    mov $8, %rax
-    mov %rax, %rcx
-    pop %rax
-    add %rcx, %rax
-    mov %rax, -272(%rbp)
-    mov -248(%rbp), %rax
-    push %rax
-    mov -272(%rbp), %rax
-    mov %rax, %rcx
-    pop %rax
-    mov %rax, (%rcx)
-    mov $2, %rax
-    push %rax
-    mov -256(%rbp), %rax
-    push %rax
-    pop %rdi
-    pop %rsi
-    call compiler_combine_asts
-    mov %rax, -232(%rbp)
-.L3133:
     mov -24(%rbp), %rax
     push %rax
-    mov -232(%rbp), %rax
+    pop %rdi
+    pop %rsi
+    call file_open
+    mov %rax, -168(%rbp)
+    mov -168(%rbp), %rax
+    push %rax
+    mov $0, %rax
+    mov %rax, %rcx
+    pop %rax
+    cmp %rcx, %rax
+    setl %al
+    movzx %al, %rax
+    test %rax, %rax
+    jz .L3117
+    lea .str1169(%rip), %rax
+    push %rax
+    pop %rdi
+    call eprint
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    call eprintln
+    mov $1, %rax
+    leave
+    ret
+.L3117:
+    mov -160(%rbp), %rax
+    push %rax
+    pop %rdi
+    call strlen
+    push %rax
+    mov -160(%rbp), %rax
+    push %rax
+    mov -168(%rbp), %rax
     push %rax
     pop %rdi
     pop %rsi
-    call generate
-    lea .str1168(%rip), %rax
+    pop %rdx
+    call file_write
+    mov -168(%rbp), %rax
+    push %rax
+    pop %rdi
+    call file_close
+    lea .str1170(%rip), %rax
     push %rax
     pop %rdi
     call print
@@ -62445,6 +62176,24 @@ main:
     push %rax
     pop %rdi
     call println
+    jmp .L3115
+.L3114:
+    mov -24(%rbp), %rax
+    push %rax
+    mov -152(%rbp), %rax
+    push %rax
+    pop %rdi
+    pop %rsi
+    call generate
+    lea .str1171(%rip), %rax
+    push %rax
+    pop %rdi
+    call print
+    mov -24(%rbp), %rax
+    push %rax
+    pop %rdi
+    call println
+.L3115:
     mov $0, %rax
     leave
     ret
