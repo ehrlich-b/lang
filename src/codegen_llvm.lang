@@ -285,6 +285,16 @@ func llvm_is_global(name *u8, len i64) i64 {
 var llvm_strings *u8 = nil;
 var llvm_string_count i64 = 0;
 
+// Lambda registry
+// Each entry: [lambda_node:8][lambda_id:8][captures:8][capture_count:8] = 32 bytes
+var llvm_lambdas *u8 = nil;
+var llvm_lambda_count i64 = 0;
+
+func llvm_init_lambdas() void {
+    llvm_lambdas = alloc(500 * 32);  // Max 500 lambdas
+    llvm_lambda_count = 0;
+}
+
 func llvm_init_strings() void {
     llvm_strings = alloc(3000 * 16);  // Max 3000 strings
     llvm_string_count = 0;
@@ -1606,6 +1616,81 @@ func llvm_emit_expr(expr *u8) void {
         return;
     }
 
+    if k == NODE_READER_EXPR {
+        // Reader macro invocation - run compiled executable
+        var name *u8 = reader_expr_name(expr);
+        var name_len i64 = reader_expr_name_len(expr);
+        var content *u8 = reader_expr_content(expr);
+        var content_len i64 = reader_expr_content_len(expr);
+
+        // Look up the reader
+        var reader_decl *u8 = find_reader(name, name_len);
+        if reader_decl == nil {
+            eprint("error: reader macro '");
+            eprint_buf(name, name_len);
+            eprintln("' not found");
+            return;
+        }
+
+        // Build path to reader executable
+        var exe_path *u8 = build_reader_cache_path(name, name_len);
+
+        // Execute reader with content as input
+        var output *u8 = alloc(65536);
+        var n i64 = exec_capture(exe_path, content, content_len, output, 65536);
+
+        if n <= 0 {
+            eprint("error: reader '");
+            eprint_buf(name, name_len);
+            eprintln("' returned no output");
+            return;
+        }
+
+        // Parse the output as S-expr AST expression (readers MUST output AST)
+        var expanded *u8 = parse_ast_expression_from_string(output);
+        if expanded != nil {
+            llvm_emit_expr(expanded);
+        }
+        return;
+    }
+
+    if k == NODE_LAMBDA_EXPR {
+        // Register lambda for later emission
+        var lambda_id i64 = llvm_lambda_count;
+        var entry *u8 = llvm_lambdas + (llvm_lambda_count * 32);
+        var p_node **u8 = entry;
+        *p_node = expr;
+        var p_id *i64 = entry + 8;
+        *p_id = lambda_id;
+        // For now, no capture support - store nil
+        var p_captures **u8 = entry + 16;
+        *p_captures = nil;
+        var p_cap_count *i64 = entry + 24;
+        *p_cap_count = 0;
+        llvm_lambda_count = llvm_lambda_count + 1;
+
+        // Return pointer to lambda function
+        // ptrtoint i64 (i64, i64)* @__lambda_N to i64
+        var param_count i64 = lambda_expr_param_count(expr);
+        var temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(temp);
+        llvm_emit_str(" = ptrtoint i64 (");
+        var j i64 = 0;
+        while j < param_count {
+            if j > 0 {
+                llvm_emit_str(", ");
+            }
+            llvm_emit_str("i64");
+            j = j + 1;
+        }
+        llvm_emit_str(")* @__lambda_");
+        llvm_emit_int(lambda_id);
+        llvm_emit_line(" to i64");
+        llvm_set_result_temp(temp);
+        return;
+    }
+
     // For now, unsupported expressions return 0
     var p *u8 = llvm_expr_result;
     *p = 48;  // "0"
@@ -2415,6 +2500,44 @@ func llvm_emit_decl(decl *u8) void {
         return;
     }
 
+    if k == NODE_READER_EXPR {
+        // Reader macro at declaration level - expand and emit declarations
+        var name *u8 = reader_expr_name(decl);
+        var name_len i64 = reader_expr_name_len(decl);
+        var content *u8 = reader_expr_content(decl);
+        var content_len i64 = reader_expr_content_len(decl);
+
+        // Look up the reader
+        var reader_decl *u8 = find_reader(name, name_len);
+        if reader_decl == nil {
+            return;  // Error already reported
+        }
+
+        // Build path to reader executable
+        var exe_path *u8 = build_reader_cache_path(name, name_len);
+
+        // Execute reader with content as input
+        var output *u8 = alloc(131072);  // 128KB
+        var n i64 = exec_capture(exe_path, content, content_len, output, 131072);
+
+        if n <= 0 {
+            return;
+        }
+
+        // Parse the output as declarations
+        var prog *u8 = parse_program_from_string(output);
+        if prog != nil {
+            var inc_decls *u8 = program_decls(prog);
+            var inc_count i64 = program_decl_count(prog);
+            var i i64 = 0;
+            while i < inc_count {
+                llvm_emit_decl(get_decl(inc_decls, i));
+                i = i + 1;
+            }
+        }
+        return;
+    }
+
     // TODO: other declaration types (structs, etc.)
 }
 
@@ -2471,14 +2594,26 @@ func llvm_register_decl(decl *u8) void {
             return;
         }
 
-        // Process declarations from included file
+        // Save and set current file context (for reader compilation in included files)
+        var saved_file_decls *u8 = cg_current_file_decls;
+        var saved_file_count i64 = cg_current_file_decl_count;
         var inc_decls *u8 = program_decls(inc_prog);
         var inc_count i64 = program_decl_count(inc_prog);
+        cg_current_file_decls = inc_decls;
+        cg_current_file_decl_count = inc_count;
+
+        // Process declarations from included file
         var i i64 = 0;
         while i < inc_count {
             llvm_register_decl(get_decl(inc_decls, i));
             i = i + 1;
         }
+
+        // Restore file context
+        cg_current_file_decls = saved_file_decls;
+        cg_current_file_decl_count = saved_file_count;
+    } else if k == NODE_READER_DECL {
+        add_reader(decl);
     }
 }
 
@@ -2494,6 +2629,104 @@ func llvm_register_all_decls(prog *u8) void {
     }
 }
 
+// Generate a single lambda function
+func llvm_gen_lambda(lambda_node *u8, lambda_id i64) void {
+    // Reset temp counter and locals for this lambda
+    llvm_temp_counter = 0;
+    llvm_emitted_terminator = 0;
+    cg_local_count = 0;
+
+    var param_count i64 = lambda_expr_param_count(lambda_node);
+    var ret_type *u8 = lambda_expr_ret_type(lambda_node);
+
+    // Emit function signature: define i64 @__lambda_N(i64 %a.arg, i64 %b.arg) {
+    llvm_emit_str("define ");
+    if is_void_type(ret_type) {
+        llvm_emit_str("void");
+    } else {
+        llvm_emit_str("i64");
+    }
+    llvm_emit_str(" @__lambda_");
+    llvm_emit_int(lambda_id);
+    llvm_emit_str("(");
+
+    // Emit parameters
+    var params *u8 = lambda_expr_params(lambda_node);
+    var i i64 = 0;
+    while i < param_count {
+        if i > 0 {
+            llvm_emit_str(", ");
+        }
+        var p *u8 = params + (i * 24);
+        llvm_emit_str("i64 %");
+        llvm_emit_n(param_name(p), param_name_len(p));
+        llvm_emit_str(".arg");
+        i = i + 1;
+    }
+    llvm_emit_line(") {");
+
+    // Entry label
+    llvm_emit_line("L.entry:");
+
+    // Store parameters to stack
+    i = 0;
+    while i < param_count {
+        var p *u8 = params + (i * 24);
+        var pname *u8 = param_name(p);
+        var plen i64 = param_name_len(p);
+
+        // %name = alloca i64
+        llvm_emit_str("    %");
+        llvm_emit_n(pname, plen);
+        llvm_emit_line(" = alloca i64");
+
+        // store i64 %name.arg, i64* %name
+        llvm_emit_str("    store i64 %");
+        llvm_emit_n(pname, plen);
+        llvm_emit_str(".arg, i64* %");
+        llvm_emit_n(pname, plen);
+        llvm_emit_char(10);
+
+        // Register local
+        llvm_add_local(pname, plen);
+
+        i = i + 1;
+    }
+
+    // Store return type for this function
+    llvm_current_ret_type = ret_type;
+
+    // Generate body
+    var body *u8 = lambda_expr_body(lambda_node);
+    llvm_emit_block(body);
+
+    // Default return if needed
+    if llvm_emitted_terminator == 0 {
+        if is_void_type(ret_type) {
+            llvm_emit_line("    ret void");
+        } else {
+            llvm_emit_line("    ret i64 0");
+        }
+    }
+
+    llvm_emit_line("}");
+    llvm_emit_char(10);
+}
+
+// Generate all collected lambdas
+func llvm_gen_all_lambdas() void {
+    var i i64 = 0;
+    while i < llvm_lambda_count {
+        var entry *u8 = llvm_lambdas + (i * 32);
+        var p_node **u8 = entry;
+        var lambda_node *u8 = *p_node;
+        var p_id *i64 = entry + 8;
+        var lambda_id i64 = *p_id;
+        llvm_gen_lambda(lambda_node, lambda_id);
+        i = i + 1;
+    }
+}
+
 func generate_llvm(prog *u8, output_file *u8) void {
     llvm_init_output(output_file);
     llvm_included_files = map_new();
@@ -2501,6 +2734,7 @@ func generate_llvm(prog *u8, output_file *u8) void {
     llvm_init_globals();
     llvm_init_loop_stack();
     llvm_init_strings();
+    llvm_init_lambdas();
     llvm_init_let_bindings();
 
     // Initialize x86 backend's shared tracking
@@ -2510,6 +2744,12 @@ func generate_llvm(prog *u8, output_file *u8) void {
     cg_struct_count = 0;
     cg_funcs = alloc(LIMIT_FUNCS * 24);
     cg_func_count = 0;
+    cg_readers = alloc(LIMIT_READERS * 24);
+    cg_reader_count = 0;
+
+    // Set current file declarations for reader compilation
+    cg_current_file_decls = program_decls(prog);
+    cg_current_file_decl_count = program_decl_count(prog);
 
     // First pass: register structs and functions
     llvm_register_all_decls(prog);
@@ -2533,6 +2773,9 @@ func generate_llvm(prog *u8, output_file *u8) void {
         llvm_emit_decl(decl);
         i = i + 1;
     }
+
+    // Emit collected lambdas
+    llvm_gen_all_lambdas();
 
     // Emit string constants at end of module
     llvm_emit_all_strings();
