@@ -1305,6 +1305,7 @@ func llvm_emit_func(func_node *u8) void {
     llvm_emit_str("(");
 
     // Parameters - use i64 for all types (simplification)
+    // Name LLVM params with .arg suffix to allow shadowing
     var params *u8 = func_decl_params(func_node);
     var param_count i64 = func_decl_param_count(func_node);
     var i i64 = 0;
@@ -1315,13 +1316,39 @@ func llvm_emit_func(func_node *u8) void {
         var p *u8 = params + (i * 24);
         llvm_emit_str("i64 %");
         llvm_emit_n(param_name(p), param_name_len(p));
+        llvm_emit_str(".arg");
         i = i + 1;
     }
 
     llvm_emit_line(") {");
 
     // Entry block
-    llvm_emit_line("entry:");
+    llvm_emit_line("L.entry:");
+
+    // Shadow parameters with locals (so they can be assigned)
+    i = 0;
+    while i < param_count {
+        var p *u8 = params + (i * 24);
+        var pname *u8 = param_name(p);
+        var pname_len i64 = param_name_len(p);
+
+        // Register as local
+        llvm_add_local(pname, pname_len);
+
+        // Allocate local
+        llvm_emit_str("    %");
+        llvm_emit_n(pname, pname_len);
+        llvm_emit_line(" = alloca i64");
+
+        // Copy param.arg to local
+        llvm_emit_str("    store i64 %");
+        llvm_emit_n(pname, pname_len);
+        llvm_emit_str(".arg, i64* %");
+        llvm_emit_n(pname, pname_len);
+        llvm_emit_char(10);
+
+        i = i + 1;
+    }
 
     // Reset terminator tracking
     llvm_emitted_terminator = 0;
