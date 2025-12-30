@@ -7,8 +7,8 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_DIRTY := $(shell git diff --quiet 2>/dev/null || echo "-dirty")
 VERSION := $(GIT_COMMIT)$(GIT_DIRTY)
 
-# Bootstrap file
-BOOTSTRAP := bootstrap/current.s
+# Bootstrap: prefer new structure (bootstrap/current/compiler.s), fallback to legacy (bootstrap/current.s)
+BOOTSTRAP := $(shell if [ -f bootstrap/current/compiler.s ]; then echo bootstrap/current/compiler.s; else echo bootstrap/current.s; fi)
 
 # Compiler paths
 LANG := out/lang
@@ -281,11 +281,20 @@ kernel-verify: build-kernel emit-kernel-ast
 	@./test/run_lang1_suite.sh
 
 kernel-promote: kernel-verify
-	@mkdir -p bootstrap/$(GIT_COMMIT)
-	cp out/ast/kernel.ast bootstrap/$(GIT_COMMIT)/kernel.ast
-	ln -sfn $(GIT_COMMIT) bootstrap/current_kernel
-	@echo "Promoted kernel: bootstrap/$(GIT_COMMIT)/kernel.ast"
-	@echo "Symlink: bootstrap/current_kernel -> $(GIT_COMMIT)"
+	@mkdir -p bootstrap/$(GIT_COMMIT)/kernel
+	cp out/kernel.s bootstrap/$(GIT_COMMIT)/compiler.s
+	cp out/ast/kernel.ast bootstrap/$(GIT_COMMIT)/kernel/source.ast
+	@echo "compiler.s:" > bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler.s | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  built_by: bootstrap/$$(readlink bootstrap/current)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  built_at: $$(date -Iseconds)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  source_commit: $(GIT_COMMIT)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  kernel_change: true" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  verified_fixed_point: true" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	ln -sfn $(GIT_COMMIT) bootstrap/current
+	cp bootstrap/$(GIT_COMMIT)/compiler.s bootstrap/escape_hatch.s
+	@echo "Promoted kernel: bootstrap/$(GIT_COMMIT)/compiler.s"
+	@echo "Updated: bootstrap/escape_hatch.s"
 
 # ============================================================
 # LANG-READER: verify and promote
@@ -328,11 +337,16 @@ lang-reader-verify: build build-kernel emit-kernel-ast emit-lang-reader-ast emit
 	@COMPILER=./out/lang_gen2 ./test/run_lang1_suite.sh
 
 lang-reader-promote: lang-reader-verify
-	@mkdir -p bootstrap/$(GIT_COMMIT)
-	cp out/ast/lang_reader.ast bootstrap/$(GIT_COMMIT)/lang_reader.ast
-	cp out/ast/compiler.ast bootstrap/$(GIT_COMMIT)/compiler.ast
-	cp out/lang_gen2.s bootstrap/$(GIT_COMMIT).s
-	ln -sf $(GIT_COMMIT).s bootstrap/current.s
-	ln -sfn $(GIT_COMMIT) bootstrap/current_lang_reader
-	@echo "Promoted lang-reader: bootstrap/$(GIT_COMMIT)/"
-	@echo "Saved assembly: bootstrap/$(GIT_COMMIT).s"
+	@mkdir -p bootstrap/$(GIT_COMMIT)/kernel
+	cp out/lang_gen2.s bootstrap/$(GIT_COMMIT)/compiler.s
+	cp out/ast/kernel.ast bootstrap/$(GIT_COMMIT)/kernel/source.ast
+	@echo "compiler.s:" > bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler.s | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  built_by: bootstrap/$$(readlink bootstrap/current)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  built_at: $$(date -Iseconds)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  source_commit: $(GIT_COMMIT)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  verified_fixed_point: true" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	ln -sfn $(GIT_COMMIT) bootstrap/current
+	cp bootstrap/$(GIT_COMMIT)/compiler.s bootstrap/escape_hatch.s
+	@echo "Promoted: bootstrap/$(GIT_COMMIT)/compiler.s"
+	@echo "Updated: bootstrap/escape_hatch.s"
