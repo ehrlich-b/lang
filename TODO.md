@@ -15,7 +15,7 @@ The AST is the language. Syntax is a plugin. Effects unify control flow.
 3. ✓ Language polish (break/continue, bitwise ops, char literals)
 4. ✓ **AST 2.0: Universal Semantics** (closures, effects, sum types)
 5. ✓ **Kernel/reader split** (lang as a reader, bootstrap verified!)
-6. → Multiple backends (WASM, LLVM IR) ← NEXT
+6. → **Cross-platform + LLVM** ← CURRENT (see `designs/multi_backend.md`)
 
 ---
 
@@ -68,7 +68,21 @@ See "Code Quality Debt → TEST SUITE GAPS" below for categories.
 
 ---
 
-## Current Focus: AST 2.0 Implementation
+## Current Focus: Cross-Platform + LLVM Backend
+
+See **`designs/multi_backend.md`** for the complete design with dev plan.
+
+### Summary
+
+Two independent tracks:
+- **Track A: Cross-OS Support** — macOS as first +1 target (syscall abstraction layer)
+- **Track B: LLVM Backend** — LLVM IR as +1 compiler target (portability + optimization)
+
+Goal: Float dev between Mac and Linux, proving each track by induction before adding more platforms.
+
+---
+
+## Previous Focus: AST 2.0 Implementation
 
 See `designs/ast_as_language.md` for the complete design.
 
@@ -338,6 +352,8 @@ reader block_test(text *u8) *u8 {
 ---
 
 ## Runtime & FFI (During/After LLVM Backend)
+
+> **See `designs/multi_backend.md`** for the OS abstraction layer and libc integration design.
 
 **Current state**: Freestanding. `std/core.lang` uses raw Linux syscalls (mmap, read, write, exit). No libc, no runtime.
 

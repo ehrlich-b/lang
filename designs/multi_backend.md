@@ -3,6 +3,63 @@
 **Status**: Design
 **Goal**: Cross-platform compiler (not just x86 generator)
 
+---
+
+## Dev Plan
+
+This design covers two related but independent tracks. Each can be done separately; together they enable full cross-platform support.
+
+### Track A: Cross-OS Support (First Target: macOS)
+
+Add syscall abstraction layer so stdlib works on multiple OSes.
+
+| Step | Task | Files | Status |
+|------|------|-------|--------|
+| A1 | Create `std/os/linux_x86_64.lang` with `os_*` wrappers | new | TODO |
+| A2 | Update `std/core.lang` to use `os_*` instead of raw syscall() | std/core.lang | TODO |
+| A3 | Verify fixed point still works (Linux x86_64) | make verify | TODO |
+| A4 | Create `std/os/macos_arm64.lang` with macOS syscall numbers | new | TODO |
+| A5 | Add target selection to build system | Makefile | TODO |
+| A6 | Test on Mac (cross-compile or native) | - | TODO |
+
+**Deliverable**: Same lang source compiles on Linux x86_64 and macOS ARM64 via direct backends.
+
+### Track B: LLVM Backend (New Compiler Target)
+
+Add LLVM IR as alternative codegen output.
+
+| Step | Task | Files | Status |
+|------|------|-------|--------|
+| B1 | Create `std/os/libc.lang` with extern declarations (write, read, exit, malloc) | new | TODO |
+| B2 | Add `--backend=llvm` flag to compiler | src/main.lang | TODO |
+| B3 | Implement LLVM IR emitter (text output, like current x86 asm) | src/codegen.lang or new | TODO |
+| B4 | Test: compile hello world → .ll → clang → binary | test/ | TODO |
+| B5 | Handle all AST node types in LLVM backend | - | TODO |
+| B6 | Test full bootstrap through LLVM path | make verify | TODO |
+
+**Deliverable**: `./out/lang program.lang -o program.ll --backend=llvm` produces valid LLVM IR that clang can compile.
+
+### Why These Two Tracks?
+
+```
+Track A (OS abstraction):  Same backend, different OS syscalls
+Track B (LLVM backend):    Different backend, uses libc (portable)
+```
+
+They compose:
+- Track A alone: Direct ARM64 backend for Mac (fast, no deps)
+- Track B alone: LLVM backend on Linux with libc (different linking)
+- Both: Full matrix of backends × platforms
+
+### Recommended Order
+
+1. **Track A first** (simpler) - proves the OS abstraction works
+2. **Track B second** - LLVM IR is more work but unlocks everything
+
+Or work in parallel - they're mostly independent.
+
+---
+
 ## Current State
 
 ```
