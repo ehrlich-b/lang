@@ -542,6 +542,16 @@ func llvm_set_result_int(n i64) void {
     itoa(n, buf);
 }
 
+func llvm_set_result_str(s *u8) void {
+    var dst *u8 = llvm_expr_result;
+    var i i64 = 0;
+    while *(s + i) != 0 {
+        *(dst + i) = *(s + i);
+        i = i + 1;
+    }
+    *(dst + i) = 0;
+}
+
 // Emit expression, return the LLVM value reference (e.g., "%1" or "42")
 // Result is written to a temp buffer that caller must use immediately
 var llvm_expr_result *u8 = nil;
@@ -666,9 +676,23 @@ func llvm_emit_expr(expr *u8) void {
         // Get function name from the function expression (usually an ident)
         var func_name *u8 = nil;
         var func_name_len i64 = 0;
+        var is_indirect i64 = 0;
+        var indirect_ptr_val *u8 = nil;
         if node_kind(func_expr) == NODE_IDENT_EXPR {
             func_name = ident_expr_name(func_expr);
             func_name_len = ident_expr_name_len(func_expr);
+
+            // Check if it's a known function
+            var known_func *u8 = find_func(func_name, func_name_len);
+            if known_func == nil {
+                // Not a known function - might be a function pointer variable
+                // Check if it's a local, parameter, or global
+                if llvm_is_local(func_name, func_name_len) {
+                    is_indirect = 1;
+                } else if llvm_is_global(func_name, func_name_len) {
+                    is_indirect = 2;  // 2 = global indirect
+                }
+            }
         }
 
         // First, emit all argument expressions and collect their values
@@ -682,6 +706,45 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_expr(*arg);
             *(arg_vals + i) = str_dup(llvm_expr_result);
             i = i + 1;
+        }
+
+        // If indirect call, load the function pointer now
+        if is_indirect != 0 {
+            var load_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(load_temp);
+            if is_indirect == 2 {
+                // Global variable
+                llvm_emit_str(" = load i64, i64* @");
+            } else {
+                // Local variable
+                llvm_emit_str(" = load i64, i64* %");
+            }
+            llvm_emit_n(func_name, func_name_len);
+            llvm_emit_char(10);
+
+            // Cast to function pointer
+            var cast_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(cast_temp);
+            llvm_emit_str(" = inttoptr i64 %t");
+            llvm_emit_int(load_temp);
+            // Build function type based on arg count
+            llvm_emit_str(" to i64 (");
+            var j i64 = 0;
+            while j < arg_count {
+                if j > 0 {
+                    llvm_emit_str(", ");
+                }
+                llvm_emit_str("i64");
+                j = j + 1;
+            }
+            llvm_emit_line(")*");
+
+            var buf *u8 = alloc(32);
+            *buf = 37; *(buf+1) = 116;  // "%t"
+            itoa(cast_temp, buf + 2);
+            indirect_ptr_val = buf;
         }
 
         // Check if function returns void or pointer
@@ -698,7 +761,15 @@ func llvm_emit_expr(expr *u8) void {
 
         // Now emit the call with pre-computed argument values
         var call_temp i64 = 0;
-        if is_void {
+        if is_indirect != 0 {
+            // Indirect call through function pointer
+            call_temp = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(call_temp);
+            llvm_emit_str(" = call i64 ");
+            llvm_emit_str(indirect_ptr_val);
+            llvm_emit_str("(");
+        } else if is_void {
             // Void function: no result assignment
             llvm_emit_str("    call void @");
             llvm_emit_n(func_name, func_name_len);
@@ -1077,31 +1148,63 @@ func llvm_emit_expr(expr *u8) void {
                 var name *u8 = ident_expr_name(inner);
                 var len i64 = ident_expr_name_len(inner);
 
-                // Check if inner is a struct type (needs different LLVM type)
-                var inner_type *u8 = get_expr_type(inner);
-                var struct_size i64 = 0;
-                if inner_type != nil && type_kind(inner_type) == TYPE_BASE {
-                    var type_name *u8 = base_type_name(inner_type);
-                    var type_name_len i64 = base_type_name_len(inner_type);
-                    var struct_decl *u8 = find_struct(type_name, type_name_len);
-                    if struct_decl != nil {
-                        struct_size = get_struct_size(struct_decl);
-                    }
-                }
+                // Check if it's a function name
+                var func_decl *u8 = find_func(name, len);
+                if func_decl != nil {
+                    // Function address: ptrtoint func_type* @funcname to i64
+                    // Get function parameter count for type signature
+                    var param_count i64 = func_decl_param_count(func_decl);
 
-                // ptrtoint converts pointer to integer
-                llvm_emit_str("    %t");
-                llvm_emit_int(temp);
-                if struct_size > 8 {
-                    llvm_emit_str(" = ptrtoint [");
-                    llvm_emit_int(struct_size);
-                    llvm_emit_str(" x i8]* %");
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(temp);
+                    llvm_emit_str(" = ptrtoint i64 (");
+                    var j i64 = 0;
+                    while j < param_count {
+                        if j > 0 {
+                            llvm_emit_str(", ");
+                        }
+                        llvm_emit_str("i64");
+                        j = j + 1;
+                    }
+                    llvm_emit_str(")* @");
+                    llvm_emit_n(name, len);
+                    llvm_emit_line(" to i64");
+                    llvm_set_result_temp(temp);
                 } else {
-                    llvm_emit_str(" = ptrtoint i64* %");
+                    // Check if inner is a struct type (needs different LLVM type)
+                    var inner_type *u8 = get_expr_type(inner);
+                    var struct_size i64 = 0;
+                    if inner_type != nil && type_kind(inner_type) == TYPE_BASE {
+                        var type_name *u8 = base_type_name(inner_type);
+                        var type_name_len i64 = base_type_name_len(inner_type);
+                        var struct_decl *u8 = find_struct(type_name, type_name_len);
+                        if struct_decl != nil {
+                            struct_size = get_struct_size(struct_decl);
+                        }
+                    }
+
+                    // ptrtoint converts pointer to integer
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(temp);
+                    if struct_size > 8 {
+                        llvm_emit_str(" = ptrtoint [");
+                        llvm_emit_int(struct_size);
+                        llvm_emit_str(" x i8]* %");
+                    } else {
+                        llvm_emit_str(" = ptrtoint i64* %");
+                    }
+                    llvm_emit_n(name, len);
+                    llvm_emit_line(" to i64");
+                    llvm_set_result_temp(temp);
                 }
-                llvm_emit_n(name, len);
-                llvm_emit_line(" to i64");
-                llvm_set_result_temp(temp);
+            } else if node_kind(inner) == NODE_FIELD_EXPR {
+                // &struct.field - field expressions on struct fields
+                // already return addresses, so just evaluate
+                llvm_emit_expr(inner);
+                // Result is already the address
+            } else {
+                // For other cases (like &*ptr), evaluate inner
+                llvm_emit_expr(inner);
             }
             return;
         }
@@ -1334,6 +1437,19 @@ func llvm_emit_expr(expr *u8) void {
             return;
         }
 
+        // Check if field type is itself a struct (not a pointer to struct)
+        // If so, we return the address (for nested field access), not load a value
+        var field_type *u8 = get_field_type(struct_decl, field_name, field_len);
+        var field_is_struct i64 = 0;
+        if field_type != nil && type_kind(field_type) == TYPE_BASE {
+            var ft_name *u8 = base_type_name(field_type);
+            var ft_name_len i64 = base_type_name_len(field_type);
+            var ft_struct *u8 = find_struct(ft_name, ft_name_len);
+            if ft_struct != nil {
+                field_is_struct = 1;
+            }
+        }
+
         // Get base address
         if is_pointer != 0 {
             // Pointer to struct - evaluate to get address
@@ -1357,22 +1473,28 @@ func llvm_emit_expr(expr *u8) void {
                 addr_val = buf;
             }
 
-            // Load value from field
-            var ptr_temp i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(ptr_temp);
-            llvm_emit_str(" = inttoptr i64 ");
-            llvm_emit_str(addr_val);
-            llvm_emit_line(" to i64*");
+            // If field is a struct, return address; otherwise load value
+            if field_is_struct != 0 {
+                // Return address for nested struct access
+                llvm_set_result_str(addr_val);
+            } else {
+                // Load value from field
+                var ptr_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(ptr_temp);
+                llvm_emit_str(" = inttoptr i64 ");
+                llvm_emit_str(addr_val);
+                llvm_emit_line(" to i64*");
 
-            var load_temp i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(load_temp);
-            llvm_emit_str(" = load i64, i64* %t");
-            llvm_emit_int(ptr_temp);
-            llvm_emit_char(10);
+                var load_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(load_temp);
+                llvm_emit_str(" = load i64, i64* %t");
+                llvm_emit_int(ptr_temp);
+                llvm_emit_char(10);
 
-            llvm_set_result_temp(load_temp);
+                llvm_set_result_temp(load_temp);
+            }
         } else {
             // Direct struct - base is the local variable, need its address
             if node_kind(base_expr) == NODE_IDENT_EXPR {
@@ -1413,22 +1535,28 @@ func llvm_emit_expr(expr *u8) void {
                     addr_val = buf;
                 }
 
-                // Load value from field
-                var ptr_temp i64 = llvm_next_temp();
-                llvm_emit_str("    %t");
-                llvm_emit_int(ptr_temp);
-                llvm_emit_str(" = inttoptr i64 ");
-                llvm_emit_str(addr_val);
-                llvm_emit_line(" to i64*");
+                // If field is a struct, return address; otherwise load value
+                if field_is_struct != 0 {
+                    // Return address for nested struct access
+                    llvm_set_result_str(addr_val);
+                } else {
+                    // Load value from field
+                    var ptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(ptr_temp);
+                    llvm_emit_str(" = inttoptr i64 ");
+                    llvm_emit_str(addr_val);
+                    llvm_emit_line(" to i64*");
 
-                var load_temp i64 = llvm_next_temp();
-                llvm_emit_str("    %t");
-                llvm_emit_int(load_temp);
-                llvm_emit_str(" = load i64, i64* %t");
-                llvm_emit_int(ptr_temp);
-                llvm_emit_char(10);
+                    var load_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(load_temp);
+                    llvm_emit_str(" = load i64, i64* %t");
+                    llvm_emit_int(ptr_temp);
+                    llvm_emit_char(10);
 
-                llvm_set_result_temp(load_temp);
+                    llvm_set_result_temp(load_temp);
+                }
             } else {
                 // Nested field access - evaluate base, load field
                 llvm_emit_expr(base_expr);
@@ -1451,22 +1579,28 @@ func llvm_emit_expr(expr *u8) void {
                     addr_val = buf;
                 }
 
-                // Load value from field
-                var ptr_temp i64 = llvm_next_temp();
-                llvm_emit_str("    %t");
-                llvm_emit_int(ptr_temp);
-                llvm_emit_str(" = inttoptr i64 ");
-                llvm_emit_str(addr_val);
-                llvm_emit_line(" to i64*");
+                // If field is a struct, return address; otherwise load value
+                if field_is_struct != 0 {
+                    // Return address for nested struct access
+                    llvm_set_result_str(addr_val);
+                } else {
+                    // Load value from field
+                    var ptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(ptr_temp);
+                    llvm_emit_str(" = inttoptr i64 ");
+                    llvm_emit_str(addr_val);
+                    llvm_emit_line(" to i64*");
 
-                var load_temp i64 = llvm_next_temp();
-                llvm_emit_str("    %t");
-                llvm_emit_int(load_temp);
-                llvm_emit_str(" = load i64, i64* %t");
-                llvm_emit_int(ptr_temp);
-                llvm_emit_char(10);
+                    var load_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(load_temp);
+                    llvm_emit_str(" = load i64, i64* %t");
+                    llvm_emit_int(ptr_temp);
+                    llvm_emit_char(10);
 
-                llvm_set_result_temp(load_temp);
+                    llvm_set_result_temp(load_temp);
+                }
             }
         }
         return;
@@ -1967,6 +2101,42 @@ func llvm_emit_stmt(stmt *u8) void {
                                     llvm_emit_str(", i64* %t");
                                     llvm_emit_int(ptr_temp);
                                     llvm_emit_char(10);
+                                } else {
+                                    // Nested field access (e.g., r.origin.x = 10)
+                                    // base_expr returns the address of the intermediate struct
+                                    llvm_emit_expr(base_expr);
+                                    var base_val *u8 = str_dup(llvm_expr_result);
+
+                                    // Add field offset
+                                    var addr_val *u8 = base_val;
+                                    if field_offset > 0 {
+                                        var offset_temp i64 = llvm_next_temp();
+                                        llvm_emit_str("    %t");
+                                        llvm_emit_int(offset_temp);
+                                        llvm_emit_str(" = add i64 ");
+                                        llvm_emit_str(base_val);
+                                        llvm_emit_str(", ");
+                                        llvm_emit_int(field_offset);
+                                        llvm_emit_char(10);
+                                        var buf *u8 = alloc(32);
+                                        *buf = 37; *(buf+1) = 116;  // "%t"
+                                        itoa(offset_temp, buf + 2);
+                                        addr_val = buf;
+                                    }
+
+                                    // Store value to field
+                                    var ptr_temp i64 = llvm_next_temp();
+                                    llvm_emit_str("    %t");
+                                    llvm_emit_int(ptr_temp);
+                                    llvm_emit_str(" = inttoptr i64 ");
+                                    llvm_emit_str(addr_val);
+                                    llvm_emit_line(" to i64*");
+
+                                    llvm_emit_str("    store i64 ");
+                                    llvm_emit_str(val);
+                                    llvm_emit_str(", i64* %t");
+                                    llvm_emit_int(ptr_temp);
+                                    llvm_emit_char(10);
                                 }
                             }
                             return;
@@ -2264,6 +2434,8 @@ func llvm_register_decl(decl *u8) void {
         var name_len i64 = func_decl_name_len(decl);
         var ret_type *u8 = func_decl_ret_type(decl);
         llvm_register_func(name, name_len, ret_type);
+        // Also add to shared registry for find_func
+        add_func(decl);
     } else if k == NODE_INCLUDE_DECL {
         // Recursively process included file
         var path *u8 = include_decl_path(decl);
@@ -2336,6 +2508,8 @@ func generate_llvm(prog *u8, output_file *u8) void {
     cg_local_count = 0;
     cg_structs = alloc(LIMIT_STRUCTS * 24);
     cg_struct_count = 0;
+    cg_funcs = alloc(LIMIT_FUNCS * 24);
+    cg_func_count = 0;
 
     // First pass: register structs and functions
     llvm_register_all_decls(prog);
