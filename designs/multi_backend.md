@@ -31,13 +31,13 @@ Add LLVM IR as alternative codegen output.
 | Step | Task | Files | Status |
 |------|------|-------|--------|
 | B1 | Create `std/os/libc.lang` with extern declarations (write, read, exit, malloc) | new | TODO |
-| B2 | Add `--backend=llvm` flag to compiler | src/main.lang | TODO |
+| B2 | Add `LANGBE=llvm` env var support to compiler | src/main.lang | TODO |
 | B3 | Implement LLVM IR emitter (text output, like current x86 asm) | src/codegen.lang or new | TODO |
 | B4 | Test: compile hello world → .ll → clang → binary | test/ | TODO |
 | B5 | Handle all AST node types in LLVM backend | - | TODO |
 | B6 | Test full bootstrap through LLVM path | make verify | TODO |
 
-**Deliverable**: `./out/lang program.lang -o program.ll --backend=llvm` produces valid LLVM IR that clang can compile.
+**Deliverable**: `LANGBE=llvm ./out/lang program.lang -o program.ll` produces valid LLVM IR that clang can compile.
 
 ### Why These Two Tracks?
 
@@ -231,21 +231,36 @@ The kernel already walks AST and emits text. LLVM IR is just different text:
 - Labels → basic blocks
 - Stack slots → `alloca`
 
-### Backend Selection
+### Target Selection (Environment Variables)
+
+Like Go's `GOOS`/`GOARCH`, we use environment variables for cross-compilation:
+
+| Variable | Values | Default | Description |
+|----------|--------|---------|-------------|
+| `LANGOS` | `linux`, `macos`, `windows` | (host) | Target operating system |
+| `LANGBE` | `x86`, `arm64`, `llvm`, `wasm` | `x86` | Backend (codegen target) |
+| `LANGLIBC` | `none`, `libc` | `none` | Link against system libc |
 
 ```bash
-# Current (x86 default)
+# Current behavior (all defaults)
 ./out/lang program.lang -o program.s
 
-# With backend flag
-./out/lang program.lang -o program.ll --backend=llvm
-./out/lang program.lang -o program.wasm --backend=wasm
+# Cross-compile for Mac
+LANGOS=macos LANGBE=arm64 ./out/lang program.lang -o program.s
 
-# Or infer from extension
-./out/lang program.lang -o program.ll    # → LLVM
-./out/lang program.lang -o program.wasm  # → WASM
-./out/lang program.lang -o program.s     # → x86 (default)
+# Use LLVM backend with libc
+LANGBE=llvm LANGLIBC=libc ./out/lang program.lang -o program.ll
+
+# Full cross-compile example
+LANGOS=macos LANGBE=llvm LANGLIBC=libc ./out/lang program.lang -o program.ll
+clang -target arm64-apple-macos program.ll -o program
 ```
+
+**Why env vars over flags?**
+- Composable with make (just set vars, don't change commands)
+- Matches Go convention developers know
+- Can be set once in shell profile for consistent target
+- Build scripts don't need to thread flags through
 
 ## Decision Matrix
 
@@ -353,27 +368,33 @@ include "std/os.lang"  // Gets the generated file
 **Pros**: Simple, no compiler changes, works today
 **Cons**: std/os.lang is gitignored/generated artifact, slightly ugly
 
-**Option 2: Compiler Flag Overrides Include Path**
+**Option 2: Environment Variable Overrides Include Path**
 
-The compiler has `--os=<impl>` that redirects includes:
+The compiler reads `LANGOS` and `LANGLIBC` env vars to redirect includes:
 
 ```bash
-./out/lang --os=linux-x86_64 program.lang  # include "std/os.lang" → "std/os/linux_x86_64.lang"
-./out/lang --os=libc program.lang          # include "std/os.lang" → "std/os/libc.lang"
+LANGOS=linux ./out/lang program.lang    # include "std/os.lang" → "std/os/linux_x86_64.lang"
+LANGLIBC=libc ./out/lang program.lang   # include "std/os.lang" → "std/os/libc.lang"
 ```
 
 Implementation in compiler:
 ```lang
 func resolve_include(path *u8) *u8 {
-    if streq(path, "std/os.lang") && os_override != nil {
-        return str_concat("std/os/", os_override);
+    if streq(path, "std/os.lang") {
+        var os *u8 = getenv("LANGOS");
+        var libc *u8 = getenv("LANGLIBC");
+        if libc != nil && streq(libc, "libc") {
+            return "std/os/libc.lang";
+        }
+        // Build path from LANGOS + LANGBE
+        return str_concat3("std/os/", os, "_", arch, ".lang");
     }
     return path;
 }
 ```
 
-**Pros**: Clean, explicit, no generated files
-**Cons**: Requires compiler modification
+**Pros**: Clean, explicit, no generated files, composable with make
+**Cons**: Requires compiler modification, needs getenv() support
 
 **Option 3: Conditional Compilation (#if)**
 
@@ -408,7 +429,7 @@ Since we have reader macros, add a `#target{}` reader:
 **Recommendation: Option 1 (Generated) for Now, Option 2 Later**
 
 Phase 1: Use generated `std/os.lang` - works immediately, no compiler changes
-Phase 2: Add `--os=` flag to compiler for cleaner UX
+Phase 2: Add `LANGOS`/`LANGLIBC` env var support to compiler for cleaner UX
 
 The generated file approach is how many real build systems work (autoconf generates config.h, CMake generates headers, etc.). It's pragmatic.
 
@@ -418,26 +439,26 @@ The generated file approach is how many real build systems work (autoconf genera
 ┌─────────────────────────────────────────────────────────────────┐
 │ User Program                                                     │
 │   include "std/core.lang"                                       │
-│     └─> include "std/os.lang"  ← SELECTED BY BUILD/COMPILER     │
+│     └─> include "std/os.lang"  ← SELECTED BY LANGOS/LANGLIBC    │
 │           └─> std/os/linux_x86_64.lang  (raw syscalls)          │
 │               OR std/os/libc.lang       (extern to libc)        │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ Compiler (--backend, --os flags)                                │
-│   --backend=x86     → emit x86 assembly                         │
-│   --backend=llvm    → emit LLVM IR                              │
-│   --os=linux-x86_64 → raw syscalls                              │
-│   --os=libc         → link against system libc                  │
+│ Compiler (reads environment variables)                          │
+│   LANGBE=x86        → emit x86 assembly                         │
+│   LANGBE=llvm       → emit LLVM IR                              │
+│   LANGOS=linux      → select linux syscalls                     │
+│   LANGLIBC=libc     → link against system libc                  │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │ Assembler/Linker                                                │
-│   as + ld           (for x86 backend)                           │
-│   clang             (for LLVM backend, handles linking)         │
-│   -lc               (if --os=libc, link against libc)           │
+│   as + ld           (for LANGBE=x86)                            │
+│   clang             (for LANGBE=llvm, handles linking)          │
+│   -lc               (if LANGLIBC=libc, link against libc)       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -521,21 +542,23 @@ func os_exit(code i64) void {
 
 ### Target Selection
 
+See [Target Selection (Environment Variables)](#target-selection-environment-variables) above for the full spec.
+
 ```bash
 # Current (implicit Linux x86_64)
 ./out/lang program.lang -o program.s
 
-# Explicit target selection
-./out/lang program.lang -o program.s --target=linux-x86_64
-./out/lang program.lang -o program.ll --target=linux-arm64
-./out/lang program.lang -o program.ll --target=macos-arm64
-./out/lang program.lang -o program.ll --target=wasm32
+# Explicit target selection via env vars
+LANGOS=linux LANGBE=x86 ./out/lang program.lang -o program.s
+LANGOS=linux LANGBE=arm64 ./out/lang program.lang -o program.s
+LANGOS=macos LANGBE=arm64 ./out/lang program.lang -o program.s
+LANGBE=wasm ./out/lang program.lang -o program.wasm
 ```
 
-The `--target` flag:
-1. Selects the correct OS layer (syscall implementation)
-2. Selects the backend (asm vs LLVM IR)
-3. Sets architecture-specific codegen options
+The environment variables:
+1. `LANGOS` - Selects the correct OS layer (syscall implementation)
+2. `LANGBE` - Selects the backend (x86, arm64, llvm, wasm)
+3. `LANGLIBC` - Whether to link against system libc
 
 ### Migration Path
 
