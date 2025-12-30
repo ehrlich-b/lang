@@ -1,4 +1,4 @@
-//ignore
+// expect: 0
 // Test: AST builder - literals (number, string, bool, nil, ident)
 include "std/core.lang"
 include "std/ast.lang"

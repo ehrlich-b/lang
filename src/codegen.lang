@@ -1347,29 +1347,14 @@ func process_decl_first_pass(decl *u8) void {
             return;
         }
 
-        // Detect output format: AST starts with '(', lang code doesn't
-        var prog *u8 = nil;
-        if *output == 40 {  // '(' = 40
-            // Parse as S-expr AST
-            prog = parse_ast_from_string(output);
-            if prog == nil {
-                eprint("error: failed to parse reader AST output from '");
-                eprint_buf(name, name_len);
-                eprintln("'");
-                cg_had_error = 1;
-                return;
-            }
-        } else {
-            // Parse as lang code
-            parser_tokenize(output);
-            prog = parse_program();
-            if parse_error_count > 0 {
-                eprint("error: failed to parse reader output from '");
-                eprint_buf(name, name_len);
-                eprintln("'");
-                cg_had_error = 1;
-                return;
-            }
+        // Parse the output as S-expr AST (readers MUST output AST)
+        var prog *u8 = parse_ast_from_string(output);
+        if prog == nil {
+            eprint("error: reader '");
+            eprint_buf(name, name_len);
+            eprintln("' did not return valid AST");
+            cg_had_error = 1;
+            return;
         }
 
         // Process each generated declaration
@@ -3110,18 +3095,8 @@ func gen_expr(expr *u8) void {
             return;
         }
 
-        // Detect output format: AST starts with '(', lang code doesn't
-        var expanded *u8 = nil;
-        if *output == 40 {  // '(' = 40
-            // Parse as S-expr AST expression
-            expanded = parse_ast_expression_from_string(output);
-        } else {
-            // Parse as lang expression
-            parser_tokenize(output);
-            expanded = parse_expression();
-        }
-
-        // Generate code for the expanded expression
+        // Parse the output as S-expr AST expression (readers MUST output AST)
+        var expanded *u8 = parse_ast_expression_from_string(output);
         if expanded != nil {
             gen_expr(expanded);
         }
@@ -4679,16 +4654,8 @@ func gen_decl(decl *u8) void {
             return;
         }
 
-        // Detect output format: AST starts with '(', lang code doesn't
-        var prog *u8 = nil;
-        if *output == 40 {  // '(' = 40
-            // Parse as S-expr AST
-            prog = parse_ast_from_string(output);
-        } else {
-            // Parse as lang code
-            parser_tokenize(output);
-            prog = parse_program();
-        }
+        // Parse the output as S-expr AST (readers MUST output AST)
+        var prog *u8 = parse_ast_from_string(output);
         if prog == nil {
             // Error already reported in first pass
             return;

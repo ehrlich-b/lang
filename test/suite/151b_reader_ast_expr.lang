@@ -1,9 +1,7 @@
 // expect: 10
-// Test: V2 reader via lang() composition
-include "src/lang_reader.lang"
-
+// Test: V2 reader returning raw AST expression
 reader double_five(text *u8) *u8 {
-    return lang("5 + 5");
+    return "(binop + (number 5) (number 5))";
 }
 
 func main() i64 {

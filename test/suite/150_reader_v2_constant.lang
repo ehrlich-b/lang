@@ -1,7 +1,9 @@
 // expect: 42
-// Test: V2 reader that returns a constant
+// Test: V2 reader via lang() composition
+include "src/lang_reader.lang"
+
 reader answer(text *u8) *u8 {
-    return "42";
+    return lang("42");
 }
 
 func main() i64 {
