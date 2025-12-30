@@ -146,6 +146,13 @@ func llvm_emit_type(type_node *u8) void {
     llvm_emit_str("i64");
 }
 
+func llvm_is_pointer_type(t *u8) i64 {
+    if t == nil {
+        return 0;
+    }
+    return type_kind(t) == TYPE_PTR;
+}
+
 // ============================================================
 // Expression emission
 // ============================================================
@@ -173,6 +180,9 @@ var llvm_locals *u8 = nil;
 
 // Track if last emitted instruction was a terminator (ret, br)
 var llvm_emitted_terminator i64 = 0;
+
+// Current function's return type (for correct return statement emission)
+var llvm_current_ret_type *u8 = nil;
 
 func llvm_reset_locals() void {
     llvm_locals = map_new();
@@ -304,17 +314,30 @@ func llvm_init_func_table() void {
 
 func llvm_register_func(name *u8, len i64, ret_type *u8) void {
     var key *u8 = str_dup_n(name, len);
-    // Store 1 for void, 0 for non-void
-    var is_void i64 = llvm_is_void_type(ret_type);
-    map_set(llvm_func_ret_types, key, is_void);
+    // Store: 0 = i64, 1 = void, 2 = pointer
+    var ret_kind i64 = 0;
+    if llvm_is_void_type(ret_type) {
+        ret_kind = 1;
+    } else if llvm_is_pointer_type(ret_type) {
+        ret_kind = 2;
+    }
+    map_set(llvm_func_ret_types, key, ret_kind);
 }
 
 func llvm_func_returns_void(name *u8, len i64) i64 {
     var key *u8 = str_dup_n(name, len);
     if map_has(llvm_func_ret_types, key) {
-        return map_get(llvm_func_ret_types, key);
+        return map_get(llvm_func_ret_types, key) == 1;
     }
     return 0;  // Default: assume non-void
+}
+
+func llvm_func_returns_ptr(name *u8, len i64) i64 {
+    var key *u8 = str_dup_n(name, len);
+    if map_has(llvm_func_ret_types, key) {
+        return map_get(llvm_func_ret_types, key) == 2;
+    }
+    return 0;  // Default: assume i64
 }
 
 // Set llvm_expr_result to "%t{n}"
@@ -466,8 +489,9 @@ func llvm_emit_expr(expr *u8) void {
             i = i + 1;
         }
 
-        // Check if function returns void
+        // Check if function returns void or pointer
         var is_void i64 = llvm_func_returns_void(func_name, func_name_len);
+        var is_ptr i64 = llvm_func_returns_ptr(func_name, func_name_len);
 
         // Check if this is syscall (variadic)
         var is_syscall i64 = 0;
@@ -478,6 +502,7 @@ func llvm_emit_expr(expr *u8) void {
         }
 
         // Now emit the call with pre-computed argument values
+        var call_temp i64 = 0;
         if is_void {
             // Void function: no result assignment
             llvm_emit_str("    call void @");
@@ -485,15 +510,23 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_str("(");
         } else if is_syscall {
             // Syscall is variadic: call i64 (i64, ...) @syscall(...)
-            var temp i64 = llvm_next_temp();
+            call_temp = llvm_next_temp();
             llvm_emit_str("    %t");
-            llvm_emit_int(temp);
+            llvm_emit_int(call_temp);
             llvm_emit_str(" = call i64 (i64, ...) @syscall(");
-        } else {
-            // Non-void function: assign result to temp
-            var temp i64 = llvm_next_temp();
+        } else if is_ptr {
+            // Pointer-returning function: call i8*
+            call_temp = llvm_next_temp();
             llvm_emit_str("    %t");
-            llvm_emit_int(temp);
+            llvm_emit_int(call_temp);
+            llvm_emit_str(" = call i8* @");
+            llvm_emit_n(func_name, func_name_len);
+            llvm_emit_str("(");
+        } else {
+            // Non-void function returning i64: assign result to temp
+            call_temp = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(call_temp);
             llvm_emit_str(" = call i64 @");
             llvm_emit_n(func_name, func_name_len);
             llvm_emit_str("(");
@@ -510,10 +543,20 @@ func llvm_emit_expr(expr *u8) void {
         }
         llvm_emit_line(")");
 
+        // For pointer-returning functions, convert to i64 for internal use
+        if is_ptr {
+            var conv_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(conv_temp);
+            llvm_emit_str(" = ptrtoint i8* %t");
+            llvm_emit_int(call_temp);
+            llvm_emit_line(" to i64");
+            call_temp = conv_temp;
+        }
+
         // Set result to the temp (only meaningful for non-void)
         if is_void == 0 {
-            // Get the current temp counter - 1 (we already incremented it)
-            llvm_set_result_temp(llvm_temp_counter - 1);
+            llvm_set_result_temp(call_temp);
         }
         return;
     }
@@ -898,9 +941,31 @@ func llvm_emit_stmt(stmt *u8) void {
             llvm_emit_line("    ret void");
         } else {
             llvm_emit_expr(ret_expr);
-            llvm_emit_str("    ret i64 ");
-            llvm_emit_str(llvm_expr_result);
-            llvm_emit_char(10);
+            var val *u8 = str_dup(llvm_expr_result);
+
+            // If returning pointer type but value is i64, convert with inttoptr
+            if llvm_is_pointer_type(llvm_current_ret_type) {
+                var conv_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(conv_temp);
+                llvm_emit_str(" = inttoptr i64 ");
+                llvm_emit_str(val);
+                llvm_emit_str(" to ");
+                llvm_emit_type(llvm_current_ret_type);
+                llvm_emit_char(10);
+
+                llvm_emit_str("    ret ");
+                llvm_emit_type(llvm_current_ret_type);
+                llvm_emit_str(" %t");
+                llvm_emit_int(conv_temp);
+                llvm_emit_char(10);
+            } else {
+                llvm_emit_str("    ret ");
+                llvm_emit_type(llvm_current_ret_type);
+                llvm_emit_str(" ");
+                llvm_emit_str(val);
+                llvm_emit_char(10);
+            }
         }
         llvm_emitted_terminator = 1;
         return;
@@ -1148,7 +1213,14 @@ func llvm_emit_stmt(stmt *u8) void {
             var len i64 = ident_expr_name_len(target);
             llvm_emit_str("    store i64 ");
             llvm_emit_str(val);
-            llvm_emit_str(", i64* %");
+            if llvm_is_local(name, len) {
+                llvm_emit_str(", i64* %");
+            } else if llvm_is_global(name, len) {
+                llvm_emit_str(", i64* @");
+            } else {
+                // Assume local (parameter)
+                llvm_emit_str(", i64* %");
+            }
             llvm_emit_n(name, len);
             llvm_emit_char(10);
         }
@@ -1223,6 +1295,7 @@ func llvm_emit_func(func_node *u8) void {
     llvm_temp_counter = 0;
     llvm_label_counter = 0;
     llvm_reset_locals();
+    llvm_current_ret_type = ret_type;
 
     // Function header
     llvm_emit_str("define ");
