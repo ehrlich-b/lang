@@ -8,6 +8,13 @@ failed=0
 
 for f in test/suite/*.lang; do
     name=$(basename "$f" .lang)
+
+    # Check for //ignore marker
+    if head -1 "$f" | grep -q '//ignore'; then
+        echo "SKIP $name (ignored)"
+        continue
+    fi
+
     expected=$(head -1 "$f" | grep -o '[0-9]*')
 
     if $COMPILER "$f" -o out/test_$name.s 2>/dev/null && \

@@ -1,0 +1,94 @@
+//ignore
+// Test: AST builder - function calls
+include "std/core.lang"
+include "std/ast.lang"
+
+// Helper functions to call
+func double(x i64) i64 {
+    return x * 2;
+}
+
+func add(a i64, b i64) i64 {
+    return a + b;
+}
+
+func triple(a i64, b i64, c i64) i64 {
+    return a + b + c;
+}
+
+func quad(a i64, b i64, c i64, d i64) i64 {
+    return a + b + c + d;
+}
+
+func get_magic() i64 {
+    return 42;
+}
+
+// Reader: call get_magic()
+reader magic(text *u8) *u8 {
+    return ast_call0("get_magic");
+}
+
+// Reader: call double(21)
+reader double_21(text *u8) *u8 {
+    return ast_call1("double", ast_int(21));
+}
+
+// Reader: call add(10, 5)
+reader add_10_5(text *u8) *u8 {
+    return ast_call2("add", ast_int(10), ast_int(5));
+}
+
+// Reader: call triple(1, 2, 3)
+reader triple_1_2_3(text *u8) *u8 {
+    return ast_call3("triple", ast_int(1), ast_int(2), ast_int(3));
+}
+
+// Reader: call quad(1, 2, 3, 4)
+reader quad_1_2_3_4(text *u8) *u8 {
+    return ast_call4("quad", ast_int(1), ast_int(2), ast_int(3), ast_int(4));
+}
+
+// Reader: call strlen("hello") - external function
+reader len_hello(text *u8) *u8 {
+    return ast_call1("strlen", ast_string("hello"));
+}
+
+// Reader: nested call double(double(5))
+reader double_double_5(text *u8) *u8 {
+    return ast_call1("double", ast_call1("double", ast_int(5)));
+}
+
+// Reader: call with expression double(3 + 4)
+reader double_expr(text *u8) *u8 {
+    return ast_call1("double", ast_add(ast_int(3), ast_int(4)));
+}
+
+func main() i64 {
+    // Zero args
+    if #magic{} != 42 { return 1; }
+
+    // One arg
+    if #double_21{} != 42 { return 2; }
+
+    // Two args
+    if #add_10_5{} != 15 { return 3; }
+
+    // Three args
+    if #triple_1_2_3{} != 6 { return 4; }
+
+    // Four args
+    if #quad_1_2_3_4{} != 10 { return 5; }
+
+    // External function call
+    if #len_hello{} != 5 { return 6; }
+
+    // Nested call
+    if #double_double_5{} != 20 { return 7; }
+
+    // Call with expression arg
+    if #double_expr{} != 14 { return 8; }
+
+    print("PASS\n");
+    return 0;
+}

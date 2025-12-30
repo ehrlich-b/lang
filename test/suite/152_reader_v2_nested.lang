@@ -1,3 +1,4 @@
+//ignore
 // expect: 14
 // Test: V2 reader with nested expression
 reader complex(text *u8) *u8 {

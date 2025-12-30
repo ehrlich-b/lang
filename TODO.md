@@ -220,10 +220,34 @@ Implications:
 |-------|----------|--------|
 | ~~**POINTER ARITHMETIC BUG**~~ | ~~CRITICAL~~ | DONE |
 | ~~**7+ PARAM ACCUMULATOR BUG**~~ | ~~MEDIUM~~ | DONE |
+| **BLOCK_EXPR SCOPE COLLISION** | **MEDIUM** | TODO |
 | **TEST SUITE GAPS** | **HIGH** | TODO |
 | Add `const` keyword for compile-time constants | Medium | TODO |
 | Magic PNODE numbers in lisp.lang | Low | TODO |
 | Reader cache invalidation | Low | TODO |
+
+### MEDIUM: Block Expression Scope Collision
+
+**Problem**: When outer code has a variable with the same name as a variable declared inside a `block_expr`, the scopes collide. The inner variable uses the outer variable's slot instead of creating a new one.
+
+**Reproduce**: `test/suite/238_ast_statements.lang` (currently `//ignore`)
+
+```lang
+func main() i64 {
+    var x i64 = #block_test{};  // outer x
+    ...
+}
+
+reader block_test(text *u8) *u8 {
+    // Returns: { var x = 10; x + 5 }
+    // Expected: 15
+    // Actual: 10 (uses outer x's slot)
+}
+```
+
+**Root cause**: `gen_stmt` for `var_decl` allocates a local, but when processing inline reader output, the scope lookup finds the outer function's `x` first.
+
+**Fix needed**: Block expressions need proper scope push/pop, or inline reader expansion needs isolated local scope.
 
 ### ~~MEDIUM: 7+ Parameter Accumulator Bug~~ (FIXED)
 

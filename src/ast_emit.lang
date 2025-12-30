@@ -875,3 +875,10 @@ func ast_emit_program(prog *u8) *u8 {
 
     return ast_emit_finish();
 }
+
+// Emit a single expression as S-expr AST (for inline readers)
+func ast_emit_expression(expr *u8) *u8 {
+    ast_emit_init();
+    ast_emit_node(expr);
+    return ast_emit_finish();
+}

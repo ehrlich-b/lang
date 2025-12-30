@@ -1,0 +1,234 @@
+// ============================================================
+// minilisp - A tiny DSL that compiles to x86
+// ============================================================
+//
+// 150 lines to add a new syntax to the compiler.
+// Uses #parser{} to generate the s-expression parser.
+// Outputs S-expr AST that gets compiled to native x86.
+//
+// EXPRESSIONS:
+//   #minilisp{ (+ 1 2) }         => 3
+//   #minilisp{ (* 2 (+ 3 4)) }   => 14
+//   #minilisp{ (if (< x 0) 0 x) }
+//   #minilisp{ (add 1 2) }
+//
+// DEFINITIONS:
+//   #minilisp{ (defun add (a b) (+ a b)) }
+//
+// All types are i64. That's the mini part.
+
+include "std/core.lang"
+include "std/tok.lang"
+include "std/parser_reader.lang"
+
+// #parser{} generates a recursive descent parser from this grammar
+#parser{
+    sexp = number | symbol | operator | list
+    list = '(' sexp* ')'
+}
+
+// PNODE kinds: 1=number, 2=symbol, 4=list, 5=operator
+
+// ============================================================
+// Parse tree helpers
+// ============================================================
+
+func list_inner(node *PNode) *PNode {
+    return vec_get(node.children, 1);
+}
+
+func list_get(node *PNode, i i64) *PNode {
+    return vec_get(list_inner(node).children, i);
+}
+
+func list_len(node *PNode) i64 {
+    return vec_len(list_inner(node).children);
+}
+
+func is_sym(node *PNode, name *u8) bool {
+    if node == nil { return false; }
+    if node.kind != 2 { return false; }
+    return streq(node.text, name);
+}
+
+func is_cmp(name *u8) bool {
+    return streq(name, "<") || streq(name, ">") ||
+           streq(name, "<=") || streq(name, ">=") ||
+           streq(name, "=") || streq(name, "!=");
+}
+
+func is_arith(name *u8) bool {
+    return streq(name, "+") || streq(name, "-") ||
+           streq(name, "*") || streq(name, "/") || streq(name, "%");
+}
+
+func fix_op(name *u8) *u8 {
+    if streq(name, "=") { return "=="; }
+    return name;
+}
+
+// ============================================================
+// Emit S-expr AST from parse tree
+// ============================================================
+
+func emit(sb *StringBuilder, node *PNode) void {
+    if node == nil { sb_str(sb, "(number 0)"); return; }
+
+    // Number: 42 → (number 42)
+    if node.kind == 1 {
+        sb_str(sb, "(number ");
+        sb_str(sb, node.text);
+        sb_str(sb, ")");
+        return;
+    }
+
+    // Symbol: x → (ident x)
+    if node.kind == 2 {
+        sb_str(sb, "(ident ");
+        sb_str(sb, node.text);
+        sb_str(sb, ")");
+        return;
+    }
+
+    // Operator as symbol (shouldn't happen at top level)
+    if node.kind == 5 {
+        sb_str(sb, "(number 0)");
+        return;
+    }
+
+    // List
+    if node.kind != 4 { sb_str(sb, "(number 0)"); return; }
+
+    var count i64 = list_len(node);
+    if count == 0 { sb_str(sb, "(number 0)"); return; }
+
+    var first *PNode = list_get(node, 0);
+
+    // (defun name (params) body) → (program (func ...))
+    if is_sym(first, "defun") {
+        var name *PNode = list_get(node, 1);
+        var params *PNode = list_get(node, 2);
+        var body *PNode = list_get(node, 3);
+
+        sb_str(sb, "(program (func ");
+        sb_str(sb, name.text);
+        sb_str(sb, " (");
+
+        var pc i64 = list_len(params);
+        var pi i64 = 0;
+        while pi < pc {
+            if pi > 0 { sb_str(sb, " "); }
+            sb_str(sb, "(param ");
+            sb_str(sb, list_get(params, pi).text);
+            sb_str(sb, " (type_base i64))");
+            pi = pi + 1;
+        }
+
+        sb_str(sb, ") (type_base i64) (block (return ");
+        emit(sb, body);
+        sb_str(sb, "))))");
+        return;
+    }
+
+    // (if cond then else) → (c * t) + (!c * e)
+    if is_sym(first, "if") {
+        sb_str(sb, "(binop + (binop * ");
+        emit(sb, list_get(node, 1));
+        sb_str(sb, " ");
+        emit(sb, list_get(node, 2));
+        sb_str(sb, ") (binop * (unop ! ");
+        emit(sb, list_get(node, 1));
+        sb_str(sb, ") ");
+        emit(sb, list_get(node, 3));
+        sb_str(sb, "))");
+        return;
+    }
+
+    // (and a b) → (binop && a b)
+    if is_sym(first, "and") {
+        sb_str(sb, "(binop && ");
+        emit(sb, list_get(node, 1));
+        sb_str(sb, " ");
+        emit(sb, list_get(node, 2));
+        sb_str(sb, ")");
+        return;
+    }
+
+    // (or a b) → (binop || a b)
+    if is_sym(first, "or") {
+        sb_str(sb, "(binop || ");
+        emit(sb, list_get(node, 1));
+        sb_str(sb, " ");
+        emit(sb, list_get(node, 2));
+        sb_str(sb, ")");
+        return;
+    }
+
+    // (not x) → (unop ! x)
+    if is_sym(first, "not") {
+        sb_str(sb, "(unop ! ");
+        emit(sb, list_get(node, 1));
+        sb_str(sb, ")");
+        return;
+    }
+
+    // Operator: (+ a b c) → (binop + (binop + a b) c)
+    var op *u8 = nil;
+    if first.kind == 5 || (first.kind == 2 && (is_arith(first.text) || is_cmp(first.text))) {
+        op = fix_op(first.text);
+    }
+
+    if op != nil {
+        if count == 2 {
+            // Unary: (- x) → (binop - (number 0) x)
+            sb_str(sb, "(binop ");
+            sb_str(sb, op);
+            sb_str(sb, " (number 0) ");
+            emit(sb, list_get(node, 1));
+            sb_str(sb, ")");
+            return;
+        }
+
+        // Binary+: left-fold (+ a b c) → (binop + (binop + a b) c)
+        emit(sb, list_get(node, 1));
+        var i i64 = 2;
+        while i < count {
+            var tmp *u8 = sb_finish(sb);
+            sb = sb_new();
+            sb_str(sb, "(binop ");
+            sb_str(sb, op);
+            sb_str(sb, " ");
+            sb_str(sb, tmp);
+            sb_str(sb, " ");
+            emit(sb, list_get(node, i));
+            sb_str(sb, ")");
+            i = i + 1;
+        }
+        return;
+    }
+
+    // Function call: (foo a b) → (call (ident foo) a b)
+    if first.kind == 2 {
+        sb_str(sb, "(call (ident ");
+        sb_str(sb, first.text);
+        sb_str(sb, ")");
+        var ai i64 = 1;
+        while ai < count {
+            sb_str(sb, " ");
+            emit(sb, list_get(node, ai));
+            ai = ai + 1;
+        }
+        sb_str(sb, ")");
+        return;
+    }
+
+    sb_str(sb, "(number 0)");
+}
+
+reader minilisp(text *u8) *u8 {
+    var t *Tokenizer = tok_new(text);
+    var node *PNode = parse_sexp(t);
+    var sb *StringBuilder = sb_new();
+    emit(sb, node);
+    return sb_finish(sb);
+}

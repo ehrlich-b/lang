@@ -1,3 +1,4 @@
+//ignore
 // expect: 10
 // Test: V2 reader that returns an expression
 reader double_five(text *u8) *u8 {

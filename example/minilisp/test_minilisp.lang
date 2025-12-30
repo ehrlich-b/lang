@@ -1,0 +1,28 @@
+// minilisp demo - a tiny DSL compiling to x86
+include "std/core.lang"
+include "example/minilisp/minilisp.lang"
+
+func main() i64 {
+    print("=== minilisp Demo ===\n\n");
+
+    // Arithmetic
+    print("(+ 10 32)           = ");
+    print_int(#minilisp{ (+ 10 32) });
+    print("\n");
+
+    print("(* (+ 3 3) (+ 3 4)) = ");
+    print_int(#minilisp{ (* (+ 3 3) (+ 3 4)) });
+    print("\n");
+
+    print("(+ 1 2 3 4 5)       = ");
+    print_int(#minilisp{ (+ 1 2 3 4 5) });
+    print("\n");
+
+    // Verify
+    if #minilisp{ (+ 10 32) } != 42 { return 1; }
+    if #minilisp{ (* (+ 3 3) (+ 3 4)) } != 42 { return 1; }
+    if #minilisp{ (+ 1 2 3 4 5) } != 15 { return 1; }
+
+    print("\nPASS\n");
+    return 0;
+}

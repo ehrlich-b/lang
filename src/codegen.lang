@@ -1347,14 +1347,29 @@ func process_decl_first_pass(decl *u8) void {
             return;
         }
 
-        // Parse the output as declarations
-        var prog *u8 = parse_program_from_string(output);
-        if prog == nil {
-            eprint("error: failed to parse reader output from '");
-            eprint_buf(name, name_len);
-            eprintln("'");
-            cg_had_error = 1;
-            return;
+        // Detect output format: AST starts with '(', lang code doesn't
+        var prog *u8 = nil;
+        if *output == 40 {  // '(' = 40
+            // Parse as S-expr AST
+            prog = parse_ast_from_string(output);
+            if prog == nil {
+                eprint("error: failed to parse reader AST output from '");
+                eprint_buf(name, name_len);
+                eprintln("'");
+                cg_had_error = 1;
+                return;
+            }
+        } else {
+            // Parse as lang code
+            parser_tokenize(output);
+            prog = parse_program();
+            if parse_error_count > 0 {
+                eprint("error: failed to parse reader output from '");
+                eprint_buf(name, name_len);
+                eprintln("'");
+                cg_had_error = 1;
+                return;
+            }
         }
 
         // Process each generated declaration
@@ -3095,10 +3110,18 @@ func gen_expr(expr *u8) void {
             return;
         }
 
-        // Parse the output as a lang expression
-        var expanded *u8 = parse_expression_from_string(output);
+        // Detect output format: AST starts with '(', lang code doesn't
+        var expanded *u8 = nil;
+        if *output == 40 {  // '(' = 40
+            // Parse as S-expr AST expression
+            expanded = parse_ast_expression_from_string(output);
+        } else {
+            // Parse as lang expression
+            parser_tokenize(output);
+            expanded = parse_expression();
+        }
 
-        // Generate code for the expanded AST
+        // Generate code for the expanded expression
         if expanded != nil {
             gen_expr(expanded);
         }
@@ -3402,6 +3425,62 @@ func gen_expr(expr *u8) void {
         }
 
         emit_label(end_label);
+        emit_line(":");
+        return;
+    }
+
+    // If expression: if cond { then } else { else }
+    // Evaluates to the value of the taken branch
+    if k == NODE_IF_STMT {
+        var if_else_label i64 = new_label();
+        var if_end_label i64 = new_label();
+        var if_then *u8 = if_stmt_then(expr);
+        var if_else *u8 = if_stmt_else(expr);
+
+        // Evaluate condition
+        gen_expr(if_stmt_cond(expr));
+        emit_line("    test %rax, %rax");
+
+        if if_else != nil {
+            // Has else branch
+            emit_str("    jz ");
+            emit_label(if_else_label);
+            emit_char(10);
+
+            // Generate then branch (expression or statement)
+            if node_kind(if_then) == NODE_BLOCK_STMT {
+                gen_stmt(if_then);
+            } else {
+                gen_expr(if_then);
+            }
+
+            emit_str("    jmp ");
+            emit_label(if_end_label);
+            emit_char(10);
+
+            emit_label(if_else_label);
+            emit_line(":");
+
+            // Generate else branch
+            if node_kind(if_else) == NODE_BLOCK_STMT {
+                gen_stmt(if_else);
+            } else {
+                gen_expr(if_else);
+            }
+        } else {
+            // No else branch - result is 0 (nil) if condition is false
+            emit_str("    jz ");
+            emit_label(if_end_label);
+            emit_char(10);
+
+            if node_kind(if_then) == NODE_BLOCK_STMT {
+                gen_stmt(if_then);
+            } else {
+                gen_expr(if_then);
+            }
+        }
+
+        emit_label(if_end_label);
         emit_line(":");
         return;
     }
@@ -4600,8 +4679,16 @@ func gen_decl(decl *u8) void {
             return;
         }
 
-        // Parse the output as declarations
-        var prog *u8 = parse_program_from_string(output);
+        // Detect output format: AST starts with '(', lang code doesn't
+        var prog *u8 = nil;
+        if *output == 40 {  // '(' = 40
+            // Parse as S-expr AST
+            prog = parse_ast_from_string(output);
+        } else {
+            // Parse as lang code
+            parser_tokenize(output);
+            prog = parse_program();
+        }
         if prog == nil {
             // Error already reported in first pass
             return;

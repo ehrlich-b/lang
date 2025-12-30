@@ -1,0 +1,132 @@
+//ignore
+// Test: AST builder - binary and unary operations
+include "std/core.lang"
+include "std/ast.lang"
+
+// Binary operations - using convenience functions
+reader add_5_3(text *u8) *u8 {
+    return ast_add(ast_int(5), ast_int(3));
+}
+
+reader sub_10_4(text *u8) *u8 {
+    return ast_sub(ast_int(10), ast_int(4));
+}
+
+reader mul_6_7(text *u8) *u8 {
+    return ast_mul(ast_int(6), ast_int(7));
+}
+
+reader div_20_4(text *u8) *u8 {
+    return ast_div(ast_int(20), ast_int(4));
+}
+
+reader mod_17_5(text *u8) *u8 {
+    return ast_mod(ast_int(17), ast_int(5));
+}
+
+// Comparison operations
+reader eq_5_5(text *u8) *u8 {
+    return ast_eq(ast_int(5), ast_int(5));
+}
+
+reader neq_5_3(text *u8) *u8 {
+    return ast_neq(ast_int(5), ast_int(3));
+}
+
+reader lt_3_5(text *u8) *u8 {
+    return ast_lt(ast_int(3), ast_int(5));
+}
+
+reader gt_7_4(text *u8) *u8 {
+    return ast_gt(ast_int(7), ast_int(4));
+}
+
+reader lte_5_5(text *u8) *u8 {
+    return ast_lte(ast_int(5), ast_int(5));
+}
+
+reader gte_6_6(text *u8) *u8 {
+    return ast_gte(ast_int(6), ast_int(6));
+}
+
+// Logical operations
+reader and_t_t(text *u8) *u8 {
+    return ast_and(ast_bool(true), ast_bool(true));
+}
+
+reader or_f_t(text *u8) *u8 {
+    return ast_or(ast_bool(false), ast_bool(true));
+}
+
+// Bitwise operations
+reader band_7_3(text *u8) *u8 {
+    return ast_band(ast_int(7), ast_int(3));  // 0111 & 0011 = 0011 = 3
+}
+
+reader bor_4_2(text *u8) *u8 {
+    return ast_bor(ast_int(4), ast_int(2));  // 0100 | 0010 = 0110 = 6
+}
+
+reader xor_5_3(text *u8) *u8 {
+    return ast_xor(ast_int(5), ast_int(3));  // 0101 ^ 0011 = 0110 = 6
+}
+
+reader shl_1_3(text *u8) *u8 {
+    return ast_shl(ast_int(1), ast_int(3));  // 1 << 3 = 8
+}
+
+reader shr_16_2(text *u8) *u8 {
+    return ast_shr(ast_int(16), ast_int(2));  // 16 >> 2 = 4
+}
+
+// Unary operations
+reader neg_42(text *u8) *u8 {
+    return ast_neg(ast_int(42));
+}
+
+reader not_f(text *u8) *u8 {
+    return ast_not(ast_bool(false));
+}
+
+// Complex nested expression: (3 + 4) * 2
+reader nested(text *u8) *u8 {
+    return ast_mul(ast_add(ast_int(3), ast_int(4)), ast_int(2));
+}
+
+func main() i64 {
+    // Arithmetic
+    if #add_5_3{} != 8 { return 1; }
+    if #sub_10_4{} != 6 { return 2; }
+    if #mul_6_7{} != 42 { return 3; }
+    if #div_20_4{} != 5 { return 4; }
+    if #mod_17_5{} != 2 { return 5; }
+
+    // Comparison
+    if #eq_5_5{} != true { return 6; }
+    if #neq_5_3{} != true { return 7; }
+    if #lt_3_5{} != true { return 8; }
+    if #gt_7_4{} != true { return 9; }
+    if #lte_5_5{} != true { return 10; }
+    if #gte_6_6{} != true { return 11; }
+
+    // Logical
+    if #and_t_t{} != true { return 12; }
+    if #or_f_t{} != true { return 13; }
+
+    // Bitwise
+    if #band_7_3{} != 3 { return 14; }
+    if #bor_4_2{} != 6 { return 15; }
+    if #xor_5_3{} != 6 { return 16; }
+    if #shl_1_3{} != 8 { return 17; }
+    if #shr_16_2{} != 4 { return 18; }
+
+    // Unary
+    if #neg_42{} != 0 - 42 { return 19; }
+    if #not_f{} != true { return 20; }
+
+    // Nested
+    if #nested{} != 14 { return 21; }
+
+    print("PASS\n");
+    return 0;
+}

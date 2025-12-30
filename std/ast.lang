@@ -1,0 +1,867 @@
+// std/ast.lang - AST Builder API for Reader Authors
+//
+// Build S-expr AST without touching strings. Think in trees.
+//
+// Usage:
+//   include "std/ast.lang"
+//   return ast_binop("+", ast_number("1"), ast_number("2"));
+//   // Returns: "(binop + (number 1) (number 2))"
+//
+// Every function returns *u8 (S-expr text). Compose by nesting.
+
+include "std/core.lang"
+include "std/emit.lang"
+
+// ============================================================
+// Internal helpers
+// ============================================================
+
+func ast_sb() *StringBuilder {
+    return sb_new();
+}
+
+func ast_finish(sb *StringBuilder) *u8 {
+    return sb_finish(sb);
+}
+
+// Quote a string value (handles escaping)
+func ast_quote_string(sb *StringBuilder, s *u8) void {
+    sb_char(sb, '"');
+    while *s != 0 {
+        var c u8 = *s;
+        if c == '"' { sb_char(sb, '\\'); sb_char(sb, '"'); }
+        else if c == '\\' { sb_char(sb, '\\'); sb_char(sb, '\\'); }
+        else if c == '\n' { sb_char(sb, '\\'); sb_char(sb, 'n'); }
+        else if c == '\t' { sb_char(sb, '\\'); sb_char(sb, 't'); }
+        else if c == '\r' { sb_char(sb, '\\'); sb_char(sb, 'r'); }
+        else { sb_char(sb, c); }
+        s = s + 1;
+    }
+    sb_char(sb, '"');
+}
+
+// ============================================================
+// Vec helpers (for variadic arguments)
+// ============================================================
+
+func ast_vec() *u8 {
+    return vec_new(8);
+}
+
+func ast_push(v *u8, item *u8) void {
+    vec_push(v, item);
+}
+
+func ast_vec_len(v *u8) i64 {
+    return vec_len(v);
+}
+
+func ast_vec_get(v *u8, i i64) *u8 {
+    return vec_get(v, i);
+}
+
+// ============================================================
+// Types
+// ============================================================
+
+// (type_base name) - e.g., i64, bool, void
+func ast_type(name *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(type_base ");
+    sb_str(sb, name);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (type_ptr elem)
+func ast_type_ptr(elem *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(type_ptr ");
+    sb_str(sb, elem);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (type_func (param_types...) ret)
+func ast_type_func(param_types *u8, ret *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(type_func (");
+    var i i64 = 0;
+    var len i64 = ast_vec_len(param_types);
+    while i < len {
+        if i > 0 { sb_str(sb, " "); }
+        sb_str(sb, ast_vec_get(param_types, i));
+        i = i + 1;
+    }
+    sb_str(sb, ") ");
+    sb_str(sb, ret);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (type_closure (param_types...) ret)
+func ast_type_closure(param_types *u8, ret *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(type_closure (");
+    var i i64 = 0;
+    var len i64 = ast_vec_len(param_types);
+    while i < len {
+        if i > 0 { sb_str(sb, " "); }
+        sb_str(sb, ast_vec_get(param_types, i));
+        i = i + 1;
+    }
+    sb_str(sb, ") ");
+    sb_str(sb, ret);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// Convenience
+func ast_type_i64() *u8 { return ast_type("i64"); }
+func ast_type_bool() *u8 { return ast_type("bool"); }
+func ast_type_void() *u8 { return ast_type("void"); }
+func ast_type_u8() *u8 { return ast_type("u8"); }
+func ast_type_str() *u8 { return ast_type_ptr(ast_type_u8()); }
+
+// ============================================================
+// Params (for function declarations)
+// ============================================================
+
+// (param name type)
+func ast_param(name *u8, typ *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(param ");
+    sb_str(sb, name);
+    sb_str(sb, " ");
+    sb_str(sb, typ);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// ============================================================
+// Expressions - Literals
+// ============================================================
+
+// (number val)
+func ast_number(val *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(number ");
+    sb_str(sb, val);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (number val) from integer
+func ast_int(val i64) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(number ");
+    sb_int(sb, val);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (string "val")
+func ast_string(val *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(string ");
+    ast_quote_string(sb, val);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (bool true/false)
+func ast_bool(val bool) *u8 {
+    if val { return "(bool true)"; }
+    return "(bool false)";
+}
+
+// (nil)
+func ast_nil() *u8 {
+    return "(nil)";
+}
+
+// (ident name)
+func ast_ident(name *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(ident ");
+    sb_str(sb, name);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// ============================================================
+// Expressions - Operations
+// ============================================================
+
+// (binop op left right)
+func ast_binop(op *u8, left *u8, right *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(binop ");
+    sb_str(sb, op);
+    sb_str(sb, " ");
+    sb_str(sb, left);
+    sb_str(sb, " ");
+    sb_str(sb, right);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (unop op expr)
+func ast_unop(op *u8, expr *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(unop ");
+    sb_str(sb, op);
+    sb_str(sb, " ");
+    sb_str(sb, expr);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// Convenience operators
+func ast_add(l *u8, r *u8) *u8 { return ast_binop("+", l, r); }
+func ast_sub(l *u8, r *u8) *u8 { return ast_binop("-", l, r); }
+func ast_mul(l *u8, r *u8) *u8 { return ast_binop("*", l, r); }
+func ast_div(l *u8, r *u8) *u8 { return ast_binop("/", l, r); }
+func ast_mod(l *u8, r *u8) *u8 { return ast_binop("%", l, r); }
+func ast_eq(l *u8, r *u8) *u8 { return ast_binop("==", l, r); }
+func ast_ne(l *u8, r *u8) *u8 { return ast_binop("!=", l, r); }
+func ast_neq(l *u8, r *u8) *u8 { return ast_binop("!=", l, r); }  // alias
+func ast_lt(l *u8, r *u8) *u8 { return ast_binop("<", l, r); }
+func ast_gt(l *u8, r *u8) *u8 { return ast_binop(">", l, r); }
+func ast_le(l *u8, r *u8) *u8 { return ast_binop("<=", l, r); }
+func ast_lte(l *u8, r *u8) *u8 { return ast_binop("<=", l, r); }  // alias
+func ast_ge(l *u8, r *u8) *u8 { return ast_binop(">=", l, r); }
+func ast_gte(l *u8, r *u8) *u8 { return ast_binop(">=", l, r); }  // alias
+func ast_and(l *u8, r *u8) *u8 { return ast_binop("&&", l, r); }
+func ast_or(l *u8, r *u8) *u8 { return ast_binop("||", l, r); }
+func ast_band(l *u8, r *u8) *u8 { return ast_binop("&", l, r); }
+func ast_bor(l *u8, r *u8) *u8 { return ast_binop("|", l, r); }
+func ast_bxor(l *u8, r *u8) *u8 { return ast_binop("^", l, r); }
+func ast_xor(l *u8, r *u8) *u8 { return ast_binop("^", l, r); }  // alias
+func ast_shl(l *u8, r *u8) *u8 { return ast_binop("<<", l, r); }
+func ast_shr(l *u8, r *u8) *u8 { return ast_binop(">>", l, r); }
+
+func ast_not(e *u8) *u8 { return ast_unop("!", e); }
+func ast_neg(e *u8) *u8 { return ast_unop("-", e); }
+func ast_addr(e *u8) *u8 { return ast_unop("&", e); }
+func ast_deref(e *u8) *u8 { return ast_unop("*", e); }
+
+// ============================================================
+// Expressions - Calls
+// ============================================================
+
+// (call callee_expr args...) - callee_expr must be a full expression
+func ast_call(callee_expr *u8, args *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(call ");
+    sb_str(sb, callee_expr);
+    var i i64 = 0;
+    var len i64 = ast_vec_len(args);
+    while i < len {
+        sb_str(sb, " ");
+        sb_str(sb, ast_vec_get(args, i));
+        i = i + 1;
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// Convenience: call named function with 0-4 args
+// These wrap the name in (ident ...) automatically
+func ast_call0(name *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(call (ident ");
+    sb_str(sb, name);
+    sb_str(sb, "))");
+    return ast_finish(sb);
+}
+
+func ast_call1(name *u8, a *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(call (ident ");
+    sb_str(sb, name);
+    sb_str(sb, ") ");
+    sb_str(sb, a);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+func ast_call2(name *u8, a *u8, b *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(call (ident ");
+    sb_str(sb, name);
+    sb_str(sb, ") ");
+    sb_str(sb, a);
+    sb_str(sb, " ");
+    sb_str(sb, b);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+func ast_call3(name *u8, a *u8, b *u8, c *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(call (ident ");
+    sb_str(sb, name);
+    sb_str(sb, ") ");
+    sb_str(sb, a);
+    sb_str(sb, " ");
+    sb_str(sb, b);
+    sb_str(sb, " ");
+    sb_str(sb, c);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+func ast_call4(name *u8, a *u8, b *u8, c *u8, d *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(call (ident ");
+    sb_str(sb, name);
+    sb_str(sb, ") ");
+    sb_str(sb, a);
+    sb_str(sb, " ");
+    sb_str(sb, b);
+    sb_str(sb, " ");
+    sb_str(sb, c);
+    sb_str(sb, " ");
+    sb_str(sb, d);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// Call by name (convenience)
+func ast_call_named(name *u8, args *u8) *u8 {
+    return ast_call(ast_ident(name), args);
+}
+
+func ast_call_named0(name *u8) *u8 {
+    return ast_call0(ast_ident(name));
+}
+
+func ast_call_named1(name *u8, a *u8) *u8 {
+    return ast_call1(ast_ident(name), a);
+}
+
+func ast_call_named2(name *u8, a *u8, b *u8) *u8 {
+    return ast_call2(ast_ident(name), a, b);
+}
+
+// ============================================================
+// Expressions - Access
+// ============================================================
+
+// (field expr name)
+func ast_field(expr *u8, name *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(field ");
+    sb_str(sb, expr);
+    sb_str(sb, " ");
+    sb_str(sb, name);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (index expr idx)
+func ast_index(expr *u8, idx *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(index ");
+    sb_str(sb, expr);
+    sb_str(sb, " ");
+    sb_str(sb, idx);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// ============================================================
+// Expressions - Let
+// ============================================================
+
+// (let name type init body) - type can be "nil"
+func ast_let(name *u8, typ *u8, init *u8, body *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(let ");
+    sb_str(sb, name);
+    if typ != nil {
+        sb_str(sb, " ");
+        sb_str(sb, typ);
+    }
+    sb_str(sb, " ");
+    sb_str(sb, init);
+    sb_str(sb, " ");
+    sb_str(sb, body);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// Let without type annotation
+func ast_let_infer(name *u8, init *u8, body *u8) *u8 {
+    return ast_let(name, nil, init, body);
+}
+
+// ============================================================
+// Expressions - Lambda
+// ============================================================
+
+// (lambda (params...) ret body)
+func ast_lambda(params *u8, ret *u8, body *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(lambda (");
+    var i i64 = 0;
+    var len i64 = ast_vec_len(params);
+    while i < len {
+        if i > 0 { sb_str(sb, " "); }
+        sb_str(sb, ast_vec_get(params, i));
+        i = i + 1;
+    }
+    sb_str(sb, ") ");
+    sb_str(sb, ret);
+    sb_str(sb, " ");
+    sb_str(sb, body);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// ============================================================
+// Expressions - Match
+// ============================================================
+
+// (pattern_wildcard)
+func ast_pattern_wildcard() *u8 {
+    return "(pattern_wildcard)";
+}
+
+// (pattern_variant enum variant binding?)
+func ast_pattern_variant(enum_name *u8, variant *u8, binding *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(pattern_variant ");
+    sb_str(sb, enum_name);
+    sb_str(sb, " ");
+    sb_str(sb, variant);
+    if binding != nil {
+        sb_str(sb, " ");
+        sb_str(sb, binding);
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (case pattern body)
+func ast_match_case(pattern *u8, body *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(case ");
+    sb_str(sb, pattern);
+    sb_str(sb, " ");
+    sb_str(sb, body);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (match scrutinee (cases...))
+func ast_match(scrutinee *u8, cases *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(match ");
+    sb_str(sb, scrutinee);
+    sb_str(sb, " (");
+    var i i64 = 0;
+    var len i64 = ast_vec_len(cases);
+    while i < len {
+        if i > 0 { sb_str(sb, " "); }
+        sb_str(sb, ast_vec_get(cases, i));
+        i = i + 1;
+    }
+    sb_str(sb, "))");
+    return ast_finish(sb);
+}
+
+// ============================================================
+// Expressions - Effects
+// ============================================================
+
+// (perform effect_name args...)
+func ast_perform(effect_name *u8, args *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(perform ");
+    sb_str(sb, effect_name);
+    var i i64 = 0;
+    var len i64 = ast_vec_len(args);
+    while i < len {
+        sb_str(sb, " ");
+        sb_str(sb, ast_vec_get(args, i));
+        i = i + 1;
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+func ast_perform0(effect_name *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(perform ");
+    sb_str(sb, effect_name);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+func ast_perform1(effect_name *u8, a *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(perform ");
+    sb_str(sb, effect_name);
+    sb_str(sb, " ");
+    sb_str(sb, a);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (resume k value?)
+func ast_resume(k *u8, value *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(resume ");
+    sb_str(sb, k);
+    if value != nil {
+        sb_str(sb, " ");
+        sb_str(sb, value);
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (return_handler binding body)
+func ast_return_handler(binding *u8, body *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(return_handler ");
+    sb_str(sb, binding);
+    sb_str(sb, " ");
+    sb_str(sb, body);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (effect_handler name binding k body)
+func ast_effect_handler(name *u8, binding *u8, k *u8, body *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(effect_handler ");
+    sb_str(sb, name);
+    sb_str(sb, " ");
+    sb_str(sb, binding);
+    sb_str(sb, " ");
+    sb_str(sb, k);
+    sb_str(sb, " ");
+    sb_str(sb, body);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (handle body (return_handler ...) (effect_handler ...)...)
+func ast_handle(body *u8, ret_handler *u8, effect_handlers *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(handle ");
+    sb_str(sb, body);
+    sb_str(sb, " ");
+    sb_str(sb, ret_handler);
+    var i i64 = 0;
+    var len i64 = ast_vec_len(effect_handlers);
+    while i < len {
+        sb_str(sb, " ");
+        sb_str(sb, ast_vec_get(effect_handlers, i));
+        i = i + 1;
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// ============================================================
+// Expressions - Block expression
+// ============================================================
+
+// (block_expr stmts... tail)
+func ast_block_expr(stmts *u8, tail *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(block_expr");
+    var i i64 = 0;
+    var len i64 = ast_vec_len(stmts);
+    while i < len {
+        sb_str(sb, " ");
+        sb_str(sb, ast_vec_get(stmts, i));
+        i = i + 1;
+    }
+    sb_str(sb, " ");
+    sb_str(sb, tail);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// ============================================================
+// Statements
+// ============================================================
+
+// (return expr?)
+func ast_return(expr *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(return");
+    if expr != nil {
+        sb_str(sb, " ");
+        sb_str(sb, expr);
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+func ast_return_void() *u8 {
+    return "(return)";
+}
+
+// (expr_stmt expr)
+func ast_expr_stmt(expr *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(expr_stmt ");
+    sb_str(sb, expr);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (assign target value)
+func ast_assign(target *u8, value *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(assign ");
+    sb_str(sb, target);
+    sb_str(sb, " ");
+    sb_str(sb, value);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (if cond then else?)
+func ast_if(cond *u8, then_branch *u8, else_branch *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(if ");
+    sb_str(sb, cond);
+    sb_str(sb, " ");
+    sb_str(sb, then_branch);
+    if else_branch != nil {
+        sb_str(sb, " ");
+        sb_str(sb, else_branch);
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// Convenience: if without else
+func ast_if_then(cond *u8, then_branch *u8) *u8 {
+    return ast_if(cond, then_branch, nil);
+}
+
+// (while cond body) - simple while without label
+func ast_while(cond *u8, body *u8) *u8 {
+    return ast_while_labeled(cond, body, nil);
+}
+
+// (while cond body label?) - with label
+func ast_while_labeled(cond *u8, body *u8, label *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(while ");
+    sb_str(sb, cond);
+    sb_str(sb, " ");
+    sb_str(sb, body);
+    if label != nil {
+        sb_str(sb, " ");
+        sb_str(sb, label);
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (break label?)
+func ast_break(label *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(break");
+    if label != nil {
+        sb_str(sb, " ");
+        sb_str(sb, label);
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (continue label?)
+func ast_continue(label *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(continue");
+    if label != nil {
+        sb_str(sb, " ");
+        sb_str(sb, label);
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (block stmts...)
+func ast_block(stmts *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(block");
+    var i i64 = 0;
+    var len i64 = ast_vec_len(stmts);
+    while i < len {
+        sb_str(sb, " ");
+        sb_str(sb, ast_vec_get(stmts, i));
+        i = i + 1;
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// Single statement block
+func ast_block1(stmt *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(block ");
+    sb_str(sb, stmt);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// ============================================================
+// Declarations
+// ============================================================
+
+// (var name type init?)
+func ast_var(name *u8, typ *u8, init *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(var ");
+    sb_str(sb, name);
+    sb_str(sb, " ");
+    sb_str(sb, typ);
+    if init != nil {
+        sb_str(sb, " ");
+        sb_str(sb, init);
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (func name (params...) ret body)
+func ast_func(name *u8, params *u8, ret *u8, body *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(func ");
+    sb_str(sb, name);
+    sb_str(sb, " (");
+    var i i64 = 0;
+    var len i64 = ast_vec_len(params);
+    while i < len {
+        if i > 0 { sb_str(sb, " "); }
+        sb_str(sb, ast_vec_get(params, i));
+        i = i + 1;
+    }
+    sb_str(sb, ") ");
+    sb_str(sb, ret);
+    sb_str(sb, " ");
+    sb_str(sb, body);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (field_decl name type)
+func ast_field_decl(name *u8, typ *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(field_decl ");
+    sb_str(sb, name);
+    sb_str(sb, " ");
+    sb_str(sb, typ);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (struct name (fields...))
+func ast_struct(name *u8, fields *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(struct ");
+    sb_str(sb, name);
+    sb_str(sb, " (");
+    var i i64 = 0;
+    var len i64 = ast_vec_len(fields);
+    while i < len {
+        if i > 0 { sb_str(sb, " "); }
+        sb_str(sb, ast_vec_get(fields, i));
+        i = i + 1;
+    }
+    sb_str(sb, "))");
+    return ast_finish(sb);
+}
+
+// (variant_decl name type?)
+func ast_variant_decl(name *u8, typ *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(variant_decl ");
+    sb_str(sb, name);
+    if typ != nil {
+        sb_str(sb, " ");
+        sb_str(sb, typ);
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (enum name (variants...))
+func ast_enum(name *u8, variants *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(enum ");
+    sb_str(sb, name);
+    sb_str(sb, " (");
+    var i i64 = 0;
+    var len i64 = ast_vec_len(variants);
+    while i < len {
+        if i > 0 { sb_str(sb, " "); }
+        sb_str(sb, ast_vec_get(variants, i));
+        i = i + 1;
+    }
+    sb_str(sb, "))");
+    return ast_finish(sb);
+}
+
+// (effect name (param_types...) ret)
+func ast_effect(name *u8, param_types *u8, ret *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(effect ");
+    sb_str(sb, name);
+    sb_str(sb, " (");
+    var i i64 = 0;
+    var len i64 = ast_vec_len(param_types);
+    while i < len {
+        if i > 0 { sb_str(sb, " "); }
+        sb_str(sb, ast_vec_get(param_types, i));
+        i = i + 1;
+    }
+    sb_str(sb, ") ");
+    sb_str(sb, ret);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (include "path")
+func ast_include(path *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(include ");
+    ast_quote_string(sb, path);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (program decls...)
+func ast_program(decls *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(program");
+    var i i64 = 0;
+    var len i64 = ast_vec_len(decls);
+    while i < len {
+        sb_str(sb, " ");
+        sb_str(sb, ast_vec_get(decls, i));
+        i = i + 1;
+    }
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// Single declaration program
+func ast_program1(decl *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(program ");
+    sb_str(sb, decl);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
