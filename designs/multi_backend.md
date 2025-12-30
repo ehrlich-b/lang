@@ -1,80 +1,55 @@
 # Multi-Backend Kernel Design
 
-**Status**: Design
-**Goal**: Cross-platform compiler (not just x86 generator)
+**Goal**: Cross-platform compiler — macOS + LLVM as first +1 targets
 
 ---
 
-## Dev Plan
+## TODO (Implementation Checklist)
 
-This design covers two related but independent tracks. Each can be done separately; together they enable full cross-platform support.
+### Track A: OS Abstraction (do first)
+- [ ] **A1**: Create `std/os/linux_x86_64.lang` — wrap syscalls as `os_read()`, `os_write()`, `os_exit()`, `os_mmap()`
+- [ ] **A2**: Update `std/core.lang` — replace `syscall(1, ...)` with `os_write(...)` etc
+- [ ] **A3**: `make verify` — confirm fixed point still works
+- [ ] **A4**: Create `std/os/macos_arm64.lang` — same `os_*` API, macOS syscall numbers
+- [ ] **A5**: Makefile target selection — generate `std/os.lang` from `LANGOS` env var
+- [ ] **A6**: Test on Mac
 
-### Track A: Cross-OS Support (First Target: macOS)
+### Track B: LLVM Backend (do second)
+- [ ] **B1**: Create `std/os/libc.lang` — `extern func write()`, `extern func malloc()`, etc
+- [ ] **B2**: Read `LANGBE` env var in `src/main.lang`
+- [ ] **B3**: Create `src/codegen_llvm.lang` — emit LLVM IR text (like x86 asm emitter)
+- [ ] **B4**: Test: hello.lang → hello.ll → `clang hello.ll -o hello` → runs
+- [ ] **B5**: Handle all AST nodes in LLVM backend
+- [ ] **B6**: Bootstrap test: compile compiler via LLVM path
 
-Add syscall abstraction layer so stdlib works on multiple OSes.
+### Track C: Toolchain Integration (do third, or incrementally)
+- [ ] **C1**: Add `fork()`/`exec()` syscall wrappers
+- [ ] **C2**: Implement `find_tool("clang")` — PATH search
+- [ ] **C3**: Auto-invoke `as`+`ld` after x86 codegen
+- [ ] **C4**: Auto-invoke `clang` after LLVM codegen
+- [ ] **C5**: `-S` flag to stop at assembly/IR (current behavior becomes opt-in)
+- [ ] **C6**: `lang env` command
 
-| Step | Task | Files | Status |
-|------|------|-------|--------|
-| A1 | Create `std/os/linux_x86_64.lang` with `os_*` wrappers | new | TODO |
-| A2 | Update `std/core.lang` to use `os_*` instead of raw syscall() | std/core.lang | TODO |
-| A3 | Verify fixed point still works (Linux x86_64) | make verify | TODO |
-| A4 | Create `std/os/macos_arm64.lang` with macOS syscall numbers | new | TODO |
-| A5 | Add target selection to build system | Makefile | TODO |
-| A6 | Test on Mac (cross-compile or native) | - | TODO |
-
-**Deliverable**: Same lang source compiles on Linux x86_64 and macOS ARM64 via direct backends.
-
-### Track B: LLVM Backend (New Compiler Target)
-
-Add LLVM IR as alternative codegen output.
-
-| Step | Task | Files | Status |
-|------|------|-------|--------|
-| B1 | Create `std/os/libc.lang` with extern declarations (write, read, exit, malloc) | new | TODO |
-| B2 | Add `LANGBE=llvm` env var support to compiler | src/main.lang | TODO |
-| B3 | Implement LLVM IR emitter (text output, like current x86 asm) | src/codegen.lang or new | TODO |
-| B4 | Test: compile hello world → .ll → manual clang → binary | test/ | TODO |
-| B5 | Handle all AST node types in LLVM backend | - | TODO |
-| B6 | Test full bootstrap through LLVM path | make verify | TODO |
-
-**Deliverable**: `LANGBE=llvm ./out/lang program.lang -o program.ll` produces valid LLVM IR that clang can compile.
-
-### Track C: Toolchain Integration (Lang = Full Compiler)
-
-Make lang invoke toolchains automatically so users get binaries, not intermediate files.
-
-| Step | Task | Files | Status |
-|------|------|-------|--------|
-| C1 | Add `exec()` / `fork()` syscall wrappers to stdlib | std/os.lang | TODO |
-| C2 | Implement `find_tool(name)` - PATH search + common locations | src/toolchain.lang | TODO |
-| C3 | Auto-invoke `as` + `ld` after x86 codegen (new default) | src/main.lang | TODO |
-| C4 | Auto-invoke `clang` after LLVM codegen (new default) | src/main.lang | TODO |
-| C5 | Add `-S` flag to stop at assembly/IR (current behavior) | src/main.lang | TODO |
-| C6 | Implement `lang env` command | src/main.lang | TODO |
-
-**Deliverable**: `./out/lang program.lang -o program` produces a runnable binary. No user knowledge of clang/as/ld required.
-
-### Why Three Tracks?
-
+### Key Files to Create
 ```
-Track A (OS abstraction):     Same backend, different OS syscalls
-Track B (LLVM backend):       Different backend, portable codegen
-Track C (Toolchain integration): Lang produces binaries, not intermediates
+std/os/linux_x86_64.lang   # os_* wrappers for Linux
+std/os/macos_arm64.lang    # os_* wrappers for macOS
+std/os/libc.lang           # extern declarations for libc
+src/codegen_llvm.lang      # LLVM IR emitter
 ```
 
-They compose:
-- Track A alone: Direct x86/ARM64 backends work on multiple OSes
-- Track B alone: LLVM backend works (user manually invokes clang)
-- Track C alone: Current x86 backend auto-invokes as+ld
-- All three: `lang foo.lang -o foo` just works on any platform
+### Environment Variables
+| Variable | Values | Default |
+|----------|--------|---------|
+| `LANGOS` | `linux`, `macos` | current OS |
+| `LANGBE` | `x86`, `llvm` | `llvm` |
+| `LANGLIBC` | `none`, `libc` | `none` |
 
-### Recommended Order
+---
 
-1. **Track A first** (simpler) - proves the OS abstraction works
-2. **Track B second** - LLVM IR is more work but unlocks portability
-3. **Track C third** - polish, but can be done incrementally alongside B
+# Reference Material
 
-Track C can start early (C1-C3 for x86) while B is in progress.
+*Everything below is design rationale. Read only if you need to understand "why".*
 
 ---
 
