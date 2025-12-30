@@ -1,0 +1,75 @@
+// std/os/linux_x86_64.lang - Linux x86_64 syscall wrappers
+//
+// Provides the os_* abstraction layer using raw Linux syscalls.
+// This file is selected by the build system when LANGOS=linux and targeting x86_64.
+
+// Core syscalls - these match the abstract interface in std/core.lang
+
+func os_read(fd i64, buf *u8, count i64) i64 {
+    // syscall 0 = read
+    return syscall(0, fd, buf, count);
+}
+
+func os_write(fd i64, buf *u8, count i64) i64 {
+    // syscall 1 = write
+    return syscall(1, fd, buf, count);
+}
+
+func os_open(path *u8, flags i64, mode i64) i64 {
+    // syscall 2 = open
+    return syscall(2, path, flags, mode);
+}
+
+func os_close(fd i64) i64 {
+    // syscall 3 = close
+    return syscall(3, fd);
+}
+
+func os_mmap(addr *u8, len i64, prot i64, flags i64, fd i64, offset i64) *u8 {
+    // syscall 9 = mmap
+    // prot: PROT_READ|PROT_WRITE = 3
+    // flags: MAP_PRIVATE|MAP_ANONYMOUS = 34
+    return syscall(9, addr, len, prot, flags, fd, offset);
+}
+
+func os_exit(code i64) void {
+    // syscall 60 = exit
+    syscall(60, code);
+}
+
+// Extended syscalls - used by std/os.lang utilities
+
+func os_stat(path *u8, statbuf *u8) i64 {
+    // syscall 4 = stat
+    return syscall(4, path, statbuf);
+}
+
+func os_getpid() i64 {
+    // syscall 39 = getpid
+    return syscall(39);
+}
+
+func os_getppid() i64 {
+    // syscall 110 = getppid
+    return syscall(110);
+}
+
+func os_getcwd(buf *u8, size i64) i64 {
+    // syscall 79 = getcwd
+    return syscall(79, buf, size);
+}
+
+func os_mkdir(path *u8, mode i64) i64 {
+    // syscall 83 = mkdir
+    return syscall(83, path, mode);
+}
+
+func os_unlink(path *u8) i64 {
+    // syscall 87 = unlink
+    return syscall(87, path);
+}
+
+func os_rmdir(path *u8) i64 {
+    // syscall 84 = rmdir
+    return syscall(84, path);
+}
