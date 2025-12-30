@@ -20,6 +20,27 @@ any syntax → [reader] → AST → [codegen] → x86
 
 The AST format IS the programming language. What we call "lang" is just one syntax (one "skin") that maps to that AST. Lisp S-expressions would be another skin. You could invent any syntax you want.
 
+## Semantic boundaries
+
+The AST defines what can be expressed. Syntax is unlimited - readers can parse anything. But the semantics are C-like.
+
+The kernel compiles to:
+- Manual memory (bump allocator, malloc/free, arenas)
+- Standard call stacks (push rbp, call, ret)
+- One-shot effects (state machine transform, not stack copying)
+
+The kernel does not provide:
+- Garbage collection (no stack maps for precise GC)
+- Split stacks or green threads (no custom prologues)
+- Multi-shot continuations (no stack copying)
+- Preemptive scheduling (no safepoints)
+
+For GC: conservative collection (Boehm-style) will work once the LLVM backend lands - just link libgc. Precise GC needs stack maps; the LLVM backend will support this via `gc.statepoint`. The x86 backend could add stack map emission (~300 lines) but it's not planned.
+
+For custom runtimes: readers can include whatever stdlib they want. The kernel compiles it. A GC'd language reader includes its GC implementation. An embedded language reader includes nothing. Same kernel, different linking.
+
+The design stays simple by pushing runtime policy to libraries.
+
 ## Why S-Expressions... But Also Not
 
 S-expressions are perfect for AST representation:

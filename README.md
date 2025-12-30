@@ -68,6 +68,18 @@ The composed compiler parses `lang_reader.lang` using its built-in lang reader, 
 
 Lang source becomes AST becomes x86 becomes a compiler that reads lang source. The whole thing rests on `mmap`, `read`, `write`, and `exit`. Four syscalls. No libc.
 
+## The semantic model
+
+Lang separates syntax from semantics. Any reader can define any surface syntax - Lisp, Python-like, your own DSL. But the AST compiles to C-like semantics: manual memory, standard call stacks, direct machine code.
+
+The kernel is ~5000 lines because it doesn't try to be a runtime. No GC, no scheduler, no bytecode interpreter. Just AST to machine code.
+
+This works for systems languages, config DSLs, data transforms, anything with manual memory or arenas or refcounting. One-shot effects (exceptions, generators, async) work too - they compile to state machines.
+
+Languages needing garbage collection or green threads need runtime support the kernel doesn't provide. The LLVM backend (in progress) will let you link against libgc for conservative collection, or use `gc.statepoint` for precise GC. But the kernel itself stays simple.
+
+Any syntax, C-like semantics. If your language fits that model, lang compiles it.
+
 ## How it got here
 
 1. Write a lang compiler in Go. No metaprogramming, just get something working.

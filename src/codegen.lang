@@ -4254,6 +4254,11 @@ func gen_block(block *u8) void {
 // ============================================================
 
 func gen_func(func_node *u8) void {
+    // Extern functions have no body - skip code generation
+    if func_decl_is_extern(func_node) {
+        return;
+    }
+
     // Reset locals
     cg_local_count = 0;
     cg_stack_size = 0;
@@ -5845,9 +5850,11 @@ func generate(prog *u8, out_path *u8) void {
     out_line(".section .text");
     out_line(".globl _start");
     out_line("_start:");
-    // Get argc and argv from stack
-    out_line("    mov (%rsp), %rdi");     // argc
-    out_line("    lea 8(%rsp), %rsi");    // argv
+    // Get argc, argv, and envp from stack
+    // Stack layout: [argc][argv[0]][argv[1]]...[argv[argc-1]][NULL][envp[0]]...
+    out_line("    mov (%rsp), %rdi");           // argc
+    out_line("    lea 8(%rsp), %rsi");          // argv
+    out_line("    lea 8(%rsi,%rdi,8), %rdx");   // envp = argv + (argc+1)*8
     out_line("    call ___main");
     out_line("    mov %rax, %rdi");
     out_line("    mov $60, %rax");

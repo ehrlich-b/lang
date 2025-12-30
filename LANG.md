@@ -85,6 +85,10 @@ func name(param1 Type1, param2 Type2) ReturnType {
 func print_char(c u8) void {
     syscall(1, 1, &c, 1);
 }
+
+// External function declaration (no body, for FFI/libc)
+extern func malloc(size i64) *u8;
+extern func write(fd i64, buf *u8, count i64) i64;
 ```
 
 ### Variables

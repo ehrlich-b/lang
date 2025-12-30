@@ -1,0 +1,19 @@
+//ignore - requires extern support (use COMPILER=./out/lang_next)
+// 42 - expected exit code
+// Test extern function declarations
+// 240_extern_func.lang
+//
+// This test verifies that extern functions can be declared.
+// Note: We can't actually call external libc functions with our x86 backend
+// since we don't link with libc. This test just verifies parsing works.
+
+// Declare some extern functions (these won't be called)
+extern func malloc(size i64) *u8;
+extern func free(ptr *u8) void;
+extern func strlen(s *u8) i64;
+
+// Regular function that we can call
+func main() i64 {
+    // Just return 42 - the extern declarations above should parse without error
+    return 42;
+}
