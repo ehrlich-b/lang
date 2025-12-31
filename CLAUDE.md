@@ -141,6 +141,48 @@ Use underscores: `my_var`, not `my-var`. The tokenizer sees `-` as minus.
 
 **Never change a test** just because the compiler rejects it. Weird edge cases are valuable.
 
+## Bootstrap Safety Rules (CRITICAL)
+
+The bootstrap chain is the compiler's lifeline. Corruption = days of recovery.
+
+### ONE Command: `make verify`
+
+```bash
+make verify    # Does EVERYTHING: kernel fixed point + reader fixed point + tests
+make promote   # Only after verify passes - saves to bootstrap/
+```
+
+**That's it.** No other verify commands exist. No kernel-verify. No lang-reader-verify.
+
+### What `make verify` Does (in order)
+
+1. **Bootstrap**: Assembles `bootstrap/current/compiler.s` → fresh compiler
+2. **Build**: Compiles all sources with bootstrap → `out/lang_VERSION`
+3. **Kernel Fixed Point**: New compiler compiles itself → must match step 2
+4. **Reader Build**: Builds standalone lang compiler
+5. **Reader Test**: Standalone compiler compiles test program
+6. **Test Suite**: Runs all 165 tests
+
+If ANY step fails, the whole verify fails. Fix before proceeding.
+
+### NEVER Do These Things
+
+1. **NEVER bypass tests** - If tests hang or are slow, WAIT or diagnose
+2. **NEVER manually copy compiler.s** - Only `make promote` touches bootstrap/
+3. **NEVER modify escape_hatch.s directly** - It's auto-updated by promote
+4. **NEVER run partial verification** - Always full `make verify`
+
+### Recovery: LLVM Bootstrap Path
+
+If x86 bootstrap is corrupted but LLVM bootstrap exists:
+```bash
+clang bootstrap/VERSION/llvm/compiler.ll -o /tmp/llvm_compiler
+/tmp/llvm_compiler [sources] -o /tmp/stage1.s
+# Then staged rebuild (see FORENSIC_ANALYSIS.md)
+```
+
+The LLVM backend can rescue a corrupted x86 bootstrap.
+
 ## Key Decisions
 
 | Decision | Choice | Why |

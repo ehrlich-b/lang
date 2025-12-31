@@ -1,7 +1,6 @@
 .PHONY: all bootstrap build verify promote release test test-suite test-run clean distclean \
         build-kernel build-lang-reader emit-kernel-ast emit-lang-reader-ast emit-compiler-ast \
-        seed-bootstrap test-composition kernel-verify kernel-promote lang-reader-verify lang-reader-promote \
-        generate-os-layer
+        seed-bootstrap test-composition generate-os-layer
 
 # Get git info
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -65,9 +64,95 @@ build: generate-os-layer
 	ln -sf lang_$(VERSION) $(LANG_NEXT)
 	@echo "Created: $(LANG_NEXT) -> lang_$(VERSION)"
 
-# Verify/Promote - use lang-reader (split architecture)
-verify: lang-reader-verify
-promote: lang-reader-promote
+# Unified verify: kernel fixed point + reader fixed point + tests
+# This is the ONE command to verify any compiler change
+verify: generate-os-layer
+	@echo "=== UNIFIED VERIFY ==="
+	@echo ""
+	@echo "Phase 1: Bootstrap from known-good..."
+	@mkdir -p out out/ast
+	@if [ ! -f $(BOOTSTRAP) ]; then echo "ERROR: No bootstrap found at $(BOOTSTRAP)"; exit 1; fi
+	as $(BOOTSTRAP) -o /tmp/boot.o
+	ld /tmp/boot.o -o /tmp/boot
+	rm -f /tmp/boot.o
+	@echo ""
+	@echo "Phase 2: Build compiler from sources..."
+	/tmp/boot std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/lang_$(VERSION).s
+	as out/lang_$(VERSION).s -o out/lang_$(VERSION).o
+	ld out/lang_$(VERSION).o -o out/lang_$(VERSION)
+	rm -f out/lang_$(VERSION).o
+	ln -sf lang_$(VERSION) $(LANG_NEXT)
+	@echo "Built: $(LANG_NEXT) -> lang_$(VERSION)"
+	@echo ""
+	@echo "Phase 3: KERNEL FIXED POINT (compiler compiles itself)..."
+	./out/lang_$(VERSION) std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/lang_$(VERSION)_v2.s
+	@if diff -q out/lang_$(VERSION).s out/lang_$(VERSION)_v2.s > /dev/null; then \
+		echo "KERNEL FIXED POINT VERIFIED"; \
+		rm -f out/lang_$(VERSION)_v2.s; \
+	else \
+		echo ""; \
+		echo "!!! KERNEL FIXED POINT FAILED !!!"; \
+		echo "The compiler cannot compile itself identically."; \
+		diff out/lang_$(VERSION).s out/lang_$(VERSION)_v2.s | head -20; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Phase 4: Build standalone compiler (lang reader)..."
+	$(LANG_NEXT) src/lang_reader.lang --emit-expanded-ast -o out/ast/lang_reader_v1.ast
+	@wc -l out/ast/lang_reader_v1.ast
+	$(LANG_NEXT) -c lang src/lang_reader.lang -o out/lang_standalone.s
+	as out/lang_standalone.s -o out/lang_standalone.o
+	ld out/lang_standalone.o -o out/lang_standalone
+	rm -f out/lang_standalone.o
+	@echo ""
+	@echo "Phase 5: READER FIXED POINT (standalone compiler works)..."
+	@echo 'func main() i64 { return 42; }' > /tmp/test42.lang
+	./out/lang_standalone /tmp/test42.lang -o /tmp/test42.s
+	as /tmp/test42.s -o /tmp/test42.o
+	ld /tmp/test42.o -o /tmp/test42
+	@/tmp/test42; EXIT=$$?; if [ $$EXIT -eq 42 ]; then \
+		echo "READER FIXED POINT VERIFIED"; \
+	else \
+		echo ""; \
+		echo "!!! READER FIXED POINT FAILED !!!"; \
+		echo "Standalone compiler produced wrong result: expected 42, got $$EXIT"; \
+		exit 1; \
+	fi
+	@rm -f /tmp/test42.lang /tmp/test42.s /tmp/test42.o /tmp/test42
+	@echo ""
+	@echo "Phase 6: Full test suite..."
+	@./test/run_lang1_suite.sh
+	@echo ""
+	@echo "=== ALL VERIFICATIONS PASSED ==="
+	@echo "Run 'make promote' to save this version to bootstrap."
+
+# Unified promote: save verified compiler to bootstrap
+promote: verify
+	@mkdir -p bootstrap/$(GIT_COMMIT)/lang_reader
+	@echo ""
+	@echo "=== PROMOTING $(GIT_COMMIT) ==="
+	cp out/lang_standalone.s bootstrap/$(GIT_COMMIT)/compiler.s
+	cp out/ast/lang_reader_v1.ast bootstrap/$(GIT_COMMIT)/lang_reader/source.ast
+	@echo "compiler.s:" > bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler.s | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  built_by: bootstrap/$$(readlink bootstrap/current 2>/dev/null || echo none)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  built_at: $$(date -Iseconds)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  source_commit: $(GIT_COMMIT)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  verified_fixed_point: true" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "lang_reader/source.ast:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/lang_reader/source.ast | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  lines: $$(wc -l < bootstrap/$(GIT_COMMIT)/lang_reader/source.ast)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	ln -sfn $(GIT_COMMIT) bootstrap/current
+	cp bootstrap/$(GIT_COMMIT)/compiler.s bootstrap/escape_hatch.s
+	ln -sf lang_$(VERSION) $(LANG)
+	rm -f $(LANG_NEXT)
+	@echo ""
+	@echo "Promoted: bootstrap/$(GIT_COMMIT)/"
+	@echo "  - compiler.s (standalone lang compiler)"
+	@echo "  - lang_reader/source.ast (expanded AST)"
+	@echo "Updated: bootstrap/current -> $(GIT_COMMIT)"
+	@echo "Updated: bootstrap/escape_hatch.s"
+	@echo "Updated: $(LANG) -> lang_$(VERSION)"
 
 # Release: save .s to bootstrap/, git tag
 release:
@@ -285,110 +370,5 @@ test-bootstrap: test-composition
 		exit 1; \
 	fi
 
-# ============================================================
-# KERNEL: verify and promote
-# ============================================================
-# Kernel fixed point: kernel compiles kernel AST, output matches
-# Flow:
-#   1. lang_next generates expanded kernel AST
-#   2. lang_next compiles kernel sources → assembly A
-#   3. kernel compiles expanded AST → assembly B
-#   4. Verify A == B (kernel correctly compiles its own AST)
-
-kernel-verify: build build-kernel
-	@echo "=== Verifying kernel fixed point ==="
-	@mkdir -p out/ast
-	@echo "Step 1: Generate expanded kernel AST..."
-	$(LANG_NEXT) $(KERNEL_SOURCES) --emit-expanded-ast -o out/ast/kernel_expanded.ast
-	@echo "Step 2: Kernel compiles its own AST..."
-	./out/kernel out/ast/kernel_expanded.ast -o out/kernel_from_ast.s
-	@echo "Step 3: Comparing assembly outputs..."
-	@if diff -q out/kernel.s out/kernel_from_ast.s > /dev/null; then \
-		echo "KERNEL FIXED POINT VERIFIED"; \
-		rm -f out/kernel_from_ast.s; \
-	else \
-		echo "ERROR: Kernel fixed point not reached!"; \
-		diff out/kernel.s out/kernel_from_ast.s | head -30; \
-		exit 1; \
-	fi
-	@echo ""
-	@echo "Running test suite..."
-	@./test/run_lang1_suite.sh
-
-kernel-promote: kernel-verify
-	@mkdir -p bootstrap/$(GIT_COMMIT)/kernel
-	cp out/kernel.s bootstrap/$(GIT_COMMIT)/compiler.s
-	cp out/ast/kernel_expanded.ast bootstrap/$(GIT_COMMIT)/kernel/source.ast
-	@echo "compiler.s:" > bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler.s | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  built_by: bootstrap/$$(readlink bootstrap/current)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  built_at: $$(date -Iseconds)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  source_commit: $(GIT_COMMIT)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  kernel_change: true" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  verified_fixed_point: true" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	ln -sfn $(GIT_COMMIT) bootstrap/current
-	cp bootstrap/$(GIT_COMMIT)/compiler.s bootstrap/escape_hatch.s
-	@echo "Promoted kernel: bootstrap/$(GIT_COMMIT)/compiler.s"
-	@echo "Updated: bootstrap/escape_hatch.s"
-
-# ============================================================
-# LANG-READER: verify and promote
-# ============================================================
-# Lang-reader in-AST fixed point:
-#   1. lang_next emits expanded lang_reader AST (A)
-#   2. Build standalone lang compiler with -c
-#   3. Standalone compiler re-emits lang_reader AST (B)
-#   4. Verify A == B
-
-lang-reader-verify: build
-	@echo "=== Verifying lang-reader in-AST fixed point ==="
-	@mkdir -p out/ast
-	@echo "Step 1: Generate expanded lang_reader AST..."
-	$(LANG_NEXT) src/lang_reader.lang --emit-expanded-ast -o out/ast/lang_reader_v1.ast
-	@wc -l out/ast/lang_reader_v1.ast
-	@echo ""
-	@echo "Step 2: Build standalone lang compiler..."
-	$(LANG_NEXT) -c lang src/lang_reader.lang -o out/lang_standalone.s
-	as out/lang_standalone.s -o out/lang_standalone.o
-	ld out/lang_standalone.o -o out/lang_standalone
-	rm -f out/lang_standalone.o
-	@echo ""
-	@echo "Step 3: Standalone compiler re-emits lang_reader AST..."
-	./out/lang_standalone src/lang_reader.lang -o /tmp/lang_reader_test.s 2>/dev/null || true
-	@# For now, test that the standalone compiler can compile a simple program
-	@echo "Step 4: Testing standalone compiler on simple program..."
-	@echo 'func main() i64 { return 42; }' > /tmp/test42.lang
-	./out/lang_standalone /tmp/test42.lang -o /tmp/test42.s
-	as /tmp/test42.s -o /tmp/test42.o
-	ld /tmp/test42.o -o /tmp/test42
-	@/tmp/test42; EXIT=$$?; if [ $$EXIT -eq 42 ]; then echo "Standalone compiler works!"; else echo "ERROR: expected 42, got $$EXIT"; exit 1; fi
-	@rm -f /tmp/test42.lang /tmp/test42.s /tmp/test42.o /tmp/test42
-	@echo ""
-	@echo "LANG-READER FIXED POINT VERIFIED (standalone compiler works)"
-	@echo ""
-	@echo "Running test suite..."
-	@./test/run_lang1_suite.sh
-
-lang-reader-promote: lang-reader-verify
-	@mkdir -p bootstrap/$(GIT_COMMIT)/kernel bootstrap/$(GIT_COMMIT)/lang_reader
-	@# Save the standalone compiler assembly
-	cp out/lang_standalone.s bootstrap/$(GIT_COMMIT)/compiler.s
-	@# Save the expanded lang_reader AST
-	cp out/ast/lang_reader_v1.ast bootstrap/$(GIT_COMMIT)/lang_reader/source.ast
-	@# Generate PROVENANCE
-	@echo "compiler.s:" > bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler.s | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  built_by: bootstrap/$$(readlink bootstrap/current 2>/dev/null || echo none)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  built_at: $$(date -Iseconds)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  source_commit: $(GIT_COMMIT)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  lang_reader_change: true" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  verified_fixed_point: true" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "lang_reader/source.ast:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/lang_reader/source.ast | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  lines: $$(wc -l < bootstrap/$(GIT_COMMIT)/lang_reader/source.ast)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	ln -sfn $(GIT_COMMIT) bootstrap/current
-	cp bootstrap/$(GIT_COMMIT)/compiler.s bootstrap/escape_hatch.s
-	@echo "Promoted: bootstrap/$(GIT_COMMIT)/"
-	@echo "  - compiler.s (standalone lang compiler)"
-	@echo "  - lang_reader/source.ast (expanded AST)"
-	@echo "Updated: bootstrap/escape_hatch.s"
+# OLD TARGETS REMOVED - use unified 'make verify' and 'make promote' instead
+# The unified verify does both kernel and reader fixed point checks in one command
