@@ -45,4 +45,8 @@ echo ""
 echo "Passed: $passed / $((passed + failed))"
 if [ $failed -eq 0 ]; then
     echo "All tests passed!"
+    exit 0
+else
+    echo "FAILED: $failed tests failed"
+    exit 1
 fi

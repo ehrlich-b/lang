@@ -120,8 +120,18 @@ verify: generate-os-layer
 	fi
 	@rm -f /tmp/test42.lang /tmp/test42.s /tmp/test42.o /tmp/test42
 	@echo ""
-	@echo "Phase 6: Full test suite..."
-	@./test/run_lang1_suite.sh
+	@echo "Phase 6: x86 test suite..."
+	@COMPILER=$(LANG_NEXT) ./test/run_lang1_suite.sh
+	@echo ""
+	@echo "Phase 7: Build LLVM+libc bootstrap compiler..."
+	@echo 'include "std/os/libc.lang"' > std/os.lang
+	LANGBE=llvm $(LANG_NEXT) std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/llvm_libc_compiler.ll
+	@echo 'include "std/os/linux_x86_64.lang"' > std/os.lang
+	clang -O2 out/llvm_libc_compiler.ll -o out/llvm_libc_compiler
+	@echo "Built: out/llvm_libc_compiler"
+	@echo ""
+	@echo "Phase 8: LLVM test suite (via LLVM+libc compiler)..."
+	@COMPILER=./out/llvm_libc_compiler ./test/run_llvm_suite.sh
 	@echo ""
 	@echo "=== ALL VERIFICATIONS PASSED ==="
 	@echo "Run 'make promote' to save this version to bootstrap."
@@ -132,6 +142,7 @@ promote: verify
 	@echo ""
 	@echo "=== PROMOTING $(GIT_COMMIT) ==="
 	cp out/lang_standalone.s bootstrap/$(GIT_COMMIT)/compiler.s
+	cp out/llvm_libc_compiler.ll bootstrap/$(GIT_COMMIT)/llvm_libc_compiler.ll
 	cp out/ast/lang_reader_v1.ast bootstrap/$(GIT_COMMIT)/lang_reader/source.ast
 	@echo "compiler.s:" > bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler.s | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
@@ -139,19 +150,24 @@ promote: verify
 	@echo "  built_at: $$(date -Iseconds)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "  source_commit: $(GIT_COMMIT)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "  verified_fixed_point: true" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "llvm_libc_compiler.ll:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/llvm_libc_compiler.ll | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "lang_reader/source.ast:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/lang_reader/source.ast | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "  lines: $$(wc -l < bootstrap/$(GIT_COMMIT)/lang_reader/source.ast)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	ln -sfn $(GIT_COMMIT) bootstrap/current
 	cp bootstrap/$(GIT_COMMIT)/compiler.s bootstrap/escape_hatch.s
+	cp bootstrap/$(GIT_COMMIT)/llvm_libc_compiler.ll bootstrap/llvm_libc_compiler.ll
 	ln -sf lang_$(VERSION) $(LANG)
 	rm -f $(LANG_NEXT)
 	@echo ""
 	@echo "Promoted: bootstrap/$(GIT_COMMIT)/"
-	@echo "  - compiler.s (standalone lang compiler)"
+	@echo "  - compiler.s (x86-64 standalone compiler)"
+	@echo "  - llvm_libc_compiler.ll (LLVM+libc cross-platform compiler)"
 	@echo "  - lang_reader/source.ast (expanded AST)"
 	@echo "Updated: bootstrap/current -> $(GIT_COMMIT)"
 	@echo "Updated: bootstrap/escape_hatch.s"
+	@echo "Updated: bootstrap/llvm_libc_compiler.ll"
 	@echo "Updated: $(LANG) -> lang_$(VERSION)"
 
 # Release: save .s to bootstrap/, git tag
