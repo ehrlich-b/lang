@@ -175,6 +175,42 @@ func llvm_next_temp() i64 {
     return n;
 }
 
+// Counter for anonymous locals (enums, etc.)
+var llvm_anon_local_counter i64 = 0;
+
+// Allocate an anonymous local with given size, returns LLVM variable name
+func llvm_alloc_local_size(size i64) *u8 {
+    var name *u8 = alloc(32);
+    var p *u8 = name;
+    *p = 91; p = p + 1;  // [
+    itoa(size, p);
+    var len i64 = strlen(p);
+    p = p + len;
+    *p = 32; p = p + 1;  // space
+    *p = 120; p = p + 1;  // x
+    *p = 32; p = p + 1;  // space
+    *p = 105; p = p + 1;  // i
+    *p = 56; p = p + 1;   // 8
+    *p = 93; p = p + 1;   // ]
+    *p = 0;
+
+    // Emit alloca
+    var local_name *u8 = alloc(32);
+    *local_name = 37;  // %
+    *(local_name + 1) = 95;  // _
+    *(local_name + 2) = 97;  // a
+    itoa(llvm_anon_local_counter, local_name + 3);
+    llvm_anon_local_counter = llvm_anon_local_counter + 1;
+
+    llvm_emit_str("    ");
+    llvm_emit_str(local_name);
+    llvm_emit_str(" = alloca ");
+    llvm_emit_str(name);
+    llvm_emit_char(10);
+
+    return local_name;
+}
+
 // Track local variables (need load) vs parameters (use directly)
 var llvm_locals *u8 = nil;
 
@@ -647,16 +683,52 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_char(10);
             llvm_set_result_temp(temp);
         } else if llvm_is_local(name, len) {
-            // Local variable: emit load
-            var temp i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(temp);
-            llvm_emit_str(" = load i64, i64* %");
-            llvm_emit_n(name, len);
-            llvm_emit_char(10);
+            // Local variable: check if it's an aggregate type (struct/enum)
+            var local_idx i64 = find_local(name, len);
+            var local_type *u8 = nil;
+            var is_aggregate i64 = 0;
+            var aggregate_size i64 = 0;
 
-            // Set result to temp - use llvm_set_result_temp for consistency
-            llvm_set_result_temp(temp);
+            if local_idx >= 0 {
+                local_type = local_get_type(local_idx);
+                if local_type != nil && type_kind(local_type) == TYPE_BASE {
+                    var type_name *u8 = base_type_name(local_type);
+                    var type_name_len i64 = base_type_name_len(local_type);
+                    var struct_decl *u8 = find_struct(type_name, type_name_len);
+                    if struct_decl != nil {
+                        is_aggregate = 1;
+                        aggregate_size = get_struct_size(struct_decl);
+                    } else {
+                        var enum_decl *u8 = find_enum(type_name, type_name_len);
+                        if enum_decl != nil {
+                            is_aggregate = 1;
+                            aggregate_size = get_enum_size(enum_decl);
+                        }
+                    }
+                }
+            }
+
+            if is_aggregate != 0 {
+                // Aggregate type: return address (ptrtoint)
+                var temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(temp);
+                llvm_emit_str(" = ptrtoint [");
+                llvm_emit_int(aggregate_size);
+                llvm_emit_str(" x i8]* %");
+                llvm_emit_n(name, len);
+                llvm_emit_line(" to i64");
+                llvm_set_result_temp(temp);
+            } else {
+                // Primitive type: emit load
+                var temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(temp);
+                llvm_emit_str(" = load i64, i64* %");
+                llvm_emit_n(name, len);
+                llvm_emit_char(10);
+                llvm_set_result_temp(temp);
+            }
         } else if llvm_is_global(name, len) {
             // Global variable: emit load from @name
             var temp i64 = llvm_next_temp();
@@ -682,6 +754,181 @@ func llvm_emit_expr(expr *u8) void {
     if k == NODE_CALL_EXPR {
         // Function call: emit call instruction and store result in temp
         var func_expr *u8 = call_expr_func(expr);
+        var args *u8 = call_expr_args(expr);
+        var arg_count i64 = call_expr_arg_count(expr);
+
+        // Check for enum variant construction: EnumName.Variant(payload)
+        if node_kind(func_expr) == NODE_FIELD_EXPR {
+            var field_base *u8 = field_expr_expr(func_expr);
+            var field_name *u8 = field_expr_field(func_expr);
+            var field_len i64 = field_expr_field_len(func_expr);
+
+            // Check if base is an ident that matches an enum
+            if node_kind(field_base) == NODE_IDENT_EXPR {
+                var enum_name *u8 = ident_expr_name(field_base);
+                var enum_name_len i64 = ident_expr_name_len(field_base);
+                var enum_decl *u8 = find_enum(enum_name, enum_name_len);
+
+                if enum_decl != nil {
+                    // Find the variant
+                    var variant *u8 = find_variant(enum_decl, field_name, field_len);
+                    if variant == nil {
+                        eprint("error: enum '");
+                        eprint_buf(enum_name, enum_name_len);
+                        eprint("' has no variant '");
+                        eprint_buf(field_name, field_len);
+                        eprintln("'");
+                        return;
+                    }
+
+                    // Allocate space for enum on stack
+                    var enum_size i64 = get_enum_size(enum_decl);
+                    var enum_var *u8 = llvm_alloc_local_size(enum_size);
+
+                    // Build the type string for ptrtoint (e.g., "[16 x i8]*")
+                    var type_str *u8 = alloc(32);
+                    var tp *u8 = type_str;
+                    *tp = 91; tp = tp + 1;  // [
+                    itoa(enum_size, tp);
+                    tp = tp + strlen(tp);
+                    *tp = 32; tp = tp + 1;  // space
+                    *tp = 120; tp = tp + 1;  // x
+                    *tp = 32; tp = tp + 1;  // space
+                    *tp = 105; tp = tp + 1;  // i
+                    *tp = 56; tp = tp + 1;   // 8
+                    *tp = 93; tp = tp + 1;   // ]
+                    *tp = 42; tp = tp + 1;   // *
+                    *tp = 0;
+
+                    // Set tag
+                    var tag i64 = enum_variant_tag(variant);
+                    var tag_ptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(tag_ptr_temp);
+                    llvm_emit_str(" = ptrtoint ");
+                    llvm_emit_str(type_str);
+                    llvm_emit_str(" ");
+                    llvm_emit_str(enum_var);
+                    llvm_emit_line(" to i64");
+
+                    var tag_store_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(tag_store_temp);
+                    llvm_emit_str(" = inttoptr i64 %t");
+                    llvm_emit_int(tag_ptr_temp);
+                    llvm_emit_line(" to i64*");
+
+                    llvm_emit_str("    store i64 ");
+                    llvm_emit_int(tag);
+                    llvm_emit_str(", i64* %t");
+                    llvm_emit_int(tag_store_temp);
+                    llvm_emit_char(10);
+
+                    // Set payload if present
+                    if arg_count > 0 {
+                        var p **u8 = args;
+                        llvm_emit_expr(*p);
+                        var payload_val *u8 = str_dup(llvm_expr_result);
+
+                        var payload_type *u8 = enum_variant_type(variant);
+                        var payload_size i64 = 8;
+                        if payload_type != nil {
+                            payload_size = get_type_size(payload_type);
+                        }
+
+                        // Get pointer to payload (offset 8 from enum base)
+                        var payload_ptr_temp i64 = llvm_next_temp();
+                        llvm_emit_str("    %t");
+                        llvm_emit_int(payload_ptr_temp);
+                        llvm_emit_str(" = add i64 %t");
+                        llvm_emit_int(tag_ptr_temp);
+                        llvm_emit_line(", 8");
+
+                        if payload_size <= 8 {
+                            // Simple store
+                            var payload_store_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(payload_store_temp);
+                            llvm_emit_str(" = inttoptr i64 %t");
+                            llvm_emit_int(payload_ptr_temp);
+                            llvm_emit_line(" to i64*");
+
+                            llvm_emit_str("    store i64 ");
+                            llvm_emit_str(payload_val);
+                            llvm_emit_str(", i64* %t");
+                            llvm_emit_int(payload_store_temp);
+                            llvm_emit_char(10);
+                        } else {
+                            // Aggregate - payload_val is pointer, copy bytes
+                            var copy_i i64 = 0;
+                            while copy_i < payload_size {
+                                // Load from source
+                                var src_offset_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(src_offset_temp);
+                                llvm_emit_str(" = add i64 ");
+                                llvm_emit_str(payload_val);
+                                llvm_emit_str(", ");
+                                llvm_emit_int(copy_i);
+                                llvm_emit_char(10);
+
+                                var src_ptr_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(src_ptr_temp);
+                                llvm_emit_str(" = inttoptr i64 %t");
+                                llvm_emit_int(src_offset_temp);
+                                llvm_emit_line(" to i64*");
+
+                                var load_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(load_temp);
+                                llvm_emit_str(" = load i64, i64* %t");
+                                llvm_emit_int(src_ptr_temp);
+                                llvm_emit_char(10);
+
+                                // Store to dest
+                                var dst_offset_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(dst_offset_temp);
+                                llvm_emit_str(" = add i64 %t");
+                                llvm_emit_int(payload_ptr_temp);
+                                llvm_emit_str(", ");
+                                llvm_emit_int(copy_i);
+                                llvm_emit_char(10);
+
+                                var dst_ptr_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(dst_ptr_temp);
+                                llvm_emit_str(" = inttoptr i64 %t");
+                                llvm_emit_int(dst_offset_temp);
+                                llvm_emit_line(" to i64*");
+
+                                llvm_emit_str("    store i64 %t");
+                                llvm_emit_int(load_temp);
+                                llvm_emit_str(", i64* %t");
+                                llvm_emit_int(dst_ptr_temp);
+                                llvm_emit_char(10);
+
+                                copy_i = copy_i + 8;
+                            }
+                        }
+                    }
+
+                    // Return pointer to enum value
+                    var result_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(result_temp);
+                    llvm_emit_str(" = ptrtoint ");
+                    llvm_emit_str(type_str);
+                    llvm_emit_str(" ");
+                    llvm_emit_str(enum_var);
+                    llvm_emit_line(" to i64");
+
+                    llvm_set_result_temp(result_temp);
+                    return;
+                }
+            }
+        }
 
         // Get function name from the function expression (usually an ident)
         var func_name *u8 = nil;
@@ -703,11 +950,17 @@ func llvm_emit_expr(expr *u8) void {
                     is_indirect = 2;  // 2 = global indirect
                 }
             }
+        } else {
+            // Non-identifier function expression (e.g., struct.field, array[i])
+            // Evaluate the expression to get the function pointer value
+            is_indirect = 3;  // 3 = expression-based indirect call
+
+            // Emit the function expression to get the pointer value
+            llvm_emit_expr(func_expr);
+            indirect_ptr_val = str_dup(llvm_expr_result);
         }
 
         // First, emit all argument expressions and collect their values
-        var args *u8 = call_expr_args(expr);
-        var arg_count i64 = call_expr_arg_count(expr);
         var arg_vals **u8 = alloc(arg_count * 8);
         var i i64 = 0;
         while i < arg_count {
@@ -718,27 +971,40 @@ func llvm_emit_expr(expr *u8) void {
             i = i + 1;
         }
 
-        // If indirect call, load the function pointer now
+        // If indirect call, load and cast the function pointer now
         if is_indirect != 0 {
-            var load_temp i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(load_temp);
-            if is_indirect == 2 {
-                // Global variable
-                llvm_emit_str(" = load i64, i64* @");
+            var ptr_val_str *u8 = nil;
+
+            if is_indirect == 3 {
+                // Expression-based: already have the i64 value in indirect_ptr_val
+                ptr_val_str = indirect_ptr_val;
             } else {
-                // Local variable
-                llvm_emit_str(" = load i64, i64* %");
+                // Variable-based: need to load from local or global
+                var load_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(load_temp);
+                if is_indirect == 2 {
+                    // Global variable
+                    llvm_emit_str(" = load i64, i64* @");
+                } else {
+                    // Local variable
+                    llvm_emit_str(" = load i64, i64* %");
+                }
+                llvm_emit_n(func_name, func_name_len);
+                llvm_emit_char(10);
+
+                var buf *u8 = alloc(32);
+                *buf = 37; *(buf+1) = 116;  // "%t"
+                itoa(load_temp, buf + 2);
+                ptr_val_str = buf;
             }
-            llvm_emit_n(func_name, func_name_len);
-            llvm_emit_char(10);
 
             // Cast to function pointer
             var cast_temp i64 = llvm_next_temp();
             llvm_emit_str("    %t");
             llvm_emit_int(cast_temp);
-            llvm_emit_str(" = inttoptr i64 %t");
-            llvm_emit_int(load_temp);
+            llvm_emit_str(" = inttoptr i64 ");
+            llvm_emit_str(ptr_val_str);
             // Build function type based on arg count
             llvm_emit_str(" to i64 (");
             var j i64 = 0;
@@ -751,10 +1017,10 @@ func llvm_emit_expr(expr *u8) void {
             }
             llvm_emit_line(")*");
 
-            var buf *u8 = alloc(32);
-            *buf = 37; *(buf+1) = 116;  // "%t"
-            itoa(cast_temp, buf + 2);
-            indirect_ptr_val = buf;
+            var buf2 *u8 = alloc(32);
+            *buf2 = 37; *(buf2+1) = 116;  // "%t"
+            itoa(cast_temp, buf2 + 2);
+            indirect_ptr_val = buf2;
         }
 
         // Check if function returns void or pointer
@@ -1181,24 +1447,30 @@ func llvm_emit_expr(expr *u8) void {
                     llvm_emit_line(" to i64");
                     llvm_set_result_temp(temp);
                 } else {
-                    // Check if inner is a struct type (needs different LLVM type)
+                    // Check if inner is a struct or enum type (needs different LLVM type)
                     var inner_type *u8 = get_expr_type(inner);
-                    var struct_size i64 = 0;
+                    var alloc_size i64 = 0;
                     if inner_type != nil && type_kind(inner_type) == TYPE_BASE {
                         var type_name *u8 = base_type_name(inner_type);
                         var type_name_len i64 = base_type_name_len(inner_type);
                         var struct_decl *u8 = find_struct(type_name, type_name_len);
                         if struct_decl != nil {
-                            struct_size = get_struct_size(struct_decl);
+                            alloc_size = get_struct_size(struct_decl);
+                        } else {
+                            // Check if it's an enum type
+                            var enum_decl *u8 = find_enum(type_name, type_name_len);
+                            if enum_decl != nil {
+                                alloc_size = get_enum_size(enum_decl);
+                            }
                         }
                     }
 
                     // ptrtoint converts pointer to integer
                     llvm_emit_str("    %t");
                     llvm_emit_int(temp);
-                    if struct_size > 8 {
+                    if alloc_size > 8 {
                         llvm_emit_str(" = ptrtoint [");
-                        llvm_emit_int(struct_size);
+                        llvm_emit_int(alloc_size);
                         llvm_emit_str(" x i8]* %");
                     } else {
                         llvm_emit_str(" = ptrtoint i64* %");
@@ -1691,6 +1963,322 @@ func llvm_emit_expr(expr *u8) void {
         return;
     }
 
+    if k == NODE_BLOCK_EXPR {
+        // Block expression: { stmts; tail_expr }
+        // Evaluates to the tail expression's value
+        var stmts *u8 = block_expr_stmts(expr);
+        var count i64 = block_expr_count(expr);
+        var tail *u8 = block_expr_tail(expr);
+
+        // Generate all statements
+        var i i64 = 0;
+        while i < count {
+            var p **u8 = stmts + (i * 8);
+            llvm_emit_stmt(*p);
+            i = i + 1;
+        }
+
+        // Generate tail expression (leaves value in result)
+        if tail != nil {
+            llvm_emit_expr(tail);
+        }
+        return;
+    }
+
+    if k == NODE_MATCH_EXPR {
+        // Generate match expression: compile to if/else chain
+        var scrutinee *u8 = match_expr_scrutinee(expr);
+        var arms *u8 = match_expr_arms(expr);
+        var arm_count i64 = match_expr_arm_count(expr);
+
+        // Evaluate scrutinee (returns pointer to enum)
+        llvm_emit_expr(scrutinee);
+        var scrutinee_val *u8 = str_dup(llvm_expr_result);
+
+        // Load tag from scrutinee
+        var tag_ptr_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(tag_ptr_temp);
+        llvm_emit_str(" = inttoptr i64 ");
+        llvm_emit_str(scrutinee_val);
+        llvm_emit_line(" to i64*");
+
+        var tag_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(tag_temp);
+        llvm_emit_str(" = load i64, i64* %t");
+        llvm_emit_int(tag_ptr_temp);
+        llvm_emit_char(10);
+
+        // Allocate result variable
+        var result_var *u8 = alloc(16);
+        *result_var = 37;  // %
+        *(result_var + 1) = 95;  // _
+        *(result_var + 2) = 109;  // m
+        itoa(llvm_anon_local_counter, result_var + 3);
+        llvm_anon_local_counter = llvm_anon_local_counter + 1;
+
+        llvm_emit_str("    ");
+        llvm_emit_str(result_var);
+        llvm_emit_line(" = alloca i64");
+
+        var end_label i64 = llvm_next_label();
+
+        var i i64 = 0;
+        while i < arm_count {
+            var arm *u8 = get_match_arm(arms, i);
+            var pattern *u8 = match_arm_pattern(arm);
+            var body *u8 = match_arm_body(arm);
+            var pk i64 = node_kind(pattern);
+
+            if pk == NODE_PATTERN_WILDCARD {
+                // Wildcard matches anything - just emit body
+                llvm_emit_expr(body);
+                var body_val *u8 = str_dup(llvm_expr_result);
+                llvm_emit_str("    store i64 ");
+                llvm_emit_str(body_val);
+                llvm_emit_str(", i64* ");
+                llvm_emit_str(result_var);
+                llvm_emit_char(10);
+
+                llvm_emit_str("    br label %L");
+                llvm_emit_int(end_label);
+                llvm_emit_char(10);
+            } else if pk == NODE_PATTERN_VARIANT {
+                // Get variant info from pattern
+                var enum_name *u8 = pattern_variant_enum_name(pattern);
+                var enum_len i64 = pattern_variant_enum_len(pattern);
+                var var_name *u8 = pattern_variant_name(pattern);
+                var var_len i64 = pattern_variant_name_len(pattern);
+                var binding *u8 = pattern_variant_binding(pattern);
+                var binding_len i64 = pattern_variant_binding_len(pattern);
+
+                // Look up enum and variant to get tag
+                var enum_decl *u8 = find_enum(enum_name, enum_len);
+                if enum_decl == nil {
+                    eprint("error: unknown enum '");
+                    eprint_buf(enum_name, enum_len);
+                    eprintln("' in match pattern");
+                    return;
+                }
+                var variant *u8 = find_variant(enum_decl, var_name, var_len);
+                if variant == nil {
+                    eprint("error: unknown variant '");
+                    eprint_buf(var_name, var_len);
+                    eprintln("' in match pattern");
+                    return;
+                }
+                var expected_tag i64 = enum_variant_tag(variant);
+
+                // Compare tag
+                var cmp_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(cmp_temp);
+                llvm_emit_str(" = icmp eq i64 %t");
+                llvm_emit_int(tag_temp);
+                llvm_emit_str(", ");
+                llvm_emit_int(expected_tag);
+                llvm_emit_char(10);
+
+                var then_label i64 = llvm_next_label();
+                var next_label i64 = llvm_next_label();
+
+                llvm_emit_str("    br i1 %t");
+                llvm_emit_int(cmp_temp);
+                llvm_emit_str(", label %L");
+                llvm_emit_int(then_label);
+                llvm_emit_str(", label %L");
+                llvm_emit_int(next_label);
+                llvm_emit_char(10);
+
+                // Then block
+                llvm_emit_str("L");
+                llvm_emit_int(then_label);
+                llvm_emit_line(":");
+
+                // If we have a binding, bind the payload
+                if binding != nil {
+                    var payload_type *u8 = enum_variant_type(variant);
+                    var payload_size i64 = 8;
+                    if payload_type != nil {
+                        payload_size = get_type_size(payload_type);
+                    }
+
+                    // Create local for binding
+                    var bind_var *u8 = alloc(32);
+                    *bind_var = 37;  // %
+                    var bp *u8 = bind_var + 1;
+                    var bj i64 = 0;
+                    while bj < binding_len {
+                        *(bp + bj) = *(binding + bj);
+                        bj = bj + 1;
+                    }
+                    *(bp + binding_len) = 0;
+
+                    // Get pointer to payload (scrutinee + 8)
+                    var payload_ptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(payload_ptr_temp);
+                    llvm_emit_str(" = add i64 ");
+                    llvm_emit_str(scrutinee_val);
+                    llvm_emit_line(", 8");
+
+                    if payload_size <= 8 {
+                        // Primitive payload: allocate as i64 and do simple load/store
+                        llvm_emit_str("    ");
+                        llvm_emit_str(bind_var);
+                        llvm_emit_line(" = alloca i64");
+
+                        // Load value from payload
+                        var src_ptr_temp i64 = llvm_next_temp();
+                        llvm_emit_str("    %t");
+                        llvm_emit_int(src_ptr_temp);
+                        llvm_emit_str(" = inttoptr i64 %t");
+                        llvm_emit_int(payload_ptr_temp);
+                        llvm_emit_line(" to i64*");
+
+                        var load_temp i64 = llvm_next_temp();
+                        llvm_emit_str("    %t");
+                        llvm_emit_int(load_temp);
+                        llvm_emit_str(" = load i64, i64* %t");
+                        llvm_emit_int(src_ptr_temp);
+                        llvm_emit_char(10);
+
+                        // Store to binding
+                        llvm_emit_str("    store i64 %t");
+                        llvm_emit_int(load_temp);
+                        llvm_emit_str(", i64* ");
+                        llvm_emit_str(bind_var);
+                        llvm_emit_char(10);
+                    } else {
+                        // Aggregate payload: allocate as byte array and copy
+                        llvm_emit_str("    ");
+                        llvm_emit_str(bind_var);
+                        llvm_emit_str(" = alloca [");
+                        llvm_emit_int(payload_size);
+                        llvm_emit_line(" x i8]");
+
+                        // Copy payload to binding
+                        var copy_i i64 = 0;
+                        while copy_i < payload_size {
+                            // Load from payload
+                            var src_ptr_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(src_ptr_temp);
+                            llvm_emit_str(" = add i64 %t");
+                            llvm_emit_int(payload_ptr_temp);
+                            llvm_emit_str(", ");
+                            llvm_emit_int(copy_i);
+                            llvm_emit_char(10);
+
+                            var src_iptr_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(src_iptr_temp);
+                            llvm_emit_str(" = inttoptr i64 %t");
+                            llvm_emit_int(src_ptr_temp);
+                            llvm_emit_line(" to i64*");
+
+                            var load_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(load_temp);
+                            llvm_emit_str(" = load i64, i64* %t");
+                            llvm_emit_int(src_iptr_temp);
+                            llvm_emit_char(10);
+
+                            // Store to binding
+                            var bind_ptr_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(bind_ptr_temp);
+                            llvm_emit_str(" = ptrtoint [");
+                            llvm_emit_int(payload_size);
+                            llvm_emit_str(" x i8]* ");
+                            llvm_emit_str(bind_var);
+                            llvm_emit_line(" to i64");
+
+                            var dst_ptr_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(dst_ptr_temp);
+                            llvm_emit_str(" = add i64 %t");
+                            llvm_emit_int(bind_ptr_temp);
+                            llvm_emit_str(", ");
+                            llvm_emit_int(copy_i);
+                            llvm_emit_char(10);
+
+                            var dst_iptr_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(dst_iptr_temp);
+                            llvm_emit_str(" = inttoptr i64 %t");
+                            llvm_emit_int(dst_ptr_temp);
+                            llvm_emit_line(" to i64*");
+
+                            llvm_emit_str("    store i64 %t");
+                            llvm_emit_int(load_temp);
+                            llvm_emit_str(", i64* %t");
+                            llvm_emit_int(dst_iptr_temp);
+                            llvm_emit_char(10);
+
+                            copy_i = copy_i + 8;
+                        }
+                    }
+
+                    // Add binding to locals with type info for get_expr_type
+                    var unique_name *u8 = bind_var + 1;
+                    var unique_len i64 = strlen(unique_name);
+                    // Use add_local which registers the type for get_expr_type
+                    add_local(binding, binding_len, 0, payload_type);
+                    llvm_add_local(binding, binding_len);
+                    llvm_push_let_binding(binding, binding_len, unique_name, unique_len);
+                }
+
+                // Generate body
+                llvm_emit_expr(body);
+                var body_val *u8 = str_dup(llvm_expr_result);
+                llvm_emit_str("    store i64 ");
+                llvm_emit_str(body_val);
+                llvm_emit_str(", i64* ");
+                llvm_emit_str(result_var);
+                llvm_emit_char(10);
+
+                // Pop binding if we pushed one
+                if binding != nil {
+                    llvm_pop_let_binding();
+                }
+
+                llvm_emit_str("    br label %L");
+                llvm_emit_int(end_label);
+                llvm_emit_char(10);
+
+                // Next block
+                llvm_emit_str("L");
+                llvm_emit_int(next_label);
+                llvm_emit_line(":");
+            }
+
+            i = i + 1;
+        }
+
+        // Fallback branch to end (shouldn't be reached if patterns are exhaustive)
+        llvm_emit_str("    br label %L");
+        llvm_emit_int(end_label);
+        llvm_emit_char(10);
+
+        // End label
+        llvm_emit_str("L");
+        llvm_emit_int(end_label);
+        llvm_emit_line(":");
+
+        // Load and return result
+        var final_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(final_temp);
+        llvm_emit_str(" = load i64, i64* ");
+        llvm_emit_str(result_var);
+        llvm_emit_char(10);
+
+        llvm_set_result_temp(final_temp);
+        return;
+    }
+
     // For now, unsupported expressions return 0
     var p *u8 = llvm_expr_result;
     *p = 48;  // "0"
@@ -1927,7 +2515,7 @@ func llvm_emit_stmt(stmt *u8) void {
         llvm_add_local(name, name_len);
         add_local(name, name_len, 0, var_type);  // 0 offset, use var_type
 
-        // Calculate allocation size - structs need more than 8 bytes
+        // Calculate allocation size - structs and enums need more than 8 bytes
         var alloc_size i64 = 8;
         if var_type != nil {
             if type_kind(var_type) == TYPE_BASE {
@@ -1936,6 +2524,12 @@ func llvm_emit_stmt(stmt *u8) void {
                 var struct_decl *u8 = find_struct(type_name, type_name_len);
                 if struct_decl != nil {
                     alloc_size = get_struct_size(struct_decl);
+                } else {
+                    // Check if it's an enum type
+                    var enum_decl *u8 = find_enum(type_name, type_name_len);
+                    if enum_decl != nil {
+                        alloc_size = get_enum_size(enum_decl);
+                    }
                 }
             }
         }
@@ -1955,11 +2549,79 @@ func llvm_emit_stmt(stmt *u8) void {
         // Initialize if there's an init expression
         if init != nil {
             llvm_emit_expr(init);
-            llvm_emit_str("    store i64 ");
-            llvm_emit_str(llvm_expr_result);
-            llvm_emit_str(", i64* %");
-            llvm_emit_n(name, name_len);
-            llvm_emit_char(10);
+            var init_val *u8 = str_dup(llvm_expr_result);
+
+            if alloc_size <= 8 {
+                // Simple store for primitives
+                llvm_emit_str("    store i64 ");
+                llvm_emit_str(init_val);
+                llvm_emit_str(", i64* %");
+                llvm_emit_n(name, name_len);
+                llvm_emit_char(10);
+            } else {
+                // For structs/enums, init_val is a pointer to the source
+                // Copy all bytes from source to destination
+                var dest_addr_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(dest_addr_temp);
+                llvm_emit_str(" = ptrtoint [");
+                llvm_emit_int(alloc_size);
+                llvm_emit_str(" x i8]* %");
+                llvm_emit_n(name, name_len);
+                llvm_emit_line(" to i64");
+
+                var copy_i i64 = 0;
+                while copy_i < alloc_size {
+                    // Load from source
+                    var src_ptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(src_ptr_temp);
+                    llvm_emit_str(" = add i64 ");
+                    llvm_emit_str(init_val);
+                    llvm_emit_str(", ");
+                    llvm_emit_int(copy_i);
+                    llvm_emit_char(10);
+
+                    var src_iptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(src_iptr_temp);
+                    llvm_emit_str(" = inttoptr i64 %t");
+                    llvm_emit_int(src_ptr_temp);
+                    llvm_emit_line(" to i64*");
+
+                    var load_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(load_temp);
+                    llvm_emit_str(" = load i64, i64* %t");
+                    llvm_emit_int(src_iptr_temp);
+                    llvm_emit_char(10);
+
+                    // Store to destination
+                    var dst_ptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(dst_ptr_temp);
+                    llvm_emit_str(" = add i64 %t");
+                    llvm_emit_int(dest_addr_temp);
+                    llvm_emit_str(", ");
+                    llvm_emit_int(copy_i);
+                    llvm_emit_char(10);
+
+                    var dst_iptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(dst_iptr_temp);
+                    llvm_emit_str(" = inttoptr i64 %t");
+                    llvm_emit_int(dst_ptr_temp);
+                    llvm_emit_line(" to i64*");
+
+                    llvm_emit_str("    store i64 %t");
+                    llvm_emit_int(load_temp);
+                    llvm_emit_str(", i64* %t");
+                    llvm_emit_int(dst_iptr_temp);
+                    llvm_emit_char(10);
+
+                    copy_i = copy_i + 8;
+                }
+            }
         }
         return;
     }
@@ -2552,6 +3214,8 @@ func llvm_register_decl(decl *u8) void {
     var k i64 = node_kind(decl);
     if k == NODE_STRUCT_DECL {
         add_struct(decl);
+    } else if k == NODE_ENUM_DECL {
+        add_enum(decl);
     } else if k == NODE_FUNC_DECL {
         var name *u8 = func_decl_name(decl);
         var name_len i64 = func_decl_name_len(decl);
@@ -2744,6 +3408,8 @@ func generate_llvm(prog *u8, output_file *u8) void {
     cg_struct_count = 0;
     cg_funcs = alloc(LIMIT_FUNCS * 24);
     cg_func_count = 0;
+    cg_enums = alloc(LIMIT_ENUMS * 24);
+    cg_enum_count = 0;
     cg_readers = alloc(LIMIT_READERS * 24);
     cg_reader_count = 0;
 
