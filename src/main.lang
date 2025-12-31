@@ -281,15 +281,15 @@ func main(argc i64, argv **u8) i64 {
 
         // Add ___main wrapper that calls user's main (skip in --emit-ast mode for composition)
         // Passes argc/argv - arg count check skipped for 'main' to support both signatures
-        // Also initializes environ from envp passed by _start
         // Skip for LLVM backend - clang provides entry point
+        // Note: envp is received but not used - programs needing getenv should call init_environ explicitly
         var langbe_check *u8 = getenv("LANGBE");
         var is_llvm i64 = 0;
         if langbe_check != nil && streq(langbe_check, "llvm") {
             is_llvm = 1;
         }
         if emit_ast_mode == 0 && is_llvm == 0 {
-            append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { init_environ(envp); return main(argc, argv); }\n");
+            append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(argc, argv); }\n");
         }
     }
 
