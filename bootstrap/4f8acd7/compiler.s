@@ -26701,7 +26701,7 @@ ast_emit_node:
     push %rax
     pop %rdi
     pop %rsi
-    call ast_emit_quoted_string
+    call ast_emit_strn
     lea .str366(%rip), %rax
     push %rax
     pop %rdi

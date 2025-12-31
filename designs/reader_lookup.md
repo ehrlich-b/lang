@@ -437,12 +437,89 @@ Each `@name{...}` block is compiled by finding that reader dynamically. The poly
 
 ---
 
+## Enumerating Readers: `list_readers`
+
+Sometimes you need to know what's available:
+
+```lang
+// Provided by std/reader.lang
+func list_readers() *Vec;  // Returns Vec of reader name strings
+```
+
+**Implementation**: Scans all search paths, deduplicates, returns names:
+
+```lang
+func list_readers() *Vec {
+    var names *Vec = vec_new();
+
+    // 1. Scan cache directory
+    scan_dir_for_readers(".lang-cache/readers/", names, false);
+
+    // 2. Scan std/readers/ (strip .lang extension)
+    scan_dir_for_readers("std/readers/", names, true);
+
+    // 3. Scan ./readers/ (strip .lang extension)
+    scan_dir_for_readers("readers/", names, true);
+
+    return names;
+}
+
+func scan_dir_for_readers(dir *u8, names *Vec, strip_ext bool) void {
+    var d *DIR = opendir(dir);
+    if d == nil { return; }
+
+    var entry *dirent = readdir(d);
+    while entry != nil {
+        var name *u8 = entry.d_name;
+
+        // Skip . and ..
+        if !streq(name, ".") && !streq(name, "..") {
+            if strip_ext {
+                name = strip_extension(name, ".lang");
+            }
+            // Only add if not already present
+            if !vec_contains_str(names, name) {
+                vec_push(names, str_dup(name));
+            }
+        }
+        entry = readdir(d);
+    }
+    closedir(d);
+}
+```
+
+**Usage**:
+
+```lang
+var readers *Vec = list_readers();
+for var i i64 = 0; i < readers.len; i = i + 1 {
+    var name *u8 = vec_get(readers, i) as *u8;
+    printf("Available: %s\n", name);
+}
+```
+
+Or for probing specific capabilities:
+
+```lang
+func has_reader(name *u8) bool {
+    return find_reader_or_nil(name) != nil;
+}
+
+if has_reader("sql") {
+    // Use SQL embedding
+}
+```
+
+---
+
 ## Summary
 
 | Function | Returns | Use case |
 |----------|---------|----------|
 | `find_reader(name)` | `fn(*u8) *u8` | Dynamic lookup, always returns callable (may return error-producer) |
 | `find_reader_or_nil(name)` | `fn(*u8) *u8` or `nil` | When you need to check existence |
+| `list_readers()` | `*Vec` | Enumerate all available readers |
+| `has_reader(name)` | `bool` | Quick existence check |
 
 **The pattern:**
 
@@ -480,19 +557,23 @@ find_reader($name.text)($text.text)
 3. **Create** `std/reader.lang` with:
    - `find_reader(name) → fn(*u8) *u8`
    - `find_reader_or_nil(name) → fn(*u8) *u8`
+   - `has_reader(name) → bool`
+   - `list_readers() → *Vec`
    - `locate_reader(name) → *u8` (internal)
    - `compile_reader_source(path, name) → *u8` (internal)
    - `exec_reader(exe, text) → *u8` (internal, wraps exec_capture)
+   - `scan_dir_for_readers(dir, names, strip_ext)` (internal)
 4. **Test** with a reader that embeds another reader
+5. **Test** `list_readers()` returns expected results
 
 ### LOC Estimate
 
 | Component | Lines |
 |-----------|-------|
 | std/process.lang | ~80 (extracted from codegen) |
-| std/reader.lang | ~100 |
+| std/reader.lang | ~150 (includes list_readers, dir scanning) |
 | codegen.lang changes | -80 (remove), +2 (include) |
-| **Net new** | ~100 |
+| **Net new** | ~150 |
 
 ---
 
