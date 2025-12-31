@@ -4840,10 +4840,47 @@ func llvm_emit_func(func_node *u8) void {
         i = i + 1;
     }
 
+    // For main(), always emit full C signature: (argc, argv, envp)
+    // The C runtime will pass these even if user's main() has no params
+    var is_main i64 = 0;
+    if name_len == 4 && *name == 'm' && *(name+1) == 'a' && *(name+2) == 'i' && *(name+3) == 'n' {
+        is_main = 1;
+        // Override params with standard C main signature
+        // We need argc and argv to be in the right positions even if unused
+        if param_count == 0 {
+            llvm_emit_str("i64 %argc.hidden, i8** %argv.hidden, i8** %envp.hidden");
+        } else if param_count == 1 {
+            // User has 1 param (argc) - emit it plus hidden argv and envp
+            llvm_emit_str(", i8** %argv.hidden, i8** %envp.hidden");
+        } else if param_count == 2 {
+            // User has 2 params (argc, argv) - emit them plus hidden envp
+            llvm_emit_str(", i8** %envp.hidden");
+        } else {
+            // User has 3+ params - assume they have envp, just rename for consistency
+            // Don't add anything extra
+        }
+    }
+
     llvm_emit_line(") {");
 
     // Entry block
     llvm_emit_line("L.entry:");
+
+    // For main(), store envp to global for getenv lazy init
+    // Cast pointer to i64 since that's how our codegen types globals
+    if is_main == 1 {
+        if param_count < 3 {
+            // Used hidden envp param
+            llvm_emit_line("    %___envp.cast = ptrtoint i8** %envp.hidden to i64");
+        } else {
+            // User has 3+ params, 3rd param is envp (typed as i64 in our codegen)
+            var p *u8 = params + (2 * 24);
+            llvm_emit_str("    %___envp.cast = add i64 0, %");
+            llvm_emit_n(param_name(p), param_name_len(p));
+            llvm_emit_line(".arg");
+        }
+        llvm_emit_line("    store i64 %___envp.cast, i64* @___envp");
+    }
 
     // Shadow parameters with locals (so they can be assigned)
     i = 0;
@@ -4975,13 +5012,14 @@ func llvm_emit_decl(decl *u8) void {
         // Register as global
         llvm_add_global(name, name_len);
 
-        // Emit global: extern vars use 'external global', regular vars use 'global'
-        llvm_emit_str("@");
-        llvm_emit_n(name, name_len);
+        // Skip extern vars - they reference codegen-defined globals like ___envp
         if is_extern {
-            llvm_emit_line(" = external global i64");
             return;
         }
+
+        // Emit global
+        llvm_emit_str("@");
+        llvm_emit_n(name, name_len);
         llvm_emit_str(" = global i64 ");
 
         // Get initial value
@@ -5392,6 +5430,11 @@ func generate_llvm(prog *u8, output_file *u8) void {
     llvm_emit_line("@__effect_name_ptr = internal global i8* null");
     llvm_emit_line("@__effect_name_len = internal global i64 0");
     llvm_emit_line("@__resume_value = internal global i64 0");
+    llvm_emit_char(10);
+
+    // Environment pointer for getenv lazy init (matches x86 codegen)
+    // Type as i64 to match how our codegen treats all globals
+    llvm_emit_line("@___envp = global i64 0");
     llvm_emit_char(10);
 
     // Emit all declarations

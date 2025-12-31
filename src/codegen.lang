@@ -5815,6 +5815,10 @@ func generate(prog *u8, out_path *u8) void {
     // Data section
     out_line(".section .data");
 
+    // Environment pointer for getenv lazy init
+    out_line("___envp:");
+    out_line("    .quad 0");
+
     // String literals
     i = 0;
     while i < cg_string_count {
@@ -5870,6 +5874,7 @@ func generate(prog *u8, out_path *u8) void {
     out_line("    mov (%rsp), %rdi");           // argc
     out_line("    lea 8(%rsp), %rsi");          // argv
     out_line("    lea 8(%rsi,%rdi,8), %rdx");   // envp = argv + (argc+1)*8
+    out_line("    mov %rdx, ___envp(%rip)");    // Store envp for getenv lazy init
     out_line("    call ___main");
     out_line("    mov %rax, %rdi");
     out_line("    mov $60, %rax");

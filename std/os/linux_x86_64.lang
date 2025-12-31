@@ -229,18 +229,24 @@ func rmdir(path *u8) i64 {
 // Environment variables
 // ============================================================
 
-// Global pointer to environment variables (set by init_environ)
+// External reference to envp stored by _start (defined in codegen output)
+extern var ___envp **u8;
+
+// Global pointer to environment variables (set by init_environ or lazy-inited)
 var environ **u8 = nil;
 
-// Initialize environment pointer - provided for backwards compatibility
+// Initialize environment pointer - for explicit setup
 func init_environ(envp **u8) void {
     environ = envp;
 }
 
 // Get environment variable value by name
 // Returns pointer to value part (after '='), or nil if not found
-// Note: environ must be initialized by calling init_environ(envp) at startup
 func getenv(name *u8) *u8 {
+    // Lazy init from ___envp if not already set
+    if environ == nil {
+        environ = ___envp;
+    }
     if environ == nil {
         return nil;
     }
