@@ -14,12 +14,14 @@ A self-hosted compiler where syntax is a plugin.
          │
          │ kernel
          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                             x86                                 │
-└─────────────────────────────────────────────────────────────────┘
+┌───────────────────────────┬─────────────────────────────────────┐
+│          x86-64           │              LLVM IR                │
+└───────────────────────────┴─────────────────────────────────────┘
 ```
 
-The compiler has two parts: a kernel (AST to x86) and readers (syntax to AST). The lang reader - the one that parses `func`, `if`, `while` - is just one reader. You can swap it for anything.
+The compiler has two parts: a kernel (AST to native code) and readers (syntax to AST). The lang reader - the one that parses `func`, `if`, `while` - is just one reader. You can swap it for anything.
+
+**Dual backends**: The kernel emits either x86-64 assembly (Linux, no libc) or LLVM IR (cross-platform via clang).
 
 ## Layer 1: It's a language
 
@@ -30,13 +32,16 @@ func main() void {
 ```
 
 ```bash
+# x86-64 (direct assembly)
 ./out/lang hello.lang -o hello.s
 as hello.s -o hello.o && ld hello.o -o hello
-./hello
-Hello, world!
+
+# LLVM (via clang)
+LANGBE=llvm ./out/lang hello.lang -o hello.ll
+clang hello.ll -o hello
 ```
 
-Functions, structs, pointers. See [LANG.md](./LANG.md).
+Functions, structs, pointers, algebraic effects. See [LANG.md](./LANG.md).
 
 ## Layer 2: It outputs compilers
 
@@ -66,7 +71,7 @@ diff lang_composed.s lang_bootstrap.s
 
 The composed compiler parses `lang_reader.lang` using its built-in lang reader, then composes a new compiler from that. Same output. Fixed point.
 
-Lang source becomes AST becomes x86 becomes a compiler that reads lang source. The whole thing rests on `mmap`, `read`, `write`, and `exit`. Four syscalls. No libc.
+Lang source becomes AST becomes native code becomes a compiler that reads lang source. The whole thing rests on `mmap`, `read`, `write`, and `exit`. Four syscalls. No libc.
 
 ## The semantic model
 
@@ -74,23 +79,11 @@ Lang separates syntax from semantics. Any reader can define any surface syntax -
 
 The kernel is ~5000 lines because it doesn't try to be a runtime. No GC, no scheduler, no bytecode interpreter. Just AST to machine code.
 
-This works for systems languages, config DSLs, data transforms, anything with manual memory or arenas or refcounting. One-shot effects (exceptions, generators, async) work too - they compile to state machines.
+This works for systems languages, config DSLs, data transforms, anything with manual memory or arenas or refcounting. Algebraic effects (exceptions, generators, async) compile to continuation-passing style with stack switching.
 
-Languages needing garbage collection or green threads need runtime support the kernel doesn't provide. The LLVM backend (in progress) will let you link against libgc for conservative collection, or use `gc.statepoint` for precise GC. But the kernel itself stays simple.
+Languages needing garbage collection or green threads need runtime support the kernel doesn't provide. The LLVM backend enables linking against libgc for conservative collection, or using `gc.statepoint` for precise GC. But the kernel itself stays simple.
 
 Any syntax, C-like semantics. If your language fits that model, lang compiles it.
-
-## How it got here
-
-1. Write a lang compiler in Go. No metaprogramming, just get something working.
-2. Rewrite the compiler in lang. Compile it with the Go version. Delete Go.
-3. Add reader macros. Now lang can extend itself.
-4. Add `--emit-ast`. Readers output S-expression AST instead of lang code.
-5. Split the compiler: kernel (AST → x86) and lang reader (lang → AST). Both written in lang.
-6. Compile each half to AST using the existing compiler.
-7. Bootstrap: kernel composes itself with the lang reader AST. Fixed point.
-
-The journey is in [devlog/](./devlog/). The full bootstrap chain lives in [bootstrap/](./bootstrap/) and [archive/](./archive/).
 
 ## Building
 
@@ -100,6 +93,27 @@ make build        # Compile from source
 make verify       # Check fixed point + run tests
 make promote      # Update stable compiler
 ```
+
+### LLVM backend
+
+```bash
+LANGBE=llvm ./out/lang_next src.lang -o out.ll  # Generate LLVM IR
+clang -O2 out.ll -o binary                       # Compile with clang
+```
+
+The LLVM backend passes all 165 tests and enables cross-platform compilation and optimization.
+
+## Dual-Backend Bootstrap
+
+The compiler can bootstrap from either backend:
+
+```
+bootstrap/current/
+├── x86/compiler.s    # x86-64 assembly (1.5M)
+└── llvm/compiler.ll  # LLVM IR (1.9M)
+```
+
+Both are semantically equivalent. The x86 version runs directly on Linux. The LLVM version works anywhere clang does.
 
 ## Docs
 
