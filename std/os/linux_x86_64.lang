@@ -1,7 +1,40 @@
 // std/os/linux_x86_64.lang - Linux x86_64 syscall wrappers
 //
-// Provides the os_* abstraction layer using raw Linux syscalls.
-// This file is selected by the build system when LANGOS=linux and targeting x86_64.
+// Provides the OS abstraction layer using raw Linux syscalls.
+// Selected by build system when LANGOS=linux and targeting x86_64.
+//
+// ============================================================
+// OS Layer Interface
+// ============================================================
+// Every OS layer (linux_x86_64, macos_arm64, libc) implements this interface.
+//
+// Internal functions (os_* prefix, used by std library):
+//   os_read(fd, buf, count) i64
+//   os_write(fd, buf, count) i64
+//   os_open(path, flags, mode) i64
+//   os_close(fd) i64
+//   os_mmap(addr, len, prot, flags, fd, offset) *u8
+//   os_exit(code) void
+//   os_stat(path, statbuf) i64
+//   os_getpid() i64
+//   os_getppid() i64
+//   os_getcwd(buf, size) i64
+//   os_mkdir(path, mode) i64
+//   os_unlink(path) i64
+//   os_rmdir(path) i64
+//
+// User-facing functions:
+//   malloc(size) *u8
+//   free(ptr) void
+//   exit(code) void
+//   getpid() i64
+//   getppid() i64
+//   getcwd(buf, size) i64
+//   mkdir(path, mode) i64
+//   unlink(path) i64
+//   rmdir(path) i64
+//   init_environ(envp) void
+//   getenv(name) *u8
 
 // Core syscalls - these match the abstract interface in std/core.lang
 
@@ -35,6 +68,11 @@ func os_mmap(addr *u8, len i64, prot i64, flags i64, fd i64, offset i64) *u8 {
 func os_exit(code i64) void {
     // syscall 60 = exit
     syscall(60, code);
+}
+
+// exit() wrapper for user code
+func exit(code i64) void {
+    os_exit(code);
 }
 
 // Extended syscalls - used by std/os.lang utilities
@@ -72,4 +110,167 @@ func os_unlink(path *u8) i64 {
 func os_rmdir(path *u8) i64 {
     // syscall 84 = rmdir
     return syscall(84, path);
+}
+
+// ============================================================
+// Memory allocation - malloc/free with free list
+// ============================================================
+// Self-contained implementation using os_mmap directly.
+// Block layout: [size:8][data...]
+// Free blocks store next pointer in data area: [size:8][next:8]
+
+var __malloc_heap_pos *u8 = nil;
+var __malloc_heap_end *u8 = nil;
+var __malloc_free_list *u8 = nil;
+
+func malloc(size i64) *u8 {
+    // Minimum size is 8 (to store next pointer when freed)
+    if size < 8 {
+        size = 8;
+    }
+
+    // Align size to 8 bytes
+    var rem i64 = size % 8;
+    if rem != 0 {
+        size = size + 8 - rem;
+    }
+
+    // Search free list for first fit
+    var prev *u8 = nil;
+    var curr *u8 = __malloc_free_list;
+
+    while curr != nil {
+        var block_size_ptr *i64 = curr;
+        var block_size i64 = *block_size_ptr;
+
+        if block_size >= size {
+            // Found a suitable block - remove from free list
+            var next_ptr **u8 = curr + 8;
+            var next *u8 = *next_ptr;
+
+            if prev == nil {
+                __malloc_free_list = next;
+            } else {
+                var prev_next_ptr **u8 = prev + 8;
+                *prev_next_ptr = next;
+            }
+
+            return curr + 8;
+        }
+
+        prev = curr;
+        var curr_next_ptr **u8 = curr + 8;
+        curr = *curr_next_ptr;
+    }
+
+    // No suitable free block - allocate from heap
+    var total i64 = size + 8;
+
+    // Initialize heap if needed
+    if __malloc_heap_pos == nil {
+        // mmap 16MB heap: PROT_READ|PROT_WRITE=3, MAP_PRIVATE|MAP_ANONYMOUS=34
+        __malloc_heap_pos = os_mmap(nil, 16777216, 3, 34, 0-1, 0);
+        __malloc_heap_end = __malloc_heap_pos + 16777216;
+    }
+
+    var block *u8 = __malloc_heap_pos;
+    __malloc_heap_pos = __malloc_heap_pos + total;
+
+    // Store size in header
+    var size_ptr *i64 = block;
+    *size_ptr = size;
+
+    return block + 8;
+}
+
+func free(ptr *u8) void {
+    if ptr == nil {
+        return;
+    }
+
+    // Get block header (8 bytes before data)
+    var block *u8 = ptr - 8;
+
+    // Add to front of free list
+    var next_ptr **u8 = block + 8;
+    *next_ptr = __malloc_free_list;
+    __malloc_free_list = block;
+}
+
+// ============================================================
+// User-facing process and filesystem functions
+// ============================================================
+
+func getpid() i64 {
+    return os_getpid();
+}
+
+func getppid() i64 {
+    return os_getppid();
+}
+
+func getcwd(buf *u8, size i64) i64 {
+    return os_getcwd(buf, size);
+}
+
+func mkdir(path *u8, mode i64) i64 {
+    return os_mkdir(path, mode);
+}
+
+func unlink(path *u8) i64 {
+    return os_unlink(path);
+}
+
+func rmdir(path *u8) i64 {
+    return os_rmdir(path);
+}
+
+// ============================================================
+// Environment variables
+// ============================================================
+
+// Global pointer to environment variables (set by init_environ)
+var environ **u8 = nil;
+
+// Initialize environment pointer - call once at program start
+// envp is the third argument passed from _start
+func init_environ(envp **u8) void {
+    environ = envp;
+}
+
+// Get environment variable value by name
+// Returns pointer to value part (after '='), or nil if not found
+func getenv(name *u8) *u8 {
+    if environ == nil {
+        return nil;
+    }
+
+    var name_len i64 = strlen(name);
+    var i i64 = 0;
+
+    while true {
+        var entry *u8 = *(environ + i);
+        if entry == nil {
+            return nil;  // End of environment
+        }
+
+        // Check if entry starts with "name="
+        var j i64 = 0;
+        var matched i64 = 1;
+        while j < name_len {
+            if *(entry + j) != *(name + j) {
+                matched = 0;
+                j = name_len;  // break
+            }
+            j = j + 1;
+        }
+
+        // Check for '=' after name
+        if matched == 1 && *(entry + name_len) == 61 {  // 61 = '='
+            return entry + name_len + 1;  // Return pointer after '='
+        }
+
+        i = i + 1;
+    }
+    return nil;  // unreachable
 }
