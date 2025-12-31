@@ -1,4 +1,4 @@
-// expect: 0
+// expect: 0 //clang
 // Test resume with complex expressions
 
 include "std/core.lang"

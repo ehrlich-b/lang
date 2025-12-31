@@ -1,4 +1,4 @@
-// expect: 0
+// expect: 0 //clang
 // Test effect resume - resumable effects with block handlers
 
 include "std/core.lang"

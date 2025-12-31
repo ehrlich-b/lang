@@ -1,4 +1,4 @@
-// expect: 0
+// expect: 0 //clang
 // Test effect inside loop - multiple performs
 
 include "std/core.lang"

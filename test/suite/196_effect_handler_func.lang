@@ -1,4 +1,4 @@
-// expect: 0
+// expect: 0 //clang
 // Test handler factored into separate function
 
 include "std/core.lang"

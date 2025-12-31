@@ -17,11 +17,17 @@ for f in test/suite/*.lang; do
 
     expected=$(head -1 "$f" | grep -o '[0-9]*')
 
-    # Compile to LLVM IR, then use clang
-    if LANGBE=llvm $COMPILER "$f" -o out/test_$name.ll 2>/dev/null && \
-       clang -O0 out/test_$name.ll -o out/test_$name 2>/dev/null; then
-        ./out/test_$name >/dev/null 2>&1
-        result=$?
+    # Compile to LLVM IR, then run
+    # Use clang for tests marked //clang (inline asm), lli (interpreter) for rest
+    if LANGBE=llvm $COMPILER "$f" -o out/test_$name.ll 2>/dev/null; then
+        if head -3 "$f" | grep -q '//clang'; then
+            clang -O0 out/test_$name.ll -o out/test_$name 2>/dev/null
+            ./out/test_$name >/dev/null 2>&1
+            result=$?
+        else
+            timeout 1 lli out/test_$name.ll >/dev/null 2>&1
+            result=$?
+        fi
         if [ "$result" = "$expected" ]; then
             echo "PASS $name"
             passed=$((passed + 1))
