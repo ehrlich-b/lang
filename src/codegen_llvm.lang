@@ -370,6 +370,21 @@ func llvm_add_string(ptr *u8, len i64) i64 {
     return idx;
 }
 
+// Calculate processed length of string (handling escape sequences)
+func llvm_string_processed_len(ptr *u8, len i64) i64 {
+    var result i64 = 0;
+    var j i64 = 0;
+    while j < len {
+        var c u8 = *(ptr + j);
+        if c == 92 && j + 1 < len {  // backslash escape
+            j = j + 1;  // Skip the next char (the escape code)
+        }
+        result = result + 1;
+        j = j + 1;
+    }
+    return result;
+}
+
 func llvm_emit_all_strings() void {
     var i i64 = 0;
     while i < llvm_string_count {
@@ -377,31 +392,51 @@ func llvm_emit_all_strings() void {
         var ptr **u8 = entry;
         var len *i64 = entry + 8;
 
+        // Calculate actual byte length after processing escapes
+        var processed_len i64 = llvm_string_processed_len(*ptr, *len);
+
         // @.str0 = private constant [6 x i8] c"hello\00"
         llvm_emit_str("@.str");
         llvm_emit_int(i);
         llvm_emit_str(" = private constant [");
-        llvm_emit_int(*len + 1);  // +1 for null terminator
+        llvm_emit_int(processed_len + 1);  // +1 for null terminator
         llvm_emit_str(" x i8] c\"");
 
         // Emit string with escape handling
+        // Note: strings come from source, so escapes are still in source form (\n = backslash + 'n')
         var j i64 = 0;
         while j < *len {
             var c u8 = *(*ptr + j);
-            if c == 10 {  // newline
-                llvm_emit_str("\\0A");
-            } else if c == 13 {  // carriage return
-                llvm_emit_str("\\0D");
-            } else if c == 9 {  // tab
-                llvm_emit_str("\\09");
-            } else if c == 0 {  // null
-                llvm_emit_str("\\00");
-            } else if c == 34 {  // double quote
+            if c == 92 && j + 1 < *len {  // backslash escape
+                j = j + 1;
+                var next u8 = *(*ptr + j);
+                if next == 110 {  // 'n' -> newline
+                    llvm_emit_str("\\0A");
+                } else if next == 116 {  // 't' -> tab
+                    llvm_emit_str("\\09");
+                } else if next == 114 {  // 'r' -> carriage return
+                    llvm_emit_str("\\0D");
+                } else if next == 48 {  // '0' -> null
+                    llvm_emit_str("\\00");
+                } else if next == 92 {  // '\' -> backslash
+                    llvm_emit_str("\\5C");
+                } else if next == 34 {  // '"' -> double quote
+                    llvm_emit_str("\\22");
+                } else {
+                    // Unknown escape, just emit the character
+                    llvm_emit_char(next);
+                }
+            } else if c == 34 {  // double quote (shouldn't happen, but escape it)
                 llvm_emit_str("\\22");
-            } else if c == 92 {  // backslash
-                llvm_emit_str("\\5C");
-            } else {
+            } else if c >= 32 && c < 127 {
                 llvm_emit_char(c);
+            } else {
+                // Non-printable character - emit hex escape
+                llvm_emit_str("\\");
+                var hi u8 = c / 16;
+                var lo u8 = c % 16;
+                if hi < 10 { llvm_emit_char(48 + hi); } else { llvm_emit_char(55 + hi); }
+                if lo < 10 { llvm_emit_char(48 + lo); } else { llvm_emit_char(55 + lo); }
             }
             j = j + 1;
         }
@@ -746,15 +781,18 @@ func llvm_emit_expr(expr *u8) void {
         var str_len i64 = string_expr_value_len(expr) - 2;  // Remove both quotes
         var idx i64 = llvm_add_string(str_val, str_len);
 
+        // Calculate processed length (escapes count as single bytes)
+        var processed_len i64 = llvm_string_processed_len(str_val, str_len);
+
         // GEP to get pointer to first element
         // %t = ptrtoint i8* getelementptr inbounds ([N x i8], [N x i8]* @.strI, i64 0, i64 0) to i64
         var temp i64 = llvm_next_temp();
         llvm_emit_str("    %t");
         llvm_emit_int(temp);
         llvm_emit_str(" = ptrtoint i8* getelementptr inbounds ([");
-        llvm_emit_int(str_len + 1);
+        llvm_emit_int(processed_len + 1);
         llvm_emit_str(" x i8], [");
-        llvm_emit_int(str_len + 1);
+        llvm_emit_int(processed_len + 1);
         llvm_emit_str(" x i8]* @.str");
         llvm_emit_int(idx);
         llvm_emit_line(", i64 0, i64 0) to i64");
@@ -3431,15 +3469,16 @@ func llvm_emit_expr(expr *u8) void {
         llvm_emit_int(cont_temp);
         llvm_emit_line(", i8** @__continuation_ptr");
 
-        // Store effect name
+        // Store effect name (note: effect names don't have escapes, but use processed_len for consistency)
         var eff_str_idx i64 = llvm_add_string(eff_name, eff_name_len);
+        var eff_processed_len i64 = llvm_string_processed_len(eff_name, eff_name_len);
         var name_ptr_temp i64 = llvm_next_temp();
         llvm_emit_str("    %t");
         llvm_emit_int(name_ptr_temp);
         llvm_emit_str(" = getelementptr [");
-        llvm_emit_int(eff_name_len + 1);
+        llvm_emit_int(eff_processed_len + 1);
         llvm_emit_str(" x i8], [");
-        llvm_emit_int(eff_name_len + 1);
+        llvm_emit_int(eff_processed_len + 1);
         llvm_emit_str(" x i8]* @.str");
         llvm_emit_int(eff_str_idx);
         llvm_emit_line(", i64 0, i64 0");
@@ -4952,12 +4991,13 @@ func llvm_emit_decl(decl *u8) void {
                 var str_val *u8 = string_expr_value(init) + 1;
                 var str_len i64 = string_expr_value_len(init) - 2;
                 var idx i64 = llvm_add_string(str_val, str_len);
+                var processed_len i64 = llvm_string_processed_len(str_val, str_len);
 
                 // ptrtoint (i8* getelementptr inbounds ([N x i8], [N x i8]* @.strI, i64 0, i64 0) to i64)
                 llvm_emit_str("ptrtoint (i8* getelementptr inbounds ([");
-                llvm_emit_int(str_len + 1);
+                llvm_emit_int(processed_len + 1);
                 llvm_emit_str(" x i8], [");
-                llvm_emit_int(str_len + 1);
+                llvm_emit_int(processed_len + 1);
                 llvm_emit_str(" x i8]* @.str");
                 llvm_emit_int(idx);
                 llvm_emit_str(", i64 0, i64 0) to i64)");
@@ -5037,6 +5077,14 @@ func llvm_register_decl(decl *u8) void {
         llvm_register_func(name, name_len, ret_type);
         // Also add to shared registry for find_func
         add_func(decl);
+    } else if k == NODE_VAR_DECL {
+        // Global variable - register so llvm_is_global works AND get_expr_type works
+        var name *u8 = var_decl_name(decl);
+        var name_len i64 = var_decl_name_len(decl);
+        var var_type *u8 = var_decl_type(decl);
+        var var_init *u8 = var_decl_init(decl);
+        llvm_add_global(name, name_len);
+        add_global(name, name_len, var_type, var_init);  // Register type for get_expr_type
     } else if k == NODE_INCLUDE_DECL {
         // Recursively process included file
         var path *u8 = include_decl_path(decl);
@@ -5296,6 +5344,8 @@ func generate_llvm(prog *u8, output_file *u8) void {
     // Initialize x86 backend's shared tracking
     cg_locals = alloc(LIMIT_LOCALS * 32);
     cg_local_count = 0;
+    cg_globals = alloc(LIMIT_GLOBALS * 32);
+    cg_global_count = 0;
     cg_structs = alloc(LIMIT_STRUCTS * 24);
     cg_struct_count = 0;
     cg_funcs = alloc(LIMIT_FUNCS * 24);
