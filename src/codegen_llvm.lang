@@ -979,6 +979,17 @@ func llvm_emit_expr(expr *u8) void {
             func_name = ident_expr_name(func_expr);
             func_name_len = ident_expr_name_len(func_expr);
 
+            // Check for macro call first
+            var macro_def *u8 = find_macro(func_name, func_name_len);
+            if macro_def != nil {
+                // Expand and compile the macro
+                var expanded *u8 = interp_call_macro(macro_def, args, arg_count);
+                if expanded != nil {
+                    llvm_emit_expr(expanded);
+                }
+                return;
+            }
+
             // Check if it's a known function
             var known_func *u8 = find_func(func_name, func_name_len);
             if known_func == nil {
@@ -3496,6 +3507,10 @@ func llvm_register_decl(decl *u8) void {
         add_struct(decl);
     } else if k == NODE_ENUM_DECL {
         add_enum(decl);
+    } else if k == NODE_MACRO_DECL {
+        add_macro(decl);
+    } else if k == NODE_READER_DECL {
+        add_reader(decl);
     } else if k == NODE_FUNC_DECL {
         var name *u8 = func_decl_name(decl);
         var name_len i64 = func_decl_name_len(decl);
@@ -3692,6 +3707,11 @@ func generate_llvm(prog *u8, output_file *u8) void {
     cg_enum_count = 0;
     cg_readers = alloc(LIMIT_READERS * 24);
     cg_reader_count = 0;
+    cg_macros = alloc(LIMIT_MACROS * 24);
+    cg_macro_count = 0;
+
+    // Initialize macro interpreter
+    interp_init();
 
     // Set current file declarations for reader compilation
     cg_current_file_decls = program_decls(prog);
