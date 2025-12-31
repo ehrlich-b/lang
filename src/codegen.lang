@@ -4817,27 +4817,25 @@ func expand_quote(expr *u8) *u8 {
     }
 
     // Unquote string: look up binding (string), create STRING_EXPR node
-    // Note: STRING_EXPR values must include quotes for write_ascii_string
+    // STRING_EXPR values are raw content (no surrounding quotes)
     if k == NODE_UNQUOTE_STRING_EXPR {
         var name *u8 = unquote_string_expr_name(expr);
         var name_len i64 = unquote_string_expr_name_len(expr);
         var str_ptr *u8 = interp_find_binding(name, name_len);
         var str_len i64 = strlen(str_ptr);
 
-        // Wrap in quotes: allocate space for " + content + "
-        var quoted *u8 = alloc(str_len + 3);  // quote + content + quote + null
-        *quoted = 34;  // opening quote
+        // Copy the raw string content
+        var raw *u8 = alloc(str_len + 1);
         var i i64 = 0;
         while i < str_len {
-            *(quoted + 1 + i) = *(str_ptr + i);
+            *(raw + i) = *(str_ptr + i);
             i = i + 1;
         }
-        *(quoted + 1 + str_len) = 34;  // closing quote
-        *(quoted + 2 + str_len) = 0;   // null terminator
+        *(raw + str_len) = 0;
 
         var new_node *u8 = string_expr_alloc();
-        string_expr_set_value(new_node, quoted);
-        string_expr_set_value_len(new_node, str_len + 2);
+        string_expr_set_value(new_node, raw);
+        string_expr_set_value_len(new_node, str_len);
         return new_node;
     }
 
@@ -5207,10 +5205,23 @@ func ast_to_string_expr(expr *u8) void {
     }
 
     if kind == NODE_STRING_EXPR {
-        // String value already includes quotes from lexer
+        // String value is raw (no quotes) - add quotes and escape specials
         var s *u8 = string_expr_value(expr);
         var s_len i64 = string_expr_value_len(expr);
-        ast_str_append(s, s_len);
+        ast_str_append_char(34);  // opening quote
+        var i i64 = 0;
+        while i < s_len {
+            var c u8 = *(s + i);
+            if c == 34 { ast_str_append_char(92); ast_str_append_char(34); }  // " -> \"
+            else if c == 92 { ast_str_append_char(92); ast_str_append_char(92); }  // \ -> \\
+            else if c == 10 { ast_str_append_char(92); ast_str_append_char(110); }  // newline -> \n
+            else if c == 9 { ast_str_append_char(92); ast_str_append_char(116); }  // tab -> \t
+            else if c == 13 { ast_str_append_char(92); ast_str_append_char(114); }  // cr -> \r
+            else if c == 0 { ast_str_append_char(92); ast_str_append_char(48); }  // null -> \0
+            else { ast_str_append_char(c); }
+            i = i + 1;
+        }
+        ast_str_append_char(34);  // closing quote
         return;
     }
 
@@ -5888,38 +5899,26 @@ func generate(prog *u8, out_path *u8) void {
 }
 
 func write_ascii_string(ptr *u8, len i64) void {
-    // Skip quotes in original string
-    var start *u8 = ptr + 1;
-    var end i64 = len - 2;
-
-    out_char(34);  // opening quote
+    // String is raw content (no surrounding quotes, escapes already processed)
+    out_char(34);  // opening quote for assembly
 
     var i i64 = 0;
-    while i < end {
-        var c u8 = *(start + i);
+    while i < len {
+        var c u8 = *(ptr + i);
 
-        if c == 92 && i + 1 < end {  // backslash escape
-            i = i + 1;
-            var next u8 = *(start + i);
-            if next == 110 {  // 'n'
-                out_str("\\012");
-            } else if next == 116 {  // 't'
-                out_str("\\011");
-            } else if next == 114 {  // 'r'
-                out_str("\\015");
-            } else if next == 92 {  // '\'
-                out_str("\\\\");
-            } else if next == 34 {  // '"'
-                out_str("\\\"");
-            } else if next == 48 {  // '0'
-                out_str("\\000");
-            } else {
-                out_char(next);
-            }
-        } else if c >= 32 && c < 127 && c != 34 && c != 92 {
+        // Printable ASCII except quote and backslash
+        if c >= 32 && c < 127 && c != 34 && c != 92 {
             out_char(c);
+        } else if c == 34 {
+            // Quote: emit \" for compatibility
+            out_char(92);
+            out_char(34);
+        } else if c == 92 {
+            // Backslash: emit \\ for compatibility
+            out_char(92);
+            out_char(92);
         } else {
-            // Octal escape
+            // Octal escape for non-printable chars
             out_char(92);  // '\'
             out_char(48 + (c / 64));
             out_char(48 + ((c / 8) % 8));
@@ -5929,5 +5928,5 @@ func write_ascii_string(ptr *u8, len i64) void {
     }
 
     out_str("\\000");  // null terminator
-    out_char(34);  // closing quote
+    out_char(34);  // closing quote for assembly
 }

@@ -150,3 +150,35 @@ Auto-detection is simpler:
 - No chicken-and-egg with bootstrap
 - Works transparently with old and new AST files
 - One less thing to get wrong
+
+---
+
+## CURRENT STATE (2025-12-31) - COMPLETE ✓
+
+### Phase 1: COMPLETED ✓
+- Commit: a75a74d "Phase 1: Auto-detect string format in sexpr_reader"
+
+### Phase 2: COMPLETED ✓
+- All 165 tests pass
+- Bootstrap promoted
+
+**Key fixes in Phase 2:**
+1. `src/parser.lang` - `parse_string_literal()` strips quotes and processes escapes
+2. `src/codegen.lang`:
+   - `write_ascii_string()` expects raw content, adds quotes for assembly
+   - `ast_to_string_expr()` for STRING_EXPR now adds quotes and escapes specials
+3. `src/codegen_llvm.lang` - STRING_EXPR handling updated for raw strings
+4. `src/sexpr_reader.lang` - Auto-detect now STRIPS quotes from v1 format (not wraps)
+
+**The key insight:**
+When serializing reader bodies with `ast_to_string_expr()`, STRING_EXPR values
+are now raw, so we must ADD quotes back for the serialized source code.
+Also, sexpr_reader must STRIP quotes from v1 format AST to get raw content.
+
+### Phase 3: OPTIONAL (Not Required)
+The auto-detection is safe because:
+- v1 format strings with embedded quotes are rare
+- The detection is simple: if first char is `"`, strip it
+- This only affects legacy AST files
+
+Phase 3 cleanup can be done later if needed, but the system works correctly now.

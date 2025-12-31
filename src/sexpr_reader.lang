@@ -45,20 +45,21 @@ func ast_set_version(v i64) void {
     ast_version = v;
 }
 
-// Wrap a string with quotes (for v2 string handling)
-// Input: hello (5 chars)
-// Output: "hello" (7 chars)
-func sexpr_wrap_quotes(s *u8) *u8 {
+// Strip surrounding quotes from a string (for v1 string handling)
+// Input: "hello" (7 chars with quotes)
+// Output: hello (5 chars raw)
+func sexpr_strip_quotes(s *u8) *u8 {
     var len i64 = strlen(s);
-    var buf *u8 = alloc(len + 3);  // quote + content + quote + null
-    *buf = '"';
+    if len < 2 { return s; }
+    if *s != '"' { return s; }  // not quoted
+    // Allocate new string without quotes
+    var buf *u8 = alloc(len - 1);  // -2 for quotes, +1 for null
     var i i64 = 0;
-    while i < len {
-        *(buf + 1 + i) = *(s + i);
+    while i < len - 2 {
+        *(buf + i) = *(s + 1 + i);
         i = i + 1;
     }
-    *(buf + 1 + len) = '"';
-    *(buf + 2 + len) = 0;
+    *(buf + len - 2) = 0;
     return buf;
 }
 
@@ -734,16 +735,16 @@ func sexpr_to_node(node *PNode) *u8 {
     }
 
     // (string "value")
-    // Auto-detect format by checking if parsed content starts with quote:
-    // Old format: (string "\"hello\"") -> parse -> "hello" (starts with quote, use as-is)
-    // New format: (string "hello") -> parse -> hello (no quote, wrap to match codegen)
+    // Auto-detect format: strings are now stored RAW (no surrounding quotes)
+    // Old v1 format: (string "\"hello\"") -> parse -> "hello" (has quotes, strip them)
+    // New v2 format: (string "hello") -> parse -> hello (raw, use as-is)
     if streq(head, "string") {
         var n *u8 = string_expr_alloc();
         var val_node *PNode = sexpr_get(node, 1);
         var val *u8 = sexpr_parse_string(val_node.text);
-        // Auto-detect: if doesn't start with quote, it's new format, wrap it
-        if *val != '"' {
-            val = sexpr_wrap_quotes(val);
+        // Auto-detect: if starts with quote, it's old v1 format, strip quotes
+        if *val == '"' {
+            val = sexpr_strip_quotes(val);
         }
         string_expr_set_value(n, val);
         string_expr_set_value_len(n, strlen(val));

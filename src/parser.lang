@@ -1375,6 +1375,59 @@ func string_expr_set_value_len(node *u8, len i64) void {
     *p = len;
 }
 
+// Strip surrounding quotes from a string literal and process escape sequences
+// Input: "hello\nworld" (with quotes, 14 chars)
+// Output: hello<newline>world (raw, 11 chars)
+func parse_string_literal(quoted *u8, quoted_len i64) *u8 {
+    var buf *u8 = alloc(quoted_len + 1);
+    var out i64 = 0;
+    var i i64 = 1;  // Skip opening quote
+
+    while i < quoted_len - 1 {  // Stop before closing quote
+        var c u8 = *(quoted + i);
+        if c == '\\' && i + 1 < quoted_len - 1 {
+            var next u8 = *(quoted + i + 1);
+            if next == 'n' { *(buf + out) = '\n'; out = out + 1; i = i + 2; }
+            else if next == 't' { *(buf + out) = '\t'; out = out + 1; i = i + 2; }
+            else if next == 'r' { *(buf + out) = '\r'; out = out + 1; i = i + 2; }
+            else if next == '0' { *(buf + out) = 0; out = out + 1; i = i + 2; }
+            else if next == '"' { *(buf + out) = '"'; out = out + 1; i = i + 2; }
+            else if next == '\\' { *(buf + out) = '\\'; out = out + 1; i = i + 2; }
+            else { *(buf + out) = c; out = out + 1; i = i + 1; }
+        } else {
+            *(buf + out) = c;
+            out = out + 1;
+            i = i + 1;
+        }
+    }
+    *(buf + out) = 0;
+    return buf;
+}
+
+func parse_string_literal_len(quoted *u8, quoted_len i64) i64 {
+    // Calculate length of processed string
+    var out i64 = 0;
+    var i i64 = 1;  // Skip opening quote
+
+    while i < quoted_len - 1 {  // Stop before closing quote
+        var c u8 = *(quoted + i);
+        if c == '\\' && i + 1 < quoted_len - 1 {
+            var next u8 = *(quoted + i + 1);
+            if next == 'n' || next == 't' || next == 'r' || next == '0' || next == '"' || next == '\\' {
+                out = out + 1;
+                i = i + 2;
+            } else {
+                out = out + 1;
+                i = i + 1;
+            }
+        } else {
+            out = out + 1;
+            i = i + 1;
+        }
+    }
+    return out;
+}
+
 // ============================================================
 // BoolExpr accessors
 // ============================================================
@@ -2566,8 +2619,11 @@ func parse_primary() *u8 {
     if parse_match(TOKEN_STRING) {
         var tok *u8 = parse_previous();
         var node *u8 = string_expr_alloc();
-        string_expr_set_value(node, tok_lexeme(tok));
-        string_expr_set_value_len(node, tok_lexeme_len(tok));
+        // Strip quotes and process escapes - store raw content
+        var raw *u8 = parse_string_literal(tok_lexeme(tok), tok_lexeme_len(tok));
+        var raw_len i64 = parse_string_literal_len(tok_lexeme(tok), tok_lexeme_len(tok));
+        string_expr_set_value(node, raw);
+        string_expr_set_value_len(node, raw_len);
         return node;
     }
 

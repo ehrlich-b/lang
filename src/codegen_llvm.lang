@@ -392,44 +392,27 @@ func llvm_emit_all_strings() void {
         var ptr **u8 = entry;
         var len *i64 = entry + 8;
 
-        // Calculate actual byte length after processing escapes
-        var processed_len i64 = llvm_string_processed_len(*ptr, *len);
-
+        // String is raw content (escapes already processed)
         // @.str0 = private constant [6 x i8] c"hello\00"
         llvm_emit_str("@.str");
         llvm_emit_int(i);
         llvm_emit_str(" = private constant [");
-        llvm_emit_int(processed_len + 1);  // +1 for null terminator
+        llvm_emit_int(*len + 1);  // +1 for null terminator
         llvm_emit_str(" x i8] c\"");
 
-        // Emit string with escape handling
-        // Note: strings come from source, so escapes are still in source form (\n = backslash + 'n')
+        // Emit raw string content - special chars need escapes for LLVM IR
         var j i64 = 0;
         while j < *len {
             var c u8 = *(*ptr + j);
-            if c == 92 && j + 1 < *len {  // backslash escape
-                j = j + 1;
-                var next u8 = *(*ptr + j);
-                if next == 110 {  // 'n' -> newline
-                    llvm_emit_str("\\0A");
-                } else if next == 116 {  // 't' -> tab
-                    llvm_emit_str("\\09");
-                } else if next == 114 {  // 'r' -> carriage return
-                    llvm_emit_str("\\0D");
-                } else if next == 48 {  // '0' -> null
-                    llvm_emit_str("\\00");
-                } else if next == 92 {  // '\' -> backslash
-                    llvm_emit_str("\\5C");
-                } else if next == 34 {  // '"' -> double quote
-                    llvm_emit_str("\\22");
-                } else {
-                    // Unknown escape, just emit the character
-                    llvm_emit_char(next);
-                }
-            } else if c == 34 {  // double quote (shouldn't happen, but escape it)
-                llvm_emit_str("\\22");
-            } else if c >= 32 && c < 127 {
+            if c >= 32 && c < 127 && c != 34 && c != 92 {
+                // Printable ASCII except quote and backslash
                 llvm_emit_char(c);
+            } else if c == 34 {
+                // Quote: use hex escape
+                llvm_emit_str("\\22");
+            } else if c == 92 {
+                // Backslash: use hex escape
+                llvm_emit_str("\\5C");
             } else {
                 // Non-printable character - emit hex escape
                 llvm_emit_str("\\");
@@ -776,13 +759,13 @@ func llvm_emit_expr(expr *u8) void {
 
     if k == NODE_STRING_EXPR {
         // Add string to table and get pointer
-        // Note: string value includes quotes, so skip first and last char
-        var str_val *u8 = string_expr_value(expr) + 1;  // Skip opening quote
-        var str_len i64 = string_expr_value_len(expr) - 2;  // Remove both quotes
+        // String value is raw content (no quotes, escapes already processed)
+        var str_val *u8 = string_expr_value(expr);
+        var str_len i64 = string_expr_value_len(expr);
         var idx i64 = llvm_add_string(str_val, str_len);
 
-        // Calculate processed length (escapes count as single bytes)
-        var processed_len i64 = llvm_string_processed_len(str_val, str_len);
+        // Length is just the raw length (escapes already processed)
+        var processed_len i64 = str_len;
 
         // GEP to get pointer to first element
         // %t = ptrtoint i8* getelementptr inbounds ([N x i8], [N x i8]* @.strI, i64 0, i64 0) to i64
@@ -5030,17 +5013,16 @@ func llvm_emit_decl(decl *u8) void {
                 llvm_emit_n(val, val_len);
             } else if node_kind(init) == NODE_STRING_EXPR {
                 // String literal: use constant expression for pointer
-                // Note: string value includes quotes, so skip first and last char
-                var str_val *u8 = string_expr_value(init) + 1;
-                var str_len i64 = string_expr_value_len(init) - 2;
+                // String value is raw content (no quotes, escapes already processed)
+                var str_val *u8 = string_expr_value(init);
+                var str_len i64 = string_expr_value_len(init);
                 var idx i64 = llvm_add_string(str_val, str_len);
-                var processed_len i64 = llvm_string_processed_len(str_val, str_len);
 
                 // ptrtoint (i8* getelementptr inbounds ([N x i8], [N x i8]* @.strI, i64 0, i64 0) to i64)
                 llvm_emit_str("ptrtoint (i8* getelementptr inbounds ([");
-                llvm_emit_int(processed_len + 1);
+                llvm_emit_int(str_len + 1);
                 llvm_emit_str(" x i8], [");
-                llvm_emit_int(processed_len + 1);
+                llvm_emit_int(str_len + 1);
                 llvm_emit_str(" x i8]* @.str");
                 llvm_emit_int(idx);
                 llvm_emit_str(", i64 0, i64 0) to i64)");
