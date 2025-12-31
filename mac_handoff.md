@@ -68,34 +68,14 @@ LANGBE=llvm LANGLIBC=libc ./out/lang std/core.lang src/*.lang -o bootstrap/llvm_
 
 ---
 
-## BLOCKER: 2024-12-31 Attempt #2
+## Status: READY FOR MAC (2024-12-31)
 
-**Symptom**: Segfault in malloc during startup
-```
-frame #0: lang`malloc + 908
-frame #1: lang`vec_new + 28
-frame #2: lang`main + 200
-```
+The blocker from Attempt #2 has been fixed:
+- `std/os/libc.lang` now declares `extern func mmap(...)`
+- `os_mmap` calls libc's `mmap()`, not raw syscall
+- Bootstrap regenerated with fix
 
-**Root cause**: `os_mmap` still calls Linux syscall, not libc:
-```llvm
-; Current (BROKEN on Mac):
-define i8* @os_mmap(...) {
-    %result = call i64 @syscall(i64 9, ...)  ; <-- Linux syscall number!
-}
-```
-
-The bootstrap declares `@syscall` as extern but macOS doesn't have a `syscall()` function that works like Linux's.
-
-**Fix needed in `std/os/libc.lang`**:
-```lang
-// Add extern declarations for libc functions:
-extern func mmap(addr *u8, len i64, prot i64, flags i64, fd i64, offset i64) *u8;
-
-// Then os_mmap should call libc's mmap, not syscall:
-func os_mmap(addr i64, len i64, prot i64, flags i64, fd i64, offset i64) *u8 {
-    return mmap(addr, len, prot, flags, fd, offset);
-}
-```
-
-**All os_* functions need this treatment** - they should call libc wrappers, not raw syscall.
+Verified on Linux:
+- Bootstrap compiles with clang ✓
+- Self-hosting works ✓
+- 165/165 LLVM tests pass ✓
