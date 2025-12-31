@@ -1110,6 +1110,7 @@ func llvm_emit_expr(expr *u8) void {
         var func_name_len i64 = 0;
         var is_indirect i64 = 0;
         var indirect_ptr_val *u8 = nil;
+        var known_func *u8 = nil;  // Must be declared before if-else to avoid garbage in else branch
         if node_kind(func_expr) == NODE_IDENT_EXPR {
             func_name = ident_expr_name(func_expr);
             func_name_len = ident_expr_name_len(func_expr);
@@ -1126,7 +1127,7 @@ func llvm_emit_expr(expr *u8) void {
             }
 
             // Check if it's a known function
-            var known_func *u8 = find_func(func_name, func_name_len);
+            known_func = find_func(func_name, func_name_len);
             if known_func == nil {
                 // Not a known function - might be a function pointer variable
                 // Check if it's a local, parameter, or global
@@ -4788,7 +4789,7 @@ func llvm_emit_func(func_node *u8) void {
         llvm_emit_n(name, name_len);
         llvm_emit_str("(");
 
-        // Parameters
+        // Parameters - use i64 for all types for consistency with call sites
         var params *u8 = func_decl_params(func_node);
         var param_count i64 = func_decl_param_count(func_node);
         var i i64 = 0;
@@ -4796,8 +4797,7 @@ func llvm_emit_func(func_node *u8) void {
             if i > 0 {
                 llvm_emit_str(", ");
             }
-            var p *u8 = params + (i * 24);
-            llvm_emit_type(param_type(p));
+            llvm_emit_str("i64");
             i = i + 1;
         }
 
