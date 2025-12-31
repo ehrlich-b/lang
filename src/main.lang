@@ -289,7 +289,7 @@ func main(argc i64, argv **u8) i64 {
             is_llvm = 1;
         }
         if emit_ast_mode == 0 && is_llvm == 0 {
-            append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(argc, argv); }\n");
+            append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { init_environ(envp); return main(argc, argv); }\n");
         }
     }
 
