@@ -488,6 +488,51 @@ func llvm_loop_continue_label(entry *u8) i64 {
     return *p;
 }
 
+// Effect registry: stores effect declarations for handler dispatch
+// Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
+var llvm_effects *u8 = nil;
+var llvm_effect_count i64 = 0;
+
+func llvm_init_effects() void {
+    llvm_effects = alloc(100 * 24);  // Max 100 effects
+    llvm_effect_count = 0;
+}
+
+func llvm_add_effect(decl *u8) void {
+    var name *u8 = effect_decl_name(decl);
+    var name_len i64 = effect_decl_name_len(decl);
+
+    var entry *u8 = llvm_effects + (llvm_effect_count * 24);
+    var np **u8 = entry;
+    *np = name;
+    var nl *i64 = entry + 8;
+    *nl = name_len;
+    var dp **u8 = entry + 16;
+    *dp = decl;
+
+    llvm_effect_count = llvm_effect_count + 1;
+}
+
+func llvm_find_effect(name *u8, name_len i64) *u8 {
+    var i i64 = 0;
+    while i < llvm_effect_count {
+        var entry *u8 = llvm_effects + (i * 24);
+        var np **u8 = entry;
+        var ename *u8 = *np;
+        var nl *i64 = entry + 8;
+        var elen i64 = *nl;
+
+        if elen == name_len {
+            if memcmp(ename, name, name_len) {
+                var dp **u8 = entry + 16;
+                return *dp;
+            }
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
 // Function table: track return types (1=void, 0=non-void)
 var llvm_func_ret_types *u8 = nil;
 
@@ -1421,8 +1466,17 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_str("(");
         }
 
+        // Limit arg count to function's declared param count to handle main() with no params
+        var emit_arg_count i64 = arg_count;
+        if known_func != nil {
+            var declared_param_count i64 = func_decl_param_count(known_func);
+            if declared_param_count < emit_arg_count {
+                emit_arg_count = declared_param_count;
+            }
+        }
+
         i = 0;
-        while i < arg_count {
+        while i < emit_arg_count {
             if i > 0 {
                 llvm_emit_str(", ");
             }
@@ -2995,6 +3049,581 @@ func llvm_emit_expr(expr *u8) void {
         return;
     }
 
+    // Handle expression: handle { body } with { return(v) => ..., Effect(e, k) => ... }
+    if k == NODE_HANDLE_EXPR {
+        var body *u8 = handle_expr_body(expr);
+        var cases *u8 = handle_expr_cases(expr);
+        var case_count i64 = handle_expr_case_count(expr);
+        var ret_bind *u8 = handle_expr_ret_bind(expr);
+        var ret_bind_len i64 = handle_expr_ret_bind_len(expr);
+        var ret_body *u8 = handle_expr_ret_body(expr);
+
+        // Generate labels
+        var handler_label i64 = llvm_next_label();
+        var done_label i64 = llvm_next_label();
+
+        // Save current rbp/rsp using inline asm
+        var rbp_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(rbp_temp);
+        llvm_emit_line(" = call i64 asm \"movq %rbp, $0\", \"=r\"()");
+
+        llvm_emit_str("    store i64 %t");
+        llvm_emit_int(rbp_temp);
+        llvm_emit_line(", i64* @__handler_rbp");
+
+        var rsp_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(rsp_temp);
+        llvm_emit_line(" = call i64 asm \"movq %rsp, $0\", \"=r\"()");
+
+        llvm_emit_str("    store i64 %t");
+        llvm_emit_int(rsp_temp);
+        llvm_emit_line(", i64* @__handler_rsp");
+
+        // Get handler block address using inline asm - compute label address
+        var addr_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(addr_temp);
+        llvm_emit_str(" = call i64 asm \"leaq .Lhandler");
+        llvm_emit_int(handler_label);
+        llvm_emit_line("(%rip), $0\", \"=r\"()");
+
+        llvm_emit_str("    store i64 %t");
+        llvm_emit_int(addr_temp);
+        llvm_emit_line(", i64* @__handler_addr");
+
+        llvm_emit_line("    store i64 1, i64* @__handler_set");
+
+        // Allocate result storage as i64
+        var result_var *u8 = alloc(32);
+        *result_var = 37;  // %
+        *(result_var + 1) = 95;  // _
+        *(result_var + 2) = 104;  // h
+        *(result_var + 3) = 114;  // r
+        itoa(handler_label, result_var + 4);
+        llvm_emit_str("    ");
+        llvm_emit_str(result_var);
+        llvm_emit_line(" = alloca i64");
+
+        // Generate body
+        if node_kind(body) == NODE_BLOCK_STMT {
+            llvm_emit_block(body);
+        } else {
+            llvm_emit_expr(body);
+        }
+        // Store body result for return case - llvm_expr_result has last expression value
+        llvm_emit_str("    store i64 ");
+        llvm_emit_str(llvm_expr_result);
+        llvm_emit_str(", i64* ");
+        llvm_emit_str(result_var);
+        llvm_emit_char(10);
+
+        // Normal completion - use conditional branch to keep handler block alive
+        // The volatile load prevents LLVM from optimizing this away
+        var dummy_flag i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(dummy_flag);
+        llvm_emit_line(" = load volatile i64, i64* @__handler_set");
+        var dummy_test i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(dummy_test);
+        llvm_emit_str(" = icmp eq i64 %t");
+        llvm_emit_int(dummy_flag);
+        llvm_emit_line(", 12345");
+        llvm_emit_str("    br i1 %t");
+        llvm_emit_int(dummy_test);
+        llvm_emit_str(", label %Lhandler");
+        llvm_emit_int(handler_label);
+        llvm_emit_str(", label %Ldone");
+        llvm_emit_int(done_label);
+        llvm_emit_char(10);
+
+        // Handler entry point - proper LLVM basic block + asm label alias
+        llvm_emit_str("Lhandler");
+        llvm_emit_int(handler_label);
+        llvm_emit_line(":");
+        // Emit asm label at same location for perform's jmpq to target
+        llvm_emit_str("    call void asm sideeffect \".Lhandler");
+        llvm_emit_int(handler_label);
+        llvm_emit_line(":\", \"\"()");
+
+        // Effect value is in @__effect_value, continuation in @__continuation_ptr
+        // Effect name is in @__effect_name_ptr/@__effect_name_len
+
+        // Generate dispatch code for each effect case
+        var case_i i64 = 0;
+        while case_i < case_count {
+            var entry *u8 = cases + (case_i * 56);
+            var eff_name *u8 = effect_case_name(entry);
+            var eff_name_len i64 = effect_case_name_len(entry);
+            var bind_ptr *u8 = effect_case_binding(entry);
+            var bind_len i64 = effect_case_binding_len(entry);
+            var k_ptr *u8 = effect_case_k(entry);
+            var k_len i64 = effect_case_k_len(entry);
+            var case_body *u8 = effect_case_body(entry);
+
+            // Look up effect declaration to check arity
+            var eff_decl *u8 = llvm_find_effect(eff_name, eff_name_len);
+            var eff_param_count i64 = 0;
+            if eff_decl != nil {
+                eff_param_count = effect_decl_param_type_count(eff_decl);
+            }
+
+            // For zero-arg effects, the syntax is Effect(k) where k is continuation
+            if eff_param_count == 0 && k_len == 0 && bind_len > 0 {
+                k_ptr = bind_ptr;
+                k_len = bind_len;
+                bind_ptr = nil;
+                bind_len = 0;
+            }
+
+            var case_label i64 = llvm_next_label();
+            var next_case_label i64 = llvm_next_label();
+
+            // Compare effect name length
+            var name_len_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(name_len_temp);
+            llvm_emit_line(" = load i64, i64* @__effect_name_len");
+
+            var len_cmp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(len_cmp);
+            llvm_emit_str(" = icmp eq i64 %t");
+            llvm_emit_int(name_len_temp);
+            llvm_emit_str(", ");
+            llvm_emit_int(eff_name_len);
+            llvm_emit_char(10);
+
+            llvm_emit_str("    br i1 %t");
+            llvm_emit_int(len_cmp);
+            llvm_emit_str(", label %Lcase");
+            llvm_emit_int(case_label);
+            llvm_emit_str(", label %Lnext");
+            llvm_emit_int(next_case_label);
+            llvm_emit_char(10);
+
+            llvm_emit_str("Lcase");
+            llvm_emit_int(case_label);
+            llvm_emit_line(":");
+
+            // TODO: Actually compare effect name strings
+            // For now, assume single effect type matches
+
+            var saved_local_count i64 = cg_local_count;
+
+            // Create local for effect value binding (e) - allocate, store, push let binding
+            var bind_pushed i64 = 0;
+            if bind_len > 0 {
+                // Build unique name like "e.eff5"
+                var bind_id i64 = case_label;
+                var bind_unique *u8 = alloc(32);
+                var bpos i64 = 0;
+                var bi i64 = 0;
+                while bi < bind_len {
+                    *(bind_unique + bpos) = *(bind_ptr + bi);
+                    bpos = bpos + 1;
+                    bi = bi + 1;
+                }
+                *(bind_unique + bpos) = 46;  // '.'
+                bpos = bpos + 1;
+                var btmp *u8 = alloc(16);
+                itoa(bind_id, btmp);
+                bi = 0;
+                while *(btmp + bi) != 0 {
+                    *(bind_unique + bpos) = *(btmp + bi);
+                    bpos = bpos + 1;
+                    bi = bi + 1;
+                }
+                *(bind_unique + bpos) = 0;
+                var bind_unique_len i64 = bpos;
+
+                // Allocate local
+                llvm_emit_str("    %");
+                llvm_emit_n(bind_unique, bind_unique_len);
+                llvm_emit_line(" = alloca i64");
+
+                // Load effect value
+                var val_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(val_temp);
+                llvm_emit_line(" = load i64, i64* @__effect_value");
+
+                // Store to local
+                llvm_emit_str("    store i64 %t");
+                llvm_emit_int(val_temp);
+                llvm_emit_str(", i64* %");
+                llvm_emit_n(bind_unique, bind_unique_len);
+                llvm_emit_char(10);
+
+                // Push let binding
+                llvm_push_let_binding(bind_ptr, bind_len, bind_unique, bind_unique_len);
+                bind_pushed = 1;
+            }
+
+            // Create local for continuation binding (k) - allocate, store, push let binding
+            var k_pushed i64 = 0;
+            if k_len > 0 {
+                // Build unique name like "k.eff5"
+                var k_id i64 = case_label;
+                var k_unique *u8 = alloc(32);
+                var kpos i64 = 0;
+                var ki i64 = 0;
+                while ki < k_len {
+                    *(k_unique + kpos) = *(k_ptr + ki);
+                    kpos = kpos + 1;
+                    ki = ki + 1;
+                }
+                *(k_unique + kpos) = 46;  // '.'
+                kpos = kpos + 1;
+                var ktmp *u8 = alloc(16);
+                itoa(k_id, ktmp);
+                ki = 0;
+                while *(ktmp + ki) != 0 {
+                    *(k_unique + kpos) = *(ktmp + ki);
+                    kpos = kpos + 1;
+                    ki = ki + 1;
+                }
+                *(k_unique + kpos) = 0;
+                var k_unique_len i64 = kpos;
+
+                // Allocate local (store pointer as i64)
+                llvm_emit_str("    %");
+                llvm_emit_n(k_unique, k_unique_len);
+                llvm_emit_line(" = alloca i64");
+
+                // Load continuation
+                var cont_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(cont_temp);
+                llvm_emit_line(" = load i8*, i8** @__continuation_ptr");
+
+                // ptrtoint to i64
+                var int_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(int_temp);
+                llvm_emit_str(" = ptrtoint i8* %t");
+                llvm_emit_int(cont_temp);
+                llvm_emit_line(" to i64");
+
+                // Store to local
+                llvm_emit_str("    store i64 %t");
+                llvm_emit_int(int_temp);
+                llvm_emit_str(", i64* %");
+                llvm_emit_n(k_unique, k_unique_len);
+                llvm_emit_char(10);
+
+                // Push let binding
+                llvm_push_let_binding(k_ptr, k_len, k_unique, k_unique_len);
+                k_pushed = 1;
+            }
+
+            // Generate case body
+            if node_kind(case_body) == NODE_BLOCK_STMT {
+                llvm_emit_block(case_body);
+            } else {
+                llvm_emit_expr(case_body);
+                // Store result
+                llvm_emit_str("    store i64 ");
+                llvm_emit_str(llvm_expr_result);
+                llvm_emit_str(", i64* ");
+                llvm_emit_str(result_var);
+                llvm_emit_char(10);
+            }
+
+            cg_local_count = saved_local_count;
+
+            // Pop let bindings
+            if k_pushed != 0 {
+                llvm_pop_let_binding();
+            }
+            if bind_pushed != 0 {
+                llvm_pop_let_binding();
+            }
+
+            // Jump to done
+            llvm_emit_str("    br label %Ldone");
+            llvm_emit_int(done_label);
+            llvm_emit_char(10);
+
+            llvm_emit_str("Lnext");
+            llvm_emit_int(next_case_label);
+            llvm_emit_line(":");
+
+            case_i = case_i + 1;
+        }
+
+        // Fallthrough after all cases - just go to done
+        llvm_emit_str("    br label %Ldone");
+        llvm_emit_int(done_label);
+        llvm_emit_char(10);
+
+        // Done label
+        llvm_emit_str("Ldone");
+        llvm_emit_int(done_label);
+        llvm_emit_line(":");
+
+        // Clear handler
+        llvm_emit_line("    store i64 0, i64* @__handler_set");
+
+        // Load final result
+        var final_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(final_temp);
+        llvm_emit_str(" = load i64, i64* ");
+        llvm_emit_str(result_var);
+        llvm_emit_char(10);
+
+        llvm_set_result_temp(final_temp);
+        return;
+    }
+
+    // Perform expression: perform Effect(args)
+    if k == NODE_PERFORM_EXPR {
+        var args *u8 = perform_expr_args(expr);
+        var arg_count i64 = perform_expr_arg_count(expr);
+        var eff_name *u8 = perform_expr_name(expr);
+        var eff_name_len i64 = perform_expr_name_len(expr);
+
+        // Generate resume label
+        var resume_label i64 = llvm_next_label();
+
+        // Allocate continuation struct: [rbp:8][rsp:8][return_addr:8] = 24 bytes
+        var cont_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(cont_temp);
+        llvm_emit_line(" = call i8* @alloc(i64 24)");
+
+        // Store rbp at offset 0 using inline asm
+        llvm_emit_str("    call void asm sideeffect \"movq %rbp, ($0)\", \"r\"(i8* %t");
+        llvm_emit_int(cont_temp);
+        llvm_emit_line(")");
+
+        // Store rsp at offset 8
+        var rsp_ptr i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(rsp_ptr);
+        llvm_emit_str(" = getelementptr i8, i8* %t");
+        llvm_emit_int(cont_temp);
+        llvm_emit_line(", i64 8");
+
+        llvm_emit_str("    call void asm sideeffect \"movq %rsp, %rax\\0Amovq %rax, ($0)\", \"r,~{rax},~{memory}\"(i8* %t");
+        llvm_emit_int(rsp_ptr);
+        llvm_emit_line(")");
+
+        // Store return address at offset 16
+        var ret_ptr i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(ret_ptr);
+        llvm_emit_str(" = getelementptr i8, i8* %t");
+        llvm_emit_int(cont_temp);
+        llvm_emit_line(", i64 16");
+
+        llvm_emit_str("    call void asm sideeffect \"leaq .Lresume");
+        llvm_emit_int(resume_label);
+        llvm_emit_str("(%rip), %rax\\0Amovq %rax, ($0)\", \"r,~{rax},~{memory}\"(i8* %t");
+        llvm_emit_int(ret_ptr);
+        llvm_emit_line(")");
+
+        // Store continuation pointer in global
+        llvm_emit_str("    store i8* %t");
+        llvm_emit_int(cont_temp);
+        llvm_emit_line(", i8** @__continuation_ptr");
+
+        // Store effect name
+        var eff_str_idx i64 = llvm_add_string(eff_name, eff_name_len);
+        var name_ptr_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(name_ptr_temp);
+        llvm_emit_str(" = getelementptr [");
+        llvm_emit_int(eff_name_len + 1);
+        llvm_emit_str(" x i8], [");
+        llvm_emit_int(eff_name_len + 1);
+        llvm_emit_str(" x i8]* @.str");
+        llvm_emit_int(eff_str_idx);
+        llvm_emit_line(", i64 0, i64 0");
+
+        llvm_emit_str("    store i8* %t");
+        llvm_emit_int(name_ptr_temp);
+        llvm_emit_line(", i8** @__effect_name_ptr");
+
+        llvm_emit_str("    store i64 ");
+        llvm_emit_int(eff_name_len);
+        llvm_emit_line(", i64* @__effect_name_len");
+
+        // Evaluate first arg (if any) and store in __effect_value
+        if arg_count > 0 {
+            var first_arg_ptr **u8 = args;
+            llvm_emit_expr(*first_arg_ptr);
+            llvm_emit_str("    store i64 ");
+            llvm_emit_str(llvm_expr_result);
+            llvm_emit_line(", i64* @__effect_value");
+        }
+
+        // Restore handler's rbp and jump to handler using inline asm
+        var h_rbp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(h_rbp);
+        llvm_emit_line(" = load i64, i64* @__handler_rbp");
+
+        var h_addr i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(h_addr);
+        llvm_emit_line(" = load i64, i64* @__handler_addr");
+
+        // Jump to handler - use a branch that LLVM can't optimize away
+        // We pretend we might fall through, then the "resume" block is kept
+        var dummy_cond i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(dummy_cond);
+        llvm_emit_line(" = load volatile i64, i64* @__handler_set");
+        var dummy_cmp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(dummy_cmp);
+        llvm_emit_str(" = icmp eq i64 %t");
+        llvm_emit_int(dummy_cond);
+        llvm_emit_line(", 0");
+        llvm_emit_str("    call void asm sideeffect \"movq $0, %rbp\\0Ajmpq *$1\", \"r,r\"(i64 %t");
+        llvm_emit_int(h_rbp);
+        llvm_emit_str(", i64 %t");
+        llvm_emit_int(h_addr);
+        llvm_emit_line(")");
+        // Branch to resume point (this keeps the block alive)
+        llvm_emit_str("    br label %Lresume");
+        llvm_emit_int(resume_label);
+        llvm_emit_char(10);
+
+        // Resume point - proper LLVM basic block + asm label
+        llvm_emit_str("Lresume");
+        llvm_emit_int(resume_label);
+        llvm_emit_line(":");
+        llvm_emit_str("    call void asm sideeffect \".Lresume");
+        llvm_emit_int(resume_label);
+        llvm_emit_line(":\", \"\"()");
+
+        // Result is in %rax after resume, get it
+        var result_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(result_temp);
+        llvm_emit_line(" = call i64 asm \"movq %rax, $0\", \"=r\"()");
+
+        llvm_set_result_temp(result_temp);
+        return;
+    }
+
+    // Resume expression: resume k(value)
+    if k == NODE_RESUME_EXPR {
+        var k_expr *u8 = resume_expr_k(expr);
+        var value *u8 = resume_expr_value(expr);
+
+        // Evaluate continuation expression
+        llvm_emit_expr(k_expr);
+        var cont_i64 *u8 = str_dup(llvm_expr_result);
+
+        // Convert i64 to i8* for pointer operations
+        var cont_ptr i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(cont_ptr);
+        llvm_emit_str(" = inttoptr i64 ");
+        llvm_emit_str(cont_i64);
+        llvm_emit_line(" to i8*");
+
+        var cont_val *u8 = alloc(16);
+        *cont_val = 37;  // %
+        *(cont_val + 1) = 116;  // t
+        itoa(cont_ptr, cont_val + 2);
+
+        // Load rbp, rsp, return_addr from continuation
+        // Continuation: [rbp:8][rsp:8][return_addr:8]
+
+        // Get rbp
+        var rbp_ptr i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(rbp_ptr);
+        llvm_emit_str(" = bitcast i8* ");
+        llvm_emit_str(cont_val);
+        llvm_emit_line(" to i64*");
+
+        var saved_rbp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(saved_rbp);
+        llvm_emit_str(" = load i64, i64* %t");
+        llvm_emit_int(rbp_ptr);
+        llvm_emit_char(10);
+
+        // Get rsp
+        var rsp_off i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(rsp_off);
+        llvm_emit_str(" = getelementptr i8, i8* ");
+        llvm_emit_str(cont_val);
+        llvm_emit_line(", i64 8");
+
+        var rsp_ptr i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(rsp_ptr);
+        llvm_emit_str(" = bitcast i8* %t");
+        llvm_emit_int(rsp_off);
+        llvm_emit_line(" to i64*");
+
+        var saved_rsp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(saved_rsp);
+        llvm_emit_str(" = load i64, i64* %t");
+        llvm_emit_int(rsp_ptr);
+        llvm_emit_char(10);
+
+        // Get return addr
+        var ret_off i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(ret_off);
+        llvm_emit_str(" = getelementptr i8, i8* ");
+        llvm_emit_str(cont_val);
+        llvm_emit_line(", i64 16");
+
+        var ret_ptr i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(ret_ptr);
+        llvm_emit_str(" = bitcast i8* %t");
+        llvm_emit_int(ret_off);
+        llvm_emit_line(" to i64*");
+
+        var saved_ret i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(saved_ret);
+        llvm_emit_str(" = load i64, i64* %t");
+        llvm_emit_int(ret_ptr);
+        llvm_emit_char(10);
+
+        // Evaluate value to resume with
+        var resume_val *u8 = "0";
+        if value != nil {
+            llvm_emit_expr(value);
+            resume_val = str_dup(llvm_expr_result);
+        }
+
+        // Restore rbp, rsp and jump using inline asm
+        // Put resume value in %rax so it's available at resume point
+        llvm_emit_str("    call void asm sideeffect \"movq $0, %rax\\0Amovq $1, %rbp\\0Amovq $2, %rsp\\0Ajmpq *$3\", \"r,r,r,r\"(i64 ");
+        llvm_emit_str(resume_val);
+        llvm_emit_str(", i64 %t");
+        llvm_emit_int(saved_rbp);
+        llvm_emit_str(", i64 %t");
+        llvm_emit_int(saved_rsp);
+        llvm_emit_str(", i64 %t");
+        llvm_emit_int(saved_ret);
+        llvm_emit_line(")");
+        llvm_emit_line("    unreachable");
+
+        // This point is never reached (resume jumps away)
+        // Return dummy value
+        var p *u8 = llvm_expr_result;
+        *p = 48;
+        *(p + 1) = 0;
+        return;
+    }
+
     // For now, unsupported expressions return 0
     var p *u8 = llvm_expr_result;
     *p = 48;  // "0"
@@ -4461,6 +5090,8 @@ func llvm_register_decl(decl *u8) void {
         cg_current_file_decl_count = saved_file_count;
     } else if k == NODE_READER_DECL {
         add_reader(decl);
+    } else if k == NODE_EFFECT_DECL {
+        llvm_add_effect(decl);
     }
 }
 
@@ -4655,6 +5286,7 @@ func generate_llvm(prog *u8, output_file *u8) void {
     llvm_init_func_table();
     llvm_init_globals();
     llvm_init_loop_stack();
+    llvm_init_effects();
     llvm_init_strings();
     llvm_init_lambdas();
     llvm_init_let_bindings();
@@ -4690,6 +5322,17 @@ func generate_llvm(prog *u8, output_file *u8) void {
 
     // Declare external syscall (variadic)
     llvm_emit_line("declare i64 @syscall(i64, ...)");
+    llvm_emit_char(10);
+
+    // Global variables for effect handling
+    llvm_emit_line("@__handler_set = internal global i64 0");
+    llvm_emit_line("@__handler_rbp = internal global i64 0");
+    llvm_emit_line("@__handler_rsp = internal global i64 0");
+    llvm_emit_line("@__handler_addr = internal global i64 0");
+    llvm_emit_line("@__effect_value = internal global i64 0");
+    llvm_emit_line("@__continuation_ptr = internal global i8* null");
+    llvm_emit_line("@__effect_name_ptr = internal global i8* null");
+    llvm_emit_line("@__effect_name_len = internal global i64 0");
     llvm_emit_char(10);
 
     // Emit all declarations
