@@ -70,17 +70,40 @@ Verify it works with raw strings, or simplify if quotes were being stripped ther
 - `make verify && make promote`
 - Bootstrap now outputs AND reads new format
 
-### Phase 3: Clean Up (Optional)
+### Phase 3: Remove Auto-Detection (REQUIRED)
 
-Remove old-format detection from sexpr_reader if desired.
-Or keep it for backwards compatibility with old AST files.
+**File: `src/sexpr_reader.lang`**
+
+Remove the old-format detection added in Phase 1:
+```lang
+// DELETE this code:
+if *val == '"' {
+    val = strip_quotes(val);
+}
+// Just use val directly now
+```
+
+**Why this is REQUIRED, not optional:**
+
+After Phase 2, all AST output is raw format. The auto-detection becomes a BUG:
+- Want string `"hello"` (with actual quotes as content)
+- Raw format stores: `"hello"`
+- Auto-detect sees leading `"` → strips quotes → get `hello`
+- **WRONG!** You lost the quotes you wanted.
+
+The auto-detection is a **temporary bridge** that must be removed once migration is complete.
+
+**After this change:**
+- `make verify && make promote && git commit`
+- Old AST files with quoted strings will NO LONGER WORK
+- This is correct - migration is complete
 
 ## Key Files to Modify
 
-1. `src/sexpr_reader.lang` - Add auto-detect for old/new string format
-2. `src/parser.lang` - Strip quotes when creating STRING_EXPR from token
-3. `src/ast_emit.lang` - Verify string emission works with raw values
-4. `src/codegen.lang` - Verify `write_ascii_string` works with raw values
+1. `src/sexpr_reader.lang` - Phase 1: Add auto-detect, Phase 3: Remove it
+2. `src/parser.lang` - Phase 2: Strip quotes when creating STRING_EXPR
+3. `src/ast_emit.lang` - Phase 2: Verify string emission works with raw values
+4. `src/codegen.lang` - Phase 2: Verify `write_ascii_string` works with raw values
 
 ## Execution Order (CRITICAL)
 
@@ -89,9 +112,14 @@ Or keep it for backwards compatibility with old AST files.
 2. make verify && make promote && git commit
 3. Implement Phase 2 (output new format)
 4. make verify && make promote && git commit
+5. Implement Phase 3 (remove auto-detection)
+6. make verify && make promote && git commit
 ```
 
-**DO NOT** do Phase 2 before promoting Phase 1. The bootstrap must understand the new format before you output it.
+**DO NOT** skip phases or combine them. Each phase must be promoted before the next begins.
+
+- Phase 2 before Phase 1 promoted → bootstrap can't read new format → FAIL
+- Phase 3 before Phase 2 promoted → strings with quotes in content break → BUG
 
 ## Helper Function Needed
 
