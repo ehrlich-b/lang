@@ -3502,11 +3502,11 @@ func llvm_emit_expr(expr *u8) void {
         llvm_emit_int(resume_label);
         llvm_emit_line(":\", \"\"()");
 
-        // Result is in %rax after resume, get it
+        // Result is in @__resume_value global (stored by resume before jumping)
         var result_temp i64 = llvm_next_temp();
         llvm_emit_str("    %t");
         llvm_emit_int(result_temp);
-        llvm_emit_line(" = call i64 asm \"movq %rax, $0\", \"=r\"()");
+        llvm_emit_line(" = load i64, i64* @__resume_value");
 
         llvm_set_result_temp(result_temp);
         return;
@@ -3603,11 +3603,13 @@ func llvm_emit_expr(expr *u8) void {
             resume_val = str_dup(llvm_expr_result);
         }
 
-        // Restore rbp, rsp and jump using inline asm
-        // Put resume value in %rax so it's available at resume point
-        llvm_emit_str("    call void asm sideeffect \"movq $0, %rax\\0Amovq $1, %rbp\\0Amovq $2, %rsp\\0Ajmpq *$3\", \"r,r,r,r\"(i64 ");
+        // Store resume value to global variable (not rax - LLVM can't track it across jump)
+        llvm_emit_str("    store i64 ");
         llvm_emit_str(resume_val);
-        llvm_emit_str(", i64 %t");
+        llvm_emit_line(", i64* @__resume_value");
+
+        // Restore rbp, rsp and jump using inline asm
+        llvm_emit_str("    call void asm sideeffect \"movq $0, %rbp\\0Amovq $1, %rsp\\0Ajmpq *$2\", \"r,r,r\"(i64 %t");
         llvm_emit_int(saved_rbp);
         llvm_emit_str(", i64 %t");
         llvm_emit_int(saved_rsp);
@@ -5333,6 +5335,7 @@ func generate_llvm(prog *u8, output_file *u8) void {
     llvm_emit_line("@__continuation_ptr = internal global i8* null");
     llvm_emit_line("@__effect_name_ptr = internal global i8* null");
     llvm_emit_line("@__effect_name_len = internal global i64 0");
+    llvm_emit_line("@__resume_value = internal global i64 0");
     llvm_emit_char(10);
 
     // Emit all declarations
