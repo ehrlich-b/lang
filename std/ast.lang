@@ -24,9 +24,14 @@ func ast_finish(sb *StringBuilder) *u8 {
     return sb_finish(sb);
 }
 
-// Quote a string value (handles escaping)
+// Quote a string value for S-expr output.
+// Parser convention: string values include quotes (e.g., "hello" = 7 chars).
+// So ast_string("hello") must produce S-expr that parses back to "hello" with quotes.
+// Output: "\"hello\"" which sexpr_parse_string turns into "hello" (7 chars).
 func ast_quote_string(sb *StringBuilder, s *u8) void {
-    sb_char(sb, '"');
+    sb_char(sb, '"');     // S-expr opening quote
+    sb_char(sb, '\\');    // Escape for value quote
+    sb_char(sb, '"');     // Value opening quote (part of the string value)
     while *s != 0 {
         var c u8 = *s;
         if c == '"' { sb_char(sb, '\\'); sb_char(sb, '"'); }
@@ -37,7 +42,9 @@ func ast_quote_string(sb *StringBuilder, s *u8) void {
         else { sb_char(sb, c); }
         s = s + 1;
     }
-    sb_char(sb, '"');
+    sb_char(sb, '\\');    // Escape for value quote
+    sb_char(sb, '"');     // Value closing quote (part of the string value)
+    sb_char(sb, '"');     // S-expr closing quote
 }
 
 // ============================================================
