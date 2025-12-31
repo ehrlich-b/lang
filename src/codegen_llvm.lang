@@ -511,14 +511,50 @@ func llvm_init_func_table() void {
     llvm_func_ret_types = map_new();
 }
 
+func llvm_is_bool_type(t *u8) i64 {
+    if t == nil {
+        return 0;
+    }
+    if type_kind(t) == TYPE_BASE {
+        var name *u8 = base_type_name(t);
+        var len i64 = base_type_name_len(t);
+        if len == 4 {
+            if memcmp(name, "bool", 4) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+func llvm_is_u8_type(t *u8) i64 {
+    if t == nil {
+        return 0;
+    }
+    if type_kind(t) == TYPE_BASE {
+        var name *u8 = base_type_name(t);
+        var len i64 = base_type_name_len(t);
+        if len == 2 {
+            if memcmp(name, "u8", 2) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 func llvm_register_func(name *u8, len i64, ret_type *u8) void {
     var key *u8 = str_dup_n(name, len);
-    // Store: 0 = i64, 1 = void, 2 = pointer
+    // Store: 0 = i64, 1 = void, 2 = pointer, 3 = bool, 4 = u8
     var ret_kind i64 = 0;
     if llvm_is_void_type(ret_type) {
         ret_kind = 1;
     } else if llvm_is_pointer_type(ret_type) {
         ret_kind = 2;
+    } else if llvm_is_bool_type(ret_type) {
+        ret_kind = 3;
+    } else if llvm_is_u8_type(ret_type) {
+        ret_kind = 4;
     }
     map_set(llvm_func_ret_types, key, ret_kind);
 }
@@ -535,6 +571,22 @@ func llvm_func_returns_ptr(name *u8, len i64) i64 {
     var key *u8 = str_dup_n(name, len);
     if map_has(llvm_func_ret_types, key) {
         return map_get(llvm_func_ret_types, key) == 2;
+    }
+    return 0;  // Default: assume i64
+}
+
+func llvm_func_returns_bool(name *u8, len i64) i64 {
+    var key *u8 = str_dup_n(name, len);
+    if map_has(llvm_func_ret_types, key) {
+        return map_get(llvm_func_ret_types, key) == 3;
+    }
+    return 0;  // Default: assume i64
+}
+
+func llvm_func_returns_u8(name *u8, len i64) i64 {
+    var key *u8 = str_dup_n(name, len);
+    if map_has(llvm_func_ret_types, key) {
+        return map_get(llvm_func_ret_types, key) == 4;
     }
     return 0;  // Default: assume i64
 }
@@ -1022,7 +1074,221 @@ func llvm_emit_expr(expr *u8) void {
             i = i + 1;
         }
 
-        // If indirect call, load and cast the function pointer now
+        // Check if this is a closure type call (needs special handling)
+        var is_closure_call i64 = 0;
+        if is_indirect == 1 || is_indirect == 2 {
+            // Check the variable's type
+            var var_type *u8 = nil;
+            if is_indirect == 1 {
+                var local_idx i64 = find_local(func_name, func_name_len);
+                if local_idx >= 0 {
+                    var_type = local_get_type(local_idx);
+                }
+            } else {
+                var global_idx i64 = find_global(func_name, func_name_len);
+                if global_idx >= 0 {
+                    var_type = global_get_type(global_idx);
+                }
+            }
+            if var_type != nil {
+                if is_auto_closure_type(var_type) == 1 {
+                    is_closure_call = 1;
+                }
+            }
+        }
+
+        // Handle closure calls specially
+        if is_closure_call == 1 {
+            // Load closure struct pointer
+            var actual_fn_name *u8 = func_name;
+            var actual_fn_len i64 = func_name_len;
+            if is_indirect == 1 {
+                var let_entry *u8 = llvm_find_let_binding(func_name, func_name_len);
+                if let_entry != nil {
+                    actual_fn_name = llvm_let_unique_name(let_entry);
+                    actual_fn_len = llvm_let_unique_len(let_entry);
+                }
+            }
+
+            var closure_ptr i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(closure_ptr);
+            if is_indirect == 2 {
+                llvm_emit_str(" = load i64, i64* @");
+                llvm_emit_n(func_name, func_name_len);
+            } else {
+                llvm_emit_str(" = load i64, i64* %");
+                llvm_emit_n(actual_fn_name, actual_fn_len);
+            }
+            llvm_emit_char(10);
+
+            // Convert to i8* for GEP
+            var closure_i8ptr i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(closure_i8ptr);
+            llvm_emit_str(" = inttoptr i64 %t");
+            llvm_emit_int(closure_ptr);
+            llvm_emit_line(" to i8*");
+
+            // Load tag from offset 0
+            var tag_ptr i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(tag_ptr);
+            llvm_emit_str(" = bitcast i8* %t");
+            llvm_emit_int(closure_i8ptr);
+            llvm_emit_line(" to i64*");
+
+            var tag_val i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(tag_val);
+            llvm_emit_str(" = load i64, i64* %t");
+            llvm_emit_int(tag_ptr);
+            llvm_emit_char(10);
+
+            // Load fn_ptr from offset 8
+            var fn_ptr_gep i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(fn_ptr_gep);
+            llvm_emit_str(" = getelementptr i8, i8* %t");
+            llvm_emit_int(closure_i8ptr);
+            llvm_emit_line(", i64 8");
+
+            var fn_ptr_slot i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(fn_ptr_slot);
+            llvm_emit_str(" = bitcast i8* %t");
+            llvm_emit_int(fn_ptr_gep);
+            llvm_emit_line(" to i64*");
+
+            var fn_ptr_val i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(fn_ptr_val);
+            llvm_emit_str(" = load i64, i64* %t");
+            llvm_emit_int(fn_ptr_slot);
+            llvm_emit_char(10);
+
+            // Check tag: if tag == 0, plain call; else closure call
+            var tag_cmp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(tag_cmp);
+            llvm_emit_str(" = icmp eq i64 %t");
+            llvm_emit_int(tag_val);
+            llvm_emit_line(", 0");
+
+            var plain_label i64 = llvm_next_label();
+            var closure_label i64 = llvm_next_label();
+            var merge_label i64 = llvm_next_label();
+
+            llvm_emit_str("    br i1 %t");
+            llvm_emit_int(tag_cmp);
+            llvm_emit_str(", label %L");
+            llvm_emit_int(plain_label);
+            llvm_emit_str(", label %L");
+            llvm_emit_int(closure_label);
+            llvm_emit_char(10);
+
+            // Plain function call (tag == 0)
+            llvm_emit_str("L");
+            llvm_emit_int(plain_label);
+            llvm_emit_line(":");
+
+            // Cast to plain function pointer
+            var plain_fn_ptr i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(plain_fn_ptr);
+            llvm_emit_str(" = inttoptr i64 %t");
+            llvm_emit_int(fn_ptr_val);
+            llvm_emit_str(" to i64 (");
+            var j i64 = 0;
+            while j < arg_count {
+                if j > 0 { llvm_emit_str(", "); }
+                llvm_emit_str("i64");
+                j = j + 1;
+            }
+            llvm_emit_line(")*");
+
+            // Call without closure arg
+            var plain_result i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(plain_result);
+            llvm_emit_str(" = call i64 %t");
+            llvm_emit_int(plain_fn_ptr);
+            llvm_emit_str("(");
+            j = 0;
+            while j < arg_count {
+                if j > 0 { llvm_emit_str(", "); }
+                llvm_emit_str("i64 ");
+                llvm_emit_str(*(arg_vals + j));
+                j = j + 1;
+            }
+            llvm_emit_line(")");
+
+            llvm_emit_str("    br label %L");
+            llvm_emit_int(merge_label);
+            llvm_emit_char(10);
+
+            // Closure call (tag != 0)
+            llvm_emit_str("L");
+            llvm_emit_int(closure_label);
+            llvm_emit_line(":");
+
+            // Cast to closure function pointer (takes i8* as first arg)
+            var clos_fn_ptr i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(clos_fn_ptr);
+            llvm_emit_str(" = inttoptr i64 %t");
+            llvm_emit_int(fn_ptr_val);
+            llvm_emit_str(" to i64 (i8*");
+            j = 0;
+            while j < arg_count {
+                llvm_emit_str(", i64");
+                j = j + 1;
+            }
+            llvm_emit_line(")*");
+
+            // Call with closure as first arg
+            var clos_result i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(clos_result);
+            llvm_emit_str(" = call i64 %t");
+            llvm_emit_int(clos_fn_ptr);
+            llvm_emit_str("(i8* %t");
+            llvm_emit_int(closure_i8ptr);
+            j = 0;
+            while j < arg_count {
+                llvm_emit_str(", i64 ");
+                llvm_emit_str(*(arg_vals + j));
+                j = j + 1;
+            }
+            llvm_emit_line(")");
+
+            llvm_emit_str("    br label %L");
+            llvm_emit_int(merge_label);
+            llvm_emit_char(10);
+
+            // Merge block with phi
+            llvm_emit_str("L");
+            llvm_emit_int(merge_label);
+            llvm_emit_line(":");
+
+            var phi_result i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(phi_result);
+            llvm_emit_str(" = phi i64 [ %t");
+            llvm_emit_int(plain_result);
+            llvm_emit_str(", %L");
+            llvm_emit_int(plain_label);
+            llvm_emit_str(" ], [ %t");
+            llvm_emit_int(clos_result);
+            llvm_emit_str(", %L");
+            llvm_emit_int(closure_label);
+            llvm_emit_line(" ]");
+
+            llvm_set_result_temp(phi_result);
+            return;
+        }
+
+        // If indirect call (non-closure), load and cast the function pointer now
         if is_indirect != 0 {
             var ptr_val_str *u8 = nil;
 
@@ -1031,17 +1297,29 @@ func llvm_emit_expr(expr *u8) void {
                 ptr_val_str = indirect_ptr_val;
             } else {
                 // Variable-based: need to load from local or global
+                // Check for let binding (unique name mapping)
+                var actual_fn_name *u8 = func_name;
+                var actual_fn_len i64 = func_name_len;
+                if is_indirect != 2 {
+                    var let_entry *u8 = llvm_find_let_binding(func_name, func_name_len);
+                    if let_entry != nil {
+                        actual_fn_name = llvm_let_unique_name(let_entry);
+                        actual_fn_len = llvm_let_unique_len(let_entry);
+                    }
+                }
+
                 var load_temp i64 = llvm_next_temp();
                 llvm_emit_str("    %t");
                 llvm_emit_int(load_temp);
                 if is_indirect == 2 {
                     // Global variable
                     llvm_emit_str(" = load i64, i64* @");
+                    llvm_emit_n(func_name, func_name_len);
                 } else {
                     // Local variable
                     llvm_emit_str(" = load i64, i64* %");
+                    llvm_emit_n(actual_fn_name, actual_fn_len);
                 }
-                llvm_emit_n(func_name, func_name_len);
                 llvm_emit_char(10);
 
                 var buf *u8 = alloc(32);
@@ -1074,9 +1352,11 @@ func llvm_emit_expr(expr *u8) void {
             indirect_ptr_val = buf2;
         }
 
-        // Check if function returns void or pointer
+        // Check if function returns void, pointer, bool, or u8
         var is_void i64 = llvm_func_returns_void(func_name, func_name_len);
         var is_ptr i64 = llvm_func_returns_ptr(func_name, func_name_len);
+        var is_bool i64 = llvm_func_returns_bool(func_name, func_name_len);
+        var is_u8 i64 = llvm_func_returns_u8(func_name, func_name_len);
 
         // Check if this is syscall (variadic)
         var is_syscall i64 = 0;
@@ -1115,6 +1395,22 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_str(" = call i8* @");
             llvm_emit_n(func_name, func_name_len);
             llvm_emit_str("(");
+        } else if is_bool {
+            // Bool-returning function: call i1
+            call_temp = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(call_temp);
+            llvm_emit_str(" = call i1 @");
+            llvm_emit_n(func_name, func_name_len);
+            llvm_emit_str("(");
+        } else if is_u8 {
+            // u8-returning function: call i8
+            call_temp = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(call_temp);
+            llvm_emit_str(" = call i8 @");
+            llvm_emit_n(func_name, func_name_len);
+            llvm_emit_str("(");
         } else {
             // Non-void function returning i64: assign result to temp
             call_temp = llvm_next_temp();
@@ -1147,6 +1443,28 @@ func llvm_emit_expr(expr *u8) void {
             call_temp = conv_temp;
         }
 
+        // For bool-returning functions, convert i1 to i64
+        if is_bool {
+            var conv_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(conv_temp);
+            llvm_emit_str(" = zext i1 %t");
+            llvm_emit_int(call_temp);
+            llvm_emit_line(" to i64");
+            call_temp = conv_temp;
+        }
+
+        // For u8-returning functions, convert i8 to i64
+        if is_u8 {
+            var conv_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(conv_temp);
+            llvm_emit_str(" = zext i8 %t");
+            llvm_emit_int(call_temp);
+            llvm_emit_line(" to i64");
+            call_temp = conv_temp;
+        }
+
         // Set result to the temp (only meaningful for non-void)
         if is_void == 0 {
             llvm_set_result_temp(call_temp);
@@ -1166,6 +1484,15 @@ func llvm_emit_expr(expr *u8) void {
                 var name *u8 = ident_expr_name(left);
                 var len i64 = ident_expr_name_len(left);
 
+                // Check for let binding (unique name mapping)
+                var actual_name *u8 = name;
+                var actual_len i64 = len;
+                var let_entry *u8 = llvm_find_let_binding(name, len);
+                if let_entry != nil {
+                    actual_name = llvm_let_unique_name(let_entry);
+                    actual_len = llvm_let_unique_len(let_entry);
+                }
+
                 // Emit right side
                 llvm_emit_expr(right);
                 var val *u8 = str_dup(llvm_expr_result);
@@ -1175,7 +1502,7 @@ func llvm_emit_expr(expr *u8) void {
                     llvm_emit_str("    store i64 ");
                     llvm_emit_str(val);
                     llvm_emit_str(", i64* %");
-                    llvm_emit_n(name, len);
+                    llvm_emit_n(actual_name, actual_len);
                     llvm_emit_char(10);
                 } else if llvm_is_global(name, len) {
                     llvm_emit_str("    store i64 ");
@@ -1540,10 +1867,98 @@ func llvm_emit_expr(expr *u8) void {
                     llvm_set_result_temp(temp);
                 }
             } else if node_kind(inner) == NODE_FIELD_EXPR {
-                // &struct.field - field expressions on struct fields
-                // already return addresses, so just evaluate
-                llvm_emit_expr(inner);
-                // Result is already the address
+                // &struct.field - need to compute address without loading value
+                var base_expr *u8 = field_expr_expr(inner);
+                var field_name *u8 = field_expr_field(inner);
+                var field_len i64 = field_expr_field_len(inner);
+
+                // Get type of base to find struct
+                var base_type *u8 = get_expr_type(base_expr);
+                var struct_name *u8 = nil;
+                var struct_name_len i64 = 0;
+                var is_pointer i64 = 0;
+
+                if base_type != nil {
+                    if type_kind(base_type) == TYPE_BASE {
+                        struct_name = base_type_name(base_type);
+                        struct_name_len = base_type_name_len(base_type);
+                    } else if type_kind(base_type) == TYPE_PTR {
+                        var pointed_type *u8 = ptr_type_elem(base_type);
+                        if pointed_type != nil && type_kind(pointed_type) == TYPE_BASE {
+                            struct_name = base_type_name(pointed_type);
+                            struct_name_len = base_type_name_len(pointed_type);
+                            is_pointer = 1;
+                        }
+                    }
+                }
+
+                if struct_name != nil {
+                    var struct_decl *u8 = find_struct(struct_name, struct_name_len);
+                    if struct_decl != nil {
+                        var field_offset i64 = get_field_offset(struct_decl, field_name, field_len);
+                        var struct_size i64 = get_struct_size(struct_decl);
+
+                        if is_pointer != 0 {
+                            // Pointer to struct - evaluate to get pointer
+                            llvm_emit_expr(base_expr);
+                            var ptr_val *u8 = str_dup(llvm_expr_result);
+
+                            // Add field offset
+                            if field_offset > 0 {
+                                var offset_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(offset_temp);
+                                llvm_emit_str(" = add i64 ");
+                                llvm_emit_str(ptr_val);
+                                llvm_emit_str(", ");
+                                llvm_emit_int(field_offset);
+                                llvm_emit_char(10);
+                                llvm_set_result_temp(offset_temp);
+                            } else {
+                                llvm_set_result_str(ptr_val);
+                            }
+                        } else {
+                            // Direct struct - get address of local variable
+                            if node_kind(base_expr) == NODE_IDENT_EXPR {
+                                var name *u8 = ident_expr_name(base_expr);
+                                var name_len i64 = ident_expr_name_len(base_expr);
+
+                                var actual_name *u8 = name;
+                                var actual_name_len i64 = name_len;
+                                var let_entry *u8 = llvm_find_let_binding(name, name_len);
+                                if let_entry != nil {
+                                    actual_name = llvm_let_unique_name(let_entry);
+                                    actual_name_len = llvm_let_unique_len(let_entry);
+                                }
+
+                                // ptrtoint the local variable address
+                                var addr_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(addr_temp);
+                                llvm_emit_str(" = ptrtoint [");
+                                llvm_emit_int(struct_size);
+                                llvm_emit_str(" x i8]* %");
+                                llvm_emit_n(actual_name, actual_name_len);
+                                llvm_emit_line(" to i64");
+
+                                // Add field offset
+                                if field_offset > 0 {
+                                    var offset_temp i64 = llvm_next_temp();
+                                    llvm_emit_str("    %t");
+                                    llvm_emit_int(offset_temp);
+                                    llvm_emit_str(" = add i64 %t");
+                                    llvm_emit_int(addr_temp);
+                                    llvm_emit_str(", ");
+                                    llvm_emit_int(field_offset);
+                                    llvm_emit_char(10);
+                                    llvm_set_result_temp(offset_temp);
+                                } else {
+                                    llvm_set_result_temp(addr_temp);
+                                }
+                            }
+                        }
+                    }
+                }
             } else {
                 // For other cases (like &*ptr), evaluate inner
                 llvm_emit_expr(inner);
@@ -2084,37 +2499,180 @@ func llvm_emit_expr(expr *u8) void {
     if k == NODE_LAMBDA_EXPR {
         // Register lambda for later emission
         var lambda_id i64 = llvm_lambda_count;
+        var param_count i64 = lambda_expr_param_count(expr);
+
+        // Analyze captures using functions from codegen.lang
+        var capture_count i64 = analyze_lambda_captures(expr, param_count);
+
+        // Copy captures array for this lambda (so it persists)
+        var captures_copy *u8 = nil;
+        if capture_count > 0 {
+            captures_copy = alloc(capture_count * 32);
+            var i i64 = 0;
+            while i < capture_count {
+                var src *u8 = cg_current_captures + (i * 32);
+                var dst *u8 = captures_copy + (i * 32);
+                // Copy 32 bytes (4 x i64 fields)
+                var j i64 = 0;
+                while j < 32 {
+                    *(dst + j) = *(src + j);
+                    j = j + 1;
+                }
+                i = i + 1;
+            }
+        }
+
+        // Store lambda info
         var entry *u8 = llvm_lambdas + (llvm_lambda_count * 32);
         var p_node **u8 = entry;
         *p_node = expr;
         var p_id *i64 = entry + 8;
         *p_id = lambda_id;
-        // For now, no capture support - store nil
         var p_captures **u8 = entry + 16;
-        *p_captures = nil;
+        *p_captures = captures_copy;
         var p_cap_count *i64 = entry + 24;
-        *p_cap_count = 0;
+        *p_cap_count = capture_count;
         llvm_lambda_count = llvm_lambda_count + 1;
 
-        // Return pointer to lambda function
-        // ptrtoint i64 (i64, i64)* @__lambda_N to i64
-        var param_count i64 = lambda_expr_param_count(expr);
-        var temp i64 = llvm_next_temp();
-        llvm_emit_str("    %t");
-        llvm_emit_int(temp);
-        llvm_emit_str(" = ptrtoint i64 (");
-        var j i64 = 0;
-        while j < param_count {
-            if j > 0 {
-                llvm_emit_str(", ");
+        if capture_count == 0 {
+            // No captures - just return function pointer
+            var temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(temp);
+            llvm_emit_str(" = ptrtoint i64 (");
+            var j i64 = 0;
+            while j < param_count {
+                if j > 0 {
+                    llvm_emit_str(", ");
+                }
+                llvm_emit_str("i64");
+                j = j + 1;
             }
-            llvm_emit_str("i64");
-            j = j + 1;
+            llvm_emit_str(")* @__lambda_");
+            llvm_emit_int(lambda_id);
+            llvm_emit_line(" to i64");
+            llvm_set_result_temp(temp);
+        } else {
+            // Has captures - allocate closure struct
+            // Layout: [tag:8][fn_ptr:8][capture0:8][capture1:8]...
+            var closure_size i64 = 16 + (capture_count * 8);
+
+            // Call alloc to get closure memory (returns i8*)
+            var alloc_ptr_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(alloc_ptr_temp);
+            llvm_emit_str(" = call i8* @alloc(i64 ");
+            llvm_emit_int(closure_size);
+            llvm_emit_line(")");
+
+            // Convert pointer to i64
+            var alloc_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(alloc_temp);
+            llvm_emit_str(" = ptrtoint i8* %t");
+            llvm_emit_int(alloc_ptr_temp);
+            llvm_emit_line(" to i64");
+
+            // Store tag = 1 at offset 0 (cast i8* to i64*)
+            var tag_ptr i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(tag_ptr);
+            llvm_emit_str(" = bitcast i8* %t");
+            llvm_emit_int(alloc_ptr_temp);
+            llvm_emit_line(" to i64*");
+            llvm_emit_str("    store i64 1, i64* %t");
+            llvm_emit_int(tag_ptr);
+            llvm_emit_char(10);
+
+            // Store function pointer at offset 8
+            var fn_ptr_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(fn_ptr_temp);
+            llvm_emit_str(" = ptrtoint i64 (i8*");
+            var j i64 = 0;
+            while j < param_count {
+                llvm_emit_str(", i64");
+                j = j + 1;
+            }
+            llvm_emit_str(")* @__lambda_");
+            llvm_emit_int(lambda_id);
+            llvm_emit_line(" to i64");
+
+            var fn_slot_addr i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(fn_slot_addr);
+            llvm_emit_str(" = add i64 %t");
+            llvm_emit_int(alloc_temp);
+            llvm_emit_line(", 8");
+            var fn_slot_ptr i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(fn_slot_ptr);
+            llvm_emit_str(" = inttoptr i64 %t");
+            llvm_emit_int(fn_slot_addr);
+            llvm_emit_line(" to i64*");
+            llvm_emit_str("    store i64 %t");
+            llvm_emit_int(fn_ptr_temp);
+            llvm_emit_str(", i64* %t");
+            llvm_emit_int(fn_slot_ptr);
+            llvm_emit_char(10);
+
+            // Copy captured values into closure
+            var i i64 = 0;
+            while i < capture_count {
+                var cap_entry *u8 = captures_copy + (i * 32);
+                var p_name **u8 = cap_entry;
+                var cap_name *u8 = *p_name;
+                var p_len *i64 = cap_entry + 8;
+                var cap_len i64 = *p_len;
+                var p_offset *i64 = cap_entry + 16;
+                var outer_offset i64 = *p_offset;
+
+                var cap_offset i64 = 16 + (i * 8);
+
+                // Load captured value from outer scope
+                // First check let bindings for unique name
+                var actual_name *u8 = cap_name;
+                var actual_len i64 = cap_len;
+                var let_entry *u8 = llvm_find_let_binding(cap_name, cap_len);
+                if let_entry != nil {
+                    actual_name = llvm_let_unique_name(let_entry);
+                    actual_len = llvm_let_unique_len(let_entry);
+                }
+
+                var load_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(load_temp);
+                llvm_emit_str(" = load i64, i64* %");
+                llvm_emit_n(actual_name, actual_len);
+                llvm_emit_char(10);
+
+                // Store into closure at offset
+                var cap_addr i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(cap_addr);
+                llvm_emit_str(" = add i64 %t");
+                llvm_emit_int(alloc_temp);
+                llvm_emit_str(", ");
+                llvm_emit_int(cap_offset);
+                llvm_emit_char(10);
+                var cap_ptr i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(cap_ptr);
+                llvm_emit_str(" = inttoptr i64 %t");
+                llvm_emit_int(cap_addr);
+                llvm_emit_line(" to i64*");
+                llvm_emit_str("    store i64 %t");
+                llvm_emit_int(load_temp);
+                llvm_emit_str(", i64* %t");
+                llvm_emit_int(cap_ptr);
+                llvm_emit_char(10);
+
+                i = i + 1;
+            }
+
+            // Return closure pointer
+            llvm_set_result_temp(alloc_temp);
         }
-        llvm_emit_str(")* @__lambda_");
-        llvm_emit_int(lambda_id);
-        llvm_emit_line(" to i64");
-        llvm_set_result_temp(temp);
         return;
     }
 
@@ -2478,6 +3036,30 @@ func llvm_emit_stmt(stmt *u8) void {
                 llvm_emit_str(" %t");
                 llvm_emit_int(conv_temp);
                 llvm_emit_char(10);
+            } else if llvm_is_bool_type(llvm_current_ret_type) {
+                // Bool return: truncate i64 to i1
+                var conv_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(conv_temp);
+                llvm_emit_str(" = trunc i64 ");
+                llvm_emit_str(val);
+                llvm_emit_line(" to i1");
+
+                llvm_emit_str("    ret i1 %t");
+                llvm_emit_int(conv_temp);
+                llvm_emit_char(10);
+            } else if llvm_is_u8_type(llvm_current_ret_type) {
+                // u8 return: truncate i64 to i8
+                var conv_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(conv_temp);
+                llvm_emit_str(" = trunc i64 ");
+                llvm_emit_str(val);
+                llvm_emit_line(" to i8");
+
+                llvm_emit_str("    ret i8 %t");
+                llvm_emit_int(conv_temp);
+                llvm_emit_char(10);
             } else {
                 llvm_emit_str("    ret ");
                 llvm_emit_type(llvm_current_ret_type);
@@ -2695,34 +3277,35 @@ func llvm_emit_stmt(stmt *u8) void {
             }
         }
 
-        // For aggregate types, use unique names to avoid SSA conflicts in loops
-        var actual_name *u8 = name;
-        var actual_name_len i64 = name_len;
-        if is_aggregate != 0 {
-            // Create unique name: name.N
-            var unique_name *u8 = alloc(64);
-            var up *u8 = unique_name;
-            var ui i64 = 0;
-            while ui < name_len {
-                *(up + ui) = *(name + ui);
-                ui = ui + 1;
-            }
-            *(up + name_len) = 46;  // '.'
-            itoa(llvm_anon_local_counter, up + name_len + 1);
-            llvm_anon_local_counter = llvm_anon_local_counter + 1;
-            actual_name = unique_name;
-            actual_name_len = strlen(unique_name);
-            // Register let binding: name -> unique_name
-            llvm_push_let_binding(name, name_len, unique_name, actual_name_len);
+        // ALWAYS use unique names to avoid SSA conflicts in branches/loops
+        var unique_name *u8 = alloc(64);
+        var up *u8 = unique_name;
+        var ui i64 = 0;
+        while ui < name_len {
+            *(up + ui) = *(name + ui);
+            ui = ui + 1;
         }
+        *(up + name_len) = 46;  // '.'
+        itoa(llvm_anon_local_counter, up + name_len + 1);
+        llvm_anon_local_counter = llvm_anon_local_counter + 1;
+        var actual_name *u8 = unique_name;
+        var actual_name_len i64 = strlen(unique_name);
+        // Register let binding: name -> unique_name
+        llvm_push_let_binding(name, name_len, unique_name, actual_name_len);
 
         // Allocate stack slot with correct size
         llvm_emit_str("    %");
         llvm_emit_n(actual_name, actual_name_len);
-        if alloc_size <= 8 {
+        if is_aggregate == 1 {
+            // Allocate as byte array for structs/enums (even if size <= 8)
+            // This ensures type consistency with field access code
+            llvm_emit_str(" = alloca [");
+            llvm_emit_int(alloc_size);
+            llvm_emit_line(" x i8]");
+        } else if alloc_size <= 8 {
             llvm_emit_line(" = alloca i64");
         } else {
-            // Allocate as byte array for structs
+            // Non-aggregate larger than 8 bytes (shouldn't happen but handle it)
             llvm_emit_str(" = alloca [");
             llvm_emit_int(alloc_size);
             llvm_emit_line(" x i8]");
@@ -2733,7 +3316,66 @@ func llvm_emit_stmt(stmt *u8) void {
             llvm_emit_expr(init);
             var init_val *u8 = str_dup(llvm_expr_result);
 
-            if alloc_size <= 8 {
+            // Check if assigning non-capturing lambda to closure type
+            // Wrap it in a closure struct with tag=0
+            if var_type != nil {
+                if type_kind(var_type) == TYPE_CLOSURE {
+                    if node_kind(init) == NODE_LAMBDA_EXPR {
+                        if lambda_has_captures(init) == 0 {
+                            // init_val has function pointer, wrap in closure struct
+                            // Allocate struct: [tag:8][fn_ptr:8] = 16 bytes
+                            var alloc_ptr_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(alloc_ptr_temp);
+                            llvm_emit_line(" = call i8* @alloc(i64 16)");
+
+                            // Store tag = 0 at offset 0
+                            var tag_ptr i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(tag_ptr);
+                            llvm_emit_str(" = bitcast i8* %t");
+                            llvm_emit_int(alloc_ptr_temp);
+                            llvm_emit_line(" to i64*");
+                            llvm_emit_str("    store i64 0, i64* %t");
+                            llvm_emit_int(tag_ptr);
+                            llvm_emit_char(10);
+
+                            // Store fn_ptr at offset 8
+                            var fn_slot_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(fn_slot_temp);
+                            llvm_emit_str(" = getelementptr i8, i8* %t");
+                            llvm_emit_int(alloc_ptr_temp);
+                            llvm_emit_line(", i64 8");
+                            var fn_ptr_slot i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(fn_ptr_slot);
+                            llvm_emit_str(" = bitcast i8* %t");
+                            llvm_emit_int(fn_slot_temp);
+                            llvm_emit_line(" to i64*");
+                            llvm_emit_str("    store i64 ");
+                            llvm_emit_str(init_val);
+                            llvm_emit_str(", i64* %t");
+                            llvm_emit_int(fn_ptr_slot);
+                            llvm_emit_char(10);
+
+                            // Update init_val to point to closure struct
+                            var closure_addr i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(closure_addr);
+                            llvm_emit_str(" = ptrtoint i8* %t");
+                            llvm_emit_int(alloc_ptr_temp);
+                            llvm_emit_line(" to i64");
+                            init_val = alloc(16);
+                            *init_val = 37;  // '%'
+                            *(init_val + 1) = 116;  // 't'
+                            itoa(closure_addr, init_val + 2);
+                        }
+                    }
+                }
+            }
+
+            if is_aggregate == 0 {
                 // Simple store for primitives
                 llvm_emit_str("    store i64 ");
                 llvm_emit_str(init_val);
@@ -2965,19 +3607,94 @@ func llvm_emit_stmt(stmt *u8) void {
                                     addr_val = buf;
                                 }
 
-                                // Store value to field
-                                var ptr_temp i64 = llvm_next_temp();
-                                llvm_emit_str("    %t");
-                                llvm_emit_int(ptr_temp);
-                                llvm_emit_str(" = inttoptr i64 ");
-                                llvm_emit_str(addr_val);
-                                llvm_emit_line(" to i64*");
+                                // Check if field is an aggregate type (struct/enum)
+                                var field_type *u8 = get_field_type(struct_decl, field_name, field_len);
+                                var field_is_aggregate i64 = 0;
+                                var field_agg_size i64 = 0;
+                                if field_type != nil && type_kind(field_type) == TYPE_BASE {
+                                    var ft_name *u8 = base_type_name(field_type);
+                                    var ft_name_len i64 = base_type_name_len(field_type);
+                                    var ft_struct *u8 = find_struct(ft_name, ft_name_len);
+                                    if ft_struct != nil {
+                                        field_is_aggregate = 1;
+                                        field_agg_size = get_struct_size(ft_struct);
+                                    } else {
+                                        var ft_enum *u8 = find_enum(ft_name, ft_name_len);
+                                        if ft_enum != nil {
+                                            field_is_aggregate = 1;
+                                            field_agg_size = get_enum_size(ft_enum);
+                                        }
+                                    }
+                                }
 
-                                llvm_emit_str("    store i64 ");
-                                llvm_emit_str(val);
-                                llvm_emit_str(", i64* %t");
-                                llvm_emit_int(ptr_temp);
-                                llvm_emit_char(10);
+                                if field_is_aggregate != 0 {
+                                    // Copy aggregate bytes from source to field
+                                    var copy_i i64 = 0;
+                                    while copy_i < field_agg_size {
+                                        // Source ptr
+                                        var src_off_temp i64 = llvm_next_temp();
+                                        llvm_emit_str("    %t");
+                                        llvm_emit_int(src_off_temp);
+                                        llvm_emit_str(" = add i64 ");
+                                        llvm_emit_str(val);
+                                        llvm_emit_str(", ");
+                                        llvm_emit_int(copy_i);
+                                        llvm_emit_char(10);
+
+                                        var src_ptr_temp i64 = llvm_next_temp();
+                                        llvm_emit_str("    %t");
+                                        llvm_emit_int(src_ptr_temp);
+                                        llvm_emit_str(" = inttoptr i64 %t");
+                                        llvm_emit_int(src_off_temp);
+                                        llvm_emit_line(" to i64*");
+
+                                        var load_temp i64 = llvm_next_temp();
+                                        llvm_emit_str("    %t");
+                                        llvm_emit_int(load_temp);
+                                        llvm_emit_str(" = load i64, i64* %t");
+                                        llvm_emit_int(src_ptr_temp);
+                                        llvm_emit_char(10);
+
+                                        // Dst ptr
+                                        var dst_off_temp i64 = llvm_next_temp();
+                                        llvm_emit_str("    %t");
+                                        llvm_emit_int(dst_off_temp);
+                                        llvm_emit_str(" = add i64 ");
+                                        llvm_emit_str(addr_val);
+                                        llvm_emit_str(", ");
+                                        llvm_emit_int(copy_i);
+                                        llvm_emit_char(10);
+
+                                        var dst_ptr_temp i64 = llvm_next_temp();
+                                        llvm_emit_str("    %t");
+                                        llvm_emit_int(dst_ptr_temp);
+                                        llvm_emit_str(" = inttoptr i64 %t");
+                                        llvm_emit_int(dst_off_temp);
+                                        llvm_emit_line(" to i64*");
+
+                                        llvm_emit_str("    store i64 %t");
+                                        llvm_emit_int(load_temp);
+                                        llvm_emit_str(", i64* %t");
+                                        llvm_emit_int(dst_ptr_temp);
+                                        llvm_emit_char(10);
+
+                                        copy_i = copy_i + 8;
+                                    }
+                                } else {
+                                    // Store value to field
+                                    var ptr_temp i64 = llvm_next_temp();
+                                    llvm_emit_str("    %t");
+                                    llvm_emit_int(ptr_temp);
+                                    llvm_emit_str(" = inttoptr i64 ");
+                                    llvm_emit_str(addr_val);
+                                    llvm_emit_line(" to i64*");
+
+                                    llvm_emit_str("    store i64 ");
+                                    llvm_emit_str(val);
+                                    llvm_emit_str(", i64* %t");
+                                    llvm_emit_int(ptr_temp);
+                                    llvm_emit_char(10);
+                                }
                             } else {
                                 // Direct struct - base is the local variable
                                 if node_kind(base_expr) == NODE_IDENT_EXPR {
@@ -3026,19 +3743,94 @@ func llvm_emit_stmt(stmt *u8) void {
                                         addr_val = buf;
                                     }
 
-                                    // Store value to field
-                                    var ptr_temp i64 = llvm_next_temp();
-                                    llvm_emit_str("    %t");
-                                    llvm_emit_int(ptr_temp);
-                                    llvm_emit_str(" = inttoptr i64 ");
-                                    llvm_emit_str(addr_val);
-                                    llvm_emit_line(" to i64*");
+                                    // Check if field is an aggregate type (struct/enum)
+                                    var field_type2 *u8 = get_field_type(struct_decl, field_name, field_len);
+                                    var field_is_agg2 i64 = 0;
+                                    var field_agg_size2 i64 = 0;
+                                    if field_type2 != nil && type_kind(field_type2) == TYPE_BASE {
+                                        var ft_name2 *u8 = base_type_name(field_type2);
+                                        var ft_name_len2 i64 = base_type_name_len(field_type2);
+                                        var ft_struct2 *u8 = find_struct(ft_name2, ft_name_len2);
+                                        if ft_struct2 != nil {
+                                            field_is_agg2 = 1;
+                                            field_agg_size2 = get_struct_size(ft_struct2);
+                                        } else {
+                                            var ft_enum2 *u8 = find_enum(ft_name2, ft_name_len2);
+                                            if ft_enum2 != nil {
+                                                field_is_agg2 = 1;
+                                                field_agg_size2 = get_enum_size(ft_enum2);
+                                            }
+                                        }
+                                    }
 
-                                    llvm_emit_str("    store i64 ");
-                                    llvm_emit_str(val);
-                                    llvm_emit_str(", i64* %t");
-                                    llvm_emit_int(ptr_temp);
-                                    llvm_emit_char(10);
+                                    if field_is_agg2 != 0 {
+                                        // Copy aggregate bytes from source to field
+                                        var copy_j i64 = 0;
+                                        while copy_j < field_agg_size2 {
+                                            // Source ptr
+                                            var soff_temp i64 = llvm_next_temp();
+                                            llvm_emit_str("    %t");
+                                            llvm_emit_int(soff_temp);
+                                            llvm_emit_str(" = add i64 ");
+                                            llvm_emit_str(val);
+                                            llvm_emit_str(", ");
+                                            llvm_emit_int(copy_j);
+                                            llvm_emit_char(10);
+
+                                            var sptr_temp i64 = llvm_next_temp();
+                                            llvm_emit_str("    %t");
+                                            llvm_emit_int(sptr_temp);
+                                            llvm_emit_str(" = inttoptr i64 %t");
+                                            llvm_emit_int(soff_temp);
+                                            llvm_emit_line(" to i64*");
+
+                                            var ld_temp i64 = llvm_next_temp();
+                                            llvm_emit_str("    %t");
+                                            llvm_emit_int(ld_temp);
+                                            llvm_emit_str(" = load i64, i64* %t");
+                                            llvm_emit_int(sptr_temp);
+                                            llvm_emit_char(10);
+
+                                            // Dst ptr
+                                            var doff_temp i64 = llvm_next_temp();
+                                            llvm_emit_str("    %t");
+                                            llvm_emit_int(doff_temp);
+                                            llvm_emit_str(" = add i64 ");
+                                            llvm_emit_str(addr_val);
+                                            llvm_emit_str(", ");
+                                            llvm_emit_int(copy_j);
+                                            llvm_emit_char(10);
+
+                                            var dptr_temp i64 = llvm_next_temp();
+                                            llvm_emit_str("    %t");
+                                            llvm_emit_int(dptr_temp);
+                                            llvm_emit_str(" = inttoptr i64 %t");
+                                            llvm_emit_int(doff_temp);
+                                            llvm_emit_line(" to i64*");
+
+                                            llvm_emit_str("    store i64 %t");
+                                            llvm_emit_int(ld_temp);
+                                            llvm_emit_str(", i64* %t");
+                                            llvm_emit_int(dptr_temp);
+                                            llvm_emit_char(10);
+
+                                            copy_j = copy_j + 8;
+                                        }
+                                    } else {
+                                        // Store value to field
+                                        var ptr_temp i64 = llvm_next_temp();
+                                        llvm_emit_str("    %t");
+                                        llvm_emit_int(ptr_temp);
+                                        llvm_emit_str(" = inttoptr i64 ");
+                                        llvm_emit_str(addr_val);
+                                        llvm_emit_line(" to i64*");
+
+                                        llvm_emit_str("    store i64 ");
+                                        llvm_emit_str(val);
+                                        llvm_emit_str(", i64* %t");
+                                        llvm_emit_int(ptr_temp);
+                                        llvm_emit_char(10);
+                                    }
                                 } else {
                                     // Nested field access (e.g., r.origin.x = 10)
                                     // base_expr returns the address of the intermediate struct
@@ -3062,19 +3854,94 @@ func llvm_emit_stmt(stmt *u8) void {
                                         addr_val = buf;
                                     }
 
-                                    // Store value to field
-                                    var ptr_temp i64 = llvm_next_temp();
-                                    llvm_emit_str("    %t");
-                                    llvm_emit_int(ptr_temp);
-                                    llvm_emit_str(" = inttoptr i64 ");
-                                    llvm_emit_str(addr_val);
-                                    llvm_emit_line(" to i64*");
+                                    // Check if field is an aggregate type (struct/enum)
+                                    var field_type3 *u8 = get_field_type(struct_decl, field_name, field_len);
+                                    var field_is_agg3 i64 = 0;
+                                    var field_agg_size3 i64 = 0;
+                                    if field_type3 != nil && type_kind(field_type3) == TYPE_BASE {
+                                        var ft_name3 *u8 = base_type_name(field_type3);
+                                        var ft_name_len3 i64 = base_type_name_len(field_type3);
+                                        var ft_struct3 *u8 = find_struct(ft_name3, ft_name_len3);
+                                        if ft_struct3 != nil {
+                                            field_is_agg3 = 1;
+                                            field_agg_size3 = get_struct_size(ft_struct3);
+                                        } else {
+                                            var ft_enum3 *u8 = find_enum(ft_name3, ft_name_len3);
+                                            if ft_enum3 != nil {
+                                                field_is_agg3 = 1;
+                                                field_agg_size3 = get_enum_size(ft_enum3);
+                                            }
+                                        }
+                                    }
 
-                                    llvm_emit_str("    store i64 ");
-                                    llvm_emit_str(val);
-                                    llvm_emit_str(", i64* %t");
-                                    llvm_emit_int(ptr_temp);
-                                    llvm_emit_char(10);
+                                    if field_is_agg3 != 0 {
+                                        // Copy aggregate bytes from source to field
+                                        var copy_k i64 = 0;
+                                        while copy_k < field_agg_size3 {
+                                            // Source ptr
+                                            var s3off i64 = llvm_next_temp();
+                                            llvm_emit_str("    %t");
+                                            llvm_emit_int(s3off);
+                                            llvm_emit_str(" = add i64 ");
+                                            llvm_emit_str(val);
+                                            llvm_emit_str(", ");
+                                            llvm_emit_int(copy_k);
+                                            llvm_emit_char(10);
+
+                                            var s3ptr i64 = llvm_next_temp();
+                                            llvm_emit_str("    %t");
+                                            llvm_emit_int(s3ptr);
+                                            llvm_emit_str(" = inttoptr i64 %t");
+                                            llvm_emit_int(s3off);
+                                            llvm_emit_line(" to i64*");
+
+                                            var l3tmp i64 = llvm_next_temp();
+                                            llvm_emit_str("    %t");
+                                            llvm_emit_int(l3tmp);
+                                            llvm_emit_str(" = load i64, i64* %t");
+                                            llvm_emit_int(s3ptr);
+                                            llvm_emit_char(10);
+
+                                            // Dst ptr
+                                            var d3off i64 = llvm_next_temp();
+                                            llvm_emit_str("    %t");
+                                            llvm_emit_int(d3off);
+                                            llvm_emit_str(" = add i64 ");
+                                            llvm_emit_str(addr_val);
+                                            llvm_emit_str(", ");
+                                            llvm_emit_int(copy_k);
+                                            llvm_emit_char(10);
+
+                                            var d3ptr i64 = llvm_next_temp();
+                                            llvm_emit_str("    %t");
+                                            llvm_emit_int(d3ptr);
+                                            llvm_emit_str(" = inttoptr i64 %t");
+                                            llvm_emit_int(d3off);
+                                            llvm_emit_line(" to i64*");
+
+                                            llvm_emit_str("    store i64 %t");
+                                            llvm_emit_int(l3tmp);
+                                            llvm_emit_str(", i64* %t");
+                                            llvm_emit_int(d3ptr);
+                                            llvm_emit_char(10);
+
+                                            copy_k = copy_k + 8;
+                                        }
+                                    } else {
+                                        // Store value to field
+                                        var ptr_temp i64 = llvm_next_temp();
+                                        llvm_emit_str("    %t");
+                                        llvm_emit_int(ptr_temp);
+                                        llvm_emit_str(" = inttoptr i64 ");
+                                        llvm_emit_str(addr_val);
+                                        llvm_emit_line(" to i64*");
+
+                                        llvm_emit_str("    store i64 ");
+                                        llvm_emit_str(val);
+                                        llvm_emit_str(", i64* %t");
+                                        llvm_emit_int(ptr_temp);
+                                        llvm_emit_char(10);
+                                    }
                                 }
                             }
                             return;
@@ -3088,6 +3955,15 @@ func llvm_emit_stmt(stmt *u8) void {
         if node_kind(target) == NODE_IDENT_EXPR {
             var name *u8 = ident_expr_name(target);
             var len i64 = ident_expr_name_len(target);
+
+            // Check for let binding (unique name mapping)
+            var actual_name *u8 = name;
+            var actual_name_len i64 = len;
+            var let_entry *u8 = llvm_find_let_binding(name, len);
+            if let_entry != nil {
+                actual_name = llvm_let_unique_name(let_entry);
+                actual_name_len = llvm_let_unique_len(let_entry);
+            }
 
             // Check if target is an aggregate type (enum/struct)
             var local_idx i64 = find_local(name, len);
@@ -3113,16 +3989,8 @@ func llvm_emit_stmt(stmt *u8) void {
             }
 
             if is_aggregate != 0 {
-                // Check for let binding (unique name for aggregate vars)
-                var actual_name *u8 = name;
-                var actual_name_len i64 = len;
-                var let_entry *u8 = llvm_find_let_binding(name, len);
-                if let_entry != nil {
-                    actual_name = llvm_let_unique_name(let_entry);
-                    actual_name_len = llvm_let_unique_len(let_entry);
-                }
-
                 // Aggregate assignment: copy bytes from source to target
+                // Note: actual_name/actual_len already set above from let binding lookup
                 // val contains the address of the source data
                 var dst_addr_temp i64 = llvm_next_temp();
                 llvm_emit_str("    %t");
@@ -3191,13 +4059,15 @@ func llvm_emit_stmt(stmt *u8) void {
                 llvm_emit_str(val);
                 if llvm_is_local(name, len) {
                     llvm_emit_str(", i64* %");
+                    llvm_emit_n(actual_name, actual_name_len);
                 } else if llvm_is_global(name, len) {
                     llvm_emit_str(", i64* @");
+                    llvm_emit_n(name, len);  // Globals don't use let bindings
                 } else {
                     // Assume local (parameter)
                     llvm_emit_str(", i64* %");
+                    llvm_emit_n(actual_name, actual_name_len);
                 }
-                llvm_emit_n(name, len);
                 llvm_emit_char(10);
             }
         }
@@ -3272,6 +4142,8 @@ func llvm_emit_func(func_node *u8) void {
     llvm_temp_counter = 0;
     llvm_label_counter = 0;
     llvm_reset_locals();
+    llvm_let_depth = 0;  // Reset let binding depth
+    llvm_anon_local_counter = 0;  // Reset unique name counter
     cg_local_count = 0;  // Reset x86 backend's local tracking (for type info)
     llvm_current_ret_type = ret_type;
 
@@ -3315,16 +4187,32 @@ func llvm_emit_func(func_node *u8) void {
         llvm_add_local(pname, pname_len);
         add_local(pname, pname_len, 0, ptype);
 
-        // Allocate local
+        // Create unique name for SSA
+        var unique_name *u8 = alloc(64);
+        var up *u8 = unique_name;
+        var ui i64 = 0;
+        while ui < pname_len {
+            *(up + ui) = *(pname + ui);
+            ui = ui + 1;
+        }
+        *(up + pname_len) = 46;  // '.'
+        itoa(llvm_anon_local_counter, up + pname_len + 1);
+        llvm_anon_local_counter = llvm_anon_local_counter + 1;
+        var actual_name_len i64 = strlen(unique_name);
+
+        // Register let binding: pname -> unique_name
+        llvm_push_let_binding(pname, pname_len, unique_name, actual_name_len);
+
+        // Allocate local with unique name
         llvm_emit_str("    %");
-        llvm_emit_n(pname, pname_len);
+        llvm_emit_n(unique_name, actual_name_len);
         llvm_emit_line(" = alloca i64");
 
         // Copy param.arg to local
         llvm_emit_str("    store i64 %");
         llvm_emit_n(pname, pname_len);
         llvm_emit_str(".arg, i64* %");
-        llvm_emit_n(pname, pname_len);
+        llvm_emit_n(unique_name, actual_name_len);
         llvm_emit_char(10);
 
         i = i + 1;
@@ -3589,16 +4477,20 @@ func llvm_register_all_decls(prog *u8) void {
 }
 
 // Generate a single lambda function
-func llvm_gen_lambda(lambda_node *u8, lambda_id i64) void {
+func llvm_gen_lambda(lambda_node *u8, lambda_id i64, captures *u8, capture_count i64) void {
     // Reset temp counter and locals for this lambda
     llvm_temp_counter = 0;
     llvm_emitted_terminator = 0;
     cg_local_count = 0;
+    llvm_let_depth = 0;
+    llvm_anon_local_counter = 0;
 
     var param_count i64 = lambda_expr_param_count(lambda_node);
     var ret_type *u8 = lambda_expr_ret_type(lambda_node);
 
-    // Emit function signature: define i64 @__lambda_N(i64 %a.arg, i64 %b.arg) {
+    // Emit function signature
+    // With captures: define i64 @__lambda_N(i8* %closure, i64 %a.arg, ...) {
+    // Without: define i64 @__lambda_N(i64 %a.arg, ...) {
     llvm_emit_str("define ");
     if is_void_type(ret_type) {
         llvm_emit_str("void");
@@ -3609,7 +4501,15 @@ func llvm_gen_lambda(lambda_node *u8, lambda_id i64) void {
     llvm_emit_int(lambda_id);
     llvm_emit_str("(");
 
-    // Emit parameters
+    // Add closure pointer as first param if has captures
+    if capture_count > 0 {
+        llvm_emit_str("i8* %closure");
+        if param_count > 0 {
+            llvm_emit_str(", ");
+        }
+    }
+
+    // Emit user parameters
     var params *u8 = lambda_expr_params(lambda_node);
     var i i64 = 0;
     while i < param_count {
@@ -3626,6 +4526,65 @@ func llvm_gen_lambda(lambda_node *u8, lambda_id i64) void {
 
     // Entry label
     llvm_emit_line("L.entry:");
+
+    // Load captures from closure into local variables
+    if capture_count > 0 {
+        i = 0;
+        while i < capture_count {
+            var cap_entry *u8 = captures + (i * 32);
+            var p_name **u8 = cap_entry;
+            var cap_name *u8 = *p_name;
+            var p_len *i64 = cap_entry + 8;
+            var cap_len i64 = *p_len;
+            // Capture type is at offset 24
+            var p_type **u8 = cap_entry + 24;
+            var cap_type *u8 = *p_type;
+
+            var cap_offset i64 = 16 + (i * 8);
+
+            // Allocate local for captured variable
+            llvm_emit_str("    %");
+            llvm_emit_n(cap_name, cap_len);
+            llvm_emit_line(" = alloca i64");
+
+            // Calculate address in closure: getelementptr i8, i8* %closure, i64 offset
+            var gep_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(gep_temp);
+            llvm_emit_str(" = getelementptr i8, i8* %closure, i64 ");
+            llvm_emit_int(cap_offset);
+            llvm_emit_char(10);
+
+            // Cast to i64*
+            var ptr_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(ptr_temp);
+            llvm_emit_str(" = bitcast i8* %t");
+            llvm_emit_int(gep_temp);
+            llvm_emit_line(" to i64*");
+
+            // Load value
+            var val_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(val_temp);
+            llvm_emit_str(" = load i64, i64* %t");
+            llvm_emit_int(ptr_temp);
+            llvm_emit_char(10);
+
+            // Store to local
+            llvm_emit_str("    store i64 %t");
+            llvm_emit_int(val_temp);
+            llvm_emit_str(", i64* %");
+            llvm_emit_n(cap_name, cap_len);
+            llvm_emit_char(10);
+
+            // Register as local with type (for field access)
+            llvm_add_local(cap_name, cap_len);
+            add_local(cap_name, cap_len, 0, cap_type);
+
+            i = i + 1;
+        }
+    }
 
     // Store parameters to stack
     i = 0;
@@ -3681,7 +4640,11 @@ func llvm_gen_all_lambdas() void {
         var lambda_node *u8 = *p_node;
         var p_id *i64 = entry + 8;
         var lambda_id i64 = *p_id;
-        llvm_gen_lambda(lambda_node, lambda_id);
+        var p_captures **u8 = entry + 16;
+        var captures *u8 = *p_captures;
+        var p_cap_count *i64 = entry + 24;
+        var capture_count i64 = *p_cap_count;
+        llvm_gen_lambda(lambda_node, lambda_id, captures, capture_count);
         i = i + 1;
     }
 }
