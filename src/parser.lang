@@ -230,7 +230,7 @@ func func_decl_set_is_extern(node *u8, is_extern i64) void {
 // ============================================================
 
 func var_decl_alloc() *u8 {
-    var node *u8 = alloc(40);
+    var node *u8 = alloc(48);
     node_set_kind(node, NODE_VAR_DECL);
     return node;
 }
@@ -273,6 +273,16 @@ func var_decl_init(node *u8) *u8 {
 func var_decl_set_init(node *u8, init *u8) void {
     var p **u8 = node + 32;
     *p = init;
+}
+
+func var_decl_is_extern(node *u8) i64 {
+    var p *i64 = node + 40;
+    return *p;
+}
+
+func var_decl_set_is_extern(node *u8, is_extern i64) void {
+    var p *i64 = node + 40;
+    *p = is_extern;
 }
 
 // ============================================================
@@ -3084,6 +3094,21 @@ func parse_var_decl() *u8 {
     var_decl_set_name_len(node, tok_lexeme_len(name_tok));
     var_decl_set_type(node, typ);
     var_decl_set_init(node, init);
+    var_decl_set_is_extern(node, 0);
+    return node;
+}
+
+func parse_extern_var_decl() *u8 {
+    var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected variable name");
+    var typ *u8 = parse_type();
+    parse_expect(TOKEN_SEMICOLON, "expected ';' after extern variable declaration");
+
+    var node *u8 = var_decl_alloc();
+    var_decl_set_name(node, tok_lexeme(name_tok));
+    var_decl_set_name_len(node, tok_lexeme_len(name_tok));
+    var_decl_set_type(node, typ);
+    var_decl_set_init(node, nil);
+    var_decl_set_is_extern(node, 1);
     return node;
 }
 
@@ -3436,9 +3461,15 @@ func parse_include() *u8 {
 
 func parse_declaration() *u8 {
     if parse_match(TOKEN_EXTERN) {
-        // extern func name(...) type;
-        parse_expect(TOKEN_FUNC, "expected 'func' after 'extern'");
-        return parse_extern_func_decl();
+        // extern func name(...) type; OR extern var name type;
+        if parse_match(TOKEN_FUNC) {
+            return parse_extern_func_decl();
+        }
+        if parse_match(TOKEN_VAR) {
+            return parse_extern_var_decl();
+        }
+        parse_error("expected 'func' or 'var' after 'extern'");
+        return nil;
     }
     if parse_match(TOKEN_FUNC) {
         return parse_func_decl();

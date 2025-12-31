@@ -232,14 +232,14 @@ func rmdir(path *u8) i64 {
 // Global pointer to environment variables (set by init_environ)
 var environ **u8 = nil;
 
-// Initialize environment pointer - call once at program start
-// envp is the third argument passed from _start
+// Initialize environment pointer - provided for backwards compatibility
 func init_environ(envp **u8) void {
     environ = envp;
 }
 
 // Get environment variable value by name
 // Returns pointer to value part (after '='), or nil if not found
+// Note: environ must be initialized by calling init_environ(envp) at startup
 func getenv(name *u8) *u8 {
     if environ == nil {
         return nil;

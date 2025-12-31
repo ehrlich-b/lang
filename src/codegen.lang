@@ -9,6 +9,7 @@ include "src/limits.lang"
 
 var cg_out_fd i64 = 0;           // output file descriptor
 var cg_label_num i64 = 0;        // for generating unique labels
+var cg_had_error i64 = 0;        // set to 1 if codegen encounters an error
 
 // Locals array: each entry is [name_ptr:8][name_len:8][offset:8][type_ptr:8] = 32 bytes
 // Max 1024 locals
@@ -628,43 +629,53 @@ func lambda_has_captures(lambda_node *u8) i64 {
 // ============================================================
 
 func global_get_name(index i64) *u8 {
-    var p **u8 = cg_globals + (index * 32);
+    var p **u8 = cg_globals + (index * 40);
     return *p;
 }
 
 func global_set_name(index i64, ptr *u8) void {
-    var p **u8 = cg_globals + (index * 32);
+    var p **u8 = cg_globals + (index * 40);
     *p = ptr;
 }
 
 func global_get_name_len(index i64) i64 {
-    var p *i64 = cg_globals + (index * 32) + 8;
+    var p *i64 = cg_globals + (index * 40) + 8;
     return *p;
 }
 
 func global_set_name_len(index i64, len i64) void {
-    var p *i64 = cg_globals + (index * 32) + 8;
+    var p *i64 = cg_globals + (index * 40) + 8;
     *p = len;
 }
 
 func global_get_type(index i64) *u8 {
-    var p **u8 = cg_globals + (index * 32) + 16;
+    var p **u8 = cg_globals + (index * 40) + 16;
     return *p;
 }
 
 func global_set_type(index i64, t *u8) void {
-    var p **u8 = cg_globals + (index * 32) + 16;
+    var p **u8 = cg_globals + (index * 40) + 16;
     *p = t;
 }
 
 func global_get_init(index i64) *u8 {
-    var p **u8 = cg_globals + (index * 32) + 24;
+    var p **u8 = cg_globals + (index * 40) + 24;
     return *p;
 }
 
 func global_set_init(index i64, init *u8) void {
-    var p **u8 = cg_globals + (index * 32) + 24;
+    var p **u8 = cg_globals + (index * 40) + 24;
     *p = init;
+}
+
+func global_get_is_extern(index i64) i64 {
+    var p *i64 = cg_globals + (index * 40) + 32;
+    return *p;
+}
+
+func global_set_is_extern(index i64, is_extern i64) void {
+    var p *i64 = cg_globals + (index * 40) + 32;
+    *p = is_extern;
 }
 
 func find_global(name *u8, name_len i64) i64 {
@@ -680,11 +691,12 @@ func find_global(name *u8, name_len i64) i64 {
     return 0 - 1;  // -1 not found
 }
 
-func add_global(name *u8, name_len i64, t *u8, init *u8) void {
+func add_global(name *u8, name_len i64, t *u8, init *u8, is_extern i64) void {
     global_set_name(cg_global_count, name);
     global_set_name_len(cg_global_count, name_len);
     global_set_type(cg_global_count, t);
     global_set_init(cg_global_count, init);
+    global_set_is_extern(cg_global_count, is_extern);
     cg_global_count = cg_global_count + 1;
 }
 
@@ -1411,7 +1423,8 @@ func process_decl_first_pass(decl *u8) void {
             var_decl_name(decl),
             var_decl_name_len(decl),
             var_decl_type(decl),
-            var_decl_init(decl)
+            var_decl_init(decl),
+            var_decl_is_extern(decl)
         );
         return;
     }
@@ -5814,14 +5827,16 @@ func generate(prog *u8, out_path *u8) void {
         i = i + 1;
     }
 
-    // Global variables
+    // Global variables (skip extern vars - they're defined elsewhere)
     i = 0;
     while i < cg_global_count {
-        out_n(global_get_name(i), global_get_name_len(i));
-        out_line(":");
-        out_str("    .quad ");
-        out_int(eval_constant(global_get_init(i)));
-        out_char(10);
+        if global_get_is_extern(i) == 0 {
+            out_n(global_get_name(i), global_get_name_len(i));
+            out_line(":");
+            out_str("    .quad ");
+            out_int(eval_constant(global_get_init(i)));
+            out_char(10);
+        }
         i = i + 1;
     }
 

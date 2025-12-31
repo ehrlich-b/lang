@@ -249,6 +249,7 @@ func main(argc i64, argv **u8) i64 {
         append_str(source_buf, &source_len, "include \"src/standalone.lang\"\n");
 
         // 4. Add ___main wrapper (receives envp from _start)
+        // Reader mode includes std/core.lang which provides init_environ
         append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { init_environ(envp); return main(argc, argv); }\n");
 
     } else {
@@ -289,7 +290,9 @@ func main(argc i64, argv **u8) i64 {
             is_llvm = 1;
         }
         if emit_ast_mode == 0 && is_llvm == 0 {
-            append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { init_environ(envp); return main(argc, argv); }\n");
+            // Simple ___main - no environment setup for basic programs
+            // Programs needing getenv should include std/core.lang
+            append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(argc, argv); }\n");
         }
     }
 

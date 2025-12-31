@@ -4970,13 +4970,18 @@ func llvm_emit_decl(decl *u8) void {
         var name *u8 = var_decl_name(decl);
         var name_len i64 = var_decl_name_len(decl);
         var init *u8 = var_decl_init(decl);
+        var is_extern i64 = var_decl_is_extern(decl);
 
         // Register as global
         llvm_add_global(name, name_len);
 
-        // Emit global definition: @name = global i64 <init_value>
+        // Emit global: extern vars use 'external global', regular vars use 'global'
         llvm_emit_str("@");
         llvm_emit_n(name, name_len);
+        if is_extern {
+            llvm_emit_line(" = external global i64");
+            return;
+        }
         llvm_emit_str(" = global i64 ");
 
         // Get initial value
@@ -5083,8 +5088,9 @@ func llvm_register_decl(decl *u8) void {
         var name_len i64 = var_decl_name_len(decl);
         var var_type *u8 = var_decl_type(decl);
         var var_init *u8 = var_decl_init(decl);
+        var is_extern i64 = var_decl_is_extern(decl);
         llvm_add_global(name, name_len);
-        add_global(name, name_len, var_type, var_init);  // Register type for get_expr_type
+        add_global(name, name_len, var_type, var_init, is_extern);  // Register type for get_expr_type
     } else if k == NODE_INCLUDE_DECL {
         // Recursively process included file
         var path *u8 = include_decl_path(decl);
