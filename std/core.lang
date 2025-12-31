@@ -24,83 +24,6 @@ func alloc(size i64) *u8 {
 }
 
 // ============================================================
-// Memory - malloc/free with free list
-// ============================================================
-// Block layout: [size:8][data...]
-// Free blocks store next pointer in data area: [size:8][next:8]
-// Minimum allocation is 8 bytes (to hold next pointer when freed)
-
-var free_list *u8 = nil;
-
-func malloc(size i64) *u8 {
-    // Minimum size is 8 (to store next pointer when freed)
-    if size < 8 {
-        size = 8;
-    }
-
-    // Align size to 8 bytes
-    var rem i64 = size % 8;
-    if rem != 0 {
-        size = size + 8 - rem;
-    }
-
-    // Search free list for first fit
-    var prev *u8 = nil;
-    var curr *u8 = free_list;
-
-    while curr != nil {
-        // Get block size (stored at curr)
-        var block_size_ptr *i64 = curr;
-        var block_size i64 = *block_size_ptr;
-
-        if block_size >= size {
-            // Found a suitable block - remove from free list
-            var next_ptr **u8 = curr + 8;
-            var next *u8 = *next_ptr;
-
-            if prev == nil {
-                free_list = next;
-            } else {
-                var prev_next_ptr **u8 = prev + 8;
-                *prev_next_ptr = next;
-            }
-
-            // Return pointer to data area (skip size header)
-            return curr + 8;
-        }
-
-        prev = curr;
-        var curr_next_ptr **u8 = curr + 8;
-        curr = *curr_next_ptr;
-    }
-
-    // No suitable free block, bump allocate with header
-    var total i64 = size + 8;
-    var block *u8 = alloc(total);
-
-    // Store size in header
-    var size_ptr *i64 = block;
-    *size_ptr = size;
-
-    // Return pointer to data area
-    return block + 8;
-}
-
-func free(ptr *u8) {
-    if ptr == nil {
-        return;
-    }
-
-    // Get block header (8 bytes before data)
-    var block *u8 = ptr - 8;
-
-    // Add to front of free list
-    var next_ptr **u8 = block + 8;
-    *next_ptr = free_list;
-    free_list = block;
-}
-
-// ============================================================
 // Dynamic Array (Vec)
 // ============================================================
 // Vec layout: [capacity:8][length:8][data:8] = 24 bytes
@@ -594,12 +517,8 @@ func eprint_i64(n i64) {
 }
 
 // ============================================================
-// Process
+// Process - exit() provided by OS layer
 // ============================================================
-
-func exit(code i64) {
-    os_exit(code);
-}
 
 // ============================================================
 // Numeric helpers (useful for debugging)
@@ -676,16 +595,8 @@ func itoa(n i64, buf *u8) i64 {
 // ============================================================
 // OS utilities (higher-level, use alloc)
 // ============================================================
-
-// Get current process ID
-func getpid() i64 {
-    return os_getpid();
-}
-
-// Get parent process ID
-func getppid() i64 {
-    return os_getppid();
-}
+// Note: getpid, getppid, getcwd, mkdir, unlink, rmdir are provided
+// by the OS layer (linux_x86_64.lang, macos_arm64.lang, or libc.lang)
 
 // Get file modification time (seconds since epoch)
 // Returns 0 if file doesn't exist or error
@@ -701,73 +612,8 @@ func file_mtime(path *u8) i64 {
     return *mtime_ptr;
 }
 
-// Get current working directory
-// Returns number of bytes written to buf, or negative on error
-func getcwd(buf *u8, size i64) i64 {
-    return os_getcwd(buf, size);
-}
-
-// Create directory with mode 0755
-func mkdir(path *u8) i64 {
-    return os_mkdir(path, 493);  // 493 = 0755
-}
-
-// Remove file
-func unlink(path *u8) i64 {
-    return os_unlink(path);
-}
-
-// Remove directory
-func rmdir(path *u8) i64 {
-    return os_rmdir(path);
-}
-
 // ============================================================
 // Environment variables
 // ============================================================
-
-// Global pointer to environment variables (set by init_environ)
-var environ **u8 = nil;
-
-// Initialize environment pointer - call once at program start
-// envp is the third argument passed from _start
-func init_environ(envp **u8) void {
-    environ = envp;
-}
-
-// Get environment variable value by name
-// Returns pointer to value part (after '='), or nil if not found
-func getenv(name *u8) *u8 {
-    if environ == nil {
-        return nil;
-    }
-
-    var name_len i64 = strlen(name);
-    var i i64 = 0;
-
-    while true {
-        var entry *u8 = *(environ + i);
-        if entry == nil {
-            return nil;  // End of environment
-        }
-
-        // Check if entry starts with "name="
-        var j i64 = 0;
-        var matched i64 = 1;
-        while j < name_len {
-            if *(entry + j) != *(name + j) {
-                matched = 0;
-                j = name_len;  // break
-            }
-            j = j + 1;
-        }
-
-        // Check for '=' after name
-        if matched == 1 && *(entry + name_len) == 61 {  // 61 = '='
-            return entry + name_len + 1;  // Return pointer after '='
-        }
-
-        i = i + 1;
-    }
-    return nil;  // unreachable
-}
+// Note: environ, init_environ, getenv are provided by the OS layer
+// (linux_x86_64.lang, macos_arm64.lang, or libc.lang)

@@ -1,6 +1,6 @@
 // std/os/libc.lang - OS abstraction via system libc
 //
-// This file provides the os_* abstraction layer using extern declarations to
+// This file provides the OS abstraction layer using extern declarations to
 // the system's libc. Use this when compiling with LLVM backend to get portable
 // binaries that link against the platform's libc.
 //
@@ -8,6 +8,39 @@
 // - Works on any OS where clang can target (macOS, Linux, Windows, etc.)
 // - Links against system libc (-lc)
 // - Is more portable but requires libc at runtime
+//
+// ============================================================
+// OS Layer Interface
+// ============================================================
+// Every OS layer (linux_x86_64, macos_arm64, libc) implements this interface.
+//
+// Internal functions (os_* prefix, used by std library):
+//   os_read(fd, buf, count) i64
+//   os_write(fd, buf, count) i64
+//   os_open(path, flags, mode) i64
+//   os_close(fd) i64
+//   os_mmap(addr, len, prot, flags, fd, offset) *u8
+//   os_exit(code) void
+//   os_stat(path, statbuf) i64
+//   os_getpid() i64
+//   os_getppid() i64
+//   os_getcwd(buf, size) i64
+//   os_mkdir(path, mode) i64
+//   os_unlink(path) i64
+//   os_rmdir(path) i64
+//
+// User-facing functions (from libc extern declarations):
+//   malloc(size) *u8
+//   free(ptr) void
+//   exit(code) void
+//   getpid() i64
+//   getppid() i64
+//   getcwd(buf, size) *u8  -- NOTE: libc returns pointer, not i64
+//   mkdir(path, mode) i64
+//   unlink(path) i64
+//   rmdir(path) i64
+//   init_environ(envp) void  -- no-op, libc handles environ
+//   getenv(name) *u8
 
 // ============================================================
 // External libc declarations
@@ -29,6 +62,7 @@ extern func free(ptr *u8) void;
 extern func exit(code i64) void;
 extern func getpid() i64;
 extern func getppid() i64;
+extern func getenv(name *u8) *u8;
 
 // File system
 extern func stat(path *u8, statbuf *u8) i64;
@@ -97,4 +131,13 @@ func os_unlink(path *u8) i64 {
 
 func os_rmdir(path *u8) i64 {
     return rmdir(path);
+}
+
+// ============================================================
+// Environment - libc handles this, init_environ is no-op
+// ============================================================
+
+// No-op: libc's environ is already initialized
+func init_environ(envp **u8) void {
+    // libc handles environ internally
 }
