@@ -675,13 +675,53 @@ func llvm_emit_expr(expr *u8) void {
             // Let binding: use unique name
             var unique *u8 = llvm_let_unique_name(let_entry);
             var unique_len i64 = llvm_let_unique_len(let_entry);
-            var temp i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(temp);
-            llvm_emit_str(" = load i64, i64* %");
-            llvm_emit_n(unique, unique_len);
-            llvm_emit_char(10);
-            llvm_set_result_temp(temp);
+
+            // Check if this is an aggregate type (struct or enum)
+            var local_idx i64 = find_local(name, len);
+            var local_type *u8 = nil;
+            var is_aggregate i64 = 0;
+            var aggregate_size i64 = 0;
+
+            if local_idx >= 0 {
+                local_type = local_get_type(local_idx);
+                if local_type != nil && type_kind(local_type) == TYPE_BASE {
+                    var type_name *u8 = base_type_name(local_type);
+                    var type_name_len i64 = base_type_name_len(local_type);
+                    var struct_decl *u8 = find_struct(type_name, type_name_len);
+                    if struct_decl != nil {
+                        is_aggregate = 1;
+                        aggregate_size = get_struct_size(struct_decl);
+                    } else {
+                        var enum_decl *u8 = find_enum(type_name, type_name_len);
+                        if enum_decl != nil {
+                            is_aggregate = 1;
+                            aggregate_size = get_enum_size(enum_decl);
+                        }
+                    }
+                }
+            }
+
+            if is_aggregate != 0 {
+                // Aggregate let binding: emit ptrtoint with unique name
+                var temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(temp);
+                llvm_emit_str(" = ptrtoint [");
+                llvm_emit_int(aggregate_size);
+                llvm_emit_str(" x i8]* %");
+                llvm_emit_n(unique, unique_len);
+                llvm_emit_line(" to i64");
+                llvm_set_result_temp(temp);
+            } else {
+                // Primitive let binding: load from unique name
+                var temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(temp);
+                llvm_emit_str(" = load i64, i64* %");
+                llvm_emit_n(unique, unique_len);
+                llvm_emit_char(10);
+                llvm_set_result_temp(temp);
+            }
         } else if llvm_is_local(name, len) {
             // Local variable: check if it's an aggregate type (struct/enum)
             var local_idx i64 = find_local(name, len);
@@ -1465,6 +1505,15 @@ func llvm_emit_expr(expr *u8) void {
                         }
                     }
 
+                    // Check for let binding (unique name for aggregate vars)
+                    var actual_name *u8 = name;
+                    var actual_name_len i64 = len;
+                    var let_entry *u8 = llvm_find_let_binding(name, len);
+                    if let_entry != nil {
+                        actual_name = llvm_let_unique_name(let_entry);
+                        actual_name_len = llvm_let_unique_len(let_entry);
+                    }
+
                     // ptrtoint converts pointer to integer
                     llvm_emit_str("    %t");
                     llvm_emit_int(temp);
@@ -1475,7 +1524,7 @@ func llvm_emit_expr(expr *u8) void {
                     } else {
                         llvm_emit_str(" = ptrtoint i64* %");
                     }
-                    llvm_emit_n(name, len);
+                    llvm_emit_n(actual_name, actual_name_len);
                     llvm_emit_line(" to i64");
                     llvm_set_result_temp(temp);
                 }
@@ -1677,6 +1726,92 @@ func llvm_emit_expr(expr *u8) void {
         var field_name *u8 = field_expr_field(expr);
         var field_len i64 = field_expr_field_len(expr);
 
+        // Check for enum unit variant construction: EnumName.Variant
+        if node_kind(base_expr) == NODE_IDENT_EXPR {
+            var enum_name *u8 = ident_expr_name(base_expr);
+            var enum_name_len i64 = ident_expr_name_len(base_expr);
+            var enum_decl *u8 = find_enum(enum_name, enum_name_len);
+
+            if enum_decl != nil {
+                // Find the variant
+                var variant *u8 = find_variant(enum_decl, field_name, field_len);
+                if variant == nil {
+                    eprint("error: enum '");
+                    eprint_buf(enum_name, enum_name_len);
+                    eprint("' has no variant '");
+                    eprint_buf(field_name, field_len);
+                    eprintln("'");
+                    return;
+                }
+
+                // Allocate space for enum on stack
+                var enum_size i64 = get_enum_size(enum_decl);
+                var enum_var *u8 = llvm_alloc_local_size(enum_size);
+
+                // Build the type string for ptrtoint (e.g., "[16 x i8]*")
+                var type_str *u8 = alloc(32);
+                var tp *u8 = type_str;
+                *tp = 91; tp = tp + 1;  // [
+                itoa(enum_size, tp);
+                tp = tp + strlen(tp);
+                *tp = 32; tp = tp + 1;  // space
+                *tp = 120; tp = tp + 1;  // x
+                *tp = 32; tp = tp + 1;  // space
+                *tp = 105; tp = tp + 1;  // i
+                *tp = 56; tp = tp + 1;   // 8
+                *tp = 93; tp = tp + 1;   // ]
+                *tp = 42; tp = tp + 1;   // *
+                *tp = 0;
+
+                // Set tag
+                var tag i64 = enum_variant_tag(variant);
+                var tag_ptr_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(tag_ptr_temp);
+                llvm_emit_str(" = ptrtoint ");
+                llvm_emit_str(type_str);
+                llvm_emit_str(" ");
+                llvm_emit_str(enum_var);
+                llvm_emit_line(" to i64");
+
+                var tag_store_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(tag_store_temp);
+                llvm_emit_str(" = inttoptr i64 %t");
+                llvm_emit_int(tag_ptr_temp);
+                llvm_emit_line(" to i64*");
+
+                llvm_emit_str("    store i64 ");
+                llvm_emit_int(tag);
+                llvm_emit_str(", i64* %t");
+                llvm_emit_int(tag_store_temp);
+                llvm_emit_char(10);
+
+                // Zero out payload slot (for safety)
+                var payload_ptr_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(payload_ptr_temp);
+                llvm_emit_str(" = add i64 %t");
+                llvm_emit_int(tag_ptr_temp);
+                llvm_emit_line(", 8");
+
+                var payload_store_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(payload_store_temp);
+                llvm_emit_str(" = inttoptr i64 %t");
+                llvm_emit_int(payload_ptr_temp);
+                llvm_emit_line(" to i64*");
+
+                llvm_emit_str("    store i64 0, i64* %t");
+                llvm_emit_int(payload_store_temp);
+                llvm_emit_char(10);
+
+                // Return pointer to enum value
+                llvm_set_result_temp(tag_ptr_temp);
+                return;
+            }
+        }
+
         // Get type of base expression to find struct
         var base_type *u8 = get_expr_type(base_expr);
         if base_type == nil {
@@ -1783,6 +1918,15 @@ func llvm_emit_expr(expr *u8) void {
                 var name *u8 = ident_expr_name(base_expr);
                 var name_len i64 = ident_expr_name_len(base_expr);
 
+                // Check for let binding (unique names for match bindings)
+                var actual_name *u8 = name;
+                var actual_name_len i64 = name_len;
+                var let_entry *u8 = llvm_find_let_binding(name, name_len);
+                if let_entry != nil {
+                    actual_name = llvm_let_unique_name(let_entry);
+                    actual_name_len = llvm_let_unique_len(let_entry);
+                }
+
                 // Get address of struct and add offset
                 var addr_temp i64 = llvm_next_temp();
                 llvm_emit_str("    %t");
@@ -1792,7 +1936,7 @@ func llvm_emit_expr(expr *u8) void {
                 var struct_size i64 = get_struct_size(struct_decl);
                 llvm_emit_int(struct_size);
                 llvm_emit_str(" x i8]* %");
-                llvm_emit_n(name, name_len);
+                llvm_emit_n(actual_name, actual_name_len);
                 llvm_emit_line(" to i64");
 
                 // Add offset
@@ -2104,8 +2248,8 @@ func llvm_emit_expr(expr *u8) void {
                         payload_size = get_type_size(payload_type);
                     }
 
-                    // Create local for binding
-                    var bind_var *u8 = alloc(32);
+                    // Create local for binding with unique suffix to avoid collisions
+                    var bind_var *u8 = alloc(64);
                     *bind_var = 37;  // %
                     var bp *u8 = bind_var + 1;
                     var bj i64 = 0;
@@ -2113,7 +2257,10 @@ func llvm_emit_expr(expr *u8) void {
                         *(bp + bj) = *(binding + bj);
                         bj = bj + 1;
                     }
-                    *(bp + binding_len) = 0;
+                    // Add unique suffix: name.N
+                    *(bp + binding_len) = 46;  // '.'
+                    itoa(llvm_anon_local_counter, bp + binding_len + 1);
+                    llvm_anon_local_counter = llvm_anon_local_counter + 1;
 
                     // Get pointer to payload (scrutinee + 8)
                     var payload_ptr_temp i64 = llvm_next_temp();
@@ -2517,6 +2664,7 @@ func llvm_emit_stmt(stmt *u8) void {
 
         // Calculate allocation size - structs and enums need more than 8 bytes
         var alloc_size i64 = 8;
+        var is_aggregate i64 = 0;
         if var_type != nil {
             if type_kind(var_type) == TYPE_BASE {
                 var type_name *u8 = base_type_name(var_type);
@@ -2524,19 +2672,42 @@ func llvm_emit_stmt(stmt *u8) void {
                 var struct_decl *u8 = find_struct(type_name, type_name_len);
                 if struct_decl != nil {
                     alloc_size = get_struct_size(struct_decl);
+                    is_aggregate = 1;
                 } else {
                     // Check if it's an enum type
                     var enum_decl *u8 = find_enum(type_name, type_name_len);
                     if enum_decl != nil {
                         alloc_size = get_enum_size(enum_decl);
+                        is_aggregate = 1;
                     }
                 }
             }
         }
 
+        // For aggregate types, use unique names to avoid SSA conflicts in loops
+        var actual_name *u8 = name;
+        var actual_name_len i64 = name_len;
+        if is_aggregate != 0 {
+            // Create unique name: name.N
+            var unique_name *u8 = alloc(64);
+            var up *u8 = unique_name;
+            var ui i64 = 0;
+            while ui < name_len {
+                *(up + ui) = *(name + ui);
+                ui = ui + 1;
+            }
+            *(up + name_len) = 46;  // '.'
+            itoa(llvm_anon_local_counter, up + name_len + 1);
+            llvm_anon_local_counter = llvm_anon_local_counter + 1;
+            actual_name = unique_name;
+            actual_name_len = strlen(unique_name);
+            // Register let binding: name -> unique_name
+            llvm_push_let_binding(name, name_len, unique_name, actual_name_len);
+        }
+
         // Allocate stack slot with correct size
         llvm_emit_str("    %");
-        llvm_emit_n(name, name_len);
+        llvm_emit_n(actual_name, actual_name_len);
         if alloc_size <= 8 {
             llvm_emit_line(" = alloca i64");
         } else {
@@ -2556,7 +2727,7 @@ func llvm_emit_stmt(stmt *u8) void {
                 llvm_emit_str("    store i64 ");
                 llvm_emit_str(init_val);
                 llvm_emit_str(", i64* %");
-                llvm_emit_n(name, name_len);
+                llvm_emit_n(actual_name, actual_name_len);
                 llvm_emit_char(10);
             } else {
                 // For structs/enums, init_val is a pointer to the source
@@ -2567,7 +2738,7 @@ func llvm_emit_stmt(stmt *u8) void {
                 llvm_emit_str(" = ptrtoint [");
                 llvm_emit_int(alloc_size);
                 llvm_emit_str(" x i8]* %");
-                llvm_emit_n(name, name_len);
+                llvm_emit_n(actual_name, actual_name_len);
                 llvm_emit_line(" to i64");
 
                 var copy_i i64 = 0;
@@ -2802,6 +2973,15 @@ func llvm_emit_stmt(stmt *u8) void {
                                     var name *u8 = ident_expr_name(base_expr);
                                     var name_len i64 = ident_expr_name_len(base_expr);
 
+                                    // Check for let binding (unique name for aggregate vars)
+                                    var actual_name *u8 = name;
+                                    var actual_name_len i64 = name_len;
+                                    var let_entry *u8 = llvm_find_let_binding(name, name_len);
+                                    if let_entry != nil {
+                                        actual_name = llvm_let_unique_name(let_entry);
+                                        actual_name_len = llvm_let_unique_len(let_entry);
+                                    }
+
                                     // Get address of struct
                                     var addr_temp i64 = llvm_next_temp();
                                     llvm_emit_str("    %t");
@@ -2810,7 +2990,7 @@ func llvm_emit_stmt(stmt *u8) void {
                                     var struct_size i64 = get_struct_size(struct_decl);
                                     llvm_emit_int(struct_size);
                                     llvm_emit_str(" x i8]* %");
-                                    llvm_emit_n(name, name_len);
+                                    llvm_emit_n(actual_name, actual_name_len);
                                     llvm_emit_line(" to i64");
 
                                     // Add offset
@@ -2897,18 +3077,118 @@ func llvm_emit_stmt(stmt *u8) void {
         if node_kind(target) == NODE_IDENT_EXPR {
             var name *u8 = ident_expr_name(target);
             var len i64 = ident_expr_name_len(target);
-            llvm_emit_str("    store i64 ");
-            llvm_emit_str(val);
-            if llvm_is_local(name, len) {
-                llvm_emit_str(", i64* %");
-            } else if llvm_is_global(name, len) {
-                llvm_emit_str(", i64* @");
-            } else {
-                // Assume local (parameter)
-                llvm_emit_str(", i64* %");
+
+            // Check if target is an aggregate type (enum/struct)
+            var local_idx i64 = find_local(name, len);
+            var is_aggregate i64 = 0;
+            var aggregate_size i64 = 0;
+            if local_idx >= 0 {
+                var local_type *u8 = local_get_type(local_idx);
+                if local_type != nil && type_kind(local_type) == TYPE_BASE {
+                    var type_name *u8 = base_type_name(local_type);
+                    var type_name_len i64 = base_type_name_len(local_type);
+                    var struct_decl *u8 = find_struct(type_name, type_name_len);
+                    if struct_decl != nil {
+                        is_aggregate = 1;
+                        aggregate_size = get_struct_size(struct_decl);
+                    } else {
+                        var enum_decl *u8 = find_enum(type_name, type_name_len);
+                        if enum_decl != nil {
+                            is_aggregate = 1;
+                            aggregate_size = get_enum_size(enum_decl);
+                        }
+                    }
+                }
             }
-            llvm_emit_n(name, len);
-            llvm_emit_char(10);
+
+            if is_aggregate != 0 {
+                // Check for let binding (unique name for aggregate vars)
+                var actual_name *u8 = name;
+                var actual_name_len i64 = len;
+                var let_entry *u8 = llvm_find_let_binding(name, len);
+                if let_entry != nil {
+                    actual_name = llvm_let_unique_name(let_entry);
+                    actual_name_len = llvm_let_unique_len(let_entry);
+                }
+
+                // Aggregate assignment: copy bytes from source to target
+                // val contains the address of the source data
+                var dst_addr_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(dst_addr_temp);
+                llvm_emit_str(" = ptrtoint [");
+                llvm_emit_int(aggregate_size);
+                llvm_emit_str(" x i8]* %");
+                llvm_emit_n(actual_name, actual_name_len);
+                llvm_emit_line(" to i64");
+
+                // Copy each 8-byte chunk
+                var copy_i i64 = 0;
+                while copy_i < aggregate_size {
+                    // Load from source
+                    var src_ptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(src_ptr_temp);
+                    llvm_emit_str(" = add i64 ");
+                    llvm_emit_str(val);
+                    llvm_emit_str(", ");
+                    llvm_emit_int(copy_i);
+                    llvm_emit_char(10);
+
+                    var src_iptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(src_iptr_temp);
+                    llvm_emit_str(" = inttoptr i64 %t");
+                    llvm_emit_int(src_ptr_temp);
+                    llvm_emit_line(" to i64*");
+
+                    var load_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(load_temp);
+                    llvm_emit_str(" = load i64, i64* %t");
+                    llvm_emit_int(src_iptr_temp);
+                    llvm_emit_char(10);
+
+                    // Store to destination
+                    var dst_ptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(dst_ptr_temp);
+                    llvm_emit_str(" = add i64 %t");
+                    llvm_emit_int(dst_addr_temp);
+                    llvm_emit_str(", ");
+                    llvm_emit_int(copy_i);
+                    llvm_emit_char(10);
+
+                    var dst_iptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(dst_iptr_temp);
+                    llvm_emit_str(" = inttoptr i64 %t");
+                    llvm_emit_int(dst_ptr_temp);
+                    llvm_emit_line(" to i64*");
+
+                    llvm_emit_str("    store i64 %t");
+                    llvm_emit_int(load_temp);
+                    llvm_emit_str(", i64* %t");
+                    llvm_emit_int(dst_iptr_temp);
+                    llvm_emit_char(10);
+
+                    copy_i = copy_i + 8;
+                }
+            } else {
+                // Primitive assignment
+                llvm_emit_str("    store i64 ");
+                llvm_emit_str(val);
+                if llvm_is_local(name, len) {
+                    llvm_emit_str(", i64* %");
+                } else if llvm_is_global(name, len) {
+                    llvm_emit_str(", i64* @");
+                } else {
+                    // Assume local (parameter)
+                    llvm_emit_str(", i64* %");
+                }
+                llvm_emit_n(name, len);
+                llvm_emit_char(10);
+            }
         }
         return;
     }

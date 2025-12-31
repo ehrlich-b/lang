@@ -67,6 +67,16 @@ COMPILER=./out/lang_next ./test/run_lang1_suite.sh 2>&1 | grep "188"
 
 **Key insight**: `make run` will FAIL on new syntax because it uses the stable compiler. Always use `make dev-run` or `make dev-stdlib-run` for testing new features until they're promoted.
 
+### Test Suite Caching (IMPORTANT!)
+
+**THE RULE**: Never run the full test suite repeatedly. It's SLOW. Instead:
+
+1. **Save results to /tmp**: `COMPILER=./out/lang_next ./test/run_llvm_suite.sh 2>&1 > /tmp/llvm_suite_results.txt`
+2. **Query the cached results**: `grep "FAIL" /tmp/llvm_suite_results.txt` or `tail -5 /tmp/llvm_suite_results.txt`
+3. **Only re-run after making fixes** that you expect to change the results
+
+For individual test debugging, run only that specific test - don't re-run the entire suite to check one fix.
+
 ## Current Focus
 
 **AST as Language**: The big architectural vision. See `designs/ast_as_language.md`.
