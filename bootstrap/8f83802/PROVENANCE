@@ -1,0 +1,9 @@
+compiler.s:
+  sha256: 05552c87c1513b4f8657303d75ff575f615000385813b3c18d15387bbb74439b
+  built_by: bootstrap/b1da012
+  built_at: 2025-12-31T16:27:34-05:00
+  source_commit: 8f83802
+  verified_fixed_point: true
+lang_reader/source.ast:
+  sha256: a3152ca8341bf866a9178be4c48490099c70d6d02c5ff50bd0d088faeba7ea61
+  lines: 5136
