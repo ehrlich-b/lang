@@ -104,6 +104,13 @@ grep "FAIL" /tmp/suite.txt  # Query cached results
 - Memory can leak in the compiler (short-lived)
 - **Just include stdlib when needed** - Tests that need `alloc` should include `std/core.lang`
 
+## Git Commit Style
+
+- **Single sentence commits only** - No multi-line messages, no bullet points
+- **No co-author tags** - Never add "Co-Authored-By" or similar
+- **No emoji prefixes** - No 🤖 or other decorations
+- Example: `git commit -m "Fix malloc symbol conflict in libc bootstrap"`
+
 ## Language Gotchas (READ THIS)
 
 ### Forward Declarations: NOT NEEDED
