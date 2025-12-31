@@ -169,6 +169,11 @@ promote: verify
 	@echo "Updated: bootstrap/escape_hatch.s"
 	@echo "Updated: bootstrap/llvm_libc_compiler.ll"
 	@echo "Updated: $(LANG) -> lang_$(VERSION)"
+	@echo ""
+	@echo "========================================"
+	@echo "YOU MUST COMMIT YOUR CHANGES NOW"
+	@echo "  git add -A && git commit -m 'your message'"
+	@echo "========================================"
 
 # Release: save .s to bootstrap/, git tag
 release:
