@@ -100,9 +100,19 @@ func main(argc i64, argv **u8) i64 {
                     var end *u8 = p;
                     var depth i64 = 1;
                     while *end != 0 && depth > 0 {
-                        if *end == 40 { depth = depth + 1; }
-                        if *end == 41 { depth = depth - 1; }
-                        end = end + 1;
+                        // Skip quoted strings - parens inside don't count
+                        if *end == 34 {  // '"'
+                            end = end + 1;
+                            while *end != 0 && *end != 34 {
+                                if *end == 92 { end = end + 1; }  // skip escaped char
+                                if *end != 0 { end = end + 1; }
+                            }
+                            if *end == 34 { end = end + 1; }  // skip closing quote
+                        } else {
+                            if *end == 40 { depth = depth + 1; }
+                            if *end == 41 { depth = depth - 1; }
+                            end = end + 1;
+                        }
                     }
                     // end is one past the closing paren of (program ...)
                     // back up to exclude that closing paren
@@ -126,8 +136,8 @@ func main(argc i64, argv **u8) i64 {
         i = i + 1;
     }
 
-    // Add ___main wrapper as AST
-    standalone_append(ast_buf, &ast_len, "(func ___main ((param argc (type_base i64)) (param argv (type_ptr (type_ptr (type_base u8))))) (type_base i64) (block (return (call (ident main) (ident argc) (ident argv)))))\n");
+    // Add ___main wrapper as AST (must match main.lang's version for fixed point)
+    standalone_append(ast_buf, &ast_len, "(func ___main ((param argc (type_base i64)) (param argv (type_ptr (type_ptr (type_base u8)))) (param envp (type_ptr (type_ptr (type_base u8))))) (type_base i64) (block (return (call (ident main) (ident argc) (ident argv)))))\n");
 
     // Close the program wrapper
     standalone_append(ast_buf, &ast_len, ")\n");
