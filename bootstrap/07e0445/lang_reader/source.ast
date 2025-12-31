@@ -5095,5 +5095,6 @@
         (return (call (ident ast_emit_expression) (ident expr)))))))
   (func ___main ((param argc (type_base i64)) (param argv (type_ptr (type_ptr (type_base u8)))) (param envp (type_ptr (type_ptr (type_base u8))))) (type_base i64)
     (block
+      (expr_stmt (call (ident init_environ) (ident envp)))
       (return (call (ident main) (ident argc) (ident argv))))))
   

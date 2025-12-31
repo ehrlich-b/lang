@@ -15725,6 +15725,7 @@ L2:
 
 @cg_out_fd = global i64 0
 @cg_label_num = global i64 0
+@cg_had_error = global i64 0
 @cg_locals = global i64 0
 @cg_local_count = global i64 0
 @cg_stack_size = global i64 0
@@ -19771,7 +19772,7 @@ L21:
     call void @eprint_buf(i64 %t62, i64 %t63)
     %t64 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str199, i64 0, i64 0) to i64
     call void @eprintln(i64 %t64)
-    store i64 1, i64* %cg_had_error
+    store i64 1, i64* @cg_had_error
     ret void
 L23:
     %exe_path.7 = alloca i64
@@ -19804,7 +19805,7 @@ L24:
     call void @eprint_buf(i64 %t81, i64 %t82)
     %t83 = ptrtoint i8* getelementptr inbounds ([21 x i8], [21 x i8]* @.str201, i64 0, i64 0) to i64
     call void @eprintln(i64 %t83)
-    store i64 1, i64* %cg_had_error
+    store i64 1, i64* @cg_had_error
     ret void
 L26:
     %prog.10 = alloca i64
@@ -19825,7 +19826,7 @@ L27:
     call void @eprint_buf(i64 %t92, i64 %t93)
     %t94 = ptrtoint i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str202, i64 0, i64 0) to i64
     call void @eprintln(i64 %t94)
-    store i64 1, i64* %cg_had_error
+    store i64 1, i64* @cg_had_error
     ret void
 L29:
     %gen_decls.11 = alloca i64
@@ -22839,7 +22840,7 @@ L64:
     call void @eprint_buf(i64 %t219, i64 %t220)
     %t221 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str98, i64 0, i64 0) to i64
     call void @eprintln(i64 %t221)
-    store i64 1, i64* %cg_had_error
+    store i64 1, i64* @cg_had_error
     br label %L55
 L55:
     %t222 = load i64, i64* %inner.13
@@ -23708,7 +23709,7 @@ L212:
     call void @eprint_buf(i64 %t684, i64 %t685)
     %t686 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str98, i64 0, i64 0) to i64
     call void @eprintln(i64 %t686)
-    store i64 1, i64* %cg_had_error
+    store i64 1, i64* @cg_had_error
     ret void
 L214:
     %enum_size.55 = alloca i64
@@ -24573,7 +24574,7 @@ L353:
     call void @eprint_buf(i64 %t1126, i64 %t1127)
     %t1128 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str98, i64 0, i64 0) to i64
     call void @eprintln(i64 %t1128)
-    store i64 1, i64* %cg_had_error
+    store i64 1, i64* @cg_had_error
     ret void
 L355:
     %enum_size.90 = alloca i64
@@ -25033,7 +25034,7 @@ L426:
     call void @eprint_buf(i64 %t1368, i64 %t1369)
     %t1370 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str199, i64 0, i64 0) to i64
     call void @eprintln(i64 %t1370)
-    store i64 1, i64* %cg_had_error
+    store i64 1, i64* @cg_had_error
     ret void
 L428:
     %exe_path.114 = alloca i64
@@ -25066,7 +25067,7 @@ L429:
     call void @eprint_buf(i64 %t1387, i64 %t1388)
     %t1389 = ptrtoint i8* getelementptr inbounds ([21 x i8], [21 x i8]* @.str201, i64 0, i64 0) to i64
     call void @eprintln(i64 %t1389)
-    store i64 1, i64* %cg_had_error
+    store i64 1, i64* @cg_had_error
     ret void
 L431:
     %expanded.117 = alloca i64
@@ -25632,7 +25633,7 @@ L489:
     call void @eprint_buf(i64 %t1699, i64 %t1700)
     %t1701 = ptrtoint i8* getelementptr inbounds ([19 x i8], [19 x i8]* @.str312, i64 0, i64 0) to i64
     call void @eprintln(i64 %t1701)
-    store i64 1, i64* %cg_had_error
+    store i64 1, i64* @cg_had_error
     ret void
 L491:
     %variant.164 = alloca i64
@@ -25655,7 +25656,7 @@ L492:
     call void @eprint_buf(i64 %t1712, i64 %t1713)
     %t1714 = ptrtoint i8* getelementptr inbounds ([19 x i8], [19 x i8]* @.str312, i64 0, i64 0) to i64
     call void @eprintln(i64 %t1714)
-    store i64 1, i64* %cg_had_error
+    store i64 1, i64* @cg_had_error
     ret void
 L494:
     %expected_tag.165 = alloca i64
@@ -27311,7 +27312,7 @@ L20:
     call void @eprintln(i64 %t73)
     %t74 = ptrtoint i8* getelementptr inbounds ([61 x i8], [61 x i8]* @.str364, i64 0, i64 0) to i64
     call void @eprintln(i64 %t74)
-    store i64 1, i64* %cg_had_error
+    store i64 1, i64* @cg_had_error
     ret void
 L22:
     br label %L19
