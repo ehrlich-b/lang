@@ -172,6 +172,30 @@ If ANY step fails, the whole verify fails. Fix before proceeding.
 3. **NEVER modify escape_hatch.s directly** - It's auto-updated by promote
 4. **NEVER run partial verification** - Always full `make verify`
 
+### Feature Development Workflow (CRITICAL)
+
+When adding new features that change the AST format, readers, or any compiler capability:
+
+1. **Add the feature** (e.g., v2 AST support for READING)
+2. **IMMEDIATELY run `make verify` + `make promote`** - Bake it into bootstrap
+3. **ONLY THEN** can you write code that USES the new feature
+
+**WHY**: The bootstrap compiler must understand any new format before you can use it.
+If you write v2 AST before the bootstrap knows v2, you create a bootstrap crisis.
+
+**Example - Adding AST v2**:
+```
+WRONG:
+1. Add v2 reading support
+2. Write test that outputs v2 format  <- BROKEN! Bootstrap can't read v2 yet
+3. Try to compile <- crash/fail
+
+RIGHT:
+1. Add v2 reading support
+2. make verify + make promote  <- Now bootstrap knows v2
+3. Write test that outputs v2 format  <- Works!
+```
+
 ### Recovery: LLVM Bootstrap Path
 
 If x86 bootstrap is corrupted but LLVM bootstrap exists:

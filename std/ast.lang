@@ -8,9 +8,43 @@
 //   // Returns: "(binop + (number 1) (number 2))"
 //
 // Every function returns *u8 (S-expr text). Compose by nesting.
+//
+// AST Versions:
+//   v1 (legacy): string values include quotes in S-expr (e.g., "\"hello\"")
+//   v2 (clean):  string values are raw content (e.g., "hello")
+//
+// Use ast_use_version(2) before building AST for v2 format.
+// Use ast_version_decl() to get the version declaration for the program.
 
 include "std/core.lang"
 include "std/emit.lang"
+
+// ============================================================
+// AST Version Control
+// ============================================================
+
+var ast_output_version i64 = 1;
+
+func ast_use_version(v i64) void {
+    ast_output_version = v;
+}
+
+func ast_current_version() i64 {
+    return ast_output_version;
+}
+
+// Returns "(ast-version N)" declaration for program header
+// Returns empty string for v1 (no declaration needed)
+func ast_version_decl() *u8 {
+    if ast_output_version == 1 {
+        return "";
+    }
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, "(ast-version ");
+    sb_int(sb, ast_output_version);
+    sb_str(sb, ")");
+    return sb_finish(sb);
+}
 
 // ============================================================
 // Internal helpers
@@ -24,11 +58,11 @@ func ast_finish(sb *StringBuilder) *u8 {
     return sb_finish(sb);
 }
 
-// Quote a string value for S-expr output.
+// Quote a string value for S-expr output (v1 format).
 // Parser convention: string values include quotes (e.g., "hello" = 7 chars).
 // So ast_string("hello") must produce S-expr that parses back to "hello" with quotes.
 // Output: "\"hello\"" which sexpr_parse_string turns into "hello" (7 chars).
-func ast_quote_string(sb *StringBuilder, s *u8) void {
+func ast_quote_string_v1(sb *StringBuilder, s *u8) void {
     sb_char(sb, '"');     // S-expr opening quote
     sb_char(sb, '\\');    // Escape for value quote
     sb_char(sb, '"');     // Value opening quote (part of the string value)
@@ -45,6 +79,33 @@ func ast_quote_string(sb *StringBuilder, s *u8) void {
     sb_char(sb, '\\');    // Escape for value quote
     sb_char(sb, '"');     // Value closing quote (part of the string value)
     sb_char(sb, '"');     // S-expr closing quote
+}
+
+// Quote a string value for S-expr output (v2 format).
+// Clean convention: string values are raw content (e.g., "hello" = 5 chars).
+// Output: "hello" - just quoted for S-expr, sexpr_reader adds quotes.
+func ast_quote_string_v2(sb *StringBuilder, s *u8) void {
+    sb_char(sb, '"');
+    while *s != 0 {
+        var c u8 = *s;
+        if c == '"' { sb_char(sb, '\\'); sb_char(sb, '"'); }
+        else if c == '\\' { sb_char(sb, '\\'); sb_char(sb, '\\'); }
+        else if c == '\n' { sb_char(sb, '\\'); sb_char(sb, 'n'); }
+        else if c == '\t' { sb_char(sb, '\\'); sb_char(sb, 't'); }
+        else if c == '\r' { sb_char(sb, '\\'); sb_char(sb, 'r'); }
+        else { sb_char(sb, c); }
+        s = s + 1;
+    }
+    sb_char(sb, '"');
+}
+
+// Version-aware string quoting - uses current ast_output_version
+func ast_quote_string(sb *StringBuilder, s *u8) void {
+    if ast_output_version >= 2 {
+        ast_quote_string_v2(sb, s);
+    } else {
+        ast_quote_string_v1(sb, s);
+    }
 }
 
 // ============================================================

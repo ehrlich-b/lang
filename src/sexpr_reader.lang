@@ -29,6 +29,53 @@ var PNODE_LIST i64 = 4;
 var PNODE_OPERATOR i64 = 5;
 
 // ============================================================
+// AST Version
+// ============================================================
+// v1 (default): string values include quotes ("hello" = 7 chars)
+// v2: string values are raw content (hello = 5 chars)
+// sexpr_reader adds quotes for v2 to match codegen expectations
+
+var ast_version i64 = 1;
+
+func ast_get_version() i64 {
+    return ast_version;
+}
+
+func ast_set_version(v i64) void {
+    ast_version = v;
+}
+
+// Wrap a string with quotes (for v2 string handling)
+// Input: hello (5 chars)
+// Output: "hello" (7 chars)
+func sexpr_wrap_quotes(s *u8) *u8 {
+    var len i64 = strlen(s);
+    var buf *u8 = alloc(len + 3);  // quote + content + quote + null
+    *buf = '"';
+    var i i64 = 0;
+    while i < len {
+        *(buf + 1 + i) = *(s + i);
+        i = i + 1;
+    }
+    *(buf + 1 + len) = '"';
+    *(buf + 2 + len) = 0;
+    return buf;
+}
+
+// Simple string to int conversion for version parsing
+func sexpr_atoi(s *u8) i64 {
+    var result i64 = 0;
+    while *s != 0 {
+        var c u8 = *s;
+        if c >= '0' && c <= '9' {
+            result = result * 10 + (c - '0');
+        }
+        s = s + 1;
+    }
+    return result;
+}
+
+// ============================================================
 // PNode constructors
 // ============================================================
 
@@ -687,12 +734,17 @@ func sexpr_to_node(node *PNode) *u8 {
     }
 
     // (string "value")
-    // val_node.text is the S-expr token including outer quotes: "\"hello\""
-    // sexpr_parse_string strips outer quotes and unescapes: "hello"
+    // Version-aware string handling:
+    // v1: S-expr has escaped quotes: (string "\"hello\"") -> sexpr_parse_string -> "hello"
+    // v2: S-expr has raw content: (string "hello") -> sexpr_parse_string -> hello -> wrap -> "hello"
     if streq(head, "string") {
         var n *u8 = string_expr_alloc();
         var val_node *PNode = sexpr_get(node, 1);
         var val *u8 = sexpr_parse_string(val_node.text);
+        // v2: raw content needs quotes added to match codegen expectations
+        if ast_version >= 2 {
+            val = sexpr_wrap_quotes(val);
+        }
         string_expr_set_value(n, val);
         string_expr_set_value_len(n, strlen(val));
         return n;
@@ -958,6 +1010,11 @@ func sexpr_to_node(node *PNode) *u8 {
 
 func sexpr_to_program(node *PNode) *u8 {
     // (program decl1 decl2 ...)
+    // Optional: (program (ast-version 2) decl1 decl2 ...)
+
+    // Reset version to default for each program
+    ast_version = 1;
+
     if node.kind != PNODE_LIST {
         eprintln("Error: expected (program ...)");
         return nil;
@@ -969,12 +1026,31 @@ func sexpr_to_program(node *PNode) *u8 {
         return nil;
     }
 
-    var decl_count i64 = sexpr_len(node) - 1;
+    var total_children i64 = sexpr_len(node) - 1;
+    var start_index i64 = 1;  // Skip "program" head
+
+    // Check for (ast-version N) as first child
+    if total_children > 0 {
+        var first_child *PNode = sexpr_get(node, 1);
+        if first_child.kind == PNODE_LIST {
+            var first_head *u8 = sexpr_head(first_child);
+            if first_head != nil && streq(first_head, "ast-version") {
+                var ver_node *PNode = sexpr_get(first_child, 1);
+                if ver_node != nil && ver_node.kind == PNODE_NUMBER {
+                    ast_version = sexpr_atoi(ver_node.text);
+                }
+                start_index = 2;  // Skip version declaration
+                total_children = total_children - 1;
+            }
+        }
+    }
+
+    var decl_count i64 = total_children;
     var decls *u8 = alloc(decl_count * 8);
 
     var i i64 = 0;
     while i < decl_count {
-        var decl *u8 = sexpr_to_node(sexpr_get(node, i + 1));
+        var decl *u8 = sexpr_to_node(sexpr_get(node, start_index + i));
         var dp **u8 = decls + (i * 8);
         *dp = decl;
         i = i + 1;
