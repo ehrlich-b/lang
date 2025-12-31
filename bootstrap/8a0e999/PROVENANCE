@@ -1,0 +1,19 @@
+Bootstrap: 8a0e999
+Date: 2024-12-30
+Milestone: LLVM backend 165/165 tests passing
+
+This is the first dual-backend bootstrap containing both:
+- x86/compiler.s: x86-64 assembly (Linux, direct syscalls)
+- llvm/compiler.ll: LLVM IR (cross-platform via clang)
+
+Both outputs are semantically equivalent and can compile the full lang compiler.
+
+Built from:
+- std/core.lang
+- src/lexer.lang
+- src/parser.lang
+- src/codegen.lang (x86 backend)
+- src/codegen_llvm.lang (LLVM backend)
+- src/ast_emit.lang
+- src/sexpr_reader.lang
+- src/main.lang

@@ -21,7 +21,7 @@ var llvm_len i64 = 0;
 var llvm_buf_size i64 = 0;
 
 func llvm_init_output(output_file *u8) void {
-    llvm_buf_size = 1024 * 1024;  // 1MB buffer
+    llvm_buf_size = 8 * 1024 * 1024;  // 8MB buffer
     llvm_buf = alloc(llvm_buf_size);
     llvm_len = 0;
 
