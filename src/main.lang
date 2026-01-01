@@ -172,53 +172,153 @@ func build_expanded_program() *u8 {
 // Subcommands
 // ============================================================
 
-func cmd_help() i64 {
+func cmd_help_compile() i64 {
+    println("lang compile - compile source files to assembly");
+    println("");
+    println("Usage: lang [compile] <files...> -o <output>");
+    println("");
+    println("The 'compile' command is implicit when the first argument has a file extension.");
+    println("");
+    println("Examples:");
+    println("  lang file.lang -o out.s");
+    println("  lang compile file.lang -o out.s");
+    println("  lang std/core.lang main.lang -o program.s");
+    println("");
+    println("Options:");
+    println("  -o <file>           Output file (required)");
+    println("  -c <reader>         Generate standalone compiler with reader");
+    println("  --emit-ast          Emit AST S-expressions instead of assembly");
+    println("  --emit-expanded-ast Emit fully expanded AST (includes inlined)");
+    println("  --from-ast          Input is AST, not source");
+    println("  --expand-macros     Print macro expansions to stderr");
+    println("");
+    println("Multi-syntax compilation:");
+    println("  Files with .lang extension are parsed by the lang reader.");
+    println("  Other extensions invoke reader macros: file.lisp -> #lisp{...}");
+    return 0;
+}
+
+func cmd_help_env() i64 {
+    println("lang env - show environment variables");
+    println("");
+    println("Usage: lang env [variable]");
+    println("");
+    println("Examples:");
+    println("  lang env            Show all variables");
+    println("  lang env LANGBE     Show specific variable");
+    println("");
+    println("Variables:");
+    println("  LANGBE    Backend: x86 (default), llvm");
+    println("  LANGOS    Target OS: linux (default), macos");
+    println("  LANGLIBC  Libc mode: none (default), system");
+    println("  PATH      Search path for tools");
+    return 0;
+}
+
+func cmd_help_version() i64 {
+    println("lang version - show compiler identity");
+    println("");
+    println("Usage: lang version");
+    println("");
+    println("Shows:");
+    println("  - Version and commit hash");
+    println("  - Build configuration (backend, OS, arch, libc)");
+    println("  - Bootstrap provenance (what compiler built this)");
+    println("");
+    println("Aliases: --version, -V");
+    return 0;
+}
+
+func cmd_help_tools() i64 {
+    println("lang tools - show platform and build capabilities");
+    println("");
+    println("Usage: lang tools");
+    println("");
+    println("Shows:");
+    println("  - Platform this compiler was built for");
+    println("  - Available emit targets (x86, llvm)");
+    println("  - Current output configuration");
+    println("  - Required toolchains for building executables");
+    return 0;
+}
+
+func cmd_help_help() i64 {
+    println("lang help - show help information");
+    println("");
+    println("Usage: lang help [command]");
+    println("");
+    println("Examples:");
+    println("  lang help            Show general help");
+    println("  lang help compile    Show compile command help");
+    println("  lang help env        Show env command help");
+    println("");
+    println("Aliases: --help, -h");
+    return 0;
+}
+
+func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
+    // Check for subcommand-specific help
+    // arg_offset is used because argv pointer arithmetic is unreliable
+    if argc > 0 {
+        var subcmd *u8 = get_arg(argv, arg_offset);
+        if streq(subcmd, "compile") { return cmd_help_compile(); }
+        if streq(subcmd, "env") { return cmd_help_env(); }
+        if streq(subcmd, "version") { return cmd_help_version(); }
+        if streq(subcmd, "tools") { return cmd_help_tools(); }
+        if streq(subcmd, "help") { return cmd_help_help(); }
+        // Unknown subcommand - show general help
+        eprint("Unknown command: ");
+        eprintln(subcmd);
+        println("");
+    }
+
+    // General help
     println("lang - a self-hosted compiler where syntax is a plugin");
     println("");
     println("Usage: lang [command] [options]");
     println("");
     println("Commands:");
+    println("  compile    Compile source files (default)");
     println("  help       Show this help message");
     println("  version    Show version information");
     println("  env        Show environment variables");
     println("  tools      Show toolchain availability");
     println("");
-    println("Compilation (default when first arg has extension):");
+    println("Examples:");
     println("  lang file.lang -o out.s        Compile to assembly");
-    println("  lang std/core.lang main.lang -o out.s");
-    println("");
-    println("Options:");
-    println("  -o <file>           Output file");
-    println("  --emit-ast          Emit AST instead of assembly");
-    println("  --emit-expanded-ast Emit fully expanded AST");
-    println("  --from-ast          Input is AST, not source");
-    println("  --expand-macros     Show macro expansions");
+    println("  lang help compile              Help for compile command");
     println("");
     println("Environment:");
     println("  LANGBE=llvm         Use LLVM backend (default: x86)");
     println("  LANGOS=macos        Target macOS (default: linux)");
+    println("");
+    println("Run 'lang help <command>' for command-specific help.");
     return 0;
 }
 
 func cmd_version() i64 {
-    println("lang 0.1.0");
+    // Identity: what IS this compiler binary
+    print("lang ");
+    print(LANG_VERSION);
+    print(" (");
+    print(LANG_COMMIT);
+    println(")");
 
-    // Show output configuration (what the compiler generates)
-    var langbe *u8 = getenv("LANGBE");
-    print("output: ");
-    if langbe != nil && streq(langbe, "llvm") {
-        println("llvm");
-    } else {
-        println("x86");
+    // Build configuration: how this binary was built
+    print("built: ");
+    print(LANG_BUILD_BACKEND);
+    print(", ");
+    print(LANG_BUILD_OS);
+    print("-");
+    print(LANG_BUILD_ARCH);
+    if streq(LANG_BUILD_LIBC, "system") {
+        print(", libc");
     }
+    println("");
 
-    var langos *u8 = getenv("LANGOS");
-    print("target: ");
-    if langos != nil && streq(langos, "macos") {
-        println("macos");
-    } else {
-        println("linux");
-    }
+    // Provenance: what compiler built this
+    print("bootstrap: from ");
+    println(LANG_BOOTSTRAP_FROM);
 
     return 0;
 }
@@ -254,31 +354,144 @@ func cmd_env(argc i64, argv **u8) i64 {
     return 0;
 }
 
-func cmd_tools() i64 {
-    var langbe *u8 = getenv("LANGBE");
-    var is_llvm i64 = 0;
-    if langbe != nil && streq(langbe, "llvm") {
-        is_llvm = 1;
+// Search PATH for a tool, return path if found or nil
+func find_in_path(tool *u8) *u8 {
+    var path_env *u8 = getenv("PATH");
+    if path_env == nil { return nil; }
+
+    // Copy PATH so we can modify it
+    var path *u8 = str_dup(path_env);
+    var start *u8 = path;
+    var p *u8 = path;
+
+    // Buffer for full path
+    var buf *u8 = alloc(1024);
+
+    while *p != 0 {
+        if *p == ':' {
+            *p = 0;  // null-terminate this segment
+
+            // Build full path: dir/tool
+            var i i64 = 0;
+            var s *u8 = start;
+            while *s != 0 {
+                *(buf + i) = *s;
+                i = i + 1;
+                s = s + 1;
+            }
+            *(buf + i) = '/';
+            i = i + 1;
+            s = tool;
+            while *s != 0 {
+                *(buf + i) = *s;
+                i = i + 1;
+                s = s + 1;
+            }
+            *(buf + i) = 0;
+
+            // Try to open it
+            var fd i64 = file_open(buf, 0);
+            if fd >= 0 {
+                file_close(fd);
+                return str_dup(buf);
+            }
+
+            start = p + 1;
+        }
+        p = p + 1;
     }
 
-    if is_llvm {
-        println("Required (LANGBE=llvm):");
-        println("  clang     LLVM C compiler (compile + link)");
-        println("");
-        println("Optional:");
-        println("  lli       LLVM interpreter (for testing)");
-    } else {
-        println("Required (LANGBE=x86):");
-        println("  as        GNU assembler");
-        println("  ld        GNU linker");
+    // Check last segment
+    if *start != 0 {
+        var i i64 = 0;
+        var s *u8 = start;
+        while *s != 0 {
+            *(buf + i) = *s;
+            i = i + 1;
+            s = s + 1;
+        }
+        *(buf + i) = '/';
+        i = i + 1;
+        s = tool;
+        while *s != 0 {
+            *(buf + i) = *s;
+            i = i + 1;
+            s = s + 1;
+        }
+        *(buf + i) = 0;
+
+        var fd i64 = file_open(buf, 0);
+        if fd >= 0 {
+            file_close(fd);
+            return str_dup(buf);
+        }
     }
+
+    return nil;
+}
+
+func print_tool_status(name *u8, desc *u8) void {
+    var path *u8 = find_in_path(name);
+    print("  ");
+    print(name);
+    // Pad to align (min 1 space)
+    var len i64 = strlen(name);
+    print(" ");
+    while len < 8 {
+        print(" ");
+        len = len + 1;
+    }
+    if path != nil {
+        print("found: ");
+        println(path);
+    } else {
+        print("NOT FOUND  (");
+        print(desc);
+        println(")");
+    }
+}
+
+func cmd_tools() i64 {
+    // Platform: what this compiler was built for
+    print("Platform: ");
+    print(LANG_BUILD_OS);
+    print("-");
+    print(LANG_BUILD_ARCH);
+    if streq(LANG_BUILD_LIBC, "system") {
+        print(" (libc)");
+    } else {
+        print(" (no libc)");
+    }
+    println("");
+    println("");
+
+    // LLVM backend tools
+    println("LLVM backend (LANGBE=llvm):");
+    println("  Required:");
+    print_tool_status("clang", ".ll -> executable");
+    println("  Optional:");
+    print_tool_status("lli", "run .ll directly (fast testing)");
+    print_tool_status("llc", ".ll -> .s (then use as/ld)");
+    println("");
+
+    // x86 backend tools
+    println("x86 backend (LANGBE=x86):");
+    println("  Required:");
+    print_tool_status("as", "assemble .s -> .o");
+    print_tool_status("ld", "link .o -> executable");
+    println("");
+
+    // Test utilities
+    println("Test utilities:");
+    print_tool_status("timeout", "test timeouts (Linux)");
+    print_tool_status("gtimeout", "test timeouts (macOS)");
 
     return 0;
 }
 
 func main(argc i64, argv **u8) i64 {
     if argc < 2 {
-        return cmd_help();
+        return cmd_help(0, argv, 0);
     }
 
     // Get first argument
@@ -289,7 +502,8 @@ func main(argc i64, argv **u8) i64 {
     if has_extension(first) == 0 {
         // Check for subcommands
         if streq(first, "help") || streq(first, "--help") || streq(first, "-h") {
-            return cmd_help();
+            // argc-2 remaining args after "lang help", start at index 2
+            return cmd_help(argc - 2, argv, 2);
         }
         if streq(first, "version") || streq(first, "--version") || streq(first, "-V") {
             return cmd_version();
