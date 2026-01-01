@@ -168,9 +168,9 @@ bootstrap: generate-os-layer
 	LANGBE=llvm /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/llvm_libc_linux.ll
 	clang -O2 out/llvm_libc_linux.ll -o out/llvm_libc_linux
 	@echo "Built: out/llvm_libc_linux"
-	@# Build macOS libc compiler
+	@# Build macOS libc compiler (with LANGOS=macos for correct target triple)
 	@echo 'include "std/os/libc_macos.lang"' > std/os.lang
-	LANGBE=llvm /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/llvm_libc_macos.ll
+	LANGOS=macos LANGBE=llvm /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/llvm_libc_macos.ll
 	@echo "Built: out/llvm_libc_macos.ll"
 	@# Restore default OS layer
 	@echo 'include "std/os/linux_x86_64.lang"' > std/os.lang

@@ -370,6 +370,10 @@ reader block_test(text *u8) *u8 {
 ### Language Features
 - [ ] **Interfaces** - trait/protocol system for polymorphism
 - [ ] **Variadic function parameters** - `func printf(fmt *u8, ...) i64`
+  - **Hack status**: `open()` is special-cased in LLVM backend (ARM64 ABI requires variadic call syntax for C variadics)
+  - Declaration: `declare i64 @open(i64, i64, ...)` - first 2 params fixed, mode is variadic
+  - Call: `call i64 (i64, i64, ...) @open(...)` - explicit variadic signature
+  - See `src/codegen_llvm.lang` around lines 1435-1470 and 4774-4797
 - [ ] Floating point (f32, f64)
 - [ ] Struct literals `Point{x: 1, y: 2}`
 - [ ] Pass/return structs by value
