@@ -226,7 +226,8 @@ bootstrap: generate-os-layer generate-version-info
 			gh release create bootstrap-$$OLD_COMMIT /tmp/bootstrap-$$OLD_COMMIT.tar.gz \
 				--title "Bootstrap $$OLD_COMMIT" \
 				--notes "Bootstrap from commit $$OLD_COMMIT" \
-				--latest=false && echo "  Created GitHub release bootstrap-$$OLD_COMMIT"; \
+				--latest=false || { echo "ERROR: Failed to create GitHub release. Bootstrap aborted."; exit 1; }; \
+			echo "  Created GitHub release bootstrap-$$OLD_COMMIT"; \
 		fi; \
 		rm -f /tmp/bootstrap-$$OLD_COMMIT.tar.gz; \
 		echo "  Saving to local archive..."; \
