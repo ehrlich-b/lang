@@ -450,6 +450,15 @@ func str_dup(s *u8) *u8 {
     return result;
 }
 
+func str_starts_with(s *u8, prefix *u8) i64 {
+    while *prefix != 0 {
+        if *s != *prefix { return 0; }
+        s = s + 1;
+        prefix = prefix + 1;
+    }
+    return 1;
+}
+
 // ============================================================
 // I/O helpers
 // ============================================================
