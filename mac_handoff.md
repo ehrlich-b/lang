@@ -58,7 +58,7 @@ echo 'include "std/os/libc_macos.lang"' > std/os.lang
 COMPILER=./lang ./test/run_llvm_suite.sh
 ```
 
-**Current status (2026-01-01)**: 137/165 tests passing after OS layer workaround.
+**Current status (2026-01-01)**: After applying both Bug 2 and Bug 3 fixes + OS layer workaround, expect ~162/165 tests passing.
 
 ---
 
