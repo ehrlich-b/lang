@@ -36,10 +36,9 @@ lang/
 ### Default (x86-64)
 ```bash
 make build          # Build compiler → out/lang_next
-make verify         # Verify fixed point + tests
-make promote        # Promote lang_next → lang
+make bootstrap      # THE ONE COMMAND: verify + promote (see below)
 make run FILE=...   # Compile and run
-make bootstrap      # Bootstrap from x86 assembly
+make init           # Emergency: assemble from bootstrap .s file
 ```
 
 ### LLVM Backend
@@ -49,7 +48,7 @@ LANGBE=llvm ./out/lang_next src.lang -o out.ll  # Generate LLVM IR
 clang -O2 out.ll -o binary                 # Use clang to compile
 ```
 
-**After compiler changes:** Always `make verify`.
+**After compiler changes:** Always `make bootstrap`.
 
 ## Dual-Backend Bootstrap
 
@@ -145,39 +144,43 @@ Use underscores: `my_var`, not `my-var`. The tokenizer sees `-` as minus.
 
 The bootstrap chain is the compiler's lifeline. Corruption = days of recovery.
 
-### ONE Command: `make verify`
+### ONE Command: `make bootstrap`
 
 ```bash
-make verify    # Does EVERYTHING: kernel fixed point + reader fixed point + tests
-make promote   # Only after verify passes - saves to bootstrap/
+make bootstrap    # Does EVERYTHING: verify + promote in one atomic operation
 ```
 
-**That's it.** No other verify commands exist. No kernel-verify. No lang-reader-verify.
+**That's it.** One command. Can't fuck it up.
 
-### What `make verify` Does (in order)
+### What `make bootstrap` Does (6 stages)
 
-1. **Bootstrap**: Assembles `bootstrap/current/compiler.s` → fresh compiler
-2. **Build**: Compiles all sources with bootstrap → `out/lang_VERSION`
-3. **Kernel Fixed Point**: New compiler compiles itself → must match step 2
-4. **Reader Build**: Builds standalone lang compiler
-5. **Reader Test**: Standalone compiler compiles test program
-6. **Test Suite**: Runs all 165 tests
+1. **Stage 1**: Root of trust - assemble `bootstrap/current/compiler.s` → ctrusted
+2. **Stage 2**: Generation 1 - ctrusted builds kernel1 + reader_ast1 + lang1
+3. **Stage 3**: Generation 2 + fixed point checks
+   - lang1 builds kernel2 + reader_ast2
+   - VERIFY: kernel1.s === kernel2.s (kernel fixed point)
+   - VERIFY: reader_ast1 === reader_ast2 (AST fixed point)
+4. **Stage 4**: Standalone fixed point
+   - lang2 → standalone1 → standalone2 → standalone3
+   - VERIFY: standalone2.s === standalone3.s (self-hosting proof)
+5. **Stage 5**: Validation - x86 test suite + LLVM test suite
+6. **Stage 6**: Promote - save standalone2 to bootstrap/
 
-If ANY step fails, the whole verify fails. Fix before proceeding.
+If ANY stage fails, nothing is promoted. Fix before proceeding.
 
 ### NEVER Do These Things
 
 1. **NEVER bypass tests** - If tests hang or are slow, WAIT or diagnose
-2. **NEVER manually copy compiler.s** - Only `make promote` touches bootstrap/
-3. **NEVER modify escape_hatch.s directly** - It's auto-updated by promote
-4. **NEVER run partial verification** - Always full `make verify`
+2. **NEVER manually copy compiler.s** - Only `make bootstrap` touches bootstrap/
+3. **NEVER modify escape_hatch.s directly** - It's auto-updated by bootstrap
+4. **NEVER run partial verification** - Always full `make bootstrap`
 
 ### Feature Development Workflow (CRITICAL)
 
 When adding new features that change the AST format, readers, or any compiler capability:
 
 1. **Add the feature** (e.g., v2 AST support for READING)
-2. **IMMEDIATELY run `make verify` + `make promote`** - Bake it into bootstrap
+2. **IMMEDIATELY run `make bootstrap`** - Bake it into bootstrap
 3. **ONLY THEN** can you write code that USES the new feature
 
 **WHY**: The bootstrap compiler must understand any new format before you can use it.
@@ -192,7 +195,7 @@ WRONG:
 
 RIGHT:
 1. Add v2 reading support
-2. make verify + make promote  <- Now bootstrap knows v2
+2. make bootstrap  <- Now bootstrap knows v2
 3. Write test that outputs v2 format  <- Works!
 ```
 
