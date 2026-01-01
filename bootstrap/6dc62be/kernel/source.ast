@@ -1,7 +1,0 @@
-(program
-  (include "std/core.lang")
-  (include "src/lexer.lang")
-  (include "src/parser.lang")
-  (include "src/codegen.lang")
-  (include "src/sexpr_reader.lang"))
-  

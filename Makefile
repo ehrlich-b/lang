@@ -170,7 +170,7 @@ bootstrap: generate-os-layer
 	COMPILER=/tmp/bootstrap_verify/kernel2 ./test/run_llvm_suite.sh
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
-	@echo "│ STAGE 6: PROMOTE                                               │"
+	@echo "│ STAGE 6: ARCHIVE + PROMOTE                                     │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
 	@# Generate bootstrap files for both platforms
 	@echo "Generating cross-platform bootstrap files..."
@@ -182,38 +182,44 @@ bootstrap: generate-os-layer
 	@echo 'include "std/os/libc_macos.lang"' > std/os.lang
 	LANGBE=llvm LANGOS=macos /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/compiler_macos.ll
 	@echo "Built: compiler_macos.ll"
-	@# x86 bootstrap (Linux only, optional artifact)
-ifeq ($(PLATFORM),linux)
-	@echo 'include "std/os/linux_x86_64.lang"' > std/os.lang
-	/tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/compiler.s
-	@echo "Built: compiler.s (x86, Linux only)"
-endif
 	@# Restore OS layer
 	@echo 'include "$(BOOTSTRAP_LIBC)"' > std/os.lang
-	@# Save to bootstrap directory
-	@mkdir -p bootstrap/$(GIT_COMMIT)/lang_reader
-	cp /tmp/bootstrap_verify/compiler_linux.ll bootstrap/$(GIT_COMMIT)/compiler_linux.ll
-	cp /tmp/bootstrap_verify/compiler_macos.ll bootstrap/$(GIT_COMMIT)/compiler_macos.ll
-ifeq ($(PLATFORM),linux)
-	cp /tmp/bootstrap_verify/compiler.s bootstrap/$(GIT_COMMIT)/compiler.s
-endif
-	cp /tmp/bootstrap_verify/reader_ast1.ast bootstrap/$(GIT_COMMIT)/lang_reader/source.ast
+	@# Archive current bootstrap to GitHub release
+	@OLD_COMMIT=$$(cat bootstrap/current/COMMIT 2>/dev/null || echo ""); \
+	if [ -n "$$OLD_COMMIT" ] && [ "$$OLD_COMMIT" != "$(GIT_COMMIT)" ]; then \
+		echo "Archiving old bootstrap $$OLD_COMMIT to GitHub release..."; \
+		tar -czf /tmp/bootstrap-$$OLD_COMMIT.tar.gz -C bootstrap current/; \
+		if gh release view bootstrap-$$OLD_COMMIT >/dev/null 2>&1; then \
+			echo "  Release already exists"; \
+		else \
+			gh release create bootstrap-$$OLD_COMMIT /tmp/bootstrap-$$OLD_COMMIT.tar.gz \
+				--title "Bootstrap $$OLD_COMMIT" \
+				--notes "Bootstrap from commit $$OLD_COMMIT" \
+				--latest=false; \
+			echo "  Created release bootstrap-$$OLD_COMMIT"; \
+		fi; \
+		rm -f /tmp/bootstrap-$$OLD_COMMIT.tar.gz; \
+	fi
+	@# Update bootstrap/current/ with new bootstrap
+	@mkdir -p bootstrap/current/lang_reader
+	cp /tmp/bootstrap_verify/compiler_linux.ll bootstrap/current/compiler_linux.ll
+	cp /tmp/bootstrap_verify/compiler_macos.ll bootstrap/current/compiler_macos.ll
+	cp /tmp/bootstrap_verify/reader_ast1.ast bootstrap/current/lang_reader/source.ast
+	@echo "$(GIT_COMMIT)" > bootstrap/current/COMMIT
 	@# Write provenance
-	@echo "compiler_linux.ll:" > bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  sha256: $$(shasum -a 256 bootstrap/$(GIT_COMMIT)/compiler_linux.ll | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "compiler_macos.ll:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  sha256: $$(shasum -a 256 bootstrap/$(GIT_COMMIT)/compiler_macos.ll | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "built_by: bootstrap/$$(readlink bootstrap/current 2>/dev/null || echo none)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "built_at: $$(date -Iseconds)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "source_commit: $(GIT_COMMIT)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "verification:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  llvm_fixed_point: true (kernel1.ll === kernel2.ll)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  ast_fixed_point: true (reader_ast1 === reader_ast2)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "lang_reader/source.ast:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  sha256: $$(shasum -a 256 bootstrap/$(GIT_COMMIT)/lang_reader/source.ast | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  lines: $$(wc -l < bootstrap/$(GIT_COMMIT)/lang_reader/source.ast)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@# Update symlinks and copy final compiler
-	ln -sfn $(GIT_COMMIT) bootstrap/current
+	@echo "compiler_linux.ll:" > bootstrap/current/PROVENANCE
+	@echo "  sha256: $$(shasum -a 256 bootstrap/current/compiler_linux.ll | cut -d' ' -f1)" >> bootstrap/current/PROVENANCE
+	@echo "compiler_macos.ll:" >> bootstrap/current/PROVENANCE
+	@echo "  sha256: $$(shasum -a 256 bootstrap/current/compiler_macos.ll | cut -d' ' -f1)" >> bootstrap/current/PROVENANCE
+	@echo "built_by: $$(cat bootstrap/current/COMMIT 2>/dev/null || echo none)" >> bootstrap/current/PROVENANCE
+	@echo "built_at: $$(date -Iseconds)" >> bootstrap/current/PROVENANCE
+	@echo "source_commit: $(GIT_COMMIT)" >> bootstrap/current/PROVENANCE
+	@echo "verification:" >> bootstrap/current/PROVENANCE
+	@echo "  llvm_fixed_point: true (kernel1.ll === kernel2.ll)" >> bootstrap/current/PROVENANCE
+	@echo "  ast_fixed_point: true (reader_ast1 === reader_ast2)" >> bootstrap/current/PROVENANCE
+	@echo "lang_reader/source.ast:" >> bootstrap/current/PROVENANCE
+	@echo "  sha256: $$(shasum -a 256 bootstrap/current/lang_reader/source.ast | cut -d' ' -f1)" >> bootstrap/current/PROVENANCE
+	@echo "  lines: $$(wc -l < bootstrap/current/lang_reader/source.ast)" >> bootstrap/current/PROVENANCE
 	@rm -rf /tmp/bootstrap_verify
 	@echo ""
 	@echo "╔════════════════════════════════════════════════════════════════╗"
@@ -224,18 +230,58 @@ endif
 	@echo "║   ✓ AST fixed point (reader_ast1 === reader_ast2)              ║"
 	@echo "║   ✓ Test suite (167/167)                                       ║"
 	@echo "║                                                                ║"
-	@echo "║ Promoted: bootstrap/$(GIT_COMMIT)/                             ║"
+	@echo "║ Promoted: bootstrap/current/ ($(GIT_COMMIT))                   ║"
 	@echo "║   - compiler_linux.ll (LLVM, Linux)                            ║"
 	@echo "║   - compiler_macos.ll (LLVM, macOS)                            ║"
 	@echo "║   - lang_reader/source.ast                                     ║"
 	@echo "╚════════════════════════════════════════════════════════════════╝"
 	@echo ""
 	@echo "Rebuild out/lang: clang -O2 bootstrap/current/compiler_$(PLATFORM).ll -o out/lang"
-	@echo ""
-	@echo "========================================"
-	@echo "COMMIT YOUR CHANGES NOW"
-	@echo "  git add -A && git commit -m 'message'"
-	@echo "========================================"
+
+# bootstrap-local: Same as bootstrap but saves archive locally instead of GitHub
+# Use this if you don't have release access
+bootstrap-local: generate-os-layer
+	@echo "Running bootstrap with local archive (no GitHub release)..."
+	@$(MAKE) bootstrap-verify
+	@mkdir -p bootstrap/archive
+	@OLD_COMMIT=$$(cat bootstrap/current/COMMIT 2>/dev/null || echo ""); \
+	if [ -n "$$OLD_COMMIT" ] && [ "$$OLD_COMMIT" != "$(GIT_COMMIT)" ]; then \
+		echo "Archiving old bootstrap $$OLD_COMMIT locally..."; \
+		tar -czf bootstrap/archive/bootstrap-$$OLD_COMMIT.tar.gz -C bootstrap current/; \
+		echo "  Saved to bootstrap/archive/bootstrap-$$OLD_COMMIT.tar.gz"; \
+	fi
+	@# Update bootstrap/current/
+	@mkdir -p bootstrap/current/lang_reader
+	@echo 'include "std/os/libc.lang"' > std/os.lang
+	LANGBE=llvm LANGOS=linux /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o bootstrap/current/compiler_linux.ll
+	@echo 'include "std/os/libc_macos.lang"' > std/os.lang
+	LANGBE=llvm LANGOS=macos /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o bootstrap/current/compiler_macos.ll
+	cp /tmp/bootstrap_verify/reader_ast1.ast bootstrap/current/lang_reader/source.ast
+	@echo "$(GIT_COMMIT)" > bootstrap/current/COMMIT
+	@echo 'include "$(BOOTSTRAP_LIBC)"' > std/os.lang
+	@rm -rf /tmp/bootstrap_verify
+	@echo "Bootstrap complete (local archive). Run: clang -O2 bootstrap/current/compiler_$(PLATFORM).ll -o out/lang"
+
+# bootstrap-verify: Run verification only (no promote) - used by bootstrap-local
+bootstrap-verify: generate-os-layer
+	@mkdir -p out out/ast /tmp/bootstrap_verify
+	@if [ ! -f $(BOOTSTRAP_LL) ]; then echo "ERROR: $(BOOTSTRAP_LL) not found"; exit 1; fi
+	clang -O2 $(BOOTSTRAP_LL) -o /tmp/bootstrap_verify/ctrusted
+	@echo 'include "$(BOOTSTRAP_LIBC)"' > std/os.lang
+	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/ctrusted std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/kernel1.ll
+	clang -O2 /tmp/bootstrap_verify/kernel1.ll -o /tmp/bootstrap_verify/kernel1
+	/tmp/bootstrap_verify/kernel1 src/lang_reader.lang --emit-expanded-ast -o /tmp/bootstrap_verify/reader_ast1.ast
+	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/kernel1 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/kernel2.ll
+	@if ! diff -q /tmp/bootstrap_verify/kernel1.ll /tmp/bootstrap_verify/kernel2.ll > /dev/null; then \
+		echo "LLVM FIXED POINT FAILED"; exit 1; \
+	fi
+	clang -O2 /tmp/bootstrap_verify/kernel2.ll -o /tmp/bootstrap_verify/kernel2
+	/tmp/bootstrap_verify/kernel2 src/lang_reader.lang --emit-expanded-ast -o /tmp/bootstrap_verify/reader_ast2.ast
+	@if ! diff -q /tmp/bootstrap_verify/reader_ast1.ast /tmp/bootstrap_verify/reader_ast2.ast > /dev/null; then \
+		echo "AST FIXED POINT FAILED"; exit 1; \
+	fi
+	cp /tmp/bootstrap_verify/kernel2 out/lang
+	COMPILER=/tmp/bootstrap_verify/kernel2 ./test/run_llvm_suite.sh
 
 # ============================================================
 # LLVM-VERIFY: Mac-only verification without x86 bootstrap

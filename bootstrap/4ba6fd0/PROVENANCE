@@ -1,9 +1,0 @@
-compiler.s:
-  sha256: 771a8ea4e76ec618adb6e2b8430ee4d43d0e900cf05a9a54f297c3ca7524a167
-  built_by: bootstrap/recovery
-  built_at: 2025-12-31T13:43:11-05:00
-  source_commit: 4ba6fd0
-  verified_fixed_point: true
-lang_reader/source.ast:
-  sha256: e9f50b3896fc1f3119b70574d664654a43119592570bbdb5c50e273328f2635d
-  lines: 5136
