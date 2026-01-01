@@ -1,6 +1,34 @@
 #!/bin/bash
 # Test the LLVM backend on the test suite
 
+# Cross-platform setup
+case "$(uname -s)" in
+    Darwin)
+        # macOS - find Homebrew LLVM
+        if [ -d "/opt/homebrew/opt/llvm/bin" ]; then
+            export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+        elif [ -d "/usr/local/opt/llvm/bin" ]; then
+            export PATH="/usr/local/opt/llvm/bin:$PATH"
+        fi
+        export LANGOS=${LANGOS:-macos}
+        ;;
+    *)
+        export LANGOS=${LANGOS:-linux}
+        ;;
+esac
+
+# Portable timeout (GNU timeout on Linux, gtimeout on Mac, or none)
+do_timeout() {
+    local secs=$1; shift
+    if command -v timeout &>/dev/null; then
+        timeout "$secs" "$@"
+    elif command -v gtimeout &>/dev/null; then
+        gtimeout "$secs" "$@"
+    else
+        "$@"  # No timeout available
+    fi
+}
+
 # Use COMPILER from environment, or default to ./out/lang
 COMPILER=${COMPILER:-./out/lang}
 passed=0
@@ -25,7 +53,7 @@ for f in test/suite/*.lang; do
             ./out/test_$name >/dev/null 2>&1
             result=$?
         else
-            timeout 1 lli out/test_$name.ll >/dev/null 2>&1
+            do_timeout 1 lli out/test_$name.ll >/dev/null 2>&1
             result=$?
         fi
         if [ "$result" = "$expected" ]; then
