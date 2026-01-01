@@ -203,20 +203,22 @@ func cmd_help() i64 {
 func cmd_version() i64 {
     println("lang 0.1.0");
 
+    // Show output configuration (what the compiler generates)
     var langbe *u8 = getenv("LANGBE");
-    if langbe == nil { langbe = "x86"; }
-    print("backend: ");
-    println(langbe);
+    print("output: ");
+    if langbe != nil && streq(langbe, "llvm") {
+        println("llvm");
+    } else {
+        println("x86");
+    }
 
     var langos *u8 = getenv("LANGOS");
-    if langos == nil { langos = "linux"; }
-    print("os: ");
-    println(langos);
-
-    var langlibc *u8 = getenv("LANGLIBC");
-    if langlibc == nil { langlibc = "none"; }
-    print("libc: ");
-    println(langlibc);
+    print("target: ");
+    if langos != nil && streq(langos, "macos") {
+        println("macos");
+    } else {
+        println("linux");
+    }
 
     return 0;
 }
