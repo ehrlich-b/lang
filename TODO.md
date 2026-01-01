@@ -71,6 +71,14 @@ See **[designs/abi.md](designs/abi.md)** for deep analysis of:
 
 **Future:** `make bootstrap` auto-selects based on platform
 
+#### → CLI commands (next)
+
+See **[designs/cli_commands.md](designs/cli_commands.md)** for full design.
+
+New subcommands: `help`, `env`, `tools`, `readers`, `compose`
+
+Key insight: files have extensions, commands don't → unambiguous parsing.
+
 ---
 
 ## Code quality debt
