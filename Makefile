@@ -7,11 +7,19 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_DIRTY := $(shell git diff --quiet 2>/dev/null || echo "-dirty")
 VERSION := $(GIT_COMMIT)$(GIT_DIRTY)
 
+# OS detection
+UNAME := $(shell uname -s)
+ifeq ($(UNAME),Darwin)
+    PLATFORM := macos
+else
+    PLATFORM := linux
+endif
+
 # Target selection (environment variables)
-# LANGOS: linux (default), macos
+# LANGOS: auto-detected from platform
 # LANGBE: x86 (default for now), llvm (future)
 # LANGLIBC: none (default, use raw syscalls), libc (use system libc)
-LANGOS ?= linux
+LANGOS ?= $(PLATFORM)
 LANGBE ?= x86
 LANGLIBC ?= none
 
@@ -27,8 +35,16 @@ else
     $(error Unknown LANGOS: $(LANGOS). Valid values: linux, macos)
 endif
 
-# Bootstrap: prefer new structure (bootstrap/current/compiler.s), fallback to legacy (bootstrap/current.s)
-BOOTSTRAP := $(shell if [ -f bootstrap/current/compiler.s ]; then echo bootstrap/current/compiler.s; else echo bootstrap/current.s; fi)
+# Bootstrap: LLVM IR is primary (cross-platform), x86 is secondary (Linux fast path)
+ifeq ($(PLATFORM),macos)
+    BOOTSTRAP_LL := bootstrap/current/compiler_macos.ll
+    BOOTSTRAP_LIBC := std/os/libc_macos.lang
+else
+    BOOTSTRAP_LL := bootstrap/current/compiler_linux.ll
+    BOOTSTRAP_LIBC := std/os/libc.lang
+endif
+# Legacy x86 bootstrap (Linux only)
+BOOTSTRAP_X86 := $(shell if [ -f bootstrap/current/compiler.s ]; then echo bootstrap/current/compiler.s; else echo bootstrap/current.s; fi)
 
 # Compiler paths
 LANG := out/lang
@@ -85,17 +101,20 @@ bootstrap: generate-os-layer
 	@echo "╚════════════════════════════════════════════════════════════════╝"
 	@echo ""
 	@mkdir -p out out/ast /tmp/bootstrap_verify
-	@if [ ! -f $(BOOTSTRAP) ]; then echo "ERROR: No bootstrap found at $(BOOTSTRAP)"; exit 1; fi
 	@echo "┌────────────────────────────────────────────────────────────────┐"
-	@echo "│ STAGE 1: ROOT OF TRUST                                         │"
+	@echo "│ STAGE 1: ROOT OF TRUST (LLVM)                                   │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
-	as $(BOOTSTRAP) -o /tmp/bootstrap_verify/ctrusted.o
-	ld /tmp/bootstrap_verify/ctrusted.o -o /tmp/bootstrap_verify/ctrusted
-	@echo "Built: ctrusted from $(BOOTSTRAP)"
+	@echo "Platform: $(PLATFORM)"
+	@echo "Bootstrap: $(BOOTSTRAP_LL)"
+	@if [ ! -f $(BOOTSTRAP_LL) ]; then echo "ERROR: $(BOOTSTRAP_LL) not found"; exit 1; fi
+	clang -O2 $(BOOTSTRAP_LL) -o /tmp/bootstrap_verify/ctrusted
+	@echo "Built: ctrusted from $(BOOTSTRAP_LL)"
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
 	@echo "│ STAGE 2: GENERATION 1 (Built by Trusted)                       │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
+	@# Set up OS layer for compilation (use linux x86 for output)
+	@echo 'include "std/os/linux_x86_64.lang"' > std/os.lang
 	@# Build kernel1 (trusted compiles sources) - this becomes our gen1 compiler
 	/tmp/bootstrap_verify/ctrusted std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/kernel1.s
 	as /tmp/bootstrap_verify/kernel1.s -o /tmp/bootstrap_verify/kernel1.o
