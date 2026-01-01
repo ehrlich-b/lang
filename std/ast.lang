@@ -23,7 +23,7 @@ include "std/emit.lang"
 // AST Version Control
 // ============================================================
 
-var ast_output_version i64 = 1;
+var ast_output_version i64 = 2;  // v2: strings stored raw (no surrounding quotes)
 
 func ast_use_version(v i64) void {
     ast_output_version = v;
