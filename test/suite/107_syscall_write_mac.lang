@@ -1,0 +1,7 @@
+// expect: 0
+//macos
+// Syscall: write to stdout (macOS syscall 4 = write)
+func main() i64 {
+    syscall(4, 1, "test\n", 5);
+    return 0;
+}

@@ -1,0 +1,11 @@
+// expect: 0
+//macos
+// Syscall: getpid (macOS syscall 20)
+// Returns process ID, which is always > 0
+func main() i64 {
+    var pid i64 = syscall(20);
+    if pid > 0 {
+        return 0;
+    }
+    return 1;
+}

@@ -1,0 +1,11 @@
+// expect: 0
+//macos
+// Syscall: getuid (macOS syscall 24)
+// Returns user ID, which is always >= 0
+func main() i64 {
+    var uid i64 = syscall(24);
+    if uid >= 0 {
+        return 0;
+    }
+    return 1;
+}

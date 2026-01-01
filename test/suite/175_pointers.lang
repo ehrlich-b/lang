@@ -1,5 +1,7 @@
-// Expected: 0
+// expect: 0
 // Pointer operations test
+include "std/core.lang"
+
 func main() i64 {
     var x i64 = 42;
     var p *i64 = &x;
@@ -14,7 +16,7 @@ func main() i64 {
 
     if a || b {
         if !b {
-            syscall(1, 1, "logic ok\n", 9);
+            println("logic ok");
         }
     }
 

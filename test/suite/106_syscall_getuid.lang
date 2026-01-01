@@ -1,0 +1,11 @@
+// expect: 0
+//linux
+// Syscall: getuid (Linux syscall 102)
+// Returns user ID, which is always >= 0
+func main() i64 {
+    var uid i64 = syscall(102);
+    if uid >= 0 {
+        return 0;
+    }
+    return 1;
+}
