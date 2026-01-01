@@ -51,9 +51,15 @@ The x86 backend outputs Linux x86-64 assembly. Use `LANGBE=llvm` for Mac-runnabl
 ## Test Suite
 
 ```bash
-# Run LLVM test suite (should pass 165/165)
+# Run LLVM test suite (126/165 passing on Mac)
 COMPILER=./lang ./test/run_llvm_suite.sh
 ```
+
+**Current status (2026-01-01)**: 126/165 tests passing. Known failures:
+- Closure tests (SIGSEGV) - likely ARM64 ABI differences in capture handling
+- Effect resume tests - need investigation
+- Reader macro tests - fork/exec may need macOS adaptation
+- Raw syscall tests - expected to fail (Linux syscalls)
 
 ## Troubleshooting
 
