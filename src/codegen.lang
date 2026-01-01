@@ -1332,15 +1332,15 @@ func read_file_contents(path *u8, path_len i64, buf *u8, buf_cap i64) i64 {
     }
     *(path_z + path_len) = 0;
 
-    // Open file (O_RDONLY = 0)
-    var fd i64 = syscall(2, path_z, 0, 0);
+    // Open file using OS layer (O_RDONLY = 0)
+    var fd i64 = os_open(path_z, 0, 0);
     if fd < 0 {
         return -1;
     }
 
-    // Read contents
-    var n i64 = syscall(0, fd, buf, buf_cap);
-    syscall(3, fd);  // close
+    // Read contents using OS layer
+    var n i64 = os_read(fd, buf, buf_cap);
+    os_close(fd);
 
     if n >= 0 {
         *(buf + n) = 0;  // null-terminate
