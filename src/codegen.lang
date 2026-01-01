@@ -930,6 +930,28 @@ func exec_run(program *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8) i64
     return (*status / 256) % 256;  // extract exit code
 }
 
+// Execute a program with environment, wait for completion
+func exec_run_env(program *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8, envp *u8) i64 {
+    var argv *u8 = alloc(56);  // 7 pointers
+    var a0 **u8 = argv;      *a0 = program;
+    var a1 **u8 = argv + 8;  *a1 = arg1;
+    var a2 **u8 = argv + 16; *a2 = arg2;
+    var a3 **u8 = argv + 24; *a3 = arg3;
+    var a4 **u8 = argv + 32; *a4 = arg4;
+    var a5 **u8 = argv + 40; *a5 = arg5;
+    var a6 **u8 = argv + 48; *a6 = nil;
+
+    var pid i64 = os_fork();
+    if pid == 0 {
+        os_execve(program, argv, envp);
+        os__exit(127);
+    }
+
+    var status *i64 = alloc(8);
+    os_waitpid(pid, status, 0);
+    return (*status / 256) % 256;  // extract exit code
+}
+
 // Get cache base directory from LANG_CACHE env var or default
 func get_cache_base() *u8 {
     var cache *u8 = getenv("LANG_CACHE");
@@ -1023,8 +1045,21 @@ func compile_reader_to_executable(decl *u8) void {
     os_mkdir(cache_base, 493);
     os_mkdir(readers_dir, 493);
 
+    // Check LANGBE for backend selection
+    var langbe *u8 = getenv("LANGBE");
+    var use_llvm i64 = 0;
+    if langbe != nil && streq(langbe, "llvm") {
+        use_llvm = 1;
+    }
+
     var src_path *u8 = str_concat(base_path, ".lang");
-    var asm_path *u8 = str_concat(base_path, ".s");
+    // Output path depends on backend: .ll for LLVM, .s for x86
+    var out_path *u8 = nil;
+    if use_llvm {
+        out_path = str_concat(base_path, ".ll");
+    } else {
+        out_path = str_concat(base_path, ".s");
+    }
     var obj_path *u8 = str_concat(base_path, ".o");
 
     // Loop variables used throughout function
@@ -1168,16 +1203,47 @@ func compile_reader_to_executable(decl *u8) void {
     file_write(fd, wrapper, wlen);
     file_close(fd);
 
-    // Compile: ./out/lang <src> -o <asm>
+    // Build environment for child compiler
+    // Pass LANGBE and LANGOS if using LLVM backend
+    var child_envp *u8 = alloc(32);  // 4 pointers
+    var env_langbe *u8 = "LANGBE=llvm";
+    var env_langos *u8 = "LANGOS=macos";
+    var langos *u8 = getenv("LANGOS");
+    var is_macos i64 = 0;
+    if langos != nil && streq(langos, "macos") {
+        is_macos = 1;
+    }
+
+    if use_llvm {
+        var ce0 **u8 = child_envp;
+        *ce0 = env_langbe;
+        if is_macos {
+            var ce1 **u8 = child_envp + 8;
+            *ce1 = env_langos;
+            var ce2 **u8 = child_envp + 16;
+            *ce2 = nil;
+        } else {
+            var ce1 **u8 = child_envp + 8;
+            *ce1 = nil;
+        }
+    } else {
+        var ce0 **u8 = child_envp;
+        *ce0 = nil;
+    }
+
+    // Compile: ./out/lang <src> -o <out>
     // The wrapper source already has includes and sibling declarations serialized.
     // Don't pass std/core.lang - the wrapper handles its own dependencies.
-    exec_run("./out/lang", src_path, "-o", asm_path, nil, nil);
+    exec_run_env("./out/lang", src_path, "-o", out_path, nil, nil, child_envp);
 
-    // Assemble: as <asm> -o <obj>
-    exec_run("/usr/bin/as", asm_path, "-o", obj_path, nil, nil);
-
-    // Link: ld <obj> -o <exe>
-    exec_run("/usr/bin/ld", obj_path, "-o", exe_path, nil, nil);
+    if use_llvm {
+        // LLVM path: clang <ll> -o <exe>
+        exec_run("/usr/bin/clang", out_path, "-o", exe_path, nil, nil);
+    } else {
+        // x86 path: as <asm> -o <obj>, ld <obj> -o <exe>
+        exec_run("/usr/bin/as", out_path, "-o", obj_path, nil, nil);
+        exec_run("/usr/bin/ld", obj_path, "-o", exe_path, nil, nil);
+    }
 }
 
 func add_reader(decl *u8) void {
