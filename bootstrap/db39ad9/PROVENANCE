@@ -1,0 +1,11 @@
+compiler.s:
+  sha256: 496c2f9a04b2329fc3c949fceb9b8d9e53e1b03fa94f20202889b345638ec0fc
+  built_by: bootstrap/a776ba3
+  built_at: 2025-12-31T21:14:48-05:00
+  source_commit: db39ad9
+  verified_fixed_point: true
+llvm_libc_compiler.ll:
+  sha256: f82a7edb5f05c7a4c052d8516154e129ea47009d79ec099944bfc90dc72a6bda
+lang_reader/source.ast:
+  sha256: a93180743273ac7bcde4d5762806dd3c21c629a9cbfbd6aa51b2be219c7cd855
+  lines: 5245
