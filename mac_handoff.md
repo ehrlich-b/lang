@@ -68,7 +68,67 @@ LANGBE=llvm LANGLIBC=libc ./out/lang std/core.lang src/*.lang -o bootstrap/llvm_
 
 ---
 
-## BLOCKER: 2024-12-31 Attempt #3 - mmap flags
+## BLOCKER: 2025-01-01 Attempt #4 - read_file_contents uses raw syscalls
+
+**Symptom**: SIGSYS crash in read_file_contents
+```
+signal SIGSYS
+frame #0: libsystem_kernel.dylib`__syscall + 24
+frame #1: lang`read_file_contents + 332
+```
+
+**Root cause**: `src/codegen.lang:read_file_contents` still uses raw syscalls:
+```lang
+// codegen.lang:1336-1343
+var fd i64 = syscall(2, path_z, 0, 0);   // Linux open syscall
+var n i64 = syscall(0, fd, buf, buf_cap); // Linux read syscall
+syscall(3, fd);                           // Linux close syscall
+```
+
+The OS layer (`std/os/libc_macos.lang`) already has:
+- `os_open()`, `os_read()`, `os_close()` that use libc
+- `os_fork()`, `os_execve()`, etc. for reader macros
+
+**But the bootstrap was generated BEFORE updating read_file_contents!**
+
+**Fix needed on Windows**:
+1. Update `read_file_contents` in `src/codegen.lang`:
+```lang
+func read_file_contents(path *u8, path_len i64, buf *u8, buf_cap i64) i64 {
+    // Null-terminate path
+    var path_z *u8 = alloc(path_len + 1);
+    var j i64 = 0;
+    while j < path_len {
+        *(path_z + j) = *(path + j);
+        j = j + 1;
+    }
+    *(path_z + path_len) = 0;
+
+    // Open file using OS layer (O_RDONLY = 0)
+    var fd i64 = os_open(path_z, 0, 0);
+    if fd < 0 {
+        return -1;
+    }
+
+    // Read contents using OS layer
+    var n i64 = os_read(fd, buf, buf_cap);
+    os_close(fd);
+
+    if n >= 0 {
+        *(buf + n) = 0;  // null-terminate
+    }
+    return n;
+}
+```
+
+2. Regenerate bootstrap:
+```bash
+LANGBE=llvm LANGLIBC=libc ./out/lang std/core.lang src/*.lang -o bootstrap/llvm_libc_macos.ll
+```
+
+---
+
+## RESOLVED: 2024-12-31 Attempt #3 - mmap flags
 
 **Symptom**: mmap returns MAP_FAILED (-1), crash in append_str
 ```
