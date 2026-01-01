@@ -1,0 +1,13 @@
+compiler.s:
+  sha256: feecf8c380df4a4bf0c77fd7ac538a8639c8e3c4d946b716d83864e37f042c81
+  built_by: bootstrap/b6da633
+  built_at: 2025-12-31T22:48:43-05:00
+  source_commit: b6da633
+  verification:
+    kernel_fixed_point: true (kernel1.s === kernel2.s)
+    ast_fixed_point: true (reader_ast1 === reader_ast2)
+llvm_libc_compiler.ll:
+  sha256: a98a5ad452bba545ba0d39a2b2402881f90a477a87751c719b82be4932ffb0d5
+lang_reader/source.ast:
+  sha256: a93180743273ac7bcde4d5762806dd3c21c629a9cbfbd6aa51b2be219c7cd855
+  lines: 5245

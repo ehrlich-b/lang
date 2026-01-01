@@ -50,89 +50,160 @@ func standalone_get_arg(argv **u8, i i64) *u8 {
 
 func main(argc i64, argv **u8) i64 {
     if argc < 2 {
-        eprintln("Usage: <compiler> <file>... [-o output.s]");
+        eprintln("Usage: <compiler> <file>... [-o output.s] [-c reader]");
         return 1;
     }
 
     var output_file *u8 = nil;
+    var gen_compiler *u8 = nil;  // For -c flag: generate standalone for this reader
+    var input_files *u8 = vec_new(16);
+
+    // First pass: parse arguments
+    var i i64 = 1;
+    while i < argc {
+        var arg *u8 = standalone_get_arg(argv, i);
+
+        // Check for -c flag (generate standalone compiler for reader)
+        if *arg == '-' && *(arg + 1) == 'c' && *(arg + 2) == 0 {
+            i = i + 1;
+            if i < argc {
+                gen_compiler = standalone_get_arg(argv, i);
+            }
+        // Check for -o flag
+        } else if *arg == '-' && *(arg + 1) == 'o' {
+            i = i + 1;
+            if i < argc {
+                output_file = standalone_get_arg(argv, i);
+            }
+        } else {
+            vec_push(input_files, arg);
+        }
+        i = i + 1;
+    }
+
     var ast_buf *u8 = alloc(4194304);
     var ast_len i64 = 0;
 
     // Start with "(program " wrapper - we'll collect all declarations
     standalone_append(ast_buf, &ast_len, "(program\n");
 
-    var i i64 = 1;
-    while i < argc {
-        var arg *u8 = standalone_get_arg(argv, i);
+    // -c mode: Generate a NEW standalone compiler
+    if gen_compiler != nil {
+        // Build source for new standalone:
+        // 1. Include all input files (reader sources)
+        // 2. Generate reader_transform glue
+        // 3. Include standalone template
+        // 4. Add ___main wrapper
+        var source_buf *u8 = alloc(4194304);
+        var source_len i64 = 0;
 
-        // Check for -o flag
-        if *arg == '-' && *(arg + 1) == 'o' {
+        i = 0;
+        while i < vec_len(input_files) {
+            var path *u8 = vec_get(input_files, i);
+            standalone_append(source_buf, &source_len, "include \"");
+            standalone_append(source_buf, &source_len, path);
+            standalone_append(source_buf, &source_len, "\"\n");
             i = i + 1;
-            if i < argc {
-                output_file = standalone_get_arg(argv, i);
-            }
-        } else {
-            // Input file - read and transform through reader
-            var content *u8 = standalone_read_file(arg);
-            if content == nil {
-                return 1;
-            }
+        }
 
-            // Transform through reader → S-expression AST
-            var ast *u8 = reader_transform(content);
-            if ast == nil {
-                return 1;
-            }
+        standalone_append(source_buf, &source_len, "func reader_transform(t *u8) *u8 { return ");
+        standalone_append(source_buf, &source_len, gen_compiler);
+        standalone_append(source_buf, &source_len, "(t); }\n");
 
-            // Reader outputs "(program ...)" - skip the outer wrapper
-            // Find opening paren and skip "program" keyword
-            var p *u8 = ast;
-            while *p == 32 || *p == 10 || *p == 13 || *p == 9 { p = p + 1; }
-            if *p == 40 {  // '('
-                p = p + 1;
-                while *p == 32 || *p == 10 { p = p + 1; }
-                // Skip "program" if present
-                if *p == 112 && *(p+1) == 114 && *(p+2) == 111 && *(p+3) == 103 &&
-                   *(p+4) == 114 && *(p+5) == 97 && *(p+6) == 109 {  // "program"
-                    p = p + 7;
-                    // Now p points to the declarations - find the closing paren
-                    // and copy everything before it
-                    var end *u8 = p;
-                    var depth i64 = 1;
-                    while *end != 0 && depth > 0 {
-                        // Skip quoted strings - parens inside don't count
-                        if *end == 34 {  // '"'
-                            end = end + 1;
-                            while *end != 0 && *end != 34 {
-                                if *end == 92 { end = end + 1; }  // skip escaped char
-                                if *end != 0 { end = end + 1; }
-                            }
-                            if *end == 34 { end = end + 1; }  // skip closing quote
-                        } else {
-                            if *end == 40 { depth = depth + 1; }
-                            if *end == 41 { depth = depth - 1; }
-                            end = end + 1;
+        standalone_append(source_buf, &source_len, "include \"src/standalone.lang\"\n");
+        standalone_append(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { init_environ(envp); return main(argc, argv); }\n");
+
+        *(source_buf + source_len) = 0;
+
+        // Transform this source through OUR reader → AST
+        var ast *u8 = reader_transform(source_buf);
+        if ast == nil {
+            eprintln("Error: failed to transform standalone source");
+            return 1;
+        }
+
+        // Parse AST and generate assembly
+        var prog *u8 = parse_ast_from_string(ast);
+        if prog == nil {
+            eprintln("Error: failed to parse standalone AST");
+            return 1;
+        }
+
+        if output_file == nil {
+            output_file = "a.s";
+        }
+
+        generate(prog, output_file);
+
+        print("Wrote ");
+        println(output_file);
+        return 0;
+    }
+
+    // Normal mode: compile input files
+    i = 0;
+    while i < vec_len(input_files) {
+        var arg *u8 = vec_get(input_files, i);
+        // Input file - read and transform through reader
+        var content *u8 = standalone_read_file(arg);
+        if content == nil {
+            return 1;
+        }
+
+        // Transform through reader → S-expression AST
+        var ast *u8 = reader_transform(content);
+        if ast == nil {
+            return 1;
+        }
+
+        // Reader outputs "(program ...)" - skip the outer wrapper
+        // Find opening paren and skip "program" keyword
+        var p *u8 = ast;
+        while *p == 32 || *p == 10 || *p == 13 || *p == 9 { p = p + 1; }
+        if *p == 40 {  // '('
+            p = p + 1;
+            while *p == 32 || *p == 10 { p = p + 1; }
+            // Skip "program" if present
+            if *p == 112 && *(p+1) == 114 && *(p+2) == 111 && *(p+3) == 103 &&
+               *(p+4) == 114 && *(p+5) == 97 && *(p+6) == 109 {  // "program"
+                p = p + 7;
+                // Now p points to the declarations - find the closing paren
+                // and copy everything before it
+                var end *u8 = p;
+                var depth i64 = 1;
+                while *end != 0 && depth > 0 {
+                    // Skip quoted strings - parens inside don't count
+                    if *end == 34 {  // '"'
+                        end = end + 1;
+                        while *end != 0 && *end != 34 {
+                            if *end == 92 { end = end + 1; }  // skip escaped char
+                            if *end != 0 { end = end + 1; }
                         }
+                        if *end == 34 { end = end + 1; }  // skip closing quote
+                    } else {
+                        if *end == 40 { depth = depth + 1; }
+                        if *end == 41 { depth = depth - 1; }
+                        end = end + 1;
                     }
-                    // end is one past the closing paren of (program ...)
-                    // back up to exclude that closing paren
-                    if depth == 0 { end = end - 1; }
-                    // Copy everything from p to end (the declarations)
-                    while p < end {
-                        *(ast_buf + ast_len) = *p;
-                        ast_len = ast_len + 1;
-                        p = p + 1;
-                    }
-                } else {
-                    // Not a program, just append as-is
-                    standalone_append(ast_buf, &ast_len, ast);
+                }
+                // end is one past the closing paren of (program ...)
+                // back up to exclude that closing paren
+                if depth == 0 { end = end - 1; }
+                // Copy everything from p to end (the declarations)
+                while p < end {
+                    *(ast_buf + ast_len) = *p;
+                    ast_len = ast_len + 1;
+                    p = p + 1;
                 }
             } else {
+                // Not a program, just append as-is
                 standalone_append(ast_buf, &ast_len, ast);
             }
-            *(ast_buf + ast_len) = 10;  // newline
-            ast_len = ast_len + 1;
+        } else {
+            standalone_append(ast_buf, &ast_len, ast);
         }
+        *(ast_buf + ast_len) = 10;  // newline
+        ast_len = ast_len + 1;
         i = i + 1;
     }
 
