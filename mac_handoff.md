@@ -112,9 +112,28 @@ exec_run_env("./out/lang", src_path, "-o", out_path, nil, nil, child_envp);
 
 When running the bootstrap as `./lang`, the reader compilation tries to use `./out/lang` which doesn't exist.
 
-**Workaround**: `mkdir -p out && cp ./lang ./out/lang`
+**Workaround**: `mkdir -p out && cp ./lang ./out/lang` (handled by `make llvm-verify`)
 
-**Fix needed**: Reader compilation should use the current compiler (from argv[0] or an env var) instead of hardcoding `./out/lang`.
+**Proper fix**: Don't exec a path on disk at all. Fork, and the child IS the compiler:
+
+```
+Current (bad):
+  1. Write wrapper source to disk
+  2. exec("./out/lang", wrapper, "-o", output)  <- finds binary on disk
+  3. as/ld or clang
+
+Proper (fork-self):
+  1. fork()
+  2. child: already has parser/codegen loaded!
+     - read wrapper source from pipe (or use AST directly)
+     - call codegen functions directly to emit .s/.ll
+     - write to temp file, exit
+  3. parent: wait, then as/ld or clang the output
+```
+
+The child doesn't need to "find itself" because it already IS the compiler with all code loaded. No disk path, no exec for compilation step.
+
+**Location**: `src/codegen.lang:compile_reader_to_executable()` (lines ~1048-1247)
 
 ### Bug 5: Effect tests missing `//clang` marker
 
