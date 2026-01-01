@@ -330,13 +330,19 @@ diff /tmp/recovered.ll /tmp/gen2.ll  # Should be identical
 
 ## Performance
 
-Typical compile times on modern hardware:
+Typical times on modern hardware (with parallel test execution):
 
 | Operation | x86 Backend | LLVM Backend |
 |-----------|-------------|--------------|
 | Full compiler build | ~3s | ~5s + clang |
-| Full bootstrap | ~10s | ~30s |
+| Full bootstrap | ~10s | ~20s |
 | Single file | <1s | <1s + clang |
-| Test suite | ~30s | ~60s |
+| Test suite | ~1s | ~3s |
+
+Test suites use parallel execution (`xargs -P`) and optimized LLVM interpretation (`lli --jit-kind=orc`).
+
+Control parallelism with environment variables:
+- `JOBS=4` - run 4 tests in parallel (default: nproc)
+- `SEQUENTIAL=1` - disable parallelism (for debugging)
 
 LLVM is slower but produces optimized code and works cross-platform.
