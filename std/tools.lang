@@ -1,0 +1,145 @@
+// std/tools.lang - Tool detection utilities
+//
+// Provides functions to find build tools in PATH and common locations.
+
+// Find a tool in PATH, returns full path or nil
+func find_in_path(tool *u8) *u8 {
+    var path_env *u8 = getenv("PATH");
+    if path_env == nil { return nil; }
+
+    // Copy PATH so we can modify it
+    var path *u8 = str_dup(path_env);
+    var start *u8 = path;
+    var p *u8 = path;
+
+    // Buffer for full path
+    var buf *u8 = alloc(1024);
+
+    while *p != 0 {
+        if *p == ':' {
+            *p = 0;  // null-terminate this segment
+
+            // Build full path: dir/tool
+            var i i64 = 0;
+            var s *u8 = start;
+            while *s != 0 {
+                *(buf + i) = *s;
+                i = i + 1;
+                s = s + 1;
+            }
+            *(buf + i) = '/';
+            i = i + 1;
+            s = tool;
+            while *s != 0 {
+                *(buf + i) = *s;
+                i = i + 1;
+                s = s + 1;
+            }
+            *(buf + i) = 0;
+
+            // Try to open it
+            var fd i64 = file_open(buf, 0);
+            if fd >= 0 {
+                file_close(fd);
+                return str_dup(buf);
+            }
+
+            start = p + 1;
+        }
+        p = p + 1;
+    }
+
+    // Check last segment
+    if *start != 0 {
+        var i i64 = 0;
+        var s *u8 = start;
+        while *s != 0 {
+            *(buf + i) = *s;
+            i = i + 1;
+            s = s + 1;
+        }
+        *(buf + i) = '/';
+        i = i + 1;
+        s = tool;
+        while *s != 0 {
+            *(buf + i) = *s;
+            i = i + 1;
+            s = s + 1;
+        }
+        *(buf + i) = 0;
+
+        var fd i64 = file_open(buf, 0);
+        if fd >= 0 {
+            file_close(fd);
+            return str_dup(buf);
+        }
+    }
+
+    return nil;
+}
+
+// Find clang - checks PATH and common LLVM install locations
+func find_clang() *u8 {
+    // First try PATH
+    var path_clang *u8 = find_in_path("clang");
+    if path_clang != nil { return path_clang; }
+
+    // Common locations
+    var buf *u8 = alloc(256);
+
+    // macOS Homebrew LLVM
+    var loc1 *u8 = "/opt/homebrew/opt/llvm/bin/clang";
+    var fd i64 = file_open(loc1, 0);
+    if fd >= 0 { file_close(fd); return loc1; }
+
+    // Linux common location
+    var loc2 *u8 = "/usr/bin/clang";
+    fd = file_open(loc2, 0);
+    if fd >= 0 { file_close(fd); return loc2; }
+
+    // Xcode command line tools
+    var loc3 *u8 = "/usr/local/bin/clang";
+    fd = file_open(loc3, 0);
+    if fd >= 0 { file_close(fd); return loc3; }
+
+    return nil;
+}
+
+// Find assembler
+func find_as() *u8 {
+    var path_as *u8 = find_in_path("as");
+    if path_as != nil { return path_as; }
+
+    // Common locations
+    var loc1 *u8 = "/usr/bin/as";
+    var fd i64 = file_open(loc1, 0);
+    if fd >= 0 { file_close(fd); return loc1; }
+
+    return nil;
+}
+
+// Find linker
+func find_ld() *u8 {
+    var path_ld *u8 = find_in_path("ld");
+    if path_ld != nil { return path_ld; }
+
+    // Common locations
+    var loc1 *u8 = "/usr/bin/ld";
+    var fd i64 = file_open(loc1, 0);
+    if fd >= 0 { file_close(fd); return loc1; }
+
+    return nil;
+}
+
+// Find lli (LLVM interpreter)
+func find_lli() *u8 {
+    var path_lli *u8 = find_in_path("lli");
+    if path_lli != nil { return path_lli; }
+
+    // macOS Homebrew LLVM
+    var loc1 *u8 = "/opt/homebrew/opt/llvm/bin/lli";
+    var fd i64 = file_open(loc1, 0);
+    if fd >= 0 { file_close(fd); return loc1; }
+
+    return nil;
+}

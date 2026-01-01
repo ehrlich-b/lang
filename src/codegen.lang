@@ -67,6 +67,12 @@ var cg_macro_count i64 = 0;
 var cg_readers *u8 = nil;
 var cg_reader_count i64 = 0;
 
+// Embedded reader registry: AST strings for readers baked into composed compilers
+// Each entry: [name_ptr:8][name_len:8][ast_ptr:8][ast_len:8] = 32 bytes
+// Max 20 embedded readers
+var cg_embedded_readers *u8 = nil;
+var cg_embedded_reader_count i64 = 0;
+
 // Function registry: simple array of func decls
 // Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
 // Max 500 functions
@@ -242,6 +248,9 @@ func codegen_init() void {
 
     cg_readers = alloc(LIMIT_READERS * 24);
     cg_reader_count = 0;
+
+    cg_embedded_readers = alloc(LIMIT_EMBEDDED_READERS * 32);
+    cg_embedded_reader_count = 0;
 
     cg_funcs = alloc(LIMIT_FUNCS * 24);
     cg_func_count = 0;
@@ -1251,11 +1260,18 @@ func compile_reader_to_executable(decl *u8) void {
 
     if use_llvm {
         // LLVM path: clang <ll> -o <exe>
-        exec_run("/usr/bin/clang", out_path, "-o", exe_path, nil, nil);
+        var clang_path *u8 = find_clang();
+        if clang_path != nil {
+            exec_run(clang_path, out_path, "-o", exe_path, nil, nil);
+        }
     } else {
         // x86 path: as <asm> -o <obj>, ld <obj> -o <exe>
-        exec_run("/usr/bin/as", out_path, "-o", obj_path, nil, nil);
-        exec_run("/usr/bin/ld", obj_path, "-o", exe_path, nil, nil);
+        var as_path *u8 = find_as();
+        var ld_path *u8 = find_ld();
+        if as_path != nil && ld_path != nil {
+            exec_run(as_path, out_path, "-o", obj_path, nil, nil);
+            exec_run(ld_path, obj_path, "-o", exe_path, nil, nil);
+        }
     }
 }
 
@@ -1284,7 +1300,7 @@ func add_reader(decl *u8) void {
 }
 
 func find_reader(name *u8, name_len i64) *u8 {
-    // First check registered readers
+    // First check registered readers (from current compilation)
     var i i64 = 0;
     while i < cg_reader_count {
         var entry *u8 = cg_readers + (i * 24);
@@ -1304,7 +1320,17 @@ func find_reader(name *u8, name_len i64) *u8 {
         i = i + 1;
     }
 
-    // Fall back to checking for pre-compiled reader in /tmp
+    // Check embedded readers (for composed compilers)
+    var embedded_src *u8 = find_embedded_reader(name, name_len);
+    if embedded_src != nil {
+        // Compile the embedded reader source on-demand
+        var exe_path *u8 = compile_from_embedded_ast(name, name_len, embedded_src);
+        if exe_path != nil {
+            return exe_path;
+        }
+    }
+
+    // Fall back to checking for pre-compiled reader in cache
     var exe_path *u8 = build_reader_cache_path(name, name_len);
 
     // Check if file exists by trying to open it
@@ -1316,6 +1342,195 @@ func find_reader(name *u8, name_len i64) *u8 {
     }
 
     return nil;
+}
+
+// ============================================================
+// Embedded reader registry (for composed compilers)
+// ============================================================
+
+func add_embedded_reader(name *u8, name_len i64, ast *u8, ast_len i64) void {
+    var entry *u8 = cg_embedded_readers + (cg_embedded_reader_count * 32);
+
+    // Store name_ptr
+    var np **u8 = entry;
+    *np = name;
+
+    // Store name_len
+    var nl *i64 = entry + 8;
+    *nl = name_len;
+
+    // Store ast_ptr
+    var ap **u8 = entry + 16;
+    *ap = ast;
+
+    // Store ast_len
+    var al *i64 = entry + 24;
+    *al = ast_len;
+
+    cg_embedded_reader_count = cg_embedded_reader_count + 1;
+}
+
+// Find embedded reader by name, returns AST string or nil
+func find_embedded_reader(name *u8, name_len i64) *u8 {
+    var i i64 = 0;
+    while i < cg_embedded_reader_count {
+        var entry *u8 = cg_embedded_readers + (i * 32);
+
+        var np **u8 = entry;
+        var rname *u8 = *np;
+
+        var nl *i64 = entry + 8;
+        var rlen i64 = *nl;
+
+        if rlen == name_len {
+            if memcmp(rname, name, name_len) {
+                var ap **u8 = entry + 16;
+                return *ap;
+            }
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
+// Compile embedded reader AST to executable
+// Returns exe path on success
+func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
+    var exe_path *u8 = build_reader_cache_path(name, name_len);
+
+    // Check if already compiled
+    if should_recompile_reader(exe_path) == 0 {
+        return exe_path;
+    }
+
+    // Create cache directories
+    var cache_base *u8 = get_cache_base();
+    var readers_dir *u8 = str_concat(cache_base, "/readers");
+    os_mkdir(cache_base, 493);
+    os_mkdir(readers_dir, 493);
+
+    // Check backend
+    var langbe *u8 = getenv("LANGBE");
+    var use_llvm i64 = 0;
+    if langbe != nil && streq(langbe, "llvm") && cg_has_llvm_backend != 0 {
+        use_llvm = 1;
+    }
+
+    var base_path *u8 = build_reader_cache_path(name, name_len);
+    var src_path *u8 = str_concat(base_path, ".lang");
+    var out_path *u8 = nil;
+    if use_llvm {
+        out_path = str_concat(base_path, ".ll");
+    } else {
+        out_path = str_concat(base_path, ".s");
+    }
+    var obj_path *u8 = str_concat(base_path, ".o");
+
+    // Build wrapper source: std/core.lang + embedded AST + main wrapper
+    // The embedded AST is a reader declaration, we need to wrap it
+    var wrapper *u8 = alloc(262144);
+    var wp *u8 = wrapper;
+
+    // Include stdlib
+    var stdlib *u8 = "include \"std/core.lang\"\n";
+    while *stdlib != 0 { *wp = *stdlib; wp = wp + 1; stdlib = stdlib + 1; }
+
+    // Parse the embedded AST to get the reader declaration
+    // The AST is in S-expr format: (reader name param body)
+    // We need to convert it back to source form for compilation
+    // For now, we'll parse it with sexpr_reader and regenerate source
+
+    // Actually, we need to emit the reader as source code
+    // The embedded AST is the serialized reader decl from ast_emit
+    // We need to parse it and emit source
+
+    // Simpler approach: store reader SOURCE not AST in embedded readers
+    // That way we can just include it directly
+    // For now, assume ast is actually source code (we'll fix -c to emit source)
+
+    // Append the reader source
+    while *ast != 0 { *wp = *ast; wp = wp + 1; ast = ast + 1; }
+    *wp = 10; wp = wp + 1;  // newline
+
+    // Add main wrapper that reads stdin, calls reader, prints result
+    var main_src *u8 = "func main() i64 {\n    var buf *u8 = alloc(65536);\n    var n i64 = file_read(0, buf, 65536);\n    *(buf + n) = 0;\n    var result *u8 = ";
+    while *main_src != 0 { *wp = *main_src; wp = wp + 1; main_src = main_src + 1; }
+
+    // Append reader name
+    var j i64 = 0;
+    while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
+
+    var main_end *u8 = "(buf);\n    print(result);\n    return 0;\n}\n";
+    while *main_end != 0 { *wp = *main_end; wp = wp + 1; main_end = main_end + 1; }
+
+    // Add ___main entry point for x86 backend
+    if use_llvm == 0 {
+        var entry_main *u8 = "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(); }\n";
+        while *entry_main != 0 { *wp = *entry_main; wp = wp + 1; entry_main = entry_main + 1; }
+    }
+    *wp = 0;
+
+    // Write source to file for debugging
+    var fd i64 = file_open(src_path, O_WRONLY_CREAT_TRUNC);
+    var wlen i64 = 0;
+    var ws *u8 = wrapper;
+    while *ws != 0 { wlen = wlen + 1; ws = ws + 1; }
+    file_write(fd, wrapper, wlen);
+    file_close(fd);
+
+    // Fork-self to compile
+    var pid i64 = os_fork();
+    if pid < 0 {
+        eprintln("Error: fork failed for embedded reader compilation");
+        return nil;
+    }
+    if pid == 0 {
+        // Child: compile wrapper source
+        parser_tokenize(wrapper);
+        var prog *u8 = parse_program();
+        if parse_error_count > 0 {
+            os__exit(1);
+        }
+        if use_llvm {
+            cg_generate_llvm_fn(prog, out_path);
+        } else {
+            generate(prog, out_path);
+        }
+        os__exit(0);
+    }
+
+    // Parent: wait for child
+    var status *i64 = alloc(8);
+    os_waitpid(pid, status, 0);
+    var exit_code i64 = (*status / 256) % 256;
+    if exit_code != 0 {
+        eprintln("Error: embedded reader compilation failed");
+        return nil;
+    }
+
+    if use_llvm {
+        var clang_path *u8 = find_clang();
+        if clang_path == nil {
+            eprintln("Error: clang not found");
+            return nil;
+        }
+        exec_run(clang_path, out_path, "-o", exe_path, nil, nil);
+    } else {
+        var as_path *u8 = find_as();
+        var ld_path *u8 = find_ld();
+        if as_path == nil {
+            eprintln("Error: as (assembler) not found");
+            return nil;
+        }
+        if ld_path == nil {
+            eprintln("Error: ld (linker) not found");
+            return nil;
+        }
+        exec_run(as_path, out_path, "-o", obj_path, nil, nil);
+        exec_run(ld_path, obj_path, "-o", exe_path, nil, nil);
+    }
+
+    return exe_path;
 }
 
 // ============================================================

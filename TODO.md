@@ -71,13 +71,35 @@ See **[designs/abi.md](designs/abi.md)** for deep analysis of:
 
 **Future:** `make bootstrap` auto-selects based on platform
 
-#### → CLI commands (next)
+#### → CLI commands (in progress)
 
 See **[designs/cli_commands.md](designs/cli_commands.md)** for full design.
 
-New subcommands: `help`, `env`, `tools`, `readers`, `compose`
+**Done:**
+- `lang help [subcommand]` - usage information
+- `lang version` - version with baked-in build info
+- `lang env` - environment variables
+- `lang tools` - toolchain detection with PATH search
+
+**In progress:**
+- `lang compose` / `-c` fix - see **[designs/fix_composition.md](designs/fix_composition.md)**
+
+**Not started:**
+- `lang readers` - list available readers
 
 Key insight: files have extensions, commands don't → unambiguous parsing.
+
+#### Compiler emission modes (backlog)
+
+See **[designs/emission_modes.md](designs/emission_modes.md)** for design.
+
+The compiler should have clean modes for:
+1. Emit AST fragment (declarations only)
+2. Emit expanded AST (includes inlined)
+3. Emit full program AST
+4. Emit self-as-compiler AST
+5. Emit native assembly
+6. Emit native executable (new)
 
 ---
 
@@ -86,7 +108,7 @@ Key insight: files have extensions, commands don't → unambiguous parsing.
 | Issue | Priority | Notes |
 |-------|----------|-------|
 | ~~ARCHITECTURE.md extraction~~ | ~~High~~ | Done: `docs/` folder |
-| Composition flow (`-c`) broken | Medium | AST merging produces wrong code |
+| Composition flow (`-c`) broken | Medium | **In progress** - see `designs/fix_composition.md` |
 | Include deduplication for CLI | Medium | CLI files not deduplicated |
 | Block expression scopes | Medium | Inline reader vars collide |
 | Semantic checks | Low | Undefined vars reach codegen |
@@ -184,6 +206,9 @@ The `designs/ast_as_language.md` describes this but it's not implemented.
 | [designs/abi.md](designs/abi.md) | Calling conventions, language capture, Zig/Go analysis |
 | [designs/ast_as_language.md](designs/ast_as_language.md) | AST format, kernel/reader architecture, effects |
 | [designs/multi_backend.md](designs/multi_backend.md) | x86 and LLVM backend design |
+| [designs/cli_commands.md](designs/cli_commands.md) | CLI subcommands design |
+| [designs/fix_composition.md](designs/fix_composition.md) | Fixing -c composition (in progress) |
+| [designs/emission_modes.md](designs/emission_modes.md) | Compiler output modes (backlog) |
 
 ---
 

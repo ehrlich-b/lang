@@ -3,6 +3,7 @@
 
 include "src/limits.lang"
 include "std/os.lang"
+include "std/tools.lang"
 
 // ============================================================
 // Memory
