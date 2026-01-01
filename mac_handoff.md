@@ -51,14 +51,17 @@ The x86 backend outputs Linux x86-64 assembly. Use `LANGBE=llvm` for Mac-runnabl
 ## Test Suite
 
 ```bash
-# Workaround: switch OS layer before running tests
+# Workaround 1: switch OS layer before running tests
 echo 'include "std/os/libc_macos.lang"' > std/os.lang
+
+# Workaround 2: reader compilation hardcodes ./out/lang path
+mkdir -p out && cp ./lang ./out/lang
 
 # Run LLVM test suite
 COMPILER=./lang ./test/run_llvm_suite.sh
 ```
 
-**Current status (2026-01-01)**: After applying both Bug 2 and Bug 3 fixes + OS layer workaround, expect ~162/165 tests passing.
+**Current status (2026-01-01)**: **167/167 tests passing** with workarounds applied.
 
 ---
 
@@ -102,17 +105,42 @@ See `src/codegen_llvm.lang`:
 
 See `src/codegen.lang:1048-1243` for reader compilation logic.
 
-### Summary: Expected test results after all fixes
+### Bug 4: Reader compilation hardcodes `./out/lang` path
+
+**Impact**: Reader tests fail with "no such file or directory" for .ll files
+
+**Root cause**: `src/codegen.lang:1237` hardcodes:
+```lang
+exec_run_env("./out/lang", src_path, "-o", out_path, nil, nil, child_envp);
+```
+
+When running the bootstrap as `./lang`, the reader compilation tries to use `./out/lang` which doesn't exist.
+
+**Workaround**: `mkdir -p out && cp ./lang ./out/lang`
+
+**Fix needed**: Reader compilation should use the current compiler (from argv[0] or an env var) instead of hardcoding `./out/lang`.
+
+### Bug 5: Effect tests missing `//clang` marker
+
+**Impact**: 4 effect tests fail when run with lli (inline asm not supported)
+
+**Root cause**: Effect system emits inline assembly, which lli can't execute. The test script uses clang only for tests marked `//clang` in lines 1-3.
+
+**Fix applied on Mac**: Added `//clang` to tests 188, 191, 193, 194.
+
+These tests should be committed with the `//clang` marker.
+
+### Summary: Current test status
 
 | Category | Count | Status |
 |----------|-------|--------|
-| Effects | ~10 | ✓ Fixed (Bug 2) |
-| Readers | ~15 | ✓ Fixed (Bug 3) |
-| Raw syscall | ~3 | Expected to fail (Linux-only) |
+| All tests | 167 | ✓ All passing with workarounds |
+| Effects | ~10 | ✓ Fixed (Bug 2) + need //clang marker |
+| Readers | ~15 | ✓ Fixed (Bug 3) + need ./out/lang workaround |
 
-**Expected: ~162/165 tests should pass** (only raw syscall tests use Linux-specific code)
-
-Note: `std/os.lang` workaround is still needed (`echo 'include "std/os/libc_macos.lang"' > std/os.lang`)
+**167/167 tests pass** with:
+1. OS layer workaround: `echo 'include "std/os/libc_macos.lang"' > std/os.lang`
+2. Compiler path workaround: `cp ./lang ./out/lang`
 
 ## Troubleshooting
 

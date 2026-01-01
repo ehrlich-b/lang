@@ -1,4 +1,5 @@
 // expect: 0
+//clang
 // Test effect propagating through multiple call frames
 
 include "std/core.lang"

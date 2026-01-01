@@ -1,6 +1,6 @@
 // expect: 0
+//clang
 // Test basic effect/exception system
-// Effect declaration + perform + handle
 
 include "std/core.lang"
 
