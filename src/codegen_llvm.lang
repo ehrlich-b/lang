@@ -1900,10 +1900,18 @@ func llvm_emit_expr(expr *u8) void {
                     // Function address: ptrtoint func_type* @funcname to i64
                     // Get function parameter count for type signature
                     var param_count i64 = func_decl_param_count(func_decl);
+                    var ret_type *u8 = func_decl_ret_type(func_decl);
 
                     llvm_emit_str("    %t");
                     llvm_emit_int(temp);
-                    llvm_emit_str(" = ptrtoint i64 (");
+                    llvm_emit_str(" = ptrtoint ");
+                    // Emit return type: void or i64
+                    if llvm_is_void_type(ret_type) {
+                        llvm_emit_str("void");
+                    } else {
+                        llvm_emit_str("i64");
+                    }
+                    llvm_emit_str(" (");
                     var j i64 = 0;
                     while j < param_count {
                         if j > 0 {
@@ -5514,6 +5522,8 @@ func llvm_gen_all_lambdas() void {
 }
 
 func generate_llvm(prog *u8, output_file *u8) void {
+    cg_has_llvm_backend = 1;  // Mark LLVM backend available for reader compilation
+    cg_generate_llvm_fn = &generate_llvm;  // Set function pointer for fork-self
     llvm_init_output(output_file);
     llvm_included_files = map_new();
     llvm_init_func_table();

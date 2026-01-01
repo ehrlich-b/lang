@@ -10,6 +10,11 @@ include "src/limits.lang"
 var cg_out_fd i64 = 0;           // output file descriptor
 var cg_label_num i64 = 0;        // for generating unique labels
 var cg_had_error i64 = 0;        // set to 1 if codegen encounters an error
+var cg_has_llvm_backend i64 = 0; // set to 1 by codegen_llvm.lang if included
+
+// Function pointer for LLVM backend (avoids linker error in standalone compilers)
+// Set by codegen_llvm.lang, nil if LLVM not available
+var cg_generate_llvm_fn *u8 = nil;
 
 // Locals array: each entry is [name_ptr:8][name_len:8][offset:8][type_ptr:8] = 32 bytes
 // Max 1024 locals
@@ -1046,9 +1051,11 @@ func compile_reader_to_executable(decl *u8) void {
     os_mkdir(readers_dir, 493);
 
     // Check LANGBE for backend selection
+    // Only use LLVM if requested AND the LLVM backend is available
+    // (standalone compilers don't include codegen_llvm.lang)
     var langbe *u8 = getenv("LANGBE");
     var use_llvm i64 = 0;
-    if langbe != nil && streq(langbe, "llvm") {
+    if langbe != nil && streq(langbe, "llvm") && cg_has_llvm_backend != 0 {
         use_llvm = 1;
     }
 
@@ -1193,9 +1200,16 @@ func compile_reader_to_executable(decl *u8) void {
     while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
     var main_end *u8 = "(buf);\n    print(result);\n    return 0;\n}\n";
     while *main_end != 0 { *wp = *main_end; wp = wp + 1; main_end = main_end + 1; }
+
+    // Add ___main entry point for x86 backend (_start calls ___main)
+    // LLVM backend doesn't need this - clang provides the entry point
+    if use_llvm == 0 {
+        var entry_main *u8 = "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(); }\n";
+        while *entry_main != 0 { *wp = *entry_main; wp = wp + 1; entry_main = entry_main + 1; }
+    }
     *wp = 0;
 
-    // Write wrapper source to file
+    // Write wrapper source to file (for debugging)
     var fd i64 = file_open(src_path, O_WRONLY_CREAT_TRUNC);
     var wlen i64 = 0;
     var ws *u8 = wrapper;
@@ -1203,38 +1217,37 @@ func compile_reader_to_executable(decl *u8) void {
     file_write(fd, wrapper, wlen);
     file_close(fd);
 
-    // Build environment for child compiler
-    // Pass LANGBE and LANGOS if using LLVM backend
-    var child_envp *u8 = alloc(32);  // 4 pointers
-    var env_langbe *u8 = "LANGBE=llvm";
-    var env_langos *u8 = "LANGOS=macos";
-    var langos *u8 = getenv("LANGOS");
-    var is_macos i64 = 0;
-    if langos != nil && streq(langos, "macos") {
-        is_macos = 1;
+    // Fork-self: child compiles directly instead of exec-ing ./out/lang
+    // This removes the hardcoded path and avoids exec overhead
+    var pid i64 = os_fork();
+    if pid < 0 {
+        eprintln("Error: fork failed for reader compilation");
+        return;
     }
-
-    if use_llvm {
-        var ce0 **u8 = child_envp;
-        *ce0 = env_langbe;
-        if is_macos {
-            var ce1 **u8 = child_envp + 8;
-            *ce1 = env_langos;
-            var ce2 **u8 = child_envp + 16;
-            *ce2 = nil;
-        } else {
-            var ce1 **u8 = child_envp + 8;
-            *ce1 = nil;
+    if pid == 0 {
+        // Child: compile wrapper source directly
+        parser_tokenize(wrapper);
+        var prog *u8 = parse_program();
+        if parse_error_count > 0 {
+            os__exit(1);
         }
-    } else {
-        var ce0 **u8 = child_envp;
-        *ce0 = nil;
+        if use_llvm {
+            // Call through function pointer to avoid linker error in standalone
+            cg_generate_llvm_fn(prog, out_path);
+        } else {
+            generate(prog, out_path);
+        }
+        os__exit(0);
     }
 
-    // Compile: ./out/lang <src> -o <out>
-    // The wrapper source already has includes and sibling declarations serialized.
-    // Don't pass std/core.lang - the wrapper handles its own dependencies.
-    exec_run_env("./out/lang", src_path, "-o", out_path, nil, nil, child_envp);
+    // Parent: wait for child to finish
+    var status *i64 = alloc(8);
+    os_waitpid(pid, status, 0);
+    var exit_code i64 = (*status / 256) % 256;
+    if exit_code != 0 {
+        eprintln("Error: reader compilation failed");
+        return;
+    }
 
     if use_llvm {
         // LLVM path: clang <ll> -o <exe>
