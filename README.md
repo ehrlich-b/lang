@@ -117,7 +117,11 @@ On Linux, `make bootstrap` uses x86 assembly. On macOS, `make llvm-verify` uses 
 
 - [LANG.md](./LANG.md) - Language reference
 - [TODO.md](./TODO.md) - Roadmap
-- [designs/ast_as_language.md](./designs/ast_as_language.md) - Architecture
+- [docs/](./docs/) - Technical documentation
+  - [BUILDING.md](./docs/BUILDING.md) - Build instructions and compilation pipeline
+  - [BOOTSTRAP.md](./docs/BOOTSTRAP.md) - Bootstrap process and trust chain
+  - [AST.md](./docs/AST.md) - AST node reference (41 node types)
+- [designs/ast_as_language.md](./designs/ast_as_language.md) - Architecture vision
 
 ## License
 

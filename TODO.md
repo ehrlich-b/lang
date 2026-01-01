@@ -42,16 +42,12 @@ The compiler works. Now it needs cleanup and decisions about what it actually is
 
 ### Upcoming priorities
 
-#### ARCHITECTURE.md - Extract the reference
+#### ✓ Technical Documentation - Done
 
-The AST format, kernel interface, and calling convention need a standalone reference. Currently buried in `designs/ast_as_language.md` (1500+ lines of vision mixed with specification).
-
-**Extract into ARCHITECTURE.md:**
-- AST S-expression format (the 40 node types, their arguments)
-- Kernel responsibilities (what it does, what it doesn't)
-- Calling convention (System V AMD64, closure calling, effect continuations)
-- Reader protocol (stdin → AST S-expr stdout)
-- Bootstrap chain (how trust flows)
+Created `docs/` folder with standalone reference documentation:
+- [docs/AST.md](docs/AST.md) - All 41 AST node types with S-expression format
+- [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md) - Bootstrap chain, trust flow, toolchain requirements
+- [docs/BUILDING.md](docs/BUILDING.md) - Build instructions, compilation pipeline, flags
 
 #### ABI and language capture
 
@@ -77,7 +73,7 @@ See **[designs/abi.md](designs/abi.md)** for deep analysis of:
 
 | Issue | Priority | Notes |
 |-------|----------|-------|
-| ARCHITECTURE.md extraction | High | Reference doc from design doc |
+| ~~ARCHITECTURE.md extraction~~ | ~~High~~ | Done: `docs/` folder |
 | Composition flow (`-c`) broken | Medium | AST merging produces wrong code |
 | Include deduplication for CLI | Medium | CLI files not deduplicated |
 | Block expression scopes | Medium | Inline reader vars collide |
@@ -139,6 +135,7 @@ The `designs/ast_as_language.md` describes this but it's not implemented.
 ### Architecture hardening (milestone 7 - in progress)
 - Fork-self reader compilation (removes `./out/lang` hardcode)
 - Fix LLVM `&func` address-of for void functions
+- Documentation: [docs/](docs/) folder with BUILDING.md, BOOTSTRAP.md, AST.md
 
 ### Cross-platform (milestone 6)
 - OS abstraction layer (`std/os/*.lang`)
