@@ -4960,6 +4960,87 @@ func llvm_emit_func(func_node *u8) void {
 // Track which files have been included (to avoid duplicates)
 var llvm_included_files *u8 = nil;
 
+// Emit a reader as a callable LLVM function (for standalone compilers)
+func llvm_emit_reader(reader_node *u8) void {
+    var name *u8 = reader_decl_name(reader_node);
+    var name_len i64 = reader_decl_name_len(reader_node);
+    var pname *u8 = reader_decl_param_name(reader_node);
+    var param_len i64 = reader_decl_param_len(reader_node);
+
+    // Reset counters for this function
+    llvm_temp_counter = 0;
+    llvm_label_counter = 0;
+    llvm_reset_locals();
+    llvm_let_depth = 0;
+    llvm_anon_local_counter = 0;
+    cg_local_count = 0;
+
+    // Build i64 type for return (we use i64 for all values including pointers)
+    // Also build *u8 type for parameter type tracking
+    var u8_type *u8 = base_type_alloc();
+    base_type_set_name(u8_type, "u8");
+    base_type_set_name_len(u8_type, 2);
+    var ptr_u8_type *u8 = ptr_type_alloc();
+    ptr_type_set_elem(ptr_u8_type, u8_type);
+
+    // Create i64 type for return (consistent with function signature)
+    var i64_type *u8 = base_type_alloc();
+    base_type_set_name(i64_type, "i64");
+    base_type_set_name_len(i64_type, 3);
+    llvm_current_ret_type = i64_type;
+
+    // Function header: define i64 @readername(i64 %param.arg) {
+    llvm_emit_str("define i64 @");
+    llvm_emit_n(name, name_len);
+    llvm_emit_str("(i64 %");
+    llvm_emit_n(pname, param_len);
+    llvm_emit_line(".arg) {");
+
+    // Entry block
+    llvm_emit_line("L.entry:");
+
+    // Register and shadow the parameter
+    llvm_add_local(pname, param_len);
+    add_local(pname, param_len, 0, ptr_u8_type);
+
+    // Create unique name for SSA
+    var unique_name *u8 = alloc(64);
+    var up *u8 = unique_name;
+    var ui i64 = 0;
+    while ui < param_len {
+        *(up + ui) = *(pname + ui);
+        ui = ui + 1;
+    }
+    *(up + param_len) = 46;  // '.'
+    itoa(llvm_anon_local_counter, up + param_len + 1);
+    llvm_anon_local_counter = llvm_anon_local_counter + 1;
+    var actual_name_len i64 = strlen(unique_name);
+
+    // Register let binding
+    llvm_push_let_binding(pname, param_len, unique_name, actual_name_len);
+
+    // Allocate local with unique name
+    llvm_emit_str("    %");
+    llvm_emit_n(unique_name, actual_name_len);
+    llvm_emit_line(" = alloca i64");
+
+    // Copy param.arg to local
+    llvm_emit_str("    store i64 %");
+    llvm_emit_n(pname, param_len);
+    llvm_emit_str(".arg, i64* %");
+    llvm_emit_n(unique_name, actual_name_len);
+    llvm_emit_char(10);
+
+    // Reset terminator tracking
+    llvm_emitted_terminator = 0;
+
+    // Function body
+    llvm_emit_block(reader_decl_body(reader_node));
+
+    llvm_emit_line("}");
+    llvm_emit_char(10);
+}
+
 func llvm_emit_decl(decl *u8) void {
     if decl == nil {
         return;
@@ -4969,6 +5050,12 @@ func llvm_emit_decl(decl *u8) void {
 
     if k == NODE_FUNC_DECL {
         llvm_emit_func(decl);
+        return;
+    }
+
+    if k == NODE_READER_DECL {
+        // Generate reader as callable function (for standalone compilers)
+        llvm_emit_reader(decl);
         return;
     }
 

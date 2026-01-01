@@ -102,34 +102,24 @@ Relevant LLVM features to investigate:
 - `llvm.eh.sjlj.*` for setjmp/longjmp style control flow
 - Or implement via explicit stack/context passing
 
-### Bug 3: Reader macro compilation ignores LANGBE
+### Bug 3: Reader macro compilation ignores LANGBE ✓ FIXED
 
-**Impact**: All reader macro tests fail on ARM64
+**Fix applied**: Reader compilation now respects LANGBE environment variable:
+- Added `exec_run_env()` to pass LANGBE/LANGOS to child compiler
+- When LANGBE=llvm: outputs .ll files, uses clang to compile
+- When LANGBE=x86: uses as/ld as before
+- Added `llvm_emit_reader()` to emit readers as LLVM functions
 
-**Symptom**:
-```
-clang: error: no such file or directory: '.lang-cache/readers/lang.s'
-clang: error: no such file or directory: '.lang-cache/readers/lisp.s'
-error: reader 'lisp' returned no output
-```
-
-**Root cause**: Reader macro system compiles readers to `.s` (x86 asm) even when LANGBE=llvm. The reader compilation in `src/codegen.lang` doesn't respect the backend selection.
-
-**Fix needed**: Reader compilation should check LANGBE and:
-- LANGBE=x86 → compile to .s, assemble, link
-- LANGBE=llvm → compile to .ll, use clang to compile
-
-Location: Look for reader compilation logic in `src/codegen.lang` - the fork/exec that builds reader binaries.
+See `src/codegen.lang:1048-1243` for reader compilation logic.
 
 ### Summary: Tests that SHOULD pass once bugs are fixed
 
 | Category | Count | Bug |
 |----------|-------|-----|
 | Effects | ~10 | Bug 2 (x86 asm) |
-| Readers | ~15 | Bug 3 (ignores LANGBE) |
 | Raw syscall | ~3 | Expected (Linux-only by design) |
 
-After fixing bugs 2 and 3: **~162/165 tests should pass** (only raw syscall tests expected to fail)
+After fixing Bug 2: **~162/165 tests should pass** (only raw syscall tests expected to fail)
 
 ## Troubleshooting
 
