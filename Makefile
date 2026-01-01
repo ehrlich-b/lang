@@ -183,7 +183,8 @@ bootstrap: generate-os-layer
 	@echo "└────────────────────────────────────────────────────────────────┘"
 	@mkdir -p bootstrap/$(GIT_COMMIT)/lang_reader
 	cp /tmp/bootstrap_verify/kernel2.s bootstrap/$(GIT_COMMIT)/compiler.s
-	cp out/llvm_libc_macos.ll bootstrap/$(GIT_COMMIT)/llvm_libc_macos.ll
+	cp out/llvm_libc_linux.ll bootstrap/$(GIT_COMMIT)/compiler_linux.ll
+	cp out/llvm_libc_macos.ll bootstrap/$(GIT_COMMIT)/compiler_macos.ll
 	cp /tmp/bootstrap_verify/reader_ast1.ast bootstrap/$(GIT_COMMIT)/lang_reader/source.ast
 	@echo "compiler.s:" > bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler.s | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
@@ -193,14 +194,15 @@ bootstrap: generate-os-layer
 	@echo "  verification:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "    kernel_fixed_point: true (kernel1.s === kernel2.s)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "    ast_fixed_point: true (reader_ast1 === reader_ast2)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "llvm_libc_macos.ll:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/llvm_libc_macos.ll | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "compiler_linux.ll:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler_linux.ll | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "compiler_macos.ll:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler_macos.ll | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "lang_reader/source.ast:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/lang_reader/source.ast | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "  lines: $$(wc -l < bootstrap/$(GIT_COMMIT)/lang_reader/source.ast)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	ln -sfn $(GIT_COMMIT) bootstrap/current
 	cp bootstrap/$(GIT_COMMIT)/compiler.s bootstrap/escape_hatch.s
-	cp bootstrap/$(GIT_COMMIT)/llvm_libc_macos.ll bootstrap/llvm_libc_macos.ll
 	ln -sf lang_$(VERSION) $(LANG)
 	rm -f $(LANG_NEXT)
 	@rm -rf /tmp/bootstrap_verify
@@ -217,8 +219,9 @@ bootstrap: generate-os-layer
 	@echo "║   ✓ LLVM test suite                                            ║"
 	@echo "║                                                                ║"
 	@echo "║ Promoted: bootstrap/$(GIT_COMMIT)/                             ║"
-	@echo "║   - compiler.s (kernel2 - THE fixed point artifact)            ║"
-	@echo "║   - llvm_libc_compiler.ll                                      ║"
+	@echo "║   - compiler.s (x86, Linux fast path)                          ║"
+	@echo "║   - compiler_linux.ll (LLVM, Linux)                            ║"
+	@echo "║   - compiler_macos.ll (LLVM, macOS)                            ║"
 	@echo "║   - lang_reader/source.ast                                     ║"
 	@echo "╚════════════════════════════════════════════════════════════════╝"
 	@echo ""
