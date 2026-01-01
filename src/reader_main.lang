@@ -122,8 +122,7 @@ func main(argc i64, argv **u8) i64 {
 
     // Write to output
     if output_file != nil {
-        // Write to file: O_WRONLY=1 | O_CREAT=64 | O_TRUNC=512 = 577
-        var fd i64 = file_open(output_file, 577);
+        var fd i64 = file_open(output_file, O_WRONLY_CREAT_TRUNC);
         if fd < 0 {
             eprint("Error: cannot open output file: ");
             eprintln(output_file);

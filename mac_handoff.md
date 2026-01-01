@@ -5,8 +5,8 @@ Bootstrap the lang compiler on Mac ARM64. Delete after successful setup.
 ## Quick Start
 
 ```bash
-# 1. Compile the libc-based bootstrap
-clang bootstrap/llvm_libc_compiler.ll -o lang
+# 1. Compile the libc-based bootstrap (macOS version)
+clang bootstrap/llvm_libc_macos.ll -o lang
 
 # 2. Verify it works
 ./lang test/suite/002_return_42.lang -o test.s
@@ -33,7 +33,7 @@ clang test2.ll -o test2
 
 ## What's in the Bootstrap
 
-`bootstrap/llvm_libc_compiler.ll` - LLVM IR that uses libc for OS interface:
+`bootstrap/llvm_libc_macos.ll` - LLVM IR that uses libc for OS interface:
 - Uses `read()`, `write()`, `open()`, `close()` from libc
 - Uses `malloc()`, `free()` from libc
 - Uses `getenv()` from our stdlib (reads from envp passed to main)
@@ -59,7 +59,7 @@ COMPILER=./lang ./test/run_llvm_suite.sh
 
 **clang errors about malloc/free redefinition**: The bootstrap should only have `declare` (not `define`) for libc functions. If you see conflicts, regenerate on the dev machine:
 ```bash
-LANGBE=llvm LANGLIBC=libc ./out/lang std/core.lang src/*.lang -o bootstrap/llvm_libc_compiler.ll
+LANGBE=llvm LANGLIBC=libc ./out/lang std/core.lang src/*.lang -o bootstrap/llvm_libc_macos.ll
 ```
 
 **getenv returns nil**: The current bootstrap stores envp from main's hidden third parameter. If tests that use `getenv()` fail, the issue is likely in how clang calls main().

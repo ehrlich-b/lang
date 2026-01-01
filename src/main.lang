@@ -379,7 +379,7 @@ func main(argc i64, argv **u8) i64 {
         var ast_str *u8 = ast_emit_program(expanded_prog);
 
         // Write to output file
-        var fd i64 = file_open(output_file, 577);
+        var fd i64 = file_open(output_file, O_WRONLY_CREAT_TRUNC);
         if fd < 0 {
             eprint("Error: cannot open output file: ");
             eprintln(output_file);
@@ -395,8 +395,7 @@ func main(argc i64, argv **u8) i64 {
         var ast_str *u8 = ast_emit_program(prog);
 
         // Write to output file
-        // O_WRONLY=1 | O_CREAT=64 | O_TRUNC=512 = 577
-        var fd i64 = file_open(output_file, 577);
+        var fd i64 = file_open(output_file, O_WRONLY_CREAT_TRUNC);
         if fd < 0 {
             eprint("Error: cannot open output file: ");
             eprintln(output_file);

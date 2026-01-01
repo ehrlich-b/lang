@@ -919,14 +919,14 @@ func exec_run(program *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8) i64
     var e0 **u8 = envp;
     *e0 = nil;
 
-    var pid i64 = syscall(57);
+    var pid i64 = os_fork();
     if pid == 0 {
-        syscall(59, program, argv, envp);
-        syscall(60, 127);
+        os_execve(program, argv, envp);
+        os__exit(127);
     }
 
     var status *i64 = alloc(8);
-    syscall(61, pid, status, 0, 0);
+    os_waitpid(pid, status, 0);
     return (*status / 256) % 256;  // extract exit code
 }
 
@@ -1161,12 +1161,12 @@ func compile_reader_to_executable(decl *u8) void {
     *wp = 0;
 
     // Write wrapper source to file
-    var fd i64 = syscall(2, src_path, 577, 420);  // open with O_CREAT|O_TRUNC|O_WRONLY
+    var fd i64 = file_open(src_path, O_WRONLY_CREAT_TRUNC);
     var wlen i64 = 0;
     var ws *u8 = wrapper;
     while *ws != 0 { wlen = wlen + 1; ws = ws + 1; }
-    syscall(1, fd, wrapper, wlen);
-    syscall(3, fd);
+    file_write(fd, wrapper, wlen);
+    file_close(fd);
 
     // Compile: ./out/lang <src> -o <asm>
     // The wrapper source already has includes and sibling declarations serialized.
@@ -5680,10 +5680,10 @@ func exec_capture(program *u8, input *u8, input_len i64, output *u8, output_cap 
     var stdin_pipe *u8 = alloc(8);
     var stdout_pipe *u8 = alloc(8);
 
-    if syscall(22, stdin_pipe) < 0 {
+    if os_pipe(stdin_pipe) < 0 {
         return 0 - 1;
     }
-    if syscall(22, stdout_pipe) < 0 {
+    if os_pipe(stdout_pipe) < 0 {
         return 0 - 1;
     }
 
@@ -5697,8 +5697,7 @@ func exec_capture(program *u8, input *u8, input_len i64, output *u8, output_cap 
     var stdout_read i64 = *p3;
     var stdout_write i64 = *p4;
 
-    // syscall 57 = fork
-    var pid i64 = syscall(57);
+    var pid i64 = os_fork();
 
     if pid < 0 {
         return 0 - 1;
@@ -5707,14 +5706,14 @@ func exec_capture(program *u8, input *u8, input_len i64, output *u8, output_cap 
     if pid == 0 {
         // Child process
         // Redirect stdin: dup2(stdin_read, 0)
-        syscall(33, stdin_read, 0);
+        os_dup2(stdin_read, 0);
         // Redirect stdout: dup2(stdout_write, 1)
-        syscall(33, stdout_write, 1);
+        os_dup2(stdout_write, 1);
         // Close all pipe fds
-        syscall(3, stdin_read);
-        syscall(3, stdin_write);
-        syscall(3, stdout_read);
-        syscall(3, stdout_write);
+        os_close(stdin_read);
+        os_close(stdin_write);
+        os_close(stdout_read);
+        os_close(stdout_write);
 
         // Build argv: [program, NULL]
         var argv *u8 = alloc(16);
@@ -5728,42 +5727,41 @@ func exec_capture(program *u8, input *u8, input_len i64, output *u8, output_cap 
         var ep **u8 = envp;
         *ep = nil;
 
-        // syscall 59 = execve
-        syscall(59, program, argv, envp);
+        os_execve(program, argv, envp);
         // If execve fails, exit
-        syscall(60, 127);
+        os__exit(127);
     }
 
     // Parent process
     // Close child's ends of pipes
-    syscall(3, stdin_read);
-    syscall(3, stdout_write);
+    os_close(stdin_read);
+    os_close(stdout_write);
 
     // Write input to child's stdin, then close
     if input_len > 0 {
-        syscall(1, stdin_write, input, input_len);
+        os_write(stdin_write, input, input_len);
     }
-    syscall(3, stdin_write);
+    os_close(stdin_write);
 
     // Read output from child's stdout
     var total i64 = 0;
-    var n i64 = syscall(0, stdout_read, output, output_cap - 1);
+    var n i64 = os_read(stdout_read, output, output_cap - 1);
     while n > 0 {
         total = total + n;
         if total >= output_cap - 1 {
             n = 0;
         } else {
-            n = syscall(0, stdout_read, output + total, output_cap - 1 - total);
+            n = os_read(stdout_read, output + total, output_cap - 1 - total);
         }
     }
-    syscall(3, stdout_read);
+    os_close(stdout_read);
 
     // Null-terminate output
     *(output + total) = 0;
 
     // Wait for child
     var status *i64 = alloc(8);
-    syscall(61, pid, status, 0, 0);
+    os_waitpid(pid, status, 0);
 
     return total;
 }
@@ -5827,8 +5825,8 @@ func generate(prog *u8, out_path *u8) void {
     // Third pass: generate collected lambdas
     gen_all_lambdas();
 
-    // Open output file (O_WRONLY | O_CREAT | O_TRUNC = 577, mode 0644 = 420)
-    cg_out_fd = syscall(2, out_path, 577, 420);
+    // Open output file
+    cg_out_fd = file_open(out_path, O_WRONLY_CREAT_TRUNC);
     if cg_out_fd < 0 {
         eprintln("Error: cannot open output file");
         return;

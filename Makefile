@@ -162,22 +162,28 @@ bootstrap: generate-os-layer
 	@echo "Running x86 test suite with lang2..."
 	@COMPILER=/tmp/bootstrap_verify/lang2 ./test/run_lang1_suite.sh
 	@echo ""
-	@echo "Building LLVM+libc compiler..."
+	@echo "Building LLVM+libc compilers (Linux and macOS)..."
+	@# Build Linux libc compiler
 	@echo 'include "std/os/libc.lang"' > std/os.lang
-	LANGBE=llvm /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/llvm_libc_compiler.ll
+	LANGBE=llvm /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/llvm_libc_linux.ll
+	clang -O2 out/llvm_libc_linux.ll -o out/llvm_libc_linux
+	@echo "Built: out/llvm_libc_linux"
+	@# Build macOS libc compiler
+	@echo 'include "std/os/libc_macos.lang"' > std/os.lang
+	LANGBE=llvm /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/llvm_libc_macos.ll
+	@echo "Built: out/llvm_libc_macos.ll"
+	@# Restore default OS layer
 	@echo 'include "std/os/linux_x86_64.lang"' > std/os.lang
-	clang -O2 out/llvm_libc_compiler.ll -o out/llvm_libc_compiler
-	@echo "Built: out/llvm_libc_compiler"
 	@echo ""
-	@echo "Running LLVM test suite..."
-	@COMPILER=./out/llvm_libc_compiler ./test/run_llvm_suite.sh
+	@echo "Running LLVM test suite (with Linux libc compiler)..."
+	@COMPILER=./out/llvm_libc_linux ./test/run_llvm_suite.sh
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
 	@echo "│ STAGE 5: PROMOTE                                               │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
 	@mkdir -p bootstrap/$(GIT_COMMIT)/lang_reader
 	cp /tmp/bootstrap_verify/kernel2.s bootstrap/$(GIT_COMMIT)/compiler.s
-	cp out/llvm_libc_compiler.ll bootstrap/$(GIT_COMMIT)/llvm_libc_compiler.ll
+	cp out/llvm_libc_macos.ll bootstrap/$(GIT_COMMIT)/llvm_libc_macos.ll
 	cp /tmp/bootstrap_verify/reader_ast1.ast bootstrap/$(GIT_COMMIT)/lang_reader/source.ast
 	@echo "compiler.s:" > bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler.s | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
@@ -187,14 +193,14 @@ bootstrap: generate-os-layer
 	@echo "  verification:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "    kernel_fixed_point: true (kernel1.s === kernel2.s)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "    ast_fixed_point: true (reader_ast1 === reader_ast2)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "llvm_libc_compiler.ll:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/llvm_libc_compiler.ll | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "llvm_libc_macos.ll:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/llvm_libc_macos.ll | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "lang_reader/source.ast:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/lang_reader/source.ast | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "  lines: $$(wc -l < bootstrap/$(GIT_COMMIT)/lang_reader/source.ast)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	ln -sfn $(GIT_COMMIT) bootstrap/current
 	cp bootstrap/$(GIT_COMMIT)/compiler.s bootstrap/escape_hatch.s
-	cp bootstrap/$(GIT_COMMIT)/llvm_libc_compiler.ll bootstrap/llvm_libc_compiler.ll
+	cp bootstrap/$(GIT_COMMIT)/llvm_libc_macos.ll bootstrap/llvm_libc_macos.ll
 	ln -sf lang_$(VERSION) $(LANG)
 	rm -f $(LANG_NEXT)
 	@rm -rf /tmp/bootstrap_verify

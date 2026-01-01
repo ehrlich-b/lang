@@ -1,4 +1,4 @@
-// std/os/libc.lang - OS abstraction via system libc
+// std/os/libc_macos.lang - OS abstraction via system libc (macOS)
 //
 // This file provides the OS abstraction layer using extern declarations to
 // the system's libc. Use this when compiling with LLVM backend to get portable
@@ -45,17 +45,18 @@
 // ============================================================
 // Platform constants
 // ============================================================
-// This is the Linux libc layer. For macOS, use libc_macos.lang.
+// These use macOS values since libc.lang is primarily for macOS.
+// On Linux, use linux_x86_64.lang instead (default for LANGOS=linux).
 
-// File open flags for Linux
+// File open flags for macOS
 // O_RDONLY = 0, O_WRONLY = 1, O_RDWR = 2
-// O_CREAT = 64, O_TRUNC = 512, O_APPEND = 1024
+// O_CREAT = 512, O_TRUNC = 1024, O_APPEND = 8
 var O_RDONLY i64 = 0;
 var O_WRONLY i64 = 1;
-var O_CREAT i64 = 64;
-var O_TRUNC i64 = 512;
-var O_APPEND i64 = 1024;
-var O_WRONLY_CREAT_TRUNC i64 = 577;  // O_WRONLY | O_CREAT | O_TRUNC
+var O_CREAT i64 = 512;
+var O_TRUNC i64 = 1024;
+var O_APPEND i64 = 8;
+var O_WRONLY_CREAT_TRUNC i64 = 1537;  // O_WRONLY | O_CREAT | O_TRUNC
 
 // ============================================================
 // External libc declarations

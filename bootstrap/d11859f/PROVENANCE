@@ -1,0 +1,13 @@
+compiler.s:
+  sha256: 4c76a560a794c10c6f3177886480903f8cfe3a8314513eaf9ff360e45f98b53f
+  built_by: bootstrap/ad62acc
+  built_at: 2026-01-01T00:17:39-05:00
+  source_commit: d11859f
+  verification:
+    kernel_fixed_point: true (kernel1.s === kernel2.s)
+    ast_fixed_point: true (reader_ast1 === reader_ast2)
+llvm_libc_macos.ll:
+  sha256: 3ac6def39afc4b02034126202de74aac98fa969442fbedea5bbcdb1c5676fdb0
+lang_reader/source.ast:
+  sha256: f45e6ad21aeba567ee9b9f31d22c37c842a67b651a359da8f5330b1fae4527ec
+  lines: 5269

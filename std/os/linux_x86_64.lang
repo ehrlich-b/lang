@@ -36,6 +36,20 @@
 //   init_environ(envp) void
 //   getenv(name) *u8
 
+// ============================================================
+// Platform constants
+// ============================================================
+
+// File open flags for Linux
+// O_RDONLY = 0, O_WRONLY = 1, O_RDWR = 2
+// O_CREAT = 64, O_TRUNC = 512, O_APPEND = 1024
+var O_RDONLY i64 = 0;
+var O_WRONLY i64 = 1;
+var O_CREAT i64 = 64;
+var O_TRUNC i64 = 512;
+var O_APPEND i64 = 1024;
+var O_WRONLY_CREAT_TRUNC i64 = 577;  // O_WRONLY | O_CREAT | O_TRUNC
+
 // Core syscalls - these match the abstract interface in std/core.lang
 
 func os_read(fd i64, buf *u8, count i64) i64 {
@@ -113,12 +127,57 @@ func os_rmdir(path *u8) i64 {
 }
 
 // ============================================================
-// Memory allocation - malloc/free with free list
+// Process control - for subprocess execution (reader macros)
 // ============================================================
-// Self-contained implementation using os_mmap directly.
-// Block layout: [size:8][data...]
-// Free blocks store next pointer in data area: [size:8][next:8]
 
+func os_fork() i64 {
+    return syscall(57);  // fork
+}
+
+func os_execve(path *u8, argv **u8, envp **u8) i64 {
+    return syscall(59, path, argv, envp);  // execve
+}
+
+func os_waitpid(pid i64, status *i64, options i64) i64 {
+    return syscall(61, pid, status, options, 0);  // wait4
+}
+
+func os_pipe(fds *i64) i64 {
+    return syscall(22, fds);  // pipe
+}
+
+func os_dup2(oldfd i64, newfd i64) i64 {
+    return syscall(33, oldfd, newfd);  // dup2
+}
+
+func os__exit(status i64) void {
+    syscall(60, status);  // exit
+}
+
+// ============================================================
+// Memory allocation - bump allocator (alloc) and malloc/free
+// ============================================================
+// alloc() - simple bump allocator, never frees (for compiler use)
+// malloc()/free() - free list allocator for general use
+// Both use os_mmap directly with Linux flags.
+
+// Bump allocator state
+var __alloc_heap_pos *u8 = nil;
+var __alloc_heap_end *u8 = nil;
+
+func alloc(size i64) *u8 {
+    if __alloc_heap_pos == nil {
+        // mmap(NULL, 256MB, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
+        // 3 = PROT_READ|PROT_WRITE, 34 = MAP_PRIVATE|MAP_ANONYMOUS (Linux)
+        __alloc_heap_pos = os_mmap(nil, 268435456, 3, 34, 0-1, 0);
+        __alloc_heap_end = __alloc_heap_pos + 268435456;
+    }
+    var ptr *u8 = __alloc_heap_pos;
+    __alloc_heap_pos = __alloc_heap_pos + size;
+    return ptr;
+}
+
+// malloc/free heap state
 var __malloc_heap_pos *u8 = nil;
 var __malloc_heap_end *u8 = nil;
 var __malloc_free_list *u8 = nil;
