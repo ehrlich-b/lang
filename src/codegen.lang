@@ -4562,12 +4562,13 @@ func gen_reader_func(reader_node *u8) void {
     var pname *u8 = reader_decl_param_name(reader_node);
     var param_len i64 = reader_decl_param_len(reader_node);
 
-    // Create a *u8 type for the parameter
-    var ptype *u8 = alloc(16);
-    *(ptype) = '*';
-    *(ptype + 1) = 'u';
-    *(ptype + 2) = '8';
-    *(ptype + 3) = 0;
+    // Create a *u8 type node for the parameter
+    // First create u8 base type, then wrap in pointer type
+    var u8_type *u8 = base_type_alloc();
+    base_type_set_name(u8_type, "u8");
+    base_type_set_name_len(u8_type, 2);
+    var ptype *u8 = ptr_type_alloc();
+    ptr_type_set_elem(ptype, u8_type);
 
     add_local(pname, param_len, offset, ptype);
 
