@@ -106,97 +106,193 @@ Replaced hardcoded `/usr/bin/clang`, `/usr/bin/as`, `/usr/bin/ld` with dynamic d
 
 The key challenge: How do we initialize embedded readers at startup?
 
-**Option A: ___main hook (x86 backend)**
-```lang
-// Generated composed source
-var EMBEDDED_LISP_SRC *u8 = "...reader source...";
+**x86 vs LLVM entry point differences:**
 
+```
+x86 backend:
+  _start (codegen emits)
+    → ___main(argc, argv, envp)  [user code provides]
+        → main(argc, argv)       [user's main]
+
+LLVM backend:
+  clang's _start (libc)
+    → main(argc, argv, envp)     [user's main, always gets C ABI signature]
+  (no ___main exists!)
+```
+
+Key insight: **LLVM has no ___main hook!** clang calls main() directly.
+
+### Options Analyzed
+
+**Option A: ___main hook (x86 only)**
+```lang
 func ___main(argc i64, argv **u8, envp **u8) i64 {
     init_environ(envp);
     add_embedded_reader("lisp", 4, EMBEDDED_LISP_SRC, strlen(EMBEDDED_LISP_SRC));
     return main(argc, argv);
 }
-
-include "std/core.lang"
-... all compiler includes ...
-include "src/main.lang"  // Uses our ___main, not its own
 ```
+- Works for x86
+- **Doesn't work for LLVM** - no ___main exists
 
-Problem: main.lang already appends its own ___main in some modes.
+**Option B: Inject into main() body**
+- Modify AST after parsing to add init calls at start of main()
+- Complex, invasive
 
-**Option B: Lazy initialization in find_reader()**
+**Option C: Generate source, not assembly**
+```bash
+./out/lang -c lisp reader.lang -o composed_lisp.lang
+./out/lang composed_lisp.lang -o lang_lisp.ll
+```
+- Two-step process for user
+- Clean but less magical
+
+**Option D: Function pointer hook**
+```lang
+var cg_init_embedded_fn fn() void = nil;
+```
+- Problem: Include order - can't set before defined
+
+**Option E: Lazy initialization (RECOMMENDED)**
 ```lang
 var cg_embedded_init_done i64 = 0;
+var cg_embedded_init_fn fn() void = nil;
 
-func find_reader(...) {
-    if cg_embedded_init_done == 0 {
-        init_embedded_readers();  // Call generated init function
+func find_reader(name, len) {
+    // Lazy init on first reader lookup
+    if cg_embedded_init_done == 0 && cg_embedded_init_fn != nil {
+        cg_embedded_init_fn();
         cg_embedded_init_done = 1;
     }
-    ...
+    // ... rest of find_reader
+}
+```
+- **Works for BOTH backends!**
+- Init happens on first reader lookup (which is during compilation)
+- Generated code sets `cg_embedded_init_fn` before including compiler
+
+### Recommended Approach: Lazy Init + Function Pointer
+
+1. Add to codegen.lang:
+```lang
+var cg_embedded_init_fn fn() void = nil;
+var cg_embedded_init_done i64 = 0;
+```
+
+2. Modify find_reader() to call init lazily
+
+3. Generated composed source:
+```lang
+// Embedded reader source
+var EMBEDDED_LISP_SRC *u8 = "...reader source...";
+
+// Init function
+func init_embedded_readers() void {
+    add_embedded_reader("lisp", 4, EMBEDDED_LISP_SRC, strlen(EMBEDDED_LISP_SRC));
+}
+
+// Set the hook BEFORE including codegen.lang
+// Wait - this doesn't work! cg_embedded_init_fn isn't defined yet!
+```
+
+**The include order problem:**
+- `cg_embedded_init_fn` is defined in codegen.lang
+- We can't assign to it before including codegen.lang
+- We can't include codegen.lang first because it needs our init function
+
+### Alternative: Pre-populated Data Approach
+
+Instead of a function pointer, use **data-driven initialization**:
+
+1. Add to codegen.lang:
+```lang
+// External embedded reader data (set by composed compilers)
+var cg_embedded_reader_data *u8 = nil;
+var cg_embedded_reader_data_count i64 = 0;
+```
+
+2. In find_reader(), check this data and initialize:
+```lang
+func ensure_embedded_readers_loaded() void {
+    if cg_embedded_reader_data == nil { return; }
+    if cg_embedded_reader_count > 0 { return; }  // Already loaded
+
+    var i i64 = 0;
+    while i < cg_embedded_reader_data_count {
+        var entry *u8 = cg_embedded_reader_data + (i * 32);
+        // ... read name, src from entry ...
+        add_embedded_reader(name, name_len, src, src_len);
+        i = i + 1;
+    }
 }
 ```
 
-Problem: How to call a function that may or may not exist?
+3. Generated composed source:
+```lang
+// Embedded data - these are globals defined BEFORE includes
+var EMBEDDED_NAME_0 *u8 = "lisp";
+var EMBEDDED_SRC_0 *u8 = "...reader source...";
 
-**Option C: Generate source, not assembly**
+// Data array pointing to the above
+// BUT: Can't call alloc() at global scope to build array!
+```
+
+**Problem:** Can't build the data array at global initialization time.
+
+### Simplest Working Solution: Two-Step Compilation
+
+For now, `-c` outputs SOURCE CODE, not assembly:
+
 ```bash
 # Step 1: Generate composed source
 ./out/lang -c lisp reader.lang -o composed_lisp.lang
 
-# Step 2: User compiles the source
-./out/lang composed_lisp.lang -o lang_lisp.ll
+# Step 2: Compile to binary
+LANGBE=llvm ./out/lang composed_lisp.lang -o lang_lisp.ll
 clang lang_lisp.ll -o lang_lisp
 ```
 
-The composed_lisp.lang contains everything needed. User compiles it.
-
-**Option D: Function pointer hook**
+The generated `composed_lisp.lang`:
 ```lang
-// In codegen.lang
-var cg_init_embedded_fn fn() void = nil;
+// Embedded reader source
+var EMBEDDED_LISP_SRC *u8 = "...reader source...";
 
-// In find_reader() or early in main()
-if cg_init_embedded_fn != nil {
-    cg_init_embedded_fn();
-    cg_init_embedded_fn = nil;  // Only call once
+// Override main to init then delegate
+func main(argc i64, argv **u8) i64 {
+    add_embedded_reader("lisp", 4, EMBEDDED_LISP_SRC, strlen(EMBEDDED_LISP_SRC));
+    return compiler_main(argc, argv);
 }
 
-// Generated composed source sets this:
-func my_init() void {
-    add_embedded_reader(...);
-}
-var cg_init_embedded_fn fn() void = &my_init;
+// Include compiler with renamed main
+// (requires refactoring main.lang to export compiler_main)
+include "src/compiler_core.lang"
 ```
 
-Problem: Include order - can't set variable before it's defined.
-
-### Recommended Approach
-
-**Option A (___main hook) seems most viable:**
-
-1. Remove ___main generation from the normal `-c` path in main.lang
-2. The generated composed source provides its own ___main that:
-   - Calls init_environ(envp)
-   - Calls add_embedded_reader() for each embedded reader
-   - Calls main(argc, argv)
-3. Include all compiler sources INCLUDING main.lang (but main.lang doesn't define ___main in this case)
-
-For LLVM backend (which doesn't use ___main):
-- Could add an `__attribute__((constructor))` equivalent
-- Or add init call at very start of main()
+This requires:
+1. Refactoring main.lang to have `compiler_main()` callable
+2. Or using a preprocessor-style approach
 
 ### Next Steps
 
-1. Refactor main.lang's ___main generation to be conditional
-2. Update `-c` mode to:
-   - Read reader source files
-   - Extract reader declarations (just the `reader foo(...) { ... }` part + dependencies)
-   - Generate source with embedded reader strings
-   - Generate custom ___main that initializes them
-   - Include all compiler sources
-   - Compile to output
-3. Test with example/minilisp/lisp.lang
+**Phase 1: Refactor main.lang**
+1. Extract compilation logic from `main()` into `compiler_main(argc, argv)`
+2. Have `main()` just call `compiler_main()`
+3. This allows composed compilers to define their own `main()` that wraps `compiler_main()`
+
+**Phase 2: Update -c mode**
+1. Parse reader source files
+2. Extract reader source (the `reader foo(...) { ... }` + any dependencies before it)
+3. Generate composed source that:
+   - Defines embedded reader source as string literal
+   - Defines `main()` that calls `add_embedded_reader()` then `compiler_main()`
+   - Includes all compiler sources (which now export `compiler_main`)
+4. Either:
+   - Output as `.lang` source for user to compile (simpler)
+   - Or compile directly to assembly (more magical)
+
+**Phase 3: Test**
+1. Test with example/minilisp/lisp.lang
+2. Verify composed compiler can compile .lisp files
 
 ## Questions to Resolve
 
