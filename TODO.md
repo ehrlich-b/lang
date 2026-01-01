@@ -38,32 +38,7 @@ The compiler works. Now it needs cleanup and decisions about what it actually is
 - No architecture reference doc (AST format buried in 1500-line design doc)
 - ABI not explicitly documented or decided
 - Bootstrap still x86-centric despite LLVM being the portable path
-- Reader compilation hardcodes `./out/lang` path
 - "Bring your own runtime" exists in design but not implementation
-
-### Immediate: fork-self for reader compilation
-
-Reader macros currently fork and exec `./out/lang` to compile reader source. The child loads the entire compiler again.
-
-The compiler is already loaded in the parent. Fork, have the child call codegen directly.
-
-**Location:** `src/codegen.lang:compile_reader_to_executable()` (~lines 1048-1247)
-
-**Current flow:**
-```
-1. Write wrapper source to disk
-2. exec("./out/lang", wrapper, "-o", output)
-3. as/ld or clang
-```
-
-**Better flow:**
-```
-1. fork()
-2. child: codegen functions already loaded, emit directly
-3. parent: wait, as/ld or clang
-```
-
-Saves disk I/O and process startup. More importantly, removes the hardcoded `./out/lang` path that breaks Mac bootstrap.
 
 ### Upcoming priorities
 
@@ -102,7 +77,6 @@ See **[designs/abi.md](designs/abi.md)** for deep analysis of:
 
 | Issue | Priority | Notes |
 |-------|----------|-------|
-| Fork-self reader compilation | High | Immediate task, removes ./out/lang hardcode |
 | ARCHITECTURE.md extraction | High | Reference doc from design doc |
 | Composition flow (`-c`) broken | Medium | AST merging produces wrong code |
 | Include deduplication for CLI | Medium | CLI files not deduplicated |
@@ -161,6 +135,10 @@ The `designs/ast_as_language.md` describes this but it's not implemented.
 ---
 
 ## What's done
+
+### Architecture hardening (milestone 7 - in progress)
+- Fork-self reader compilation (removes `./out/lang` hardcode)
+- Fix LLVM `&func` address-of for void functions
 
 ### Cross-platform (milestone 6)
 - OS abstraction layer (`std/os/*.lang`)
