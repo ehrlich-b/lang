@@ -83,8 +83,8 @@ run_one_test() {
     local outll="$tmpdir/test.ll"
     local outbin="$tmpdir/test"
 
-    # Compile to LLVM IR
-    if LANGBE=llvm $COMPILER "$f" -o "$outll" 2>/dev/null; then
+    # Compile to LLVM IR (use per-test cache dir to avoid parallel races)
+    if LANG_CACHE="$tmpdir/.lang-cache" LANGBE=llvm $COMPILER "$f" -o "$outll" 2>/dev/null; then
         # Use clang for tests marked //clang (inline asm), lli for rest
         if head -3 "$f" | grep -q '//clang'; then
             clang -O0 "$outll" -o "$outbin" 2>/dev/null
