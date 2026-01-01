@@ -11,9 +11,13 @@ case "$(uname -s)" in
             export PATH="/usr/local/opt/llvm/bin:$PATH"
         fi
         export LANGOS=${LANGOS:-macos}
+        # Generate OS layer for macOS
+        echo 'include "std/os/libc_macos.lang"' > std/os.lang
         ;;
     *)
         export LANGOS=${LANGOS:-linux}
+        # Generate OS layer for Linux
+        echo 'include "std/os/linux_x86_64.lang"' > std/os.lang
         ;;
 esac
 
