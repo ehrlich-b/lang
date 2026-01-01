@@ -1,12 +1,10 @@
 // expect: 142
 // Struct field access through pointer
+include "std/core.lang"
+
 struct Point {
     x i64;
     y i64;
-}
-
-func alloc(size i64) *u8 {
-    return syscall(9, 0, size, 3, 34, 0-1, 0);
 }
 
 func main() i64 {

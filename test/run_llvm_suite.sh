@@ -43,6 +43,20 @@ for f in test/suite/*.lang; do
         continue
     fi
 
+    # Check for platform-specific markers
+    if head -3 "$f" | grep -q '//linux'; then
+        if [ "$LANGOS" != "linux" ]; then
+            echo "SKIP $name (linux only)"
+            continue
+        fi
+    fi
+    if head -3 "$f" | grep -q '//macos'; then
+        if [ "$LANGOS" != "macos" ]; then
+            echo "SKIP $name (macos only)"
+            continue
+        fi
+    fi
+
     expected=$(head -1 "$f" | grep -o '[0-9]*')
 
     # Compile to LLVM IR, then run

@@ -1,5 +1,6 @@
 // expect: 0
-// Syscall: write to stdout
+//linux
+// Syscall: write to stdout (Linux syscall 1 = write)
 func main() i64 {
     syscall(1, 1, "test\n", 5);
     return 0;

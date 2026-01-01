@@ -1,5 +1,7 @@
-// Expected: 0
+// expect: 0
 // Factorial - tests loops and arithmetic
+include "std/core.lang"
+
 func factorial(n i64) i64 {
     var result i64 = 1;
     var i i64 = 1;
@@ -14,9 +16,9 @@ func main() i64 {
     var x i64 = factorial(5);
     // x should be 120
     if x == 120 {
-        syscall(1, 1, "ok\n", 3);
+        println("ok");
     } else {
-        syscall(1, 1, "fail\n", 5);
+        println("fail");
     }
     return 0;
 }

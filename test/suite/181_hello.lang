@@ -1,6 +1,8 @@
-// Expected: 0
+// expect: 0
 // Hello World - minimal program
+include "std/core.lang"
+
 func main() i64 {
-    syscall(1, 1, "Hello, world!\n", 14);
+    println("Hello, world!");
     return 0;
 }

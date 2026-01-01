@@ -1,0 +1,11 @@
+// expect: 0
+//linux
+// Syscall: getpid (Linux syscall 39)
+// Returns process ID, which is always > 0
+func main() i64 {
+    var pid i64 = syscall(39);
+    if pid > 0 {
+        return 0;
+    }
+    return 1;
+}
