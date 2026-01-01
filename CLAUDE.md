@@ -23,7 +23,7 @@ lang/
 │   ├── codegen.lang      # x86-64 backend
 │   └── codegen_llvm.lang # LLVM IR backend
 ├── std/            # Standard library
-├── test/           # Test programs (165 tests)
+├── test/           # Test programs (167 tests)
 ├── bootstrap/      # Dual-backend bootstrap (x86 + LLVM)
 ├── example/        # Example programs
 ├── designs/        # Design documents
@@ -60,13 +60,13 @@ Both are semantically equivalent and can compile the full compiler.
 
 ## Testing
 
-### Test Suites
+### Test suites
 ```bash
-# x86 backend (43/165 - many tests need stdlib)
+# x86 backend (Linux only)
 ./test/run_lang1_suite.sh
 
-# LLVM backend (165/165 - full feature support)
-COMPILER=./out/lang_next ./test/run_llvm_suite.sh
+# LLVM backend (167/167 - all features, cross-platform)
+./test/run_llvm_suite.sh
 ```
 
 ### Development Workflow
@@ -84,17 +84,14 @@ grep "FAIL" /tmp/suite.txt  # Query cached results
 ## Milestones
 
 1. ✓ Self-hosting compiler (x86 fixed point)
-2. ✓ Self-hosted compiler compiler (reader infrastructure)
-3. ✓ `#parser{}` reader (parser generator as reader macro)
-4. ✓ `#lisp{}` reader with defun (cross-file function interop)
-5. ✓ **LLVM Backend** (165/165 tests, dual-backend bootstrap)
-6. → **1.0: AST as Language** ← current
-   - `std/ast.lang` - AST constructors + `ast_emit()`
-   - S-expression parser in kernel
-   - `lang_reader.lang` - lang syntax as a reader
-   - Syntax fixed point (lang bootstrapped on AST kernel)
-7. → WASM backend (via LLVM or direct)
-8. → Language forge (any syntax → any target)
+2. ✓ Reader macro infrastructure (`#parser{}`, `#lisp{}`)
+3. ✓ Language polish (break/continue, bitwise ops, char literals)
+4. ✓ AST 2.0: closures, algebraic effects, sum types
+5. ✓ Kernel/reader split (lang as a reader, bootstrap verified)
+6. ✓ **Cross-platform + LLVM backend** (167/167 tests, Linux + macOS)
+7. → **Polish and distribution** ← current
+8. → WASM backend (via LLVM or direct)
+9. → Language forge (any syntax → any target)
 
 ## Code Style
 

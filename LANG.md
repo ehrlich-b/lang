@@ -100,6 +100,7 @@ var name Type = expr;    // declaration with initialization
 var x i64 = 42;
 var ptr *i64 = &x;
 var msg *u8 = "hello";
+var c u8 = 'A';          // character literal (value 65)
 ```
 
 ### Control Flow
@@ -127,6 +128,21 @@ if cond1 {
 while condition {
     // body
 }
+
+// Break and continue
+while true {
+    if done { break; }
+    if skip { continue; }
+}
+
+// Labeled loops
+outer: while x < 10 {
+    inner: while y < 10 {
+        if found { break outer; }
+        y = y + 1;
+    }
+    x = x + 1;
+}
 ```
 
 ### Operators
@@ -150,6 +166,17 @@ while condition {
 - `&&` and
 - `||` or
 - `!` not
+
+**Bitwise**:
+- `&` bitwise and
+- `|` bitwise or
+- `^` bitwise xor
+- `<<` left shift
+- `>>` right shift (arithmetic)
+
+**Compound assignment**:
+- `+=` `-=` `*=` `/=` `%=`
+- `&=` `|=` `^=` `<<=` `>>=`
 
 **Pointer**:
 - `&expr` - address of (returns pointer to expr)
@@ -194,15 +221,23 @@ var second u8 = *(s + 1);    // 'e' = 101
 
 ## Syscall
 
-Direct Linux system call interface:
+Direct system call interface. Syscall numbers are platform-specific (Linux x86-64 vs macOS ARM64).
 
 ```lang
 syscall(number, arg1, arg2, arg3, arg4, arg5, arg6);
 ```
 
-Returns syscall result in `rax`.
+**For cross-platform code**, use the OS layer instead (`std/core.lang` includes it):
 
-**Common syscalls:**
+```lang
+os_write(fd, buf, count);
+os_read(fd, buf, count);
+os_open(path, flags, mode);
+os_close(fd);
+os_exit(code);
+```
+
+**Linux x86-64 syscall numbers** (for reference):
 | Number | Name  | Args                             |
 |--------|-------|----------------------------------|
 | 0      | read  | fd, buf, count                   |
@@ -211,15 +246,6 @@ Returns syscall result in `rax`.
 | 3      | close | fd                               |
 | 9      | mmap  | addr, len, prot, flags, fd, off  |
 | 60     | exit  | status                           |
-
-**Example:**
-```lang
-// write(1, "hi\n", 3)
-syscall(1, 1, "hi\n", 3);
-
-// exit(0)
-syscall(60, 0);
-```
 
 ## Standard Library (std/core.lang)
 
@@ -379,36 +405,37 @@ func main() i64 {
 ./out/lang --expand-macros file.lang -o out.s  # shows expansions
 ```
 
-## Reader Macros
+## Reader macros
 
 Custom syntax extensions via `#name{content}`:
 
 ```lang
-// Define a reader (V1: limited interpreter, V2: full lang power)
+// Define a reader
 reader lisp(text *u8) *u8 {
-    // Parse text, return lang source code
-    // ...
+    // Parse text, return lang source code as string
+    // Full lang power: stdlib, loops, effects, etc.
 }
 
 // Use it
 var x i64 = #lisp{(+ 1 2)};  // Reader transforms to lang expression
 ```
 
-**V1 (current)**: Readers run in a toy interpreter with limited builtins.
-**V2 (in progress)**: Readers compile to native executables with full lang power.
+Readers compile to native executables at compile time. The reader runs, reads your custom syntax, emits lang AST (as S-expressions), and the compiler continues.
 
-See [designs/reader_v2_design.md](./designs/reader_v2_design.md) for the V2 design.
+Built-in readers:
+- `#parser{}` - parser generator (grammar DSL to parser code)
+- `#lisp{}` - Lisp syntax with defun/if/let
 
-## What's NOT Implemented Yet
+See [designs/reader_v2_design.md](./designs/reader_v2_design.md) for the design.
+
+## What's not implemented yet
 
 - Arrays (use pointer arithmetic instead)
 - Struct literals (`Point{x: 1, y: 2}`)
 - Passing/returning structs by value
-- For loops
-- Break/continue
-- Switch/case
+- For loops (use while)
+- Switch/case (use if/else)
 - Floating point types
-- Comments in middle of expressions
 
 ## Common Patterns
 

@@ -11,109 +11,107 @@ A self-hosted compiler where syntax is a plugin.
 ┌─────────────────────────────────────────────────────────────────┐
 │                              AST                                │
 └─────────────────────────────────────────────────────────────────┘
-         │
-         │ kernel
-         ▼
+                                 │
+                                 │ kernel
+                                 ▼
 ┌───────────────────────────┬─────────────────────────────────────┐
-│          x86-64           │              LLVM IR                │
+│     x86-64 (Linux)        │     LLVM IR (Linux, macOS, ...)     │
 └───────────────────────────┴─────────────────────────────────────┘
+                                 │
+                                 ▼
+                            native exe
 ```
 
 The compiler has two parts: a kernel (AST to native code) and readers (syntax to AST). The lang reader - the one that parses `func`, `if`, `while` - is just one reader. You can swap it for anything.
 
-**Dual backends**: The kernel emits either x86-64 assembly (Linux, no libc) or LLVM IR (cross-platform via clang).
+**Cross-platform**: Linux x86-64 (direct assembly, no libc) and macOS ARM64 (via LLVM). 167 tests pass on both.
 
-## Layer 1: It's a language
+## It's a language
 
 ```lang
-func main() void {
-    print("Hello, world!\n");
+func factorial(n i64) i64 {
+    if n < 2 { return 1; }
+    return n * factorial(n - 1);
 }
-```
 
-```bash
-# x86-64 (direct assembly)
-./out/lang hello.lang -o hello.s
-as hello.s -o hello.o && ld hello.o -o hello
-
-# LLVM (via clang)
-LANGBE=llvm ./out/lang hello.lang -o hello.ll
-clang hello.ll -o hello
+func main() void {
+    print_int(factorial(10));
+}
 ```
 
 Functions, structs, pointers, algebraic effects. See [LANG.md](./LANG.md).
 
-## Layer 2: It outputs compilers
+## It outputs compilers
 
-The kernel composes itself with any reader to produce a standalone compiler:
-
-```bash
-./out/kernel -c lisp_reader.ast -o lisp_compiler.s
-# Native Lisp-to-x86 compiler
-```
-
-Define a reader for SQL, or a DSL, or Brainfuck. The kernel doesn't care what the surface syntax looks like.
-
-## Layer 3: It compiles itself
-
-The lang reader is written in lang. The kernel is written in lang. The whole compiler is written in the language it compiles.
+The `-c` flag composes the kernel with a reader to produce a standalone compiler:
 
 ```bash
-# Compose kernel with lang reader (from AST)
-./out/kernel -c lang_reader.ast --kernel-ast kernel.ast -o lang_composed.s
-
-# Use that compiler to compile its own reader from source
-./out/lang_composed -c lang_reader.lang --kernel-ast kernel.ast -o lang_bootstrap.s
-
-# Identical output
-diff lang_composed.s lang_bootstrap.s
+./out/lang -c lisp_reader.lang -o lang_lisp
 ```
 
-The composed compiler parses `lang_reader.lang` using its built-in lang reader, then composes a new compiler from that. Same output. Fixed point.
+Now `lang_lisp` is a native compiler that understands both `.lang` and `.lisp` files:
 
-Lang source becomes AST becomes native code becomes a compiler that reads lang source. The whole thing rests on `mmap`, `read`, `write`, and `exit`. Four syscalls. No libc.
+```bash
+./lang_lisp main.lang mathlib.lisp -o program
+```
 
-## The semantic model
+Same AST means same calling convention. Functions call each other directly at the machine level, no wrappers or runtime glue.
 
-Lang separates syntax from semantics. Any reader can define any surface syntax - Lisp, Python-like, your own DSL. But the AST compiles to C-like semantics: manual memory, standard call stacks, direct machine code.
+## Mix syntaxes, compile to native
 
-The kernel is ~5000 lines because it doesn't try to be a runtime. No GC, no scheduler, no bytecode interpreter. Just AST to machine code.
+Define a function in Lisp:
 
-This works for systems languages, config DSLs, data transforms, anything with manual memory or arenas or refcounting. Algebraic effects (exceptions, generators, async) compile to continuation-passing style with stack switching.
+```lang
+include "example/lisp/lisp.lang"
 
-Languages needing garbage collection or green threads need runtime support the kernel doesn't provide. The LLVM backend enables linking against libgc for conservative collection, or using `gc.statepoint` for precise GC. But the kernel itself stays simple.
+#lisp{ (defun factorial (n) (if (< n 2) 1 (* n (factorial (- n 1))))) }
 
-Any syntax, C-like semantics. If your language fits that model, lang compiles it.
+func main() i64 {
+    return factorial(10);  // 3628800
+}
+```
+
+Both syntaxes compile to the same AST, then to machine code. No interpreter. The Lisp `factorial` is a normal function - call it from lang, pass it as a pointer, whatever.
+
+This works for any reader. The kernel doesn't care what the surface syntax looks like. See [example/minilisp/](./example/minilisp/) - the Lisp reader is about 230 lines.
+
+Readers are also emitted as regular functions, so you can call them at runtime for JIT compilation or REPLs.
+
+## It compiles itself
+
+The lang reader is written in lang. The kernel is written in lang. The compiler compiles itself from source, producing identical output. Fixed point.
+
+```bash
+make bootstrap    # Verify fixed point, run tests, promote stable compiler
+```
 
 ## Building
 
 ```bash
-make bootstrap    # First time: assemble from preserved .s
-make build        # Compile from source
-make verify       # Check fixed point + run tests
-make promote      # Update stable compiler
+make build        # Compile from source → out/lang_next
+make run FILE=... # Compile and run a program
 ```
 
 ### LLVM backend
 
 ```bash
-LANGBE=llvm ./out/lang_next src.lang -o out.ll  # Generate LLVM IR
-clang -O2 out.ll -o binary                       # Compile with clang
+LANGBE=llvm ./out/lang hello.lang -o hello.ll
+clang -O2 hello.ll -o hello
 ```
 
-The LLVM backend passes all 165 tests and enables cross-platform compilation and optimization.
+The LLVM backend handles everything the x86 backend does: closures, algebraic effects, reader macros. On macOS, set `LANGOS=macos`.
 
-## Dual-Backend Bootstrap
+### Dual-backend bootstrap
 
-The compiler can bootstrap from either backend:
+The compiler bootstraps from preserved assembly or LLVM IR:
 
 ```
 bootstrap/current/
-├── x86/compiler.s    # x86-64 assembly (1.5M)
-└── llvm/compiler.ll  # LLVM IR (1.9M)
+├── x86/compiler.s       # x86-64 assembly (Linux)
+└── llvm/compiler.ll     # LLVM IR (cross-platform)
 ```
 
-Both are semantically equivalent. The x86 version runs directly on Linux. The LLVM version works anywhere clang does.
+On Linux, `make bootstrap` uses x86 assembly. On macOS, `make llvm-verify` uses the LLVM bootstrap. Both produce compilers that pass 167 tests and rebuild themselves.
 
 ## Docs
 
