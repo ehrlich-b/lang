@@ -284,6 +284,7 @@ func sexpr_op_to_token(op *u8) i64 {
     if streq(op, "&&") { return TOKEN_AMPAMP; }
     if streq(op, "||") { return TOKEN_PIPEPIPE; }
     if streq(op, "!") { return TOKEN_BANG; }
+    if streq(op, "=") { return TOKEN_EQ; }
     // Unknown operator
     return 0;
 }
@@ -507,6 +508,33 @@ func sexpr_to_node(node *PNode) *u8 {
         }
         struct_decl_set_fields(n, fields);
         struct_decl_set_field_count(n, field_count);
+        return n;
+    }
+
+    // (macro name (params...) body)
+    if streq(head, "macro") {
+        var n *u8 = macro_decl_alloc();
+        var name_node *PNode = sexpr_get(node, 1);
+        macro_decl_set_name(n, sexpr_strdup(name_node.text));
+        macro_decl_set_name_len(n, strlen(name_node.text));
+
+        // Parse params (just identifiers, no types)
+        var params_list *PNode = sexpr_get(node, 2);
+        var params_inner *PNode = sexpr_inner(params_list);
+        var param_count i64 = vec_len(params_inner.children);
+        var params *u8 = alloc(param_count * 24);
+        var i i64 = 0;
+        while i < param_count {
+            var pname *PNode = vec_get(params_inner.children, i);
+            var p *u8 = params + (i * 24);
+            param_set_name(p, sexpr_strdup(pname.text));
+            param_set_name_len(p, strlen(pname.text));
+            param_set_type(p, nil);
+            i = i + 1;
+        }
+        macro_decl_set_params(n, params);
+        macro_decl_set_param_count(n, param_count);
+        macro_decl_set_body(n, sexpr_to_node(sexpr_get(node, 3)));
         return n;
     }
 
@@ -830,6 +858,31 @@ func sexpr_to_node(node *PNode) *u8 {
         return n;
     }
 
+    // (quote expr) - macro quote expression
+    if streq(head, "quote") {
+        var n *u8 = quote_expr_alloc();
+        quote_expr_set_expr(n, sexpr_to_node(sexpr_get(node, 1)));
+        return n;
+    }
+
+    // (unquote name) - macro unquote (splice AST)
+    if streq(head, "unquote") {
+        var n *u8 = unquote_expr_alloc();
+        var name_node *PNode = sexpr_get(node, 1);
+        unquote_expr_set_name(n, sexpr_strdup(name_node.text));
+        unquote_expr_set_name_len(n, strlen(name_node.text));
+        return n;
+    }
+
+    // (unquote_string name) - macro unquote as string literal
+    if streq(head, "unquote_string") {
+        var n *u8 = unquote_string_expr_alloc();
+        var name_node *PNode = sexpr_get(node, 1);
+        unquote_string_expr_set_name(n, sexpr_strdup(name_node.text));
+        unquote_string_expr_set_name_len(n, strlen(name_node.text));
+        return n;
+    }
+
     // (let name type? init body)
     if streq(head, "let") {
         var n *u8 = let_expr_alloc();
@@ -960,9 +1013,15 @@ func sexpr_to_node(node *PNode) *u8 {
 
             var ek *PNode = sexpr_get(eh, 3);
             var kp **u8 = c + 32;
-            *kp = sexpr_strdup(ek.text);
-            var kl *i64 = c + 40;
-            *kl = strlen(ek.text);
+            if streq(ek.text, "_") {
+                *kp = nil;
+                var kl *i64 = c + 40;
+                *kl = 0;
+            } else {
+                *kp = sexpr_strdup(ek.text);
+                var kl *i64 = c + 40;
+                *kl = strlen(ek.text);
+            }
 
             var bodyp **u8 = c + 48;
             *bodyp = sexpr_to_node(sexpr_get(eh, 4));

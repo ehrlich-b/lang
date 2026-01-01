@@ -751,7 +751,12 @@ func ast_emit_node(node *u8) void {
                 ast_emit_str("_");
             }
             ast_emit_str(" ");
-            ast_emit_strn(effect_case_k(h), effect_case_k_len(h));
+            var k_len i64 = effect_case_k_len(h);
+            if k_len > 0 {
+                ast_emit_strn(effect_case_k(h), k_len);
+            } else {
+                ast_emit_str("_");
+            }
             ast_emit_str(" ");
             ast_emit_node(effect_case_body(h));
             ast_emit_str(")");
