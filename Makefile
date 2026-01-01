@@ -184,21 +184,42 @@ bootstrap: generate-os-layer
 	@echo "Built: compiler_macos.ll"
 	@# Restore OS layer
 	@echo 'include "$(BOOTSTRAP_LIBC)"' > std/os.lang
-	@# Archive current bootstrap to GitHub release
+	@# Archive current bootstrap to GitHub release + local cache
 	@OLD_COMMIT=$$(cat bootstrap/current/COMMIT 2>/dev/null || echo ""); \
 	if [ -n "$$OLD_COMMIT" ] && [ "$$OLD_COMMIT" != "$(GIT_COMMIT)" ]; then \
-		echo "Archiving old bootstrap $$OLD_COMMIT to GitHub release..."; \
+		echo "Archiving old bootstrap $$OLD_COMMIT..."; \
 		tar -czf /tmp/bootstrap-$$OLD_COMMIT.tar.gz -C bootstrap current/; \
 		if gh release view bootstrap-$$OLD_COMMIT >/dev/null 2>&1; then \
-			echo "  Release already exists"; \
+			echo "  GitHub release already exists"; \
 		else \
 			gh release create bootstrap-$$OLD_COMMIT /tmp/bootstrap-$$OLD_COMMIT.tar.gz \
 				--title "Bootstrap $$OLD_COMMIT" \
 				--notes "Bootstrap from commit $$OLD_COMMIT" \
-				--latest=false; \
-			echo "  Created release bootstrap-$$OLD_COMMIT"; \
+				--latest=false && echo "  Created GitHub release bootstrap-$$OLD_COMMIT"; \
 		fi; \
 		rm -f /tmp/bootstrap-$$OLD_COMMIT.tar.gz; \
+		echo "  Saving to local archive..."; \
+		mkdir -p bootstrap/archive/$$OLD_COMMIT; \
+		cp -r bootstrap/current/* bootstrap/archive/$$OLD_COMMIT/; \
+		echo "  Saved bootstrap/archive/$$OLD_COMMIT/"; \
+		echo "  Managing local archive (10 folders, 10 tarballs)..."; \
+		cd bootstrap/archive && \
+		FOLDERS=$$(ls -dt */ 2>/dev/null | head -20 | sed 's|/||'); \
+		KEEP_LIVE=$$(echo "$$FOLDERS" | head -10); \
+		COMPRESS=$$(echo "$$FOLDERS" | tail -n +11 | head -10); \
+		DELETE=$$(echo "$$FOLDERS" | tail -n +21); \
+		for f in $$COMPRESS; do \
+			if [ -d "$$f" ] && [ ! -f "$$f.tar.gz" ]; then \
+				tar -czf "$$f.tar.gz" "$$f" && rm -rf "$$f" && echo "    Compressed $$f"; \
+			fi; \
+		done; \
+		for f in $$DELETE; do \
+			rm -rf "$$f" "$$f.tar.gz" 2>/dev/null && echo "    Deleted $$f (still in GitHub)"; \
+		done; \
+		OLD_TARBALLS=$$(ls -t *.tar.gz 2>/dev/null | tail -n +11); \
+		for t in $$OLD_TARBALLS; do \
+			rm -f "$$t" && echo "    Deleted $$t (still in GitHub)"; \
+		done; \
 	fi
 	@# Update bootstrap/current/ with new bootstrap
 	@mkdir -p bootstrap/current/lang_reader
@@ -243,12 +264,30 @@ bootstrap: generate-os-layer
 bootstrap-local: generate-os-layer
 	@echo "Running bootstrap with local archive (no GitHub release)..."
 	@$(MAKE) bootstrap-verify
-	@mkdir -p bootstrap/archive
+	@# Archive to local cache (same logic as main bootstrap, minus GitHub)
 	@OLD_COMMIT=$$(cat bootstrap/current/COMMIT 2>/dev/null || echo ""); \
 	if [ -n "$$OLD_COMMIT" ] && [ "$$OLD_COMMIT" != "$(GIT_COMMIT)" ]; then \
 		echo "Archiving old bootstrap $$OLD_COMMIT locally..."; \
-		tar -czf bootstrap/archive/bootstrap-$$OLD_COMMIT.tar.gz -C bootstrap current/; \
-		echo "  Saved to bootstrap/archive/bootstrap-$$OLD_COMMIT.tar.gz"; \
+		mkdir -p bootstrap/archive/$$OLD_COMMIT; \
+		cp -r bootstrap/current/* bootstrap/archive/$$OLD_COMMIT/; \
+		echo "  Saved bootstrap/archive/$$OLD_COMMIT/"; \
+		echo "  Managing local archive (10 folders, 10 tarballs)..."; \
+		cd bootstrap/archive && \
+		FOLDERS=$$(ls -dt */ 2>/dev/null | head -20 | sed 's|/||'); \
+		COMPRESS=$$(echo "$$FOLDERS" | tail -n +11 | head -10); \
+		DELETE=$$(echo "$$FOLDERS" | tail -n +21); \
+		for f in $$COMPRESS; do \
+			if [ -d "$$f" ] && [ ! -f "$$f.tar.gz" ]; then \
+				tar -czf "$$f.tar.gz" "$$f" && rm -rf "$$f" && echo "    Compressed $$f"; \
+			fi; \
+		done; \
+		for f in $$DELETE; do \
+			rm -rf "$$f" "$$f.tar.gz" 2>/dev/null && echo "    Deleted $$f"; \
+		done; \
+		OLD_TARBALLS=$$(ls -t *.tar.gz 2>/dev/null | tail -n +11); \
+		for t in $$OLD_TARBALLS; do \
+			rm -f "$$t" && echo "    Deleted $$t"; \
+		done; \
 	fi
 	@# Update bootstrap/current/
 	@mkdir -p bootstrap/current/lang_reader
