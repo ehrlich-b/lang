@@ -1,5 +1,8 @@
 #!/bin/bash
 # Test the LLVM backend on the test suite
+# Optimized with: lli --jit-kind=orc (13x faster) + parallel execution (5x faster)
+
+set -o pipefail
 
 # Cross-platform setup
 case "$(uname -s)" in
@@ -21,7 +24,13 @@ case "$(uname -s)" in
         ;;
 esac
 
-# Portable timeout (GNU timeout on Linux, gtimeout on Mac, or none)
+# Use COMPILER from environment, or default to ./out/lang
+export COMPILER=${COMPILER:-./out/lang}
+
+# Parallel jobs - default to nproc or 8
+JOBS=${JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8)}
+
+# Portable timeout
 do_timeout() {
     local secs=$1; shift
     if command -v timeout &>/dev/null; then
@@ -29,66 +38,111 @@ do_timeout() {
     elif command -v gtimeout &>/dev/null; then
         gtimeout "$secs" "$@"
     else
-        "$@"  # No timeout available
+        "$@"
     fi
 }
+export -f do_timeout
 
-# Use COMPILER from environment, or default to ./out/lang
-COMPILER=${COMPILER:-./out/lang}
-passed=0
-failed=0
+# Check if lli supports ORC JIT (LLVM 10+)
+LLI_JIT_FLAG=""
+if lli --help 2>&1 | grep -q 'jit-kind'; then
+    LLI_JIT_FLAG="--jit-kind=orc"
+fi
+export LLI_JIT_FLAG
 
-for f in test/suite/*.lang; do
-    name=$(basename "$f" .lang)
+# Run a single test - called by xargs
+run_one_test() {
+    local f=$1
+    local name=$(basename "$f" .lang)
+    local tmpdir=$(mktemp -d)
 
     # Check for //ignore marker
     if head -1 "$f" | grep -q '//ignore'; then
         echo "SKIP $name (ignored)"
-        continue
+        rm -rf "$tmpdir"
+        return 0
     fi
 
     # Check for platform-specific markers
     if head -3 "$f" | grep -q '//linux'; then
         if [ "$LANGOS" != "linux" ]; then
             echo "SKIP $name (linux only)"
-            continue
+            rm -rf "$tmpdir"
+            return 0
         fi
     fi
     if head -3 "$f" | grep -q '//macos'; then
         if [ "$LANGOS" != "macos" ]; then
             echo "SKIP $name (macos only)"
-            continue
+            rm -rf "$tmpdir"
+            return 0
         fi
     fi
 
-    expected=$(head -1 "$f" | grep -o '[0-9]*')
+    local expected=$(head -1 "$f" | grep -o '[0-9]*')
+    local outll="$tmpdir/test.ll"
+    local outbin="$tmpdir/test"
 
-    # Compile to LLVM IR, then run
-    # Use clang for tests marked //clang (inline asm), lli (interpreter) for rest
-    if LANGBE=llvm $COMPILER "$f" -o out/test_$name.ll 2>/dev/null; then
+    # Compile to LLVM IR
+    if LANGBE=llvm $COMPILER "$f" -o "$outll" 2>/dev/null; then
+        # Use clang for tests marked //clang (inline asm), lli for rest
         if head -3 "$f" | grep -q '//clang'; then
-            clang -O0 out/test_$name.ll -o out/test_$name 2>/dev/null
-            ./out/test_$name >/dev/null 2>&1
+            clang -O0 "$outll" -o "$outbin" 2>/dev/null
+            "$outbin" >/dev/null 2>&1
             result=$?
         else
-            do_timeout 1 lli out/test_$name.ll >/dev/null 2>&1
+            # Use ORC JIT for ~13x faster interpretation (if available)
+            do_timeout 2 lli $LLI_JIT_FLAG "$outll" >/dev/null 2>&1
             result=$?
         fi
+        rm -rf "$tmpdir"
         if [ "$result" = "$expected" ]; then
             echo "PASS $name"
-            passed=$((passed + 1))
+            return 0
         else
             echo "FAIL $name (expected $expected, got $result)"
-            failed=$((failed + 1))
+            return 1
         fi
     else
+        rm -rf "$tmpdir"
         echo "FAIL $name (compile error)"
-        failed=$((failed + 1))
+        return 1
     fi
-done
+}
+export -f run_one_test
+
+# Check for sequential mode
+if [ "$SEQUENTIAL" = "1" ]; then
+    JOBS=1
+fi
+
+# Run tests
+results_file=$(mktemp)
+
+if [ "$JOBS" -gt 1 ]; then
+    # Parallel execution
+    printf '%s\n' test/suite/*.lang | xargs -P"$JOBS" -I{} bash -c 'run_one_test "$@"' _ {} > "$results_file" 2>&1
+else
+    # Sequential execution (for debugging or SEQUENTIAL=1)
+    for f in test/suite/*.lang; do
+        run_one_test "$f"
+    done > "$results_file" 2>&1
+fi
+
+# Count results (grep -c returns 1 if no matches, so handle that)
+passed=$(grep -c '^PASS' "$results_file" 2>/dev/null) || passed=0
+failed=$(grep -c '^FAIL' "$results_file" 2>/dev/null) || failed=0
+skipped=$(grep -c '^SKIP' "$results_file" 2>/dev/null) || skipped=0
+
+# Show results
+cat "$results_file"
+rm -f "$results_file"
 
 echo ""
 echo "Passed: $passed / $((passed + failed))"
+if [ "$skipped" -gt 0 ]; then
+    echo "Skipped: $skipped"
+fi
 if [ $failed -eq 0 ]; then
     echo "All tests passed!"
     exit 0

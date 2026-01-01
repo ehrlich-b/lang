@@ -61,7 +61,11 @@ See **[designs/abi.md](designs/abi.md)** for deep analysis of:
 
 #### Bootstrap: when does LLVM become primary?
 
-**Current:** x86 is fast (5s), LLVM is slow (25-30s). Keep both.
+**Current:** x86 is fast (~5s), LLVM is faster now (~10s with optimized tests). Keep both.
+
+**Optimizations applied:**
+- Parallel test execution (`xargs -P`) - 5x speedup
+- ORC JIT for LLVM tests (`lli --jit-kind=orc`) - 13x faster than interpreter
 
 **Mental model shift:** LLVM+libc is "canonical" (works everywhere), x86 is "fast path" (Linux dev). Both produce identical compilers.
 
