@@ -8,26 +8,44 @@ Bootstrap the lang compiler on Mac ARM64. Delete after successful setup.
 # 1. Compile the libc-based bootstrap (macOS version)
 clang bootstrap/llvm_libc_macos.ll -o lang
 
-# 2. Verify it works
-./lang test/suite/002_return_42.lang -o test.s
-echo "Wrote test.s: OK"
+# 2. Full verification (builds gen1 -> gen2, checks fixed point, runs 167 tests)
+make llvm-verify
+```
 
-# 3. Test LLVM backend (produces runnable Mac binary)
-LANGBE=llvm ./lang std/core.lang test/suite/002_return_42.lang -o test.ll
+That's it. `make llvm-verify` handles all the workarounds automatically.
+
+## Making Changes on Mac
+
+The `make llvm-verify` target allows you to develop on Mac:
+
+```bash
+# 1. Edit compiler source files
+vim src/codegen.lang
+
+# 2. Verify your changes work
+make llvm-verify
+
+# 3. If it passes, commit and push
+git add -A && git commit -m "Your change"
+git push
+```
+
+The verification process:
+1. Builds gen1 compiler from bootstrap using LLVM
+2. Builds gen2 compiler from gen1 using LLVM
+3. Checks LLVM IR fixed point (gen1.ll === gen2.ll)
+4. Runs full test suite (167 tests)
+
+**Note**: This doesn't update the x86 bootstrap. Run `make bootstrap` on x86 Linux to promote verified changes.
+
+## Manual Testing (if needed)
+
+```bash
+# Test LLVM backend manually
+echo 'include "std/os/libc_macos.lang"' > std/os.lang
+LANGBE=llvm LANGOS=macos ./lang std/core.lang test/suite/002_return_42.lang -o test.ll
 clang test.ll -o test
 ./test; echo "Exit: $?"
-# Expected: Exit: 42
-
-# 4. Full self-host
-LANGBE=llvm ./lang std/core.lang src/lexer.lang src/parser.lang \
-    src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang \
-    src/sexpr_reader.lang src/main.lang -o compiler.ll
-clang compiler.ll -o lang_v2
-
-# 5. Verify self-hosted compiler
-LANGBE=llvm ./lang_v2 std/core.lang test/suite/002_return_42.lang -o test2.ll
-clang test2.ll -o test2
-./test2; echo "Exit: $?"
 # Expected: Exit: 42
 ```
 
@@ -39,29 +57,7 @@ clang test2.ll -o test2
 - Uses `getenv()` from our stdlib (reads from envp passed to main)
 - Portable across Linux/Mac since libc abstracts OS differences
 
-## Expected Behavior
-
-| Command | Result |
-|---------|--------|
-| `./lang file.lang -o out.s` | Writes x86-64 assembly (won't run on Mac) |
-| `LANGBE=llvm ./lang file.lang -o out.ll` | Writes LLVM IR (compile with clang) |
-
-The x86 backend outputs Linux x86-64 assembly. Use `LANGBE=llvm` for Mac-runnable binaries.
-
-## Test Suite
-
-```bash
-# Workaround 1: switch OS layer before running tests
-echo 'include "std/os/libc_macos.lang"' > std/os.lang
-
-# Workaround 2: reader compilation hardcodes ./out/lang path
-mkdir -p out && cp ./lang ./out/lang
-
-# Run LLVM test suite
-COMPILER=./lang ./test/run_llvm_suite.sh
-```
-
-**Current status (2026-01-01)**: **167/167 tests passing** with workarounds applied.
+**Current status (2026-01-01)**: **167/167 tests passing** with `make llvm-verify`.
 
 ---
 

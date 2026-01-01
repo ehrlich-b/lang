@@ -1,6 +1,6 @@
 .PHONY: all init bootstrap build release test test-suite test-run clean distclean \
         build-kernel build-lang-reader emit-kernel-ast emit-lang-reader-ast emit-compiler-ast \
-        seed-bootstrap test-composition generate-os-layer
+        seed-bootstrap test-composition generate-os-layer llvm-verify
 
 # Get git info
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -226,6 +226,77 @@ bootstrap: generate-os-layer
 	@echo "YOU MUST COMMIT YOUR CHANGES NOW"
 	@echo "  git add -A && git commit -m 'your message'"
 	@echo "========================================"
+
+# ============================================================
+# LLVM-VERIFY: Mac-only verification without x86 bootstrap
+# ============================================================
+# Use this on Mac to verify compiler changes work:
+#   1. Builds gen1 compiler using LLVM backend
+#   2. Builds gen2 compiler using gen1
+#   3. Checks LLVM IR fixed point (gen1.ll === gen2.ll)
+#   4. Runs full test suite
+#
+# Requires: ./lang (bootstrap from llvm_libc_macos.ll)
+# Usage: make llvm-verify
+llvm-verify:
+	@echo "╔════════════════════════════════════════════════════════════════╗"
+	@echo "║           LLVM-VERIFY: Mac Bootstrap Verification              ║"
+	@echo "╚════════════════════════════════════════════════════════════════╝"
+	@echo ""
+	@if [ ! -f ./lang ]; then \
+		echo "ERROR: ./lang not found. Run: clang bootstrap/llvm_libc_macos.ll -o lang"; \
+		exit 1; \
+	fi
+	@mkdir -p out /tmp/llvm_verify
+	@# Set up macOS OS layer
+	@echo 'include "std/os/libc_macos.lang"' > std/os.lang
+	@echo ""
+	@echo "┌────────────────────────────────────────────────────────────────┐"
+	@echo "│ STAGE 1: Build gen1 compiler (bootstrap -> gen1)               │"
+	@echo "└────────────────────────────────────────────────────────────────┘"
+	LANGBE=llvm LANGOS=macos ./lang std/core.lang src/lexer.lang src/parser.lang \
+		src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang \
+		src/sexpr_reader.lang src/main.lang -o /tmp/llvm_verify/gen1.ll
+	clang /tmp/llvm_verify/gen1.ll -o /tmp/llvm_verify/gen1
+	@echo "Built: gen1"
+	@# Copy to out/lang for reader compilation
+	cp /tmp/llvm_verify/gen1 out/lang
+	@echo ""
+	@echo "┌────────────────────────────────────────────────────────────────┐"
+	@echo "│ STAGE 2: Build gen2 compiler (gen1 -> gen2)                    │"
+	@echo "└────────────────────────────────────────────────────────────────┘"
+	LANGBE=llvm LANGOS=macos /tmp/llvm_verify/gen1 std/core.lang src/lexer.lang src/parser.lang \
+		src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang \
+		src/sexpr_reader.lang src/main.lang -o /tmp/llvm_verify/gen2.ll
+	@echo ""
+	@echo "Checking LLVM IR FIXED POINT (gen1.ll === gen2.ll)..."
+	@if diff -q /tmp/llvm_verify/gen1.ll /tmp/llvm_verify/gen2.ll > /dev/null; then \
+		echo "✓ LLVM FIXED POINT VERIFIED"; \
+	else \
+		echo ""; \
+		echo "!!! LLVM FIXED POINT FAILED !!!"; \
+		echo "gen1.ll and gen2.ll differ:"; \
+		diff /tmp/llvm_verify/gen1.ll /tmp/llvm_verify/gen2.ll | head -30; \
+		exit 1; \
+	fi
+	clang /tmp/llvm_verify/gen2.ll -o /tmp/llvm_verify/gen2
+	@echo "Built: gen2"
+	@echo ""
+	@echo "┌────────────────────────────────────────────────────────────────┐"
+	@echo "│ STAGE 3: Run test suite                                        │"
+	@echo "└────────────────────────────────────────────────────────────────┘"
+	@# Ensure out/lang points to verified gen2
+	cp /tmp/llvm_verify/gen2 out/lang
+	COMPILER=/tmp/llvm_verify/gen2 ./test/run_llvm_suite.sh
+	@echo ""
+	@echo "╔════════════════════════════════════════════════════════════════╗"
+	@echo "║              LLVM-VERIFY COMPLETE                              ║"
+	@echo "╠════════════════════════════════════════════════════════════════╣"
+	@echo "║ ✓ LLVM fixed point verified (gen1.ll === gen2.ll)              ║"
+	@echo "║ ✓ Test suite passed                                            ║"
+	@echo "║                                                                ║"
+	@echo "║ Verified compiler: out/lang                                    ║"
+	@echo "╚════════════════════════════════════════════════════════════════╝"
 
 # Release: run bootstrap + git tag
 release:
