@@ -99,3 +99,98 @@ macOS uses different flag values:
    Then std/core.lang uses `MMAP_FLAGS_ANON` instead of hardcoded 34.
 
 2. **Use libc malloc entirely** - when using libc layer, don't implement our own bump allocator. Just use libc's malloc/free everywhere.
+
+---
+
+## Deep Dive: All Platform-Specific Code (2024-12-31)
+
+### Issue 1: mmap flags in std/core.lang (BLOCKING)
+```lang
+// std/core.lang:18
+heap_pos = os_mmap(nil, SIZE_HEAP, 3, 34, 0-1, 0);
+//                                    ^^-- Linux only
+```
+- Linux: MAP_PRIVATE|MAP_ANONYMOUS = 34
+- macOS: MAP_PRIVATE|MAP_ANON = 4098
+
+### Issue 2: File open flags (will break file writing)
+```lang
+// Multiple places use 577 for O_WRONLY|O_CREAT|O_TRUNC
+file_open(output_file, 577);
+```
+- Linux: O_CREAT=64, O_TRUNC=512 → 577
+- macOS: O_CREAT=512, O_TRUNC=1024 → 1537
+
+**Affected files:**
+- src/main.lang:382, 399
+- src/codegen_llvm.lang:29
+- src/codegen.lang:1164, 5831
+- src/reader_main.lang:126
+
+### Issue 3: Direct syscalls in codegen.lang (reader execution)
+The reader macro system uses raw Linux syscalls:
+```lang
+// codegen.lang - reader subprocess execution
+syscall(57);           // fork
+syscall(59, ...);      // execve
+syscall(61, ...);      // wait4
+syscall(22, ...);      // pipe
+syscall(33, ...);      // dup2
+syscall(2, path, 577, 420);  // open
+syscall(0, fd, ...);   // read
+syscall(1, fd, ...);   // write
+syscall(3, fd);        // close
+```
+
+These are **not abstracted** through the OS layer. The libc layer would need:
+```lang
+extern func fork() i64;
+extern func execve(path *u8, argv **u8, envp **u8) i64;
+extern func waitpid(pid i64, status *i64, options i64) i64;
+extern func pipe(pipefd *i64) i64;
+extern func dup2(oldfd i64, newfd i64) i64;
+```
+
+### Issue 4: codegen.lang:5831 bypasses OS layer
+```lang
+cg_out_fd = syscall(2, out_path, 577, 420);
+```
+Direct syscall instead of using `file_open()`.
+
+### Summary Table
+
+| Issue | Location | Linux Value | macOS Value | Severity |
+|-------|----------|-------------|-------------|----------|
+| mmap flags | std/core.lang:18 | 34 | 4098 | BLOCKING |
+| open flags | multiple | 577 | 1537 | BLOCKING |
+| fork syscall | codegen.lang | 57 | N/A (use libc) | Reader macros break |
+| execve syscall | codegen.lang | 59 | N/A | Reader macros break |
+| wait4 syscall | codegen.lang | 61 | N/A | Reader macros break |
+| pipe syscall | codegen.lang | 22 | N/A | Reader macros break |
+| dup2 syscall | codegen.lang | 33 | N/A | Reader macros break |
+
+### Recommended Fix Strategy
+
+1. **Define constants in OS layer**:
+   ```lang
+   // std/os/libc.lang
+   var OPEN_FLAGS_WRITE_CREATE_TRUNC i64 = 1537;  // macOS
+   var MMAP_FLAGS_ANON i64 = 4098;                // macOS
+   ```
+
+2. **Add process functions to OS layer**:
+   ```lang
+   extern func fork() i64;
+   extern func execve(path *u8, argv **u8, envp **u8) i64;
+   extern func waitpid(pid i64, status *i64, options i64) i64;
+   extern func pipe(pipefd *i64) i64;
+   extern func dup2(oldfd i64, newfd i64) i64;
+
+   func os_fork() i64 { return fork(); }
+   func os_exec(...) i64 { return execve(...); }
+   // etc.
+   ```
+
+3. **Update codegen.lang** to use OS layer functions instead of direct syscalls.
+
+4. **Alternative**: For libc bootstrap, just use libc malloc everywhere and skip our custom allocator.
