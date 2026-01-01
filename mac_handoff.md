@@ -68,14 +68,34 @@ LANGBE=llvm LANGLIBC=libc ./out/lang std/core.lang src/*.lang -o bootstrap/llvm_
 
 ---
 
-## Status: READY FOR MAC (2024-12-31)
+## BLOCKER: 2024-12-31 Attempt #3 - mmap flags
 
-The blocker from Attempt #2 has been fixed:
-- `std/os/libc.lang` now declares `extern func mmap(...)`
-- `os_mmap` calls libc's `mmap()`, not raw syscall
-- Bootstrap regenerated with fix
+**Symptom**: mmap returns MAP_FAILED (-1), crash in append_str
+```
+frame #0: lang`append_str + 68  (writing to 0xffffffffffffffff)
+```
 
-Verified on Linux:
-- Bootstrap compiles with clang ✓
-- Self-hosting works ✓
-- 165/165 LLVM tests pass ✓
+**Root cause**: `std/core.lang` hardcodes Linux mmap flags:
+```lang
+// std/core.lang:18
+heap_pos = os_mmap(nil, SIZE_HEAP, 3, 34, 0-1, 0);
+//                                    ^^-- Linux MAP_PRIVATE|MAP_ANONYMOUS = 34
+```
+
+macOS uses different flag values:
+| Flag | Linux | macOS |
+|------|-------|-------|
+| MAP_PRIVATE | 0x02 | 0x02 |
+| MAP_ANONYMOUS | 0x20 | 0x1000 (MAP_ANON) |
+| Combined | 34 | 4098 |
+
+**Fix options**:
+
+1. **Define flags in OS layer** - each `std/os/*.lang` exports constants:
+   ```lang
+   // std/os/libc.lang (or per-platform)
+   var MMAP_FLAGS_ANON i64 = 4098;  // macOS value
+   ```
+   Then std/core.lang uses `MMAP_FLAGS_ANON` instead of hardcoded 34.
+
+2. **Use libc malloc entirely** - when using libc layer, don't implement our own bump allocator. Just use libc's malloc/free everywhere.
