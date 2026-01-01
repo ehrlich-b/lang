@@ -1,5 +1,18 @@
 // src/main.lang - Main entry point for self-hosting compiler
 
+// ============================================================
+// CLI helpers
+// ============================================================
+
+// Check if string contains a dot (has extension)
+func has_extension(s *u8) i64 {
+    while *s != 0 {
+        if *s == '.' { return 1; }
+        s = s + 1;
+    }
+    return 0;
+}
+
 // Get file extension (returns pointer to extension after last '.')
 // Returns nil if no extension found
 func get_extension(path *u8) *u8 {
@@ -155,10 +168,144 @@ func build_expanded_program() *u8 {
     return prog;
 }
 
+// ============================================================
+// Subcommands
+// ============================================================
+
+func cmd_help() i64 {
+    println("lang - a self-hosted compiler where syntax is a plugin");
+    println("");
+    println("Usage: lang [command] [options]");
+    println("");
+    println("Commands:");
+    println("  help       Show this help message");
+    println("  version    Show version information");
+    println("  env        Show environment variables");
+    println("  tools      Show toolchain availability");
+    println("");
+    println("Compilation (default when first arg has extension):");
+    println("  lang file.lang -o out.s        Compile to assembly");
+    println("  lang std/core.lang main.lang -o out.s");
+    println("");
+    println("Options:");
+    println("  -o <file>           Output file");
+    println("  --emit-ast          Emit AST instead of assembly");
+    println("  --emit-expanded-ast Emit fully expanded AST");
+    println("  --from-ast          Input is AST, not source");
+    println("  --expand-macros     Show macro expansions");
+    println("");
+    println("Environment:");
+    println("  LANGBE=llvm         Use LLVM backend (default: x86)");
+    println("  LANGOS=macos        Target macOS (default: linux)");
+    return 0;
+}
+
+func cmd_version() i64 {
+    println("lang 0.1.0");
+
+    var langbe *u8 = getenv("LANGBE");
+    if langbe == nil { langbe = "x86"; }
+    print("backend: ");
+    println(langbe);
+
+    var langos *u8 = getenv("LANGOS");
+    if langos == nil { langos = "linux"; }
+    print("os: ");
+    println(langos);
+
+    var langlibc *u8 = getenv("LANGLIBC");
+    if langlibc == nil { langlibc = "none"; }
+    print("libc: ");
+    println(langlibc);
+
+    return 0;
+}
+
+func cmd_env(argc i64, argv **u8) i64 {
+    // Show specific variable if provided
+    if argc > 0 {
+        var name *u8 = get_arg(argv, 0);
+        var val *u8 = getenv(name);
+        if val != nil {
+            println(val);
+        }
+        return 0;
+    }
+
+    // Show all relevant variables
+    var langbe *u8 = getenv("LANGBE");
+    print("LANGBE=");
+    if langbe != nil { println(langbe); } else { println(""); }
+
+    var langos *u8 = getenv("LANGOS");
+    print("LANGOS=");
+    if langos != nil { println(langos); } else { println(""); }
+
+    var langlibc *u8 = getenv("LANGLIBC");
+    print("LANGLIBC=");
+    if langlibc != nil { println(langlibc); } else { println(""); }
+
+    var path *u8 = getenv("PATH");
+    print("PATH=");
+    if path != nil { println(path); } else { println(""); }
+
+    return 0;
+}
+
+func cmd_tools() i64 {
+    var langbe *u8 = getenv("LANGBE");
+    var is_llvm i64 = 0;
+    if langbe != nil && streq(langbe, "llvm") {
+        is_llvm = 1;
+    }
+
+    if is_llvm {
+        println("Required (LANGBE=llvm):");
+        println("  clang     LLVM C compiler (compile + link)");
+        println("");
+        println("Optional:");
+        println("  lli       LLVM interpreter (for testing)");
+    } else {
+        println("Required (LANGBE=x86):");
+        println("  as        GNU assembler");
+        println("  ld        GNU linker");
+    }
+
+    return 0;
+}
+
 func main(argc i64, argv **u8) i64 {
     if argc < 2 {
-        eprintln("Usage: lang <file.lang>... [-o output.s] [--expand-macros] [--emit-ast] [--from-ast] [-c reader]");
-        return 1;
+        return cmd_help();
+    }
+
+    // Get first argument
+    var first *u8 = get_arg(argv, 1);
+
+    // If first arg has extension, it's a file -> compile mode
+    // Otherwise, it's a subcommand
+    if has_extension(first) == 0 {
+        // Check for subcommands
+        if streq(first, "help") || streq(first, "--help") || streq(first, "-h") {
+            return cmd_help();
+        }
+        if streq(first, "version") || streq(first, "--version") || streq(first, "-V") {
+            return cmd_version();
+        }
+        if streq(first, "env") {
+            return cmd_env(argc - 2, argv + 16);
+        }
+        if streq(first, "tools") {
+            return cmd_tools();
+        }
+        if streq(first, "compile") {
+            // Skip "compile" and process remaining args
+            argc = argc - 1;
+            argv = argv + 8;
+        } else {
+            // Unknown command - could be a file without extension
+            // Fall through to compile mode
+        }
     }
 
     // Parse arguments - first pass collects files
