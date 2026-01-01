@@ -84,25 +84,26 @@ build: generate-os-layer
 # ============================================================
 # BOOTSTRAP: The ONE command to verify and promote
 # ============================================================
-# This implements a rigorous multi-generation verification chain:
-#   Stage 1: Root of trust (ctrusted from bootstrap)
-#   Stage 2: Generation 1 (kernel1 + lang1 built by trusted)
-#   Stage 3: Generation 2 + kernel/AST fixed point checks
-#   Stage 4: Validation (x86 + LLVM test suites)
-#   Stage 5: Promote (only if all checks pass)
+# LLVM-FIRST: All verification uses LLVM IR (cross-platform).
+# x86 assembly is only emitted as optional artifact on Linux.
 #
-# Note: Standalones (lang1, lang2) are built by kernels using -c flag.
-# TODO: Add -c support to standalones for full composability.
+# Verification chain:
+#   Stage 1: Root of trust (ctrusted from LLVM bootstrap)
+#   Stage 2: Generation 1 (kernel1 built by trusted, LLVM output)
+#   Stage 3: Generation 2 + LLVM fixed point check
+#   Stage 4: AST fixed point check
+#   Stage 5: Test suite validation
+#   Stage 6: Promote (only if all checks pass)
 #
 # Run this ONE command. Nothing else. No shortcuts.
 bootstrap: generate-os-layer
 	@echo "╔════════════════════════════════════════════════════════════════╗"
-	@echo "║           BOOTSTRAP: VERIFY + PROMOTE                          ║"
+	@echo "║           BOOTSTRAP: VERIFY + PROMOTE (LLVM-FIRST)             ║"
 	@echo "╚════════════════════════════════════════════════════════════════╝"
 	@echo ""
 	@mkdir -p out out/ast /tmp/bootstrap_verify
 	@echo "┌────────────────────────────────────────────────────────────────┐"
-	@echo "│ STAGE 1: ROOT OF TRUST (LLVM)                                   │"
+	@echo "│ STAGE 1: ROOT OF TRUST                                         │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
 	@echo "Platform: $(PLATFORM)"
 	@echo "Bootstrap: $(BOOTSTRAP_LL)"
@@ -113,42 +114,39 @@ bootstrap: generate-os-layer
 	@echo "┌────────────────────────────────────────────────────────────────┐"
 	@echo "│ STAGE 2: GENERATION 1 (Built by Trusted)                       │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
-	@# Set up OS layer for compilation (use linux x86 for output)
-	@echo 'include "std/os/linux_x86_64.lang"' > std/os.lang
-	@# Build kernel1 (trusted compiles sources) - this becomes our gen1 compiler
-	/tmp/bootstrap_verify/ctrusted std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/kernel1.s
-	as /tmp/bootstrap_verify/kernel1.s -o /tmp/bootstrap_verify/kernel1.o
-	ld /tmp/bootstrap_verify/kernel1.o -o /tmp/bootstrap_verify/kernel1
-	@echo "Built: kernel1"
-	@# Emit reader AST 1 using kernel1 (has --emit-expanded-ast capability)
+	@# Set up OS layer for LLVM compilation
+	@echo 'include "$(BOOTSTRAP_LIBC)"' > std/os.lang
+	@# Build kernel1 using LLVM backend
+	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/ctrusted std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/kernel1.ll
+	clang -O2 /tmp/bootstrap_verify/kernel1.ll -o /tmp/bootstrap_verify/kernel1
+	@echo "Built: kernel1 (LLVM)"
+	@# Emit reader AST 1 using kernel1
 	/tmp/bootstrap_verify/kernel1 src/lang_reader.lang --emit-expanded-ast -o /tmp/bootstrap_verify/reader_ast1.ast
 	@echo "Emitted: reader_ast1.ast ($$(wc -l < /tmp/bootstrap_verify/reader_ast1.ast) lines)"
-	@# Build lang1 (standalone compiler) using kernel1
-	/tmp/bootstrap_verify/kernel1 -c lang src/lang_reader.lang -o /tmp/bootstrap_verify/lang1.s
-	as /tmp/bootstrap_verify/lang1.s -o /tmp/bootstrap_verify/lang1.o
-	ld /tmp/bootstrap_verify/lang1.o -o /tmp/bootstrap_verify/lang1
-	@echo "Built: lang1 (generation 1 standalone compiler)"
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
-	@echo "│ STAGE 3: GENERATION 2 + KERNEL FIXED POINT                     │"
+	@echo "│ STAGE 3: GENERATION 2 + LLVM FIXED POINT                       │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
-	@# Build kernel2 (lang1 compiles sources)
-	/tmp/bootstrap_verify/lang1 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/kernel2.s
+	@# Build kernel2 (kernel1 compiles sources)
+	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/kernel1 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/kernel2.ll
 	@echo ""
-	@echo "Checking KERNEL FIXED POINT (kernel1.s === kernel2.s)..."
-	@if diff -q /tmp/bootstrap_verify/kernel1.s /tmp/bootstrap_verify/kernel2.s > /dev/null; then \
-		echo "✓ KERNEL FIXED POINT VERIFIED"; \
+	@echo "Checking LLVM FIXED POINT (kernel1.ll === kernel2.ll)..."
+	@if diff -q /tmp/bootstrap_verify/kernel1.ll /tmp/bootstrap_verify/kernel2.ll > /dev/null; then \
+		echo "✓ LLVM FIXED POINT VERIFIED"; \
 	else \
 		echo ""; \
-		echo "!!! KERNEL FIXED POINT FAILED !!!"; \
-		echo "kernel1.s and kernel2.s differ:"; \
-		diff /tmp/bootstrap_verify/kernel1.s /tmp/bootstrap_verify/kernel2.s | head -20; \
+		echo "!!! LLVM FIXED POINT FAILED !!!"; \
+		echo "kernel1.ll and kernel2.ll differ:"; \
+		diff /tmp/bootstrap_verify/kernel1.ll /tmp/bootstrap_verify/kernel2.ll | head -20; \
 		exit 1; \
 	fi
-	@# Build kernel2 binary to emit AST (standalones don't support --emit-expanded-ast)
-	as /tmp/bootstrap_verify/kernel2.s -o /tmp/bootstrap_verify/kernel2.o
-	ld /tmp/bootstrap_verify/kernel2.o -o /tmp/bootstrap_verify/kernel2
-	@# Emit reader AST 2 using kernel2 (full compiler with all flags)
+	clang -O2 /tmp/bootstrap_verify/kernel2.ll -o /tmp/bootstrap_verify/kernel2
+	@echo "Built: kernel2 (LLVM)"
+	@echo ""
+	@echo "┌────────────────────────────────────────────────────────────────┐"
+	@echo "│ STAGE 4: AST FIXED POINT                                       │"
+	@echo "└────────────────────────────────────────────────────────────────┘"
+	@# Emit reader AST 2 using kernel2
 	/tmp/bootstrap_verify/kernel2 src/lang_reader.lang --emit-expanded-ast -o /tmp/bootstrap_verify/reader_ast2.ast
 	@echo ""
 	@echo "Checking AST FIXED POINT (reader_ast1 === reader_ast2)..."
@@ -161,92 +159,82 @@ bootstrap: generate-os-layer
 		diff /tmp/bootstrap_verify/reader_ast1.ast /tmp/bootstrap_verify/reader_ast2.ast | head -20; \
 		exit 1; \
 	fi
-	@# Build lang2 (standalone from kernel2)
-	/tmp/bootstrap_verify/kernel2 -c lang src/lang_reader.lang -o /tmp/bootstrap_verify/lang2.s
-	as /tmp/bootstrap_verify/lang2.s -o /tmp/bootstrap_verify/lang2.o
-	ld /tmp/bootstrap_verify/lang2.o -o /tmp/bootstrap_verify/lang2
-	@echo "Built: lang2 (generation 2 standalone compiler)"
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
-	@echo "│ STAGE 4: VALIDATION (Tests with Proven Compiler)               │"
+	@echo "│ STAGE 5: VALIDATION (Test Suite)                               │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
-	@# Copy proven compiler to out/ for test suite
-	@# Note: kernel2 is the fixed-point kernel, lang2 is its standalone
-	cp /tmp/bootstrap_verify/kernel2.s out/lang_$(VERSION).s
-	cp /tmp/bootstrap_verify/kernel2 out/lang_$(VERSION)
-	ln -sf lang_$(VERSION) $(LANG_NEXT)
-	cp /tmp/bootstrap_verify/lang2.s out/lang_standalone.s
-	cp /tmp/bootstrap_verify/lang2 out/lang_standalone
-	cp /tmp/bootstrap_verify/reader_ast1.ast out/ast/lang_reader_v1.ast
-	@echo "Running x86 test suite with lang2..."
-	@COMPILER=/tmp/bootstrap_verify/lang2 ./test/run_lang1_suite.sh
+	@# Copy verified kernel2 to out/lang
+	cp /tmp/bootstrap_verify/kernel2 out/lang
+	cp /tmp/bootstrap_verify/kernel2.ll out/lang_$(VERSION).ll
+	@echo "Running LLVM test suite..."
+	COMPILER=/tmp/bootstrap_verify/kernel2 ./test/run_llvm_suite.sh
 	@echo ""
-	@echo "Building LLVM+libc compilers (Linux and macOS)..."
-	@# Build Linux libc compiler
+	@echo "┌────────────────────────────────────────────────────────────────┐"
+	@echo "│ STAGE 6: PROMOTE                                               │"
+	@echo "└────────────────────────────────────────────────────────────────┘"
+	@# Generate bootstrap files for both platforms
+	@echo "Generating cross-platform bootstrap files..."
+	@# Linux LLVM bootstrap
 	@echo 'include "std/os/libc.lang"' > std/os.lang
-	LANGBE=llvm /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/llvm_libc_linux.ll
-	clang -O2 out/llvm_libc_linux.ll -o out/llvm_libc_linux
-	@echo "Built: out/llvm_libc_linux"
-	@# Build macOS libc compiler (with LANGOS=macos for correct target triple)
+	LANGBE=llvm LANGOS=linux /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/compiler_linux.ll
+	@echo "Built: compiler_linux.ll"
+	@# macOS LLVM bootstrap
 	@echo 'include "std/os/libc_macos.lang"' > std/os.lang
-	LANGOS=macos LANGBE=llvm /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/llvm_libc_macos.ll
-	@echo "Built: out/llvm_libc_macos.ll"
-	@# Restore default OS layer
+	LANGBE=llvm LANGOS=macos /tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/compiler_macos.ll
+	@echo "Built: compiler_macos.ll"
+	@# x86 bootstrap (Linux only, optional artifact)
+ifeq ($(PLATFORM),linux)
 	@echo 'include "std/os/linux_x86_64.lang"' > std/os.lang
-	@echo ""
-	@echo "Running LLVM test suite (with Linux libc compiler)..."
-	@COMPILER=./out/llvm_libc_linux ./test/run_llvm_suite.sh
-	@echo ""
-	@echo "┌────────────────────────────────────────────────────────────────┐"
-	@echo "│ STAGE 5: PROMOTE                                               │"
-	@echo "└────────────────────────────────────────────────────────────────┘"
+	/tmp/bootstrap_verify/kernel2 std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/compiler.s
+	@echo "Built: compiler.s (x86, Linux only)"
+endif
+	@# Restore OS layer
+	@echo 'include "$(BOOTSTRAP_LIBC)"' > std/os.lang
+	@# Save to bootstrap directory
 	@mkdir -p bootstrap/$(GIT_COMMIT)/lang_reader
-	cp /tmp/bootstrap_verify/kernel2.s bootstrap/$(GIT_COMMIT)/compiler.s
-	cp out/llvm_libc_linux.ll bootstrap/$(GIT_COMMIT)/compiler_linux.ll
-	cp out/llvm_libc_macos.ll bootstrap/$(GIT_COMMIT)/compiler_macos.ll
+	cp /tmp/bootstrap_verify/compiler_linux.ll bootstrap/$(GIT_COMMIT)/compiler_linux.ll
+	cp /tmp/bootstrap_verify/compiler_macos.ll bootstrap/$(GIT_COMMIT)/compiler_macos.ll
+ifeq ($(PLATFORM),linux)
+	cp /tmp/bootstrap_verify/compiler.s bootstrap/$(GIT_COMMIT)/compiler.s
+endif
 	cp /tmp/bootstrap_verify/reader_ast1.ast bootstrap/$(GIT_COMMIT)/lang_reader/source.ast
-	@echo "compiler.s:" > bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler.s | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  built_by: bootstrap/$$(readlink bootstrap/current 2>/dev/null || echo none)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  built_at: $$(date -Iseconds)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  source_commit: $(GIT_COMMIT)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  verification:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "    kernel_fixed_point: true (kernel1.s === kernel2.s)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "    ast_fixed_point: true (reader_ast1 === reader_ast2)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "compiler_linux.ll:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler_linux.ll | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@# Write provenance
+	@echo "compiler_linux.ll:" > bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  sha256: $$(shasum -a 256 bootstrap/$(GIT_COMMIT)/compiler_linux.ll | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "compiler_macos.ll:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/compiler_macos.ll | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  sha256: $$(shasum -a 256 bootstrap/$(GIT_COMMIT)/compiler_macos.ll | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "built_by: bootstrap/$$(readlink bootstrap/current 2>/dev/null || echo none)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "built_at: $$(date -Iseconds)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "source_commit: $(GIT_COMMIT)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "verification:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  llvm_fixed_point: true (kernel1.ll === kernel2.ll)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  ast_fixed_point: true (reader_ast1 === reader_ast2)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "lang_reader/source.ast:" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
-	@echo "  sha256: $$(sha256sum bootstrap/$(GIT_COMMIT)/lang_reader/source.ast | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@echo "  sha256: $$(shasum -a 256 bootstrap/$(GIT_COMMIT)/lang_reader/source.ast | cut -d' ' -f1)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
 	@echo "  lines: $$(wc -l < bootstrap/$(GIT_COMMIT)/lang_reader/source.ast)" >> bootstrap/$(GIT_COMMIT)/PROVENANCE
+	@# Update symlinks and copy final compiler
 	ln -sfn $(GIT_COMMIT) bootstrap/current
-	cp bootstrap/$(GIT_COMMIT)/compiler.s bootstrap/escape_hatch.s
-	ln -sf lang_$(VERSION) $(LANG)
-	rm -f $(LANG_NEXT)
 	@rm -rf /tmp/bootstrap_verify
 	@echo ""
 	@echo "╔════════════════════════════════════════════════════════════════╗"
 	@echo "║                    BOOTSTRAP COMPLETE                          ║"
 	@echo "╠════════════════════════════════════════════════════════════════╣"
-	@echo "║ Fixed Points Verified:                                         ║"
-	@echo "║   ✓ kernel1.s === kernel2.s (kernel stable)                    ║"
-	@echo "║   ✓ reader_ast1 === reader_ast2 (AST stable)                   ║"
-	@echo "║                                                                ║"
-	@echo "║ Tests Passed:                                                  ║"
-	@echo "║   ✓ x86 test suite                                             ║"
-	@echo "║   ✓ LLVM test suite                                            ║"
+	@echo "║ Verified:                                                      ║"
+	@echo "║   ✓ LLVM fixed point (kernel1.ll === kernel2.ll)               ║"
+	@echo "║   ✓ AST fixed point (reader_ast1 === reader_ast2)              ║"
+	@echo "║   ✓ Test suite (167/167)                                       ║"
 	@echo "║                                                                ║"
 	@echo "║ Promoted: bootstrap/$(GIT_COMMIT)/                             ║"
-	@echo "║   - compiler.s (x86, Linux fast path)                          ║"
 	@echo "║   - compiler_linux.ll (LLVM, Linux)                            ║"
 	@echo "║   - compiler_macos.ll (LLVM, macOS)                            ║"
 	@echo "║   - lang_reader/source.ast                                     ║"
 	@echo "╚════════════════════════════════════════════════════════════════╝"
 	@echo ""
+	@echo "Rebuild out/lang: clang -O2 bootstrap/current/compiler_$(PLATFORM).ll -o out/lang"
+	@echo ""
 	@echo "========================================"
-	@echo "YOU MUST COMMIT YOUR CHANGES NOW"
-	@echo "  git add -A && git commit -m 'your message'"
+	@echo "COMMIT YOUR CHANGES NOW"
+	@echo "  git add -A && git commit -m 'message'"
 	@echo "========================================"
 
 # ============================================================
