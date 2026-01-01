@@ -930,16 +930,37 @@ func exec_run(program *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8) i64
     return (*status / 256) % 256;  // extract exit code
 }
 
-// Build reader cache path: .lang-cache/readers/<name>
+// Get cache base directory from LANG_CACHE env var or default
+func get_cache_base() *u8 {
+    var cache *u8 = getenv("LANG_CACHE");
+    var zero *u8 = 0;
+    if cache != zero {
+        if *cache != 0 {
+            return cache;
+        }
+    }
+    return ".lang-cache";
+}
+
+// Build reader cache path: $LANG_CACHE/readers/<name>
 func build_reader_cache_path(name *u8, name_len i64) *u8 {
-    var path *u8 = alloc(256);
+    var path *u8 = alloc(512);
     var i i64 = 0;
 
-    var prefix *u8 = ".lang-cache/readers/";
-    while *prefix != 0 {
-        *(path + i) = *prefix;
+    // Copy cache base
+    var base *u8 = get_cache_base();
+    while *base != 0 {
+        *(path + i) = *base;
         i = i + 1;
-        prefix = prefix + 1;
+        base = base + 1;
+    }
+
+    // Add /readers/
+    var suffix *u8 = "/readers/";
+    while *suffix != 0 {
+        *(path + i) = *suffix;
+        i = i + 1;
+        suffix = suffix + 1;
     }
 
     var j i64 = 0;
@@ -953,39 +974,26 @@ func build_reader_cache_path(name *u8, name_len i64) *u8 {
     return path;
 }
 
-// Get file modification time (seconds since epoch)
-// Returns 0 if file doesn't exist
-func cg_file_mtime(path *u8) i64 {
-    // syscall 4 = stat, struct stat is 144 bytes, st_mtime at offset 88
-    var statbuf *u8 = alloc(144);
-    var result i64 = syscall(4, path, statbuf);
-    if result < 0 {
-        return 0;
-    }
-    var mtime_ptr *i64 = statbuf + 88;
-    return *mtime_ptr;
-}
-
 // Check if reader cache is valid (mtime-based)
 // Returns 1 if should recompile, 0 if cache is valid
 func should_recompile_reader(cached_exe *u8) i64 {
-    var exe_mtime i64 = cg_file_mtime(cached_exe);
+    var exe_mtime i64 = file_mtime(cached_exe);
     if exe_mtime == 0 {
         return 1;  // doesn't exist
     }
 
     // Check if stable compiler is newer than cached reader
-    if cg_file_mtime("./out/lang") > exe_mtime {
+    if file_mtime("./out/lang") > exe_mtime {
         return 1;
     }
 
     // Check if dev compiler is newer (for make verify)
-    if cg_file_mtime("./out/lang_next") > exe_mtime {
+    if file_mtime("./out/lang_next") > exe_mtime {
         return 1;
     }
 
     // Check if stdlib is newer than cached reader
-    if cg_file_mtime("std/core.lang") > exe_mtime {
+    if file_mtime("std/core.lang") > exe_mtime {
         return 1;
     }
 
@@ -1000,7 +1008,7 @@ func compile_reader_to_executable(decl *u8) void {
     var param_len i64 = reader_decl_param_len(decl);
     var body *u8 = reader_decl_body(decl);
 
-    // Build cache path: .lang-cache/readers/<name>
+    // Build cache path: $LANG_CACHE/readers/<name>
     var base_path *u8 = build_reader_cache_path(name, name_len);
     var exe_path *u8 = str_dup(base_path);
 
@@ -1009,9 +1017,11 @@ func compile_reader_to_executable(decl *u8) void {
         return;  // cache is valid, skip recompilation
     }
 
-    // Create .lang-cache/readers/ directories
-    syscall(83, ".lang-cache", 493);  // mkdir
-    syscall(83, ".lang-cache/readers", 493);
+    // Create cache directories
+    var cache_base *u8 = get_cache_base();
+    var readers_dir *u8 = str_concat(cache_base, "/readers");
+    os_mkdir(cache_base, 493);
+    os_mkdir(readers_dir, 493);
 
     var src_path *u8 = str_concat(base_path, ".lang");
     var asm_path *u8 = str_concat(base_path, ".s");
