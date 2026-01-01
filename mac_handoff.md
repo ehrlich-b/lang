@@ -68,7 +68,78 @@ LANGBE=llvm LANGLIBC=libc ./out/lang std/core.lang src/*.lang -o bootstrap/llvm_
 
 ---
 
-## BLOCKER: 2025-01-01 Attempt #4 - read_file_contents uses raw syscalls
+## BLOCKER: 2026-01-01 Attempt #5 - Two ARM64 ABI issues
+
+**Status**: Debugged and understood. Clean fix needed on x86 machine.
+
+### Issue 1: open() variadic calling convention (ARM64 ABI)
+
+**Symptom**: Files created with wrong permissions (mode 0000 or 0415 instead of 0644)
+
+**Root cause**: C's `open()` is variadic - the mode parameter is optional:
+```c
+int open(const char *pathname, int flags, ...);  // mode is variadic!
+```
+
+But we declare it as fixed args:
+```llvm
+declare i64 @open(i64, i64, i64)  // WRONG
+```
+
+On ARM64, variadic arguments use different register placement than fixed args. The mode value ends up in the wrong place.
+
+**Fix**: In codegen_llvm.lang, when emitting extern for `open`:
+```llvm
+declare i32 @open(i8*, i32, ...)  // Correct variadic declaration
+```
+
+And os_open must call it properly:
+```llvm
+define i64 @os_open(i64 %path.arg, i64 %flags.arg, i64 %mode.arg) {
+    %path_ptr = inttoptr i64 %path.arg to i8*
+    %flags_i32 = trunc i64 %flags.arg to i32
+    %mode_i32 = trunc i64 %mode.arg to i32
+    %result = call i32 (i8*, i32, ...) @open(i8* %path_ptr, i32 %flags_i32, i32 %mode_i32)
+    %t3 = sext i32 %result to i64
+    ret i64 %t3
+}
+```
+
+**Verified**: Manually patched bootstrap at `/tmp/bootstrap_patched.ll` - produces correct 0644 permissions.
+
+### Issue 2: Target triple hardcoded for Linux
+
+**Symptom**: `lli` (LLVM interpreter) fails with "No available targets are compatible with triple"
+
+**Root cause**: `src/codegen_llvm.lang:5397` hardcodes:
+```lang
+llvm_emit_line("target triple = \"x86_64-unknown-linux-gnu\"");
+```
+
+**Fix**: Check LANGOS or auto-detect:
+```lang
+// In codegen_llvm.lang
+if str_eq(getenv("LANGOS"), "macos") {
+    llvm_emit_line("target triple = \"arm64-apple-macosx\"");
+} else {
+    llvm_emit_line("target triple = \"x86_64-unknown-linux-gnu\"");
+}
+```
+
+**Note**: clang works fine (overrides the triple), only lli is affected. Test suite uses lli.
+
+### To regenerate bootstrap on x86:
+
+```bash
+# After fixing codegen_llvm.lang for both issues above:
+LANGOS=macos LANGBE=llvm LANGLIBC=libc ./out/lang std/core.lang src/*.lang -o bootstrap/llvm_libc_macos.ll
+```
+
+---
+
+## RESOLVED: 2025-01-01 Attempt #4 - read_file_contents uses raw syscalls
+
+**Fixed on x86 side** - `src/codegen.lang:read_file_contents` now uses `os_open`, `os_read`, `os_close`.
 
 **Symptom**: SIGSYS crash in read_file_contents
 ```
