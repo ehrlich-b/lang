@@ -8,14 +8,153 @@ While implementing multi-reader composition (`-r` flag), we discovered that lang
 
 We need arrays to store N embedded readers in a self-aware kernel. Currently limited to a single reader slot.
 
+## Design Philosophy
+
+Lang's collection story has three levels, matching the C-like low-level vibes:
+
+| Level | What | Length Knowledge | Bounds Checking | Status |
+|-------|------|------------------|-----------------|--------|
+| **Pointers** | `*T` | None - you track it | None | **Have now** |
+| **Arrays** | `[N]T` | Compile-time (in type) | Compile-time for constants | **Adding** |
+| **Slices** | `struct { ptr, len }` | Runtime (in struct) | Runtime (library function) | **Future std** |
+
+**Key principle**: No hidden machinery. Arrays are just storage allocation with sugar. Slices are user-defined structs, not language magic.
+
+## What We Have Now (Level 0: Pointers)
+
+```lang
+var p *u8 = alloc(160);      // 20 * 8 bytes
+*(p + 24) = something;       // Manual pointer arithmetic
+// Length? What length? You track it yourself.
+```
+
+With a raw pointer, you **cannot** know where allocated memory ends. You either:
+1. Track length separately (like Vec does with a header)
+2. Use sentinel value (like C strings use `\0`)
+3. Bake length into the type (arrays - what we're adding)
+
+## What We're Adding (Level 1: Arrays)
+
+### Core Semantics
+
+```lang
+var arr [20]i64;             // Allocates 160 bytes, type is [20]i64
+arr[3] = 42;                 // Sugar for *(arr + 24)
+var x = arr[i];              // No runtime bounds check
+```
+
+**Arrays are storage with compile-time known size.** The size N is part of the type.
+
+### Compile-Time Bounds Checking
+
+For constant indices, the compiler catches out-of-bounds access:
+
+```lang
+var arr [20]i64;
+arr[0] = 1;      // OK: 0 < 20
+arr[19] = 1;     // OK: 19 < 20
+arr[i] = 1;      // OK: runtime index, no check
+arr[20] = 1;     // COMPILE ERROR: index 20 out of bounds for [20]i64
+arr[100] = 1;    // COMPILE ERROR: index 100 out of bounds for [20]i64
+```
+
+**No runtime bounds checking** - that's not the vibe. If you want safety, use a checked accessor or the future Slice type.
+
+### Array Decay to Pointer
+
+When passed to functions or assigned to pointers, arrays decay to pointers (C-style):
+
+```lang
+func sum(p *i64, len i64) i64 { ... }
+
+var arr [20]i64 = [...];
+sum(arr, 20);                // arr decays to *i64, length lost
+// OR explicit:
+sum(&arr[0], 20);            // Same thing
+```
+
+**We are NOT adding `*[N]T` (pointer-to-array-with-length).** Too complex for the benefit. You want the length? Track it yourself.
+
+### Global Array Literals
+
+Array literals are supported for global variable initialization:
+
+```lang
+var names [3]*u8 = ["alice", "bob", "charlie"];
+var counts [5]i64 = [0, 0, 0, 0, 0];
+var funcs [20]*u8 = [nil, nil, nil, ...];  // For composition
+```
+
+### Local Arrays
+
+Local arrays allocate on the stack:
+
+```lang
+func foo() i64 {
+    var arr [10]i64;         // 80 bytes on stack
+    arr[0] = 1;
+    return arr[0];
+}
+```
+
+Local array literals are a stretch goal - can use element-by-element init:
+
+```lang
+func foo() i64 {
+    var arr [3]i64;
+    arr[0] = 1; arr[1] = 2; arr[2] = 3;
+    return arr[1];
+}
+```
+
+## Future: Slices (Level 2: std library)
+
+Slices will be a **library feature**, not language magic:
+
+```lang
+// std/slice.lang (future)
+struct Slice {
+    ptr *u8,
+    len i64
+}
+
+func slice_new(ptr *u8, len i64) Slice {
+    var s Slice;
+    s.ptr = ptr;
+    s.len = len;
+    return s;
+}
+
+func slice_get(s *Slice, i i64) *u8 {
+    if i < 0 { panic("negative index"); }
+    if i >= s.len { panic("index out of bounds"); }
+    return s.ptr + i * 8;
+}
+
+func slice_set(s *Slice, i i64, val *u8) void {
+    if i < 0 { panic("negative index"); }
+    if i >= s.len { panic("index out of bounds"); }
+    var p **u8 = s.ptr + i * 8;
+    *p = val;
+}
+
+// Usage:
+var arr [20]i64 = [...];
+var s Slice = slice_new(arr, 20);
+slice_set(&s, 3, 42);  // Bounds checked!
+```
+
+**No fat pointers, no hidden control flow.** Just a struct with explicit accessors.
+User chooses: raw speed (arrays) or safety (slices).
+
 ## Syntax
 
 ### Array Types
 
 ```lang
-var arr [20]i64;           // Array of 20 i64s
-var ptrs [10]*u8;          // Array of 10 pointers
-var nested [5][3]i64;      // 2D array (5 arrays of 3 i64s) - stretch goal
+var arr [20]i64;             // Array of 20 i64s
+var ptrs [10]*u8;            // Array of 10 pointers
+var nested [5][3]i64;        // 2D array (stretch goal)
 ```
 
 ### Array Literals
@@ -23,15 +162,14 @@ var nested [5][3]i64;      // 2D array (5 arrays of 3 i64s) - stretch goal
 ```lang
 var arr [3]i64 = [1, 2, 3];
 var ptrs [2]*u8 = [nil, nil];
-var partial [5]i64 = [1, 2];  // Rest zero-initialized? Or error?
+var mixed [3]*u8 = ["hello", nil, "world"];
 ```
 
 ### Array Access
 
-Already works via `NODE_INDEX_EXPR`:
 ```lang
-arr[0] = 42;
-var x i64 = arr[i];
+arr[0] = 42;                 // Write
+var x i64 = arr[i];          // Read
 ```
 
 ## AST Representation
@@ -41,7 +179,6 @@ var x i64 = arr[i];
 Layout: `[kind:8][size:8][elem:8]` = 24 bytes
 
 ```lang
-// Accessors needed:
 func array_type_alloc() *u8;
 func array_type_size(t *u8) i64;
 func array_type_set_size(t *u8, size i64) void;
@@ -49,19 +186,16 @@ func array_type_elem(t *u8) *u8;
 func array_type_set_elem(t *u8, elem *u8) void;
 ```
 
-### Expression: NODE_ARRAY_LITERAL (new)
+### Expression: NODE_ARRAY_LITERAL (new, = 42)
 
-Layout: `[kind:8][elems:8][elem_count:8][elem_type:8]` = 32 bytes
+Layout: `[kind:8][elems:8][count:8]` = 24 bytes
 
 ```lang
-// elems is array of expression pointers
 func array_literal_alloc() *u8;
-func array_literal_elems(node *u8) *u8;
+func array_literal_elems(node *u8) *u8;    // Pointer to array of expr pointers
 func array_literal_set_elems(node *u8, elems *u8) void;
 func array_literal_count(node *u8) i64;
 func array_literal_set_count(node *u8, count i64) void;
-func array_literal_type(node *u8) *u8;  // Inferred element type
-func array_literal_set_type(node *u8, t *u8) void;
 ```
 
 ### S-Expression Format
@@ -73,25 +207,30 @@ func array_literal_set_type(node *u8, t *u8) void;
 
 ; Array literal expression
 (array_literal (number 1) (number 2) (number 3))
+(array_literal (nil) (nil) (ident reader_lang))
 
 ; Variable with array type and initializer
-(var arr (type_array 3 (type_base i64)) (array_literal (number 1) (number 2) (number 3)))
+(var names (type_array 3 (type_ptr (type_base u8)))
+  (array_literal (string "alice") (string "bob") (string "charlie")))
+
+; For composition - function pointers in array
+(var embedded_reader_funcs (type_array 20 (type_ptr (type_base u8)))
+  (array_literal (nil) (ident reader_lang) (nil) ...))
 ```
 
 ## Implementation Plan
 
-### 1. Parser (src/parser.lang)
+### Phase 1: Parser
 
-**parse_type() changes:**
+**1a. Array type syntax in `parse_type()`:**
 ```lang
-// Add before base type handling:
-if parse_match(TOKEN_LBRACKET) {
-    // Parse size
+// Add at start of parse_type():
+if parse_check(TOKEN_LBRACKET) {
+    parse_advance();  // consume '['
     var size_tok *u8 = parse_expect(TOKEN_NUMBER, "expected array size");
-    var size i64 = parse_number(size_tok);
+    var size i64 = token_to_int(size_tok);
     parse_expect(TOKEN_RBRACKET, "expected ']' after array size");
 
-    // Parse element type
     var elem *u8 = parse_type();
 
     var t *u8 = array_type_alloc();
@@ -101,32 +240,37 @@ if parse_match(TOKEN_LBRACKET) {
 }
 ```
 
-**parse_primary() changes for array literals:**
+**1b. Array literal syntax in `parse_primary()`:**
 ```lang
-// Add case for TOKEN_LBRACKET:
-if parse_match(TOKEN_LBRACKET) {
-    var elems *u8 = vec_new(16);
+// Add case for '[' that's not followed by number (index expr handled elsewhere)
+if parse_check(TOKEN_LBRACKET) {
+    // Peek ahead to distinguish [N]T (type) from [e1, e2] (literal)
+    // If next is number followed by ']', it's a type context
+    // Otherwise it's a literal
+    parse_advance();  // consume '['
+
+    var elems *u8 = vec_new(8);
     if !parse_check(TOKEN_RBRACKET) {
         vec_push(elems, parse_expression());
         while parse_match(TOKEN_COMMA) {
             vec_push(elems, parse_expression());
         }
     }
-    parse_expect(TOKEN_RBRACKET, "expected ']' after array elements");
+    parse_expect(TOKEN_RBRACKET, "expected ']'");
 
     var node *u8 = array_literal_alloc();
-    array_literal_set_elems(node, elems);
+    array_literal_set_elems(node, vec_data(elems));
     array_literal_set_count(node, vec_len(elems));
     return node;
 }
 ```
 
-### 2. AST Accessors (src/parser.lang)
+### Phase 2: AST Accessors
 
-Add after existing type accessors:
+Add to `src/parser.lang`:
 
 ```lang
-// ArrayType accessors
+// TYPE_ARRAY = 3 (already defined)
 // ArrayType: [kind:8][size:8][elem:8] = 24 bytes
 
 func array_type_alloc() *u8 {
@@ -154,17 +298,14 @@ func array_type_set_elem(t *u8, elem *u8) void {
     var p **u8 = t + 16;
     *p = elem;
 }
-```
 
-Add NODE_ARRAY_LITERAL constant and accessors:
+// NODE_ARRAY_LITERAL = 42
+// ArrayLiteral: [kind:8][elems:8][count:8] = 24 bytes
 
-```lang
-var NODE_ARRAY_LITERAL i64 = 42;  // Next available
-
-// ArrayLiteral: [kind:8][elems:8][count:8][type:8] = 32 bytes
+var NODE_ARRAY_LITERAL i64 = 42;
 
 func array_literal_alloc() *u8 {
-    var node *u8 = alloc(32);
+    var node *u8 = alloc(24);
     node_set_kind(node, NODE_ARRAY_LITERAL);
     return node;
 }
@@ -188,22 +329,14 @@ func array_literal_set_count(node *u8, count i64) void {
     var p *i64 = node + 16;
     *p = count;
 }
-
-func array_literal_type(node *u8) *u8 {
-    var p **u8 = node + 24;
-    return *p;
-}
-
-func array_literal_set_type(node *u8, t *u8) void {
-    var p **u8 = node + 24;
-    *p = t;
-}
 ```
 
-### 3. AST Emit (src/ast_emit.lang)
+### Phase 3: AST Emit
 
-**ast_emit_type() - add TYPE_ARRAY case:**
+Add to `src/ast_emit.lang`:
+
 ```lang
+// In ast_emit_type():
 if kind == TYPE_ARRAY {
     ast_emit_str("(type_array ");
     ast_emit_int(array_type_size(t));
@@ -212,10 +345,8 @@ if kind == TYPE_ARRAY {
     ast_emit_str(")");
     return;
 }
-```
 
-**ast_emit_node() - add NODE_ARRAY_LITERAL case:**
-```lang
+// In ast_emit_expr() or ast_emit_node():
 if kind == NODE_ARRAY_LITERAL {
     ast_emit_str("(array_literal");
     var elems *u8 = array_literal_elems(node);
@@ -223,7 +354,8 @@ if kind == NODE_ARRAY_LITERAL {
     var i i64 = 0;
     while i < count {
         ast_emit_str(" ");
-        ast_emit_node(get_ptr_at(elems, i));
+        var elem *u8 = get_ptr_at(elems, i);
+        ast_emit_expr(elem);
         i = i + 1;
     }
     ast_emit_str(")");
@@ -231,15 +363,16 @@ if kind == NODE_ARRAY_LITERAL {
 }
 ```
 
-### 4. S-Expression Reader (src/sexpr_reader.lang)
+### Phase 4: S-Expression Reader
 
-**parse_sexpr_type() - add type_array case:**
+Add to `src/sexpr_reader.lang`:
+
 ```lang
-if streq(head, "type_array") {
-    // (type_array SIZE ELEM_TYPE)
-    var size_sexpr *u8 = sexpr_get(sexpr, 1);
+// In parse_sexpr_type():
+if streq_n(head, head_len, "type_array", 10) {
+    var size_sexpr *u8 = sexpr_child(sexpr, 1);
     var size i64 = sexpr_to_int(size_sexpr);
-    var elem_sexpr *u8 = sexpr_get(sexpr, 2);
+    var elem_sexpr *u8 = sexpr_child(sexpr, 2);
     var elem *u8 = parse_sexpr_type(elem_sexpr);
 
     var t *u8 = array_type_alloc();
@@ -247,87 +380,133 @@ if streq(head, "type_array") {
     array_type_set_elem(t, elem);
     return t;
 }
-```
 
-**parse_sexpr_expr() - add array_literal case:**
-```lang
-if streq(head, "array_literal") {
+// In parse_sexpr_expr():
+if streq_n(head, head_len, "array_literal", 13) {
     var node *u8 = array_literal_alloc();
-    var elems *u8 = vec_new(16);
-    var i i64 = 1;
-    while i < sexpr_len(sexpr) {
-        var elem_sexpr *u8 = sexpr_get(sexpr, i);
-        var elem *u8 = parse_sexpr_expr(elem_sexpr);
-        vec_push(elems, elem);
+    var count i64 = sexpr_child_count(sexpr) - 1;  // Minus head
+    var elems *u8 = alloc(count * 8);
+
+    var i i64 = 0;
+    while i < count {
+        var child *u8 = sexpr_child(sexpr, i + 1);
+        var elem *u8 = parse_sexpr_expr(child);
+        set_ptr_at(elems, i, elem);
         i = i + 1;
     }
-    array_literal_set_elems(node, vec_to_array(elems));
-    array_literal_set_count(node, vec_len(elems));
+
+    array_literal_set_elems(node, elems);
+    array_literal_set_count(node, count);
     return node;
 }
 ```
 
-### 5. Codegen x86 (src/codegen.lang)
+### Phase 5: Index Expression Codegen
 
-**Type size calculation:**
+**Critical**: `NODE_INDEX_EXPR` is parsed but not codegen'd! Need to implement.
+
 ```lang
-func type_size(t *u8) i64 {
-    var kind i64 = type_kind(t);
-    // ... existing cases ...
-    if kind == TYPE_ARRAY {
-        var elem_size i64 = type_size(array_type_elem(t));
-        return array_type_size(t) * elem_size;
+// In codegen.lang emit_expr():
+if kind == NODE_INDEX_EXPR {
+    // IndexExpr: [kind:8][expr:8][index:8]
+    var base_expr *u8 = index_expr_base(node);
+    var index_expr *u8 = index_expr_index(node);
+    var base_type *u8 = expr_type(base_expr);
+
+    // Get element type and size
+    var elem_type *u8;
+    var elem_size i64;
+    if type_kind(base_type) == TYPE_ARRAY {
+        elem_type = array_type_elem(base_type);
+    } else if type_kind(base_type) == TYPE_PTR {
+        elem_type = ptr_type_elem(base_type);
     }
-    // ...
+    elem_size = type_size(elem_type);
+
+    // Emit: base + index * elem_size
+    emit_expr(base_expr);           // Result in rax
+    emit_line("    push %rax");
+    emit_expr(index_expr);          // Index in rax
+    emit_line("    imul $", elem_size, ", %rax");
+    emit_line("    pop %rcx");
+    emit_line("    add %rcx, %rax"); // Address in rax
+
+    // Load value (for rvalue) or leave address (for lvalue)
+    // ... context-dependent
 }
 ```
 
-**Global variable with array type:**
-- Emit `.zero N*elem_size` for uninitialized
-- Emit `.quad val1, val2, ...` for initialized array literal
+### Phase 6: Codegen - Global Arrays
 
-**Local variable with array type:**
-- Allocate N*elem_size bytes on stack
-- Initialize elements if literal provided
+```lang
+// x86: emit in .data section
+// For: var arr [3]i64 = [1, 2, 3];
+.data
+arr:
+    .quad 1
+    .quad 2
+    .quad 3
 
-**Array literal expression:**
-- For globals: emit in .data section
-- For locals: store each element
+// For: var arr [20]i64;  (uninitialized)
+.bss
+arr:
+    .zero 160
 
-### 6. Codegen LLVM (src/codegen_llvm.lang)
-
-**LLVM array type:**
-```llvm
-[N x T]           ; e.g., [20 x i64], [10 x i8*]
-```
-
-**Global array:**
-```llvm
+// LLVM:
 @arr = global [3 x i64] [i64 1, i64 2, i64 3]
 @arr_zero = global [20 x i64] zeroinitializer
 ```
 
-**Local array:**
-```llvm
+### Phase 7: Codegen - Local Arrays
+
+```lang
+// x86: allocate on stack
+// For: var arr [3]i64;
+sub $24, %rsp        // 3 * 8 bytes
+// arr is at %rbp - offset
+
+// LLVM:
 %arr = alloca [3 x i64]
-; Initialize elements via getelementptr + store
 ```
 
-**Array literal:**
-```llvm
-; Constant array
-[3 x i64] [i64 1, i64 2, i64 3]
+### Phase 8: Compile-Time Bounds Check
+
+In semantic analysis or codegen, when emitting index expression:
+
+```lang
+// If index is a constant (NODE_NUMBER_EXPR) and base is array type:
+if node_kind(index_expr) == NODE_NUMBER_EXPR {
+    var idx i64 = number_expr_value(index_expr);
+    var arr_size i64 = array_type_size(base_type);
+    if idx < 0 {
+        error("negative array index");
+    }
+    if idx >= arr_size {
+        error("array index ", idx, " out of bounds for [", arr_size, "]T");
+    }
+}
 ```
 
-**Array access (already works via index, but verify):**
-```llvm
-%ptr = getelementptr [N x T], [N x T]* %arr, i64 0, i64 %index
-%val = load T, T* %ptr
-```
+## Decisions
+
+| Question | Decision | Rationale |
+|----------|----------|-----------|
+| Syntax | `[N]T` | Matches C, familiar |
+| Array decay | Yes, to `*T` | C compatibility, simple |
+| `*[N]T` pointer-to-array | **No** | Too complex, just use `*T` + length |
+| Runtime bounds check | **No** | Not the vibe, use Slice for safety |
+| Compile-time bounds check | **Yes** | Catches obvious bugs, zero cost |
+| `.len` property | **No** | You know the size, you wrote it |
+| Local array literals | Stretch goal | Can init element-by-element |
+| 2D arrays | Stretch goal | `[M][N]T` |
+| Zero-size arrays | Error | No use case |
+| Mismatched literal size | Error | `[3]i64 = [1, 2]` is error |
+| Array assignment | Pointer copy | `arr2 = arr1` copies address, not values |
+| Slices | Future std library | Not language feature |
 
 ## Test Cases
 
-### Basic Tests (test/suite/)
+### Core Tests (test/suite/)
 
 **200_array_basic.lang** - Declaration and access:
 ```lang
@@ -342,32 +521,32 @@ func main() i64 {
 
 **201_array_literal.lang** - Literal initialization:
 ```lang
+var arr [3]i64 = [100, 200, 300];
+
 func main() i64 {
-    var arr [3]i64 = [100, 200, 300];
     return arr[1];  // 200
 }
 ```
 
 **202_array_pointer.lang** - Array of pointers:
 ```lang
-var global_arr [2]*u8 = [nil, nil];
+var names [3]*u8 = ["alice", "bob", "charlie"];
 
 func main() i64 {
-    var s1 *u8 = "hello";
-    var s2 *u8 = "world";
-    global_arr[0] = s1;
-    global_arr[1] = s2;
-    if *global_arr[0] == 'h' {
-        return 1;  // Success
+    if *names[0] == 'a' {
+        if *names[2] == 'c' {
+            return 1;
+        }
     }
-    return 0;
+    return 0;  // 1
 }
 ```
 
 **203_array_loop.lang** - Iteration:
 ```lang
+var arr [5]i64 = [1, 2, 3, 4, 5];
+
 func main() i64 {
-    var arr [5]i64 = [1, 2, 3, 4, 5];
     var sum i64 = 0;
     var i i64 = 0;
     while i < 5 {
@@ -378,26 +557,22 @@ func main() i64 {
 }
 ```
 
-**204_array_param.lang** - Array as parameter (pointer decay):
+**204_array_param.lang** - Array decay to pointer:
 ```lang
-func sum_array(arr *i64, len i64) i64 {
-    var sum i64 = 0;
-    var i i64 = 0;
-    while i < len {
-        sum = sum + *(arr + i * 8);
-        i = i + 1;
-    }
-    return sum;
+func sum_first_two(p *i64) i64 {
+    var a i64 = *p;
+    var b i64 = *(p + 8);
+    return a + b;
 }
 
+var arr [3]i64 = [10, 20, 30];
+
 func main() i64 {
-    var arr [3]i64 = [10, 20, 30];
-    // Array decays to pointer when passed
-    return sum_array(&arr[0], 3);  // 60
+    return sum_first_two(arr);  // 30 (array decays to pointer)
 }
 ```
 
-**205_array_global.lang** - Global arrays:
+**205_array_global.lang** - Mutable global array:
 ```lang
 var counts [10]i64;
 
@@ -413,66 +588,90 @@ func main() i64 {
 }
 ```
 
-**206_array_struct.lang** - Array in struct (stretch):
+**206_array_local.lang** - Stack-allocated array:
 ```lang
-struct Point {
-    x i64,
-    y i64
+func test() i64 {
+    var arr [4]i64;
+    arr[0] = 1;
+    arr[1] = 2;
+    arr[2] = 3;
+    arr[3] = 4;
+    return arr[0] + arr[3];  // 5
 }
+
+func main() i64 {
+    return test();
+}
+```
+
+**207_array_nested_access.lang** - Index with expression:
+```lang
+var arr [10]i64 = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90];
+
+func main() i64 {
+    var i i64 = 3;
+    return arr[i] + arr[i + 1];  // 30 + 40 = 70
+}
+```
+
+**208_array_funcptr.lang** - Array of function pointers (for composition):
+```lang
+func add(a i64, b i64) i64 { return a + b; }
+func mul(a i64, b i64) i64 { return a * b; }
+
+var ops [2]*u8 = [nil, nil];
+
+func main() i64 {
+    ops[0] = add;
+    ops[1] = mul;
+
+    var f0 fn(i64, i64) i64 = ops[0];
+    var f1 fn(i64, i64) i64 = ops[1];
+
+    return f0(2, 3) + f1(2, 3);  // 5 + 6 = 11
+}
+```
+
+### Stretch Tests
+
+**209_array_2d.lang** - 2D arrays:
+```lang
+func main() i64 {
+    var matrix [2][3]i64;
+    matrix[0][0] = 1;
+    matrix[1][2] = 6;
+    return matrix[0][0] + matrix[1][2];  // 7
+}
+```
+
+**210_array_struct.lang** - Array in struct:
+```lang
+struct Point { x i64, y i64 }
 
 func main() i64 {
     var points [2]Point;
     points[0].x = 10;
-    points[0].y = 20;
-    points[1].x = 30;
     points[1].y = 40;
     return points[0].x + points[1].y;  // 50
 }
 ```
 
-**207_array_2d.lang** - 2D arrays (stretch):
-```lang
-func main() i64 {
-    var matrix [2][3]i64;
-    matrix[0][0] = 1;
-    matrix[0][1] = 2;
-    matrix[0][2] = 3;
-    matrix[1][0] = 4;
-    matrix[1][1] = 5;
-    matrix[1][2] = 6;
-    return matrix[1][2];  // 6
-}
-```
-
-## Edge Cases
-
-1. **Zero-size arrays** - Error or allow `[0]T`?
-2. **Empty literal** - `[]` - infer type from context?
-3. **Mismatched sizes** - `var arr [3]i64 = [1, 2]` - error or zero-fill?
-4. **Array bounds** - No runtime checks (C-style)
-5. **Array assignment** - `arr1 = arr2` - copy or error?
-6. **Array comparison** - `arr1 == arr2` - pointer comparison or element-wise?
-
 ## Implementation Order
 
-1. **Parser**: Array type syntax `[N]T`
-2. **Parser**: Array literal syntax `[e1, e2, ...]`
-3. **AST accessors**: TYPE_ARRAY and NODE_ARRAY_LITERAL
-4. **AST emit**: Round-trip support
-5. **Sexpr reader**: Parse array types and literals
-6. **Codegen x86**: Basic array support
-7. **Codegen LLVM**: Basic array support
-8. **Bootstrap**: Verify self-hosting
-9. **Tests**: All test cases
-
-## Open Questions
-
-1. Should arrays decay to pointers automatically (C-style)?
-2. Should we support array slices later?
-3. Syntax: `[N]T` vs `[T; N]` (Rust-style)?
-4. Should array size be required to be constant?
+1. **AST accessors** - array_type_*, array_literal_* functions
+2. **Parser: type** - `[N]T` syntax in parse_type()
+3. **Parser: literal** - `[e1, e2, ...]` in parse_primary()
+4. **AST emit** - Round-trip support for type_array, array_literal
+5. **Sexpr reader** - Parse array types and literals from AST
+6. **Codegen: index expr** - Implement NODE_INDEX_EXPR (currently "not implemented")
+7. **Codegen: global arrays** - .data section with initializers
+8. **Codegen: local arrays** - Stack allocation
+9. **Bounds check** - Compile-time check for constant indices
+10. **Bootstrap** - Verify self-hosting
+11. **Tests** - All test cases
 
 ## Related
 
 - `designs/fix_composition.md` - Blocked on array support for multi-reader
 - `src/limits.lang` - LIMIT_EMBEDDED_READERS = 20
+- `std/core.lang` - Vec implementation (runtime dynamic array)
