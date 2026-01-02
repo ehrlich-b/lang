@@ -1,18 +1,29 @@
-// src/kernel_main.lang - Kernel entry point: AST -> x86
+// src/kernel_main.lang - Kernel entry point: AST -> platform code
 //
 // The kernel is the core compiler that processes S-expression AST.
 // It ONLY knows AST - no lang syntax, no readers.
 //
 // Modes:
-//   1. Normal: kernel input.ast -o output.s
-//      Compile S-expression AST to x86 assembly
+//   1. Normal: kernel input.ast -o output
+//      Compile S-expression AST to platform code (x86 or LLVM IR)
 //
-//   2. Compose: kernel -c reader.ast -o compiler.s
-//      Combine kernel + reader AST to produce a new compiler
-//      WARNING: Composition is known to be broken (AST round-trip corruption)
+//   2. Embed-self: kernel --embed-self kernel.ast -o kernel
+//      Create self-aware kernel (one-time bootstrap operation)
 //
-// The correct approach for generating compilers with readers is to use
-// the main compiler with --emit-expanded-ast and -r flags instead.
+//   3. Add reader: kernel -r name reader.ast -o new_kernel
+//      Embed a reader into the kernel, producing a new compiler
+//
+// Environment:
+//   LANGBE=llvm  - Output LLVM IR instead of x86 assembly
+//   LANGOS=macos - Target macOS (affects LLVM triple)
+
+// ============================================================
+// Self-awareness: The kernel carries its own AST
+// ============================================================
+// This variable contains the kernel's own AST as an S-expression string.
+// It starts as a placeholder "_" and gets populated by --embed-self.
+// Each -r operation updates this to include the new reader.
+var self_kernel *u8 = "_";
 
 
 // Get argv[i]
@@ -41,6 +52,56 @@ func read_file(path *u8) *u8 {
 
     *(buf + n) = 0;
     return buf;
+}
+
+// Select backend based on LANGBE environment variable
+func generate_output(prog *u8, output_file *u8) void {
+    var langbe *u8 = getenv("LANGBE");
+    if langbe != nil && streq(langbe, "llvm") {
+        generate_llvm(prog, output_file);
+    } else {
+        generate(prog, output_file);
+    }
+}
+
+// ============================================================
+// AST Manipulation Helpers
+// ============================================================
+
+// Find a variable declaration by name in a program
+// Returns the var_decl node or nil if not found
+func find_var_in_program(prog *u8, name *u8) *u8 {
+    var decls *u8 = program_decls(prog);
+    var count i64 = program_decl_count(prog);
+    var i i64 = 0;
+    while i < count {
+        var decl_ptr **u8 = decls + (i * 8);
+        var decl *u8 = *decl_ptr;
+        if node_kind(decl) == NODE_VAR_DECL {
+            var decl_name *u8 = var_decl_name(decl);
+            var decl_name_len i64 = var_decl_name_len(decl);
+            if strlen(name) == decl_name_len {
+                if memcmp(name, decl_name, decl_name_len) {
+                    return decl;
+                }
+            }
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
+// Create a new string expression node
+func make_string_expr(s *u8, len i64) *u8 {
+    var node *u8 = string_expr_alloc();
+    string_expr_set_value(node, s);
+    string_expr_set_value_len(node, len);
+    return node;
+}
+
+// Replace the initializer of a var declaration
+func replace_var_init(var_decl *u8, new_init *u8) void {
+    var_decl_set_init(var_decl, new_init);
 }
 
 // Combine two programs by concatenating their declarations
@@ -86,9 +147,9 @@ func main(argc i64, argv **u8) i64 {
     // Parse arguments
     var input_file *u8 = nil;
     var output_file *u8 = nil;
-    var compose_file *u8 = nil;        // -c reader.ast
-    var kernel_ast_file *u8 = nil;     // --kernel-ast (optional override)
-    var compiler_ast_file *u8 = nil;   // --compiler-ast (optional override)
+    var embed_self_file *u8 = nil;     // --embed-self kernel.ast
+    var reader_name *u8 = nil;         // -r name
+    var reader_file *u8 = nil;         // -r name <file>
 
     var i i64 = 1;
     while i < argc {
@@ -104,31 +165,26 @@ func main(argc i64, argv **u8) i64 {
             continue;
         }
 
-        // -c reader.ast (compose mode)
-        if *arg == '-' && *(arg + 1) == 'c' && *(arg + 2) == 0 {
+        // -r name file (add reader mode)
+        if *arg == '-' && *(arg + 1) == 'r' && *(arg + 2) == 0 {
             i = i + 1;
             if i < argc {
-                compose_file = get_arg(argv, i);
+                reader_name = get_arg(argv, i);
+            }
+            i = i + 1;
+            if i < argc {
+                reader_file = get_arg(argv, i);
             }
             i = i + 1;
             continue;
         }
 
-        // --kernel-ast path
+        // --embed-self kernel.ast
         if *arg == '-' && *(arg + 1) == '-' {
-            if memcmp(arg + 2, "kernel-ast", 10) {
+            if memcmp(arg + 2, "embed-self", 10) {
                 i = i + 1;
                 if i < argc {
-                    kernel_ast_file = get_arg(argv, i);
-                }
-                i = i + 1;
-                continue;
-            }
-            // --compiler-ast path
-            if memcmp(arg + 2, "compiler-ast", 12) {
-                i = i + 1;
-                if i < argc {
-                    compiler_ast_file = get_arg(argv, i);
+                    embed_self_file = get_arg(argv, i);
                 }
                 i = i + 1;
                 continue;
@@ -141,36 +197,68 @@ func main(argc i64, argv **u8) i64 {
     }
 
     if output_file == nil {
-        output_file = "a.s";
+        output_file = "a.out";
     }
 
     // ================================================================
-    // COMPOSE MODE: kernel -c reader.ast -o compiler.s
+    // EMBED-SELF MODE: kernel --embed-self kernel.ast -o kernel
+    // Creates a self-aware kernel (one-time bootstrap operation)
     // ================================================================
-    if compose_file != nil {
-        // Default paths for kernel and compiler AST
-        if kernel_ast_file == nil {
-            kernel_ast_file = "bootstrap/current/kernel/source.ast";
-        }
-        if compiler_ast_file == nil {
-            compiler_ast_file = "bootstrap/current/compiler/source.ast";
-        }
-
-        // Read kernel AST
-        var kernel_source *u8 = read_file(kernel_ast_file);
+    if embed_self_file != nil {
+        // Read the kernel AST from file
+        var kernel_source *u8 = read_file(embed_self_file);
         if kernel_source == nil {
-            eprint("Error: cannot read kernel AST from ");
-            eprintln(kernel_ast_file);
             return 1;
         }
-        var kernel_prog *u8 = parse_ast_from_string(kernel_source);
-        if kernel_prog == nil {
+
+        // Parse AST
+        var prog *u8 = parse_ast_from_string(kernel_source);
+        if prog == nil {
             eprintln("Error: failed to parse kernel AST");
             return 1;
         }
 
-        // Read reader AST
-        var reader_source *u8 = read_file(compose_file);
+        // Find self_kernel variable
+        var self_var *u8 = find_var_in_program(prog, "self_kernel");
+        if self_var == nil {
+            eprintln("Error: self_kernel variable not found in AST");
+            return 1;
+        }
+
+        // Replace self_kernel's initializer with the raw file contents
+        var source_len i64 = strlen(kernel_source);
+        var new_init *u8 = make_string_expr(kernel_source, source_len);
+        replace_var_init(self_var, new_init);
+
+        // Generate the self-aware kernel
+        generate_output(prog, output_file);
+
+        print("Wrote self-aware kernel to ");
+        println(output_file);
+        return 0;
+    }
+
+    // ================================================================
+    // ADD READER MODE: kernel -r name reader.ast -o new_kernel
+    // Embeds a reader into the kernel
+    // ================================================================
+    if reader_name != nil && reader_file != nil {
+        // The kernel must already be self-aware (have self_kernel populated)
+        if streq(self_kernel, "_") {
+            eprintln("Error: kernel is not self-aware (self_kernel is placeholder)");
+            eprintln("Run --embed-self first to create a self-aware kernel");
+            return 1;
+        }
+
+        // Parse the kernel's own AST
+        var kernel_prog *u8 = parse_ast_from_string(self_kernel);
+        if kernel_prog == nil {
+            eprintln("Error: failed to parse self_kernel AST");
+            return 1;
+        }
+
+        // Read and parse the reader AST
+        var reader_source *u8 = read_file(reader_file);
         if reader_source == nil {
             return 1;
         }
@@ -180,37 +268,39 @@ func main(argc i64, argv **u8) i64 {
             return 1;
         }
 
-        // Read compiler entry point AST
-        var compiler_source *u8 = read_file(compiler_ast_file);
-        if compiler_source == nil {
-            eprint("Error: cannot read compiler AST from ");
-            eprintln(compiler_ast_file);
-            return 1;
-        }
-        var compiler_prog *u8 = parse_ast_from_string(compiler_source);
-        if compiler_prog == nil {
-            eprintln("Error: failed to parse compiler AST");
-            return 1;
-        }
-
-        // Combine: kernel + reader + compiler
+        // Combine kernel + reader
         var combined *u8 = combine_programs(kernel_prog, reader_prog);
-        combined = combine_programs(combined, compiler_prog);
 
-        // Generate
-        generate(combined, output_file);
+        // Find self_kernel in combined and update it
+        var self_var *u8 = find_var_in_program(combined, "self_kernel");
+        if self_var == nil {
+            eprintln("Error: self_kernel not found in combined AST");
+            return 1;
+        }
 
-        print("Wrote ");
+        // Stringify the combined AST and update self_kernel
+        var new_ast *u8 = ast_emit_program(combined);
+        var new_init *u8 = make_string_expr(new_ast, strlen(new_ast));
+        replace_var_init(self_var, new_init);
+
+        // Generate new kernel with reader
+        generate_output(combined, output_file);
+
+        print("Wrote kernel with reader '");
+        print(reader_name);
+        print("' to ");
         println(output_file);
         return 0;
     }
 
     // ================================================================
-    // NORMAL MODE: kernel input.ast -o output.s
+    // NORMAL MODE: kernel input.ast -o output
     // ================================================================
     if input_file == nil {
-        eprintln("Usage: kernel <input.ast> -o output.s");
-        eprintln("       kernel -c <reader.ast> -o compiler.s");
+        eprintln("Usage:");
+        eprintln("  kernel <input.ast> -o output       Compile AST");
+        eprintln("  kernel --embed-self k.ast -o k     Create self-aware kernel");
+        eprintln("  kernel -r name reader.ast -o k     Add reader to kernel");
         return 1;
     }
 
@@ -225,7 +315,7 @@ func main(argc i64, argv **u8) i64 {
         return 1;
     }
 
-    generate(prog, output_file);
+    generate_output(prog, output_file);
 
     print("Wrote ");
     println(output_file);
