@@ -52,8 +52,8 @@ func read_file(path *u8) *u8 {
         return nil;
     }
 
-    var buf *u8 = alloc(1048576);  // 1MB max file size
-    var n i64 = file_read(fd, buf, 1048576);
+    var buf *u8 = alloc(SIZE_AST_EMIT);  // Use same limit as AST emit
+    var n i64 = file_read(fd, buf, SIZE_AST_EMIT);
     file_close(fd);
 
     if n < 0 {
@@ -90,6 +90,19 @@ var emit_expanded_ast_mode i64 = 0;  // Emit with includes fully expanded
 var from_ast_mode i64 = 0;
 var from_ast_file *u8 = nil;
 var embed_self_mode i64 = 0;  // --embed-self: inject AST file into self_kernel variable
+var add_reader_mode i64 = 0;  // -r: add reader to self-aware kernel
+var add_reader_name *u8 = nil;
+var add_reader_file *u8 = nil;
+
+// Self-awareness: kernel carries its own AST for quine pattern
+// Initialized empty, --embed-self pokes the real AST in
+var self_kernel *u8 = "";
+
+// Embedded reader registry
+// These get poked by -r mode to add readers
+var embedded_reader_count i64 = 0;
+var embedded_reader_name *u8 = "";   // Reader name (e.g., "lisp")
+var embedded_reader_func *u8 = nil;  // Function pointer to reader_<name>
 
 // Include expansion state for --emit-expanded-ast
 var expand_included_map *u8 = nil;
@@ -560,6 +573,22 @@ func main(argc i64, argv **u8) i64 {
             }
         }
 
+        // Check for -r flag (add reader to kernel)
+        if handled == 0 && *arg == 45 {  // '-'
+            if *(arg + 1) == 'r' && *(arg + 2) == 0 {
+                i = i + 1;
+                if i < argc {
+                    add_reader_name = get_arg(argv, i);
+                }
+                i = i + 1;
+                if i < argc {
+                    add_reader_file = get_arg(argv, i);
+                }
+                add_reader_mode = 1;
+                handled = 1;
+            }
+        }
+
         // Check for -c flag (generate standalone compiler for reader)
         if handled == 0 && *arg == 45 {  // '-'
             if *(arg + 1) == 'c' && *(arg + 2) == 0 {
@@ -753,6 +782,157 @@ func main(argc i64, argv **u8) i64 {
 
         print("Wrote ");
         println(output_file);
+        return 0;
+    }
+
+    // -r mode: add reader to self-aware kernel
+    if add_reader_mode != 0 {
+        if add_reader_name == nil || add_reader_file == nil {
+            eprintln("Error: -r requires <name> <file.ast>");
+            return 1;
+        }
+
+        // Check if we have self_kernel embedded
+        if strlen(self_kernel) == 0 {
+            eprintln("Error: -r requires a self-aware kernel (use --embed-self first)");
+            return 1;
+        }
+
+        // Parse self_kernel to get the base AST
+        var base_prog *u8 = parse_ast_from_string(self_kernel);
+        if base_prog == nil {
+            eprintln("Error: failed to parse self_kernel AST");
+            return 1;
+        }
+
+        // Parse reader AST file
+        var reader_source *u8 = read_file(add_reader_file);
+        if reader_source == nil {
+            return 1;
+        }
+        var reader_prog *u8 = parse_ast_from_string(reader_source);
+        if reader_prog == nil {
+            eprintln("Error: failed to parse reader AST");
+            return 1;
+        }
+
+        // Combine: base + reader declarations
+        var base_decls *u8 = program_decls(base_prog);
+        var base_count i64 = program_decl_count(base_prog);
+        var reader_decls *u8 = program_decls(reader_prog);
+        var reader_count i64 = program_decl_count(reader_prog);
+
+        var total i64 = base_count + reader_count;
+        var combined_decls *u8 = alloc(total * 8);
+
+        // Copy base declarations
+        var j i64 = 0;
+        while j < base_count {
+            var src **u8 = base_decls + (j * 8);
+            var dst **u8 = combined_decls + (j * 8);
+            *dst = *src;
+            j = j + 1;
+        }
+
+        // Copy reader declarations
+        j = 0;
+        while j < reader_count {
+            var src **u8 = reader_decls + (j * 8);
+            var dst **u8 = combined_decls + ((base_count + j) * 8);
+            *dst = *src;
+            j = j + 1;
+        }
+
+        // Build combined program node
+        var combined_prog *u8 = alloc(16);
+        var pd **u8 = combined_prog;
+        *pd = combined_decls;
+        var pc *i64 = combined_prog + 8;
+        *pc = total;
+
+        // Build reader function name: "reader_" + name
+        var reader_name_len i64 = strlen(add_reader_name);
+        var func_name *u8 = str_concat("reader_", add_reader_name);
+        var func_name_len i64 = strlen(func_name);
+
+        // Re-stringify the combined AST
+        var combined_ast_str *u8 = ast_emit_program(combined_prog);
+        var combined_ast_len i64 = strlen(combined_ast_str);
+
+        // Walk combined AST and poke:
+        // - self_kernel = combined AST string
+        // - embedded_reader_name = reader name
+        // - embedded_reader_func = (ident reader_<name>)
+        // - embedded_reader_count = 1
+        var found_self i64 = 0;
+        var found_name i64 = 0;
+        var found_func i64 = 0;
+        var found_count i64 = 0;
+
+        j = 0;
+        while j < total {
+            var decl *u8 = get_decl(combined_decls, j);
+            if node_kind(decl) == NODE_VAR_DECL {
+                var name *u8 = var_decl_name(decl);
+                var name_len i64 = var_decl_name_len(decl);
+
+                // self_kernel
+                if name_len == 11 && memcmp(name, "self_kernel", 11) {
+                    var str_node *u8 = string_expr_alloc();
+                    string_expr_set_value(str_node, combined_ast_str);
+                    string_expr_set_value_len(str_node, combined_ast_len);
+                    var_decl_set_init(decl, str_node);
+                    found_self = 1;
+                }
+
+                // embedded_reader_name
+                if name_len == 20 && memcmp(name, "embedded_reader_name", 20) {
+                    var str_node *u8 = string_expr_alloc();
+                    string_expr_set_value(str_node, add_reader_name);
+                    string_expr_set_value_len(str_node, reader_name_len);
+                    var_decl_set_init(decl, str_node);
+                    found_name = 1;
+                }
+
+                // embedded_reader_func
+                if name_len == 20 && memcmp(name, "embedded_reader_func", 20) {
+                    var ident_node *u8 = ident_expr_alloc();
+                    ident_expr_set_name(ident_node, func_name);
+                    ident_expr_set_name_len(ident_node, func_name_len);
+                    var_decl_set_init(decl, ident_node);
+                    found_func = 1;
+                }
+
+                // embedded_reader_count
+                if name_len == 21 && memcmp(name, "embedded_reader_count", 21) {
+                    var num_node *u8 = number_expr_alloc();
+                    number_expr_set_value(num_node, "1");
+                    number_expr_set_value_len(num_node, 1);
+                    var_decl_set_init(decl, num_node);
+                    found_count = 1;
+                }
+            }
+            j = j + 1;
+        }
+
+        if found_self == 0 {
+            eprintln("Error: self_kernel variable not found in combined AST");
+            return 1;
+        }
+
+        // Generate using appropriate backend
+        var langbe *u8 = getenv("LANGBE");
+        if langbe != nil && streq(langbe, "llvm") {
+            generate_llvm(combined_prog, output_file);
+        } else {
+            generate(combined_prog, output_file);
+        }
+
+        print("Wrote ");
+        print(output_file);
+        print(" (added reader: ");
+        print(add_reader_name);
+        println(")");
         return 0;
     }
 

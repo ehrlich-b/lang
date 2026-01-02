@@ -1,6 +1,6 @@
 # Fix Composition (compose command)
 
-## Status: Design Finalized, Implementation TBD
+## Status: Partially Implemented (see bottom)
 
 ## The Architecture
 
@@ -367,3 +367,48 @@ After bootstrap:
 - Runtime reader compilation from source strings (that was the old broken approach)
 - Standalone.lang (deprecated, will be removed)
 - Generating .lang source as intermediate step
+
+## Implementation Status (2026-01-01)
+
+### What Works
+
+1. **`--embed-self`** - Creates self-aware kernel with ~1.1MB AST in `self_kernel`
+2. **`-r name file.ast`** - Adds reader to kernel, combines ASTs, pokes function pointer
+3. **Quine property** - Kernel with readers can add more readers via `-r`
+4. **Function pointers** - Reader function addresses properly embedded in binary
+
+### Infrastructure Added
+
+- `SIZE_AST_EMIT` in limits.lang (8MB buffer for large AST)
+- `extern_func` / `extern_var` in AST emit and sexpr_reader
+- Global initializer support for ident expressions (function pointers) in codegen_llvm
+- Variables in main.lang: `self_kernel`, `embedded_reader_count`, `embedded_reader_name`, `embedded_reader_func`
+
+### BLOCKING BUG: Single Reader Slot
+
+**Current implementation only supports ONE embedded reader.**
+
+The variables are single-valued:
+```lang
+var embedded_reader_name *u8 = "";   // Only one name
+var embedded_reader_func *u8 = nil;  // Only one function pointer
+```
+
+Each `-r` operation overwrites the previous reader. Need N reader slots.
+
+### TODO: Multi-Reader Support
+
+Need to change from single variables to arrays:
+```lang
+var embedded_reader_count i64 = 0;
+var embedded_reader_names *u8 = nil;  // Array of name pointers
+var embedded_reader_fps *u8 = nil;    // Array of function pointers
+```
+
+And update `-r` mode to:
+1. Parse existing count from AST
+2. Allocate new arrays with count+1 entries
+3. Copy existing entries + append new one
+4. Poke updated arrays back into AST
+
+Max readers limited only by AST size (~8MB buffer).

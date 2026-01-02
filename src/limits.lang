@@ -26,4 +26,5 @@ var LIMIT_INCLUDE_DEPTH i64 = 32;
 // Buffer sizes
 var SIZE_CODE_BUF i64 = 4194304;    // 4MB
 var SIZE_FUNC_BUF i64 = 524288;     // 512KB
+var SIZE_AST_EMIT i64 = 8388608;    // 8MB
 var SIZE_HEAP i64 = 268435456;      // 256MB

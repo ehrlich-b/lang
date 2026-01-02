@@ -46,7 +46,7 @@ var ast_emit_cap i64 = 0;
 var ast_emit_indent i64 = 0;
 
 func ast_emit_init() void {
-    ast_emit_cap = 1048576;  // 1MB
+    ast_emit_cap = SIZE_AST_EMIT;
     ast_emit_buf = alloc(ast_emit_cap);
     ast_emit_len = 0;
     ast_emit_indent = 0;
@@ -270,7 +270,11 @@ func ast_emit_node(node *u8) void {
     // ============================================================
 
     if kind == NODE_FUNC_DECL {
-        ast_emit_str("(func ");
+        if func_decl_is_extern(node) {
+            ast_emit_str("(extern_func ");
+        } else {
+            ast_emit_str("(func ");
+        }
         ast_emit_strn(func_decl_name(node), func_decl_name_len(node));
         ast_emit_str(" (");
         var params *u8 = func_decl_params(node);
@@ -292,7 +296,11 @@ func ast_emit_node(node *u8) void {
     }
 
     if kind == NODE_VAR_DECL {
-        ast_emit_str("(var ");
+        if var_decl_is_extern(node) {
+            ast_emit_str("(extern_var ");
+        } else {
+            ast_emit_str("(var ");
+        }
         ast_emit_strn(var_decl_name(node), var_decl_name_len(node));
         ast_emit_str(" ");
         ast_emit_type(var_decl_type(node));
