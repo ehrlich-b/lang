@@ -189,14 +189,25 @@ kernel compose -r lang lang_reader.ast -o lang1
 
 ### The Key Insight: Self-Aware Kernel
 
-The kernel carries its own AST as a string constant:
+The kernel carries BOTH AST (for quine) AND function pointers (for runtime):
 
 ```lang
 // In kernel source:
-var self_kernel *u8 = _;                    // Placeholder, filled at bootstrap
-var embedded_readers []*u8 = [];            // Reader AST strings
-var embedded_reader_names []*u8 = [];       // Reader names
+var self_kernel *u8 = _;                         // Full program AST (for quine)
+var embedded_reader_names []*u8 = [];            // ["lang", "lisp"]
+var embedded_reader_fps [] = [];                 // [reader_lang, reader_lisp] - function ptrs!
 ```
+
+**Three pieces:**
+1. **self_kernel** (AST string) - for quine, enables further `-r` operations
+2. **embedded_reader_names** (string array) - for runtime lookup by name
+3. **embedded_reader_fps** (function pointer array) - for runtime execution, NO clang needed!
+
+**How function pointers get into the array:**
+When combining ASTs, the reader's `func reader_lang(...)` becomes part of the program.
+In the AST, we append `(ident reader_lang)` to the fps array.
+At compile time, that identifier resolves to the function's address.
+The function pointer is baked into the binary!
 
 **Critical detail:** `self_kernel` contains AST where `self_kernel = _` (placeholder).
 Every operation must re-poke the complete AST back into self_kernel!
@@ -225,16 +236,18 @@ Adds a reader to the kernel:
 
 ```
 1. Parse self_kernel → get AST (contains self_kernel = _)
-2. Find embedded_readers array, append reader.ast content
-3. Find embedded_reader_names array, append "name"
-4. Re-stringify the ENTIRE modified AST
-5. Poke that back into self_kernel  ← CRITICAL!
-6. Compile modified AST → new kernel binary
+2. Parse reader.ast → reader AST (contains func reader_<name>)
+3. COMBINE the two ASTs (reader functions join the program)
+4. Find embedded_reader_names array, append "name"
+5. Find embedded_reader_fps array, append (ident reader_<name>)
+6. Re-stringify the ENTIRE modified AST
+7. Poke that back into self_kernel  ← CRITICAL!
+8. Compile modified AST → new kernel binary
 ```
 
 Result: new kernel with:
-- The new reader in embedded_readers
-- Complete self-knowledge (including the new reader) in self_kernel
+- Reader function compiled as native code (function pointer in array)
+- Complete AST in self_kernel (for further `-r` operations)
 - Can do more `-r` operations itself!
 
 **It's a self-replicating quine with cargo.**
@@ -282,12 +295,25 @@ We just need:
 ### Runtime: find_reader()
 
 At runtime, `find_reader("lang")`:
-1. Scan `embedded_reader_names` for "lang"
-2. Get corresponding entry from `embedded_readers`
-3. Compile that AST on-demand → reader function
-4. Cache and return
 
-No changes to the fundamental resolution model.
+```lang
+func find_reader(name *u8, len i64) *func {
+    var i = 0;
+    while i < array_len(embedded_reader_names) {
+        if streq(embedded_reader_names[i], name) {
+            return embedded_reader_fps[i];  // Already compiled!
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
+// Usage - direct call, no subprocess, no clang!
+var reader_fn = find_reader("lang", 4);
+var ast = reader_fn(source, source_len);
+```
+
+**No external toolchain needed!** The function pointer was resolved at compile time.
 
 ### What Needs to Be Built
 
@@ -313,14 +339,18 @@ No changes to the fundamental resolution model.
 
 ```
 bootstrap/current/
-  compiler_linux.ll     # Root of trust (LLVM IR)
-  compiler_macos.ll     # Root of trust (LLVM IR)
-  kernel.ast            # Kernel AST (for --embed-self bootstrap)
-  lang_reader.ast       # Lang reader AST (renamed from lang_reader/source.ast)
+  kernel.ast            # Bare kernel AST (no readers, has self_kernel = _)
+  lang_reader.ast       # Lang reader AST
+  lang_compiler.ll      # = kernel -r lang lang_reader.ast (LLVM IR)
+                        # This is the root of trust, NOT bare kernel!
 ```
 
-After bootstrap, the kernel binary is self-contained (carries self_kernel).
-The .ast files are only needed for the initial --embed-self step.
+**Key insight:** We never store compiled bare kernel. Only store .ll AFTER `-r lang`.
+The bare kernel.ast is only used for the `--embed-self` bootstrap step.
+
+After bootstrap:
+- The lang_compiler binary is self-contained (carries self_kernel with everything)
+- kernel.ast and lang_reader.ast are only needed if rebuilding from scratch
 
 ## Decisions Made
 
