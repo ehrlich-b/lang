@@ -3,6 +3,9 @@
 
 include "src/limits.lang"
 
+// Environment pointer set by main() - used to inherit environment in exec_run
+extern var ___envp **u8;
+
 // ============================================================
 // Codegen state (global)
 // ============================================================
@@ -919,6 +922,7 @@ func find_macro(name *u8, name_len i64) *u8 {
 // ============================================================
 
 // Execute a program, wait for completion (no stdin/stdout capture)
+// Inherits parent's environment so child can find tools like linker
 func exec_run(program *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8) i64 {
     var argv *u8 = alloc(56);  // 7 pointers
     var a0 **u8 = argv;      *a0 = program;
@@ -929,9 +933,8 @@ func exec_run(program *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8) i64
     var a5 **u8 = argv + 40; *a5 = arg5;
     var a6 **u8 = argv + 48; *a6 = nil;
 
-    var envp *u8 = alloc(8);
-    var e0 **u8 = envp;
-    *e0 = nil;
+    // Use parent's environment (___envp) so child inherits PATH etc.
+    var envp **u8 = ___envp;
 
     var pid i64 = os_fork();
     if pid == 0 {
