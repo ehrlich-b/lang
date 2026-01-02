@@ -16,9 +16,9 @@ Lang's collection story has three levels, matching the C-like low-level vibes:
 |-------|------|------------------|-----------------|--------|
 | **Pointers** | `*T` | None - you track it | None | **Have now** |
 | **Arrays** | `[N]T` | Compile-time (in type) | Compile-time for constants | **Adding** |
-| **Slices** | `struct { ptr, len }` | Runtime (in struct) | Runtime (library function) | **Future std** |
+| **Slices** | TBD | Runtime | Runtime | **Future effort** |
 
-**Key principle**: No hidden machinery. Arrays are just storage allocation with sugar. Slices are user-defined structs, not language magic.
+**Key principle**: No hidden machinery. Arrays are just storage allocation with sugar.
 
 ## What We Have Now (Level 0: Pointers)
 
@@ -109,43 +109,11 @@ func foo() i64 {
 
 ## Future: Slices (Level 2: std library)
 
-Slices will be a **library feature**, not language magic:
+Slices are a **future effort** - separate design doc needed.
 
-```lang
-// std/slice.lang (future)
-struct Slice {
-    ptr *u8,
-    len i64
-}
+Key difference from arrays: slices would be **dynamic** (malloc-based, growable), not just a view into fixed storage. Think Vec with nicer ergonomics, not Go/Rust slices.
 
-func slice_new(ptr *u8, len i64) Slice {
-    var s Slice;
-    s.ptr = ptr;
-    s.len = len;
-    return s;
-}
-
-func slice_get(s *Slice, i i64) *u8 {
-    if i < 0 { panic("negative index"); }
-    if i >= s.len { panic("index out of bounds"); }
-    return s.ptr + i * 8;
-}
-
-func slice_set(s *Slice, i i64, val *u8) void {
-    if i < 0 { panic("negative index"); }
-    if i >= s.len { panic("index out of bounds"); }
-    var p **u8 = s.ptr + i * 8;
-    *p = val;
-}
-
-// Usage:
-var arr [20]i64 = [...];
-var s Slice = slice_new(arr, 20);
-slice_set(&s, 3, 42);  // Bounds checked!
-```
-
-**No fat pointers, no hidden control flow.** Just a struct with explicit accessors.
-User chooses: raw speed (arrays) or safety (slices).
+For now, use `Vec` from `std/core.lang` for dynamic collections.
 
 ## Syntax
 
@@ -502,7 +470,7 @@ if node_kind(index_expr) == NODE_NUMBER_EXPR {
 | Zero-size arrays | Error | No use case |
 | Mismatched literal size | Error | `[3]i64 = [1, 2]` is error |
 | Array assignment | Pointer copy | `arr2 = arr1` copies address, not values |
-| Slices | Future std library | Not language feature |
+| Slices | Future effort | Separate design doc needed, dynamic/malloc-based |
 
 ## Test Cases
 
