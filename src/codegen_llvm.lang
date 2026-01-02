@@ -5191,6 +5191,14 @@ func llvm_emit_decl(decl *u8) void {
                 llvm_emit_str(" x i8]* @.str");
                 llvm_emit_int(idx);
                 llvm_emit_str(", i64 0, i64 0) to i64)");
+            } else if node_kind(init) == NODE_IDENT_EXPR {
+                // Identifier - could be a function pointer
+                var ident_name *u8 = ident_expr_name(init);
+                var ident_len i64 = ident_expr_name_len(init);
+                // Emit: ptrtoint (i8* @funcname to i64)
+                llvm_emit_str("ptrtoint (i8* @");
+                llvm_emit_n(ident_name, ident_len);
+                llvm_emit_str(" to i64)");
             } else {
                 // Non-constant initializer - use 0 for now
                 llvm_emit_str("0");

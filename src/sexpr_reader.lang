@@ -445,7 +445,12 @@ func sexpr_to_node(node *PNode) *u8 {
     // ============================================================
 
     // (func name (params...) ret-type body)
-    if streq(head, "func") {
+    // (extern_func name (params...) ret-type body) - same but sets is_extern
+    var is_extern_func i64 = 0;
+    if streq(head, "extern_func") {
+        is_extern_func = 1;
+    }
+    if streq(head, "func") || is_extern_func {
         var n *u8 = func_decl_alloc();
         var name_node *PNode = sexpr_get(node, 1);
         func_decl_set_name(n, sexpr_strdup(name_node.text));
@@ -466,11 +471,17 @@ func sexpr_to_node(node *PNode) *u8 {
 
         func_decl_set_ret_type(n, sexpr_to_type(sexpr_get(node, 3)));
         func_decl_set_body(n, sexpr_to_node(sexpr_get(node, 4)));
+        func_decl_set_is_extern(n, is_extern_func);
         return n;
     }
 
     // (var name type init?)
-    if streq(head, "var") {
+    // (extern_var name type) - same but sets is_extern
+    var is_extern_var i64 = 0;
+    if streq(head, "extern_var") {
+        is_extern_var = 1;
+    }
+    if streq(head, "var") || is_extern_var {
         var n *u8 = var_decl_alloc();
         var name_node *PNode = sexpr_get(node, 1);
         var_decl_set_name(n, sexpr_strdup(name_node.text));
@@ -481,6 +492,7 @@ func sexpr_to_node(node *PNode) *u8 {
         } else {
             var_decl_set_init(n, nil);
         }
+        var_decl_set_is_extern(n, is_extern_var);
         return n;
     }
 
