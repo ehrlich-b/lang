@@ -412,3 +412,38 @@ And update `-r` mode to:
 4. Poke updated arrays back into AST
 
 Max readers limited only by AST size (~8MB buffer).
+
+## Blocking Issue: No Array Support (2026-01-02)
+
+While implementing multi-reader support, we discovered that **lang has no array support**.
+
+- `TYPE_ARRAY` constant exists (= 3) but is never used
+- `parse_type()` only handles: `*T`, `fn()`, `closure()`, base types
+- No array literal syntax `[1, 2, 3]`
+- No array type syntax `[N]T`
+
+This blocks multi-reader composition. We need arrays to store N reader name/function pairs.
+
+**Workarounds considered:**
+1. N distinct variables (`embedded_reader_0_name`, etc.) - ugly, verbose
+2. Pack data into string literals - still need function pointer resolution
+3. Generate lookup function dynamically - complex AST manipulation
+
+**Decision:** Implement proper array support first.
+
+See: `designs/array_support.md`
+
+### Resuming After Array Support
+
+Once arrays work, update multi-reader to use:
+```lang
+var embedded_reader_count i64 = 0;
+var embedded_reader_names [20]*u8 = [nil, nil, ...];
+var embedded_reader_funcs [20]*u8 = [nil, nil, ...];
+```
+
+Then `-r` mode can:
+1. Read count from AST
+2. Set `names[count]` and `funcs[count]`
+3. Increment count
+4. Re-stringify AST
