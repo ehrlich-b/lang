@@ -536,9 +536,7 @@ status:
 # Kernel core (for composition - no main)
 # Note: parser.lang needed for AST node accessors used by codegen and sexpr_reader
 # Note: limits.lang is included by std/core.lang, don't list explicitly
-# Note: ast_emit.lang needed for stringify_ast (AST -> S-expression text)
-# Note: codegen_llvm.lang needed for LLVM backend (cross-platform)
-KERNEL_CORE := std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/sexpr_reader.lang src/ast_emit.lang
+KERNEL_CORE := std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/sexpr_reader.lang
 
 # Kernel binary sources (core + main for standalone kernel)
 KERNEL_SOURCES := $(KERNEL_CORE) src/kernel_main.lang
@@ -550,35 +548,24 @@ LANG_READER_SOURCES := std/core.lang src/lexer.lang src/parser.lang src/ast_emit
 # Compiler entry point (uses reader_transform from reader + generate from kernel)
 COMPILER_SOURCES := src/compiler.lang
 
-# Build kernel binary (AST -> platform code)
-# Uses LLVM on macOS, x86 on Linux
+# Build kernel binary (AST -> x86)
 build-kernel:
-	@if [ ! -f $(LANG) ] && [ ! -L $(LANG) ]; then $(MAKE) init; fi
+	@if [ ! -L $(LANG) ]; then $(MAKE) init; fi
 	@mkdir -p out
-ifeq ($(PLATFORM),macos)
-	LANGBE=llvm LANGOS=macos $(LANG) $(KERNEL_SOURCES) -o out/kernel.ll
-	clang -O2 out/kernel.ll -o out/kernel
-else
 	$(LANG) $(KERNEL_SOURCES) -o out/kernel.s
 	as out/kernel.s -o out/kernel.o
 	ld out/kernel.o -o out/kernel
 	rm -f out/kernel.o
-endif
 	@echo "Built: out/kernel"
 
 # Build lang_reader binary (standalone tool: lang -> AST to stdout)
 build-lang-reader:
-	@if [ ! -f $(LANG) ] && [ ! -L $(LANG) ]; then $(MAKE) init; fi
+	@if [ ! -L $(LANG) ]; then $(MAKE) init; fi
 	@mkdir -p out
-ifeq ($(PLATFORM),macos)
-	LANGBE=llvm LANGOS=macos $(LANG) $(LANG_READER_SOURCES) src/reader_main.lang -o out/lang_reader.ll
-	clang -O2 out/lang_reader.ll -o out/lang_reader
-else
 	$(LANG) $(LANG_READER_SOURCES) src/reader_main.lang -o out/lang_reader.s
 	as out/lang_reader.s -o out/lang_reader.o
 	ld out/lang_reader.o -o out/lang_reader
 	rm -f out/lang_reader.o
-endif
 	@echo "Built: out/lang_reader"
 
 # Emit kernel core AST (for composition - no main)
