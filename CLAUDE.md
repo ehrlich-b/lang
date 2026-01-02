@@ -172,6 +172,19 @@ If ANY stage fails, nothing is promoted. Fix before proceeding.
 3. **NEVER modify escape_hatch.s directly** - It's auto-updated by bootstrap
 4. **NEVER run partial verification** - Always full `make bootstrap`
 
+### Incremental Development (CRITICAL)
+
+**Always think about bootstrap.** Every change must be bootstrappable before moving on.
+
+- Make ONE small change
+- Run `make bootstrap`
+- Only proceed if it passes
+- Commit after each successful bootstrap
+
+Don't build features that depend on other features you haven't bootstrapped yet.
+For example, you can't build a standalone kernel without `-r` support if that
+kernel needs readers - bootstrap it with readers first, then split later.
+
 ### Feature Development Workflow (CRITICAL)
 
 When adding new features that change the AST format, readers, or any compiler capability:
