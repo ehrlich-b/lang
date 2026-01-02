@@ -89,6 +89,7 @@ var emit_ast_mode i64 = 0;
 var emit_expanded_ast_mode i64 = 0;  // Emit with includes fully expanded
 var from_ast_mode i64 = 0;
 var from_ast_file *u8 = nil;
+var embed_self_mode i64 = 0;  // --embed-self: inject AST file into self_kernel variable
 
 // Include expansion state for --emit-expanded-ast
 var expand_included_map *u8 = nil;
@@ -190,6 +191,7 @@ func cmd_help_compile() i64 {
     println("  --emit-ast          Emit AST S-expressions instead of assembly");
     println("  --emit-expanded-ast Emit fully expanded AST (includes inlined)");
     println("  --from-ast          Input is AST, not source");
+    println("  --embed-self        Inject AST file into self_kernel variable");
     println("  --expand-macros     Print macro expansions to stderr");
     println("");
     println("Multi-syntax compilation:");
@@ -551,6 +553,11 @@ func main(argc i64, argv **u8) i64 {
                 from_ast_mode = 1;
                 handled = 1;
             }
+            // Check for --embed-self flag
+            if handled == 0 && memcmp(arg + 2, "embed-self", 10) {
+                embed_self_mode = 1;
+                handled = 1;
+            }
         }
 
         // Check for -c flag (generate standalone compiler for reader)
@@ -683,6 +690,66 @@ func main(argc i64, argv **u8) i64 {
 
         // Generate assembly
         generate(prog, output_file);
+
+        print("Wrote ");
+        println(output_file);
+        return 0;
+    }
+
+    // --embed-self mode: parse AST and inject raw contents into self_kernel variable
+    if embed_self_mode != 0 {
+        if vec_len(input_files) == 0 {
+            eprintln("Error: no input file for --embed-self");
+            return 1;
+        }
+
+        var ast_file *u8 = vec_get(input_files, 0);
+        var ast_source *u8 = read_file(ast_file);
+        if ast_source == nil {
+            return 1;
+        }
+        var ast_source_len i64 = strlen(ast_source);
+
+        var prog *u8 = parse_ast_from_string(ast_source);
+        if prog == nil {
+            eprintln("Error: failed to parse AST");
+            return 1;
+        }
+
+        // Find self_kernel variable and inject raw AST contents
+        var found i64 = 0;
+        var decls *u8 = program_decls(prog);
+        var decl_count i64 = program_decl_count(prog);
+        var j i64 = 0;
+        while j < decl_count {
+            var decl *u8 = get_decl(decls, j);
+            if node_kind(decl) == NODE_VAR_DECL {
+                var name *u8 = var_decl_name(decl);
+                var name_len i64 = var_decl_name_len(decl);
+                if name_len == 11 && memcmp(name, "self_kernel", 11) {
+                    // Create string node with raw AST contents
+                    var str_node *u8 = string_expr_alloc();
+                    string_expr_set_value(str_node, ast_source);
+                    string_expr_set_value_len(str_node, ast_source_len);
+                    var_decl_set_init(decl, str_node);
+                    found = 1;
+                }
+            }
+            j = j + 1;
+        }
+
+        if found == 0 {
+            eprintln("Error: self_kernel variable not found in AST");
+            return 1;
+        }
+
+        // Generate using appropriate backend
+        var langbe *u8 = getenv("LANGBE");
+        if langbe != nil && streq(langbe, "llvm") {
+            generate_llvm(prog, output_file);
+        } else {
+            generate(prog, output_file);
+        }
 
         print("Wrote ");
         println(output_file);

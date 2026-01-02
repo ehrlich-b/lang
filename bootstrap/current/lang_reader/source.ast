@@ -11,6 +11,7 @@
   (var LIMIT_EFFECTS (type_base i64) (number 100))
   (var LIMIT_MACROS (type_base i64) (number 100))
   (var LIMIT_READERS (type_base i64) (number 100))
+  (var LIMIT_EMBEDDED_READERS (type_base i64) (number 20))
   (var LIMIT_FUNCS (type_base i64) (number 1000))
   (var LIMIT_LAMBDAS (type_base i64) (number 1000))
   (var LIMIT_CAPTURES (type_base i64) (number 64))
@@ -139,6 +140,133 @@
       (return (call (ident calloc) (number 1) (ident size)))))
   (func init_environ ((param envp (type_ptr (type_ptr (type_base u8))))) (type_base void)
     (block))
+  (func find_in_path ((param tool (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+    (block
+      (var path_env (type_ptr (type_base u8)) (call (ident getenv) (string "PATH")))
+      (if (binop == (ident path_env) (nil))
+        (block
+          (return (nil))))
+      (var path (type_ptr (type_base u8)) (call (ident str_dup) (ident path_env)))
+      (var start (type_ptr (type_base u8)) (ident path))
+      (var p (type_ptr (type_base u8)) (ident path))
+      (var buf (type_ptr (type_base u8)) (call (ident alloc) (number 1024)))
+      (while (binop != (unop * (ident p)) (number 0))
+        (block
+          (if (binop == (unop * (ident p)) (number 58))
+            (block
+              (assign (unop * (ident p)) (number 0))
+              (var i (type_base i64) (number 0))
+              (var s (type_ptr (type_base u8)) (ident start))
+              (while (binop != (unop * (ident s)) (number 0))
+                (block
+                  (assign (unop * (binop + (ident buf) (ident i))) (unop * (ident s)))
+                  (assign (ident i) (binop + (ident i) (number 1)))
+                  (assign (ident s) (binop + (ident s) (number 1)))))
+              (assign (unop * (binop + (ident buf) (ident i))) (number 47))
+              (assign (ident i) (binop + (ident i) (number 1)))
+              (assign (ident s) (ident tool))
+              (while (binop != (unop * (ident s)) (number 0))
+                (block
+                  (assign (unop * (binop + (ident buf) (ident i))) (unop * (ident s)))
+                  (assign (ident i) (binop + (ident i) (number 1)))
+                  (assign (ident s) (binop + (ident s) (number 1)))))
+              (assign (unop * (binop + (ident buf) (ident i))) (number 0))
+              (var fd (type_base i64) (call (ident file_open) (ident buf) (number 0)))
+              (if (binop >= (ident fd) (number 0))
+                (block
+                  (expr_stmt (call (ident file_close) (ident fd)))
+                  (return (call (ident str_dup) (ident buf)))))
+              (assign (ident start) (binop + (ident p) (number 1)))))
+          (assign (ident p) (binop + (ident p) (number 1)))))
+      (if (binop != (unop * (ident start)) (number 0))
+        (block
+          (var i (type_base i64) (number 0))
+          (var s (type_ptr (type_base u8)) (ident start))
+          (while (binop != (unop * (ident s)) (number 0))
+            (block
+              (assign (unop * (binop + (ident buf) (ident i))) (unop * (ident s)))
+              (assign (ident i) (binop + (ident i) (number 1)))
+              (assign (ident s) (binop + (ident s) (number 1)))))
+          (assign (unop * (binop + (ident buf) (ident i))) (number 47))
+          (assign (ident i) (binop + (ident i) (number 1)))
+          (assign (ident s) (ident tool))
+          (while (binop != (unop * (ident s)) (number 0))
+            (block
+              (assign (unop * (binop + (ident buf) (ident i))) (unop * (ident s)))
+              (assign (ident i) (binop + (ident i) (number 1)))
+              (assign (ident s) (binop + (ident s) (number 1)))))
+          (assign (unop * (binop + (ident buf) (ident i))) (number 0))
+          (var fd (type_base i64) (call (ident file_open) (ident buf) (number 0)))
+          (if (binop >= (ident fd) (number 0))
+            (block
+              (expr_stmt (call (ident file_close) (ident fd)))
+              (return (call (ident str_dup) (ident buf)))))))
+      (return (nil))))
+  (func find_clang () (type_ptr (type_base u8))
+    (block
+      (var path_clang (type_ptr (type_base u8)) (call (ident find_in_path) (string "clang")))
+      (if (binop != (ident path_clang) (nil))
+        (block
+          (return (ident path_clang))))
+      (var buf (type_ptr (type_base u8)) (call (ident alloc) (number 256)))
+      (var loc1 (type_ptr (type_base u8)) (string "/opt/homebrew/opt/llvm/bin/clang"))
+      (var fd (type_base i64) (call (ident file_open) (ident loc1) (number 0)))
+      (if (binop >= (ident fd) (number 0))
+        (block
+          (expr_stmt (call (ident file_close) (ident fd)))
+          (return (ident loc1))))
+      (var loc2 (type_ptr (type_base u8)) (string "/usr/bin/clang"))
+      (assign (ident fd) (call (ident file_open) (ident loc2) (number 0)))
+      (if (binop >= (ident fd) (number 0))
+        (block
+          (expr_stmt (call (ident file_close) (ident fd)))
+          (return (ident loc2))))
+      (var loc3 (type_ptr (type_base u8)) (string "/usr/local/bin/clang"))
+      (assign (ident fd) (call (ident file_open) (ident loc3) (number 0)))
+      (if (binop >= (ident fd) (number 0))
+        (block
+          (expr_stmt (call (ident file_close) (ident fd)))
+          (return (ident loc3))))
+      (return (nil))))
+  (func find_as () (type_ptr (type_base u8))
+    (block
+      (var path_as (type_ptr (type_base u8)) (call (ident find_in_path) (string "as")))
+      (if (binop != (ident path_as) (nil))
+        (block
+          (return (ident path_as))))
+      (var loc1 (type_ptr (type_base u8)) (string "/usr/bin/as"))
+      (var fd (type_base i64) (call (ident file_open) (ident loc1) (number 0)))
+      (if (binop >= (ident fd) (number 0))
+        (block
+          (expr_stmt (call (ident file_close) (ident fd)))
+          (return (ident loc1))))
+      (return (nil))))
+  (func find_ld () (type_ptr (type_base u8))
+    (block
+      (var path_ld (type_ptr (type_base u8)) (call (ident find_in_path) (string "ld")))
+      (if (binop != (ident path_ld) (nil))
+        (block
+          (return (ident path_ld))))
+      (var loc1 (type_ptr (type_base u8)) (string "/usr/bin/ld"))
+      (var fd (type_base i64) (call (ident file_open) (ident loc1) (number 0)))
+      (if (binop >= (ident fd) (number 0))
+        (block
+          (expr_stmt (call (ident file_close) (ident fd)))
+          (return (ident loc1))))
+      (return (nil))))
+  (func find_lli () (type_ptr (type_base u8))
+    (block
+      (var path_lli (type_ptr (type_base u8)) (call (ident find_in_path) (string "lli")))
+      (if (binop != (ident path_lli) (nil))
+        (block
+          (return (ident path_lli))))
+      (var loc1 (type_ptr (type_base u8)) (string "/opt/homebrew/opt/llvm/bin/lli"))
+      (var fd (type_base i64) (call (ident file_open) (ident loc1) (number 0)))
+      (if (binop >= (ident fd) (number 0))
+        (block
+          (expr_stmt (call (ident file_close) (ident fd)))
+          (return (ident loc1))))
+      (return (nil))))
   (func vec_new ((param cap (type_base i64))) (type_ptr (type_base u8))
     (block
       (var v (type_ptr (type_base u8)) (call (ident malloc) (number 24)))
