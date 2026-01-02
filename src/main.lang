@@ -256,12 +256,34 @@ func cmd_help_help() i64 {
     return 0;
 }
 
+func cmd_help_compose() i64 {
+    println("lang compose - create compiler with embedded reader ASTs");
+    println("");
+    println("Usage: lang compose -r <name> <file> [-r ...] -o <output>");
+    println("");
+    println("Embeds reader ASTs into a new compiler source file.");
+    println("The reader source is compiled to AST, then embedded.");
+    println("The resulting compiler can use those readers without external files.");
+    println("");
+    println("Examples:");
+    println("  lang compose -r lisp reader.lang -o composed.lang");
+    println("");
+    println("Options:");
+    println("  -r <name> <file>    Add reader (name=extension, file=source or .ast)");
+    println("  -o <output>         Output file (.lang source)");
+    println("");
+    println("After generating, compile the output:");
+    println("  LANGBE=llvm ./lang composed.lang -o out.ll && clang out.ll -o compiler");
+    return 0;
+}
+
 func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     // Check for subcommand-specific help
     // arg_offset is used because argv pointer arithmetic is unreliable
     if argc > 0 {
         var subcmd *u8 = get_arg(argv, arg_offset);
         if streq(subcmd, "compile") { return cmd_help_compile(); }
+        if streq(subcmd, "compose") { return cmd_help_compose(); }
         if streq(subcmd, "env") { return cmd_help_env(); }
         if streq(subcmd, "version") { return cmd_help_version(); }
         if streq(subcmd, "tools") { return cmd_help_tools(); }
@@ -279,6 +301,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("");
     println("Commands:");
     println("  compile    Compile source files (default)");
+    println("  compose    Create compiler with embedded readers");
     println("  help       Show this help message");
     println("  version    Show version information");
     println("  env        Show environment variables");
@@ -354,81 +377,7 @@ func cmd_env(argc i64, argv **u8) i64 {
     return 0;
 }
 
-// Search PATH for a tool, return path if found or nil
-func find_in_path(tool *u8) *u8 {
-    var path_env *u8 = getenv("PATH");
-    if path_env == nil { return nil; }
-
-    // Copy PATH so we can modify it
-    var path *u8 = str_dup(path_env);
-    var start *u8 = path;
-    var p *u8 = path;
-
-    // Buffer for full path
-    var buf *u8 = alloc(1024);
-
-    while *p != 0 {
-        if *p == ':' {
-            *p = 0;  // null-terminate this segment
-
-            // Build full path: dir/tool
-            var i i64 = 0;
-            var s *u8 = start;
-            while *s != 0 {
-                *(buf + i) = *s;
-                i = i + 1;
-                s = s + 1;
-            }
-            *(buf + i) = '/';
-            i = i + 1;
-            s = tool;
-            while *s != 0 {
-                *(buf + i) = *s;
-                i = i + 1;
-                s = s + 1;
-            }
-            *(buf + i) = 0;
-
-            // Try to open it
-            var fd i64 = file_open(buf, 0);
-            if fd >= 0 {
-                file_close(fd);
-                return str_dup(buf);
-            }
-
-            start = p + 1;
-        }
-        p = p + 1;
-    }
-
-    // Check last segment
-    if *start != 0 {
-        var i i64 = 0;
-        var s *u8 = start;
-        while *s != 0 {
-            *(buf + i) = *s;
-            i = i + 1;
-            s = s + 1;
-        }
-        *(buf + i) = '/';
-        i = i + 1;
-        s = tool;
-        while *s != 0 {
-            *(buf + i) = *s;
-            i = i + 1;
-            s = s + 1;
-        }
-        *(buf + i) = 0;
-
-        var fd i64 = file_open(buf, 0);
-        if fd >= 0 {
-            file_close(fd);
-            return str_dup(buf);
-        }
-    }
-
-    return nil;
-}
+// find_in_path is now in std/tools.lang (included via std/core.lang)
 
 func print_tool_status(name *u8, desc *u8) void {
     var path *u8 = find_in_path(name);
@@ -488,6 +437,53 @@ func cmd_tools() i64 {
 
     return 0;
 }
+
+// ============================================================
+// Compose command - create compiler with embedded reader ASTs
+// ============================================================
+
+// Escape string for embedding as lang string literal
+func escape_string_literal(s *u8) *u8 {
+    var len i64 = 0;
+    var p *u8 = s;
+    while *p != 0 {
+        if *p == 92 { len = len + 2; }
+        else if *p == 34 { len = len + 2; }
+        else if *p == 10 { len = len + 2; }
+        else if *p == 9 { len = len + 2; }
+        else { len = len + 1; }
+        p = p + 1;
+    }
+
+    var result *u8 = alloc(len + 1);
+    var out *u8 = result;
+    p = s;
+    while *p != 0 {
+        if *p == 92 { *out = 92; out = out + 1; *out = 92; out = out + 1; }
+        else if *p == 34 { *out = 92; out = out + 1; *out = 34; out = out + 1; }
+        else if *p == 10 { *out = 92; out = out + 1; *out = 'n'; out = out + 1; }
+        else if *p == 9 { *out = 92; out = out + 1; *out = 't'; out = out + 1; }
+        else { *out = *p; out = out + 1; }
+        p = p + 1;
+    }
+    *out = 0;
+    return result;
+}
+
+func i64_to_str(n i64) *u8 {
+    var buf *u8 = alloc(32);
+    if n == 0 { *buf = '0'; *(buf + 1) = 0; return buf; }
+    var digits *u8 = alloc(32);
+    var d i64 = 0;
+    while n > 0 { *(digits + d) = '0' + (n % 10); n = n / 10; d = d + 1; }
+    var i i64 = 0;
+    while d > 0 { d = d - 1; *(buf + i) = *(digits + d); i = i + 1; }
+    *(buf + i) = 0;
+    return buf;
+}
+
+// cmd_compose: TODO - will be reimplemented using kernel -r approach
+// See designs/fix_composition.md for the new architecture
 
 func main(argc i64, argv **u8) i64 {
     if argc < 2 {

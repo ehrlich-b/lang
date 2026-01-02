@@ -24,13 +24,14 @@ LANGBE ?= x86
 LANGLIBC ?= none
 
 # OS layer file selection
-# LANGLIBC=libc overrides LANGOS selection
-ifeq ($(LANGLIBC),libc)
+# macOS MUST use libc (macos_arm64.lang uses hex literals which lexer doesn't support)
+# Linux can use raw syscalls
+ifeq ($(LANGOS),macos)
+    OS_LAYER := std/os/libc.lang
+else ifeq ($(LANGLIBC),libc)
     OS_LAYER := std/os/libc.lang
 else ifeq ($(LANGOS),linux)
     OS_LAYER := std/os/linux_x86_64.lang
-else ifeq ($(LANGOS),macos)
-    OS_LAYER := std/os/macos_arm64.lang
 else
     $(error Unknown LANGOS: $(LANGOS). Valid values: linux, macos)
 endif
@@ -88,27 +89,30 @@ generate-version-info:
 	echo 'var LANG_BUILD_LIBC *u8 = "$(EFFECTIVE_LIBC)";' >> src/version_info.lang; \
 	echo "var LANG_BOOTSTRAP_FROM *u8 = \"$$BOOTSTRAP_FROM\";" >> src/version_info.lang
 
-# Init: assemble from bootstrap/current.s, create lang symlink
-# Use this only for initial setup or emergency recovery
+# Init: build from bootstrap LLVM IR (cross-platform)
 init:
 	@mkdir -p out
-	@echo "Initializing from $(BOOTSTRAP)..."
-	as $(BOOTSTRAP) -o out/lang_bootstrap.o
-	ld out/lang_bootstrap.o -o out/lang_bootstrap
-	rm -f out/lang_bootstrap.o
+	@echo "Initializing from $(BOOTSTRAP_LL)..."
+	clang -O2 $(BOOTSTRAP_LL) -o out/lang_bootstrap
 	ln -sf lang_bootstrap $(LANG)
 	@echo "Created: $(LANG) -> lang_bootstrap"
 
 # Build: compile src/*.lang using lang -> lang_next
+# Uses LLVM on macOS, x86 on Linux
 build: generate-os-layer generate-version-info
-	@if [ ! -L $(LANG) ]; then \
+	@if [ ! -f $(LANG) ] && [ ! -L $(LANG) ]; then \
 		$(MAKE) init; \
 	fi
 	@mkdir -p out
+ifeq ($(PLATFORM),macos)
+	LANGBE=llvm LANGOS=macos $(LANG) std/core.lang src/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/lang_$(VERSION).ll
+	clang -O2 out/lang_$(VERSION).ll -o out/lang_$(VERSION)
+else
 	$(LANG) std/core.lang src/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o out/lang_$(VERSION).s
 	as out/lang_$(VERSION).s -o out/lang_$(VERSION).o
 	ld out/lang_$(VERSION).o -o out/lang_$(VERSION)
 	rm -f out/lang_$(VERSION).o
+endif
 	ln -sf lang_$(VERSION) $(LANG_NEXT)
 	@echo "Created: $(LANG_NEXT) -> lang_$(VERSION)"
 
