@@ -120,18 +120,98 @@ AST emission:
 
 ### 3. Module Resolution
 
-Codegen and composition resolve requires against a **module search path**:
+Module resolution follows a **freshness-first** order: source files are always freshest,
+cache is for dependencies without local source, and the compiler itself is a portable
+fallback of last resort.
+
+#### Resolution Order for `require "x/y"`
+
+```
+Step 1: SOURCE (freshest - you're actively developing)
+────────────────────────────────────────────────────────
+  For each registered reader (lang, lisp, json, ...):
+    Try ./x/y.{ext}  (e.g., ./x/y.lang, ./x/y.lisp)
+    If found:
+      → Compile source to AST using that reader
+      → Write AST to module cache (.lang-cache/x/y.ast)
+      → DONE (using fresh source)
+
+Step 2: CACHE (pre-compiled dependencies)
+────────────────────────────────────────────────────────
+  Try .lang-cache/x/y.ast
+  Try LANG_MODULE_PATH/x/y.ast
+  If found:
+    → Load cached AST
+    → DONE (using cached version)
+
+Step 3: SELF (compiler as portable repository)
+────────────────────────────────────────────────────────
+  Check kernel_modules array (what's embedded in this compiler)
+  If "x/y" in kernel_modules:
+    → Extract AST from self_kernel string
+    → Write AST to module cache (.lang-cache/x/y.ast)
+    → DONE (using embedded version, now cached for next time)
+
+Step 4: ERROR
+────────────────────────────────────────────────────────
+  Cannot resolve module "x/y"
+  (No source, no cache, not embedded)
+```
+
+#### Why This Order Matters
+
+| Scenario | Resolution | Why |
+|----------|------------|-----|
+| Active development | Step 1 (source) | You edited std/core.lang, get fresh version |
+| Using installed lib | Step 2 (cache) | Pre-compiled, no source available |
+| Portable compiler | Step 3 (self) | Composed compiler carries its deps |
+| Missing dependency | Step 4 (error) | Clear error message |
+
+#### Cache Population
+
+The module cache is populated automatically:
+- **From source**: When Step 1 succeeds, AST is written to cache
+- **From self**: When Step 3 succeeds, embedded AST is extracted to cache
+
+This means:
+1. First compilation of fresh source → cache miss → compile → cache populated
+2. Second compilation → cache hit (but Step 1 still checks source first!)
+3. Source modified → Step 1 finds newer source → recompile → cache updated
+
+#### Reader Registration
+
+For Step 1 to work, the compiler needs to know what readers are available:
 
 ```lang
-// Environment variable or flag
-LANG_MODULE_PATH=".lang-cache:~/.lang-modules:/usr/local/lang-modules"
+// Reader registry (built-in + composed)
+var registered_readers [64]*u8 = [];      // ["lang", "lisp", nil, ...]
+var registered_extensions [64]*u8 = [];   // [".lang", ".lisp", nil, ...]
 
-// Resolution algorithm
-func resolve_module(name *u8) *u8 {
-    // Try each path in LANG_MODULE_PATH
-    // Look for: path/name.ast
-    // Return first match, or error if not found
+// Check each registered reader's extension
+func find_source_file(module *u8, module_len i64) *u8 {
+    var i i64 = 0;
+    while registered_readers[i] != nil {
+        var ext *u8 = registered_extensions[i];
+        var path *u8 = concat(module, ext);  // "x/y" + ".lang" = "x/y.lang"
+        if file_exists(path) {
+            return path;
+        }
+        i = i + 1;
+    }
+    return nil;  // No source found
 }
+```
+
+For a fresh compiler, only `lang` is registered. Composed compilers have additional readers.
+
+#### Environment Variables
+
+```bash
+# Module cache location (default: .lang-cache/)
+LANG_CACHE=".lang-cache"
+
+# Additional search paths for cached modules
+LANG_MODULE_PATH="~/.lang-modules:/usr/local/lang-modules"
 ```
 
 ### 4. Deduplication at Composition Time
@@ -175,11 +255,15 @@ for each decl in reader_decls {
 
 | Aspect | `include "file.lang"` | `require "module"` |
 |--------|----------------------|-------------------|
-| Extension | Required (`.lang`, `.lisp`) | None |
-| Resolution | Reader parses source NOW | Lookup pre-compiled AST |
-| Inlining | Immediate (at parse time) | Deferred (at codegen/compose) |
+| Extension | Required (`.lang`, `.lisp`) | None (syntax-agnostic) |
+| Resolution | Parse source file NOW | Source → Cache → Self (freshness-first) |
+| When resolved | Parse time | Codegen time |
+| Caching | None | Auto-populates .lang-cache/ |
 | Dedup scope | Single compilation unit | Cross-composition |
-| Reader needed | Yes (matching extension) | No (AST only) |
+| Portability | Needs source file | Can use embedded fallback |
+
+**Key difference**: `include` is a parse-time directive that requires the source file to exist.
+`require` is a codegen-time reference that tries source first (fresh), then cache, then embedded (portable).
 
 ### 6. Migration: Reader Pattern
 
@@ -231,34 +315,79 @@ func compute_module_hash(ast_content *u8) *u8 {
 
 ## Implementation Plan
 
-### Phase 1: Add `require` Keyword
+### Phase 1: Add `require` Keyword ✅ DONE
 
 1. Add `TOKEN_REQUIRE` to lexer
-2. Add `NODE_REQUIRE` and `RequireDecl` to parser
+2. Add `NODE_REQUIRE_DECL` and `RequireDecl` to parser
 3. Parser emits `(require ...)` node
-4. AST emit handles `NODE_REQUIRE`
+4. AST emit handles `NODE_REQUIRE_DECL`
+5. sexpr_reader parses `(require ...)` node
+6. Bootstrap
 
-### Phase 2: Module Resolution
+### Phase 2: Reader Registration
 
-1. Add `LANG_MODULE_PATH` handling
-2. Implement `resolve_module()` function
-3. Codegen resolves requires to AST files
-4. Error on missing module
+1. Add `registered_readers [64]*u8` array to codegen
+2. Initialize with `["lang", nil, ...]` (reader name = extension name)
+3. When composing readers, add their names to the array
+4. Bootstrap
 
-### Phase 3: Composition Deduplication
+### Phase 3: Kernel Module Storage
 
-1. Modify `-r` mode to collect modules
-2. Deduplicate requires across ASTs
-3. Inline each module exactly once
-4. Test with kernel + multiple readers
+**Critical**: This must be done BEFORE require resolution can work for child programs.
 
-### Phase 4: Update Standard Library
+1. Add to codegen:
+   ```lang
+   var kernel_modules [256]*u8 = [];       // Module names
+   var kernel_module_asts [256]*u8 = [];   // Per-module AST strings
+   ```
 
-1. Change `std/core.lang` to not include itself (root module)
-2. Readers use `require "std/core"` instead of `include`
-3. Build script generates `.lang-cache/std/core.ast`
+2. Update `--embed-self` in main.lang:
+   - For each source file, emit its AST separately
+   - Store module name in `kernel_modules[i]`
+   - Store module AST in `kernel_module_asts[i]`
+   - Continue storing combined `self_kernel` for `-r` mode
 
-### Phase 5: Content Hashing (Optional)
+3. Bootstrap (kernel now carries per-module ASTs)
+
+### Phase 4: Module Resolution (Source → Cache → Self)
+
+1. Implement `resolve_require()` with three-step resolution:
+   ```
+   Step 1: SOURCE
+     For reader in registered_readers:
+       Try ./module.{reader} (e.g., ./std/core.lang)
+       If found: compile with reader → cache → return AST
+
+   Step 2: CACHE
+     Try .lang-cache/module.ast
+     If found: return AST
+
+   Step 3: SELF
+     Check kernel_modules for module name
+     If found: return kernel_module_asts[i]
+
+   Step 4: ERROR
+   ```
+
+2. Add to both x86 and LLVM backends
+3. Bootstrap
+
+### Phase 5: Composition Updates
+
+1. In `-r` mode, when reader has `require`:
+   - Check if module in `kernel_modules` → skip (already in base_prog)
+   - Otherwise resolve normally
+2. When adding reader, update `kernel_modules` and `kernel_module_asts`
+3. Bootstrap
+
+### Phase 6: Replace Includes with Requires
+
+1. Replace `include "std/core.lang"` with `require "std/core"` in source files
+2. Verify: In repo, Step 1 finds source → works
+3. Verify: Copy binary elsewhere, Step 3 uses embedded → works
+4. Bootstrap
+
+### Phase 7: Content Hashing (Future)
 
 1. Add optional `sha:` syntax
 2. Implement hash verification
@@ -410,36 +539,151 @@ The kernel already contains:
 
 **The kernel IS the primary dependency library.** Readers that `require "std/core"` will find it already present.
 
-### New Data Structure: `kernel_modules`
+### New Data Structures: `kernel_modules` and `kernel_module_asts`
+
+The compiler needs to carry its dependencies in two forms:
+1. **Names**: To check "do I have this module?"
+2. **ASTs**: To provide the module to child programs
 
 Add to `codegen.lang`:
 
 ```lang
 // Module tracking - which modules are baked into this compiler
-var kernel_modules [256]*u8 = [];  // ["std/core", "src/lexer", nil, ...]
+var kernel_modules [256]*u8 = [];       // ["std/core", "src/lexer", nil, ...]
+var kernel_module_asts [256]*u8 = [];   // [AST string, AST string, nil, ...]
 ```
 
-This array tracks what modules the kernel contains, enabling fast require resolution without parsing the entire `self_kernel` string.
+**Why we need both:**
+
+| Data | Purpose |
+|------|---------|
+| `kernel_modules` | Fast lookup: "Do I have module X?" |
+| `kernel_module_asts` | Provide AST to child programs that `require` the module |
+
+**Critical insight**: The compiler's embedded modules serve TWO different purposes:
+
+```
+                    ┌─────────────────────────────────────────────────────┐
+                    │  lang1 (compiler with std/core embedded)            │
+                    │                                                     │
+                    │  kernel_modules = ["std/core", ...]                 │
+                    │  kernel_module_asts = ["(program (func alloc...))", │
+                    │                        ...]                         │
+                    └─────────────────────────────────────────────────────┘
+                                          │
+              ┌───────────────────────────┴───────────────────────────┐
+              │                                                       │
+              ▼                                                       ▼
+   ┌─────────────────────┐                             ┌─────────────────────┐
+   │ Composition (-r)    │                             │ Normal compilation  │
+   │                     │                             │                     │
+   │ reader requires     │                             │ user.lang requires  │
+   │ "std/core"          │                             │ "std/core"          │
+   │                     │                             │                     │
+   │ → Check kernel_     │                             │ → Check kernel_     │
+   │   modules           │                             │   modules           │
+   │ → SKIP (already in  │                             │ → INJECT AST from   │
+   │   base_prog)        │                             │   kernel_module_asts│
+   │                     │                             │   into child program│
+   └─────────────────────┘                             └─────────────────────┘
+```
+
+**Composition**: Skip duplicates (module already in kernel's declarations)
+**Normal compilation**: Provide AST to child (child needs its own copy)
+
+### Why `self_kernel` Isn't Enough
+
+The existing `self_kernel` string contains a flattened `(program ...)` with all declarations mixed:
+
+```
+self_kernel = "(program
+  (func alloc ...)      ; from std/core
+  (func print ...)      ; from std/core
+  (func tok_type ...)   ; from src/lexer
+  (func parse ...)      ; from src/parser
+  (func main ...)       ; from src/main
+  ...)"
+```
+
+We can't extract "just std/core" from this. The module boundaries are lost.
+
+`kernel_module_asts` preserves module boundaries:
+
+```
+kernel_modules[0] = "std/core"
+kernel_module_asts[0] = "(program (func alloc ...) (func print ...) ...)"
+
+kernel_modules[1] = "src/lexer"
+kernel_module_asts[1] = "(program (func tok_type ...) (func tokenize ...) ...)"
+```
 
 ### Updated `--embed-self` Behavior
 
 When building with `--embed-self`:
 
-1. Track which files are being compiled
-2. Convert file paths to module names:
-   - `std/core.lang` → `"std/core"`
-   - `src/lexer.lang` → `"src/lexer"`
-3. Poke module names into `kernel_modules` array
-
 ```lang
 // In main.lang --embed-self handling
 var module_count i64 = 0;
+
 for each source_file in input_files {
+    // 1. Convert path to module name
     var module_name *u8 = path_to_module(source_file);
+    //    "std/core.lang" → "std/core"
+    //    "src/lexer.lang" → "src/lexer"
+
+    // 2. Get this module's AST (before flattening with others)
+    var module_ast *u8 = emit_module_ast(source_file);
+
+    // 3. Store both
     kernel_modules[module_count] = module_name;
+    kernel_module_asts[module_count] = module_ast;
     module_count = module_count + 1;
 }
 kernel_modules[module_count] = nil;  // Nil-terminate
+
+// Also store combined self_kernel for -r mode compatibility
+self_kernel = emit_combined_ast(all_files);
+```
+
+### How Step 3 (SELF) Uses These
+
+**During normal compilation** (user.lang requires "std/core"):
+
+```lang
+func resolve_from_kernel(module *u8, module_len i64) *u8 {
+    var i i64 = 0;
+    while kernel_modules[i] != nil {
+        if buf_eq_str(module, module_len, kernel_modules[i]) {
+            // Found! Return the AST to inject into child program
+            return kernel_module_asts[i];
+        }
+        i = i + 1;
+    }
+    return nil;  // Not in kernel
+}
+
+// In require resolution:
+var ast *u8 = resolve_from_kernel(module, module_len);
+if ast != nil {
+    var prog *u8 = parse_ast_from_string(ast);
+    // Add declarations to current compilation
+    process_declarations(prog);
+    // Optionally write to cache
+    write_to_cache(module, ast);
+    return;
+}
+```
+
+**During composition** (`-r` mode):
+
+```lang
+// When processing reader's require:
+if is_in_kernel_modules(module, module_len) {
+    // Skip! The kernel's base_prog already has these declarations
+    // (from parsing self_kernel)
+    return;
+}
+// Otherwise resolve normally (source → cache → error)
 ```
 
 ### Updated `-r` Composition Flow
@@ -451,14 +695,24 @@ When composing with `-r reader_name reader.ast`:
 2. Parse reader.ast → reader_prog
 3. For each decl in reader_prog:
    a. If decl is (require "module"):
-      - Check if "module" in kernel_modules
-      - If YES: skip (already satisfied)
-      - If NO: resolve from LANG_MODULE_PATH and add
+      - Use standard resolution: Source → Cache → Self
+      - Step 1: Try source files (x/y.lang, x/y.lisp, ...)
+        → If found: compile, cache, add to combined
+      - Step 2: Try cache (.lang-cache/x/y.ast)
+        → If found: load, add to combined
+      - Step 3: Check kernel_modules
+        → If found: already in base_prog, skip (no duplication!)
+      - Step 4: Error if not found anywhere
    b. Else: add decl to combined
-4. Update kernel_modules to include newly added modules
+4. Update kernel_modules to include newly resolved modules
 5. Re-serialize combined → new self_kernel
 6. Generate code
 ```
+
+**Key insight**: The kernel check is Step 3 (last fallback), not Step 1. This means:
+- If you have local source, you get your local version (development)
+- If you have cached AST, you get that (installed dependency)
+- Only if neither exists do you use the kernel's embedded version (portability)
 
 ### When Kernel Doesn't Have a Module
 
@@ -466,84 +720,115 @@ If a reader requires something the kernel doesn't have:
 
 ```bash
 # Kernel has: std/core, src/codegen
-# Reader requires: std/core (satisfied), external/json_parser (NOT satisfied)
+# Reader requires: std/core, external/json_parser
 
-LANG_MODULE_PATH=.lang-cache kernel_self -r json json_reader.ast -o json_compiler.ll
+kernel_self -r json json_reader.ast -o json_compiler.ll
 ```
 
-Resolution:
-1. `require "std/core"` → check kernel_modules → found → skip
-2. `require "external/json_parser"` → check kernel_modules → NOT found
-3. Look for `.lang-cache/external/json_parser.ast`
-4. If found: load and add declarations
-5. If not found: error "cannot resolve module 'external/json_parser'"
+Resolution for `require "std/core"`:
+1. Step 1: Try `./std/core.lang` → found! → compile, cache, add
+   (Even though kernel has it, we use fresh source if available)
+
+Resolution for `require "external/json_parser"`:
+1. Step 1: Try `./external/json_parser.lang` → not found
+2. Step 2: Try `.lang-cache/external/json_parser.ast` → found! → load, add
+3. (If Step 2 failed: Step 3 would check kernel, but it's not there either → error)
 
 ### The Module Cache
 
-Before composition, build the module cache:
+The module cache (`.lang-cache/`) is **auto-populated** during require resolution:
 
-```bash
-# Build dependency library (one-time setup)
-mkdir -p .lang-cache
+```
+require "std/core"
+  → Step 1: Found ./std/core.lang
+  → Compile to AST
+  → Write to .lang-cache/std/core.ast  ← Cache populated automatically!
+  → Done
 
-# Compile each potential dependency to AST
-./lang std/core.lang --emit-module-ast -o .lang-cache/std/core.ast
-./lang src/lexer.lang --emit-module-ast -o .lang-cache/src/lexer.ast
-./lang src/parser.lang --emit-module-ast -o .lang-cache/src/parser.ast
-# ... etc ...
-
-# Or use Makefile target
-make modules
+Next compilation:
+require "std/core"
+  → Step 1: Found ./std/core.lang (still checked first for freshness)
+  → Source unchanged? Use cached AST
+  → Source changed? Recompile and update cache
 ```
 
-For the "full compiler as kernel" case, this cache is rarely needed (kernel has everything). It's primarily for future minimal-kernel scenarios.
+**Manual cache population** is only needed for dependencies without local source:
+
+```bash
+# For external dependencies you don't have source for:
+# Someone gives you pre-compiled .ast files
+cp /path/to/external/json_parser.ast .lang-cache/external/json_parser.ast
+```
+
+**Kernel extraction**: When Step 3 (self) provides a module, it's also written to cache:
+
+```
+require "rare/module"  (no source, not in cache)
+  → Step 3: Found in kernel_modules
+  → Extract AST from self_kernel
+  → Write to .lang-cache/rare/module.ast  ← Now cached for next time
+  → Done
+```
+
+This means a portable composed compiler can "seed" the cache with its embedded modules.
 
 ### Two Composition Scenarios
 
-**Scenario A: Full Compiler Kernel (Current)**
+**Scenario A: Development (source files present)**
 
 ```
-kernel = std/core + src/* (everything)
-reader requires std/core → SATISFIED by kernel
-reader requires src/lexer → SATISFIED by kernel
-Result: Only reader's NEW code is added
+./std/core.lang exists on disk
+./src/lexer.lang exists on disk
+
+kernel_self -r lang lang_reader.ast
+  require "std/core"
+    → Step 1: ./std/core.lang found → compile fresh → cache → add
+  require "src/lexer"
+    → Step 1: ./src/lexer.lang found → compile fresh → cache → add
+
+Result: Uses YOUR local source files (fresh, for development)
 ```
 
-**Scenario B: Minimal Kernel (Future)**
+**Scenario B: Distribution (no source, use embedded)**
 
 ```
-kernel = std/core + src/codegen (minimal, AST-only)
-reader requires std/core → SATISFIED by kernel
-reader requires src/lexer → NOT in kernel, load from .lang-cache/
-Result: Reader's code + src/lexer + src/parser added
+Compiled kernel_self binary shipped to user
+User has NO source files (no ./std/ or ./src/ directories)
+
+kernel_self -r lang lang_reader.ast
+  require "std/core"
+    → Step 1: No source found
+    → Step 2: No cache
+    → Step 3: kernel has "std/core" → extract → cache → skip (already in kernel)
+  require "src/lexer"
+    → Step 1: No source found
+    → Step 2: No cache
+    → Step 3: kernel has "src/lexer" → extract → cache → skip (already in kernel)
+
+Result: Uses EMBEDDED versions (portable, for distribution)
 ```
 
-Scenario B is the "bare kernel" vision from `kernel_reader_split.md`.
+**Key insight**: Same binary, different behavior based on environment.
+- Developer with source → uses fresh local files
+- End user without source → uses portable embedded versions
 
 ### Updated Acceptance Criteria
 
 The composition feature is complete when:
 
 ```bash
-# 1. Build module cache (for fallback resolution)
-make modules  # Builds .lang-cache/*.ast
-
-# 2. Build self-aware kernel (tracks its modules)
+# 1. Build self-aware kernel (tracks its modules)
 LANGBE=llvm LANGOS=macos ./out/lang --emit-expanded-ast \
     std/core.lang src/*.lang -o /tmp/full_compiler.ast
 LANGBE=llvm LANGOS=macos ./out/lang /tmp/full_compiler.ast \
     --embed-self -o /tmp/kernel_self.ll
 clang -O2 /tmp/kernel_self.ll -o /tmp/kernel_self
 
-# Verify kernel_modules is populated
-# (debug: kernel should know what modules it has)
-
-# 3. Build reader with requires (NOT fully expanded)
+# 2. Build reader with requires
 cat > /tmp/lang_reader.lang << 'EOF'
-require "std/core"        // NOT expanded - reference only
-require "src/lexer"       // NOT expanded
-require "src/parser"      // NOT expanded
-include "src/ast_emit.lang"  // Expanded (reader-specific)
+require "std/core"        // Will resolve: source → cache → kernel
+require "src/lexer"
+require "src/parser"
 
 reader lang(text *u8) *u8 {
     parser_tokenize(text);
@@ -552,23 +837,37 @@ reader lang(text *u8) *u8 {
 }
 EOF
 
-./out/lang /tmp/lang_reader.lang --emit-reader-ast -o /tmp/lang_reader.ast
-# Result: AST has (require "std/core"), (require "src/lexer"), etc.
-# NOT expanded, just references
+./out/lang /tmp/lang_reader.lang --emit-expanded-ast -o /tmp/lang_reader.ast
 
-# 4. Compose - requires are resolved against kernel
-LANG_MODULE_PATH=.lang-cache /tmp/kernel_self \
-    -r lang /tmp/lang_reader.ast -o /tmp/lang1.ll
+# 3. Compose (WITH source files present - development mode)
+/tmp/kernel_self -r lang /tmp/lang_reader.ast -o /tmp/lang1.ll
+
+# Resolution (source files exist on disk):
+# - require "std/core" → Step 1: ./std/core.lang found → compile → cache → add
+# - require "src/lexer" → Step 1: ./src/lexer.lang found → compile → cache → add
+# - reader lang(...) → NEW, add to combined
+# Result: Fresh source used, .lang-cache/ populated
+
 clang -O2 /tmp/lang1.ll -o /tmp/lang1
 
-# Composition resolves:
-# - require "std/core" → kernel has it → skip
-# - require "src/lexer" → kernel has it → skip
-# - require "src/parser" → kernel has it → skip
-# - reader lang(...) → NEW, add to combined
-
-# 5. Verify no duplicates
+# 4. Test the composed compiler
 /tmp/lang1 test.lang -o test.ll  # Should work!
+
+# 5. Test portability (simulate distribution - no source)
+mkdir /tmp/portable_test
+cp /tmp/kernel_self /tmp/portable_test/
+cd /tmp/portable_test
+
+# No ./std/ or ./src/ directories here!
+./kernel_self -r lang /tmp/lang_reader.ast -o lang1.ll
+
+# Resolution (no source files):
+# - require "std/core" → Step 1: not found → Step 2: not found → Step 3: kernel has it → skip
+# - require "src/lexer" → Step 1: not found → Step 2: not found → Step 3: kernel has it → skip
+# Result: Embedded versions used, portable!
+
+clang -O2 lang1.ll -o lang1
+./lang1 /tmp/test.lang -o test.ll  # Should also work!
 ```
 
 ## Related Documents
