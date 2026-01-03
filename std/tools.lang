@@ -3,7 +3,7 @@
 // Provides functions to find build tools in PATH and common locations.
 
 // Find a tool in PATH, returns full path or nil
-func find_in_path(tool *u8) *u8 {
+pub func find_in_path(tool *u8) *u8 {
     var path_env *u8 = getenv("PATH");
     if path_env == nil { return nil; }
 
@@ -79,7 +79,7 @@ func find_in_path(tool *u8) *u8 {
 }
 
 // Find clang - checks PATH and common LLVM install locations
-func find_clang() *u8 {
+pub func find_clang() *u8 {
     // First try PATH
     var path_clang *u8 = find_in_path("clang");
     if path_clang != nil { return path_clang; }
@@ -106,7 +106,7 @@ func find_clang() *u8 {
 }
 
 // Find assembler
-func find_as() *u8 {
+pub func find_as() *u8 {
     var path_as *u8 = find_in_path("as");
     if path_as != nil { return path_as; }
 
@@ -119,7 +119,7 @@ func find_as() *u8 {
 }
 
 // Find linker
-func find_ld() *u8 {
+pub func find_ld() *u8 {
     var path_ld *u8 = find_in_path("ld");
     if path_ld != nil { return path_ld; }
 
@@ -132,7 +132,7 @@ func find_ld() *u8 {
 }
 
 // Find lli (LLVM interpreter)
-func find_lli() *u8 {
+pub func find_lli() *u8 {
     var path_lli *u8 = find_in_path("lli");
     if path_lli != nil { return path_lli; }
 

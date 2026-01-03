@@ -51,12 +51,12 @@
 // File open flags for macOS
 // O_RDONLY = 0, O_WRONLY = 1, O_RDWR = 2
 // O_CREAT = 512, O_TRUNC = 1024, O_APPEND = 8
-var O_RDONLY i64 = 0;
-var O_WRONLY i64 = 1;
-var O_CREAT i64 = 512;
-var O_TRUNC i64 = 1024;
-var O_APPEND i64 = 8;
-var O_WRONLY_CREAT_TRUNC i64 = 1537;  // O_WRONLY | O_CREAT | O_TRUNC
+pub var O_RDONLY i64 = 0;
+pub var O_WRONLY i64 = 1;
+pub var O_CREAT i64 = 512;
+pub var O_TRUNC i64 = 1024;
+pub var O_APPEND i64 = 8;
+pub var O_WRONLY_CREAT_TRUNC i64 = 1537;  // O_WRONLY | O_CREAT | O_TRUNC
 
 // ============================================================
 // External libc declarations
@@ -71,15 +71,15 @@ extern func close(fd i64) i64;
 // Memory
 extern func mmap(addr *u8, len i64, prot i64, flags i64, fd i64, offset i64) *u8;
 extern func munmap(addr *u8, len i64) i64;
-extern func malloc(size i64) *u8;
-extern func calloc(n i64, size i64) *u8;
-extern func free(ptr *u8) void;
+pub extern func malloc(size i64) *u8;
+pub extern func calloc(n i64, size i64) *u8;
+pub extern func free(ptr *u8) void;
 
 // Process - basic
-extern func exit(code i64) void;
-extern func getpid() i64;
-extern func getppid() i64;
-extern func getenv(name *u8) *u8;
+pub extern func exit(code i64) void;
+pub extern func getpid() i64;
+pub extern func getppid() i64;
+pub extern func getenv(name *u8) *u8;
 
 // Process - for subprocess execution (reader macros)
 extern func fork() i64;
@@ -192,7 +192,7 @@ func os__exit(status i64) void {
 // For libc layer, we don't need our own bump allocator.
 // This avoids platform-specific mmap flag issues.
 
-func alloc(size i64) *u8 {
+pub func alloc(size i64) *u8 {
     // Use calloc to get zeroed memory (malloc doesn't zero, but mmap does)
     return calloc(1, size);
 }
@@ -202,6 +202,6 @@ func alloc(size i64) *u8 {
 // ============================================================
 
 // No-op: libc's environ is already initialized
-func init_environ(envp **u8) void {
+pub func init_environ(envp **u8) void {
     // libc handles environ internally
 }

@@ -19,7 +19,7 @@ include "std/tools.lang"
 // Vec layout: [capacity:8][length:8][data:8] = 24 bytes
 // Data array stores i64 values (8 bytes each)
 
-func vec_new(cap i64) *u8 {
+pub func vec_new(cap i64) *u8 {
     var v *u8 = malloc(24);
 
     // Initialize capacity
@@ -40,26 +40,26 @@ func vec_new(cap i64) *u8 {
     return v;
 }
 
-func vec_len(v *u8) i64 {
+pub func vec_len(v *u8) i64 {
     var len_ptr *i64 = v + 8;
     return *len_ptr;
 }
 
-func vec_get(v *u8, index i64) i64 {
+pub func vec_get(v *u8, index i64) i64 {
     var data_ptr **u8 = v + 16;
     var data *u8 = *data_ptr;
     var elem_ptr *i64 = data + index * 8;
     return *elem_ptr;
 }
 
-func vec_set(v *u8, index i64, value i64) {
+pub func vec_set(v *u8, index i64, value i64) {
     var data_ptr **u8 = v + 16;
     var data *u8 = *data_ptr;
     var elem_ptr *i64 = data + index * 8;
     *elem_ptr = value;
 }
 
-func vec_push(v *u8, value i64) {
+pub func vec_push(v *u8, value i64) {
     var cap_ptr *i64 = v;
     var len_ptr *i64 = v + 8;
     var data_ptr **u8 = v + 16;
@@ -96,14 +96,14 @@ func vec_push(v *u8, value i64) {
     *len_ptr = len + 1;
 }
 
-func vec_free(v *u8) {
+pub func vec_free(v *u8) {
     var data_ptr **u8 = v + 16;
     var data *u8 = *data_ptr;
     free(data);
     free(v);
 }
 
-func vec_pop(v *u8) i64 {
+pub func vec_pop(v *u8) i64 {
     var len_ptr *i64 = v + 8;
     var data_ptr **u8 = v + 16;
     var len i64 = *len_ptr;
@@ -125,7 +125,7 @@ func vec_pop(v *u8) i64 {
 // values: array of i64
 // Uses open addressing with linear probing
 
-func hash_str(s *u8) i64 {
+pub func hash_str(s *u8) i64 {
     // djb2 hash
     var h i64 = 5381;
     while *s != 0 {
@@ -139,7 +139,7 @@ func hash_str(s *u8) i64 {
     return h;
 }
 
-func map_new() *u8 {
+pub func map_new() *u8 {
     var m *u8 = malloc(32);
 
     // Initial capacity 16
@@ -255,7 +255,7 @@ func map_grow(m *u8) {
     free(old_vals);
 }
 
-func map_set(m *u8, key *u8, value i64) {
+pub func map_set(m *u8, key *u8, value i64) {
     var cap_ptr *i64 = m;
     var count_ptr *i64 = m + 8;
     var keys_ptr **u8 = m + 16;
@@ -288,7 +288,7 @@ func map_set(m *u8, key *u8, value i64) {
     *val_ptr = value;
 }
 
-func map_get(m *u8, key *u8) i64 {
+pub func map_get(m *u8, key *u8) i64 {
     var keys_ptr **u8 = m + 16;
     var vals_ptr **u8 = m + 24;
     var keys *u8 = *keys_ptr;
@@ -306,7 +306,7 @@ func map_get(m *u8, key *u8) i64 {
     return *val_ptr;
 }
 
-func map_has(m *u8, key *u8) i64 {
+pub func map_has(m *u8, key *u8) i64 {
     var keys_ptr **u8 = m + 16;
     var keys *u8 = *keys_ptr;
 
@@ -320,7 +320,7 @@ func map_has(m *u8, key *u8) i64 {
     return 1;
 }
 
-func map_free(m *u8) {
+pub func map_free(m *u8) {
     var keys_ptr **u8 = m + 16;
     var vals_ptr **u8 = m + 24;
     free(*keys_ptr);
@@ -329,7 +329,7 @@ func map_free(m *u8) {
 }
 
 // Make a null-terminated copy of a string with explicit length
-func str_dup_n(s *u8, len i64) *u8 {
+pub func str_dup_n(s *u8, len i64) *u8 {
     var result *u8 = malloc(len + 1);
     var i i64 = 0;
     while i < len {
@@ -341,12 +341,12 @@ func str_dup_n(s *u8, len i64) *u8 {
 }
 
 // Map set/get with length-prefixed keys (creates null-terminated copy)
-func map_set_n(m *u8, key *u8, key_len i64, value i64) void {
+pub func map_set_n(m *u8, key *u8, key_len i64, value i64) void {
     var key_copy *u8 = str_dup_n(key, key_len);
     map_set(m, key_copy, value);
 }
 
-func map_get_n(m *u8, key *u8, key_len i64) i64 {
+pub func map_get_n(m *u8, key *u8, key_len i64) i64 {
     var key_copy *u8 = str_dup_n(key, key_len);
     var result i64 = map_get(m, key_copy);
     free(key_copy);
@@ -357,20 +357,20 @@ func map_get_n(m *u8, key *u8, key_len i64) i64 {
 // File I/O
 // ============================================================
 
-func file_open(path *u8, flags i64) i64 {
+pub func file_open(path *u8, flags i64) i64 {
     // 420 = 0644 permissions
     return os_open(path, flags, 420);
 }
 
-func file_read(fd i64, buf *u8, n i64) i64 {
+pub func file_read(fd i64, buf *u8, n i64) i64 {
     return os_read(fd, buf, n);
 }
 
-func file_write(fd i64, buf *u8, n i64) i64 {
+pub func file_write(fd i64, buf *u8, n i64) i64 {
     return os_write(fd, buf, n);
 }
 
-func file_close(fd i64) {
+pub func file_close(fd i64) {
     os_close(fd);
 }
 
@@ -378,7 +378,7 @@ func file_close(fd i64) {
 // Strings
 // ============================================================
 
-func strlen(s *u8) i64 {
+pub func strlen(s *u8) i64 {
     var n i64 = 0;
     while *(s + n) != 0 {
         n = n + 1;
@@ -386,7 +386,7 @@ func strlen(s *u8) i64 {
     return n;
 }
 
-func streq(a *u8, b *u8) i64 {
+pub func streq(a *u8, b *u8) i64 {
     while *a != 0 && *b != 0 {
         if *a != *b {
             return 0;
@@ -401,7 +401,7 @@ func streq(a *u8, b *u8) i64 {
 }
 
 // Compare two strings with explicit lengths
-func str_eq_n(a *u8, a_len i64, b *u8, b_len i64) bool {
+pub func str_eq_n(a *u8, a_len i64, b *u8, b_len i64) bool {
     if a_len != b_len {
         return false;
     }
@@ -415,7 +415,7 @@ func str_eq_n(a *u8, a_len i64, b *u8, b_len i64) bool {
     return true;
 }
 
-func str_concat(a *u8, b *u8) *u8 {
+pub func str_concat(a *u8, b *u8) *u8 {
     var len_a i64 = strlen(a);
     var len_b i64 = strlen(b);
     var result *u8 = malloc(len_a + len_b + 1);
@@ -440,7 +440,7 @@ func str_concat(a *u8, b *u8) *u8 {
     return result;
 }
 
-func str_dup(s *u8) *u8 {
+pub func str_dup(s *u8) *u8 {
     var len i64 = strlen(s);
     var result *u8 = malloc(len + 1);
     var i i64 = 0;
@@ -451,7 +451,7 @@ func str_dup(s *u8) *u8 {
     return result;
 }
 
-func str_starts_with(s *u8, prefix *u8) i64 {
+pub func str_starts_with(s *u8, prefix *u8) i64 {
     while *prefix != 0 {
         if *s != *prefix { return 0; }
         s = s + 1;
@@ -464,29 +464,29 @@ func str_starts_with(s *u8, prefix *u8) i64 {
 // I/O helpers
 // ============================================================
 
-func print(s *u8) {
+pub func print(s *u8) {
     file_write(1, s, strlen(s));
 }
 
-func println(s *u8) {
+pub func println(s *u8) {
     print(s);
     file_write(1, "\n", 1);
 }
 
-func eprint(s *u8) {
+pub func eprint(s *u8) {
     file_write(2, s, strlen(s));
 }
 
-func eprintln(s *u8) {
+pub func eprintln(s *u8) {
     eprint(s);
     file_write(2, "\n", 1);
 }
 
-func eprint_buf(buf *u8, len i64) {
+pub func eprint_buf(buf *u8, len i64) {
     file_write(2, buf, len);
 }
 
-func eprint_i64(n i64) {
+pub func eprint_i64(n i64) {
     if n < 0 {
         file_write(2, "-", 1);
         n = 0 - n;
@@ -523,12 +523,12 @@ func eprint_i64(n i64) {
 // Numeric helpers (useful for debugging)
 // ============================================================
 
-func print_digit(d i64) {
+pub func print_digit(d i64) {
     var c u8 = 48 + d;  // '0' = 48
     file_write(1, &c, 1);
 }
 
-func print_int(n i64) {
+pub func print_int(n i64) {
     if n < 0 {
         file_write(1, "-", 1);
         n = 0 - n;
@@ -557,7 +557,7 @@ func print_int(n i64) {
 }
 
 // Convert integer to string, write to buffer, return length
-func itoa(n i64, buf *u8) i64 {
+pub func itoa(n i64, buf *u8) i64 {
     var pos i64 = 0;
 
     if n < 0 {
@@ -599,7 +599,7 @@ func itoa(n i64, buf *u8) i64 {
 
 // Get file modification time (seconds since epoch)
 // Returns 0 if file doesn't exist or error
-func file_mtime(path *u8) i64 {
+pub func file_mtime(path *u8) i64 {
     // struct stat is 144 bytes on x86-64 Linux
     // st_mtime is at offset 88
     var statbuf *u8 = alloc(144);

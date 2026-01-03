@@ -47,12 +47,12 @@
 // File open flags for macOS
 // O_RDONLY = 0, O_WRONLY = 1, O_RDWR = 2
 // O_CREAT = 512, O_TRUNC = 1024, O_APPEND = 8
-var O_RDONLY i64 = 0;
-var O_WRONLY i64 = 1;
-var O_CREAT i64 = 512;
-var O_TRUNC i64 = 1024;
-var O_APPEND i64 = 8;
-var O_WRONLY_CREAT_TRUNC i64 = 1537;  // O_WRONLY | O_CREAT | O_TRUNC
+pub var O_RDONLY i64 = 0;
+pub var O_WRONLY i64 = 1;
+pub var O_CREAT i64 = 512;
+pub var O_TRUNC i64 = 1024;
+pub var O_APPEND i64 = 8;
+pub var O_WRONLY_CREAT_TRUNC i64 = 1537;  // O_WRONLY | O_CREAT | O_TRUNC
 
 // Core syscalls - these match the abstract interface in std/core.lang
 
@@ -90,7 +90,7 @@ func os_exit(code i64) void {
 }
 
 // exit() wrapper for user code
-func exit(code i64) void {
+pub func exit(code i64) void {
     os_exit(code);
 }
 
@@ -144,7 +144,7 @@ func os_rmdir(path *u8) i64 {
 var __alloc_heap_pos *u8 = nil;
 var __alloc_heap_end *u8 = nil;
 
-func alloc(size i64) *u8 {
+pub func alloc(size i64) *u8 {
     if __alloc_heap_pos == nil {
         // mmap(NULL, 256MB, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0)
         // 3 = PROT_READ|PROT_WRITE, 4098 = MAP_PRIVATE|MAP_ANON (macOS)
@@ -161,7 +161,7 @@ var __malloc_heap_pos *u8 = nil;
 var __malloc_heap_end *u8 = nil;
 var __malloc_free_list *u8 = nil;
 
-func malloc(size i64) *u8 {
+pub func malloc(size i64) *u8 {
     // Minimum size is 8 (to store next pointer when freed)
     if size < 8 {
         size = 8;
@@ -221,7 +221,7 @@ func malloc(size i64) *u8 {
     return block + 8;
 }
 
-func free(ptr *u8) void {
+pub func free(ptr *u8) void {
     if ptr == nil {
         return;
     }
@@ -239,11 +239,11 @@ func free(ptr *u8) void {
 // User-facing process and filesystem functions
 // ============================================================
 
-func getpid() i64 {
+pub func getpid() i64 {
     return os_getpid();
 }
 
-func getppid() i64 {
+pub func getppid() i64 {
     return os_getppid();
 }
 
@@ -271,14 +271,14 @@ func rmdir(path *u8) i64 {
 var environ **u8 = nil;
 
 // Initialize environment pointer - call at program start
-func init_environ(envp **u8) void {
+pub func init_environ(envp **u8) void {
     environ = envp;
 }
 
 // Get environment variable value by name
 // Returns pointer to value part (after '='), or nil if not found
 // Note: environ must be initialized by calling init_environ(envp) at startup
-func getenv(name *u8) *u8 {
+pub func getenv(name *u8) *u8 {
     if environ == nil {
         return nil;
     }

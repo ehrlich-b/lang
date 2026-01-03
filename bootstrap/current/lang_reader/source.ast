@@ -21,12 +21,12 @@
   (var SIZE_FUNC_BUF (type_base i64) (number 524288))
   (var SIZE_AST_EMIT (type_base i64) (number 8388608))
   (var SIZE_HEAP (type_base i64) (number 268435456))
-  (var O_RDONLY (type_base i64) (number 0))
-  (var O_WRONLY (type_base i64) (number 1))
-  (var O_CREAT (type_base i64) (number 512))
-  (var O_TRUNC (type_base i64) (number 1024))
-  (var O_APPEND (type_base i64) (number 8))
-  (var O_WRONLY_CREAT_TRUNC (type_base i64) (number 1537))
+  (var pub O_RDONLY (type_base i64) (number 0))
+  (var pub O_WRONLY (type_base i64) (number 1))
+  (var pub O_CREAT (type_base i64) (number 512))
+  (var pub O_TRUNC (type_base i64) (number 1024))
+  (var pub O_APPEND (type_base i64) (number 8))
+  (var pub O_WRONLY_CREAT_TRUNC (type_base i64) (number 1537))
   (extern_func read ((param fd (type_base i64)) (param buf (type_ptr (type_base u8))) (param count (type_base i64))) (type_base i64)
     nil)
   (extern_func write ((param fd (type_base i64)) (param buf (type_ptr (type_base u8))) (param count (type_base i64))) (type_base i64)
@@ -39,19 +39,19 @@
     nil)
   (extern_func munmap ((param addr (type_ptr (type_base u8))) (param len (type_base i64))) (type_base i64)
     nil)
-  (extern_func malloc ((param size (type_base i64))) (type_ptr (type_base u8))
+  (extern_func pub malloc ((param size (type_base i64))) (type_ptr (type_base u8))
     nil)
-  (extern_func calloc ((param n (type_base i64)) (param size (type_base i64))) (type_ptr (type_base u8))
+  (extern_func pub calloc ((param n (type_base i64)) (param size (type_base i64))) (type_ptr (type_base u8))
     nil)
-  (extern_func free ((param ptr (type_ptr (type_base u8)))) (type_base void)
+  (extern_func pub free ((param ptr (type_ptr (type_base u8)))) (type_base void)
     nil)
-  (extern_func exit ((param code (type_base i64))) (type_base void)
+  (extern_func pub exit ((param code (type_base i64))) (type_base void)
     nil)
-  (extern_func getpid () (type_base i64)
+  (extern_func pub getpid () (type_base i64)
     nil)
-  (extern_func getppid () (type_base i64)
+  (extern_func pub getppid () (type_base i64)
     nil)
-  (extern_func getenv ((param name (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+  (extern_func pub getenv ((param name (type_ptr (type_base u8)))) (type_ptr (type_base u8))
     nil)
   (extern_func fork () (type_base i64)
     nil)
@@ -136,12 +136,12 @@
   (func os__exit ((param status (type_base i64))) (type_base void)
     (block
       (expr_stmt (call (ident _exit) (ident status)))))
-  (func alloc ((param size (type_base i64))) (type_ptr (type_base u8))
+  (func pub alloc ((param size (type_base i64))) (type_ptr (type_base u8))
     (block
       (return (call (ident calloc) (number 1) (ident size)))))
-  (func init_environ ((param envp (type_ptr (type_ptr (type_base u8))))) (type_base void)
+  (func pub init_environ ((param envp (type_ptr (type_ptr (type_base u8))))) (type_base void)
     (block))
-  (func find_in_path ((param tool (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+  (func pub find_in_path ((param tool (type_ptr (type_base u8)))) (type_ptr (type_base u8))
     (block
       (var path_env (type_ptr (type_base u8)) (call (ident getenv) (string "PATH")))
       (if (binop == (ident path_env) (nil))
@@ -203,7 +203,7 @@
               (expr_stmt (call (ident file_close) (ident fd)))
               (return (call (ident str_dup) (ident buf)))))))
       (return (nil))))
-  (func find_clang () (type_ptr (type_base u8))
+  (func pub find_clang () (type_ptr (type_base u8))
     (block
       (var path_clang (type_ptr (type_base u8)) (call (ident find_in_path) (string "clang")))
       (if (binop != (ident path_clang) (nil))
@@ -229,7 +229,7 @@
           (expr_stmt (call (ident file_close) (ident fd)))
           (return (ident loc3))))
       (return (nil))))
-  (func find_as () (type_ptr (type_base u8))
+  (func pub find_as () (type_ptr (type_base u8))
     (block
       (var path_as (type_ptr (type_base u8)) (call (ident find_in_path) (string "as")))
       (if (binop != (ident path_as) (nil))
@@ -242,7 +242,7 @@
           (expr_stmt (call (ident file_close) (ident fd)))
           (return (ident loc1))))
       (return (nil))))
-  (func find_ld () (type_ptr (type_base u8))
+  (func pub find_ld () (type_ptr (type_base u8))
     (block
       (var path_ld (type_ptr (type_base u8)) (call (ident find_in_path) (string "ld")))
       (if (binop != (ident path_ld) (nil))
@@ -255,7 +255,7 @@
           (expr_stmt (call (ident file_close) (ident fd)))
           (return (ident loc1))))
       (return (nil))))
-  (func find_lli () (type_ptr (type_base u8))
+  (func pub find_lli () (type_ptr (type_base u8))
     (block
       (var path_lli (type_ptr (type_base u8)) (call (ident find_in_path) (string "lli")))
       (if (binop != (ident path_lli) (nil))
@@ -268,7 +268,7 @@
           (expr_stmt (call (ident file_close) (ident fd)))
           (return (ident loc1))))
       (return (nil))))
-  (func vec_new ((param cap (type_base i64))) (type_ptr (type_base u8))
+  (func pub vec_new ((param cap (type_base i64))) (type_ptr (type_base u8))
     (block
       (var v (type_ptr (type_base u8)) (call (ident malloc) (number 24)))
       (if (binop < (ident cap) (number 4))
@@ -281,23 +281,23 @@
       (var data_ptr (type_ptr (type_ptr (type_base u8))) (binop + (ident v) (number 16)))
       (assign (unop * (ident data_ptr)) (call (ident malloc) (binop * (ident cap) (number 8))))
       (return (ident v))))
-  (func vec_len ((param v (type_ptr (type_base u8)))) (type_base i64)
+  (func pub vec_len ((param v (type_ptr (type_base u8)))) (type_base i64)
     (block
       (var len_ptr (type_ptr (type_base i64)) (binop + (ident v) (number 8)))
       (return (unop * (ident len_ptr)))))
-  (func vec_get ((param v (type_ptr (type_base u8))) (param index (type_base i64))) (type_base i64)
+  (func pub vec_get ((param v (type_ptr (type_base u8))) (param index (type_base i64))) (type_base i64)
     (block
       (var data_ptr (type_ptr (type_ptr (type_base u8))) (binop + (ident v) (number 16)))
       (var data (type_ptr (type_base u8)) (unop * (ident data_ptr)))
       (var elem_ptr (type_ptr (type_base i64)) (binop + (ident data) (binop * (ident index) (number 8))))
       (return (unop * (ident elem_ptr)))))
-  (func vec_set ((param v (type_ptr (type_base u8))) (param index (type_base i64)) (param value (type_base i64))) nil
+  (func pub vec_set ((param v (type_ptr (type_base u8))) (param index (type_base i64)) (param value (type_base i64))) nil
     (block
       (var data_ptr (type_ptr (type_ptr (type_base u8))) (binop + (ident v) (number 16)))
       (var data (type_ptr (type_base u8)) (unop * (ident data_ptr)))
       (var elem_ptr (type_ptr (type_base i64)) (binop + (ident data) (binop * (ident index) (number 8))))
       (assign (unop * (ident elem_ptr)) (ident value))))
-  (func vec_push ((param v (type_ptr (type_base u8))) (param value (type_base i64))) nil
+  (func pub vec_push ((param v (type_ptr (type_base u8))) (param value (type_base i64))) nil
     (block
       (var cap_ptr (type_ptr (type_base i64)) (ident v))
       (var len_ptr (type_ptr (type_base i64)) (binop + (ident v) (number 8)))
@@ -323,13 +323,13 @@
       (var elem_ptr (type_ptr (type_base i64)) (binop + (ident data) (binop * (ident len) (number 8))))
       (assign (unop * (ident elem_ptr)) (ident value))
       (assign (unop * (ident len_ptr)) (binop + (ident len) (number 1)))))
-  (func vec_free ((param v (type_ptr (type_base u8)))) nil
+  (func pub vec_free ((param v (type_ptr (type_base u8)))) nil
     (block
       (var data_ptr (type_ptr (type_ptr (type_base u8))) (binop + (ident v) (number 16)))
       (var data (type_ptr (type_base u8)) (unop * (ident data_ptr)))
       (expr_stmt (call (ident free) (ident data)))
       (expr_stmt (call (ident free) (ident v)))))
-  (func vec_pop ((param v (type_ptr (type_base u8)))) (type_base i64)
+  (func pub vec_pop ((param v (type_ptr (type_base u8)))) (type_base i64)
     (block
       (var len_ptr (type_ptr (type_base i64)) (binop + (ident v) (number 8)))
       (var data_ptr (type_ptr (type_ptr (type_base u8))) (binop + (ident v) (number 16)))
@@ -342,7 +342,7 @@
       (var data (type_ptr (type_base u8)) (unop * (ident data_ptr)))
       (var elem_ptr (type_ptr (type_base i64)) (binop + (ident data) (binop * (ident len) (number 8))))
       (return (unop * (ident elem_ptr)))))
-  (func hash_str ((param s (type_ptr (type_base u8)))) (type_base i64)
+  (func pub hash_str ((param s (type_ptr (type_base u8)))) (type_base i64)
     (block
       (var h (type_base i64) (number 5381))
       (while (binop != (unop * (ident s)) (number 0))
@@ -353,7 +353,7 @@
         (block
           (assign (ident h) (binop - (number 0) (ident h)))))
       (return (ident h))))
-  (func map_new () (type_ptr (type_base u8))
+  (func pub map_new () (type_ptr (type_base u8))
     (block
       (var m (type_ptr (type_base u8)) (call (ident malloc) (number 32)))
       (var cap_ptr (type_ptr (type_base i64)) (ident m))
@@ -434,7 +434,7 @@
           (assign (ident i) (binop + (ident i) (number 1)))))
       (expr_stmt (call (ident free) (ident old_keys)))
       (expr_stmt (call (ident free) (ident old_vals)))))
-  (func map_set ((param m (type_ptr (type_base u8))) (param key (type_ptr (type_base u8))) (param value (type_base i64))) nil
+  (func pub map_set ((param m (type_ptr (type_base u8))) (param key (type_ptr (type_base u8))) (param value (type_base i64))) nil
     (block
       (var cap_ptr (type_ptr (type_base i64)) (ident m))
       (var count_ptr (type_ptr (type_base i64)) (binop + (ident m) (number 8)))
@@ -457,7 +457,7 @@
           (assign (unop * (ident count_ptr)) (binop + (ident count) (number 1)))))
       (var val_ptr (type_ptr (type_base i64)) (binop + (ident vals) (binop * (ident idx) (number 8))))
       (assign (unop * (ident val_ptr)) (ident value))))
-  (func map_get ((param m (type_ptr (type_base u8))) (param key (type_ptr (type_base u8)))) (type_base i64)
+  (func pub map_get ((param m (type_ptr (type_base u8))) (param key (type_ptr (type_base u8)))) (type_base i64)
     (block
       (var keys_ptr (type_ptr (type_ptr (type_base u8))) (binop + (ident m) (number 16)))
       (var vals_ptr (type_ptr (type_ptr (type_base u8))) (binop + (ident m) (number 24)))
@@ -471,7 +471,7 @@
           (return (number 0))))
       (var val_ptr (type_ptr (type_base i64)) (binop + (ident vals) (binop * (ident idx) (number 8))))
       (return (unop * (ident val_ptr)))))
-  (func map_has ((param m (type_ptr (type_base u8))) (param key (type_ptr (type_base u8)))) (type_base i64)
+  (func pub map_has ((param m (type_ptr (type_base u8))) (param key (type_ptr (type_base u8)))) (type_base i64)
     (block
       (var keys_ptr (type_ptr (type_ptr (type_base u8))) (binop + (ident m) (number 16)))
       (var keys (type_ptr (type_base u8)) (unop * (ident keys_ptr)))
@@ -482,14 +482,14 @@
         (block
           (return (number 0))))
       (return (number 1))))
-  (func map_free ((param m (type_ptr (type_base u8)))) nil
+  (func pub map_free ((param m (type_ptr (type_base u8)))) nil
     (block
       (var keys_ptr (type_ptr (type_ptr (type_base u8))) (binop + (ident m) (number 16)))
       (var vals_ptr (type_ptr (type_ptr (type_base u8))) (binop + (ident m) (number 24)))
       (expr_stmt (call (ident free) (unop * (ident keys_ptr))))
       (expr_stmt (call (ident free) (unop * (ident vals_ptr))))
       (expr_stmt (call (ident free) (ident m)))))
-  (func str_dup_n ((param s (type_ptr (type_base u8))) (param len (type_base i64))) (type_ptr (type_base u8))
+  (func pub str_dup_n ((param s (type_ptr (type_base u8))) (param len (type_base i64))) (type_ptr (type_base u8))
     (block
       (var result (type_ptr (type_base u8)) (call (ident malloc) (binop + (ident len) (number 1))))
       (var i (type_base i64) (number 0))
@@ -499,36 +499,36 @@
           (assign (ident i) (binop + (ident i) (number 1)))))
       (assign (unop * (binop + (ident result) (ident len))) (number 0))
       (return (ident result))))
-  (func map_set_n ((param m (type_ptr (type_base u8))) (param key (type_ptr (type_base u8))) (param key_len (type_base i64)) (param value (type_base i64))) (type_base void)
+  (func pub map_set_n ((param m (type_ptr (type_base u8))) (param key (type_ptr (type_base u8))) (param key_len (type_base i64)) (param value (type_base i64))) (type_base void)
     (block
       (var key_copy (type_ptr (type_base u8)) (call (ident str_dup_n) (ident key) (ident key_len)))
       (expr_stmt (call (ident map_set) (ident m) (ident key_copy) (ident value)))))
-  (func map_get_n ((param m (type_ptr (type_base u8))) (param key (type_ptr (type_base u8))) (param key_len (type_base i64))) (type_base i64)
+  (func pub map_get_n ((param m (type_ptr (type_base u8))) (param key (type_ptr (type_base u8))) (param key_len (type_base i64))) (type_base i64)
     (block
       (var key_copy (type_ptr (type_base u8)) (call (ident str_dup_n) (ident key) (ident key_len)))
       (var result (type_base i64) (call (ident map_get) (ident m) (ident key_copy)))
       (expr_stmt (call (ident free) (ident key_copy)))
       (return (ident result))))
-  (func file_open ((param path (type_ptr (type_base u8))) (param flags (type_base i64))) (type_base i64)
+  (func pub file_open ((param path (type_ptr (type_base u8))) (param flags (type_base i64))) (type_base i64)
     (block
       (return (call (ident os_open) (ident path) (ident flags) (number 420)))))
-  (func file_read ((param fd (type_base i64)) (param buf (type_ptr (type_base u8))) (param n (type_base i64))) (type_base i64)
+  (func pub file_read ((param fd (type_base i64)) (param buf (type_ptr (type_base u8))) (param n (type_base i64))) (type_base i64)
     (block
       (return (call (ident os_read) (ident fd) (ident buf) (ident n)))))
-  (func file_write ((param fd (type_base i64)) (param buf (type_ptr (type_base u8))) (param n (type_base i64))) (type_base i64)
+  (func pub file_write ((param fd (type_base i64)) (param buf (type_ptr (type_base u8))) (param n (type_base i64))) (type_base i64)
     (block
       (return (call (ident os_write) (ident fd) (ident buf) (ident n)))))
-  (func file_close ((param fd (type_base i64))) nil
+  (func pub file_close ((param fd (type_base i64))) nil
     (block
       (expr_stmt (call (ident os_close) (ident fd)))))
-  (func strlen ((param s (type_ptr (type_base u8)))) (type_base i64)
+  (func pub strlen ((param s (type_ptr (type_base u8)))) (type_base i64)
     (block
       (var n (type_base i64) (number 0))
       (while (binop != (unop * (binop + (ident s) (ident n))) (number 0))
         (block
           (assign (ident n) (binop + (ident n) (number 1)))))
       (return (ident n))))
-  (func streq ((param a (type_ptr (type_base u8))) (param b (type_ptr (type_base u8)))) (type_base i64)
+  (func pub streq ((param a (type_ptr (type_base u8))) (param b (type_ptr (type_base u8)))) (type_base i64)
     (block
       (while (binop && (binop != (unop * (ident a)) (number 0)) (binop != (unop * (ident b)) (number 0)))
         (block
@@ -541,7 +541,7 @@
         (block
           (return (number 1))))
       (return (number 0))))
-  (func str_eq_n ((param a (type_ptr (type_base u8))) (param a_len (type_base i64)) (param b (type_ptr (type_base u8))) (param b_len (type_base i64))) (type_base bool)
+  (func pub str_eq_n ((param a (type_ptr (type_base u8))) (param a_len (type_base i64)) (param b (type_ptr (type_base u8))) (param b_len (type_base i64))) (type_base bool)
     (block
       (if (binop != (ident a_len) (ident b_len))
         (block
@@ -554,7 +554,7 @@
               (return (bool false))))
           (assign (ident i) (binop + (ident i) (number 1)))))
       (return (bool true))))
-  (func str_concat ((param a (type_ptr (type_base u8))) (param b (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+  (func pub str_concat ((param a (type_ptr (type_base u8))) (param b (type_ptr (type_base u8)))) (type_ptr (type_base u8))
     (block
       (var len_a (type_base i64) (call (ident strlen) (ident a)))
       (var len_b (type_base i64) (call (ident strlen) (ident b)))
@@ -571,7 +571,7 @@
           (assign (ident j) (binop + (ident j) (number 1)))))
       (assign (unop * (binop + (binop + (ident result) (ident len_a)) (ident len_b))) (number 0))
       (return (ident result))))
-  (func str_dup ((param s (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+  (func pub str_dup ((param s (type_ptr (type_base u8)))) (type_ptr (type_base u8))
     (block
       (var len (type_base i64) (call (ident strlen) (ident s)))
       (var result (type_ptr (type_base u8)) (call (ident malloc) (binop + (ident len) (number 1))))
@@ -581,7 +581,7 @@
           (assign (unop * (binop + (ident result) (ident i))) (unop * (binop + (ident s) (ident i))))
           (assign (ident i) (binop + (ident i) (number 1)))))
       (return (ident result))))
-  (func str_starts_with ((param s (type_ptr (type_base u8))) (param prefix (type_ptr (type_base u8)))) (type_base i64)
+  (func pub str_starts_with ((param s (type_ptr (type_base u8))) (param prefix (type_ptr (type_base u8)))) (type_base i64)
     (block
       (while (binop != (unop * (ident prefix)) (number 0))
         (block
@@ -591,24 +591,24 @@
           (assign (ident s) (binop + (ident s) (number 1)))
           (assign (ident prefix) (binop + (ident prefix) (number 1)))))
       (return (number 1))))
-  (func print ((param s (type_ptr (type_base u8)))) nil
+  (func pub print ((param s (type_ptr (type_base u8)))) nil
     (block
       (expr_stmt (call (ident file_write) (number 1) (ident s) (call (ident strlen) (ident s))))))
-  (func println ((param s (type_ptr (type_base u8)))) nil
+  (func pub println ((param s (type_ptr (type_base u8)))) nil
     (block
       (expr_stmt (call (ident print) (ident s)))
       (expr_stmt (call (ident file_write) (number 1) (string "\n") (number 1)))))
-  (func eprint ((param s (type_ptr (type_base u8)))) nil
+  (func pub eprint ((param s (type_ptr (type_base u8)))) nil
     (block
       (expr_stmt (call (ident file_write) (number 2) (ident s) (call (ident strlen) (ident s))))))
-  (func eprintln ((param s (type_ptr (type_base u8)))) nil
+  (func pub eprintln ((param s (type_ptr (type_base u8)))) nil
     (block
       (expr_stmt (call (ident eprint) (ident s)))
       (expr_stmt (call (ident file_write) (number 2) (string "\n") (number 1)))))
-  (func eprint_buf ((param buf (type_ptr (type_base u8))) (param len (type_base i64))) nil
+  (func pub eprint_buf ((param buf (type_ptr (type_base u8))) (param len (type_base i64))) nil
     (block
       (expr_stmt (call (ident file_write) (number 2) (ident buf) (ident len)))))
-  (func eprint_i64 ((param n (type_base i64))) nil
+  (func pub eprint_i64 ((param n (type_base i64))) nil
     (block
       (if (binop < (ident n) (number 0))
         (block
@@ -631,11 +631,11 @@
           (expr_stmt (call (ident file_write) (number 2) (unop & (ident c)) (number 1)))
           (assign (ident n) (binop % (ident n) (ident divisor)))
           (assign (ident divisor) (binop / (ident divisor) (number 10)))))))
-  (func print_digit ((param d (type_base i64))) nil
+  (func pub print_digit ((param d (type_base i64))) nil
     (block
       (var c (type_base u8) (binop + (number 48) (ident d)))
       (expr_stmt (call (ident file_write) (number 1) (unop & (ident c)) (number 1)))))
-  (func print_int ((param n (type_base i64))) nil
+  (func pub print_int ((param n (type_base i64))) nil
     (block
       (if (binop < (ident n) (number 0))
         (block
@@ -657,7 +657,7 @@
           (expr_stmt (call (ident print_digit) (ident digit)))
           (assign (ident n) (binop % (ident n) (ident divisor)))
           (assign (ident divisor) (binop / (ident divisor) (number 10)))))))
-  (func itoa ((param n (type_base i64)) (param buf (type_ptr (type_base u8)))) (type_base i64)
+  (func pub itoa ((param n (type_base i64)) (param buf (type_ptr (type_base u8)))) (type_base i64)
     (block
       (var pos (type_base i64) (number 0))
       (if (binop < (ident n) (number 0))
@@ -683,7 +683,7 @@
           (assign (ident n) (binop % (ident n) (ident divisor)))
           (assign (ident divisor) (binop / (ident divisor) (number 10)))))
       (return (ident pos))))
-  (func file_mtime ((param path (type_ptr (type_base u8)))) (type_base i64)
+  (func pub file_mtime ((param path (type_ptr (type_base u8)))) (type_base i64)
     (block
       (var statbuf (type_ptr (type_base u8)) (call (ident alloc) (number 144)))
       (var result (type_base i64) (call (ident os_stat) (ident path) (ident statbuf)))
