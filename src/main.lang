@@ -838,12 +838,17 @@ func main(argc i64, argv **u8) i64 {
             j = j + 1;
         }
 
-        // Copy reader declarations
+        // Copy reader declarations and mark as AST (not lang source)
         j = 0;
         while j < reader_count {
             var src **u8 = reader_decls + (j * 8);
             var dst **u8 = combined_decls + ((base_count + j) * 8);
-            *dst = *src;
+            var decl *u8 = *src;
+            *dst = decl;
+            // Mark reader_decl nodes as having AST body (not lang source)
+            if node_kind(decl) == NODE_READER_DECL {
+                reader_decl_set_is_ast(decl, 1);
+            }
             j = j + 1;
         }
 
@@ -854,9 +859,9 @@ func main(argc i64, argv **u8) i64 {
         var pc *i64 = combined_prog + 8;
         *pc = total;
 
-        // Build reader function name: "reader_" + name
-        var reader_name_len i64 = strlen(add_reader_name);
-        var func_name *u8 = str_concat("reader_", add_reader_name);
+        // Reader function name is just the reader name (e.g., "lang")
+        // llvm_emit_reader() emits @lang, so we must match that
+        var func_name *u8 = add_reader_name;
         var func_name_len i64 = strlen(func_name);
 
         // Re-stringify the combined AST
@@ -907,7 +912,7 @@ func main(argc i64, argv **u8) i64 {
                         // Add new string element
                         var str_node *u8 = string_expr_alloc();
                         string_expr_set_value(str_node, add_reader_name);
-                        string_expr_set_value_len(str_node, reader_name_len);
+                        string_expr_set_value_len(str_node, func_name_len);
                         var new_slot **u8 = new_elems + (old_count * 8);
                         *new_slot = str_node;
                         // Update array_literal

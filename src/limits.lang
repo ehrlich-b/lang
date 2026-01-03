@@ -5,19 +5,19 @@
 var LIMIT_STMTS_PER_BLOCK i64 = 1024;
 var LIMIT_CALL_ARGS i64 = 16;
 var LIMIT_FUNC_PARAMS i64 = 16;
-var LIMIT_TOP_DECLS i64 = 1000;
+var LIMIT_TOP_DECLS i64 = 4000;  // Increased for composition (kernel + readers)
 
 // Codegen limits
 var LIMIT_LOCALS i64 = 1024;
-var LIMIT_GLOBALS i64 = 1000;
-var LIMIT_STRINGS i64 = 3000;
-var LIMIT_STRUCTS i64 = 100;
+var LIMIT_GLOBALS i64 = 2000;   // Increased for composition
+var LIMIT_STRINGS i64 = 6000;   // Increased for composition
+var LIMIT_STRUCTS i64 = 200;    // Increased for composition
 var LIMIT_ENUMS i64 = 100;
 var LIMIT_EFFECTS i64 = 100;
 var LIMIT_MACROS i64 = 100;
 var LIMIT_READERS i64 = 100;
 var LIMIT_EMBEDDED_READERS i64 = 20;
-var LIMIT_FUNCS i64 = 1000;
+var LIMIT_FUNCS i64 = 3000;     // Increased for composition
 var LIMIT_LAMBDAS i64 = 1000;
 var LIMIT_CAPTURES i64 = 64;  // Max captures per closure
 var LIMIT_LOOP_DEPTH i64 = 32;
