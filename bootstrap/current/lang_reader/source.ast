@@ -776,6 +776,7 @@
   (var TOKEN_RESUME (type_base i64) (number 81))
   (var TOKEN_CLOSURE (type_base i64) (number 82))
   (var TOKEN_EXTERN (type_base i64) (number 83))
+  (var TOKEN_REQUIRE (type_base i64) (number 84))
   (struct Token ((field_decl type_tok (type_base i64)) (field_decl lexeme (type_ptr (type_base u8))) (field_decl lexeme_len (type_base i64)) (field_decl line (type_base i64)) (field_decl col (type_base i64)) (field_decl content (type_ptr (type_base u8))) (field_decl content_len (type_base i64))))
   (func tok_type ((param tok (type_ptr (type_base u8)))) (type_base i64)
     (block
@@ -1017,6 +1018,9 @@
       (if (call (ident lexeme_eq) (string "include"))
         (block
           (return (ident TOKEN_INCLUDE))))
+      (if (call (ident lexeme_eq) (string "require"))
+        (block
+          (return (ident TOKEN_REQUIRE))))
       (if (call (ident lexeme_eq) (string "if"))
         (block
           (return (ident TOKEN_IF))))
@@ -1648,6 +1652,10 @@
         (block
           (expr_stmt (call (ident print) (string "include")))
           (return)))
+      (if (binop == (ident t) (ident TOKEN_REQUIRE))
+        (block
+          (expr_stmt (call (ident print) (string "require")))
+          (return)))
       (if (binop == (ident t) (ident TOKEN_PIPE))
         (block
           (expr_stmt (call (ident print) (string "|")))
@@ -1801,6 +1809,7 @@
   (var NODE_RESUME_EXPR (type_base i64) (number 40))
   (var NODE_BLOCK_EXPR (type_base i64) (number 41))
   (var NODE_ARRAY_LITERAL (type_base i64) (number 42))
+  (var NODE_REQUIRE_DECL (type_base i64) (number 43))
   (var TYPE_BASE (type_base i64) (number 1))
   (var TYPE_PTR (type_base i64) (number 2))
   (var TYPE_ARRAY (type_base i64) (number 3))
@@ -3157,6 +3166,28 @@
     (block
       (var n (type_ptr (type_base IncludeDecl)) (ident node))
       (assign (field (ident n) path_len) (ident len))))
+  (struct RequireDecl ((field_decl kind (type_base i64)) (field_decl module (type_ptr (type_base u8))) (field_decl module_len (type_base i64))))
+  (func require_decl_alloc () (type_ptr (type_base u8))
+    (block
+      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 24)))
+      (expr_stmt (call (ident node_set_kind) (ident node) (ident NODE_REQUIRE_DECL)))
+      (return (ident node))))
+  (func require_decl_module ((param node (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+    (block
+      (var n (type_ptr (type_base RequireDecl)) (ident node))
+      (return (field (ident n) module))))
+  (func require_decl_set_module ((param node (type_ptr (type_base u8))) (param ptr (type_ptr (type_base u8)))) (type_base void)
+    (block
+      (var n (type_ptr (type_base RequireDecl)) (ident node))
+      (assign (field (ident n) module) (ident ptr))))
+  (func require_decl_module_len ((param node (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var n (type_ptr (type_base RequireDecl)) (ident node))
+      (return (field (ident n) module_len))))
+  (func require_decl_set_module_len ((param node (type_ptr (type_base u8))) (param len (type_base i64))) (type_base void)
+    (block
+      (var n (type_ptr (type_base RequireDecl)) (ident node))
+      (assign (field (ident n) module_len) (ident len))))
   (func type_kind ((param t (type_ptr (type_base u8)))) (type_base i64)
     (block
       (var p (type_ptr (type_base i64)) (ident t))
@@ -4504,6 +4535,21 @@
       (expr_stmt (call (ident include_decl_set_path) (ident node) (ident path)))
       (expr_stmt (call (ident include_decl_set_path_len) (ident node) (ident path_len)))
       (return (ident node))))
+  (func parse_require () (type_ptr (type_base u8))
+    (block
+      (if (unop ! (call (ident parse_match) (ident TOKEN_STRING)))
+        (block
+          (expr_stmt (call (ident parse_error) (string "expected string module path after require")))
+          (return (nil))))
+      (var module_tok (type_ptr (type_base u8)) (call (ident parse_previous)))
+      (var module (type_ptr (type_base u8)) (call (ident tok_lexeme) (ident module_tok)))
+      (var module_len (type_base i64) (call (ident tok_lexeme_len) (ident module_tok)))
+      (assign (ident module) (binop + (ident module) (number 1)))
+      (assign (ident module_len) (binop - (ident module_len) (number 2)))
+      (var node (type_ptr (type_base u8)) (call (ident require_decl_alloc)))
+      (expr_stmt (call (ident require_decl_set_module) (ident node) (ident module)))
+      (expr_stmt (call (ident require_decl_set_module_len) (ident node) (ident module_len)))
+      (return (ident node))))
   (func parse_declaration () (type_ptr (type_base u8))
     (block
       (if (call (ident parse_match) (ident TOKEN_EXTERN))
@@ -4543,6 +4589,9 @@
       (if (call (ident parse_match) (ident TOKEN_INCLUDE))
         (block
           (return (call (ident parse_include)))))
+      (if (call (ident parse_match) (ident TOKEN_REQUIRE))
+        (block
+          (return (call (ident parse_require)))))
       (if (call (ident parse_match) (ident TOKEN_READER_MACRO))
         (block
           (var tok (type_ptr (type_base u8)) (call (ident parse_previous)))
@@ -5046,6 +5095,12 @@
         (block
           (expr_stmt (call (ident ast_emit_str) (string "(include ")))
           (expr_stmt (call (ident ast_emit_quoted_string) (call (ident include_decl_path) (ident node)) (call (ident include_decl_path_len) (ident node))))
+          (expr_stmt (call (ident ast_emit_str) (string ")")))
+          (return)))
+      (if (binop == (ident kind) (ident NODE_REQUIRE_DECL))
+        (block
+          (expr_stmt (call (ident ast_emit_str) (string "(require ")))
+          (expr_stmt (call (ident ast_emit_quoted_string) (call (ident require_decl_module) (ident node)) (call (ident require_decl_module_len) (ident node))))
           (expr_stmt (call (ident ast_emit_str) (string ")")))
           (return)))
       (if (binop == (ident kind) (ident NODE_IMPORT))

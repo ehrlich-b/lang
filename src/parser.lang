@@ -58,6 +58,7 @@ var NODE_HANDLE_EXPR i64 = 39;    // handle { expr } with { cases }
 var NODE_RESUME_EXPR i64 = 40;    // resume k(value) - for future use
 var NODE_BLOCK_EXPR i64 = 41;     // { stmts; tail_expr } - block as expression
 var NODE_ARRAY_LITERAL i64 = 42;  // [e1, e2, e3, ...] - array literal
+var NODE_REQUIRE_DECL i64 = 43;   // require "module" - module dependency
 
 // Type kinds
 var TYPE_BASE i64 = 1;
@@ -1958,6 +1959,40 @@ func include_decl_set_path_len(node *u8, len i64) void {
     n.path_len = len;
 }
 
+// RequireDecl: [kind:8][module_ptr:8][module_len:8] = 24 bytes
+// Similar layout to IncludeDecl but for module dependencies
+struct RequireDecl {
+    kind i64;
+    module *u8;
+    module_len i64;
+}
+
+func require_decl_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_REQUIRE_DECL);
+    return node;
+}
+
+func require_decl_module(node *u8) *u8 {
+    var n *RequireDecl = node;
+    return n.module;
+}
+
+func require_decl_set_module(node *u8, ptr *u8) void {
+    var n *RequireDecl = node;
+    n.module = ptr;
+}
+
+func require_decl_module_len(node *u8) i64 {
+    var n *RequireDecl = node;
+    return n.module_len;
+}
+
+func require_decl_set_module_len(node *u8, len i64) void {
+    var n *RequireDecl = node;
+    n.module_len = len;
+}
+
 // ============================================================
 // Type accessors
 // ============================================================
@@ -3712,6 +3747,29 @@ func parse_include() *u8 {
     return node;
 }
 
+// Parse: require "module/path"
+// Note: module paths have NO extension (e.g., "std/core" not "std/core.lang")
+func parse_require() *u8 {
+    if !parse_match(TOKEN_STRING) {
+        parse_error("expected string module path after require");
+        return nil;
+    }
+    var module_tok *u8 = parse_previous();
+
+    // Extract module path (string value includes quotes)
+    var module *u8 = tok_lexeme(module_tok);
+    var module_len i64 = tok_lexeme_len(module_tok);
+
+    // Strip quotes from module path
+    module = module + 1;
+    module_len = module_len - 2;
+
+    var node *u8 = require_decl_alloc();
+    require_decl_set_module(node, module);
+    require_decl_set_module_len(node, module_len);
+    return node;
+}
+
 func parse_declaration() *u8 {
     if parse_match(TOKEN_EXTERN) {
         // extern func name(...) type; OR extern var name type;
@@ -3750,6 +3808,9 @@ func parse_declaration() *u8 {
     }
     if parse_match(TOKEN_INCLUDE) {
         return parse_include();
+    }
+    if parse_match(TOKEN_REQUIRE) {
+        return parse_require();
     }
     // Reader macro at declaration level: #name{content}
     if parse_match(TOKEN_READER_MACRO) {

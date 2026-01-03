@@ -422,6 +422,13 @@ func ast_emit_node(node *u8) void {
         return;
     }
 
+    if kind == NODE_REQUIRE_DECL {
+        ast_emit_str("(require ");
+        ast_emit_quoted_string(require_decl_module(node), require_decl_module_len(node));
+        ast_emit_str(")");
+        return;
+    }
+
     if kind == NODE_IMPORT {
         ast_emit_str("(import ");
         ast_emit_quoted_string(import_decl_path(node), import_decl_path_len(node));

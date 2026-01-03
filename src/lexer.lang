@@ -123,6 +123,9 @@ var TOKEN_CLOSURE i64 = 82;       // closure (for closure type)
 // FFI
 var TOKEN_EXTERN i64 = 83;        // extern (external function declaration)
 
+// Module system
+var TOKEN_REQUIRE i64 = 84;       // require (module dependency reference)
+
 // ============================================================
 // Token struct
 // ============================================================
@@ -419,6 +422,7 @@ func check_keyword() i64 {
     if lexeme_eq("reader") { return TOKEN_READER; }
     if lexeme_eq("import") { return TOKEN_IMPORT; }
     if lexeme_eq("include") { return TOKEN_INCLUDE; }
+    if lexeme_eq("require") { return TOKEN_REQUIRE; }
     if lexeme_eq("if") { return TOKEN_IF; }
     if lexeme_eq("else") { return TOKEN_ELSE; }
     if lexeme_eq("while") { return TOKEN_WHILE; }
@@ -800,6 +804,7 @@ func print_token_type(t i64) void {
     if t == TOKEN_READER { print("reader"); return; }
     if t == TOKEN_READER_MACRO { print("READER_MACRO"); return; }
     if t == TOKEN_INCLUDE { print("include"); return; }
+    if t == TOKEN_REQUIRE { print("require"); return; }
     if t == TOKEN_PIPE { print("|"); return; }
     if t == TOKEN_CARET { print("^"); return; }
     if t == TOKEN_LTLT { print("<<"); return; }

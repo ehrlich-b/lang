@@ -626,6 +626,16 @@ func sexpr_to_node(node *PNode) *u8 {
         return n;
     }
 
+    // (require "module")
+    if streq(head, "require") {
+        var n *u8 = require_decl_alloc();
+        var module_node *PNode = sexpr_get(node, 1);
+        var module *u8 = sexpr_parse_string(module_node.text);
+        require_decl_set_module(n, module);
+        require_decl_set_module_len(n, strlen(module));
+        return n;
+    }
+
     // (reader name param body)
     if streq(head, "reader") {
         var n *u8 = reader_decl_alloc();
