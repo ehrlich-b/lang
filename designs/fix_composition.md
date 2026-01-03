@@ -1,289 +1,226 @@
 # Fix Composition (compose command)
 
-## Status: In Progress (2025-01-02)
+## Status: BLOCKED (2025-01-03)
 
-### Just Completed: Array Literal Codegen (commit 1a963b2)
+Composition works for small readers but **blocked on architecture issues** for the full use case.
 
-Full array literal support for global variables is now working:
+### Blockers
 
-**What was implemented in `src/codegen_llvm.lang`:**
+| Blocker | Design Doc | Description |
+|---------|------------|-------------|
+| Kernel/Reader Split | `designs/kernel_reader_split.md` | Kernel includes lexer/parser, should be AST-only |
+| Composition Dependencies | `designs/composition_dependencies.md` | Shared includes cause duplicates across composed ASTs |
 
-1. **`llvm_emit_global_array_elem()`** - New helper function to emit array element values:
-   - String literals → `getelementptr inbounds ([N x i8], ...)` (pointer to string)
-   - Identifiers → `@funcname` (function pointer)
-   - Numbers → literal value
-   - Nil → `null` (for pointers) or `0` (for integers)
+These must be resolved before full composition (kernel + lang_reader + other readers) can work.
 
-2. **Global array emission** in `llvm_emit_decl()`:
-   - Detects `TYPE_ARRAY` variables with `NODE_ARRAY_LITERAL` initializers
-   - Emits proper LLVM type: `[N x T]` (e.g., `[1024 x i8*]`)
-   - Emits initializer: `[i8* @str1, i8* @str2, i8* null, ...]`
-   - Remaining elements filled with `null`/`0`
-   - Arrays without initializers get `zeroinitializer`
+### Completed Work
 
-3. **Pointer array load/store** in `NODE_INDEX_EXPR` handling:
-   - **Load**: Added `ptrtoint i8* %tN to i64` after loading from pointer arrays
-   - **Store**: Added `inttoptr i64 %val to i8*` before storing to pointer arrays
-   - This maintains the invariant that all expression values are i64
+1. ✅ **Function name mismatch**: Fixed - `-r` mode now pokes `lang` (not `reader_lang`)
+2. ✅ **Embedded readers not invoked**: Fixed - code now checks for embedded function first
+3. ✅ **Limits increased**: LIMIT_TOP_DECLS=4000, LIMIT_FUNCS=3000, etc.
+4. ✅ **Bootstrap with new limits**: 169/169 tests pass
 
-**Generated LLVM IR example:**
-```llvm
-@embedded_reader_names = global [1024 x i8*] [
-  i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str0, i64 0, i64 0),
-  i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str1, i64 0, i64 0),
-  i8* null, i8* null, ...
-]
-```
+### What Works Now
 
-**Verified:** All 169 LLVM tests pass. Bootstrap complete.
+Small reader composition works! See "Testing (Verified)" section below for the `#answer{}` example.
 
-### Current State
+## The Design (How It Works)
 
-Single-variable reader storage still exists in `main.lang`:
-```lang
-var embedded_reader_count i64 = 0;
-var embedded_reader_name *u8 = "";   // Single reader name
-var embedded_reader_func *u8 = nil;  // Single function pointer
-```
+### Core Insight: Pure AST Manipulation
 
-### Next Steps (in order)
-
-1. **Migrate embedded_reader vars to arrays** - Change to `[1024]*u8 = []`
-2. **Update -r mode** - Append to `array_literal` nodes instead of replacing string init
-3. **Skip compile_reader_to_executable()** - For LLVM backend, reader is already a function
-4. **Update find_reader()** - Loop through arrays until nil
-
-## The Core Insight: Pure AST Manipulation
-
-**This is ALL just AST manipulation.** No lang parsing. No source code. Just:
+Composition is ALL AST manipulation. No lang parsing. No source code. Just:
 1. Read AST (S-expressions)
 2. Combine AST nodes
 3. Poke values into AST nodes
 4. Re-serialize AST
 5. Generate code from AST
 
-The compiler never needs to understand lang syntax to compose readers. It only manipulates S-expression AST.
-
-## The Three Steps
-
-### Step 1: Compile bare kernel to executable
-
-```
-[some compiler] compiles bare_kernel.ast → .ll → exe
-```
-
-This bare kernel:
-- Understands S-expression AST
-- Can generate LLVM IR / x86
-- Has `var self_kernel *u8 = ""` (empty)
-- Has `var embedded_reader_names [1024]*u8 = []` (empty array literal)
-- Has `var embedded_reader_funcs [1024]*u8 = []` (empty array literal)
-
-### Step 2: Create self-aware kernel (`--embed-self`)
-
-```
-bare_kernel --embed-self bare_kernel.ast → kernel_self exe
-```
-
-This is just AST manipulation:
-1. Read `bare_kernel.ast` file
-2. Parse it as S-expressions → AST nodes
-3. Find `self_kernel` variable in AST
-4. Poke the entire AST string (from file) into `self_kernel`'s initializer
-5. Generate code from modified AST → .ll → exe
-
-Result: `kernel_self` exe contains a string with its own AST.
-
-### Step 3: Add reader (`-r`)
-
-```
-kernel_self -r lang lang_reader.ast → lang1 exe
-```
-
-This is nearly identical to `--embed-self`:
-1. Read `self_kernel` string (which contains `bare_kernel.ast`)
-2. Parse it as S-expressions → base AST nodes
-3. Read `lang_reader.ast` file
-4. Parse it as S-expressions → reader AST nodes
-5. **Combine**: append reader declarations to base declarations
-6. Find `embedded_reader_names`, append `(string "lang")` to its `array_literal`
-7. Find `embedded_reader_funcs`, append `(ident reader_lang)` to its `array_literal`
-8. **Re-serialize** the entire combined AST to string
-9. Find `self_kernel`, poke the combined AST string into it
-10. Generate code from combined AST → .ll → exe
-
-Result: `lang1` exe contains:
-- All kernel code
-- All reader code (the `reader_lang` function from `lang_reader.ast`)
-- `self_kernel` = combined AST (for future `-r` operations!)
-- `embedded_reader_funcs[0]` pointing to `reader_lang`
-
-## Data Structures (Target Design)
+### Data Structures
 
 ```lang
-// In kernel source - these get poked by -r mode
+// In codegen.lang - these get poked by -r mode
 var self_kernel *u8 = "";                    // Full program AST (quine)
-var embedded_reader_names [1024]*u8 = [];    // ["lang", "lisp", nil, nil, ...]
-var embedded_reader_funcs [1024]*u8 = [];    // [reader_lang, reader_lisp, nil, nil, ...]
-// No count needed - loop until nil!
+var embedded_reader_names [1024]*u8 = [];    // ["lang", "lisp", nil, ...]
+var embedded_reader_funcs [1024]*u8 = [];    // [lang, lisp, nil, ...]
+// Nil-terminated, no count needed
 ```
 
-Array support was added specifically for this purpose - to store multiple reader function pointers.
+### The Three Phases
 
-### Array Literals for Poking
+```
+Phase 1: Build composed compiler
+──────────────────────────────────────────────────────────────
+  kernel_self -r lang lang_reader.ast -o lang1
 
-The `-r` mode pokes into the `array_literal` nodes:
+  This is BUILD TIME for lang1.
+  kernel_self is RUNNING.
 
-```lisp
-; Before -r:
-(var embedded_reader_names (type_array 1024 (type_ptr (type_base u8)))
-  (array_literal))
+Phase 2: Composed compiler compiles user code
+──────────────────────────────────────────────────────────────
+  lang1 user.lang -o user
 
-; After -r lang:
-(var embedded_reader_names (type_array 1024 (type_ptr (type_base u8)))
-  (array_literal (string "lang")))
+  This is lang1's RUNTIME = user code's COMPILE TIME.
+  When lang1 hits #lang{...}, it must INVOKE the embedded reader.
+  The reader function EXISTS inside lang1's binary.
+  lang1 should CALL this function, not spawn a subprocess.
 
-; After -r lang, then -r lisp:
-(var embedded_reader_names (type_array 1024 (type_ptr (type_base u8)))
-  (array_literal (string "lang") (string "lisp")))
+Phase 3: User program runs
+──────────────────────────────────────────────────────────────
+  ./user
+
+  This is user code's RUNTIME.
 ```
 
-The AST infrastructure exists:
-- ✅ Parser: `[e1, e2]` → `NODE_ARRAY_LITERAL`
-- ✅ sexpr_reader: parses `(array_literal ...)`
-- ✅ ast_emit: emits `(array_literal ...)`
-- ✅ codegen_llvm: emits LLVM array initializers (commit 1a963b2)
+### What Readers Are
 
-Codegen emits (with proper pointer types):
-```llvm
-@embedded_reader_names = global [1024 x i8*] [
-  i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str0, i64 0, i64 0),
-  i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str1, i64 0, i64 0),
-  i8* null, i8* null, ...
-]
-```
-
-## The Quine Pattern
-
-The critical insight: **`self_kernel` contains AST that contains `self_kernel`**.
-
-Before `-r`:
-```
-self_kernel = "(program ... (var self_kernel *u8 (string \"\")) ...)"
-```
-
-After `-r lang`:
-```
-self_kernel = "(program ... (var self_kernel *u8 (string \"<THIS ENTIRE STRING>\")) ... (func reader_lang ...))"
-```
-
-The AST string inside `self_kernel` must be updated to include the combined AST with the reader. This is what enables chaining: the resulting binary can do another `-r` operation.
-
-## What This Is NOT
-
-- **NOT** parsing lang source code
-- **NOT** compiling readers to separate executables
-- **NOT** calling `parse_program()` on anything
-- **NOT** using the lang tokenizer or parser
-
-Everything is S-expression AST. The only parser used is `parse_ast_from_string()` (the S-expr parser).
-
-## Runtime: find_reader()
-
-At runtime, when code uses `#lang{}`:
+Readers are functions that transform strings to AST:
 
 ```lang
-func find_reader(name *u8, len i64) *func {
-    var i i64 = 0;
-    while i < 1024 {
-        var n *u8 = embedded_reader_names[i];
-        if n == nil { return nil; }  // Reached end - no more readers
-        if strlen(n) == len && memcmp(n, name, len) {
-            return embedded_reader_funcs[i];  // Direct function pointer!
-        }
-        i = i + 1;
-    }
-    return nil;
+reader lang(text *u8) *u8 {
+    // Parse text, return S-expression AST string
+    return ast_emit_program(parse_program());
 }
 ```
 
-Loop until nil - no count variable needed. The reader function was compiled into the binary. No subprocess, no clang at runtime.
+**Signature**: `func name(text *u8) *u8`
+- Takes: input text string
+- Returns: S-expression AST string (e.g., `"(number 42)"`)
 
-## Bootstrap Chain
+When you declare a reader, TWO things happen:
+1. `compile_reader_to_executable()` creates external binary for compile-time use
+2. `llvm_emit_reader()` emits the reader AS A FUNCTION `@name` in output binary
 
-```bash
-# 1. Use trusted compiler to emit kernel AST
-lang_trusted --emit-expanded-ast src/kernel.lang -o bare_kernel.ast
+The function exists so composed compilers can invoke readers at their runtime.
 
-# 2. Compile bare kernel
-lang_trusted bare_kernel.ast -o bare_kernel
+## The Two Bugs (Fixed)
 
-# 3. Create self-aware kernel (one-time bootstrap)
-bare_kernel --embed-self bare_kernel.ast -o kernel_self
+### Bug 1: Function Name Mismatch ✅
 
-# 4. Emit lang reader AST
-lang_trusted --emit-expanded-ast src/lang_reader.lang -o lang_reader.ast
+**Location**: `src/main.lang:862-865`
 
-# 5. Add lang reader
-kernel_self -r lang lang_reader.ast -o lang1
+**Was**: `-r` mode built `reader_lang` but function emitted as `@lang`.
+**Fix**: Use reader name directly without prefix.
 
-# lang1 can now:
-#   - Compile .lang files (has lang reader)
-#   - Do further -r operations (has self_kernel with combined AST)
+### Bug 2: Embedded Readers Not Invoked ✅
+
+**Locations**: `src/codegen.lang` at lines 1725, 3598, 5227
+
+**Was**: Code always used `exec_capture()` even when embedded reader exists.
+**Fix**: Check `find_embedded_reader_func()` first, call via function pointer:
+
+```lang
+var embedded_func *u8 = find_embedded_reader_func(name, name_len);
+if embedded_func != nil {
+    var reader_fn fn(*u8) *u8 = embedded_func;
+    output = reader_fn(content);
+} else {
+    // ... exec_capture fallback ...
+}
 ```
 
-## Implementation Checklist
+## What's Working
 
-### Completed
-- [x] `--emit-expanded-ast` flag - outputs parsed+expanded AST as S-expressions
-- [x] `--embed-self` mode - creates self-aware kernel from bare kernel
-- [x] `-r` mode - basic structure (currently uses single variables)
-- [x] `parse_ast_from_string()` - S-expression parser (in sexpr_reader.lang)
-- [x] `ast_emit_program()` - AST to S-expression serializer
-- [x] Array type support in lang (`[N]T` syntax)
-- [x] Array literal AST support (`NODE_ARRAY_LITERAL`, sexpr_reader, ast_emit)
-- [x] **Array literal codegen** in codegen_llvm.lang (commit 1a963b2)
-  - `llvm_emit_global_array_elem()` - emit element values
-  - Global array declaration with proper `[N x T]` type
-  - Pointer array load: `ptrtoint` after load
-  - Pointer array store: `inttoptr` before store
-  - All 169 tests pass, bootstrap verified
+| Component | Status |
+|-----------|--------|
+| Array infrastructure (`embedded_reader_names/funcs`) | ✅ |
+| `-r` mode AST combination | ✅ |
+| `-r` mode array poking | ✅ |
+| `--embed-self` mode | ✅ |
+| `llvm_emit_reader()` emits function | ✅ |
+| `find_embedded_reader_func()` lookup | ✅ |
+| Embedded reader invocation via fn pointer | ✅ |
+| `is_ast` flag to skip external compilation | ✅ |
+| 169/169 LLVM tests | ✅ |
 
-### Just Completed: Full Array Infrastructure (2025-01-02)
+## Files Modified
 
-All TODOs completed:
+1. **`src/main.lang:862-865`** - Use reader name directly (no prefix)
+2. **`src/codegen.lang:1725`** - Embedded reader invocation (x86 first pass)
+3. **`src/codegen.lang:3598`** - Embedded reader invocation (x86 gen_expr)
+4. **`src/codegen.lang:5227`** - Embedded reader invocation (LLVM backend)
 
-- [x] **Migrate embedded_reader vars to arrays** - `[1024]*u8 = []` in codegen.lang
-  - Moved from main.lang to codegen.lang for proper scoping
-  - `embedded_reader_names` and `embedded_reader_funcs` arrays
-  - Nil-terminated (no count variable needed)
+## Testing (Verified)
 
-- [x] **Update `-r` mode** - append to `array_literal` nodes
-  - Finds array_literal initializer in AST
-  - Allocates new larger elems array
-  - Copies old elements, appends new element
-  - Updates count
+```bash
+# Build and test - all 169 tests pass
+make build
+LANGOS=macos COMPILER=./out/lang_next ./test/run_llvm_suite.sh  # 169/169
 
-- [x] **Skip `compile_reader_to_executable()`** - for embedded readers
-  - `add_reader()` now checks `find_embedded_reader_func()` first
-  - If reader is embedded, skips external compilation
-  - Readers in binary don't need external executables
+# Create full compiler AST and self-aware kernel
+LANGBE=llvm LANGOS=macos ./out/lang_next --emit-expanded-ast \
+    std/core.lang src/*.lang -o /tmp/compose_test/full_compiler.ast
+LANGBE=llvm LANGOS=macos ./out/lang_next /tmp/compose_test/full_compiler.ast \
+    --embed-self -o /tmp/compose_test/kernel_self.ll
+clang -O2 /tmp/compose_test/kernel_self.ll -o /tmp/compose_test/kernel_self
 
-- [x] **Update `find_reader()` and LLVM backend** - loop arrays until nil
-  - New `find_embedded_reader_func()` searches `embedded_reader_names`
-  - Returns function pointer from `embedded_reader_funcs`
-  - LLVM backend calls embedded reader functions directly
-  - No subprocess (`exec_capture`) needed for embedded readers
+# Add tiny reader (tests pass)
+LANGBE=llvm LANGOS=macos /tmp/compose_test/kernel_self \
+    -r answer tiny_reader.ast -o /tmp/compose_test/composed.ll
+clang -O2 /tmp/compose_test/composed.ll -o /tmp/compose_test/composed
 
-**Verified:** All 169 LLVM tests pass. Bootstrap complete.
+# Verify embedded reader is invoked correctly
+echo 'func main() i64 { return #answer{ignored}; }' > /tmp/test.lang
+/tmp/compose_test/composed /tmp/test.lang -o /tmp/test.ll
+clang /tmp/test.ll -o /tmp/test && /tmp/test  # Returns 42!
+```
 
-### TODO
-- [ ] **End-to-end test** - Test full composition flow with `-r` mode
+## Root Cause Found (2025-01-03)
 
-## Files
+The crash was NOT a buffer issue - it was **limit overflow**:
+- `LIMIT_TOP_DECLS = 1000` but full_compiler.ast has **1135 declarations**
+- `LIMIT_FUNCS = 1000` but combined kernel + lang_reader has ~1849 declarations
+- Heap corruption occurs when writing past allocated arrays
 
-- `src/main.lang` - `--embed-self` and `-r` mode implementation
-- `src/sexpr_reader.lang` - S-expression parser (`parse_ast_from_string`)
-- `src/ast_emit.lang` - AST serializer (`ast_emit_program`)
-- `src/codegen.lang` - `add_reader()`, `find_reader()` - needs fix
-- `src/codegen_llvm.lang` - `llvm_emit_reader()` - emits reader as function
+**Fix Applied** in `src/limits.lang`:
+- `LIMIT_TOP_DECLS`: 1000 → 4000
+- `LIMIT_FUNCS`: 1000 → 3000
+- `LIMIT_GLOBALS`: 1000 → 2000
+- `LIMIT_STRINGS`: 3000 → 6000
+- `LIMIT_STRUCTS`: 100 → 200
+
+**MUST RUN `make bootstrap`** to bake new limits into bootstrap compiler.
+
+## Acceptance Criteria
+
+The composition feature is complete when:
+
+```bash
+# 1. Build self-aware kernel from compiler
+LANGBE=llvm LANGOS=macos ./out/lang --emit-expanded-ast \
+    std/core.lang src/*.lang -o /tmp/full_compiler.ast
+LANGBE=llvm LANGOS=macos ./out/lang /tmp/full_compiler.ast \
+    --embed-self -o /tmp/kernel_self.ll
+clang -O2 /tmp/kernel_self.ll -o /tmp/kernel_self
+
+# 2. Add lang reader
+LANGBE=llvm LANGOS=macos ./out/lang --emit-expanded-ast \
+    src/lang_reader.lang -o /tmp/lang_reader.ast
+LANGBE=llvm LANGOS=macos /tmp/kernel_self \
+    -r lang /tmp/lang_reader.ast -o /tmp/lang1.ll
+clang -O2 /tmp/lang1.ll -o /tmp/lang1
+
+# 3. Add minilisp reader (can be trivial)
+# Create simple lisp reader that returns (number 42) for any input
+LANGBE=llvm LANGOS=macos /tmp/lang1 \
+    -r lisp /tmp/lisp_reader.ast -o /tmp/lang2.ll
+clang -O2 /tmp/lang2.ll -o /tmp/lang2
+
+# 4. Compose program using both readers
+cat > /tmp/hello.lang << 'EOF'
+func get_hello() *u8 { return "hello "; }
+func main() i64 {
+    print(get_hello());
+    print(#lisp{world});  // lisp reader provides "world\n"
+    return 0;
+}
+EOF
+/tmp/lang2 /tmp/hello.lang -o /tmp/hello.ll
+clang /tmp/hello.ll -o /tmp/hello
+/tmp/hello  # Prints "hello world"
+```
+
+## Next Steps
+
+1. Resolve blocker: Kernel/Reader Split (`designs/kernel_reader_split.md`)
+2. Resolve blocker: Composition Dependencies (`designs/composition_dependencies.md`)
+3. Retry full composition test with acceptance criteria above
