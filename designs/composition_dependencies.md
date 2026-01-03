@@ -390,6 +390,187 @@ Options:
 
 **Recommendation**: Search path like `LANG_MODULE_PATH`, default to project-local.
 
+## Integration with Composition Flow
+
+This section describes how `require` integrates with the composition process in `fix_composition.md`.
+
+### The Key Insight: Kernel IS the Dependency Library
+
+When building `kernel_self` from the full compiler:
+
+```bash
+./out/lang --emit-expanded-ast std/core.lang src/*.lang -o full_compiler.ast
+./out/lang full_compiler.ast --embed-self -o kernel_self.ll
+```
+
+The kernel already contains:
+- All of `std/core`
+- All of `src/lexer`, `src/parser`, `src/codegen`
+- Everything!
+
+**The kernel IS the primary dependency library.** Readers that `require "std/core"` will find it already present.
+
+### New Data Structure: `kernel_modules`
+
+Add to `codegen.lang`:
+
+```lang
+// Module tracking - which modules are baked into this compiler
+var kernel_modules [256]*u8 = [];  // ["std/core", "src/lexer", nil, ...]
+```
+
+This array tracks what modules the kernel contains, enabling fast require resolution without parsing the entire `self_kernel` string.
+
+### Updated `--embed-self` Behavior
+
+When building with `--embed-self`:
+
+1. Track which files are being compiled
+2. Convert file paths to module names:
+   - `std/core.lang` → `"std/core"`
+   - `src/lexer.lang` → `"src/lexer"`
+3. Poke module names into `kernel_modules` array
+
+```lang
+// In main.lang --embed-self handling
+var module_count i64 = 0;
+for each source_file in input_files {
+    var module_name *u8 = path_to_module(source_file);
+    kernel_modules[module_count] = module_name;
+    module_count = module_count + 1;
+}
+kernel_modules[module_count] = nil;  // Nil-terminate
+```
+
+### Updated `-r` Composition Flow
+
+When composing with `-r reader_name reader.ast`:
+
+```
+1. Parse self_kernel → base_prog
+2. Parse reader.ast → reader_prog
+3. For each decl in reader_prog:
+   a. If decl is (require "module"):
+      - Check if "module" in kernel_modules
+      - If YES: skip (already satisfied)
+      - If NO: resolve from LANG_MODULE_PATH and add
+   b. Else: add decl to combined
+4. Update kernel_modules to include newly added modules
+5. Re-serialize combined → new self_kernel
+6. Generate code
+```
+
+### When Kernel Doesn't Have a Module
+
+If a reader requires something the kernel doesn't have:
+
+```bash
+# Kernel has: std/core, src/codegen
+# Reader requires: std/core (satisfied), external/json_parser (NOT satisfied)
+
+LANG_MODULE_PATH=.lang-cache kernel_self -r json json_reader.ast -o json_compiler.ll
+```
+
+Resolution:
+1. `require "std/core"` → check kernel_modules → found → skip
+2. `require "external/json_parser"` → check kernel_modules → NOT found
+3. Look for `.lang-cache/external/json_parser.ast`
+4. If found: load and add declarations
+5. If not found: error "cannot resolve module 'external/json_parser'"
+
+### The Module Cache
+
+Before composition, build the module cache:
+
+```bash
+# Build dependency library (one-time setup)
+mkdir -p .lang-cache
+
+# Compile each potential dependency to AST
+./lang std/core.lang --emit-module-ast -o .lang-cache/std/core.ast
+./lang src/lexer.lang --emit-module-ast -o .lang-cache/src/lexer.ast
+./lang src/parser.lang --emit-module-ast -o .lang-cache/src/parser.ast
+# ... etc ...
+
+# Or use Makefile target
+make modules
+```
+
+For the "full compiler as kernel" case, this cache is rarely needed (kernel has everything). It's primarily for future minimal-kernel scenarios.
+
+### Two Composition Scenarios
+
+**Scenario A: Full Compiler Kernel (Current)**
+
+```
+kernel = std/core + src/* (everything)
+reader requires std/core → SATISFIED by kernel
+reader requires src/lexer → SATISFIED by kernel
+Result: Only reader's NEW code is added
+```
+
+**Scenario B: Minimal Kernel (Future)**
+
+```
+kernel = std/core + src/codegen (minimal, AST-only)
+reader requires std/core → SATISFIED by kernel
+reader requires src/lexer → NOT in kernel, load from .lang-cache/
+Result: Reader's code + src/lexer + src/parser added
+```
+
+Scenario B is the "bare kernel" vision from `kernel_reader_split.md`.
+
+### Updated Acceptance Criteria
+
+The composition feature is complete when:
+
+```bash
+# 1. Build module cache (for fallback resolution)
+make modules  # Builds .lang-cache/*.ast
+
+# 2. Build self-aware kernel (tracks its modules)
+LANGBE=llvm LANGOS=macos ./out/lang --emit-expanded-ast \
+    std/core.lang src/*.lang -o /tmp/full_compiler.ast
+LANGBE=llvm LANGOS=macos ./out/lang /tmp/full_compiler.ast \
+    --embed-self -o /tmp/kernel_self.ll
+clang -O2 /tmp/kernel_self.ll -o /tmp/kernel_self
+
+# Verify kernel_modules is populated
+# (debug: kernel should know what modules it has)
+
+# 3. Build reader with requires (NOT fully expanded)
+cat > /tmp/lang_reader.lang << 'EOF'
+require "std/core"        // NOT expanded - reference only
+require "src/lexer"       // NOT expanded
+require "src/parser"      // NOT expanded
+include "src/ast_emit.lang"  // Expanded (reader-specific)
+
+reader lang(text *u8) *u8 {
+    parser_tokenize(text);
+    var prog *u8 = parse_program();
+    return ast_emit_program(prog);
+}
+EOF
+
+./out/lang /tmp/lang_reader.lang --emit-reader-ast -o /tmp/lang_reader.ast
+# Result: AST has (require "std/core"), (require "src/lexer"), etc.
+# NOT expanded, just references
+
+# 4. Compose - requires are resolved against kernel
+LANG_MODULE_PATH=.lang-cache /tmp/kernel_self \
+    -r lang /tmp/lang_reader.ast -o /tmp/lang1.ll
+clang -O2 /tmp/lang1.ll -o /tmp/lang1
+
+# Composition resolves:
+# - require "std/core" → kernel has it → skip
+# - require "src/lexer" → kernel has it → skip
+# - require "src/parser" → kernel has it → skip
+# - reader lang(...) → NEW, add to combined
+
+# 5. Verify no duplicates
+/tmp/lang1 test.lang -o test.ll  # Should work!
+```
+
 ## Related Documents
 
 - `designs/kernel_reader_split.md` - Kernel should be AST-only
