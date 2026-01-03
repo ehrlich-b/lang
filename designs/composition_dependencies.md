@@ -1,107 +1,397 @@
 # Composition Dependencies
 
-## Status: DESIGN NEEDED
+## Status: DESIGN COMPLETE
 
-**To future Claude:** This is a brain dump. Read the code, understand the current state, then transform this into a proper design doc with solutions.
+This document describes the dependency duplication problem in composition and the solution using extension-less `require` statements.
 
 ## The Problem
 
-Even with a perfect kernel/reader split, composition breaks when readers share dependencies.
+When composing multiple ASTs (kernel + reader1 + reader2), shared dependencies get duplicated:
 
 ```
-bare_kernel (includes std/core.lang)
-+ lisp_reader (includes std/core.lang)
-+ json_reader (includes std/core.lang)
-= THREE copies of std/core.lang = duplicate definition errors
+kernel.ast (includes std/core.lang, expanded)
++ lang_reader.ast (includes std/core.lang, expanded)
++ lisp_reader.ast (includes std/core.lang, expanded)
+= THREE copies of std/core definitions = duplicate symbol errors!
 ```
 
-**Current flow:**
-1. `--emit-expanded-ast` fully expands ALL includes recursively
-2. Each emitted AST is self-contained (good for standalone compilation)
-3. Composition via `-r` combines self-contained ASTs
-4. Duplicates! clang errors on redefinition
+### Why Current Model Breaks
 
-**Why this happens:**
-- Normal compilation deduplicates includes at parse time
-- AST emission happens AFTER deduplication
-- But each AST is emitted independently
-- No cross-AST deduplication
+The `--emit-expanded-ast` flag fully expands ALL includes recursively:
 
-## This is SEPARATE from Kernel/Reader Split
+1. Each emitted AST is **self-contained** (good for standalone compilation)
+2. Composition via `-r` **concatenates declarations** (lines 823-853 of main.lang)
+3. No deduplication at composition time
+4. Result: `clang` errors on redefined symbols
+
+### This is Separate from Kernel/Reader Split
 
 | Issue | Question |
 |-------|----------|
 | Kernel/Reader Split | What code belongs in kernel vs readers? |
-| This issue | How do shared includes work across AST boundaries? |
+| **This issue** | How do shared includes work across AST boundaries? |
 
-Even if kernel has zero overlap with readers, readers can overlap with EACH OTHER.
+Even with a perfect kernel (no lexer/parser), readers overlap with **each other**.
 
-## Possible Solutions (brainstorm, not vetted)
+## The Solution: Extension-less `require`
 
-### 1. Deduplicate at composition time
-`-r` mode checks each definition, skips if already exists.
-- Pro: Works with current AST format
-- Con: Band-aid, doesn't solve root cause
-- Con: What if definitions differ? Silent skip or error?
+### Key Insight: Syntax-Agnostic Dependencies
 
-### 2. `include` vs `requires`
-New keyword: `requires "std/core.lang"` declares dependency without expanding.
 ```lang
-requires "std/core.lang"  // Dependency, not expanded
-include "my_lexer.lang"   // Expanded into AST
-```
-- Pro: Explicit, clean model
-- Con: Language change, migration needed
+// Current: includes have file extensions
+include "std/core.lang"    // I need this .lang file, parse it NOW
 
-### 3. Dependency manifest in AST
-AST header lists what's included:
+// New: requires are extension-less
+require "std/core"         // I need the std/core MODULE, as pre-compiled AST
+```
+
+The `require` keyword means:
+1. "I need the definitions from `std/core`"
+2. "I don't care what syntax it was originally written in"
+3. "Find me the pre-compiled AST version"
+4. "At composition time, deduplicate against other modules"
+
+### Why Extension-less is Critical
+
+A composed compiler might:
+- Require `std/core` (originally from `.lang`)
+- But **no longer know how to read `.lang`** (kernel without lang reader)
+
+Extension-less requires separate **what I need** from **who can provide it**:
+
+```
+require "std/core"   →  Look for: std/core.ast
+                         (Already compiled, syntax doesn't matter)
+
+include "foo.lang"   →  Parse NOW with lang reader
+                         (Reader must be available)
+```
+
+### The Build Model
+
+```
+Source files (various syntaxes):       AST cache (syntax-agnostic):
+  std/core.lang                          .lang-cache/std/core.ast
+  my_lib.lisp                            .lang-cache/my_lib.ast
+  util.json                              .lang-cache/util.ast
+
+Compilation:
+  lang std/core.lang --emit-ast -o .lang-cache/std/core.ast
+  lisp my_lib.lisp --emit-ast -o .lang-cache/my_lib.ast
+
+Later, any compiler can require these:
+  require "std/core"   →  .lang-cache/std/core.ast  (pre-compiled)
+```
+
+## Detailed Design
+
+### 1. New Keyword: `require`
+
+```lang
+// Syntax
+require "module/path"              // Basic form
+require "std/core" sha:a1b2c3d4    // With content hash (optional, future)
+```
+
+**Semantics**:
+- Does NOT inline the module at parse time
+- Emits a `(require "module/path")` node in AST
+- Resolved at **codegen/composition time**
+
+### 2. New AST Node: `NODE_REQUIRE`
+
+```lang
+var NODE_REQUIRE i64 = 45;  // require "module"
+
+struct RequireDecl {
+    kind i64;
+    module *u8;       // "std/core" (no extension)
+    module_len i64;
+    hash *u8;         // Optional: "a1b2c3d4" or nil
+    hash_len i64;
+}
+```
+
+AST emission:
+```
+(require "std/core")
+(require "std/core" :sha "a1b2c3d4")  // With hash
+```
+
+### 3. Module Resolution
+
+Codegen and composition resolve requires against a **module search path**:
+
+```lang
+// Environment variable or flag
+LANG_MODULE_PATH=".lang-cache:~/.lang-modules:/usr/local/lang-modules"
+
+// Resolution algorithm
+func resolve_module(name *u8) *u8 {
+    // Try each path in LANG_MODULE_PATH
+    // Look for: path/name.ast
+    // Return first match, or error if not found
+}
+```
+
+### 4. Deduplication at Composition Time
+
+The `-r` mode changes to:
+
+```lang
+// Current: just concatenate
+combined = base_decls + reader_decls
+
+// New: deduplicate requires first
+var seen_modules *u8 = map_new();
+
+// Walk base AST
+for each decl in base_decls {
+    if decl is require {
+        map_set(seen_modules, decl.module, 1);
+        resolved = resolve_module(decl.module);
+        append resolved.decls to combined;
+    } else {
+        append decl to combined;
+    }
+}
+
+// Walk reader AST - skip already-seen modules
+for each decl in reader_decls {
+    if decl is require {
+        if !map_has(seen_modules, decl.module) {
+            map_set(seen_modules, decl.module, 1);
+            resolved = resolve_module(decl.module);
+            append resolved.decls to combined;
+        }
+        // else: skip duplicate require
+    } else {
+        append decl to combined;
+    }
+}
+```
+
+### 5. `include` vs `require` Semantics
+
+| Aspect | `include "file.lang"` | `require "module"` |
+|--------|----------------------|-------------------|
+| Extension | Required (`.lang`, `.lisp`) | None |
+| Resolution | Reader parses source NOW | Lookup pre-compiled AST |
+| Inlining | Immediate (at parse time) | Deferred (at codegen/compose) |
+| Dedup scope | Single compilation unit | Cross-composition |
+| Reader needed | Yes (matching extension) | No (AST only) |
+
+### 6. Migration: Reader Pattern
+
+Readers should use `require` for shared dependencies:
+
+```lang
+// OLD: lang_reader.lang
+include "std/core.lang"      // Expands everything
+include "src/lexer.lang"
+include "src/parser.lang"
+
+// NEW: lang_reader.lang
+require "std/core"           // Reference only, resolved later
+include "src/lexer.lang"     // Still include reader-specific code
+include "src/parser.lang"
+```
+
+**Result**: When composing kernel + lang_reader, `std/core` appears once.
+
+## Content Hashing (Future Enhancement)
+
+For reproducible builds and safety:
+
+```lang
+require "std/core" sha:a1b2c3d4
+```
+
+This means:
+- Find `std/core.ast`
+- Compute hash of its contents
+- Error if hash doesn't match
+
+### Hash Computation
+
+```lang
+func compute_module_hash(ast_content *u8) *u8 {
+    // Use existing hash_str from std/core.lang (djb2)
+    // Convert to hex string
+    var h i64 = hash_str(ast_content);
+    return i64_to_hex(h);
+}
+```
+
+### Use Cases for Hashing
+
+1. **Lock files**: Record exact versions of dependencies
+2. **Distributed builds**: Verify cached ASTs match expectations
+3. **Security**: Detect tampering with pre-compiled modules
+
+## Implementation Plan
+
+### Phase 1: Add `require` Keyword
+
+1. Add `TOKEN_REQUIRE` to lexer
+2. Add `NODE_REQUIRE` and `RequireDecl` to parser
+3. Parser emits `(require ...)` node
+4. AST emit handles `NODE_REQUIRE`
+
+### Phase 2: Module Resolution
+
+1. Add `LANG_MODULE_PATH` handling
+2. Implement `resolve_module()` function
+3. Codegen resolves requires to AST files
+4. Error on missing module
+
+### Phase 3: Composition Deduplication
+
+1. Modify `-r` mode to collect modules
+2. Deduplicate requires across ASTs
+3. Inline each module exactly once
+4. Test with kernel + multiple readers
+
+### Phase 4: Update Standard Library
+
+1. Change `std/core.lang` to not include itself (root module)
+2. Readers use `require "std/core"` instead of `include`
+3. Build script generates `.lang-cache/std/core.ast`
+
+### Phase 5: Content Hashing (Optional)
+
+1. Add optional `sha:` syntax
+2. Implement hash verification
+3. Add `--verify-modules` flag
+
+## Testing Criteria
+
+After implementation:
+
+```bash
+# 1. Build std/core as a module
+./lang std/core.lang --emit-ast -o .lang-cache/std/core.ast
+
+# 2. Create reader that requires (not includes) std/core
+cat > /tmp/test_reader.lang << 'EOF'
+require "std/core"
+reader answer(text *u8) *u8 {
+    return "(number 42)";
+}
+EOF
+
+# 3. Compile reader to AST
+./lang /tmp/test_reader.lang --emit-ast -o /tmp/answer.ast
+
+# 4. Create another reader with same require
+cat > /tmp/test_reader2.lang << 'EOF'
+require "std/core"
+reader hello(text *u8) *u8 {
+    return "(string \"hello\")";
+}
+EOF
+./lang /tmp/test_reader2.lang --emit-ast -o /tmp/hello.ast
+
+# 5. Compose: kernel + both readers
+# std/core should appear ONCE, not THREE times
+./kernel_self -r answer /tmp/answer.ast -r hello /tmp/hello.ast -o /tmp/multi.ll
+clang /tmp/multi.ll -o /tmp/multi
+
+# 6. Use both readers in same program
+echo 'func main() i64 { return #answer{} + strlen(#hello{}); }' > /tmp/test.lang
+/tmp/multi /tmp/test.lang -o /tmp/test.ll
+clang /tmp/test.ll -o /tmp/test
+./test  # Should work!
+```
+
+## Comparison with Alternatives
+
+### Alternative 1: Deduplicate at Composition Time (by name)
+
+Just check if a function/global already exists before adding.
+
+**Pros**: No language change
+**Cons**:
+- Fragile (what if signatures differ?)
+- O(n²) comparison
+- Doesn't handle version conflicts
+
+### Alternative 2: Manifest in AST Header
+
 ```
 (program
-  (meta (included "std/core.lang" "src/foo.lang"))
-  (func main ...))
+  (meta (provides "my_reader") (depends "std/core" "src/lexer"))
+  ...)
 ```
-Composition checks manifest, skips already-included.
-- Pro: No language change
-- Con: AST format change
 
-### 4. Convention: readers don't include stdlib
-Readers assume stdlib exists, never include it.
-- Pro: Simple
-- Con: Fragile, easy to break
+**Pros**: No new keyword
+**Cons**:
+- Still needs dedup logic
+- Doesn't solve syntax-agnostic resolution
+- More complex AST format
 
-### 5. Content-addressed dedup
-Hash each definition. Skip if hash matches existing.
-- Pro: Handles identical code regardless of source
-- Con: Complex, what about minor differences?
+### Alternative 3: Convention (readers never include stdlib)
 
-## Questions to Investigate
+Readers assume stdlib is provided by kernel.
 
-1. How does normal compilation deduplicate includes? Look at parser.lang or wherever include handling lives.
+**Pros**: Simple, no changes
+**Cons**:
+- Fragile, easy to break
+- Doesn't scale to multiple shared deps
+- Can't have standalone reader tests
 
-2. What does the AST look like for an include? Is there an `(include ...)` node or is it fully inlined?
+### Why `require` Wins
 
-3. Could we emit unexpanded includes and resolve at composition time? What would that require?
+1. **Explicit**: Clear distinction between inline and reference
+2. **Syntax-agnostic**: Module name, not file path
+3. **Scalable**: Works for any shared dependency
+4. **Verifiable**: Hash support for reproducibility
+5. **Simple**: Easy to implement, easy to understand
 
-4. What's the minimal shared dependency set? Just std/core.lang or more?
+## Open Questions
 
-5. Look at how other self-hosting compilers handle this (if you have examples).
+### 1. Module Naming Convention
 
-## Files to Read
+Should we use paths or package names?
 
-- `src/parser.lang` - include handling, deduplication logic
-- `src/ast_emit.lang` - how includes are emitted
-- `src/main.lang` - the `-r` composition logic
-- `src/sexpr_reader.lang` - how AST is read back
+```lang
+require "std/core"       // Path-like (chosen)
+require "lang.std.core"  // Package-like
+```
 
-## The Real Question
+Path-like maps naturally to filesystem.
 
-Is `--emit-expanded-ast` the right model for composition?
+### 2. Circular Dependencies
 
-Maybe we need `--emit-reader-ast` that:
-- Only emits the reader's NEW code
-- Lists dependencies as references, not expanded content
-- Composition resolves dependencies against kernel
+What if A requires B and B requires A?
 
-## Related
+**Answer**: Detect cycle, error. Circular deps are generally bad.
 
-See also: `designs/kernel_reader_split.md` - the kernel/reader entanglement (separate issue, fix first)
+### 3. Module Versioning
+
+How to handle multiple versions of same module?
+
+**Future work**: Content hashes provide identity. Could have:
+```lang
+require "std/core" sha:v1_hash  // Old code
+require "std/core" sha:v2_hash  // New code
+```
+
+Different hashes = different modules (like Go's module versioning).
+
+### 4. AST Cache Location
+
+Where should `.lang-cache/` live?
+
+Options:
+- Project-local (`./.lang-cache/`)
+- User-global (`~/.lang-modules/`)
+- System-wide (`/usr/local/lang-modules/`)
+
+**Recommendation**: Search path like `LANG_MODULE_PATH`, default to project-local.
+
+## Related Documents
+
+- `designs/kernel_reader_split.md` - Kernel should be AST-only
+- `designs/fix_composition.md` - Parent tracking doc
+- `designs/ast_as_language.md` - Vision for AST as root language
