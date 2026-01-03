@@ -206,35 +206,41 @@ bootstrap: generate-os-layer
 	fi
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
-	@echo "│ STAGE 5: VALIDATION (Test Suite)                               │"
+	@echo "│ STAGE 5: GENERATE BOOTSTRAP FILES                              │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
-	@# Copy verified kernel2 to out/lang
-	cp /tmp/bootstrap_verify/kernel2 out/lang
-	cp /tmp/bootstrap_verify/kernel2.ll out/lang_$(VERSION).ll
-	@echo "Running LLVM test suite..."
-	COMPILER=/tmp/bootstrap_verify/kernel2 ./test/run_llvm_suite.sh
-	@echo ""
-	@echo "┌────────────────────────────────────────────────────────────────┐"
-	@echo "│ STAGE 6: ARCHIVE + PROMOTE                                     │"
-	@echo "└────────────────────────────────────────────────────────────────┘"
-	@# Generate bootstrap files for both platforms
+	@# Generate bootstrap files for both platforms using kernel2
 	@echo "Generating cross-platform bootstrap files..."
 	@# Linux LLVM bootstrap
 	@echo 'include "std/os/libc.lang"' > std/os.lang
 	LANGBE=llvm LANGOS=linux /tmp/bootstrap_verify/kernel2 std/core.lang src/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/compiler_linux.ll
-	@echo "Verifying compiler_linux.ll with clang..."
-	clang -O0 /tmp/bootstrap_verify/compiler_linux.ll -o /tmp/bootstrap_verify/verify_linux 2>&1 | head -5 || { echo "ERROR: compiler_linux.ll is invalid LLVM IR"; exit 1; }
-	@rm -f /tmp/bootstrap_verify/verify_linux
-	@echo "✓ compiler_linux.ll verified"
+	@echo "Compiling compiler_linux.ll with clang..."
+	@rm -f /tmp/bootstrap_verify/compiler_linux
+	clang -O2 /tmp/bootstrap_verify/compiler_linux.ll -o /tmp/bootstrap_verify/compiler_linux || { echo "ERROR: compiler_linux.ll failed to compile"; exit 1; }
+	@echo "✓ compiler_linux.ll compiled"
 	@# macOS LLVM bootstrap
 	@echo 'include "std/os/libc_macos.lang"' > std/os.lang
 	LANGBE=llvm LANGOS=macos /tmp/bootstrap_verify/kernel2 std/core.lang src/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/compiler_macos.ll
-	@echo "Verifying compiler_macos.ll with clang..."
-	clang -O0 /tmp/bootstrap_verify/compiler_macos.ll -o /tmp/bootstrap_verify/verify_macos 2>&1 | head -5 || { echo "ERROR: compiler_macos.ll is invalid LLVM IR"; exit 1; }
-	@rm -f /tmp/bootstrap_verify/verify_macos
-	@echo "✓ compiler_macos.ll verified"
-	@# Restore OS layer
+	@echo "Compiling compiler_macos.ll with clang..."
+	@rm -f /tmp/bootstrap_verify/compiler_macos
+	clang -O2 /tmp/bootstrap_verify/compiler_macos.ll -o /tmp/bootstrap_verify/compiler_macos || { echo "ERROR: compiler_macos.ll failed to compile"; exit 1; }
+	@echo "✓ compiler_macos.ll compiled"
+	@# Restore OS layer for test suite
 	@echo 'include "$(BOOTSTRAP_LIBC)"' > std/os.lang
+	@echo ""
+	@echo "┌────────────────────────────────────────────────────────────────┐"
+	@echo "│ STAGE 6: VALIDATION (Test Final Binary)                        │"
+	@echo "└────────────────────────────────────────────────────────────────┘"
+	@# Test the FINAL platform-specific binary (what we actually promote)
+	@echo "Testing final compiler_$(PLATFORM) binary..."
+	COMPILER=/tmp/bootstrap_verify/compiler_$(PLATFORM) ./test/run_llvm_suite.sh
+	@# Install the tested binary to out/lang
+	cp /tmp/bootstrap_verify/compiler_$(PLATFORM) out/lang
+	cp /tmp/bootstrap_verify/compiler_$(PLATFORM).ll out/lang_$(VERSION).ll
+	@echo "Installed: out/lang (from compiler_$(PLATFORM))"
+	@echo ""
+	@echo "┌────────────────────────────────────────────────────────────────┐"
+	@echo "│ STAGE 7: ARCHIVE + PROMOTE                                     │"
+	@echo "└────────────────────────────────────────────────────────────────┘"
 	@# Archive current bootstrap to GitHub release + local cache
 	@OLD_COMMIT=$$(cat bootstrap/current/COMMIT 2>/dev/null || echo ""); \
 	if [ -n "$$OLD_COMMIT" ] && [ "$$OLD_COMMIT" != "$(GIT_COMMIT)" ]; then \
@@ -290,7 +296,8 @@ bootstrap: generate-os-layer
 	@echo "verification:" >> bootstrap/current/PROVENANCE
 	@echo "  llvm_fixed_point: true (kernel1.ll === kernel2.ll)" >> bootstrap/current/PROVENANCE
 	@echo "  ast_fixed_point: true (reader_ast1 === reader_ast2)" >> bootstrap/current/PROVENANCE
-	@echo "  clang_verified: true (both .ll files compile with clang)" >> bootstrap/current/PROVENANCE
+	@echo "  clang_compiled: true (both .ll files compile with clang -O2)" >> bootstrap/current/PROVENANCE
+	@echo "  test_suite: true (ran on compiler_$(PLATFORM) binary)" >> bootstrap/current/PROVENANCE
 	@echo "lang_reader/source.ast:" >> bootstrap/current/PROVENANCE
 	@echo "  sha256: $$(shasum -a 256 bootstrap/current/lang_reader/source.ast | cut -d' ' -f1)" >> bootstrap/current/PROVENANCE
 	@echo "  lines: $$(wc -l < bootstrap/current/lang_reader/source.ast)" >> bootstrap/current/PROVENANCE
@@ -302,12 +309,14 @@ bootstrap: generate-os-layer
 	@echo "║ Verified:                                                      ║"
 	@echo "║   ✓ LLVM fixed point (kernel1.ll === kernel2.ll)               ║"
 	@echo "║   ✓ AST fixed point (reader_ast1 === reader_ast2)              ║"
-	@echo "║   ✓ Test suite (167/167)                                       ║"
-	@echo "║   ✓ Cross-platform bootstrap clang-verified                    ║"
+	@echo "║   ✓ Both .ll files clang-compiled                              ║"
+	@echo "║   ✓ Test suite on final binary (compiler_$(PLATFORM))          ║"
+	@echo "║                                                                ║"
+	@echo "║ Installed: out/lang = compiler_$(PLATFORM) (tested)            ║"
 	@echo "║                                                                ║"
 	@echo "║ Promoted: bootstrap/current/ ($(GIT_COMMIT))                   ║"
-	@echo "║   - compiler_linux.ll (LLVM, Linux, clang-verified)            ║"
-	@echo "║   - compiler_macos.ll (LLVM, macOS, clang-verified)            ║"
+	@echo "║   - compiler_linux.ll (clang-verified)                         ║"
+	@echo "║   - compiler_macos.ll (clang-verified, tested on macos)        ║"
 	@echo "║   - lang_reader/source.ast                                     ║"
 	@echo "╚════════════════════════════════════════════════════════════════╝"
 	@echo ""
