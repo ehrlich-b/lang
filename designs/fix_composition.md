@@ -1,17 +1,47 @@
 # Fix Composition (compose command)
 
-## Status: BLOCKED (2025-01-03)
+## Status: BLOCKED → DESIGNED (2025-01-03)
 
-Composition works for small readers but **blocked on architecture issues** for the full use case.
+Composition works for small readers. Full composition is **blocked on architecture issues** but now has complete designs.
 
-### Blockers
+### Blockers (Now Designed)
 
-| Blocker | Design Doc | Description |
-|---------|------------|-------------|
-| Kernel/Reader Split | `designs/kernel_reader_split.md` | Kernel includes lexer/parser, should be AST-only |
-| Composition Dependencies | `designs/composition_dependencies.md` | Shared includes cause duplicates across composed ASTs |
+| Blocker | Design Doc | Status | Solution |
+|---------|------------|--------|----------|
+| Kernel/Reader Split | `kernel_reader_split.md` | DESIGNED | Remove parser deps from codegen |
+| Composition Dependencies | `composition_dependencies.md` | DESIGNED | Extension-less `require` keyword |
 
-These must be resolved before full composition (kernel + lang_reader + other readers) can work.
+### The Integration: How They Fit Together
+
+**The Core Insight**: The kernel IS the dependency library.
+
+When we build `kernel_self` from the full compiler, it already contains everything (std/core, lexer, parser, codegen). Readers that `require "std/core"` will find it already present.
+
+**New Infrastructure Needed**:
+
+1. **`require` keyword** - Declares dependency without inlining
+2. **`kernel_modules` array** - Tracks what modules kernel has
+3. **Module resolution** - `LANG_MODULE_PATH` for external modules
+4. **Updated `-r` mode** - Skips satisfied requires, loads missing ones
+
+**The Flow**:
+
+```
+1. Build kernel (full compiler) with --embed-self
+   → kernel_modules = ["std/core", "src/lexer", "src/parser", ...]
+
+2. Build reader with requires (not expanded)
+   → reader.ast has: (require "std/core"), (reader lang ...)
+
+3. Compose: kernel_self -r lang reader.ast
+   → Check require "std/core" against kernel_modules
+   → Found! Skip (no duplication)
+   → Add reader's new code only
+
+4. Result: Composed compiler with no duplicates
+```
+
+See `composition_dependencies.md` for full details.
 
 ### Completed Work
 
@@ -219,8 +249,47 @@ clang /tmp/hello.ll -o /tmp/hello
 /tmp/hello  # Prints "hello world"
 ```
 
-## Next Steps
+## Next Steps (Implementation Order)
 
-1. Resolve blocker: Kernel/Reader Split (`designs/kernel_reader_split.md`)
-2. Resolve blocker: Composition Dependencies (`designs/composition_dependencies.md`)
-3. Retry full composition test with acceptance criteria above
+### Phase 1: Add `require` keyword (composition_dependencies.md)
+
+1. Add `TOKEN_REQUIRE` to lexer.lang
+2. Add `NODE_REQUIRE` and `RequireDecl` to parser.lang
+3. Add `kernel_modules [256]*u8` array to codegen.lang
+4. Update `--embed-self` to populate `kernel_modules`
+5. Update `-r` mode to check requires against `kernel_modules`
+6. Add `LANG_MODULE_PATH` resolution for missing modules
+
+### Phase 2: Update reader to use requires
+
+1. Create `src/lang_reader_v2.lang` with requires instead of includes:
+   ```lang
+   require "std/core"
+   require "src/lexer"
+   require "src/parser"
+   require "src/ast_emit"
+
+   reader lang(text *u8) *u8 { ... }
+   ```
+
+2. Add `--emit-reader-ast` flag (keeps requires, doesn't expand)
+
+### Phase 3: Test composition
+
+1. Build kernel_self with module tracking
+2. Build lang_reader_v2.ast with requires
+3. Compose and verify no duplicates
+4. Run acceptance criteria tests
+
+### Phase 4: Kernel/Reader Split (kernel_reader_split.md)
+
+1. Remove `parse_program_from_string` from codegen
+2. Update reader output parsing to use `parse_ast_from_string`
+3. Build minimal kernel (no lexer/parser)
+4. Verify composition with minimal kernel + lang_reader
+
+### Phase 5: Bootstrap
+
+1. Run `make bootstrap` after each phase
+2. Ensure all 169 tests pass
+3. Archive successful bootstrap
