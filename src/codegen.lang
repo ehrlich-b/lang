@@ -87,6 +87,15 @@ var embedded_reader_funcs [1024]*u8 = [];    // [reader_lang, reader_lisp, nil, 
 var cg_funcs *u8 = nil;
 var cg_func_count i64 = 0;
 
+// Visibility tracking for pub enforcement
+// Parallel arrays - one i64 per entry (0 = private, 1 = public)
+var cg_func_is_pub *u8 = nil;
+var cg_global_is_pub *u8 = nil;
+var cg_struct_is_pub *u8 = nil;
+var cg_enum_is_pub *u8 = nil;
+var cg_effect_is_pub *u8 = nil;
+var cg_reader_is_pub *u8 = nil;
+
 // Lambda registry: collect lambdas during codegen, emit at end
 // Each entry: [lambda_node:8][name_id:8][captures_ptr:8][capture_count:8] = 32 bytes
 // Max 500 lambdas
@@ -262,6 +271,14 @@ func codegen_init() void {
 
     cg_funcs = alloc(LIMIT_FUNCS * 24);
     cg_func_count = 0;
+
+    // Initialize visibility tracking arrays
+    cg_func_is_pub = alloc(LIMIT_FUNCS * 8);
+    cg_global_is_pub = alloc(LIMIT_GLOBALS * 8);
+    cg_struct_is_pub = alloc(LIMIT_STRUCTS * 8);
+    cg_enum_is_pub = alloc(LIMIT_ENUMS * 8);
+    cg_effect_is_pub = alloc(LIMIT_EFFECTS * 8);
+    cg_reader_is_pub = alloc(LIMIT_READERS * 8);
 
     cg_include_stack = alloc(LIMIT_INCLUDE_DEPTH * 16);
     cg_include_count = 0;
@@ -713,12 +730,17 @@ func find_global(name *u8, name_len i64) i64 {
     return 0 - 1;  // -1 not found
 }
 
-func add_global(name *u8, name_len i64, t *u8, init *u8, is_extern i64) void {
+func add_global(name *u8, name_len i64, t *u8, init *u8, is_extern i64, is_pub i64) void {
     global_set_name(cg_global_count, name);
     global_set_name_len(cg_global_count, name_len);
     global_set_type(cg_global_count, t);
     global_set_init(cg_global_count, init);
     global_set_is_extern(cg_global_count, is_extern);
+
+    // Track visibility
+    var is_pub_ptr *i64 = cg_global_is_pub + (cg_global_count * 8);
+    *is_pub_ptr = is_pub;
+
     cg_global_count = cg_global_count + 1;
 }
 
@@ -743,6 +765,10 @@ func add_struct(decl *u8) void {
     // Store decl_ptr
     var dp **u8 = entry + 16;
     *dp = decl;
+
+    // Track visibility
+    var is_pub_ptr *i64 = cg_struct_is_pub + (cg_struct_count * 8);
+    *is_pub_ptr = struct_decl_is_pub(decl);
 
     cg_struct_count = cg_struct_count + 1;
 }
@@ -787,6 +813,10 @@ func add_enum(decl *u8) void {
 
     var dp **u8 = entry + 16;
     *dp = decl;
+
+    // Track visibility
+    var is_pub_ptr *i64 = cg_enum_is_pub + (cg_enum_count * 8);
+    *is_pub_ptr = enum_decl_is_pub(decl);
 
     cg_enum_count = cg_enum_count + 1;
 }
@@ -849,6 +879,10 @@ func add_effect(decl *u8) void {
 
     var dp **u8 = entry + 16;
     *dp = decl;
+
+    // Track visibility
+    var is_pub_ptr *i64 = cg_effect_is_pub + (cg_effect_count * 8);
+    *is_pub_ptr = effect_decl_is_pub(decl);
 
     cg_effect_count = cg_effect_count + 1;
 }
@@ -1301,6 +1335,10 @@ func add_reader(decl *u8) void {
     var dp **u8 = entry + 16;
     *dp = decl;
 
+    // Track visibility
+    var is_pub_ptr *i64 = cg_reader_is_pub + (cg_reader_count * 8);
+    *is_pub_ptr = reader_decl_is_pub(decl);
+
     cg_reader_count = cg_reader_count + 1;
 
     // Skip compile_reader_to_executable if this reader is embedded
@@ -1600,6 +1638,10 @@ func add_func(decl *u8) void {
     var dp **u8 = entry + 16;
     *dp = decl;
 
+    // Track visibility
+    var is_pub_ptr *i64 = cg_func_is_pub + (cg_func_count * 8);
+    *is_pub_ptr = func_decl_is_pub(decl);
+
     cg_func_count = cg_func_count + 1;
 }
 
@@ -1790,7 +1832,8 @@ func process_decl_first_pass(decl *u8) void {
             var_decl_name_len(decl),
             var_decl_type(decl),
             var_decl_init(decl),
-            var_decl_is_extern(decl)
+            var_decl_is_extern(decl),
+            var_decl_is_pub(decl)
         );
         return;
     }

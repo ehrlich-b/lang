@@ -5839,8 +5839,9 @@ func llvm_register_decl(decl *u8) void {
         var var_type *u8 = var_decl_type(decl);
         var var_init *u8 = var_decl_init(decl);
         var is_extern i64 = var_decl_is_extern(decl);
+        var is_pub i64 = var_decl_is_pub(decl);
         llvm_add_global(name, name_len);
-        add_global(name, name_len, var_type, var_init, is_extern);  // Register type for get_expr_type
+        add_global(name, name_len, var_type, var_init, is_extern, is_pub);  // Register type for get_expr_type
     } else if k == NODE_INCLUDE_DECL {
         // Recursively process included file
         var path *u8 = include_decl_path(decl);
@@ -6114,6 +6115,14 @@ func generate_llvm(prog *u8, output_file *u8) void {
     cg_reader_count = 0;
     cg_macros = alloc(LIMIT_MACROS * 24);
     cg_macro_count = 0;
+
+    // Initialize visibility tracking arrays
+    cg_func_is_pub = alloc(LIMIT_FUNCS * 8);
+    cg_global_is_pub = alloc(LIMIT_GLOBALS * 8);
+    cg_struct_is_pub = alloc(LIMIT_STRUCTS * 8);
+    cg_enum_is_pub = alloc(LIMIT_ENUMS * 8);
+    cg_effect_is_pub = alloc(LIMIT_EFFECTS * 8);
+    cg_reader_is_pub = alloc(LIMIT_READERS * 8);
 
     // Initialize macro interpreter
     interp_init();
