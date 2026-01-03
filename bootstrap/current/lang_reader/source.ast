@@ -528,6 +528,13 @@
         (block
           (assign (ident n) (binop + (ident n) (number 1)))))
       (return (ident n))))
+  (func pub memcpy ((param dst (type_ptr (type_base u8))) (param src (type_ptr (type_base u8))) (param n (type_base i64))) (type_base void)
+    (block
+      (var i (type_base i64) (number 0))
+      (while (binop < (ident i) (ident n))
+        (block
+          (assign (unop * (binop + (ident dst) (ident i))) (unop * (binop + (ident src) (ident i))))
+          (assign (ident i) (binop + (ident i) (number 1)))))))
   (func pub streq ((param a (type_ptr (type_base u8))) (param b (type_ptr (type_base u8)))) (type_base i64)
     (block
       (while (binop && (binop != (unop * (ident a)) (number 0)) (binop != (unop * (ident b)) (number 0)))
