@@ -1,6 +1,6 @@
 # Visibility: The `pub` Keyword
 
-## Status: STAGE 3 COMPLETE, STAGE 4 BLOCKED
+## Status: COMPLETE
 
 **Last Updated**: 2025-01-03
 
@@ -11,7 +11,7 @@
 | 1 | Add `pub` syntax (lexer, parser, AST emit, sexpr reader) | ✅ DONE | Previous session |
 | 2 | Add visibility tracking arrays in codegen | ✅ DONE | e52184e |
 | 3 | Annotate stdlib with `pub` | ✅ DONE | 88f335a |
-| 4 | Enable enforcement at require boundaries | ⏸️ BLOCKED | - |
+| 4 | Enable enforcement at require boundaries | ✅ DONE | This session |
 
 ### What's Done
 
@@ -19,48 +19,40 @@
 2. **AST**: `pub` emits as `(func pub name ...)` in S-expressions
 3. **Tracking**: `cg_func_is_pub`, `cg_global_is_pub`, `cg_struct_is_pub`, `cg_enum_is_pub`, `cg_effect_is_pub`, `cg_reader_is_pub` arrays populated
 4. **Stdlib**: All public API functions in std/core.lang and std/os/*.lang marked `pub`
+5. **Require works**: `require "module"` now loads the file (adds .lang extension)
+6. **Module tracking**: Each symbol tracks which module it belongs to
+7. **Visibility enforcement**: Calling non-pub functions across module boundaries emits error
 
-### Why Stage 4 is Blocked
+### How It Works
 
-**`require` is not implemented.** It parses to `NODE_REQUIRE_DECL` but codegen ignores it completely. Test:
+**Module IDs:**
+- Module 0 = main file (and its includes)
+- Module 1+ = required files
+
+**On `include "file"`:** Same module ID (textual paste, no visibility boundary)
+
+**On `require "module"`:** New module ID assigned, symbols from that module are tracked
+
+**On function call:** If callee's module != caller's module AND callee is not `pub`, emit error
+
+### Example
 
 ```lang
+// std/core.lang
+func map_find_slot(m *u8, key *u8) i64 { ... }  // Private
+pub func map_new() *u8 { ... }                   // Public
+
+// user.lang
 require "std/core"
+
 func main() i64 {
-    println("hello");  // Compiles but println is never defined!
+    var m *u8 = map_new();        // OK - map_new is pub
+    map_find_slot(m, "key");      // ERROR: function 'map_find_slot' is not public
     return 0;
 }
 ```
 
-This generates a call to `@println` that doesn't exist. The code compiles but would fail at link time.
-
-**Visibility enforcement requires require to work first.** The enforcement logic is:
-1. When looking up a symbol from a `require`d module
-2. Check if it's marked `pub`
-3. If not, emit error
-
-But since require doesn't actually import anything, there's nothing to enforce.
-
-### Dependency
-
-Stage 4 is blocked on **Phase 2 of fix_composition.md**:
-
-> ### Phase 2: Add `require` keyword (composition_dependencies.md)
-> 1. Add `TOKEN_REQUIRE` to lexer, `NODE_REQUIRE` to parser  ← DONE
-> 2. Add `kernel_modules [256]*u8` tracking to codegen
-> 3. Update `--embed-self` to populate `kernel_modules`
-> 4. Update `-r` mode to resolve requires against `kernel_modules`
-> 5. Add `LANG_MODULE_PATH` for external module resolution
-
-### Next Steps
-
-1. **Return to fix_composition.md** - implement require resolution
-2. Once require works, return here to implement enforcement
-3. Enforcement implementation:
-   - Track `cg_func_from_require[]` (or similar) to know which symbols came from require
-   - In `find_func()`, `find_global()`, etc: if symbol is from require and not pub, error
-
-### Files Modified (Stages 1-3)
+### Files Modified (Stages 1-4)
 
 **Stage 1 (syntax)**:
 - src/lexer.lang - TOKEN_PUB
@@ -73,12 +65,16 @@ Stage 4 is blocked on **Phase 2 of fix_composition.md**:
 - src/codegen_llvm.lang - same for LLVM backend
 
 **Stage 3 (stdlib)**:
-- std/core.lang - pub on vec_*, map_*, file_*, str*, print*, itoa, etc.
+- std/core.lang - pub on vec_*, map_*, file_*, str*, print*, itoa, memcpy, etc.
 - std/os/libc_macos.lang - pub on O_*, malloc, free, alloc, exit, getenv, etc.
 - std/os/libc.lang - same
 - std/os/linux_x86_64.lang - same
 - std/os/macos_arm64.lang - same
 - std/tools.lang - pub on find_in_path, find_clang, find_as, find_ld, find_lli
+
+**Stage 4 (enforcement)**:
+- src/codegen.lang - require processing, module tracking, visibility checking
+- src/codegen_llvm.lang - same for LLVM backend
 
 ### Bootstrap Status
 
@@ -90,8 +86,6 @@ All stages bootstrapped successfully:
 ---
 
 ## Original Design (Reference)
-
-[Rest of original design document follows...]
 
 ## Motivation
 

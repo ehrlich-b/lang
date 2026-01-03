@@ -386,6 +386,14 @@ pub func strlen(s *u8) i64 {
     return n;
 }
 
+pub func memcpy(dst *u8, src *u8, n i64) void {
+    var i i64 = 0;
+    while i < n {
+        *(dst + i) = *(src + i);
+        i = i + 1;
+    }
+}
+
 pub func streq(a *u8, b *u8) i64 {
     while *a != 0 && *b != 0 {
         if *a != *b {
