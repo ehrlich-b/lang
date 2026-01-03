@@ -1,6 +1,6 @@
 # Composition Dependencies
 
-## Status: DESIGN COMPLETE
+## Status: DESIGN COMPLETE (blocked by visibility.md)
 
 This document describes the dependency duplication problem in composition and the solution using extension-less `require` statements.
 
