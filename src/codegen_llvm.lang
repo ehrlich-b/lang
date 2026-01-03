@@ -5753,12 +5753,14 @@ func llvm_emit_decl(decl *u8) void {
         var content_len i64 = reader_expr_content_len(decl);
 
         // First check for embedded reader function (composed compilers)
-        var reader_func *u8 = find_embedded_reader_func(name, name_len);
-        if reader_func != nil {
-            // Call embedded reader function directly
-            var output *u8 = reader_func(content, content_len);
+        var embedded_func *u8 = find_embedded_reader_func(name, name_len);
+        if embedded_func != nil {
+            // Call embedded reader function directly (signature: fn(*u8) *u8)
+            var reader_fn fn(*u8) *u8 = embedded_func;
+            var output *u8 = reader_fn(content);
             if output != nil {
-                var prog *u8 = parse_program_from_string(output);
+                // Parse output as S-expr AST (readers MUST output AST)
+                var prog *u8 = parse_ast_from_string(output);
                 if prog != nil {
                     var inc_decls *u8 = program_decls(prog);
                     var inc_count i64 = program_decl_count(prog);
@@ -5789,8 +5791,8 @@ func llvm_emit_decl(decl *u8) void {
             return;
         }
 
-        // Parse the output as declarations
-        var prog *u8 = parse_program_from_string(output);
+        // Parse output as S-expr AST (readers MUST output AST)
+        var prog *u8 = parse_ast_from_string(output);
         if prog != nil {
             var inc_decls *u8 = program_decls(prog);
             var inc_count i64 = program_decl_count(prog);
