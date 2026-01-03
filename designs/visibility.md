@@ -1,8 +1,97 @@
 # Visibility: The `pub` Keyword
 
-## Status: DESIGN
+## Status: STAGE 3 COMPLETE, STAGE 4 BLOCKED
 
-This document describes adding visibility modifiers to lang, enabling proper encapsulation across module boundaries.
+**Last Updated**: 2025-01-03
+
+### Implementation Progress
+
+| Stage | Description | Status | Commit |
+|-------|-------------|--------|--------|
+| 1 | Add `pub` syntax (lexer, parser, AST emit, sexpr reader) | ✅ DONE | Previous session |
+| 2 | Add visibility tracking arrays in codegen | ✅ DONE | e52184e |
+| 3 | Annotate stdlib with `pub` | ✅ DONE | 88f335a |
+| 4 | Enable enforcement at require boundaries | ⏸️ BLOCKED | - |
+
+### What's Done
+
+1. **Syntax**: `pub` keyword works on func, var, struct, enum, reader declarations
+2. **AST**: `pub` emits as `(func pub name ...)` in S-expressions
+3. **Tracking**: `cg_func_is_pub`, `cg_global_is_pub`, `cg_struct_is_pub`, `cg_enum_is_pub`, `cg_effect_is_pub`, `cg_reader_is_pub` arrays populated
+4. **Stdlib**: All public API functions in std/core.lang and std/os/*.lang marked `pub`
+
+### Why Stage 4 is Blocked
+
+**`require` is not implemented.** It parses to `NODE_REQUIRE_DECL` but codegen ignores it completely. Test:
+
+```lang
+require "std/core"
+func main() i64 {
+    println("hello");  // Compiles but println is never defined!
+    return 0;
+}
+```
+
+This generates a call to `@println` that doesn't exist. The code compiles but would fail at link time.
+
+**Visibility enforcement requires require to work first.** The enforcement logic is:
+1. When looking up a symbol from a `require`d module
+2. Check if it's marked `pub`
+3. If not, emit error
+
+But since require doesn't actually import anything, there's nothing to enforce.
+
+### Dependency
+
+Stage 4 is blocked on **Phase 2 of fix_composition.md**:
+
+> ### Phase 2: Add `require` keyword (composition_dependencies.md)
+> 1. Add `TOKEN_REQUIRE` to lexer, `NODE_REQUIRE` to parser  ← DONE
+> 2. Add `kernel_modules [256]*u8` tracking to codegen
+> 3. Update `--embed-self` to populate `kernel_modules`
+> 4. Update `-r` mode to resolve requires against `kernel_modules`
+> 5. Add `LANG_MODULE_PATH` for external module resolution
+
+### Next Steps
+
+1. **Return to fix_composition.md** - implement require resolution
+2. Once require works, return here to implement enforcement
+3. Enforcement implementation:
+   - Track `cg_func_from_require[]` (or similar) to know which symbols came from require
+   - In `find_func()`, `find_global()`, etc: if symbol is from require and not pub, error
+
+### Files Modified (Stages 1-3)
+
+**Stage 1 (syntax)**:
+- src/lexer.lang - TOKEN_PUB
+- src/parser.lang - parse pub prefix, is_pub fields
+- src/ast_emit.lang - emit pub in S-expressions
+- src/sexpr_reader.lang - read pub from S-expressions
+
+**Stage 2 (tracking)**:
+- src/codegen.lang - visibility tracking arrays, add_* functions track is_pub
+- src/codegen_llvm.lang - same for LLVM backend
+
+**Stage 3 (stdlib)**:
+- std/core.lang - pub on vec_*, map_*, file_*, str*, print*, itoa, etc.
+- std/os/libc_macos.lang - pub on O_*, malloc, free, alloc, exit, getenv, etc.
+- std/os/libc.lang - same
+- std/os/linux_x86_64.lang - same
+- std/os/macos_arm64.lang - same
+- std/tools.lang - pub on find_in_path, find_clang, find_as, find_ld, find_lli
+
+### Bootstrap Status
+
+All stages bootstrapped successfully:
+- 169/169 LLVM tests pass
+- Fixed points verified
+- Committed and pushed
+
+---
+
+## Original Design (Reference)
+
+[Rest of original design document follows...]
 
 ## Motivation
 
@@ -216,190 +305,11 @@ A wrapper like `(pub (func ...))` is cleaner but:
 - Every declaration handler needs unwrap logic
 - Flag is simpler to implement
 
-## Implementation
-
-### Phase 1: Lexer
-
-Add `TOKEN_PUB`:
-
-```lang
-// In lexer.lang
-var TOKEN_PUB i64 = XX;  // New token
-
-// In tokenize()
-if buf_eq_str(start, len, "pub") {
-    token_type = TOKEN_PUB;
-}
-```
-
-Keywords list update:
-```lang
-var keywords [64]*u8 = [
-    "func", "var", "const", "struct", "sum", "type",
-    "if", "else", "while", "for", "return", "break", "continue",
-    "include", "require", "reader", "match",
-    "pub",  // NEW
-    nil
-];
-```
-
-### Phase 2: Parser
-
-Handle `pub` prefix on declarations:
-
-```lang
-func parse_top_level_decl() *Decl {
-    var is_pub i64 = 0;
-
-    // Check for pub keyword
-    if current_token() == TOKEN_PUB {
-        is_pub = 1;
-        advance();
-    }
-
-    if current_token() == TOKEN_FUNC {
-        return parse_func_decl(is_pub);
-    } else if current_token() == TOKEN_VAR {
-        return parse_var_decl(is_pub);
-    } else if current_token() == TOKEN_STRUCT {
-        return parse_struct_decl(is_pub);
-    }
-    // ... etc
-}
-
-func parse_func_decl(is_pub i64) *FuncDecl {
-    var decl *FuncDecl = alloc(sizeof(FuncDecl));
-    decl.kind = NODE_FUNC_DECL;
-    decl.is_pub = is_pub;
-    // ... rest of parsing
-}
-```
-
-### Phase 3: AST Emit
-
-Emit `pub` in S-expression format:
-
-```lang
-func ast_emit_func_decl(decl *FuncDecl) {
-    emit_str("(func ");
-    if decl.is_pub {
-        emit_str("pub ");
-    }
-    emit_str(decl.name);
-    // ... rest
-}
-```
-
-### Phase 4: S-expr Reader
-
-Parse `pub` from AST:
-
-```lang
-func read_func_decl(sexpr *SExpr) *FuncDecl {
-    var decl *FuncDecl = alloc(sizeof(FuncDecl));
-    decl.kind = NODE_FUNC_DECL;
-
-    var idx i64 = 1;  // After "func"
-
-    // Check for pub
-    if sexpr_is_symbol(sexpr.children[idx], "pub") {
-        decl.is_pub = 1;
-        idx = idx + 1;
-    }
-
-    decl.name = sexpr.children[idx].value;
-    // ... rest
-}
-```
-
-### Phase 5: Visibility Tracking in Codegen
-
-Add visibility tracking:
-
-```lang
-// Track which symbols are visible in current compilation
-var func_is_pub [LIMIT_FUNCS]i64 = [];
-var global_is_pub [LIMIT_GLOBALS]i64 = [];
-var struct_is_pub [LIMIT_STRUCTS]i64 = [];
-
-// Track which module each symbol came from (for error messages)
-var func_module [LIMIT_FUNCS]*u8 = [];
-var global_module [LIMIT_GLOBALS]*u8 = [];
-var struct_module [LIMIT_STRUCTS]*u8 = [];
-
-// Current module being processed (for requires)
-var current_require_module *u8 = nil;
-```
-
-### Phase 6: Require Resolution with Visibility
-
-When processing a `require`:
-
-```lang
-func process_require(module_name *u8) {
-    var ast *u8 = resolve_module(module_name);
-    var prog *Program = parse_ast_from_string(ast);
-
-    // Remember which module we're importing from
-    var saved_module *u8 = current_require_module;
-    current_require_module = module_name;
-
-    // Process declarations
-    for each decl in prog.decls {
-        if decl.kind == NODE_FUNC_DECL {
-            var fd *FuncDecl = decl;
-
-            // Always add to funcs[] (code must be generated)
-            var idx i64 = add_func(fd);
-
-            // Track visibility
-            func_is_pub[idx] = fd.is_pub;
-            func_module[idx] = module_name;
-
-            // Only add to visible names if pub
-            if fd.is_pub {
-                add_visible_func(fd.name, idx);
-            }
-        }
-        // ... similar for globals, structs
-    }
-
-    current_require_module = saved_module;
-}
-```
-
-### Phase 7: Name Resolution with Visibility Check
-
-When looking up a symbol:
-
-```lang
-func lookup_func(name *u8, name_len i64) i64 {
-    // First check visible functions
-    var idx i64 = find_visible_func(name, name_len);
-    if idx >= 0 {
-        return idx;
-    }
-
-    // Check if it exists but isn't visible
-    var hidden_idx i64 = find_any_func(name, name_len);
-    if hidden_idx >= 0 {
-        var module *u8 = func_module[hidden_idx];
-        error_at(current_line,
-            "function '%s' is not public in module '%s'",
-            name, module);
-    }
-
-    // Doesn't exist at all
-    error_at(current_line, "unknown function '%s'", name);
-    return -1;
-}
-```
-
 ## Bootstrap Plan
 
 This requires careful staging to avoid breaking the bootstrap chain.
 
-### Stage 1: Add Syntax (No Enforcement)
+### Stage 1: Add Syntax (No Enforcement) ✅
 
 1. Add `TOKEN_PUB` to lexer
 2. Add `pub` parsing to parser (sets is_pub flag)
@@ -408,24 +318,26 @@ This requires careful staging to avoid breaking the bootstrap chain.
 5. Codegen: Record is_pub but DON'T enforce
 6. **Bootstrap** - Compiler can parse `pub` but ignores it
 
-### Stage 2: Add Visibility Tracking (No Enforcement)
+### Stage 2: Add Visibility Tracking (No Enforcement) ✅
 
 1. Add `func_is_pub[]`, `func_module[]` arrays
 2. Populate during require resolution
 3. Still allow all name lookups (no errors)
 4. **Bootstrap** - Tracking works but not enforced
 
-### Stage 3: Annotate Standard Library
+### Stage 3: Annotate Standard Library ✅
 
 1. Add `pub` to all stdlib API functions
 2. Keep internal helpers without `pub`
 3. **Bootstrap** - stdlib now has visibility annotations
 
-### Stage 4: Enable Enforcement
+### Stage 4: Enable Enforcement ⏸️ BLOCKED
 
 1. Change `lookup_func` to check visibility
 2. Same for globals, structs, etc.
 3. **Bootstrap** - Visibility now enforced
+
+**BLOCKED**: Requires `require` to actually work first.
 
 At each stage, if something breaks, we know exactly what changed.
 
@@ -464,158 +376,12 @@ include "src/codegen.lang"
 
 The compiler is one program, not separate modules requiring each other.
 
-## Migration Guide
-
-### For Library Authors
-
-Before:
-```lang
-func helper() void { }
-func api() void { helper(); }
-```
-
-After:
-```lang
-func helper() void { }       // Keep private (no change needed)
-pub func api() void { helper(); }  // Mark public
-```
-
-### For Library Users
-
-If you were depending on internal functions, you'll get errors:
-```
-error: 'helper' is not public in module 'some_lib'
-```
-
-Options:
-1. Use the public API instead
-2. Ask library author to make it public
-3. Fork and modify (not recommended)
-
-## Edge Cases
-
-### Re-exporting
-
-If module A wants to re-export something from module B:
-
-```lang
-// module_a.lang
-require "module_b"
-
-// Can't directly re-export, but can wrap:
-pub func do_thing() void {
-    module_b_thing();  // Call the original
-}
-```
-
-Future: Could add `pub use` syntax for re-export.
-
-### Circular Requires
-
-```lang
-// a.lang
-require "b"
-
-// b.lang
-require "a"  // Circular!
-```
-
-Visibility doesn't change cycle detection - it's still an error.
-
-### Visibility in Expressions
-
-Only declarations have visibility. You can't do:
-```lang
-pub if x > 0 { ... }  // Nonsense
-```
-
-## Error Messages
-
-Good error messages are critical:
-
-```
-error: function 'internal_helper' is not public
-  --> user.lang:15:5
-   |
-15 |     internal_helper();
-   |     ^^^^^^^^^^^^^^^
-   |
-note: 'internal_helper' is defined in module 'std/core' but not exported
-help: did you mean 'public_helper'?
-```
-
-Tracking `func_module[]` enables the "defined in module X" note.
-
-## Alternatives Considered
-
-### 1. Underscore Convention
-
-```lang
-func _private() void { }  // Convention: underscore = private
-func public() void { }
-```
-
-Rejected: No enforcement, still pollutes namespace.
-
-### 2. Separate Visibility Keyword
-
-```lang
-private func helper() void { }
-public func api() void { }
-```
-
-Rejected: Two keywords where one suffices. Zig/Rust prove `pub` alone works.
-
-### 3. Export Lists
-
-```lang
-module std/core exports (alloc, free, print)
-
-func alloc() { }
-func free() { }
-func helper() { }  // Not in exports = private
-```
-
-Rejected: Separates visibility from definition, harder to maintain.
-
-### 4. File-Level Privacy
-
-```lang
-// _internal.lang - underscore prefix = can't be required
-```
-
-Rejected: Doesn't solve symbol visibility, only file access.
-
-## Future Extensions
-
-### pub(crate) / pub(module) - Scoped Visibility
-
-```lang
-pub(crate) func visible_in_crate() { }  // Like Rust
-```
-
-Not needed now. `pub` vs private is sufficient.
-
-### pub use - Re-exports
-
-```lang
-pub use other_module.SomeType;  // Re-export from another module
-```
-
-Nice to have but not essential.
-
 ## Success Criteria
 
-1. `pub` keyword parses and emits correctly
-2. Visibility enforced at `require` boundaries
-3. `include` ignores visibility (textual paste)
-4. Good error messages for visibility violations
-5. stdlib properly annotated
-6. All tests pass
-7. Bootstrap succeeds at each stage
-
-## Related Documents
-
-- `composition_dependencies.md` - How `require` works
-- `fix_composition.md` - Composition overview
-- `LANG.md` - Language reference (needs update after implementation)
+1. ✅ `pub` keyword parses and emits correctly
+2. ⏸️ Visibility enforced at `require` boundaries (blocked)
+3. ✅ `include` ignores visibility (textual paste)
+4. ⏸️ Good error messages for visibility violations (blocked)
+5. ✅ stdlib properly annotated
+6. ✅ All tests pass
+7. ✅ Bootstrap succeeds at each stage (1-3)
