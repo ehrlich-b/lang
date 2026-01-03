@@ -276,3 +276,178 @@ clang /tmp/hello.ll -o /tmp/hello
 3. Compose and verify no duplicates
 4. Run acceptance criteria tests
 5. Bootstrap
+
+---
+
+## Require Resolution Design (2025-01-03)
+
+### Core Principle: Language-Agnostic Kernel
+
+The kernel only knows AST. It is completely **language-agnostic**. Readers are plugins
+that give the kernel the ability to understand source syntaxes.
+
+- Fresh kernel: knows NO syntax, only processes AST
+- After `-r lang reader.ast`: kernel can now read `.lang` files
+- After `-r lisp reader.ast`: kernel can now read `.lang` AND `.lisp` files
+
+### Key Insight: Self-Contained Distribution
+
+The kernel is a **self-contained compiler distribution**. It must be able to compile
+programs that depend on built-in modules WITHOUT needing any external files.
+
+Consider: `require "std/core" func main() { println("Hello"); }`
+
+If the user only has the compiler binary and this source file:
+1. No `./std/core.lang` exists (no source files)
+2. No `std/core.ast` in LANG_MODULE_PATH (no cache)
+3. The kernel must provide std/core from its built-in storage
+
+This means the kernel must store the **AST** for each built-in module, not just
+a list of names. The output binary needs that code!
+
+### Data Structures
+
+```lang
+// Readers embedded via -r (gives ability to read syntaxes)
+// Stored in ORDER they were added - this determines search priority
+var embedded_reader_names [1024]*u8;  // ["lang", "lisp", "sql", ...]
+var embedded_reader_funcs [1024]*u8;  // [fn ptrs...]
+
+// Modules built into the kernel (extension-less names + their AST)
+var kernel_builtin_modules [256]*u8;  // ["std/core", "src/lexer", ...]
+var kernel_builtin_asts [256]*u8;     // [ast_string, ast_string, ...]
+```
+
+**Critical design constraints**:
+- Module names are **extension-less** (e.g., `"std/core"` not `"std/core.lang"`)
+- Each module has its AST stored as a string literal
+- Future optimization: binary AST format + compression (fat exe's for now)
+
+### Require Resolution Algorithm
+
+For `require "x/y"` (extension-less, always):
+
+```
+1. SEARCH FOR SOURCE FILES (relative to cwd)
+   For each reader in embedded_reader_names (in -r order):
+     - Look for "./x/y.{ext}" (e.g., ./x/y.lang, ./x/y.lisp)
+     - If found → compile with that reader → include in output
+     - STOP on first match (reader order = priority)
+
+2. SEARCH FOR CACHED AST (in LANG_MODULE_PATH)
+   - For each directory in LANG_MODULE_PATH:
+     - Look for "x/y.ast"
+     - If found → load pre-compiled AST → include in output
+     - STOP on first match
+
+3. CHECK KERNEL BUILT-INS
+   - If "x/y" is in kernel_builtin_modules[]:
+     - Get corresponding AST from kernel_builtin_asts[]
+     - IN -r MODE: Skip (already compiled into kernel, no duplicates)
+     - IN NORMAL MODE: Include AST in output (child binary needs the code)
+
+4. ERROR: module "x/y" not found
+```
+
+### Why Reader Order Matters
+
+If you have both `./std/core.lang` and `./std/core.lisp`, and:
+- `-r lang` was added first, then `-r lisp`
+- `require "std/core"` will use `std/core.lang`
+
+First embedded reader wins. This is intentional - if you want lisp priority, add it first.
+
+### -r Mode vs Normal Compilation
+
+**-r mode** (composing a reader into kernel):
+```
+Reader source: require "std/core"
+               reader answer(text) { ... }
+
+Resolution:
+  - "std/core" found in kernel_builtin_modules
+  - SKIP including AST (kernel already has this code compiled)
+  - Reader's code links against kernel's existing functions
+  - No duplicate symbols
+```
+
+**Normal compilation** (building standalone binary):
+```
+User source: require "std/core"
+             func main() { println("Hello"); }
+
+Resolution:
+  - "std/core" found in kernel_builtin_modules
+  - GET AST from kernel_builtin_asts
+  - INCLUDE AST in output (child binary needs println, alloc, etc.)
+  - Output binary is self-contained
+```
+
+The difference: -r mode adds code TO the kernel (links against existing functions),
+normal mode creates a NEW binary (must include all dependencies).
+
+### Example Flow
+
+```bash
+# 1. Build kernel (language-agnostic, only knows AST)
+./out/lang_next --emit-expanded-ast std/core.lang src/*.lang -o /tmp/full.ast
+./out/lang_next /tmp/full.ast --embed-self -o /tmp/kernel.ll
+clang -O2 /tmp/kernel.ll -o /tmp/kernel
+
+# kernel now has:
+#   embedded_reader_names = []  (no readers yet)
+#   kernel_builtin_modules = ["std/core", "src/lexer", ...]
+#   kernel_builtin_asts = ["(program (func alloc ...)...)", ...]
+
+# 2. Add lang reader
+/tmp/kernel -r lang lang_reader.ast -o /tmp/lang1.ll
+clang -O2 /tmp/lang1.ll -o /tmp/lang1
+
+# lang1 now has:
+#   embedded_reader_names = ["lang"]
+#   kernel_builtin_modules = ["std/core", "src/lexer", ...]
+#   kernel_builtin_asts = [...same...]
+
+# 3. Compile standalone program
+echo 'require "std/core" func main() i64 { println("Hi"); return 0; }' > hello.lang
+/tmp/lang1 hello.lang -o hello.ll
+clang hello.ll -o hello
+./hello  # Prints "Hi" - works without any external files!
+
+# Resolution for require "std/core":
+#   1. Search ./std/core.lang - NOT FOUND
+#   2. Search LANG_MODULE_PATH/std/core.ast - NOT FOUND
+#   3. Check kernel_builtin_modules - "std/core" FOUND!
+#      → Get AST from kernel_builtin_asts
+#      → Include in output so hello binary has println
+```
+
+### Implementation Status
+
+**Completed**:
+1. ✅ `require` keyword - lexer (`TOKEN_REQUIRE`) and parser (`NODE_REQUIRE_DECL`)
+2. ✅ `is_ast` flag for embedded readers in `sexpr_reader.lang`
+
+**TODO**:
+1. ⬜ Add `kernel_builtin_modules [256]*u8` array (extension-less names)
+2. ⬜ Add `kernel_builtin_asts [256]*u8` array (AST strings per module)
+3. ⬜ Update `--embed-self` to populate both arrays
+4. ⬜ Implement source file search (step 1 of algorithm)
+5. ⬜ Implement LANG_MODULE_PATH search (step 2 of algorithm)
+6. ⬜ Implement `resolve_require()` with full algorithm
+7. ⬜ Handle -r mode (skip) vs normal mode (include) differently
+
+### Key Code Locations
+
+**src/main.lang**:
+- `kernel_modules` → rename to `kernel_builtin_modules`
+- Add `kernel_builtin_asts` parallel array
+- `has_kernel_module()` → rewrite as `resolve_require()`
+- `-r` mode AST manipulation
+
+**src/codegen.lang**:
+- `embedded_reader_names` and `embedded_reader_funcs` arrays
+- `find_reader()` function - checks embedded then external
+
+**src/sexpr_reader.lang**:
+- Sets `reader_decl_set_is_ast(n, 1)` for S-expression readers
