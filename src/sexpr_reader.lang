@@ -360,6 +360,16 @@ func sexpr_to_type(node *PNode) *u8 {
         return t;
     }
 
+    // (type_array size elem)
+    if streq(head, "type_array") {
+        var t *u8 = array_type_alloc();
+        var size_node *PNode = sexpr_get(node, 1);
+        var size i64 = sexpr_atoi(size_node.text);
+        array_type_set_size(t, size);
+        array_type_set_elem(t, sexpr_to_type(sexpr_get(node, 2)));
+        return t;
+    }
+
     return nil;
 }
 
@@ -666,6 +676,23 @@ func sexpr_to_node(node *PNode) *u8 {
         block_expr_set_stmts(n, stmts);
         block_expr_set_count(n, stmt_count);
         block_expr_set_tail(n, sexpr_to_node(sexpr_get(node, total)));
+        return n;
+    }
+
+    // (array_literal e1 e2 ...)
+    if streq(head, "array_literal") {
+        var n *u8 = array_literal_alloc();
+        var count i64 = sexpr_len(node) - 1;
+        var elems *u8 = alloc(count * 8);
+        var i i64 = 0;
+        while i < count {
+            var elem *u8 = sexpr_to_node(sexpr_get(node, i + 1));
+            var ep **u8 = elems + (i * 8);
+            *ep = elem;
+            i = i + 1;
+        }
+        array_literal_set_elems(n, elems);
+        array_literal_set_count(n, count);
         return n;
     }
 

@@ -1,0 +1,99 @@
+// expect: 150
+// Comprehensive test for array support
+// Returns sum of array elements if all tests pass
+
+// ============================================================
+// Test 1: Local array declaration and indexing
+// ============================================================
+func test_local_array() i64 {
+    var arr [5]i64;
+    arr[0] = 10;
+    arr[1] = 20;
+    arr[2] = 30;
+    arr[3] = 40;
+    arr[4] = 50;
+
+    // Sum should be 150
+    var sum i64 = arr[0] + arr[1] + arr[2] + arr[3] + arr[4];
+    return sum;
+}
+
+// ============================================================
+// Test 2: Array with loop
+// ============================================================
+func test_array_loop() i64 {
+    var arr [10]i64;
+
+    // Fill array with squares
+    var i i64 = 0;
+    while i < 10 {
+        arr[i] = i * i;
+        i = i + 1;
+    }
+
+    // arr[5] should be 25, arr[9] should be 81
+    // Return 25 + 81 = 106
+    return arr[5] + arr[9];
+}
+
+// ============================================================
+// Test 3: Array with computed index
+// ============================================================
+func test_computed_index() i64 {
+    var arr [5]i64;
+    arr[0] = 100;
+    arr[1] = 200;
+    arr[2] = 300;
+    arr[3] = 400;
+    arr[4] = 500;
+
+    var i i64 = 2;
+    return arr[i + 1];  // Should be arr[3] = 400
+}
+
+// ============================================================
+// Test 4: Array of u8 (byte array)
+// ============================================================
+func test_byte_array() i64 {
+    var bytes [4]u8;
+    bytes[0] = 'H';
+    bytes[1] = 'i';
+    bytes[2] = '!';
+    bytes[3] = 0;
+
+    // 'H' = 72, 'i' = 105, '!' = 33
+    // Sum = 210
+    return bytes[0] + bytes[1] + bytes[2];
+}
+
+// ============================================================
+// Test 5: Array modification in place
+// ============================================================
+func test_modify_array() i64 {
+    var arr [3]i64;
+    arr[0] = 1;
+    arr[1] = 2;
+    arr[2] = 3;
+
+    // Modify elements
+    arr[0] = arr[0] + 10;  // 11
+    arr[1] = arr[1] * 2;   // 4
+    arr[2] = arr[0] + arr[1];  // 15
+
+    return arr[2];  // 15
+}
+
+// ============================================================
+// Main: Run all tests, return final array value
+// ============================================================
+func main() i64 {
+    // Verify each test returns expected value
+    if test_local_array() != 150 { return 1; }
+    if test_array_loop() != 106 { return 2; }
+    if test_computed_index() != 400 { return 3; }
+    if test_byte_array() != 210 { return 4; }
+    if test_modify_array() != 15 { return 5; }
+
+    // All passed - return the first test result as proof
+    return test_local_array();
+}

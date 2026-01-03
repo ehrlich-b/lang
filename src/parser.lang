@@ -57,6 +57,7 @@ var NODE_PERFORM_EXPR i64 = 38;   // perform Effect(args)
 var NODE_HANDLE_EXPR i64 = 39;    // handle { expr } with { cases }
 var NODE_RESUME_EXPR i64 = 40;    // resume k(value) - for future use
 var NODE_BLOCK_EXPR i64 = 41;     // { stmts; tail_expr } - block as expression
+var NODE_ARRAY_LITERAL i64 = 42;  // [e1, e2, e3, ...] - array literal
 
 // Type kinds
 var TYPE_BASE i64 = 1;
@@ -129,6 +130,22 @@ func buf_eq_str(buf *u8, len i64, str *u8) i64 {
     // Check that str has ended
     if *(str + i) != 0 { return 0; }
     return 1;
+}
+
+// Parse a number from a token (returns integer value)
+func parse_number_value(tok *u8) i64 {
+    var buf *u8 = tok_lexeme(tok);
+    var len i64 = tok_lexeme_len(tok);
+    var result i64 = 0;
+    var i i64 = 0;
+    while i < len {
+        var c u8 = *(buf + i);
+        if c >= '0' && c <= '9' {
+            result = result * 10 + (c - '0');
+        }
+        i = i + 1;
+    }
+    return result;
 }
 
 // ============================================================
@@ -2071,6 +2088,99 @@ func closure_type_set_ret(t *u8, ret *u8) void {
 }
 
 // ============================================================
+// ArrayType accessors
+// ============================================================
+// ArrayType: [kind:8][size:8][elem:8] = 24 bytes
+
+func array_type_alloc() *u8 {
+    var t *u8 = alloc(24);
+    type_set_kind(t, TYPE_ARRAY);
+    return t;
+}
+
+func array_type_size(t *u8) i64 {
+    var p *i64 = t + 8;
+    return *p;
+}
+
+func array_type_set_size(t *u8, size i64) void {
+    var p *i64 = t + 8;
+    *p = size;
+}
+
+func array_type_elem(t *u8) *u8 {
+    var p **u8 = t + 16;
+    return *p;
+}
+
+func array_type_set_elem(t *u8, elem *u8) void {
+    var p **u8 = t + 16;
+    *p = elem;
+}
+
+// ============================================================
+// ArrayLiteral accessors
+// ============================================================
+// ArrayLiteral: [kind:8][elems:8][count:8] = 24 bytes
+
+func array_literal_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_ARRAY_LITERAL);
+    return node;
+}
+
+func array_literal_elems(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func array_literal_set_elems(node *u8, elems *u8) void {
+    var p **u8 = node + 8;
+    *p = elems;
+}
+
+func array_literal_count(node *u8) i64 {
+    var p *i64 = node + 16;
+    return *p;
+}
+
+func array_literal_set_count(node *u8, count i64) void {
+    var p *i64 = node + 16;
+    *p = count;
+}
+
+// ============================================================
+// IndexExpr accessors
+// ============================================================
+// IndexExpr: [kind:8][expr:8][index:8] = 24 bytes
+
+func index_expr_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_INDEX_EXPR);
+    return node;
+}
+
+func index_expr_base(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func index_expr_set_base(node *u8, base *u8) void {
+    var p **u8 = node + 8;
+    *p = base;
+}
+
+func index_expr_index(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func index_expr_set_index(node *u8, idx *u8) void {
+    var p **u8 = node + 16;
+    *p = idx;
+}
+
+// ============================================================
 // Param accessors (24 bytes each)
 // ============================================================
 
@@ -2239,6 +2349,18 @@ func parse_type() *u8 {
         var elem *u8 = parse_type();
         var t *u8 = ptr_type_alloc();
         ptr_type_set_elem(t, elem);
+        return t;
+    }
+
+    // Array type: [N]T
+    if parse_match(TOKEN_LBRACKET) {
+        var size_tok *u8 = parse_expect(TOKEN_NUMBER, "expected array size");
+        var size i64 = parse_number_value(size_tok);
+        parse_expect(TOKEN_RBRACKET, "expected ']' after array size");
+        var elem *u8 = parse_type();
+        var t *u8 = array_type_alloc();
+        array_type_set_size(t, size);
+        array_type_set_elem(t, elem);
         return t;
     }
 
@@ -2641,6 +2763,33 @@ func parse_primary() *u8 {
 
     if parse_match(TOKEN_NIL) {
         return nil_expr_alloc();
+    }
+
+    // Array literal: [e1, e2, e3, ...]
+    if parse_match(TOKEN_LBRACKET) {
+        var elems *u8 = vec_new(8);
+        if !parse_check(TOKEN_RBRACKET) {
+            vec_push(elems, parse_expression());
+            while parse_match(TOKEN_COMMA) {
+                vec_push(elems, parse_expression());
+            }
+        }
+        parse_expect(TOKEN_RBRACKET, "expected ']' after array elements");
+
+        var count i64 = vec_len(elems);
+        var elems_arr *u8 = alloc(count * 8);
+        var i i64 = 0;
+        while i < count {
+            var elem_val i64 = vec_get(elems, i);
+            var p *i64 = elems_arr + (i * 8);
+            *p = elem_val;
+            i = i + 1;
+        }
+
+        var node *u8 = array_literal_alloc();
+        array_literal_set_elems(node, elems_arr);
+        array_literal_set_count(node, count);
+        return node;
     }
 
     if parse_match(TOKEN_IDENT) {

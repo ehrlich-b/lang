@@ -235,6 +235,15 @@ func ast_emit_type(t *u8) void {
         return;
     }
 
+    if kind == TYPE_ARRAY {
+        ast_emit_str("(type_array ");
+        ast_emit_int(array_type_size(t));
+        ast_emit_str(" ");
+        ast_emit_type(array_type_elem(t));
+        ast_emit_str(")");
+        return;
+    }
+
     // Unknown type kind
     ast_emit_str("(type_unknown ");
     ast_emit_int(kind);
@@ -455,6 +464,22 @@ func ast_emit_node(node *u8) void {
         ast_emit_node(block_expr_tail(node));
         ast_emit_str(")");
         ast_emit_indent = ast_emit_indent - 1;
+        return;
+    }
+
+    if kind == NODE_ARRAY_LITERAL {
+        ast_emit_str("(array_literal");
+        var elems *u8 = array_literal_elems(node);
+        var count i64 = array_literal_count(node);
+        var i i64 = 0;
+        while i < count {
+            ast_emit_str(" ");
+            var elem_ptr *i64 = elems + (i * 8);
+            var elem *u8 = *elem_ptr;
+            ast_emit_node(elem);
+            i = i + 1;
+        }
+        ast_emit_str(")");
         return;
     }
 
