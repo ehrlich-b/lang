@@ -716,8 +716,13 @@ func main(argc i64, argv **u8) i64 {
             return 1;
         }
 
-        // Generate assembly
-        generate(prog, output_file);
+        // Generate using appropriate backend
+        var langbe *u8 = getenv("LANGBE");
+        if langbe != nil && streq(langbe, "llvm") {
+            generate_llvm(prog, output_file);
+        } else {
+            generate(prog, output_file);
+        }
 
         print("Wrote ");
         println(output_file);
