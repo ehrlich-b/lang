@@ -1,369 +1,179 @@
 # Fix Composition (compose command)
 
-## Status: Design Finalized, Implementation TBD
+## Status: In Progress
 
-## The Architecture
+**Current state**: Basic `-r` and `--embed-self` modes exist but use single variables instead of arrays. Need to migrate to array-based storage for multiple readers.
 
-### Core Components
+## The Core Insight: Pure AST Manipulation
 
-```
-Kernel = AST parser + codegen
-         ONLY understands: S-expression AST → platform code
+**This is ALL just AST manipulation.** No lang parsing. No source code. Just:
+1. Read AST (S-expressions)
+2. Combine AST nodes
+3. Poke values into AST nodes
+4. Re-serialize AST
+5. Generate code from AST
 
-Reader = text → AST transformer
-         DEFINED as AST (S-expressions)
-         COMPILED to platform code when needed
+The compiler never needs to understand lang syntax to compose readers. It only manipulates S-expression AST.
 
-Compiler = Kernel + Reader(s)
-         e.g., lang compiler = kernel + lang_reader
-```
+## The Three Steps
 
-### The Fundamental Principle
-
-**Readers always resolve to AST.** Regardless of where a reader comes from, the flow is:
-
-| Source | Flow |
-|--------|------|
-| Embedded in binary | load AST from data section → compile → function |
-| CLI `-r reader.lang` | parse source → AST → compile → function |
-| Cache `.lang-cache/` | load AST from file → compile → function |
-
-This is the key insight: **composition just means storing AST in the binary's data section**.
-
-The runtime behavior is identical regardless of source. `find_reader()` returns AST, which gets compiled to a function pointer.
-
-## Reader Resolution Flow
-
-### Example: Compiling a .lisp file
+### Step 1: Compile bare kernel to executable
 
 ```
-./lang1 lisp_reader.lang prog.lisp
-
-1. lang1 sees prog.lisp, needs "lisp" reader
-2. find_reader("lisp"):
-   a. Check embedded AST in binary → miss
-   b. Check CLI-provided readers → found lisp_reader.lang
-   c. Parse lisp_reader.lang using lang reader → lisp_reader.ast
-3. Compile lisp_reader.ast → reader function (platform code, in memory)
-4. Call reader function on prog.lisp → prog.ast
-5. Compile prog.ast → output
+[some compiler] compiles bare_kernel.ast → .ll → exe
 ```
 
-### With Composed Binary
+This bare kernel:
+- Understands S-expression AST
+- Can generate LLVM IR / x86
+- Has `var self_kernel *u8 = ""` (empty)
+- Has `var embedded_reader_names [20]*u8` (empty array)
+- Has `var embedded_reader_funcs [20]*u8` (empty array)
+- Has `var embedded_reader_count i64 = 0`
+
+### Step 2: Create self-aware kernel (`--embed-self`)
 
 ```
-./lang1_lisp prog.lisp
-
-1. lang1_lisp sees prog.lisp, needs "lisp" reader
-2. find_reader("lisp"):
-   a. Check embedded AST in binary → HIT! Returns lisp.ast
-3. Compile lisp.ast → reader function
-4. Call reader function on prog.lisp → prog.ast
-5. Compile prog.ast → output
+bare_kernel --embed-self bare_kernel.ast → kernel_self exe
 ```
 
-Same flow, different AST source.
+This is just AST manipulation:
+1. Read `bare_kernel.ast` file
+2. Parse it as S-expressions → AST nodes
+3. Find `self_kernel` variable in AST
+4. Poke the entire AST string (from file) into `self_kernel`'s initializer
+5. Generate code from modified AST → .ll → exe
 
-## The Two Flags: -r and -c
+Result: `kernel_self` exe contains a string with its own AST.
 
-### -r (raw/reader): Embed AST directly
-
-```bash
-kernel -r lisp lisp_reader.ast -o kernel_lisp
-```
-
-- Takes **AST** (S-expressions)
-- Kernel needs ZERO syntax knowledge
-- Just: "embed this AST with this name"
-- **The primitive operation**
-
-### -c (compile): Compile source, then embed AST
-
-```bash
-lang -c lisp lisp_reader.lang -o lang_lisp
-```
-
-- Takes **source code** (in whatever syntax the compiler knows)
-- Uses existing reader to parse source → AST
-- Then embeds that AST (equivalent to -r)
-- **Sugar on top of -r**
-
-### The Relationship
+### Step 3: Add reader (`-r`)
 
 ```
--c lisp reader.lang  =  [parse reader.lang → AST]  +  [-r lisp AST]
+kernel_self -r lang lang_reader.ast → lang1 exe
 ```
 
-### Language Forgetting
+This is nearly identical to `--embed-self`:
+1. Read `self_kernel` string (which contains `bare_kernel.ast`)
+2. Parse it as S-expressions → base AST nodes
+3. Read `lang_reader.ast` file
+4. Parse it as S-expressions → reader AST nodes
+5. **Combine**: append reader declarations to base declarations
+6. Get current `embedded_reader_count` value (call it N)
+7. Poke "lang" into `embedded_reader_names[N]`
+8. Poke `(ident reader_lang)` into `embedded_reader_funcs[N]`
+9. Increment `embedded_reader_count` to N+1
+10. **Re-serialize** the entire combined AST to string
+11. Find `self_kernel`, poke the combined AST string into it
+12. Generate code from combined AST → .ll → exe
 
-The syntax used to DEFINE a reader doesn't have to match the syntax it PARSES:
+Result: `lang1` exe contains:
+- All kernel code
+- All reader code (the `reader_lang` function from `lang_reader.ast`)
+- `self_kernel` = combined AST (for future `-r` operations!)
+- `embedded_reader_funcs[0]` pointing to `reader_lang`
 
-```bash
-# Start with bare kernel (only knows AST)
-kernel -r lisp lisp_reader.ast -o kernel_lisp
-
-# Define lang's syntax... in lisp!
-# lang_reader.lisp: lang syntax defined using lisp
-
-kernel_lisp -c lang lang_reader.lisp -o kernel_lang
-
-# Result: kernel_lang knows lang syntax
-# But lang was DEFINED in lisp
-# The final binary has "forgotten" lisp entirely
-```
-
-This enables the vision: define any syntax using any other syntax.
-
-## Composition: The "What"
-
-### Commands
-
-```bash
-# Primitive (AST only):
-kernel -r lisp lisp.ast -o kernel_lisp
-
-# Convenience (compile first):
-lang compose -c lisp lisp_reader.lang -o lang_lisp
-```
-
-### What It Produces
-
-A new compiler binary containing:
-1. All of the original compiler's code
-2. Embedded AST for each composed reader
-3. Registration data: `"lisp" → pointer to embedded AST`
-
-### Data Layout (Conceptual)
-
-```
-Binary:
-  .text
-    [kernel code]
-    [find_reader code - checks embedded AST table]
-
-  .rodata
-    _embedded_lisp_ast:      "(program (reader lisp ..."
-    _embedded_lisp_name:     "lisp"
-    _embedded_reader_table:
-      entry[0]: { name_ptr, name_len, ast_ptr, ast_len }
-      ...
-```
-
-### The Kernel's Role
-
-The kernel must be able to:
-1. **Read AST** (S-expressions) - already has this
-2. **Compile AST → platform code** - already has this
-3. **Embed AST data in output binary** - for composition
-4. **Access its own AST** - for self-composition
-
-### Kernel Self-Knowledge
-
-For `compose` to produce a complete compiler, the kernel needs access to its own AST. Options:
-
-1. **Kernel AST stored in bootstrap** - `bootstrap/kernel.ast`
-2. **Kernel AST embedded in kernel binary** - self-contained
-3. **Explicit flag** - `--kernel-ast path`
-
-## Bootstrap Chain
-
-```
-bootstrap/
-  kernel.ll              # Kernel binary (LLVM IR) - root of trust
-  kernel.ast             # Kernel's own AST (for self-composition)
-  lang_reader/
-    source.ast           # Lang reader as AST
-
-# Bootstrap process:
-clang kernel.ll -o kernel
-
-# Build lang compiler (option A - runtime reader):
-kernel lang_reader.ast program.ast -o program
-
-# Build lang compiler (option B - compose):
-kernel compose -r lang lang_reader.ast -o lang1
-# Now lang1 has lang reader baked in
-```
-
-## Implementation: The "How"
-
-### The Key Insight: Self-Aware Kernel
-
-The kernel carries BOTH AST (for quine) AND function pointers (for runtime):
+## Data Structures (Target Design)
 
 ```lang
-// In kernel source:
-var self_kernel *u8 = _;                         // Full program AST (for quine)
-var embedded_reader_names []*u8 = [];            // ["lang", "lisp"]
-var embedded_reader_fps [] = [];                 // [reader_lang, reader_lisp] - function ptrs!
+// In kernel source - these get poked by -r mode
+var self_kernel *u8 = "";                    // Full program AST (quine)
+var embedded_reader_names [20]*u8;           // ["lang", "lisp", ...]
+var embedded_reader_funcs [20]*u8;           // [reader_lang, reader_lisp, ...]
+var embedded_reader_count i64 = 0;           // Number of embedded readers
 ```
 
-**Three pieces:**
-1. **self_kernel** (AST string) - for quine, enables further `-r` operations
-2. **embedded_reader_names** (string array) - for runtime lookup by name
-3. **embedded_reader_fps** (function pointer array) - for runtime execution, NO clang needed!
+Array support was added specifically for this purpose - to store multiple reader function pointers.
 
-**How function pointers get into the array:**
-When combining ASTs, the reader's `func reader_lang(...)` becomes part of the program.
-In the AST, we append `(ident reader_lang)` to the fps array.
-At compile time, that identifier resolves to the function's address.
-The function pointer is baked into the binary!
+## The Quine Pattern
 
-**Critical detail:** `self_kernel` contains AST where `self_kernel = _` (placeholder).
-Every operation must re-poke the complete AST back into self_kernel!
+The critical insight: **`self_kernel` contains AST that contains `self_kernel`**.
 
-### The Two Operations
-
-Both are **pure AST manipulation + compile**:
-
-#### `--embed-self kernel.ast` (Bootstrap, one-time)
-
-Creates a self-aware kernel from a naive one:
-
+Before `-r`:
 ```
-1. Read kernel.ast file (contains self_kernel = _)
-2. Stringify entire kernel.ast
-3. Parse kernel.ast to AST nodes
-4. Find self_kernel variable, replace _ with stringified AST
-5. Compile modified AST → kernel binary
+self_kernel = "(program ... (var self_kernel *u8 (string \"\")) ...)"
 ```
 
-Result: kernel binary that contains its own AST in self_kernel.
-
-#### `-r name reader.ast` (Normal operation)
-
-Adds a reader to the kernel:
-
+After `-r lang`:
 ```
-1. Parse self_kernel → get AST (contains self_kernel = _)
-2. Parse reader.ast → reader AST (contains func reader_<name>)
-3. COMBINE the two ASTs (reader functions join the program)
-4. Find embedded_reader_names array, append "name"
-5. Find embedded_reader_fps array, append (ident reader_<name>)
-6. Re-stringify the ENTIRE modified AST
-7. Poke that back into self_kernel  ← CRITICAL!
-8. Compile modified AST → new kernel binary
+self_kernel = "(program ... (var self_kernel *u8 (string \"<THIS ENTIRE STRING>\")) ... (func reader_lang ...))"
 ```
 
-Result: new kernel with:
-- Reader function compiled as native code (function pointer in array)
-- Complete AST in self_kernel (for further `-r` operations)
-- Can do more `-r` operations itself!
+The AST string inside `self_kernel` must be updated to include the combined AST with the reader. This is what enables chaining: the resulting binary can do another `-r` operation.
 
-**It's a self-replicating quine with cargo.**
+## What This Is NOT
 
-### Bootstrap Chain
+- **NOT** parsing lang source code
+- **NOT** compiling readers to separate executables
+- **NOT** calling `parse_program()` on anything
+- **NOT** using the lang tokenizer or parser
 
-```bash
-# Step 1: Compile naive kernel (no self-awareness)
-lang_trusted kernel.lang -o kernel_naive
+Everything is S-expression AST. The only parser used is `parse_ast_from_string()` (the S-expr parser).
 
-# Step 2: Emit kernel AST
-lang_trusted --emit-ast kernel.lang -o kernel.ast
+## Runtime: find_reader()
 
-# Step 3: Create self-aware kernel (THE one-time bootstrap step)
-kernel_naive --embed-self kernel.ast -o kernel
-
-# Step 4: Add lang reader
-kernel -r lang lang_reader.ast -o lang1
-
-# lang1 now has:
-#   - lang reader in embedded_readers
-#   - complete AST (with lang reader) in self_kernel
-#   - can do: lang1 -r lisp lisp_reader.ast -o lang1_lisp
-```
-
-### Why This Works
-
-Both operations are the same pattern:
-1. Parse self_kernel (or file for --embed-self)
-2. Walk AST, find target (variable or array)
-3. Modify (replace or append)
-4. Re-poke complete AST into self_kernel
-5. Compile
-
-The kernel already knows:
-- AST parsing ✓
-- AST walking ✓
-- Compilation ✓
-
-We just need:
-- Find variable/array by name in AST
-- Replace initializer / append to array
-- Stringify AST back to text
-
-### Runtime: find_reader()
-
-At runtime, `find_reader("lang")`:
+At runtime, when code uses `#lang{}`:
 
 ```lang
 func find_reader(name *u8, len i64) *func {
-    var i = 0;
-    while i < array_len(embedded_reader_names) {
+    var i i64 = 0;
+    while i < embedded_reader_count {
         if streq(embedded_reader_names[i], name) {
-            return embedded_reader_fps[i];  // Already compiled!
+            return embedded_reader_funcs[i];  // Direct function pointer!
         }
         i = i + 1;
     }
     return nil;
 }
-
-// Usage - direct call, no subprocess, no clang!
-var reader_fn = find_reader("lang", 4);
-var ast = reader_fn(source, source_len);
 ```
 
-**No external toolchain needed!** The function pointer was resolved at compile time.
+The reader function was compiled into the binary. No subprocess, no clang at runtime.
 
-### What Needs to Be Built
+## Bootstrap Chain
 
-1. **`--emit-ast` flag** - output parsed AST as S-expressions
-2. **`--embed-self` mode** - the one-time bootstrap operation
-3. **`-r` mode** - add reader to kernel (AST manipulation)
-4. **AST helpers**:
-   - `find_var_in_ast(ast, name)` - find variable declaration
-   - `find_array_in_ast(ast, name)` - find array declaration
-   - `replace_initializer(var_decl, new_value)` - modify variable
-   - `append_to_array(array_decl, value)` - add array element
-   - `stringify_ast(ast)` - convert AST back to S-expression text
-5. **Bootstrap update** - run --embed-self to create self-aware kernel
+```bash
+# 1. Use trusted compiler to emit kernel AST
+lang_trusted --emit-expanded-ast src/kernel.lang -o bare_kernel.ast
 
-## Related Files
+# 2. Compile bare kernel
+lang_trusted bare_kernel.ast -o bare_kernel
 
-- `src/kernel_main.lang` - add self_kernel, embedded_readers, --embed-self, -r modes
-- `src/ast.lang` - add AST manipulation helpers (find_var, replace_init, stringify)
-- `src/main.lang` - add --emit-ast flag
-- `bootstrap/` - will store kernel.ast (for initial --embed-self)
+# 3. Create self-aware kernel (one-time bootstrap)
+bare_kernel --embed-self bare_kernel.ast -o kernel_self
 
-## Bootstrap Structure (New)
+# 4. Emit lang reader AST
+lang_trusted --emit-expanded-ast src/lang_reader.lang -o lang_reader.ast
 
-```
-bootstrap/current/
-  kernel.ast            # Bare kernel AST (no readers, has self_kernel = _)
-  lang_reader.ast       # Lang reader AST
-  lang_compiler.ll      # = kernel -r lang lang_reader.ast (LLVM IR)
-                        # This is the root of trust, NOT bare kernel!
+# 5. Add lang reader
+kernel_self -r lang lang_reader.ast -o lang1
+
+# lang1 can now:
+#   - Compile .lang files (has lang reader)
+#   - Do further -r operations (has self_kernel with combined AST)
 ```
 
-**Key insight:** We never store compiled bare kernel. Only store .ll AFTER `-r lang`.
-The bare kernel.ast is only used for the `--embed-self` bootstrap step.
+## Implementation Checklist
 
-After bootstrap:
-- The lang_compiler binary is self-contained (carries self_kernel with everything)
-- kernel.ast and lang_reader.ast are only needed if rebuilding from scratch
+- [x] `--emit-expanded-ast` flag - outputs parsed+expanded AST as S-expressions
+- [x] `--embed-self` mode - creates self-aware kernel from bare kernel
+- [x] `-r` mode - basic structure (currently uses single variables)
+- [x] `parse_ast_from_string()` - S-expression parser (in sexpr_reader.lang)
+- [x] `ast_emit_program()` - AST to S-expression serializer
+- [x] Array type support in lang (`[N]T` syntax)
+- [ ] **TODO**: Migrate embedded_reader vars to arrays
+- [ ] **TODO**: Update `-r` mode to poke into arrays
+- [ ] **TODO**: Skip `compile_reader_to_executable()` for LLVM backend
+- [ ] **TODO**: Update `find_reader()` to use arrays
 
-## Decisions Made
+## The Current Bug
 
-| Question | Decision | Rationale |
-|----------|----------|-----------|
-| Store source or AST? | **AST** | Consistent with reader resolution model |
-| Compile reader at compose time or use time? | **Use time** | Simpler, AST is portable |
-| Where does kernel AST live? | **In itself** | `self_kernel` variable - self-aware kernel |
-| How to embed readers? | **AST arrays** | `embedded_readers[]` modified via AST manipulation |
-| How does kernel know itself? | **Quine pattern** | self_kernel contains AST with placeholder, re-poked on each -r |
+When codegen sees a `(reader lang ...)` node, it calls `add_reader()` which calls `compile_reader_to_executable()`. This tries to parse the reader body as lang source code, which fails.
 
-## Non-Goals
+**The fix**: Reader declarations in embedded AST should NOT trigger `compile_reader_to_executable()`. The reader is emitted as a function by `llvm_emit_reader()`. At runtime, `find_reader()` should return the function pointer from `embedded_reader_funcs[]`.
 
-- Runtime reader compilation from source strings (that was the old broken approach)
-- Standalone.lang (deprecated, will be removed)
-- Generating .lang source as intermediate step
+## Files
+
+- `src/main.lang` - `--embed-self` and `-r` mode implementation
+- `src/sexpr_reader.lang` - S-expression parser (`parse_ast_from_string`)
+- `src/ast_emit.lang` - AST serializer (`ast_emit_program`)
+- `src/codegen.lang` - `add_reader()`, `find_reader()` - needs fix
+- `src/codegen_llvm.lang` - `llvm_emit_reader()` - emits reader as function
