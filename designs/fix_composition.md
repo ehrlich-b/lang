@@ -251,13 +251,15 @@ clang /tmp/hello.ll -o /tmp/hello
 
 ## Next Steps (Implementation Order)
 
-### Phase 1: Kernel/Reader Split (kernel_reader_split.md) ← DO FIRST
+### Phase 1: Kernel/Reader Split (kernel_reader_split.md) ← IN PROGRESS
 
-1. Fix reader output parsing: `parse_program_from_string` → `parse_ast_from_string`
-2. Remove include handling from codegen (readers expand includes)
-3. Factor out reader compilation from codegen
-4. Update Makefile: kernel without lexer/parser
+1. ✅ Fix reader output parsing: `parse_program_from_string` → `parse_ast_from_string` (2025-01-03)
+2. Remove include handling from codegen (readers expand includes) - FUTURE
+3. Factor out reader compilation from codegen - FUTURE
+4. Update Makefile: kernel without lexer/parser - FUTURE
 5. Bootstrap after each step
+
+**Note:** Steps 2-4 are for when we actually split kernel/reader. Step 1 was a bug fix.
 
 ### Phase 2: Add `require` keyword (composition_dependencies.md)
 
