@@ -284,6 +284,9 @@ func ast_emit_node(node *u8) void {
         } else {
             ast_emit_str("(func ");
         }
+        if func_decl_is_pub(node) {
+            ast_emit_str("pub ");
+        }
         ast_emit_strn(func_decl_name(node), func_decl_name_len(node));
         ast_emit_str(" (");
         var params *u8 = func_decl_params(node);
@@ -310,6 +313,9 @@ func ast_emit_node(node *u8) void {
         } else {
             ast_emit_str("(var ");
         }
+        if var_decl_is_pub(node) {
+            ast_emit_str("pub ");
+        }
         ast_emit_strn(var_decl_name(node), var_decl_name_len(node));
         ast_emit_str(" ");
         ast_emit_type(var_decl_type(node));
@@ -324,6 +330,9 @@ func ast_emit_node(node *u8) void {
 
     if kind == NODE_STRUCT_DECL {
         ast_emit_str("(struct ");
+        if struct_decl_is_pub(node) {
+            ast_emit_str("pub ");
+        }
         ast_emit_strn(struct_decl_name(node), struct_decl_name_len(node));
         ast_emit_str(" (");
         var fields *u8 = struct_decl_fields(node);
@@ -345,6 +354,9 @@ func ast_emit_node(node *u8) void {
 
     if kind == NODE_ENUM_DECL {
         ast_emit_str("(enum ");
+        if enum_decl_is_pub(node) {
+            ast_emit_str("pub ");
+        }
         ast_emit_strn(enum_decl_name(node), enum_decl_name_len(node));
         ast_emit_str(" (");
         var variants *u8 = enum_decl_variants(node);
@@ -369,6 +381,9 @@ func ast_emit_node(node *u8) void {
 
     if kind == NODE_EFFECT_DECL {
         ast_emit_str("(effect ");
+        if effect_decl_is_pub(node) {
+            ast_emit_str("pub ");
+        }
         ast_emit_strn(effect_decl_name(node), effect_decl_name_len(node));
         ast_emit_str(" (");
         var params *u8 = effect_decl_param_types(node);
@@ -406,6 +421,9 @@ func ast_emit_node(node *u8) void {
 
     if kind == NODE_READER_DECL {
         ast_emit_str("(reader ");
+        if reader_decl_is_pub(node) {
+            ast_emit_str("pub ");
+        }
         ast_emit_strn(reader_decl_name(node), reader_decl_name_len(node));
         ast_emit_str(" ");
         ast_emit_strn(reader_decl_param_name(node), reader_decl_param_len(node));

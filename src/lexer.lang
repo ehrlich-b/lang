@@ -126,6 +126,9 @@ var TOKEN_EXTERN i64 = 83;        // extern (external function declaration)
 // Module system
 var TOKEN_REQUIRE i64 = 84;       // require (module dependency reference)
 
+// Visibility
+var TOKEN_PUB i64 = 85;           // pub (public visibility modifier)
+
 // ============================================================
 // Token struct
 // ============================================================
@@ -441,6 +444,7 @@ func check_keyword() i64 {
     if lexeme_eq("resume") { return TOKEN_RESUME; }
     if lexeme_eq("closure") { return TOKEN_CLOSURE; }
     if lexeme_eq("extern") { return TOKEN_EXTERN; }
+    if lexeme_eq("pub") { return TOKEN_PUB; }
     if lexeme_eq("true") { return TOKEN_TRUE; }
     if lexeme_eq("false") { return TOKEN_FALSE; }
     if lexeme_eq("nil") { return TOKEN_NIL; }
@@ -829,6 +833,7 @@ func print_token_type(t i64) void {
     if t == TOKEN_RESUME { print("resume"); return; }
     if t == TOKEN_CLOSURE { print("closure"); return; }
     if t == TOKEN_EXTERN { print("extern"); return; }
+    if t == TOKEN_PUB { print("pub"); return; }
     print("UNKNOWN");
 }
 

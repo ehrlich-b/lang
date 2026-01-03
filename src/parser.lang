@@ -168,7 +168,7 @@ func node_set_kind(node *u8, k i64) void {
 // ============================================================
 
 func func_decl_alloc() *u8 {
-    var node *u8 = alloc(64);
+    var node *u8 = alloc(72);
     node_set_kind(node, NODE_FUNC_DECL);
     return node;
 }
@@ -243,12 +243,22 @@ func func_decl_set_is_extern(node *u8, is_extern i64) void {
     *p = is_extern;
 }
 
+func func_decl_is_pub(node *u8) i64 {
+    var p *i64 = node + 64;
+    return *p;
+}
+
+func func_decl_set_is_pub(node *u8, is_pub i64) void {
+    var p *i64 = node + 64;
+    *p = is_pub;
+}
+
 // ============================================================
 // VarDecl accessors
 // ============================================================
 
 func var_decl_alloc() *u8 {
-    var node *u8 = alloc(48);
+    var node *u8 = alloc(56);
     node_set_kind(node, NODE_VAR_DECL);
     return node;
 }
@@ -303,14 +313,24 @@ func var_decl_set_is_extern(node *u8, is_extern i64) void {
     *p = is_extern;
 }
 
+func var_decl_is_pub(node *u8) i64 {
+    var p *i64 = node + 48;
+    return *p;
+}
+
+func var_decl_set_is_pub(node *u8, is_pub i64) void {
+    var p *i64 = node + 48;
+    *p = is_pub;
+}
+
 // ============================================================
 // StructDecl accessors
 // ============================================================
-// StructDecl: [kind:8][name_ptr:8][name_len:8][fields:8][field_count:8] = 40 bytes
+// StructDecl: [kind:8][name_ptr:8][name_len:8][fields:8][field_count:8][is_pub:8] = 48 bytes
 // StructField: [name_ptr:8][name_len:8][type:8] = 24 bytes (same as Param)
 
 func struct_decl_alloc() *u8 {
-    var node *u8 = alloc(40);
+    var node *u8 = alloc(48);
     node_set_kind(node, NODE_STRUCT_DECL);
     return node;
 }
@@ -355,6 +375,16 @@ func struct_decl_set_field_count(node *u8, count i64) void {
     *p = count;
 }
 
+func struct_decl_is_pub(node *u8) i64 {
+    var p *i64 = node + 40;
+    return *p;
+}
+
+func struct_decl_set_is_pub(node *u8, is_pub i64) void {
+    var p *i64 = node + 40;
+    *p = is_pub;
+}
+
 // StructField accessors (24-byte entries, same layout as Param)
 func struct_field_name(field *u8) *u8 {
     var p **u8 = field;
@@ -393,11 +423,11 @@ func get_struct_field(fields *u8, index i64) *u8 {
 // ============================================================
 // EnumDecl accessors
 // ============================================================
-// EnumDecl: [kind:8][name_ptr:8][name_len:8][variants:8][variant_count:8] = 40 bytes
+// EnumDecl: [kind:8][name_ptr:8][name_len:8][variants:8][variant_count:8][is_pub:8] = 48 bytes
 // EnumVariant: [name_ptr:8][name_len:8][payload_type:8][tag:8] = 32 bytes
 
 func enum_decl_alloc() *u8 {
-    var node *u8 = alloc(40);
+    var node *u8 = alloc(48);
     node_set_kind(node, NODE_ENUM_DECL);
     return node;
 }
@@ -440,6 +470,16 @@ func enum_decl_variant_count(node *u8) i64 {
 func enum_decl_set_variant_count(node *u8, count i64) void {
     var p *i64 = node + 32;
     *p = count;
+}
+
+func enum_decl_is_pub(node *u8) i64 {
+    var p *i64 = node + 40;
+    return *p;
+}
+
+func enum_decl_set_is_pub(node *u8, is_pub i64) void {
+    var p *i64 = node + 40;
+    *p = is_pub;
 }
 
 // EnumVariant accessors (32-byte entries)
@@ -635,11 +675,11 @@ func pattern_wildcard_alloc() *u8 {
 // Effect node accessors
 // ============================================================
 
-// EffectDecl: [kind:8][name_ptr:8][name_len:8][param_types:8][param_type_count:8][return_type:8] = 48 bytes
+// EffectDecl: [kind:8][name_ptr:8][name_len:8][param_types:8][param_type_count:8][return_type:8][is_pub:8] = 56 bytes
 // Example: effect Fail(i64) void
 
 func effect_decl_alloc() *u8 {
-    var node *u8 = alloc(48);
+    var node *u8 = alloc(56);
     node_set_kind(node, NODE_EFFECT_DECL);
     return node;
 }
@@ -692,6 +732,16 @@ func effect_decl_return_type(node *u8) *u8 {
 func effect_decl_set_return_type(node *u8, ret_type *u8) void {
     var p **u8 = node + 40;
     *p = ret_type;
+}
+
+func effect_decl_is_pub(node *u8) i64 {
+    var p *i64 = node + 48;
+    return *p;
+}
+
+func effect_decl_set_is_pub(node *u8, is_pub i64) void {
+    var p *i64 = node + 48;
+    *p = is_pub;
 }
 
 // PerformExpr: [kind:8][effect_name_ptr:8][effect_name_len:8][args:8][arg_count:8] = 40 bytes
@@ -1795,10 +1845,11 @@ struct ReaderDecl {
     param_len i64;
     body *u8;
     is_ast i64;  // 1 if body is already AST (from -r mode), 0 if lang source
+    is_pub i64;  // 1 if public, 0 if private
 }
 
 func reader_decl_alloc() *u8 {
-    var node *u8 = alloc(56);
+    var node *u8 = alloc(64);
     node_set_kind(node, NODE_READER_DECL);
     return node;
 }
@@ -1861,6 +1912,16 @@ func reader_decl_is_ast(node *u8) i64 {
 func reader_decl_set_is_ast(node *u8, val i64) void {
     var n *ReaderDecl = node;
     n.is_ast = val;
+}
+
+func reader_decl_is_pub(node *u8) i64 {
+    var n *ReaderDecl = node;
+    return n.is_pub;
+}
+
+func reader_decl_set_is_pub(node *u8, is_pub i64) void {
+    var n *ReaderDecl = node;
+    n.is_pub = is_pub;
 }
 
 // ============================================================
@@ -3771,49 +3832,97 @@ func parse_require() *u8 {
 }
 
 func parse_declaration() *u8 {
+    // Check for pub visibility modifier
+    var is_pub i64 = 0;
+    if parse_match(TOKEN_PUB) {
+        is_pub = 1;
+    }
+
     if parse_match(TOKEN_EXTERN) {
         // extern func name(...) type; OR extern var name type;
+        // Note: pub extern is valid (external but visible from this module)
         if parse_match(TOKEN_FUNC) {
-            return parse_extern_func_decl();
+            var node *u8 = parse_extern_func_decl();
+            if node != nil { func_decl_set_is_pub(node, is_pub); }
+            return node;
         }
         if parse_match(TOKEN_VAR) {
-            return parse_extern_var_decl();
+            var node *u8 = parse_extern_var_decl();
+            if node != nil { var_decl_set_is_pub(node, is_pub); }
+            return node;
         }
         parse_error("expected 'func' or 'var' after 'extern'");
         return nil;
     }
     if parse_match(TOKEN_FUNC) {
-        return parse_func_decl();
+        var node *u8 = parse_func_decl();
+        if node != nil { func_decl_set_is_pub(node, is_pub); }
+        return node;
     }
     if parse_match(TOKEN_VAR) {
-        return parse_var_decl();
+        var node *u8 = parse_var_decl();
+        if node != nil { var_decl_set_is_pub(node, is_pub); }
+        return node;
     }
     if parse_match(TOKEN_STRUCT) {
-        return parse_struct_decl();
+        var node *u8 = parse_struct_decl();
+        if node != nil { struct_decl_set_is_pub(node, is_pub); }
+        return node;
     }
     if parse_match(TOKEN_ENUM) {
-        return parse_enum_decl();
+        var node *u8 = parse_enum_decl();
+        if node != nil { enum_decl_set_is_pub(node, is_pub); }
+        return node;
     }
     if parse_match(TOKEN_EFFECT) {
-        return parse_effect_decl();
+        var node *u8 = parse_effect_decl();
+        if node != nil { effect_decl_set_is_pub(node, is_pub); }
+        return node;
     }
     if parse_match(TOKEN_MACRO) {
+        // Macros don't support pub (they're compile-time)
+        if is_pub {
+            parse_error("macros cannot have 'pub' visibility");
+            return nil;
+        }
         return parse_macro_decl();
     }
     if parse_match(TOKEN_IMPORT) {
+        // import doesn't support pub
+        if is_pub {
+            parse_error("import cannot have 'pub' visibility");
+            return nil;
+        }
         return parse_import();
     }
     if parse_match(TOKEN_READER) {
-        return parse_reader_decl();
+        var node *u8 = parse_reader_decl();
+        if node != nil { reader_decl_set_is_pub(node, is_pub); }
+        return node;
     }
     if parse_match(TOKEN_INCLUDE) {
+        // include doesn't support pub
+        if is_pub {
+            parse_error("include cannot have 'pub' visibility");
+            return nil;
+        }
         return parse_include();
     }
     if parse_match(TOKEN_REQUIRE) {
+        // require doesn't support pub
+        if is_pub {
+            parse_error("require cannot have 'pub' visibility");
+            return nil;
+        }
         return parse_require();
     }
     // Reader macro at declaration level: #name{content}
     if parse_match(TOKEN_READER_MACRO) {
+        // reader macro invocations don't support pub
+        if is_pub {
+            parse_error("reader macro invocation cannot have 'pub' visibility");
+            return nil;
+        }
         var tok *u8 = parse_previous();
         var node *u8 = reader_expr_alloc();
         reader_expr_set_name(node, tok_lexeme(tok));
@@ -3821,6 +3930,12 @@ func parse_declaration() *u8 {
         reader_expr_set_content(node, tok_content(tok));
         reader_expr_set_content_len(node, tok_content_len(tok));
         return node;
+    }
+
+    // If we consumed pub but didn't find a valid declaration
+    if is_pub {
+        parse_error("expected declaration after 'pub'");
+        return nil;
     }
 
     // Better error for stray semicolons (common C habit)

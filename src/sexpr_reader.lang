@@ -454,20 +454,30 @@ func sexpr_to_node(node *PNode) *u8 {
     // Declarations
     // ============================================================
 
-    // (func name (params...) ret-type body)
-    // (extern_func name (params...) ret-type body) - same but sets is_extern
+    // (func [pub] name (params...) ret-type body)
+    // (extern_func [pub] name (params...) ret-type body) - same but sets is_extern
     var is_extern_func i64 = 0;
     if streq(head, "extern_func") {
         is_extern_func = 1;
     }
     if streq(head, "func") || is_extern_func {
         var n *u8 = func_decl_alloc();
-        var name_node *PNode = sexpr_get(node, 1);
+
+        // Check for optional pub keyword
+        var idx i64 = 1;
+        var is_pub i64 = 0;
+        var first *PNode = sexpr_get(node, 1);
+        if first.kind == PNODE_SYMBOL && streq(first.text, "pub") {
+            is_pub = 1;
+            idx = 2;
+        }
+
+        var name_node *PNode = sexpr_get(node, idx);
         func_decl_set_name(n, sexpr_strdup(name_node.text));
         func_decl_set_name_len(n, strlen(name_node.text));
 
         // Parse params
-        var params_list *PNode = sexpr_get(node, 2);
+        var params_list *PNode = sexpr_get(node, idx + 1);
         var params_inner *PNode = sexpr_inner(params_list);
         var param_count i64 = vec_len(params_inner.children);
         var params *u8 = alloc(param_count * 24);
@@ -479,41 +489,63 @@ func sexpr_to_node(node *PNode) *u8 {
         func_decl_set_params(n, params);
         func_decl_set_param_count(n, param_count);
 
-        func_decl_set_ret_type(n, sexpr_to_type(sexpr_get(node, 3)));
-        func_decl_set_body(n, sexpr_to_node(sexpr_get(node, 4)));
+        func_decl_set_ret_type(n, sexpr_to_type(sexpr_get(node, idx + 2)));
+        func_decl_set_body(n, sexpr_to_node(sexpr_get(node, idx + 3)));
         func_decl_set_is_extern(n, is_extern_func);
+        func_decl_set_is_pub(n, is_pub);
         return n;
     }
 
-    // (var name type init?)
-    // (extern_var name type) - same but sets is_extern
+    // (var [pub] name type init?)
+    // (extern_var [pub] name type) - same but sets is_extern
     var is_extern_var i64 = 0;
     if streq(head, "extern_var") {
         is_extern_var = 1;
     }
     if streq(head, "var") || is_extern_var {
         var n *u8 = var_decl_alloc();
-        var name_node *PNode = sexpr_get(node, 1);
+
+        // Check for optional pub keyword
+        var idx i64 = 1;
+        var is_pub i64 = 0;
+        var first *PNode = sexpr_get(node, 1);
+        if first.kind == PNODE_SYMBOL && streq(first.text, "pub") {
+            is_pub = 1;
+            idx = 2;
+        }
+
+        var name_node *PNode = sexpr_get(node, idx);
         var_decl_set_name(n, sexpr_strdup(name_node.text));
         var_decl_set_name_len(n, strlen(name_node.text));
-        var_decl_set_type(n, sexpr_to_type(sexpr_get(node, 2)));
-        if sexpr_len(node) > 3 {
-            var_decl_set_init(n, sexpr_to_node(sexpr_get(node, 3)));
+        var_decl_set_type(n, sexpr_to_type(sexpr_get(node, idx + 1)));
+        if sexpr_len(node) > idx + 2 {
+            var_decl_set_init(n, sexpr_to_node(sexpr_get(node, idx + 2)));
         } else {
             var_decl_set_init(n, nil);
         }
         var_decl_set_is_extern(n, is_extern_var);
+        var_decl_set_is_pub(n, is_pub);
         return n;
     }
 
-    // (struct name (fields...))
+    // (struct [pub] name (fields...))
     if streq(head, "struct") {
         var n *u8 = struct_decl_alloc();
-        var name_node *PNode = sexpr_get(node, 1);
+
+        // Check for optional pub keyword
+        var idx i64 = 1;
+        var is_pub i64 = 0;
+        var first *PNode = sexpr_get(node, 1);
+        if first.kind == PNODE_SYMBOL && streq(first.text, "pub") {
+            is_pub = 1;
+            idx = 2;
+        }
+
+        var name_node *PNode = sexpr_get(node, idx);
         struct_decl_set_name(n, sexpr_strdup(name_node.text));
         struct_decl_set_name_len(n, strlen(name_node.text));
 
-        var fields_list *PNode = sexpr_get(node, 2);
+        var fields_list *PNode = sexpr_get(node, idx + 1);
         var fields_inner *PNode = sexpr_inner(fields_list);
         var field_count i64 = vec_len(fields_inner.children);
         var fields *u8 = alloc(field_count * 24);
@@ -530,6 +562,7 @@ func sexpr_to_node(node *PNode) *u8 {
         }
         struct_decl_set_fields(n, fields);
         struct_decl_set_field_count(n, field_count);
+        struct_decl_set_is_pub(n, is_pub);
         return n;
     }
 
@@ -560,14 +593,24 @@ func sexpr_to_node(node *PNode) *u8 {
         return n;
     }
 
-    // (enum name (variants...))
+    // (enum [pub] name (variants...))
     if streq(head, "enum") {
         var n *u8 = enum_decl_alloc();
-        var name_node *PNode = sexpr_get(node, 1);
+
+        // Check for optional pub keyword
+        var idx i64 = 1;
+        var is_pub i64 = 0;
+        var first *PNode = sexpr_get(node, 1);
+        if first.kind == PNODE_SYMBOL && streq(first.text, "pub") {
+            is_pub = 1;
+            idx = 2;
+        }
+
+        var name_node *PNode = sexpr_get(node, idx);
         enum_decl_set_name(n, sexpr_strdup(name_node.text));
         enum_decl_set_name_len(n, strlen(name_node.text));
 
-        var variants_list *PNode = sexpr_get(node, 2);
+        var variants_list *PNode = sexpr_get(node, idx + 1);
         var variants_inner *PNode = sexpr_inner(variants_list);
         var variant_count i64 = vec_len(variants_inner.children);
         var variants *u8 = alloc(variant_count * 32);
@@ -589,17 +632,28 @@ func sexpr_to_node(node *PNode) *u8 {
         }
         enum_decl_set_variants(n, variants);
         enum_decl_set_variant_count(n, variant_count);
+        enum_decl_set_is_pub(n, is_pub);
         return n;
     }
 
-    // (effect name (param-types...) ret-type)
+    // (effect [pub] name (param-types...) ret-type)
     if streq(head, "effect") {
         var n *u8 = effect_decl_alloc();
-        var name_node *PNode = sexpr_get(node, 1);
+
+        // Check for optional pub keyword
+        var idx i64 = 1;
+        var is_pub i64 = 0;
+        var first *PNode = sexpr_get(node, 1);
+        if first.kind == PNODE_SYMBOL && streq(first.text, "pub") {
+            is_pub = 1;
+            idx = 2;
+        }
+
+        var name_node *PNode = sexpr_get(node, idx);
         effect_decl_set_name(n, sexpr_strdup(name_node.text));
         effect_decl_set_name_len(n, strlen(name_node.text));
 
-        var params_list *PNode = sexpr_get(node, 2);
+        var params_list *PNode = sexpr_get(node, idx + 1);
         var params_inner *PNode = sexpr_inner(params_list);
         var param_count i64 = vec_len(params_inner.children);
         var params *u8 = alloc(param_count * 8);
@@ -612,7 +666,8 @@ func sexpr_to_node(node *PNode) *u8 {
         }
         effect_decl_set_param_types(n, params);
         effect_decl_set_param_type_count(n, param_count);
-        effect_decl_set_return_type(n, sexpr_to_type(sexpr_get(node, 3)));
+        effect_decl_set_return_type(n, sexpr_to_type(sexpr_get(node, idx + 2)));
+        effect_decl_set_is_pub(n, is_pub);
         return n;
     }
 
@@ -636,16 +691,27 @@ func sexpr_to_node(node *PNode) *u8 {
         return n;
     }
 
-    // (reader name param body)
+    // (reader [pub] name param body)
     if streq(head, "reader") {
         var n *u8 = reader_decl_alloc();
-        var name_node *PNode = sexpr_get(node, 1);
+
+        // Check for optional pub keyword
+        var idx i64 = 1;
+        var is_pub i64 = 0;
+        var first *PNode = sexpr_get(node, 1);
+        if first.kind == PNODE_SYMBOL && streq(first.text, "pub") {
+            is_pub = 1;
+            idx = 2;
+        }
+
+        var name_node *PNode = sexpr_get(node, idx);
         reader_decl_set_name(n, sexpr_strdup(name_node.text));
         reader_decl_set_name_len(n, strlen(name_node.text));
-        var param_node *PNode = sexpr_get(node, 2);
+        var param_node *PNode = sexpr_get(node, idx + 1);
         reader_decl_set_param_name(n, sexpr_strdup(param_node.text));
         reader_decl_set_param_len(n, strlen(param_node.text));
-        reader_decl_set_body(n, sexpr_to_node(sexpr_get(node, 3)));
+        reader_decl_set_body(n, sexpr_to_node(sexpr_get(node, idx + 2)));
+        reader_decl_set_is_pub(n, is_pub);
         return n;
     }
 

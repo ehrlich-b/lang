@@ -777,6 +777,7 @@
   (var TOKEN_CLOSURE (type_base i64) (number 82))
   (var TOKEN_EXTERN (type_base i64) (number 83))
   (var TOKEN_REQUIRE (type_base i64) (number 84))
+  (var TOKEN_PUB (type_base i64) (number 85))
   (struct Token ((field_decl type_tok (type_base i64)) (field_decl lexeme (type_ptr (type_base u8))) (field_decl lexeme_len (type_base i64)) (field_decl line (type_base i64)) (field_decl col (type_base i64)) (field_decl content (type_ptr (type_base u8))) (field_decl content_len (type_base i64))))
   (func tok_type ((param tok (type_ptr (type_base u8)))) (type_base i64)
     (block
@@ -1075,6 +1076,9 @@
       (if (call (ident lexeme_eq) (string "extern"))
         (block
           (return (ident TOKEN_EXTERN))))
+      (if (call (ident lexeme_eq) (string "pub"))
+        (block
+          (return (ident TOKEN_PUB))))
       (if (call (ident lexeme_eq) (string "true"))
         (block
           (return (ident TOKEN_TRUE))))
@@ -1752,6 +1756,10 @@
         (block
           (expr_stmt (call (ident print) (string "extern")))
           (return)))
+      (if (binop == (ident t) (ident TOKEN_PUB))
+        (block
+          (expr_stmt (call (ident print) (string "pub")))
+          (return)))
       (expr_stmt (call (ident print) (string "UNKNOWN")))))
   (func print_n ((param s (type_ptr (type_base u8))) (param n (type_base i64))) (type_base void)
     (block
@@ -1856,7 +1864,7 @@
       (assign (unop * (ident p)) (ident k))))
   (func func_decl_alloc () (type_ptr (type_base u8))
     (block
-      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 64)))
+      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 72)))
       (expr_stmt (call (ident node_set_kind) (ident node) (ident NODE_FUNC_DECL)))
       (return (ident node))))
   (func func_decl_name ((param node (type_ptr (type_base u8)))) (type_ptr (type_base u8))
@@ -1915,9 +1923,17 @@
     (block
       (var p (type_ptr (type_base i64)) (binop + (ident node) (number 56)))
       (assign (unop * (ident p)) (ident is_extern))))
+  (func func_decl_is_pub ((param node (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident node) (number 64)))
+      (return (unop * (ident p)))))
+  (func func_decl_set_is_pub ((param node (type_ptr (type_base u8))) (param is_pub (type_base i64))) (type_base void)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident node) (number 64)))
+      (assign (unop * (ident p)) (ident is_pub))))
   (func var_decl_alloc () (type_ptr (type_base u8))
     (block
-      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 48)))
+      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 56)))
       (expr_stmt (call (ident node_set_kind) (ident node) (ident NODE_VAR_DECL)))
       (return (ident node))))
   (func var_decl_name ((param node (type_ptr (type_base u8)))) (type_ptr (type_base u8))
@@ -1960,9 +1976,17 @@
     (block
       (var p (type_ptr (type_base i64)) (binop + (ident node) (number 40)))
       (assign (unop * (ident p)) (ident is_extern))))
+  (func var_decl_is_pub ((param node (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident node) (number 48)))
+      (return (unop * (ident p)))))
+  (func var_decl_set_is_pub ((param node (type_ptr (type_base u8))) (param is_pub (type_base i64))) (type_base void)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident node) (number 48)))
+      (assign (unop * (ident p)) (ident is_pub))))
   (func struct_decl_alloc () (type_ptr (type_base u8))
     (block
-      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 40)))
+      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 48)))
       (expr_stmt (call (ident node_set_kind) (ident node) (ident NODE_STRUCT_DECL)))
       (return (ident node))))
   (func struct_decl_name ((param node (type_ptr (type_base u8)))) (type_ptr (type_base u8))
@@ -1997,6 +2021,14 @@
     (block
       (var p (type_ptr (type_base i64)) (binop + (ident node) (number 32)))
       (assign (unop * (ident p)) (ident count))))
+  (func struct_decl_is_pub ((param node (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident node) (number 40)))
+      (return (unop * (ident p)))))
+  (func struct_decl_set_is_pub ((param node (type_ptr (type_base u8))) (param is_pub (type_base i64))) (type_base void)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident node) (number 40)))
+      (assign (unop * (ident p)) (ident is_pub))))
   (func struct_field_name ((param field (type_ptr (type_base u8)))) (type_ptr (type_base u8))
     (block
       (var p (type_ptr (type_ptr (type_base u8))) (ident field))
@@ -2026,7 +2058,7 @@
       (return (binop + (ident fields) (binop * (ident index) (number 24))))))
   (func enum_decl_alloc () (type_ptr (type_base u8))
     (block
-      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 40)))
+      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 48)))
       (expr_stmt (call (ident node_set_kind) (ident node) (ident NODE_ENUM_DECL)))
       (return (ident node))))
   (func enum_decl_name ((param node (type_ptr (type_base u8)))) (type_ptr (type_base u8))
@@ -2061,6 +2093,14 @@
     (block
       (var p (type_ptr (type_base i64)) (binop + (ident node) (number 32)))
       (assign (unop * (ident p)) (ident count))))
+  (func enum_decl_is_pub ((param node (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident node) (number 40)))
+      (return (unop * (ident p)))))
+  (func enum_decl_set_is_pub ((param node (type_ptr (type_base u8))) (param is_pub (type_base i64))) (type_base void)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident node) (number 40)))
+      (assign (unop * (ident p)) (ident is_pub))))
   (func enum_variant_name ((param v (type_ptr (type_base u8)))) (type_ptr (type_base u8))
     (block
       (var p (type_ptr (type_ptr (type_base u8))) (ident v))
@@ -2204,7 +2244,7 @@
       (return (ident node))))
   (func effect_decl_alloc () (type_ptr (type_base u8))
     (block
-      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 48)))
+      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 56)))
       (expr_stmt (call (ident node_set_kind) (ident node) (ident NODE_EFFECT_DECL)))
       (return (ident node))))
   (func effect_decl_name ((param node (type_ptr (type_base u8)))) (type_ptr (type_base u8))
@@ -2247,6 +2287,14 @@
     (block
       (var p (type_ptr (type_ptr (type_base u8))) (binop + (ident node) (number 40)))
       (assign (unop * (ident p)) (ident ret_type))))
+  (func effect_decl_is_pub ((param node (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident node) (number 48)))
+      (return (unop * (ident p)))))
+  (func effect_decl_set_is_pub ((param node (type_ptr (type_base u8))) (param is_pub (type_base i64))) (type_base void)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident node) (number 48)))
+      (assign (unop * (ident p)) (ident is_pub))))
   (func perform_expr_alloc () (type_ptr (type_base u8))
     (block
       (var node (type_ptr (type_base u8)) (call (ident alloc) (number 40)))
@@ -3052,10 +3100,10 @@
     (block
       (var n (type_ptr (type_base ImportDecl)) (ident node))
       (assign (field (ident n) path_len) (ident len))))
-  (struct ReaderDecl ((field_decl kind (type_base i64)) (field_decl name (type_ptr (type_base u8))) (field_decl name_len (type_base i64)) (field_decl param_name (type_ptr (type_base u8))) (field_decl param_len (type_base i64)) (field_decl body (type_ptr (type_base u8))) (field_decl is_ast (type_base i64))))
+  (struct ReaderDecl ((field_decl kind (type_base i64)) (field_decl name (type_ptr (type_base u8))) (field_decl name_len (type_base i64)) (field_decl param_name (type_ptr (type_base u8))) (field_decl param_len (type_base i64)) (field_decl body (type_ptr (type_base u8))) (field_decl is_ast (type_base i64)) (field_decl is_pub (type_base i64))))
   (func reader_decl_alloc () (type_ptr (type_base u8))
     (block
-      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 56)))
+      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 64)))
       (expr_stmt (call (ident node_set_kind) (ident node) (ident NODE_READER_DECL)))
       (return (ident node))))
   (func reader_decl_name ((param node (type_ptr (type_base u8)))) (type_ptr (type_base u8))
@@ -3106,6 +3154,14 @@
     (block
       (var n (type_ptr (type_base ReaderDecl)) (ident node))
       (assign (field (ident n) is_ast) (ident val))))
+  (func reader_decl_is_pub ((param node (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var n (type_ptr (type_base ReaderDecl)) (ident node))
+      (return (field (ident n) is_pub))))
+  (func reader_decl_set_is_pub ((param node (type_ptr (type_base u8))) (param is_pub (type_base i64))) (type_base void)
+    (block
+      (var n (type_ptr (type_base ReaderDecl)) (ident node))
+      (assign (field (ident n) is_pub) (ident is_pub))))
   (struct ReaderExpr ((field_decl kind (type_base i64)) (field_decl name (type_ptr (type_base u8))) (field_decl name_len (type_base i64)) (field_decl content (type_ptr (type_base u8))) (field_decl content_len (type_base i64))))
   (func reader_expr_alloc () (type_ptr (type_base u8))
     (block
@@ -4552,48 +4608,104 @@
       (return (ident node))))
   (func parse_declaration () (type_ptr (type_base u8))
     (block
+      (var is_pub (type_base i64) (number 0))
+      (if (call (ident parse_match) (ident TOKEN_PUB))
+        (block
+          (assign (ident is_pub) (number 1))))
       (if (call (ident parse_match) (ident TOKEN_EXTERN))
         (block
           (if (call (ident parse_match) (ident TOKEN_FUNC))
             (block
-              (return (call (ident parse_extern_func_decl)))))
+              (var node (type_ptr (type_base u8)) (call (ident parse_extern_func_decl)))
+              (if (binop != (ident node) (nil))
+                (block
+                  (expr_stmt (call (ident func_decl_set_is_pub) (ident node) (ident is_pub)))))
+              (return (ident node))))
           (if (call (ident parse_match) (ident TOKEN_VAR))
             (block
-              (return (call (ident parse_extern_var_decl)))))
+              (var node (type_ptr (type_base u8)) (call (ident parse_extern_var_decl)))
+              (if (binop != (ident node) (nil))
+                (block
+                  (expr_stmt (call (ident var_decl_set_is_pub) (ident node) (ident is_pub)))))
+              (return (ident node))))
           (expr_stmt (call (ident parse_error) (string "expected 'func' or 'var' after 'extern'")))
           (return (nil))))
       (if (call (ident parse_match) (ident TOKEN_FUNC))
         (block
-          (return (call (ident parse_func_decl)))))
+          (var node (type_ptr (type_base u8)) (call (ident parse_func_decl)))
+          (if (binop != (ident node) (nil))
+            (block
+              (expr_stmt (call (ident func_decl_set_is_pub) (ident node) (ident is_pub)))))
+          (return (ident node))))
       (if (call (ident parse_match) (ident TOKEN_VAR))
         (block
-          (return (call (ident parse_var_decl)))))
+          (var node (type_ptr (type_base u8)) (call (ident parse_var_decl)))
+          (if (binop != (ident node) (nil))
+            (block
+              (expr_stmt (call (ident var_decl_set_is_pub) (ident node) (ident is_pub)))))
+          (return (ident node))))
       (if (call (ident parse_match) (ident TOKEN_STRUCT))
         (block
-          (return (call (ident parse_struct_decl)))))
+          (var node (type_ptr (type_base u8)) (call (ident parse_struct_decl)))
+          (if (binop != (ident node) (nil))
+            (block
+              (expr_stmt (call (ident struct_decl_set_is_pub) (ident node) (ident is_pub)))))
+          (return (ident node))))
       (if (call (ident parse_match) (ident TOKEN_ENUM))
         (block
-          (return (call (ident parse_enum_decl)))))
+          (var node (type_ptr (type_base u8)) (call (ident parse_enum_decl)))
+          (if (binop != (ident node) (nil))
+            (block
+              (expr_stmt (call (ident enum_decl_set_is_pub) (ident node) (ident is_pub)))))
+          (return (ident node))))
       (if (call (ident parse_match) (ident TOKEN_EFFECT))
         (block
-          (return (call (ident parse_effect_decl)))))
+          (var node (type_ptr (type_base u8)) (call (ident parse_effect_decl)))
+          (if (binop != (ident node) (nil))
+            (block
+              (expr_stmt (call (ident effect_decl_set_is_pub) (ident node) (ident is_pub)))))
+          (return (ident node))))
       (if (call (ident parse_match) (ident TOKEN_MACRO))
         (block
+          (if (ident is_pub)
+            (block
+              (expr_stmt (call (ident parse_error) (string "macros cannot have 'pub' visibility")))
+              (return (nil))))
           (return (call (ident parse_macro_decl)))))
       (if (call (ident parse_match) (ident TOKEN_IMPORT))
         (block
+          (if (ident is_pub)
+            (block
+              (expr_stmt (call (ident parse_error) (string "import cannot have 'pub' visibility")))
+              (return (nil))))
           (return (call (ident parse_import)))))
       (if (call (ident parse_match) (ident TOKEN_READER))
         (block
-          (return (call (ident parse_reader_decl)))))
+          (var node (type_ptr (type_base u8)) (call (ident parse_reader_decl)))
+          (if (binop != (ident node) (nil))
+            (block
+              (expr_stmt (call (ident reader_decl_set_is_pub) (ident node) (ident is_pub)))))
+          (return (ident node))))
       (if (call (ident parse_match) (ident TOKEN_INCLUDE))
         (block
+          (if (ident is_pub)
+            (block
+              (expr_stmt (call (ident parse_error) (string "include cannot have 'pub' visibility")))
+              (return (nil))))
           (return (call (ident parse_include)))))
       (if (call (ident parse_match) (ident TOKEN_REQUIRE))
         (block
+          (if (ident is_pub)
+            (block
+              (expr_stmt (call (ident parse_error) (string "require cannot have 'pub' visibility")))
+              (return (nil))))
           (return (call (ident parse_require)))))
       (if (call (ident parse_match) (ident TOKEN_READER_MACRO))
         (block
+          (if (ident is_pub)
+            (block
+              (expr_stmt (call (ident parse_error) (string "reader macro invocation cannot have 'pub' visibility")))
+              (return (nil))))
           (var tok (type_ptr (type_base u8)) (call (ident parse_previous)))
           (var node (type_ptr (type_base u8)) (call (ident reader_expr_alloc)))
           (expr_stmt (call (ident reader_expr_set_name) (ident node) (call (ident tok_lexeme) (ident tok))))
@@ -4601,6 +4713,10 @@
           (expr_stmt (call (ident reader_expr_set_content) (ident node) (call (ident tok_content) (ident tok))))
           (expr_stmt (call (ident reader_expr_set_content_len) (ident node) (call (ident tok_content_len) (ident tok))))
           (return (ident node))))
+      (if (ident is_pub)
+        (block
+          (expr_stmt (call (ident parse_error) (string "expected declaration after 'pub'")))
+          (return (nil))))
       (if (call (ident parse_check) (ident TOKEN_SEMICOLON))
         (block
           (expr_stmt (call (ident parse_error) (string "unexpected ';' - lang doesn't use semicolons after include/import")))
@@ -4958,6 +5074,9 @@
               (expr_stmt (call (ident ast_emit_str) (string "(extern_func "))))
             (block
               (expr_stmt (call (ident ast_emit_str) (string "(func ")))))
+          (if (call (ident func_decl_is_pub) (ident node))
+            (block
+              (expr_stmt (call (ident ast_emit_str) (string "pub ")))))
           (expr_stmt (call (ident ast_emit_strn) (call (ident func_decl_name) (ident node)) (call (ident func_decl_name_len) (ident node))))
           (expr_stmt (call (ident ast_emit_str) (string " (")))
           (var params (type_ptr (type_base u8)) (call (ident func_decl_params) (ident node)))
@@ -4985,6 +5104,9 @@
               (expr_stmt (call (ident ast_emit_str) (string "(extern_var "))))
             (block
               (expr_stmt (call (ident ast_emit_str) (string "(var ")))))
+          (if (call (ident var_decl_is_pub) (ident node))
+            (block
+              (expr_stmt (call (ident ast_emit_str) (string "pub ")))))
           (expr_stmt (call (ident ast_emit_strn) (call (ident var_decl_name) (ident node)) (call (ident var_decl_name_len) (ident node))))
           (expr_stmt (call (ident ast_emit_str) (string " ")))
           (expr_stmt (call (ident ast_emit_type) (call (ident var_decl_type) (ident node))))
@@ -4998,6 +5120,9 @@
       (if (binop == (ident kind) (ident NODE_STRUCT_DECL))
         (block
           (expr_stmt (call (ident ast_emit_str) (string "(struct ")))
+          (if (call (ident struct_decl_is_pub) (ident node))
+            (block
+              (expr_stmt (call (ident ast_emit_str) (string "pub ")))))
           (expr_stmt (call (ident ast_emit_strn) (call (ident struct_decl_name) (ident node)) (call (ident struct_decl_name_len) (ident node))))
           (expr_stmt (call (ident ast_emit_str) (string " (")))
           (var fields (type_ptr (type_base u8)) (call (ident struct_decl_fields) (ident node)))
@@ -5020,6 +5145,9 @@
       (if (binop == (ident kind) (ident NODE_ENUM_DECL))
         (block
           (expr_stmt (call (ident ast_emit_str) (string "(enum ")))
+          (if (call (ident enum_decl_is_pub) (ident node))
+            (block
+              (expr_stmt (call (ident ast_emit_str) (string "pub ")))))
           (expr_stmt (call (ident ast_emit_strn) (call (ident enum_decl_name) (ident node)) (call (ident enum_decl_name_len) (ident node))))
           (expr_stmt (call (ident ast_emit_str) (string " (")))
           (var variants (type_ptr (type_base u8)) (call (ident enum_decl_variants) (ident node)))
@@ -5045,6 +5173,9 @@
       (if (binop == (ident kind) (ident NODE_EFFECT_DECL))
         (block
           (expr_stmt (call (ident ast_emit_str) (string "(effect ")))
+          (if (call (ident effect_decl_is_pub) (ident node))
+            (block
+              (expr_stmt (call (ident ast_emit_str) (string "pub ")))))
           (expr_stmt (call (ident ast_emit_strn) (call (ident effect_decl_name) (ident node)) (call (ident effect_decl_name_len) (ident node))))
           (expr_stmt (call (ident ast_emit_str) (string " (")))
           (var params (type_ptr (type_base u8)) (call (ident effect_decl_param_types) (ident node)))
@@ -5084,6 +5215,9 @@
       (if (binop == (ident kind) (ident NODE_READER_DECL))
         (block
           (expr_stmt (call (ident ast_emit_str) (string "(reader ")))
+          (if (call (ident reader_decl_is_pub) (ident node))
+            (block
+              (expr_stmt (call (ident ast_emit_str) (string "pub ")))))
           (expr_stmt (call (ident ast_emit_strn) (call (ident reader_decl_name) (ident node)) (call (ident reader_decl_name_len) (ident node))))
           (expr_stmt (call (ident ast_emit_str) (string " ")))
           (expr_stmt (call (ident ast_emit_strn) (call (ident reader_decl_param_name) (ident node)) (call (ident reader_decl_param_len) (ident node))))
