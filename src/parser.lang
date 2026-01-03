@@ -1793,10 +1793,11 @@ struct ReaderDecl {
     param_name *u8;
     param_len i64;
     body *u8;
+    is_ast i64;  // 1 if body is already AST (from -r mode), 0 if lang source
 }
 
 func reader_decl_alloc() *u8 {
-    var node *u8 = alloc(48);
+    var node *u8 = alloc(56);
     node_set_kind(node, NODE_READER_DECL);
     return node;
 }
@@ -1849,6 +1850,16 @@ func reader_decl_body(node *u8) *u8 {
 func reader_decl_set_body(node *u8, body *u8) void {
     var n *ReaderDecl = node;
     n.body = body;
+}
+
+func reader_decl_is_ast(node *u8) i64 {
+    var n *ReaderDecl = node;
+    return n.is_ast;
+}
+
+func reader_decl_set_is_ast(node *u8, val i64) void {
+    var n *ReaderDecl = node;
+    n.is_ast = val;
 }
 
 // ============================================================

@@ -1310,6 +1310,12 @@ func add_reader(decl *u8) void {
         return;  // Reader is embedded, no need to compile to external exe
     }
 
+    // Skip if reader body is already AST (added via -r mode)
+    // The reader will be emitted directly by llvm_emit_reader()
+    if reader_decl_is_ast(decl) != 0 {
+        return;
+    }
+
     // V2: Compile reader to executable
     compile_reader_to_executable(decl);
 }
@@ -1716,29 +1722,46 @@ func process_decl_first_pass(decl *u8) void {
         var content *u8 = reader_expr_content(decl);
         var content_len i64 = reader_expr_content_len(decl);
 
-        // Look up the reader
-        var reader_decl *u8 = find_reader(name, name_len);
-        if reader_decl == nil {
-            eprint("error: reader macro '");
-            eprint_buf(name, name_len);
-            eprintln("' not found");
-            cg_had_error = 1;
-            return;
-        }
+        // Check for embedded reader function first (for composed compilers)
+        var embedded_func *u8 = find_embedded_reader_func(name, name_len);
+        var output *u8 = nil;
 
-        // Build path to reader executable
-        var exe_path *u8 = build_reader_cache_path(name, name_len);
+        if embedded_func != nil {
+            // Call embedded reader function directly
+            var reader_fn fn(*u8) *u8 = embedded_func;
+            output = reader_fn(content);
+            if output == nil {
+                eprint("error: embedded reader '");
+                eprint_buf(name, name_len);
+                eprintln("' returned nil");
+                cg_had_error = 1;
+                return;
+            }
+        } else {
+            // Look up the reader declaration
+            var reader_decl *u8 = find_reader(name, name_len);
+            if reader_decl == nil {
+                eprint("error: reader macro '");
+                eprint_buf(name, name_len);
+                eprintln("' not found");
+                cg_had_error = 1;
+                return;
+            }
 
-        // Execute reader with content as input
-        var output *u8 = alloc(131072);  // 128KB
-        var n i64 = exec_capture(exe_path, content, content_len, output, 131072);
+            // Build path to reader executable
+            var exe_path *u8 = build_reader_cache_path(name, name_len);
 
-        if n <= 0 {
-            eprint("error: reader '");
-            eprint_buf(name, name_len);
-            eprintln("' returned no output");
-            cg_had_error = 1;
-            return;
+            // Execute reader with content as input
+            output = alloc(131072);  // 128KB
+            var n i64 = exec_capture(exe_path, content, content_len, output, 131072);
+
+            if n <= 0 {
+                eprint("error: reader '");
+                eprint_buf(name, name_len);
+                eprintln("' returned no output");
+                cg_had_error = 1;
+                return;
+            }
         }
 
         // Parse the output as S-expr AST (readers MUST output AST)
@@ -3572,29 +3595,46 @@ func gen_expr(expr *u8) void {
         var content *u8 = reader_expr_content(expr);
         var content_len i64 = reader_expr_content_len(expr);
 
-        // Look up the reader
-        var reader_decl *u8 = find_reader(name, name_len);
-        if reader_decl == nil {
-            eprint("error: reader macro '");
-            eprint_buf(name, name_len);
-            eprintln("' not found");
-            cg_had_error = 1;
-            return;
-        }
+        // Check for embedded reader function first (for composed compilers)
+        var embedded_func *u8 = find_embedded_reader_func(name, name_len);
+        var output *u8 = nil;
 
-        // Build path to reader executable
-        var exe_path *u8 = build_reader_cache_path(name, name_len);
+        if embedded_func != nil {
+            // Call embedded reader function directly
+            var reader_fn fn(*u8) *u8 = embedded_func;
+            output = reader_fn(content);
+            if output == nil {
+                eprint("error: embedded reader '");
+                eprint_buf(name, name_len);
+                eprintln("' returned nil");
+                cg_had_error = 1;
+                return;
+            }
+        } else {
+            // Look up the reader declaration
+            var reader_decl *u8 = find_reader(name, name_len);
+            if reader_decl == nil {
+                eprint("error: reader macro '");
+                eprint_buf(name, name_len);
+                eprintln("' not found");
+                cg_had_error = 1;
+                return;
+            }
 
-        // Execute reader with content as input
-        var output *u8 = alloc(65536);
-        var n i64 = exec_capture(exe_path, content, content_len, output, 65536);
+            // Build path to reader executable
+            var exe_path *u8 = build_reader_cache_path(name, name_len);
 
-        if n <= 0 {
-            eprint("error: reader '");
-            eprint_buf(name, name_len);
-            eprintln("' returned no output");
-            cg_had_error = 1;
-            return;
+            // Execute reader with content as input
+            output = alloc(65536);
+            var n i64 = exec_capture(exe_path, content, content_len, output, 65536);
+
+            if n <= 0 {
+                eprint("error: reader '");
+                eprint_buf(name, name_len);
+                eprintln("' returned no output");
+                cg_had_error = 1;
+                return;
+            }
         }
 
         // Parse the output as S-expr AST expression (readers MUST output AST)
@@ -5201,23 +5241,37 @@ func gen_decl(decl *u8) void {
         var content *u8 = reader_expr_content(decl);
         var content_len i64 = reader_expr_content_len(decl);
 
-        // Look up the reader
-        var reader_decl *u8 = find_reader(name, name_len);
-        if reader_decl == nil {
-            // Error already reported in first pass
-            return;
-        }
+        // Check for embedded reader function first (for composed compilers)
+        var embedded_func *u8 = find_embedded_reader_func(name, name_len);
+        var output *u8 = nil;
 
-        // Build path to reader executable
-        var exe_path *u8 = build_reader_cache_path(name, name_len);
+        if embedded_func != nil {
+            // Call embedded reader function directly
+            var reader_fn fn(*u8) *u8 = embedded_func;
+            output = reader_fn(content);
+            if output == nil {
+                // Error already reported in first pass
+                return;
+            }
+        } else {
+            // Look up the reader declaration
+            var reader_decl *u8 = find_reader(name, name_len);
+            if reader_decl == nil {
+                // Error already reported in first pass
+                return;
+            }
 
-        // Execute reader with content as input
-        var output *u8 = alloc(131072);  // 128KB
-        var n i64 = exec_capture(exe_path, content, content_len, output, 131072);
+            // Build path to reader executable
+            var exe_path *u8 = build_reader_cache_path(name, name_len);
 
-        if n <= 0 {
-            // Error already reported in first pass
-            return;
+            // Execute reader with content as input
+            output = alloc(131072);  // 128KB
+            var n i64 = exec_capture(exe_path, content, content_len, output, 131072);
+
+            if n <= 0 {
+                // Error already reported in first pass
+                return;
+            }
         }
 
         // Parse the output as S-expr AST (readers MUST output AST)
