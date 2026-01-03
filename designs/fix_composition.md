@@ -51,25 +51,49 @@ var kernel_builtin_asts [256]*u8;     // ["(program ...)", "(program ...)", ...]
 For `require "x/y"`:
 
 ```
-1. SEARCH SOURCE FILES (relative to cwd)
+1. LOOK FOR LOCAL SOURCE (./x/y.{ext})
    For each reader in embedded_reader_names (in order):
-     Look for ./x/y.{ext}
-     If found → compile with that reader → include in output → DONE
+     Found → compile with cache → include → DONE
 
-2. SEARCH CACHED AST (in LANG_MODULE_PATH)
-   For each dir in LANG_MODULE_PATH:
-     Look for {dir}/x/y.ast
-     If found → load AST → include in output → DONE
-
-3. CHECK KERNEL BUILT-INS
+2. CHECK KERNEL BUILT-INS (distribution fallback)
    If "x/y" in kernel_builtin_modules[]:
-     Get AST from kernel_builtin_asts[]
-     -r mode: SKIP (no duplicates, links against kernel)
-     normal mode: INCLUDE (child binary needs the code)
-     → DONE
+     -r mode: SKIP (links against kernel)
+     normal: include from kernel_builtin_asts[] → DONE
 
-4. ERROR: module "x/y" not found
+3. ERROR: module "x/y" not found
 ```
+
+**That's it. Two steps.** No LANG_MODULE_PATH. No separate cache search.
+
+### Caching = Existing Plumbing
+
+Uses the existing `LANG_CACHE` infrastructure with mtime-based invalidation:
+
+```lang
+// Already exists in codegen.lang!
+func get_cache_base() *u8;           // LANG_CACHE or ".lang-cache"
+func should_recompile_reader(...);   // mtime-based invalidation
+
+// New: same pattern for modules
+// Cache path: {LANG_CACHE}/modules/x/y.ast (next to /readers/)
+func should_recompile_module(source_path *u8, cache_path *u8) i64 {
+    var cache_mtime = file_mtime(cache_path);
+    if cache_mtime == 0 { return 1; }
+    if file_mtime(source_path) > cache_mtime { return 1; }
+    if file_mtime("./out/lang") > cache_mtime { return 1; }
+    return 0;
+}
+```
+
+### Why kernel_builtin_asts Is Still Needed
+
+Distribution scenario: user has ONLY the compiler binary, writes:
+```lang
+require "std/core"
+func main() { println("Hi"); }
+```
+
+No `./std/core.lang` exists. The AST must come from the kernel.
 
 ### -r Mode vs Normal Mode
 
@@ -96,21 +120,22 @@ For `require "x/y"`:
 1. Add `kernel_builtin_modules [256]*u8` (extension-less names)
 2. Add `kernel_builtin_asts [256]*u8` (AST strings)
 3. Update `--embed-self` to populate both arrays
-4. Implement source file search (step 1)
-5. Implement LANG_MODULE_PATH search (step 2)
-6. Implement `resolve_require()` full algorithm
-7. Handle -r vs normal mode differently in resolution
+4. Implement `resolve_require()`:
+   - Search local source (./x/y.{ext}) with cache
+   - Fallback to kernel_builtin_* arrays
+   - Handle -r mode (skip) vs normal mode (include)
 
 ### Key Code Locations
 
-**src/main.lang**:
-- `kernel_modules` → rename to `kernel_builtin_modules`
-- Add `kernel_builtin_asts` parallel array
-- `has_kernel_module()` → rewrite as `resolve_require()`
-
-**src/codegen.lang**:
+**src/codegen.lang** (existing cache infrastructure):
+- `get_cache_base()` - LANG_CACHE or ".lang-cache"
+- `should_recompile_reader()` - mtime pattern to copy
 - `embedded_reader_names/funcs` arrays
-- `find_reader()` - checks embedded then external
+
+**src/main.lang** (new require resolution):
+- Add `kernel_builtin_modules` + `kernel_builtin_asts` arrays
+- Add `resolve_require()` function
+- Update `--embed-self` to populate arrays
 
 ## Acceptance Test
 
