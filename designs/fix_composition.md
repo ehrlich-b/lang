@@ -27,9 +27,8 @@ This bare kernel:
 - Understands S-expression AST
 - Can generate LLVM IR / x86
 - Has `var self_kernel *u8 = ""` (empty)
-- Has `var embedded_reader_names [20]*u8` (empty array)
-- Has `var embedded_reader_funcs [20]*u8` (empty array)
-- Has `var embedded_reader_count i64 = 0`
+- Has `var embedded_reader_names [1024]*u8 = []` (empty array literal)
+- Has `var embedded_reader_funcs [1024]*u8 = []` (empty array literal)
 
 ### Step 2: Create self-aware kernel (`--embed-self`)
 
@@ -58,13 +57,11 @@ This is nearly identical to `--embed-self`:
 3. Read `lang_reader.ast` file
 4. Parse it as S-expressions → reader AST nodes
 5. **Combine**: append reader declarations to base declarations
-6. Get current `embedded_reader_count` value (call it N)
-7. Poke "lang" into `embedded_reader_names[N]`
-8. Poke `(ident reader_lang)` into `embedded_reader_funcs[N]`
-9. Increment `embedded_reader_count` to N+1
-10. **Re-serialize** the entire combined AST to string
-11. Find `self_kernel`, poke the combined AST string into it
-12. Generate code from combined AST → .ll → exe
+6. Find `embedded_reader_names`, append `(string "lang")` to its `array_literal`
+7. Find `embedded_reader_funcs`, append `(ident reader_lang)` to its `array_literal`
+8. **Re-serialize** the entire combined AST to string
+9. Find `self_kernel`, poke the combined AST string into it
+10. Generate code from combined AST → .ll → exe
 
 Result: `lang1` exe contains:
 - All kernel code
@@ -77,12 +74,45 @@ Result: `lang1` exe contains:
 ```lang
 // In kernel source - these get poked by -r mode
 var self_kernel *u8 = "";                    // Full program AST (quine)
-var embedded_reader_names [20]*u8;           // ["lang", "lisp", ...]
-var embedded_reader_funcs [20]*u8;           // [reader_lang, reader_lisp, ...]
-var embedded_reader_count i64 = 0;           // Number of embedded readers
+var embedded_reader_names [1024]*u8 = [];    // ["lang", "lisp", nil, nil, ...]
+var embedded_reader_funcs [1024]*u8 = [];    // [reader_lang, reader_lisp, nil, nil, ...]
+// No count needed - loop until nil!
 ```
 
 Array support was added specifically for this purpose - to store multiple reader function pointers.
+
+### Array Literals for Poking
+
+The `-r` mode pokes into the `array_literal` nodes:
+
+```lisp
+; Before -r:
+(var embedded_reader_names (type_array 1024 (type_ptr (type_base u8)))
+  (array_literal))
+
+; After -r lang:
+(var embedded_reader_names (type_array 1024 (type_ptr (type_base u8)))
+  (array_literal (string "lang")))
+
+; After -r lang, then -r lisp:
+(var embedded_reader_names (type_array 1024 (type_ptr (type_base u8)))
+  (array_literal (string "lang") (string "lisp")))
+```
+
+The AST infrastructure exists:
+- ✅ Parser: `[e1, e2]` → `NODE_ARRAY_LITERAL`
+- ✅ sexpr_reader: parses `(array_literal ...)`
+- ✅ ast_emit: emits `(array_literal ...)`
+- ❌ codegen_llvm: **TODO** - emit LLVM array initializers
+
+Codegen needs to emit:
+```llvm
+@embedded_reader_names = global [1024 x i64] [
+  i64 ptrtoint (i8* @.str_lang to i64),
+  i64 ptrtoint (i8* @.str_lisp to i64),
+  i64 0, i64 0, ...  ; rest zero-filled
+]
+```
 
 ## The Quine Pattern
 
@@ -116,8 +146,10 @@ At runtime, when code uses `#lang{}`:
 ```lang
 func find_reader(name *u8, len i64) *func {
     var i i64 = 0;
-    while i < embedded_reader_count {
-        if streq(embedded_reader_names[i], name) {
+    while i < 1024 {
+        var n *u8 = embedded_reader_names[i];
+        if n == nil { return nil; }  // Reached end - no more readers
+        if strlen(n) == len && memcmp(n, name, len) {
             return embedded_reader_funcs[i];  // Direct function pointer!
         }
         i = i + 1;
@@ -126,7 +158,7 @@ func find_reader(name *u8, len i64) *func {
 }
 ```
 
-The reader function was compiled into the binary. No subprocess, no clang at runtime.
+Loop until nil - no count variable needed. The reader function was compiled into the binary. No subprocess, no clang at runtime.
 
 ## Bootstrap Chain
 
@@ -159,10 +191,12 @@ kernel_self -r lang lang_reader.ast -o lang1
 - [x] `parse_ast_from_string()` - S-expression parser (in sexpr_reader.lang)
 - [x] `ast_emit_program()` - AST to S-expression serializer
 - [x] Array type support in lang (`[N]T` syntax)
-- [ ] **TODO**: Migrate embedded_reader vars to arrays
-- [ ] **TODO**: Update `-r` mode to poke into arrays
+- [x] Array literal AST support (`NODE_ARRAY_LITERAL`, sexpr_reader, ast_emit)
+- [ ] **TODO**: Array literal codegen in codegen_llvm.lang
+- [ ] **TODO**: Migrate embedded_reader vars to arrays with empty `[]` literals
+- [ ] **TODO**: Update `-r` mode to append to `array_literal` nodes
 - [ ] **TODO**: Skip `compile_reader_to_executable()` for LLVM backend
-- [ ] **TODO**: Update `find_reader()` to use arrays
+- [ ] **TODO**: Update `find_reader()` to loop arrays until nil
 
 ## The Current Bug
 
