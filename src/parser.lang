@@ -59,6 +59,7 @@ var NODE_RESUME_EXPR i64 = 40;    // resume k(value) - for future use
 var NODE_BLOCK_EXPR i64 = 41;     // { stmts; tail_expr } - block as expression
 var NODE_ARRAY_LITERAL i64 = 42;  // [e1, e2, e3, ...] - array literal
 var NODE_REQUIRE_DECL i64 = 43;   // require "module" - module dependency
+var NODE_MODULES_DECL i64 = 44;   // (modules "m1" "m2" ...) - kernel's baked-in modules
 
 // Type kinds
 var TYPE_BASE i64 = 1;
@@ -2052,6 +2053,67 @@ func require_decl_module_len(node *u8) i64 {
 func require_decl_set_module_len(node *u8, len i64) void {
     var n *RequireDecl = node;
     n.module_len = len;
+}
+
+// ModulesDecl: [kind:8][modules:8][count:8] = 24 bytes
+// Each module entry is 16 bytes: [ptr:8][len:8]
+// This node stores the list of modules baked into a kernel
+struct ModulesDecl {
+    kind i64;
+    modules *u8;    // Array of (ptr, len) pairs
+    count i64;
+}
+
+func modules_decl_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_MODULES_DECL);
+    return node;
+}
+
+func modules_decl_modules(node *u8) *u8 {
+    var n *ModulesDecl = node;
+    return n.modules;
+}
+
+func modules_decl_set_modules(node *u8, ptr *u8) void {
+    var n *ModulesDecl = node;
+    n.modules = ptr;
+}
+
+func modules_decl_count(node *u8) i64 {
+    var n *ModulesDecl = node;
+    return n.count;
+}
+
+func modules_decl_set_count(node *u8, c i64) void {
+    var n *ModulesDecl = node;
+    n.count = c;
+}
+
+// Get module path at index (returns ptr to 16-byte entry)
+func modules_decl_get(node *u8, index i64) *u8 {
+    var mods *u8 = modules_decl_modules(node);
+    return mods + (index * 16);
+}
+
+// Get module name pointer from entry
+func module_entry_name(entry *u8) *u8 {
+    var p **u8 = entry;
+    return *p;
+}
+
+// Get module name length from entry
+func module_entry_len(entry *u8) i64 {
+    var p *i64 = entry + 8;
+    return *p;
+}
+
+// Set module entry
+func module_entry_set(entry *u8, name *u8, len i64) void {
+    var p1 **u8 = entry;
+    *p1 = name;
+    var p2 *i64 = entry + 8;
+    *p2 = len;
 }
 
 // ============================================================

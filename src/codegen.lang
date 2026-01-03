@@ -2080,6 +2080,11 @@ func process_decl_first_pass(decl *u8) void {
         include_stack_pop();
         return;
     }
+
+    // NODE_MODULES_DECL is metadata - no code generation needed
+    if k == NODE_MODULES_DECL {
+        return;
+    }
 }
 
 // ============================================================
@@ -5509,6 +5514,11 @@ func gen_decl(decl *u8) void {
         }
 
         include_stack_pop();
+        return;
+    }
+
+    // NODE_MODULES_DECL is metadata - no code generation needed
+    if k == NODE_MODULES_DECL {
         return;
     }
 

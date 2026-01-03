@@ -1,4 +1,5 @@
 (program
+  (modules "src/lang_reader.lang" "src/lang_reader.lang" "std/tools.lang" "src/ast_emit.lang" "std/core.lang" "src/parser.lang" "std/os/libc_macos.lang" "src/lexer.lang" "src/limits.lang" "std/os.lang")
   (var LIMIT_STMTS_PER_BLOCK (type_base i64) (number 1024))
   (var LIMIT_CALL_ARGS (type_base i64) (number 16))
   (var LIMIT_FUNC_PARAMS (type_base i64) (number 16))
@@ -489,6 +490,27 @@
       (expr_stmt (call (ident free) (unop * (ident keys_ptr))))
       (expr_stmt (call (ident free) (unop * (ident vals_ptr))))
       (expr_stmt (call (ident free) (ident m)))))
+  (func pub map_size ((param m (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var count_ptr (type_ptr (type_base i64)) (binop + (ident m) (number 8)))
+      (return (unop * (ident count_ptr)))))
+  (func pub map_keys ((param m (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+    (block
+      (var cap_ptr (type_ptr (type_base i64)) (ident m))
+      (var cap (type_base i64) (unop * (ident cap_ptr)))
+      (var keys_ptr (type_ptr (type_ptr (type_base u8))) (binop + (ident m) (number 16)))
+      (var keys (type_ptr (type_base u8)) (unop * (ident keys_ptr)))
+      (var result (type_ptr (type_base u8)) (call (ident vec_new) (number 16)))
+      (var i (type_base i64) (number 0))
+      (while (binop < (ident i) (ident cap))
+        (block
+          (var slot (type_ptr (type_ptr (type_base u8))) (binop + (ident keys) (binop * (ident i) (number 8))))
+          (var key (type_ptr (type_base u8)) (unop * (ident slot)))
+          (if (binop != (ident key) (nil))
+            (block
+              (expr_stmt (call (ident vec_push) (ident result) (ident key)))))
+          (assign (ident i) (binop + (ident i) (number 1)))))
+      (return (ident result))))
   (func pub str_dup_n ((param s (type_ptr (type_base u8))) (param len (type_base i64))) (type_ptr (type_base u8))
     (block
       (var result (type_ptr (type_base u8)) (call (ident malloc) (binop + (ident len) (number 1))))
@@ -1825,6 +1847,7 @@
   (var NODE_BLOCK_EXPR (type_base i64) (number 41))
   (var NODE_ARRAY_LITERAL (type_base i64) (number 42))
   (var NODE_REQUIRE_DECL (type_base i64) (number 43))
+  (var NODE_MODULES_DECL (type_base i64) (number 44))
   (var TYPE_BASE (type_base i64) (number 1))
   (var TYPE_PTR (type_base i64) (number 2))
   (var TYPE_ARRAY (type_base i64) (number 3))
@@ -3251,6 +3274,46 @@
     (block
       (var n (type_ptr (type_base RequireDecl)) (ident node))
       (assign (field (ident n) module_len) (ident len))))
+  (struct ModulesDecl ((field_decl kind (type_base i64)) (field_decl modules (type_ptr (type_base u8))) (field_decl count (type_base i64))))
+  (func modules_decl_alloc () (type_ptr (type_base u8))
+    (block
+      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 24)))
+      (expr_stmt (call (ident node_set_kind) (ident node) (ident NODE_MODULES_DECL)))
+      (return (ident node))))
+  (func modules_decl_modules ((param node (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+    (block
+      (var n (type_ptr (type_base ModulesDecl)) (ident node))
+      (return (field (ident n) modules))))
+  (func modules_decl_set_modules ((param node (type_ptr (type_base u8))) (param ptr (type_ptr (type_base u8)))) (type_base void)
+    (block
+      (var n (type_ptr (type_base ModulesDecl)) (ident node))
+      (assign (field (ident n) modules) (ident ptr))))
+  (func modules_decl_count ((param node (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var n (type_ptr (type_base ModulesDecl)) (ident node))
+      (return (field (ident n) count))))
+  (func modules_decl_set_count ((param node (type_ptr (type_base u8))) (param c (type_base i64))) (type_base void)
+    (block
+      (var n (type_ptr (type_base ModulesDecl)) (ident node))
+      (assign (field (ident n) count) (ident c))))
+  (func modules_decl_get ((param node (type_ptr (type_base u8))) (param index (type_base i64))) (type_ptr (type_base u8))
+    (block
+      (var mods (type_ptr (type_base u8)) (call (ident modules_decl_modules) (ident node)))
+      (return (binop + (ident mods) (binop * (ident index) (number 16))))))
+  (func module_entry_name ((param entry (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+    (block
+      (var p (type_ptr (type_ptr (type_base u8))) (ident entry))
+      (return (unop * (ident p)))))
+  (func module_entry_len ((param entry (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident entry) (number 8)))
+      (return (unop * (ident p)))))
+  (func module_entry_set ((param entry (type_ptr (type_base u8))) (param name (type_ptr (type_base u8))) (param len (type_base i64))) (type_base void)
+    (block
+      (var p1 (type_ptr (type_ptr (type_base u8))) (ident entry))
+      (assign (unop * (ident p1)) (ident name))
+      (var p2 (type_ptr (type_base i64)) (binop + (ident entry) (number 8)))
+      (assign (unop * (ident p2)) (ident len))))
   (func type_kind ((param t (type_ptr (type_base u8)))) (type_base i64)
     (block
       (var p (type_ptr (type_base i64)) (ident t))
@@ -5242,6 +5305,19 @@
         (block
           (expr_stmt (call (ident ast_emit_str) (string "(require ")))
           (expr_stmt (call (ident ast_emit_quoted_string) (call (ident require_decl_module) (ident node)) (call (ident require_decl_module_len) (ident node))))
+          (expr_stmt (call (ident ast_emit_str) (string ")")))
+          (return)))
+      (if (binop == (ident kind) (ident NODE_MODULES_DECL))
+        (block
+          (expr_stmt (call (ident ast_emit_str) (string "(modules")))
+          (var count (type_base i64) (call (ident modules_decl_count) (ident node)))
+          (var i (type_base i64) (number 0))
+          (while (binop < (ident i) (ident count))
+            (block
+              (expr_stmt (call (ident ast_emit_str) (string " ")))
+              (var entry (type_ptr (type_base u8)) (call (ident modules_decl_get) (ident node) (ident i)))
+              (expr_stmt (call (ident ast_emit_quoted_string) (call (ident module_entry_name) (ident entry)) (call (ident module_entry_len) (ident entry))))
+              (assign (ident i) (binop + (ident i) (number 1)))))
           (expr_stmt (call (ident ast_emit_str) (string ")")))
           (return)))
       (if (binop == (ident kind) (ident NODE_IMPORT))

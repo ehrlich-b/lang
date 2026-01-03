@@ -98,14 +98,38 @@ var add_reader_file *u8 = nil;
 // Initialized empty, --embed-self pokes the real AST in
 var self_kernel *u8 = "";
 
+// Kernel modules registry: tracks what modules are baked into this kernel
+// Populated by --embed-self from (modules ...) node in AST
+// Used by -r mode to skip redundant requires
+// Format: nil-terminated array of module path strings
+var kernel_modules [256]*u8 = [];
+
 // Embedded reader registry (in codegen.lang):
 // var embedded_reader_names [1024]*u8 = [];
 // var embedded_reader_funcs [1024]*u8 = [];
 // These get poked by -r mode to add readers (arrays, nil-terminated)
 
+// Check if a module path is in kernel_modules
+// Returns 1 if found, 0 if not
+func has_kernel_module(path *u8, path_len i64) i64 {
+    var i i64 = 0;
+    while i < 256 {
+        var mod *u8 = kernel_modules[i];
+        if mod == nil {
+            return 0;  // End of list
+        }
+        if strlen(mod) == path_len && memcmp(mod, path, path_len) {
+            return 1;
+        }
+        i = i + 1;
+    }
+    return 0;
+}
+
 // Include expansion state for --emit-expanded-ast
 var expand_included_map *u8 = nil;
 var expand_collected_decls *u8 = nil;  // Vec of declarations
+var expand_input_files *u8 = nil;      // Vec of input file paths (for modules tracking)
 
 // Recursively expand includes and collect declarations
 func expand_collect_decl(decl *u8) void {
@@ -160,13 +184,50 @@ func expand_collect_decl(decl *u8) void {
 
 // Build expanded program from collected declarations
 func build_expanded_program() *u8 {
-    var count i64 = vec_len(expand_collected_decls);
-    var decls *u8 = alloc(count * 8);
+    // Count modules: input files + included files
+    var input_count i64 = vec_len(expand_input_files);
+    var include_count i64 = map_size(expand_included_map);
+    var module_count i64 = input_count + include_count;
 
+    // Build modules node
+    var modules_node *u8 = modules_decl_alloc();
+    var mods *u8 = alloc(module_count * 16);
+    modules_decl_set_modules(modules_node, mods);
+    modules_decl_set_count(modules_node, module_count);
+
+    // Add input files
     var i i64 = 0;
-    while i < count {
+    while i < input_count {
+        var path *u8 = vec_get(expand_input_files, i);
+        var entry *u8 = mods + (i * 16);
+        module_entry_set(entry, path, strlen(path));
+        i = i + 1;
+    }
+
+    // Add included files from map
+    var keys *u8 = map_keys(expand_included_map);
+    var j i64 = 0;
+    while j < include_count {
+        var key *u8 = vec_get(keys, j);
+        var entry *u8 = mods + ((input_count + j) * 16);
+        module_entry_set(entry, key, strlen(key));
+        j = j + 1;
+    }
+
+    // Collect all decls (+1 for modules node at front)
+    var decl_count i64 = vec_len(expand_collected_decls);
+    var total_count i64 = decl_count + 1;
+    var decls *u8 = alloc(total_count * 8);
+
+    // First decl is modules node
+    var dp0 **u8 = decls;
+    *dp0 = modules_node;
+
+    // Copy rest of declarations
+    i = 0;
+    while i < decl_count {
         var d *u8 = vec_get(expand_collected_decls, i);
-        var dp **u8 = decls + (i * 8);
+        var dp **u8 = decls + ((i + 1) * 8);
         *dp = d;
         i = i + 1;
     }
@@ -176,7 +237,7 @@ func build_expanded_program() *u8 {
     var pd **u8 = prog;
     *pd = decls;
     var pc *i64 = prog + 8;
-    *pc = count;
+    *pc = total_count;
 
     return prog;
 }
@@ -749,29 +810,71 @@ func main(argc i64, argv **u8) i64 {
             return 1;
         }
 
-        // Find self_kernel variable and inject raw AST contents
-        var found i64 = 0;
+        // First pass: find (modules ...) node and extract module paths
+        var modules_node *u8 = nil;
         var decls *u8 = program_decls(prog);
         var decl_count i64 = program_decl_count(prog);
         var j i64 = 0;
         while j < decl_count {
             var decl *u8 = get_decl(decls, j);
+            if node_kind(decl) == NODE_MODULES_DECL {
+                modules_node = decl;
+            }
+            j = j + 1;
+        }
+
+        // Second pass: find self_kernel and kernel_modules, inject values
+        var found_self i64 = 0;
+        var found_mods i64 = 0;
+        j = 0;
+        while j < decl_count {
+            var decl *u8 = get_decl(decls, j);
             if node_kind(decl) == NODE_VAR_DECL {
                 var name *u8 = var_decl_name(decl);
                 var name_len i64 = var_decl_name_len(decl);
+
+                // Poke self_kernel with raw AST contents
                 if name_len == 11 && memcmp(name, "self_kernel", 11) {
-                    // Create string node with raw AST contents
                     var str_node *u8 = string_expr_alloc();
                     string_expr_set_value(str_node, ast_source);
                     string_expr_set_value_len(str_node, ast_source_len);
                     var_decl_set_init(decl, str_node);
-                    found = 1;
+                    found_self = 1;
+                }
+
+                // Poke kernel_modules with module paths from (modules ...) node
+                if name_len == 14 && memcmp(name, "kernel_modules", 14) {
+                    if modules_node != nil {
+                        // Build array literal from modules node
+                        var mod_count i64 = modules_decl_count(modules_node);
+                        var elements *u8 = alloc(mod_count * 8);
+                        var k i64 = 0;
+                        while k < mod_count {
+                            var entry *u8 = modules_decl_get(modules_node, k);
+                            var mod_name *u8 = module_entry_name(entry);
+                            var mod_len i64 = module_entry_len(entry);
+
+                            var str_node *u8 = string_expr_alloc();
+                            string_expr_set_value(str_node, mod_name);
+                            string_expr_set_value_len(str_node, mod_len);
+
+                            var ep **u8 = elements + (k * 8);
+                            *ep = str_node;
+                            k = k + 1;
+                        }
+
+                        var arr_node *u8 = array_literal_alloc();
+                        array_literal_set_elems(arr_node, elements);
+                        array_literal_set_count(arr_node, mod_count);
+                        var_decl_set_init(decl, arr_node);
+                    }
+                    found_mods = 1;
                 }
             }
             j = j + 1;
         }
 
-        if found == 0 {
+        if found_self == 0 {
             eprintln("Error: self_kernel variable not found in AST");
             return 1;
         }
@@ -820,17 +923,44 @@ func main(argc i64, argv **u8) i64 {
             return 1;
         }
 
-        // Combine: base + reader declarations
+        // Combine: base + reader declarations (skipping redundant requires)
         var base_decls *u8 = program_decls(base_prog);
         var base_count i64 = program_decl_count(base_prog);
         var reader_decls *u8 = program_decls(reader_prog);
         var reader_count i64 = program_decl_count(reader_prog);
 
-        var total i64 = base_count + reader_count;
+        // First pass: count reader decls that will be included (skip redundant requires)
+        var included_count i64 = 0;
+        var j i64 = 0;
+        while j < reader_count {
+            var src **u8 = reader_decls + (j * 8);
+            var decl *u8 = *src;
+            var skip i64 = 0;
+
+            if node_kind(decl) == NODE_REQUIRE_DECL {
+                var mod *u8 = require_decl_module(decl);
+                var mod_len i64 = require_decl_module_len(decl);
+                if has_kernel_module(mod, mod_len) {
+                    skip = 1;  // Already in kernel, skip
+                }
+            }
+
+            // Skip (modules ...) declarations too - they're metadata
+            if node_kind(decl) == NODE_MODULES_DECL {
+                skip = 1;
+            }
+
+            if skip == 0 {
+                included_count = included_count + 1;
+            }
+            j = j + 1;
+        }
+
+        var total i64 = base_count + included_count;
         var combined_decls *u8 = alloc(total * 8);
 
         // Copy base declarations
-        var j i64 = 0;
+        j = 0;
         while j < base_count {
             var src **u8 = base_decls + (j * 8);
             var dst **u8 = combined_decls + (j * 8);
@@ -838,16 +968,34 @@ func main(argc i64, argv **u8) i64 {
             j = j + 1;
         }
 
-        // Copy reader declarations and mark as AST (not lang source)
+        // Copy reader declarations, skipping redundant requires
+        var dst_idx i64 = base_count;
         j = 0;
         while j < reader_count {
             var src **u8 = reader_decls + (j * 8);
-            var dst **u8 = combined_decls + ((base_count + j) * 8);
             var decl *u8 = *src;
-            *dst = decl;
-            // Mark reader_decl nodes as having AST body (not lang source)
-            if node_kind(decl) == NODE_READER_DECL {
-                reader_decl_set_is_ast(decl, 1);
+            var skip i64 = 0;
+
+            if node_kind(decl) == NODE_REQUIRE_DECL {
+                var mod *u8 = require_decl_module(decl);
+                var mod_len i64 = require_decl_module_len(decl);
+                if has_kernel_module(mod, mod_len) {
+                    skip = 1;
+                }
+            }
+
+            if node_kind(decl) == NODE_MODULES_DECL {
+                skip = 1;
+            }
+
+            if skip == 0 {
+                var dst **u8 = combined_decls + (dst_idx * 8);
+                *dst = decl;
+                // Mark reader_decl nodes as having AST body (not lang source)
+                if node_kind(decl) == NODE_READER_DECL {
+                    reader_decl_set_is_ast(decl, 1);
+                }
+                dst_idx = dst_idx + 1;
             }
             j = j + 1;
         }
@@ -1008,6 +1156,7 @@ func main(argc i64, argv **u8) i64 {
         // Emit FULLY EXPANDED AST (all includes resolved inline)
         expand_included_map = map_new();
         expand_collected_decls = vec_new(1024);
+        expand_input_files = input_files;  // Track input files for modules metadata
 
         // Process all declarations, expanding includes
         var decls *u8 = program_decls(prog);

@@ -691,6 +691,24 @@ func sexpr_to_node(node *PNode) *u8 {
         return n;
     }
 
+    // (modules "m1" "m2" ...)
+    if streq(head, "modules") {
+        var n *u8 = modules_decl_alloc();
+        var count i64 = vec_len(node.children) - 1;  // Subtract head
+        var mods *u8 = alloc(count * 16);  // 16 bytes per entry
+        modules_decl_set_modules(n, mods);
+        modules_decl_set_count(n, count);
+        var i i64 = 0;
+        while i < count {
+            var mod_node *PNode = sexpr_get(node, i + 1);
+            var mod *u8 = sexpr_parse_string(mod_node.text);
+            var entry *u8 = mods + (i * 16);
+            module_entry_set(entry, mod, strlen(mod));
+            i = i + 1;
+        }
+        return n;
+    }
+
     // (reader [pub] name param body)
     if streq(head, "reader") {
         var n *u8 = reader_decl_alloc();

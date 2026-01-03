@@ -328,6 +328,31 @@ pub func map_free(m *u8) {
     free(m);
 }
 
+pub func map_size(m *u8) i64 {
+    var count_ptr *i64 = m + 8;
+    return *count_ptr;
+}
+
+// Return a Vec of all non-nil keys
+pub func map_keys(m *u8) *u8 {
+    var cap_ptr *i64 = m;
+    var cap i64 = *cap_ptr;
+    var keys_ptr **u8 = m + 16;
+    var keys *u8 = *keys_ptr;
+
+    var result *u8 = vec_new(16);
+    var i i64 = 0;
+    while i < cap {
+        var slot **u8 = keys + i * 8;
+        var key *u8 = *slot;
+        if key != nil {
+            vec_push(result, key);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
 // Make a null-terminated copy of a string with explicit length
 pub func str_dup_n(s *u8, len i64) *u8 {
     var result *u8 = malloc(len + 1);
