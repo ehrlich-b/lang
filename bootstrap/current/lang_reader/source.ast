@@ -1800,6 +1800,7 @@
   (var NODE_HANDLE_EXPR (type_base i64) (number 39))
   (var NODE_RESUME_EXPR (type_base i64) (number 40))
   (var NODE_BLOCK_EXPR (type_base i64) (number 41))
+  (var NODE_ARRAY_LITERAL (type_base i64) (number 42))
   (var TYPE_BASE (type_base i64) (number 1))
   (var TYPE_PTR (type_base i64) (number 2))
   (var TYPE_ARRAY (type_base i64) (number 3))
@@ -1822,6 +1823,20 @@
         (block
           (return (number 0))))
       (return (number 1))))
+  (func parse_number_value ((param tok (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var buf (type_ptr (type_base u8)) (call (ident tok_lexeme) (ident tok)))
+      (var len (type_base i64) (call (ident tok_lexeme_len) (ident tok)))
+      (var result (type_base i64) (number 0))
+      (var i (type_base i64) (number 0))
+      (while (binop < (ident i) (ident len))
+        (block
+          (var c (type_base u8) (unop * (binop + (ident buf) (ident i))))
+          (if (binop && (binop >= (ident c) (number 48)) (binop <= (ident c) (number 57)))
+            (block
+              (assign (ident result) (binop + (binop * (ident result) (number 10)) (binop - (ident c) (number 48))))))
+          (assign (ident i) (binop + (ident i) (number 1)))))
+      (return (ident result))))
   (func node_kind ((param node (type_ptr (type_base u8)))) (type_base i64)
     (block
       (var p (type_ptr (type_base i64)) (ident node))
@@ -3234,6 +3249,69 @@
     (block
       (var p (type_ptr (type_ptr (type_base u8))) (binop + (ident t) (number 24)))
       (assign (unop * (ident p)) (ident ret))))
+  (func array_type_alloc () (type_ptr (type_base u8))
+    (block
+      (var t (type_ptr (type_base u8)) (call (ident alloc) (number 24)))
+      (expr_stmt (call (ident type_set_kind) (ident t) (ident TYPE_ARRAY)))
+      (return (ident t))))
+  (func array_type_size ((param t (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident t) (number 8)))
+      (return (unop * (ident p)))))
+  (func array_type_set_size ((param t (type_ptr (type_base u8))) (param size (type_base i64))) (type_base void)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident t) (number 8)))
+      (assign (unop * (ident p)) (ident size))))
+  (func array_type_elem ((param t (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+    (block
+      (var p (type_ptr (type_ptr (type_base u8))) (binop + (ident t) (number 16)))
+      (return (unop * (ident p)))))
+  (func array_type_set_elem ((param t (type_ptr (type_base u8))) (param elem (type_ptr (type_base u8)))) (type_base void)
+    (block
+      (var p (type_ptr (type_ptr (type_base u8))) (binop + (ident t) (number 16)))
+      (assign (unop * (ident p)) (ident elem))))
+  (func array_literal_alloc () (type_ptr (type_base u8))
+    (block
+      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 24)))
+      (expr_stmt (call (ident node_set_kind) (ident node) (ident NODE_ARRAY_LITERAL)))
+      (return (ident node))))
+  (func array_literal_elems ((param node (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+    (block
+      (var p (type_ptr (type_ptr (type_base u8))) (binop + (ident node) (number 8)))
+      (return (unop * (ident p)))))
+  (func array_literal_set_elems ((param node (type_ptr (type_base u8))) (param elems (type_ptr (type_base u8)))) (type_base void)
+    (block
+      (var p (type_ptr (type_ptr (type_base u8))) (binop + (ident node) (number 8)))
+      (assign (unop * (ident p)) (ident elems))))
+  (func array_literal_count ((param node (type_ptr (type_base u8)))) (type_base i64)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident node) (number 16)))
+      (return (unop * (ident p)))))
+  (func array_literal_set_count ((param node (type_ptr (type_base u8))) (param count (type_base i64))) (type_base void)
+    (block
+      (var p (type_ptr (type_base i64)) (binop + (ident node) (number 16)))
+      (assign (unop * (ident p)) (ident count))))
+  (func index_expr_alloc () (type_ptr (type_base u8))
+    (block
+      (var node (type_ptr (type_base u8)) (call (ident alloc) (number 24)))
+      (expr_stmt (call (ident node_set_kind) (ident node) (ident NODE_INDEX_EXPR)))
+      (return (ident node))))
+  (func index_expr_base ((param node (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+    (block
+      (var p (type_ptr (type_ptr (type_base u8))) (binop + (ident node) (number 8)))
+      (return (unop * (ident p)))))
+  (func index_expr_set_base ((param node (type_ptr (type_base u8))) (param base (type_ptr (type_base u8)))) (type_base void)
+    (block
+      (var p (type_ptr (type_ptr (type_base u8))) (binop + (ident node) (number 8)))
+      (assign (unop * (ident p)) (ident base))))
+  (func index_expr_index ((param node (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+    (block
+      (var p (type_ptr (type_ptr (type_base u8))) (binop + (ident node) (number 16)))
+      (return (unop * (ident p)))))
+  (func index_expr_set_index ((param node (type_ptr (type_base u8))) (param idx (type_ptr (type_base u8)))) (type_base void)
+    (block
+      (var p (type_ptr (type_ptr (type_base u8))) (binop + (ident node) (number 16)))
+      (assign (unop * (ident p)) (ident idx))))
   (func param_name ((param p (type_ptr (type_base u8)))) (type_ptr (type_base u8))
     (block
       (var ptr (type_ptr (type_ptr (type_base u8))) (ident p))
@@ -3355,6 +3433,16 @@
           (var elem (type_ptr (type_base u8)) (call (ident parse_type)))
           (var t (type_ptr (type_base u8)) (call (ident ptr_type_alloc)))
           (expr_stmt (call (ident ptr_type_set_elem) (ident t) (ident elem)))
+          (return (ident t))))
+      (if (call (ident parse_match) (ident TOKEN_LBRACKET))
+        (block
+          (var size_tok (type_ptr (type_base u8)) (call (ident parse_expect) (ident TOKEN_NUMBER) (string "expected array size")))
+          (var size (type_base i64) (call (ident parse_number_value) (ident size_tok)))
+          (expr_stmt (call (ident parse_expect) (ident TOKEN_RBRACKET) (string "expected ']' after array size")))
+          (var elem (type_ptr (type_base u8)) (call (ident parse_type)))
+          (var t (type_ptr (type_base u8)) (call (ident array_type_alloc)))
+          (expr_stmt (call (ident array_type_set_size) (ident t) (ident size)))
+          (expr_stmt (call (ident array_type_set_elem) (ident t) (ident elem)))
           (return (ident t))))
       (if (call (ident parse_match) (ident TOKEN_FN))
         (block
@@ -3703,6 +3791,29 @@
       (if (call (ident parse_match) (ident TOKEN_NIL))
         (block
           (return (call (ident nil_expr_alloc)))))
+      (if (call (ident parse_match) (ident TOKEN_LBRACKET))
+        (block
+          (var elems (type_ptr (type_base u8)) (call (ident vec_new) (number 8)))
+          (if (unop ! (call (ident parse_check) (ident TOKEN_RBRACKET)))
+            (block
+              (expr_stmt (call (ident vec_push) (ident elems) (call (ident parse_expression))))
+              (while (call (ident parse_match) (ident TOKEN_COMMA))
+                (block
+                  (expr_stmt (call (ident vec_push) (ident elems) (call (ident parse_expression))))))))
+          (expr_stmt (call (ident parse_expect) (ident TOKEN_RBRACKET) (string "expected ']' after array elements")))
+          (var count (type_base i64) (call (ident vec_len) (ident elems)))
+          (var elems_arr (type_ptr (type_base u8)) (call (ident alloc) (binop * (ident count) (number 8))))
+          (var i (type_base i64) (number 0))
+          (while (binop < (ident i) (ident count))
+            (block
+              (var elem_val (type_base i64) (call (ident vec_get) (ident elems) (ident i)))
+              (var p (type_ptr (type_base i64)) (binop + (ident elems_arr) (binop * (ident i) (number 8))))
+              (assign (unop * (ident p)) (ident elem_val))
+              (assign (ident i) (binop + (ident i) (number 1)))))
+          (var node (type_ptr (type_base u8)) (call (ident array_literal_alloc)))
+          (expr_stmt (call (ident array_literal_set_elems) (ident node) (ident elems_arr)))
+          (expr_stmt (call (ident array_literal_set_count) (ident node) (ident count)))
+          (return (ident node))))
       (if (call (ident parse_match) (ident TOKEN_IDENT))
         (block
           (var tok (type_ptr (type_base u8)) (call (ident parse_previous)))
@@ -4758,6 +4869,14 @@
           (expr_stmt (call (ident ast_emit_type) (call (ident closure_type_ret) (ident t))))
           (expr_stmt (call (ident ast_emit_str) (string ")")))
           (return)))
+      (if (binop == (ident kind) (ident TYPE_ARRAY))
+        (block
+          (expr_stmt (call (ident ast_emit_str) (string "(type_array ")))
+          (expr_stmt (call (ident ast_emit_int) (call (ident array_type_size) (ident t))))
+          (expr_stmt (call (ident ast_emit_str) (string " ")))
+          (expr_stmt (call (ident ast_emit_type) (call (ident array_type_elem) (ident t))))
+          (expr_stmt (call (ident ast_emit_str) (string ")")))
+          (return)))
       (expr_stmt (call (ident ast_emit_str) (string "(type_unknown ")))
       (expr_stmt (call (ident ast_emit_int) (ident kind)))
       (expr_stmt (call (ident ast_emit_str) (string ")")))))
@@ -4958,6 +5077,21 @@
           (expr_stmt (call (ident ast_emit_node) (call (ident block_expr_tail) (ident node))))
           (expr_stmt (call (ident ast_emit_str) (string ")")))
           (assign (ident ast_emit_indent) (binop - (ident ast_emit_indent) (number 1)))
+          (return)))
+      (if (binop == (ident kind) (ident NODE_ARRAY_LITERAL))
+        (block
+          (expr_stmt (call (ident ast_emit_str) (string "(array_literal")))
+          (var elems (type_ptr (type_base u8)) (call (ident array_literal_elems) (ident node)))
+          (var count (type_base i64) (call (ident array_literal_count) (ident node)))
+          (var i (type_base i64) (number 0))
+          (while (binop < (ident i) (ident count))
+            (block
+              (expr_stmt (call (ident ast_emit_str) (string " ")))
+              (var elem_ptr (type_ptr (type_base i64)) (binop + (ident elems) (binop * (ident i) (number 8))))
+              (var elem (type_ptr (type_base u8)) (unop * (ident elem_ptr)))
+              (expr_stmt (call (ident ast_emit_node) (ident elem)))
+              (assign (ident i) (binop + (ident i) (number 1)))))
+          (expr_stmt (call (ident ast_emit_str) (string ")")))
           (return)))
       (if (binop == (ident kind) (ident NODE_IF_STMT))
         (block

@@ -2163,6 +2163,10 @@ func get_type_size(t *u8) i64 {
     if k == TYPE_CLOSURE {
         return 8;  // Closure pointer (pointer to closure struct)
     }
+    if k == TYPE_ARRAY {
+        var elem_size i64 = get_type_size(array_type_elem(t));
+        return array_type_size(t) * elem_size;
+    }
     if k == TYPE_BASE {
         var name *u8 = base_type_name(t);
         var len i64 = base_type_name_len(t);
@@ -2374,6 +2378,23 @@ func get_expr_type(expr *u8) *u8 {
         return get_field_type(struct_decl, field_name, field_len);
     }
 
+    if k == NODE_INDEX_EXPR {
+        // IndexExpr: [kind:8][expr:8][index:8]
+        var base_p **u8 = expr + 8;
+        var base_type *u8 = get_expr_type(*base_p);
+        if base_type == nil {
+            return nil;
+        }
+        // For both arrays and pointers, return the element type
+        if type_kind(base_type) == TYPE_ARRAY {
+            return array_type_elem(base_type);
+        }
+        if type_kind(base_type) == TYPE_PTR {
+            return ptr_type_elem(base_type);
+        }
+        return nil;
+    }
+
     if k == NODE_LET_EXPR {
         // Type of let expression is the type of its body
         return get_expr_type(let_expr_body(expr));
@@ -2564,6 +2585,42 @@ func emit_ascii_string(ptr *u8, len i64) void {
 // ============================================================
 // Expression code generation
 // ============================================================
+
+// Get the address of an array variable (for array indexing)
+// Returns address in %rax
+func gen_array_addr(expr *u8) void {
+    if expr == nil {
+        return;
+    }
+    var k i64 = node_kind(expr);
+
+    if k == NODE_IDENT_EXPR {
+        var name *u8 = ident_expr_name(expr);
+        var name_len i64 = ident_expr_name_len(expr);
+
+        // Check local first
+        var local_idx i64 = find_local(name, name_len);
+        if local_idx >= 0 {
+            var offset i64 = local_get_offset(local_idx);
+            emit_str("    lea ");
+            emit_int(offset);
+            emit_line("(%rbp), %rax");
+            return;
+        }
+
+        // Check global
+        var global_idx i64 = find_global(name, name_len);
+        if global_idx >= 0 {
+            emit_str("    lea ");
+            emit_n(name, name_len);
+            emit_line("(%rip), %rax");
+            return;
+        }
+    }
+
+    // Fallback: treat as expression (e.g., for more complex cases)
+    gen_expr(expr);
+}
 
 func gen_expr(expr *u8) void {
     if expr == nil {
@@ -3228,7 +3285,63 @@ func gen_expr(expr *u8) void {
     }
 
     if k == NODE_INDEX_EXPR {
-        // Not implemented for now
+        // arr[i] - compute address and load value
+        // IndexExpr: [kind:8][base:8][index:8]
+        var base_p **u8 = expr + 8;
+        var index_p **u8 = expr + 16;
+        var base_expr *u8 = *base_p;
+        var index_expr *u8 = *index_p;
+
+        var base_type *u8 = get_expr_type(base_expr);
+
+        // Get element type and size
+        var elem_type *u8 = nil;
+        if base_type != nil {
+            if type_kind(base_type) == TYPE_ARRAY {
+                elem_type = array_type_elem(base_type);
+            } else if type_kind(base_type) == TYPE_PTR {
+                elem_type = ptr_type_elem(base_type);
+            }
+        }
+        var elem_size i64 = 8;
+        if elem_type != nil {
+            elem_size = get_type_size(elem_type);
+        }
+
+        // Emit base address
+        // For arrays: we need the address of the array (lea)
+        // For pointers: we need the pointer value
+        if base_type != nil && type_kind(base_type) == TYPE_ARRAY {
+            gen_array_addr(base_expr);
+        } else {
+            gen_expr(base_expr);
+        }
+        emit_line("    push %rax");
+
+        // Emit index
+        gen_expr(index_expr);
+
+        // Scale index by element size
+        if elem_size > 1 {
+            emit_str("    imul $");
+            emit_int(elem_size);
+            emit_line(", %rax");
+        }
+
+        // Add base + scaled index
+        emit_line("    pop %rcx");
+        emit_line("    add %rcx, %rax");
+
+        // Load value from computed address
+        if elem_size == 1 {
+            emit_line("    movzbl (%rax), %eax");
+        } else if elem_size == 2 {
+            emit_line("    movzwl (%rax), %eax");
+        } else if elem_size == 4 {
+            emit_line("    movl (%rax), %eax");
+        } else {
+            emit_line("    mov (%rax), %rax");
+        }
         return;
     }
 
@@ -4326,6 +4439,70 @@ func gen_lvalue_store(expr *u8) void {
         }
         return;
     }
+
+    if k == NODE_INDEX_EXPR {
+        // arr[i] = value - compute address and store
+        // Value to store is in %rax
+        // IndexExpr: [kind:8][base:8][index:8]
+        var base_p **u8 = expr + 8;
+        var index_p **u8 = expr + 16;
+        var base_expr *u8 = *base_p;
+        var index_expr *u8 = *index_p;
+
+        var base_type *u8 = get_expr_type(base_expr);
+
+        // Get element type and size
+        var elem_type *u8 = nil;
+        if base_type != nil {
+            if type_kind(base_type) == TYPE_ARRAY {
+                elem_type = array_type_elem(base_type);
+            } else if type_kind(base_type) == TYPE_PTR {
+                elem_type = ptr_type_elem(base_type);
+            }
+        }
+        var elem_size i64 = 8;
+        if elem_type != nil {
+            elem_size = get_type_size(elem_type);
+        }
+
+        // Save value to store
+        emit_line("    push %rax");
+
+        // Emit base address
+        if base_type != nil && type_kind(base_type) == TYPE_ARRAY {
+            gen_array_addr(base_expr);
+        } else {
+            gen_expr(base_expr);
+        }
+        emit_line("    push %rax");
+
+        // Emit index
+        gen_expr(index_expr);
+
+        // Scale index by element size
+        if elem_size > 1 {
+            emit_str("    imul $");
+            emit_int(elem_size);
+            emit_line(", %rax");
+        }
+
+        // Add base + scaled index to get address
+        emit_line("    pop %rcx");
+        emit_line("    add %rcx, %rax");
+
+        // Store value to computed address
+        emit_line("    pop %rcx");  // value to store
+        if elem_size == 1 {
+            emit_line("    mov %cl, (%rax)");
+        } else if elem_size == 2 {
+            emit_line("    mov %cx, (%rax)");
+        } else if elem_size == 4 {
+            emit_line("    movl %ecx, (%rax)");
+        } else {
+            emit_line("    mov %rcx, (%rax)");
+        }
+        return;
+    }
 }
 
 // ============================================================
@@ -5017,7 +5194,7 @@ func gen_decl(decl *u8) void {
         // Generate code for each declaration
         var gen_decls *u8 = program_decls(prog);
         var gen_count i64 = program_decl_count(prog);
-        i = 0;
+        var i i64 = 0;
         while i < gen_count {
             gen_decl(get_decl(gen_decls, i));
             i = i + 1;

@@ -1,0 +1,50 @@
+// expect: 42
+// Test global arrays
+// Returns value from global array as proof
+
+var global_arr [5]i64;
+
+// ============================================================
+// Test 1: Global array write and read
+// ============================================================
+func test_global_array() i64 {
+    global_arr[0] = 100;
+    global_arr[1] = 200;
+    global_arr[2] = 300;
+    global_arr[3] = 400;
+    global_arr[4] = 500;
+
+    // Return sum of first and last
+    return global_arr[0] + global_arr[4];  // 600
+}
+
+// ============================================================
+// Test 2: Multiple functions accessing global array
+// ============================================================
+func increment_global(idx i64) void {
+    global_arr[idx] = global_arr[idx] + 1;
+}
+
+func test_global_functions() i64 {
+    global_arr[0] = 10;
+    global_arr[1] = 20;
+
+    increment_global(0);
+    increment_global(0);
+    increment_global(1);
+
+    // global_arr[0] = 12, global_arr[1] = 21
+    return global_arr[0] + global_arr[1];  // 33
+}
+
+// ============================================================
+// Main: Run all tests, return value derived from array
+// ============================================================
+func main() i64 {
+    if test_global_array() != 600 { return 1; }
+    if test_global_functions() != 33 { return 2; }
+
+    // Return a value stored in the array as final proof
+    global_arr[2] = 42;
+    return global_arr[2];
+}
