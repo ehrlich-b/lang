@@ -1,8 +1,57 @@
 # Fix Composition (compose command)
 
-## Status: In Progress
+## Status: In Progress (2025-01-02)
 
-**Current state**: Basic `-r` and `--embed-self` modes exist but use single variables instead of arrays. Need to migrate to array-based storage for multiple readers.
+### Just Completed: Array Literal Codegen (commit 1a963b2)
+
+Full array literal support for global variables is now working:
+
+**What was implemented in `src/codegen_llvm.lang`:**
+
+1. **`llvm_emit_global_array_elem()`** - New helper function to emit array element values:
+   - String literals → `getelementptr inbounds ([N x i8], ...)` (pointer to string)
+   - Identifiers → `@funcname` (function pointer)
+   - Numbers → literal value
+   - Nil → `null` (for pointers) or `0` (for integers)
+
+2. **Global array emission** in `llvm_emit_decl()`:
+   - Detects `TYPE_ARRAY` variables with `NODE_ARRAY_LITERAL` initializers
+   - Emits proper LLVM type: `[N x T]` (e.g., `[1024 x i8*]`)
+   - Emits initializer: `[i8* @str1, i8* @str2, i8* null, ...]`
+   - Remaining elements filled with `null`/`0`
+   - Arrays without initializers get `zeroinitializer`
+
+3. **Pointer array load/store** in `NODE_INDEX_EXPR` handling:
+   - **Load**: Added `ptrtoint i8* %tN to i64` after loading from pointer arrays
+   - **Store**: Added `inttoptr i64 %val to i8*` before storing to pointer arrays
+   - This maintains the invariant that all expression values are i64
+
+**Generated LLVM IR example:**
+```llvm
+@embedded_reader_names = global [1024 x i8*] [
+  i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str0, i64 0, i64 0),
+  i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str1, i64 0, i64 0),
+  i8* null, i8* null, ...
+]
+```
+
+**Verified:** All 169 LLVM tests pass. Bootstrap complete.
+
+### Current State
+
+Single-variable reader storage still exists in `main.lang`:
+```lang
+var embedded_reader_count i64 = 0;
+var embedded_reader_name *u8 = "";   // Single reader name
+var embedded_reader_func *u8 = nil;  // Single function pointer
+```
+
+### Next Steps (in order)
+
+1. **Migrate embedded_reader vars to arrays** - Change to `[1024]*u8 = []`
+2. **Update -r mode** - Append to `array_literal` nodes instead of replacing string init
+3. **Skip compile_reader_to_executable()** - For LLVM backend, reader is already a function
+4. **Update find_reader()** - Loop through arrays until nil
 
 ## The Core Insight: Pure AST Manipulation
 
@@ -103,14 +152,14 @@ The AST infrastructure exists:
 - ✅ Parser: `[e1, e2]` → `NODE_ARRAY_LITERAL`
 - ✅ sexpr_reader: parses `(array_literal ...)`
 - ✅ ast_emit: emits `(array_literal ...)`
-- ❌ codegen_llvm: **TODO** - emit LLVM array initializers
+- ✅ codegen_llvm: emits LLVM array initializers (commit 1a963b2)
 
-Codegen needs to emit:
+Codegen emits (with proper pointer types):
 ```llvm
-@embedded_reader_names = global [1024 x i64] [
-  i64 ptrtoint (i8* @.str_lang to i64),
-  i64 ptrtoint (i8* @.str_lisp to i64),
-  i64 0, i64 0, ...  ; rest zero-filled
+@embedded_reader_names = global [1024 x i8*] [
+  i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str0, i64 0, i64 0),
+  i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str1, i64 0, i64 0),
+  i8* null, i8* null, ...
 ]
 ```
 
@@ -185,6 +234,7 @@ kernel_self -r lang lang_reader.ast -o lang1
 
 ## Implementation Checklist
 
+### Completed
 - [x] `--emit-expanded-ast` flag - outputs parsed+expanded AST as S-expressions
 - [x] `--embed-self` mode - creates self-aware kernel from bare kernel
 - [x] `-r` mode - basic structure (currently uses single variables)
@@ -192,11 +242,18 @@ kernel_self -r lang lang_reader.ast -o lang1
 - [x] `ast_emit_program()` - AST to S-expression serializer
 - [x] Array type support in lang (`[N]T` syntax)
 - [x] Array literal AST support (`NODE_ARRAY_LITERAL`, sexpr_reader, ast_emit)
-- [ ] **TODO**: Array literal codegen in codegen_llvm.lang
-- [ ] **TODO**: Migrate embedded_reader vars to arrays with empty `[]` literals
-- [ ] **TODO**: Update `-r` mode to append to `array_literal` nodes
-- [ ] **TODO**: Skip `compile_reader_to_executable()` for LLVM backend
-- [ ] **TODO**: Update `find_reader()` to loop arrays until nil
+- [x] **Array literal codegen** in codegen_llvm.lang (commit 1a963b2)
+  - `llvm_emit_global_array_elem()` - emit element values
+  - Global array declaration with proper `[N x T]` type
+  - Pointer array load: `ptrtoint` after load
+  - Pointer array store: `inttoptr` before store
+  - All 169 tests pass, bootstrap verified
+
+### TODO (in order)
+- [ ] **Migrate embedded_reader vars to arrays** - `[1024]*u8 = []` in main.lang
+- [ ] **Update `-r` mode** - append to `array_literal` nodes instead of string init
+- [ ] **Skip `compile_reader_to_executable()`** - for LLVM backend, reader is already a function
+- [ ] **Update `find_reader()`** - loop through arrays until nil
 
 ## The Current Bug
 
