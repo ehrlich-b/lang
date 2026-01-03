@@ -1,8 +1,19 @@
 # Kernel/Reader Split
 
-## Status: DESIGN COMPLETE
+## Status: PHASE 2 COMPLETE (2025-01-03)
 
 This document describes the architectural problem of kernel/reader entanglement and the solution to cleanly separate them.
+
+### What's Done
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1: Audit | ✅ DONE | See audit results below |
+| Phase 2: Fix Reader Output | ✅ DONE | LLVM codegen now uses parse_ast_from_string |
+| Phase 3: Remove Include Handling | FUTURE | When we actually split kernel/reader |
+| Phase 4: Remove Reader Compilation | FUTURE | When we actually split kernel/reader |
+| Phase 5: Update Makefile | FUTURE | When we actually split kernel/reader |
+| Phase 6: Verify Composition | FUTURE | When we actually split kernel/reader |
 
 ## The Problem
 
@@ -141,23 +152,30 @@ For composition, readers are already pre-compiled as `.ast` files. The kernel ju
 
 ## Audit: What Uses `parse_program_from_string`?
 
+**After Phase 2 fix (2025-01-03):**
+
 ```
 src/codegen.lang:
-  1831: parse_program_from_string(buf)         # Include handling - NEEDS REMOVAL
+  1831: parse_program_from_string(buf)         # Include handling - FUTURE REMOVAL
+  5218: parse_program_from_string(buf)         # Include handling - FUTURE REMOVAL
 
 src/codegen_llvm.lang:
-  5644: parse_program_from_string(buf)         # Include handling - NEEDS REMOVAL
-  5761: parse_program_from_string(output)      # Reader macro - WRONG (should use parse_ast_from_string)
-  5793: parse_program_from_string(output)      # Reader macro - WRONG
-  5872: parse_program_from_string(buf)         # First pass include - NEEDS REMOVAL
+  5644: parse_program_from_string(buf)         # Include handling - FUTURE REMOVAL
+  5872: parse_program_from_string(buf)         # First pass include - FUTURE REMOVAL
 ```
+
+**All include handling uses are CORRECT** - they parse .lang source files at compile time.
+These will be removed in Phase 3 when we actually split kernel/reader.
 
 ### What Uses `parse_ast_from_string`?
 
 This function is in `sexpr_reader.lang` and is the RIGHT way to parse reader output:
 
 ```
-src/codegen.lang:5278:   parse_ast_from_string(output)  # Correct!
+src/codegen.lang:1768:   parse_ast_from_string(output)  # Reader macro ✅
+src/codegen.lang:5278:   parse_ast_from_string(output)  # Reader macro ✅
+src/codegen_llvm.lang:5763: parse_ast_from_string(output)  # Reader macro ✅ (FIXED)
+src/codegen_llvm.lang:5795: parse_ast_from_string(output)  # Reader macro ✅ (FIXED)
 src/main.lang:713:       parse_ast_from_string(ast_source)  # --from-ast mode
 src/main.lang:746:       parse_ast_from_string(ast_source)  # --embed-self mode
 src/main.lang:806:       parse_ast_from_string(self_kernel) # -r mode
@@ -165,16 +183,25 @@ src/main.lang:817:       parse_ast_from_string(reader_source) # -r mode
 src/kernel_main.lang:166: parse_ast_from_string(kernel_source)
 ```
 
+**All reader macro paths now use `parse_ast_from_string` correctly!**
+
 ## Migration Path
 
-### Phase 1: Audit Codegen Dependencies
-- [ ] List all uses of `parse_program_from_string` in codegen*.lang
-- [ ] List all uses of `parser_tokenize` in codegen*.lang
-- [ ] Categorize: include handling vs reader compilation vs reader output parsing
+### Phase 1: Audit Codegen Dependencies ✅ DONE
+- [x] List all uses of `parse_program_from_string` in codegen*.lang
+- [x] List all uses of `parser_tokenize` in codegen*.lang
+- [x] Categorize: include handling vs reader compilation vs reader output parsing
 
-### Phase 2: Fix Reader Output Parsing
-- [ ] Replace `parse_program_from_string` with `parse_ast_from_string` for reader output
-- [ ] Readers already emit S-expressions, this should just work
+**Findings:**
+- `parse_program_from_string` in 4 places for include handling (correct)
+- `parse_program_from_string` was in 2 places for reader macro (WRONG - fixed)
+- `parser_tokenize` in 2 places for reader compilation (acceptable for now)
+
+### Phase 2: Fix Reader Output Parsing ✅ DONE (2025-01-03)
+- [x] Replace `parse_program_from_string` with `parse_ast_from_string` for reader output
+- [x] Fixed codegen_llvm.lang lines 5761, 5793 to use `parse_ast_from_string`
+- [x] Fixed embedded reader fn signature: `fn(*u8) *u8` not `fn(*u8, i64) *u8`
+- [x] Bootstrap verified: 169/169 tests pass
 
 ### Phase 3: Remove Include Handling
 - [ ] Add error/skip for include nodes in codegen
