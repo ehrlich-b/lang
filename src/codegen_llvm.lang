@@ -2834,13 +2834,27 @@ func llvm_emit_expr(expr *u8) void {
     }
 
     if k == NODE_READER_EXPR {
-        // Reader macro invocation - run compiled executable
+        // Reader macro invocation
         var name *u8 = reader_expr_name(expr);
         var name_len i64 = reader_expr_name_len(expr);
         var content *u8 = reader_expr_content(expr);
         var content_len i64 = reader_expr_content_len(expr);
 
-        // Look up the reader
+        // First check for embedded reader function (composed compilers)
+        var reader_func *u8 = find_embedded_reader_func(name, name_len);
+        if reader_func != nil {
+            // Call embedded reader function directly
+            var output *u8 = reader_func(content, content_len);
+            if output != nil {
+                var expanded *u8 = parse_ast_expression_from_string(output);
+                if expanded != nil {
+                    llvm_emit_expr(expanded);
+                }
+            }
+            return;
+        }
+
+        // Fall back to external executable
         var reader_decl *u8 = find_reader(name, name_len);
         if reader_decl == nil {
             eprint("error: reader macro '");
@@ -5738,7 +5752,27 @@ func llvm_emit_decl(decl *u8) void {
         var content *u8 = reader_expr_content(decl);
         var content_len i64 = reader_expr_content_len(decl);
 
-        // Look up the reader
+        // First check for embedded reader function (composed compilers)
+        var reader_func *u8 = find_embedded_reader_func(name, name_len);
+        if reader_func != nil {
+            // Call embedded reader function directly
+            var output *u8 = reader_func(content, content_len);
+            if output != nil {
+                var prog *u8 = parse_program_from_string(output);
+                if prog != nil {
+                    var inc_decls *u8 = program_decls(prog);
+                    var inc_count i64 = program_decl_count(prog);
+                    var i i64 = 0;
+                    while i < inc_count {
+                        llvm_emit_decl(get_decl(inc_decls, i));
+                        i = i + 1;
+                    }
+                }
+            }
+            return;
+        }
+
+        // Fall back to external executable
         var reader_decl *u8 = find_reader(name, name_len);
         if reader_decl == nil {
             return;  // Error already reported

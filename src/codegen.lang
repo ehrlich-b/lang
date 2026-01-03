@@ -76,6 +76,11 @@ var cg_reader_count i64 = 0;
 var cg_embedded_readers *u8 = nil;
 var cg_embedded_reader_count i64 = 0;
 
+// Runtime embedded reader arrays - poked by -r mode
+// These are nil-terminated arrays of pointers
+var embedded_reader_names [1024]*u8 = [];    // ["lang", "lisp", nil, ...]
+var embedded_reader_funcs [1024]*u8 = [];    // [reader_lang, reader_lisp, nil, ...]
+
 // Function registry: simple array of func decls
 // Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
 // Max 500 functions
@@ -1298,12 +1303,43 @@ func add_reader(decl *u8) void {
 
     cg_reader_count = cg_reader_count + 1;
 
+    // Skip compile_reader_to_executable if this reader is embedded
+    // (it's already a function in the binary via -r mode)
+    var embedded_func *u8 = find_embedded_reader_func(name, name_len);
+    if embedded_func != nil {
+        return;  // Reader is embedded, no need to compile to external exe
+    }
+
     // V2: Compile reader to executable
     compile_reader_to_executable(decl);
 }
 
+// Find embedded reader function pointer by name
+// Returns function pointer (*u8) or nil if not found
+func find_embedded_reader_func(name *u8, name_len i64) *u8 {
+    var i i64 = 0;
+    while i < 1024 {
+        var rname *u8 = embedded_reader_names[i];
+        if rname == nil {
+            return nil;  // End of array
+        }
+        var rlen i64 = strlen(rname);
+        if rlen == name_len && memcmp(rname, name, name_len) {
+            return embedded_reader_funcs[i];
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
 func find_reader(name *u8, name_len i64) *u8 {
-    // First check registered readers (from current compilation)
+    // First check embedded reader arrays (for composed compilers)
+    var embedded_func *u8 = find_embedded_reader_func(name, name_len);
+    if embedded_func != nil {
+        return embedded_func;  // Function pointer to in-binary reader
+    }
+
+    // Check registered readers (from current compilation)
     var i i64 = 0;
     while i < cg_reader_count {
         var entry *u8 = cg_readers + (i * 24);

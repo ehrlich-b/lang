@@ -98,11 +98,10 @@ var add_reader_file *u8 = nil;
 // Initialized empty, --embed-self pokes the real AST in
 var self_kernel *u8 = "";
 
-// Embedded reader registry
-// These get poked by -r mode to add readers
-var embedded_reader_count i64 = 0;
-var embedded_reader_name *u8 = "";   // Reader name (e.g., "lisp")
-var embedded_reader_func *u8 = nil;  // Function pointer to reader_<name>
+// Embedded reader registry (in codegen.lang):
+// var embedded_reader_names [1024]*u8 = [];
+// var embedded_reader_funcs [1024]*u8 = [];
+// These get poked by -r mode to add readers (arrays, nil-terminated)
 
 // Include expansion state for --emit-expanded-ast
 var expand_included_map *u8 = nil;
@@ -861,13 +860,11 @@ func main(argc i64, argv **u8) i64 {
 
         // Walk combined AST and poke:
         // - self_kernel = combined AST string
-        // - embedded_reader_name = reader name
-        // - embedded_reader_func = (ident reader_<name>)
-        // - embedded_reader_count = 1
+        // - embedded_reader_names = append reader name to array_literal
+        // - embedded_reader_funcs = append (ident reader_<name>) to array_literal
         var found_self i64 = 0;
-        var found_name i64 = 0;
-        var found_func i64 = 0;
-        var found_count i64 = 0;
+        var found_names i64 = 0;
+        var found_funcs i64 = 0;
 
         j = 0;
         while j < total {
@@ -885,31 +882,64 @@ func main(argc i64, argv **u8) i64 {
                     found_self = 1;
                 }
 
-                // embedded_reader_name
-                if name_len == 20 && memcmp(name, "embedded_reader_name", 20) {
-                    var str_node *u8 = string_expr_alloc();
-                    string_expr_set_value(str_node, add_reader_name);
-                    string_expr_set_value_len(str_node, reader_name_len);
-                    var_decl_set_init(decl, str_node);
-                    found_name = 1;
+                // embedded_reader_names - append reader name to array_literal
+                if name_len == 21 && memcmp(name, "embedded_reader_names", 21) {
+                    var init *u8 = var_decl_init(decl);
+                    if init != nil && node_kind(init) == NODE_ARRAY_LITERAL {
+                        // Append string node to array
+                        var old_elems *u8 = array_literal_elems(init);
+                        var old_count i64 = array_literal_count(init);
+                        var new_count i64 = old_count + 1;
+                        var new_elems *u8 = alloc(new_count * 8);
+                        // Copy old elements
+                        var k i64 = 0;
+                        while k < old_count {
+                            var src **u8 = old_elems + (k * 8);
+                            var dst **u8 = new_elems + (k * 8);
+                            *dst = *src;
+                            k = k + 1;
+                        }
+                        // Add new string element
+                        var str_node *u8 = string_expr_alloc();
+                        string_expr_set_value(str_node, add_reader_name);
+                        string_expr_set_value_len(str_node, reader_name_len);
+                        var new_slot **u8 = new_elems + (old_count * 8);
+                        *new_slot = str_node;
+                        // Update array_literal
+                        array_literal_set_elems(init, new_elems);
+                        array_literal_set_count(init, new_count);
+                    }
+                    found_names = 1;
                 }
 
-                // embedded_reader_func
-                if name_len == 20 && memcmp(name, "embedded_reader_func", 20) {
-                    var ident_node *u8 = ident_expr_alloc();
-                    ident_expr_set_name(ident_node, func_name);
-                    ident_expr_set_name_len(ident_node, func_name_len);
-                    var_decl_set_init(decl, ident_node);
-                    found_func = 1;
-                }
-
-                // embedded_reader_count
-                if name_len == 21 && memcmp(name, "embedded_reader_count", 21) {
-                    var num_node *u8 = number_expr_alloc();
-                    number_expr_set_value(num_node, "1");
-                    number_expr_set_value_len(num_node, 1);
-                    var_decl_set_init(decl, num_node);
-                    found_count = 1;
+                // embedded_reader_funcs - append ident to array_literal
+                if name_len == 21 && memcmp(name, "embedded_reader_funcs", 21) {
+                    var init *u8 = var_decl_init(decl);
+                    if init != nil && node_kind(init) == NODE_ARRAY_LITERAL {
+                        // Append ident node to array
+                        var old_elems *u8 = array_literal_elems(init);
+                        var old_count i64 = array_literal_count(init);
+                        var new_count i64 = old_count + 1;
+                        var new_elems *u8 = alloc(new_count * 8);
+                        // Copy old elements
+                        var k i64 = 0;
+                        while k < old_count {
+                            var src **u8 = old_elems + (k * 8);
+                            var dst **u8 = new_elems + (k * 8);
+                            *dst = *src;
+                            k = k + 1;
+                        }
+                        // Add new ident element
+                        var ident_node *u8 = ident_expr_alloc();
+                        ident_expr_set_name(ident_node, func_name);
+                        ident_expr_set_name_len(ident_node, func_name_len);
+                        var new_slot **u8 = new_elems + (old_count * 8);
+                        *new_slot = ident_node;
+                        // Update array_literal
+                        array_literal_set_elems(init, new_elems);
+                        array_literal_set_count(init, new_count);
+                    }
+                    found_funcs = 1;
                 }
             }
             j = j + 1;

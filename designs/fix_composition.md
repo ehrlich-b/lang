@@ -249,17 +249,36 @@ kernel_self -r lang lang_reader.ast -o lang1
   - Pointer array store: `inttoptr` before store
   - All 169 tests pass, bootstrap verified
 
-### TODO (in order)
-- [ ] **Migrate embedded_reader vars to arrays** - `[1024]*u8 = []` in main.lang
-- [ ] **Update `-r` mode** - append to `array_literal` nodes instead of string init
-- [ ] **Skip `compile_reader_to_executable()`** - for LLVM backend, reader is already a function
-- [ ] **Update `find_reader()`** - loop through arrays until nil
+### Just Completed: Full Array Infrastructure (2025-01-02)
 
-## The Current Bug
+All TODOs completed:
 
-When codegen sees a `(reader lang ...)` node, it calls `add_reader()` which calls `compile_reader_to_executable()`. This tries to parse the reader body as lang source code, which fails.
+- [x] **Migrate embedded_reader vars to arrays** - `[1024]*u8 = []` in codegen.lang
+  - Moved from main.lang to codegen.lang for proper scoping
+  - `embedded_reader_names` and `embedded_reader_funcs` arrays
+  - Nil-terminated (no count variable needed)
 
-**The fix**: Reader declarations in embedded AST should NOT trigger `compile_reader_to_executable()`. The reader is emitted as a function by `llvm_emit_reader()`. At runtime, `find_reader()` should return the function pointer from `embedded_reader_funcs[]`.
+- [x] **Update `-r` mode** - append to `array_literal` nodes
+  - Finds array_literal initializer in AST
+  - Allocates new larger elems array
+  - Copies old elements, appends new element
+  - Updates count
+
+- [x] **Skip `compile_reader_to_executable()`** - for embedded readers
+  - `add_reader()` now checks `find_embedded_reader_func()` first
+  - If reader is embedded, skips external compilation
+  - Readers in binary don't need external executables
+
+- [x] **Update `find_reader()` and LLVM backend** - loop arrays until nil
+  - New `find_embedded_reader_func()` searches `embedded_reader_names`
+  - Returns function pointer from `embedded_reader_funcs`
+  - LLVM backend calls embedded reader functions directly
+  - No subprocess (`exec_capture`) needed for embedded readers
+
+**Verified:** All 169 LLVM tests pass. Bootstrap complete.
+
+### TODO
+- [ ] **End-to-end test** - Test full composition flow with `-r` mode
 
 ## Files
 
