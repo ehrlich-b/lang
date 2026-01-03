@@ -5718,6 +5718,11 @@ func llvm_emit_decl(decl *u8) void {
         return;
     }
 
+    // NODE_MODULES_DECL is metadata - no code generation needed
+    if k == NODE_MODULES_DECL {
+        return;
+    }
+
     if k == NODE_VAR_DECL {
         // Global variable declaration
         var name *u8 = var_decl_name(decl);
@@ -6029,6 +6034,8 @@ func llvm_register_decl(decl *u8) void {
         add_reader(decl);
     } else if k == NODE_EFFECT_DECL {
         llvm_add_effect(decl);
+    } else if k == NODE_MODULES_DECL {
+        // Metadata node - no registration needed
     }
 }
 

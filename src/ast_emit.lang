@@ -447,6 +447,20 @@ func ast_emit_node(node *u8) void {
         return;
     }
 
+    if kind == NODE_MODULES_DECL {
+        ast_emit_str("(modules");
+        var count i64 = modules_decl_count(node);
+        var i i64 = 0;
+        while i < count {
+            ast_emit_str(" ");
+            var entry *u8 = modules_decl_get(node, i);
+            ast_emit_quoted_string(module_entry_name(entry), module_entry_len(entry));
+            i = i + 1;
+        }
+        ast_emit_str(")");
+        return;
+    }
+
     if kind == NODE_IMPORT {
         ast_emit_str("(import ");
         ast_emit_quoted_string(import_decl_path(node), import_decl_path_len(node));

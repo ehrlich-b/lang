@@ -1731,6 +1731,88 @@ L.entry:
     ret void
 }
 
+define i64 @map_size(i64 %m.arg) {
+L.entry:
+    %m.0 = alloca i64
+    store i64 %m.arg, i64* %m.0
+    %count_ptr.1 = alloca i64
+    %t0 = load i64, i64* %m.0
+    %t1 = add i64 %t0, 8
+    store i64 %t1, i64* %count_ptr.1
+    %t2 = load i64, i64* %count_ptr.1
+    %t4 = inttoptr i64 %t2 to i64*
+    %t3 = load i64, i64* %t4
+    ret i64 %t3
+}
+
+define i8* @map_keys(i64 %m.arg) {
+L.entry:
+    %m.0 = alloca i64
+    store i64 %m.arg, i64* %m.0
+    %cap_ptr.1 = alloca i64
+    %t0 = load i64, i64* %m.0
+    store i64 %t0, i64* %cap_ptr.1
+    %cap.2 = alloca i64
+    %t1 = load i64, i64* %cap_ptr.1
+    %t3 = inttoptr i64 %t1 to i64*
+    %t2 = load i64, i64* %t3
+    store i64 %t2, i64* %cap.2
+    %keys_ptr.3 = alloca i64
+    %t4 = load i64, i64* %m.0
+    %t5 = add i64 %t4, 16
+    store i64 %t5, i64* %keys_ptr.3
+    %keys.4 = alloca i64
+    %t6 = load i64, i64* %keys_ptr.3
+    %t8 = inttoptr i64 %t6 to i64*
+    %t7 = load i64, i64* %t8
+    store i64 %t7, i64* %keys.4
+    %result.5 = alloca i64
+    %t9 = call i8* @vec_new(i64 16)
+    %t10 = ptrtoint i8* %t9 to i64
+    store i64 %t10, i64* %result.5
+    %i.6 = alloca i64
+    store i64 0, i64* %i.6
+    br label %L0
+L0:
+    %t11 = load i64, i64* %i.6
+    %t12 = load i64, i64* %cap.2
+    %t14 = icmp slt i64 %t11, %t12
+    %t13 = zext i1 %t14 to i64
+    %t15 = icmp ne i64 %t13, 0
+    br i1 %t15, label %L1, label %L2
+L1:
+    %slot.7 = alloca i64
+    %t16 = load i64, i64* %keys.4
+    %t17 = load i64, i64* %i.6
+    %t18 = mul i64 %t17, 8
+    %t19 = add i64 %t16, %t18
+    store i64 %t19, i64* %slot.7
+    %key.8 = alloca i64
+    %t20 = load i64, i64* %slot.7
+    %t22 = inttoptr i64 %t20 to i64*
+    %t21 = load i64, i64* %t22
+    store i64 %t21, i64* %key.8
+    %t23 = load i64, i64* %key.8
+    %t25 = icmp ne i64 %t23, 0
+    %t24 = zext i1 %t25 to i64
+    %t26 = icmp ne i64 %t24, 0
+    br i1 %t26, label %L3, label %L5
+L3:
+    %t27 = load i64, i64* %result.5
+    %t28 = load i64, i64* %key.8
+    call void @vec_push(i64 %t27, i64 %t28)
+    br label %L5
+L5:
+    %t29 = load i64, i64* %i.6
+    %t30 = add i64 %t29, 1
+    store i64 %t30, i64* %i.6
+    br label %L0
+L2:
+    %t31 = load i64, i64* %result.5
+    %t32 = inttoptr i64 %t31 to i8*
+    ret i8* %t32
+}
+
 define i8* @str_dup_n(i64 %s.arg, i64 %len.arg) {
 L.entry:
     %s.0 = alloca i64
@@ -6109,6 +6191,7 @@ L.entry:
 @NODE_BLOCK_EXPR = global i64 41
 @NODE_ARRAY_LITERAL = global i64 42
 @NODE_REQUIRE_DECL = global i64 43
+@NODE_MODULES_DECL = global i64 44
 @TYPE_BASE = global i64 1
 @TYPE_PTR = global i64 2
 @TYPE_ARRAY = global i64 3
@@ -11601,6 +11684,156 @@ L.entry:
     %t3 = add i64 %t2, 16
     %t4 = inttoptr i64 %t3 to i64*
     store i64 %t1, i64* %t4
+    ret void
+}
+
+define i8* @modules_decl_alloc() {
+L.entry:
+    %node.0 = alloca i64
+    %t0 = call i8* @alloc(i64 24)
+    %t1 = ptrtoint i8* %t0 to i64
+    store i64 %t1, i64* %node.0
+    %t2 = load i64, i64* %node.0
+    %t3 = load i64, i64* @NODE_MODULES_DECL
+    call void @node_set_kind(i64 %t2, i64 %t3)
+    %t4 = load i64, i64* %node.0
+    %t5 = inttoptr i64 %t4 to i8*
+    ret i8* %t5
+}
+
+define i8* @modules_decl_modules(i64 %node.arg) {
+L.entry:
+    %node.0 = alloca i64
+    store i64 %node.arg, i64* %node.0
+    %n.1 = alloca i64
+    %t0 = load i64, i64* %node.0
+    store i64 %t0, i64* %n.1
+    %t1 = load i64, i64* %n.1
+    %t2 = add i64 %t1, 8
+    %t3 = inttoptr i64 %t2 to i64*
+    %t4 = load i64, i64* %t3
+    %t5 = inttoptr i64 %t4 to i8*
+    ret i8* %t5
+}
+
+define void @modules_decl_set_modules(i64 %node.arg, i64 %ptr.arg) {
+L.entry:
+    %node.0 = alloca i64
+    store i64 %node.arg, i64* %node.0
+    %ptr.1 = alloca i64
+    store i64 %ptr.arg, i64* %ptr.1
+    %n.2 = alloca i64
+    %t0 = load i64, i64* %node.0
+    store i64 %t0, i64* %n.2
+    %t1 = load i64, i64* %ptr.1
+    %t2 = load i64, i64* %n.2
+    %t3 = add i64 %t2, 8
+    %t4 = inttoptr i64 %t3 to i64*
+    store i64 %t1, i64* %t4
+    ret void
+}
+
+define i64 @modules_decl_count(i64 %node.arg) {
+L.entry:
+    %node.0 = alloca i64
+    store i64 %node.arg, i64* %node.0
+    %n.1 = alloca i64
+    %t0 = load i64, i64* %node.0
+    store i64 %t0, i64* %n.1
+    %t1 = load i64, i64* %n.1
+    %t2 = add i64 %t1, 16
+    %t3 = inttoptr i64 %t2 to i64*
+    %t4 = load i64, i64* %t3
+    ret i64 %t4
+}
+
+define void @modules_decl_set_count(i64 %node.arg, i64 %c.arg) {
+L.entry:
+    %node.0 = alloca i64
+    store i64 %node.arg, i64* %node.0
+    %c.1 = alloca i64
+    store i64 %c.arg, i64* %c.1
+    %n.2 = alloca i64
+    %t0 = load i64, i64* %node.0
+    store i64 %t0, i64* %n.2
+    %t1 = load i64, i64* %c.1
+    %t2 = load i64, i64* %n.2
+    %t3 = add i64 %t2, 16
+    %t4 = inttoptr i64 %t3 to i64*
+    store i64 %t1, i64* %t4
+    ret void
+}
+
+define i8* @modules_decl_get(i64 %node.arg, i64 %index.arg) {
+L.entry:
+    %node.0 = alloca i64
+    store i64 %node.arg, i64* %node.0
+    %index.1 = alloca i64
+    store i64 %index.arg, i64* %index.1
+    %mods.2 = alloca i64
+    %t0 = load i64, i64* %node.0
+    %t1 = call i8* @modules_decl_modules(i64 %t0)
+    %t2 = ptrtoint i8* %t1 to i64
+    store i64 %t2, i64* %mods.2
+    %t3 = load i64, i64* %mods.2
+    %t4 = load i64, i64* %index.1
+    %t5 = mul i64 %t4, 16
+    %t6 = add i64 %t3, %t5
+    %t7 = inttoptr i64 %t6 to i8*
+    ret i8* %t7
+}
+
+define i8* @module_entry_name(i64 %entry.arg) {
+L.entry:
+    %entry.0 = alloca i64
+    store i64 %entry.arg, i64* %entry.0
+    %p.1 = alloca i64
+    %t0 = load i64, i64* %entry.0
+    store i64 %t0, i64* %p.1
+    %t1 = load i64, i64* %p.1
+    %t3 = inttoptr i64 %t1 to i64*
+    %t2 = load i64, i64* %t3
+    %t4 = inttoptr i64 %t2 to i8*
+    ret i8* %t4
+}
+
+define i64 @module_entry_len(i64 %entry.arg) {
+L.entry:
+    %entry.0 = alloca i64
+    store i64 %entry.arg, i64* %entry.0
+    %p.1 = alloca i64
+    %t0 = load i64, i64* %entry.0
+    %t1 = add i64 %t0, 8
+    store i64 %t1, i64* %p.1
+    %t2 = load i64, i64* %p.1
+    %t4 = inttoptr i64 %t2 to i64*
+    %t3 = load i64, i64* %t4
+    ret i64 %t3
+}
+
+define void @module_entry_set(i64 %entry.arg, i64 %name.arg, i64 %len.arg) {
+L.entry:
+    %entry.0 = alloca i64
+    store i64 %entry.arg, i64* %entry.0
+    %name.1 = alloca i64
+    store i64 %name.arg, i64* %name.1
+    %len.2 = alloca i64
+    store i64 %len.arg, i64* %len.2
+    %p1.3 = alloca i64
+    %t0 = load i64, i64* %entry.0
+    store i64 %t0, i64* %p1.3
+    %t1 = load i64, i64* %name.1
+    %t2 = load i64, i64* %p1.3
+    %t3 = inttoptr i64 %t2 to i64*
+    store i64 %t1, i64* %t3
+    %p2.4 = alloca i64
+    %t4 = load i64, i64* %entry.0
+    %t5 = add i64 %t4, 8
+    store i64 %t5, i64* %p2.4
+    %t6 = load i64, i64* %len.2
+    %t7 = load i64, i64* %p2.4
+    %t8 = inttoptr i64 %t7 to i64*
+    store i64 %t6, i64* %t8
     ret void
 }
 
@@ -23857,6 +24090,15 @@ L77:
     call void @include_stack_pop()
     ret void
 L62:
+    %t340 = load i64, i64* %k.1
+    %t341 = load i64, i64* @NODE_MODULES_DECL
+    %t343 = icmp eq i64 %t340, %t341
+    %t342 = zext i1 %t343 to i64
+    %t344 = icmp ne i64 %t342, 0
+    br i1 %t344, label %L78, label %L80
+L78:
+    ret void
+L80:
     ret void
 }
 
@@ -33256,147 +33498,156 @@ L50:
     ret void
 L35:
     %t178 = load i64, i64* %k.1
-    %t179 = load i64, i64* @NODE_READER_EXPR
+    %t179 = load i64, i64* @NODE_MODULES_DECL
     %t181 = icmp eq i64 %t178, %t179
     %t180 = zext i1 %t181 to i64
     %t182 = icmp ne i64 %t180, 0
     br i1 %t182, label %L51, label %L53
 L51:
+    ret void
+L53:
+    %t183 = load i64, i64* %k.1
+    %t184 = load i64, i64* @NODE_READER_EXPR
+    %t186 = icmp eq i64 %t183, %t184
+    %t185 = zext i1 %t186 to i64
+    %t187 = icmp ne i64 %t185, 0
+    br i1 %t187, label %L54, label %L56
+L54:
     %name.20 = alloca i64
-    %t183 = load i64, i64* %decl.0
-    %t184 = call i8* @reader_expr_name(i64 %t183)
-    %t185 = ptrtoint i8* %t184 to i64
-    store i64 %t185, i64* %name.20
-    %name_len.21 = alloca i64
-    %t186 = load i64, i64* %decl.0
-    %t187 = call i64 @reader_expr_name_len(i64 %t186)
-    store i64 %t187, i64* %name_len.21
-    %content.22 = alloca i64
     %t188 = load i64, i64* %decl.0
-    %t189 = call i8* @reader_expr_content(i64 %t188)
+    %t189 = call i8* @reader_expr_name(i64 %t188)
     %t190 = ptrtoint i8* %t189 to i64
-    store i64 %t190, i64* %content.22
-    %content_len.23 = alloca i64
+    store i64 %t190, i64* %name.20
+    %name_len.21 = alloca i64
     %t191 = load i64, i64* %decl.0
-    %t192 = call i64 @reader_expr_content_len(i64 %t191)
-    store i64 %t192, i64* %content_len.23
+    %t192 = call i64 @reader_expr_name_len(i64 %t191)
+    store i64 %t192, i64* %name_len.21
+    %content.22 = alloca i64
+    %t193 = load i64, i64* %decl.0
+    %t194 = call i8* @reader_expr_content(i64 %t193)
+    %t195 = ptrtoint i8* %t194 to i64
+    store i64 %t195, i64* %content.22
+    %content_len.23 = alloca i64
+    %t196 = load i64, i64* %decl.0
+    %t197 = call i64 @reader_expr_content_len(i64 %t196)
+    store i64 %t197, i64* %content_len.23
     %embedded_func.24 = alloca i64
-    %t193 = load i64, i64* %name.20
-    %t194 = load i64, i64* %name_len.21
-    %t195 = call i8* @find_embedded_reader_func(i64 %t193, i64 %t194)
-    %t196 = ptrtoint i8* %t195 to i64
-    store i64 %t196, i64* %embedded_func.24
+    %t198 = load i64, i64* %name.20
+    %t199 = load i64, i64* %name_len.21
+    %t200 = call i8* @find_embedded_reader_func(i64 %t198, i64 %t199)
+    %t201 = ptrtoint i8* %t200 to i64
+    store i64 %t201, i64* %embedded_func.24
     %output.25 = alloca i64
     store i64 0, i64* %output.25
-    %t197 = load i64, i64* %embedded_func.24
-    %t199 = icmp ne i64 %t197, 0
-    %t198 = zext i1 %t199 to i64
-    %t200 = icmp ne i64 %t198, 0
-    br i1 %t200, label %L54, label %L55
-L54:
-    %reader_fn.26 = alloca i64
-    %t201 = load i64, i64* %embedded_func.24
-    store i64 %t201, i64* %reader_fn.26
-    %t202 = load i64, i64* %content.22
-    %t203 = load i64, i64* %reader_fn.26
-    %t204 = inttoptr i64 %t203 to i64 (i64)*
-    %t205 = call i64 %t204(i64 %t202)
-    store i64 %t205, i64* %output.25
-    %t206 = load i64, i64* %output.25
-    %t208 = icmp eq i64 %t206, 0
-    %t207 = zext i1 %t208 to i64
-    %t209 = icmp ne i64 %t207, 0
-    br i1 %t209, label %L57, label %L59
+    %t202 = load i64, i64* %embedded_func.24
+    %t204 = icmp ne i64 %t202, 0
+    %t203 = zext i1 %t204 to i64
+    %t205 = icmp ne i64 %t203, 0
+    br i1 %t205, label %L57, label %L58
 L57:
-    ret void
-L59:
-    br label %L56
-L55:
-    %reader_decl.27 = alloca i64
-    %t210 = load i64, i64* %name.20
-    %t211 = load i64, i64* %name_len.21
-    %t212 = call i8* @find_reader(i64 %t210, i64 %t211)
-    %t213 = ptrtoint i8* %t212 to i64
-    store i64 %t213, i64* %reader_decl.27
-    %t214 = load i64, i64* %reader_decl.27
-    %t216 = icmp eq i64 %t214, 0
-    %t215 = zext i1 %t216 to i64
-    %t217 = icmp ne i64 %t215, 0
-    br i1 %t217, label %L60, label %L62
+    %reader_fn.26 = alloca i64
+    %t206 = load i64, i64* %embedded_func.24
+    store i64 %t206, i64* %reader_fn.26
+    %t207 = load i64, i64* %content.22
+    %t208 = load i64, i64* %reader_fn.26
+    %t209 = inttoptr i64 %t208 to i64 (i64)*
+    %t210 = call i64 %t209(i64 %t207)
+    store i64 %t210, i64* %output.25
+    %t211 = load i64, i64* %output.25
+    %t213 = icmp eq i64 %t211, 0
+    %t212 = zext i1 %t213 to i64
+    %t214 = icmp ne i64 %t212, 0
+    br i1 %t214, label %L60, label %L62
 L60:
     ret void
 L62:
-    %exe_path.28 = alloca i64
-    %t218 = load i64, i64* %name.20
-    %t219 = load i64, i64* %name_len.21
-    %t220 = call i8* @build_reader_cache_path(i64 %t218, i64 %t219)
-    %t221 = ptrtoint i8* %t220 to i64
-    store i64 %t221, i64* %exe_path.28
-    %t222 = call i8* @alloc(i64 131072)
-    %t223 = ptrtoint i8* %t222 to i64
-    store i64 %t223, i64* %output.25
-    %n.29 = alloca i64
-    %t224 = load i64, i64* %exe_path.28
-    %t225 = load i64, i64* %content.22
-    %t226 = load i64, i64* %content_len.23
-    %t227 = load i64, i64* %output.25
-    %t228 = call i64 @exec_capture(i64 %t224, i64 %t225, i64 %t226, i64 %t227, i64 131072)
-    store i64 %t228, i64* %n.29
-    %t229 = load i64, i64* %n.29
-    %t231 = icmp sle i64 %t229, 0
-    %t230 = zext i1 %t231 to i64
-    %t232 = icmp ne i64 %t230, 0
-    br i1 %t232, label %L63, label %L65
+    br label %L59
+L58:
+    %reader_decl.27 = alloca i64
+    %t215 = load i64, i64* %name.20
+    %t216 = load i64, i64* %name_len.21
+    %t217 = call i8* @find_reader(i64 %t215, i64 %t216)
+    %t218 = ptrtoint i8* %t217 to i64
+    store i64 %t218, i64* %reader_decl.27
+    %t219 = load i64, i64* %reader_decl.27
+    %t221 = icmp eq i64 %t219, 0
+    %t220 = zext i1 %t221 to i64
+    %t222 = icmp ne i64 %t220, 0
+    br i1 %t222, label %L63, label %L65
 L63:
     ret void
 L65:
-    br label %L56
-L56:
-    %prog.30 = alloca i64
-    %t233 = load i64, i64* %output.25
-    %t234 = call i8* @parse_ast_from_string(i64 %t233)
-    %t235 = ptrtoint i8* %t234 to i64
-    store i64 %t235, i64* %prog.30
-    %t236 = load i64, i64* %prog.30
-    %t238 = icmp eq i64 %t236, 0
-    %t237 = zext i1 %t238 to i64
-    %t239 = icmp ne i64 %t237, 0
-    br i1 %t239, label %L66, label %L68
+    %exe_path.28 = alloca i64
+    %t223 = load i64, i64* %name.20
+    %t224 = load i64, i64* %name_len.21
+    %t225 = call i8* @build_reader_cache_path(i64 %t223, i64 %t224)
+    %t226 = ptrtoint i8* %t225 to i64
+    store i64 %t226, i64* %exe_path.28
+    %t227 = call i8* @alloc(i64 131072)
+    %t228 = ptrtoint i8* %t227 to i64
+    store i64 %t228, i64* %output.25
+    %n.29 = alloca i64
+    %t229 = load i64, i64* %exe_path.28
+    %t230 = load i64, i64* %content.22
+    %t231 = load i64, i64* %content_len.23
+    %t232 = load i64, i64* %output.25
+    %t233 = call i64 @exec_capture(i64 %t229, i64 %t230, i64 %t231, i64 %t232, i64 131072)
+    store i64 %t233, i64* %n.29
+    %t234 = load i64, i64* %n.29
+    %t236 = icmp sle i64 %t234, 0
+    %t235 = zext i1 %t236 to i64
+    %t237 = icmp ne i64 %t235, 0
+    br i1 %t237, label %L66, label %L68
 L66:
     ret void
 L68:
+    br label %L59
+L59:
+    %prog.30 = alloca i64
+    %t238 = load i64, i64* %output.25
+    %t239 = call i8* @parse_ast_from_string(i64 %t238)
+    %t240 = ptrtoint i8* %t239 to i64
+    store i64 %t240, i64* %prog.30
+    %t241 = load i64, i64* %prog.30
+    %t243 = icmp eq i64 %t241, 0
+    %t242 = zext i1 %t243 to i64
+    %t244 = icmp ne i64 %t242, 0
+    br i1 %t244, label %L69, label %L71
+L69:
+    ret void
+L71:
     %gen_decls.31 = alloca i64
-    %t240 = load i64, i64* %prog.30
-    %t241 = call i8* @program_decls(i64 %t240)
-    %t242 = ptrtoint i8* %t241 to i64
-    store i64 %t242, i64* %gen_decls.31
+    %t245 = load i64, i64* %prog.30
+    %t246 = call i8* @program_decls(i64 %t245)
+    %t247 = ptrtoint i8* %t246 to i64
+    store i64 %t247, i64* %gen_decls.31
     %gen_count.32 = alloca i64
-    %t243 = load i64, i64* %prog.30
-    %t244 = call i64 @program_decl_count(i64 %t243)
-    store i64 %t244, i64* %gen_count.32
+    %t248 = load i64, i64* %prog.30
+    %t249 = call i64 @program_decl_count(i64 %t248)
+    store i64 %t249, i64* %gen_count.32
     %i.33 = alloca i64
     store i64 0, i64* %i.33
-    br label %L69
-L69:
-    %t245 = load i64, i64* %i.33
-    %t246 = load i64, i64* %gen_count.32
-    %t248 = icmp slt i64 %t245, %t246
-    %t247 = zext i1 %t248 to i64
-    %t249 = icmp ne i64 %t247, 0
-    br i1 %t249, label %L70, label %L71
-L70:
-    %t250 = load i64, i64* %gen_decls.31
-    %t251 = load i64, i64* %i.33
-    %t252 = call i8* @get_decl(i64 %t250, i64 %t251)
-    %t253 = ptrtoint i8* %t252 to i64
-    call void @gen_decl(i64 %t253)
-    %t254 = load i64, i64* %i.33
-    %t255 = add i64 %t254, 1
-    store i64 %t255, i64* %i.33
-    br label %L69
-L71:
+    br label %L72
+L72:
+    %t250 = load i64, i64* %i.33
+    %t251 = load i64, i64* %gen_count.32
+    %t253 = icmp slt i64 %t250, %t251
+    %t252 = zext i1 %t253 to i64
+    %t254 = icmp ne i64 %t252, 0
+    br i1 %t254, label %L73, label %L74
+L73:
+    %t255 = load i64, i64* %gen_decls.31
+    %t256 = load i64, i64* %i.33
+    %t257 = call i8* @get_decl(i64 %t255, i64 %t256)
+    %t258 = ptrtoint i8* %t257 to i64
+    call void @gen_decl(i64 %t258)
+    %t259 = load i64, i64* %i.33
+    %t260 = add i64 %t259, 1
+    store i64 %t260, i64* %i.33
+    br label %L72
+L74:
     ret void
-L53:
+L56:
     ret void
 }
 
@@ -51973,428 +52224,437 @@ L38:
     ret void
 L26:
     %t151 = load i64, i64* %k.1
-    %t152 = load i64, i64* @NODE_VAR_DECL
+    %t152 = load i64, i64* @NODE_MODULES_DECL
     %t154 = icmp eq i64 %t151, %t152
     %t153 = zext i1 %t154 to i64
     %t155 = icmp ne i64 %t153, 0
     br i1 %t155, label %L39, label %L41
 L39:
-    %name.22 = alloca i64
-    %t156 = load i64, i64* %decl.0
-    %t157 = call i8* @var_decl_name(i64 %t156)
-    %t158 = ptrtoint i8* %t157 to i64
-    store i64 %t158, i64* %name.22
-    %name_len.23 = alloca i64
-    %t159 = load i64, i64* %decl.0
-    %t160 = call i64 @var_decl_name_len(i64 %t159)
-    store i64 %t160, i64* %name_len.23
-    %init.24 = alloca i64
-    %t161 = load i64, i64* %decl.0
-    %t162 = call i8* @var_decl_init(i64 %t161)
-    %t163 = ptrtoint i8* %t162 to i64
-    store i64 %t163, i64* %init.24
-    %is_extern.25 = alloca i64
-    %t164 = load i64, i64* %decl.0
-    %t165 = call i64 @var_decl_is_extern(i64 %t164)
-    store i64 %t165, i64* %is_extern.25
-    %var_type.26 = alloca i64
-    %t166 = load i64, i64* %decl.0
-    %t167 = call i8* @var_decl_type(i64 %t166)
-    %t168 = ptrtoint i8* %t167 to i64
-    store i64 %t168, i64* %var_type.26
-    %t169 = load i64, i64* %name.22
-    %t170 = load i64, i64* %name_len.23
-    call void @llvm_add_global(i64 %t169, i64 %t170)
-    %t171 = load i64, i64* %is_extern.25
-    %t172 = icmp ne i64 %t171, 0
-    br i1 %t172, label %L42, label %L44
-L42:
-    ret void
-L44:
-    %t173 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str713, i64 0, i64 0) to i64
-    call void @llvm_emit_str(i64 %t173)
-    %t174 = load i64, i64* %name.22
-    %t175 = load i64, i64* %name_len.23
-    call void @llvm_emit_n(i64 %t174, i64 %t175)
-    %t176 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str722, i64 0, i64 0) to i64
-    call void @llvm_emit_str(i64 %t176)
-    %t177 = alloca i64
-    store i64 0, i64* %t177
-    %t178 = load i64, i64* %var_type.26
-    %t180 = icmp ne i64 %t178, 0
-    %t179 = zext i1 %t180 to i64
-    %t181 = icmp ne i64 %t179, 0
-    br i1 %t181, label %L48, label %L49
-L48:
-    %t182 = load i64, i64* %var_type.26
-    %t183 = call i64 @type_kind(i64 %t182)
-    %t184 = load i64, i64* @TYPE_ARRAY
-    %t186 = icmp eq i64 %t183, %t184
-    %t185 = zext i1 %t186 to i64
-    %t187 = icmp ne i64 %t185, 0
-    %t188 = zext i1 %t187 to i64
-    store i64 %t188, i64* %t177
-    br label %L49
-L49:
-    %t189 = load i64, i64* %t177
-    %t190 = icmp ne i64 %t189, 0
-    br i1 %t190, label %L45, label %L47
-L45:
-    %arr_size.27 = alloca i64
-    %t191 = load i64, i64* %var_type.26
-    %t192 = call i64 @array_type_size(i64 %t191)
-    store i64 %t192, i64* %arr_size.27
-    %elem_type.28 = alloca i64
-    %t193 = load i64, i64* %var_type.26
-    %t194 = call i8* @array_type_elem(i64 %t193)
-    %t195 = ptrtoint i8* %t194 to i64
-    store i64 %t195, i64* %elem_type.28
-    %is_ptr_elem.29 = alloca i64
-    store i64 0, i64* %is_ptr_elem.29
-    %t196 = alloca i64
-    store i64 0, i64* %t196
-    %t197 = load i64, i64* %elem_type.28
-    %t199 = icmp ne i64 %t197, 0
-    %t198 = zext i1 %t199 to i64
-    %t200 = icmp ne i64 %t198, 0
-    br i1 %t200, label %L53, label %L54
-L53:
-    %t201 = load i64, i64* %elem_type.28
-    %t202 = call i64 @type_kind(i64 %t201)
-    %t203 = load i64, i64* @TYPE_PTR
-    %t205 = icmp eq i64 %t202, %t203
-    %t204 = zext i1 %t205 to i64
-    %t206 = icmp ne i64 %t204, 0
-    %t207 = zext i1 %t206 to i64
-    store i64 %t207, i64* %t196
-    br label %L54
-L54:
-    %t208 = load i64, i64* %t196
-    %t209 = icmp ne i64 %t208, 0
-    br i1 %t209, label %L50, label %L52
-L50:
-    store i64 1, i64* %is_ptr_elem.29
-    br label %L52
-L52:
-    %t210 = load i64, i64* %var_type.26
-    call void @llvm_emit_type(i64 %t210)
-    %t211 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @llvm_emit_str(i64 %t211)
-    %t212 = alloca i64
-    store i64 0, i64* %t212
-    %t213 = load i64, i64* %init.24
-    %t215 = icmp ne i64 %t213, 0
-    %t214 = zext i1 %t215 to i64
-    %t216 = icmp ne i64 %t214, 0
-    br i1 %t216, label %L58, label %L59
-L58:
-    %t217 = load i64, i64* %init.24
-    %t218 = call i64 @node_kind(i64 %t217)
-    %t219 = load i64, i64* @NODE_ARRAY_LITERAL
-    %t221 = icmp eq i64 %t218, %t219
-    %t220 = zext i1 %t221 to i64
-    %t222 = icmp ne i64 %t220, 0
-    %t223 = zext i1 %t222 to i64
-    store i64 %t223, i64* %t212
-    br label %L59
-L59:
-    %t224 = load i64, i64* %t212
-    %t225 = icmp ne i64 %t224, 0
-    br i1 %t225, label %L55, label %L56
-L55:
-    %elems.30 = alloca i64
-    %t226 = load i64, i64* %init.24
-    %t227 = call i8* @array_literal_elems(i64 %t226)
-    %t228 = ptrtoint i8* %t227 to i64
-    store i64 %t228, i64* %elems.30
-    %count.31 = alloca i64
-    %t229 = load i64, i64* %init.24
-    %t230 = call i64 @array_literal_count(i64 %t229)
-    store i64 %t230, i64* %count.31
-    %t231 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str94, i64 0, i64 0) to i64
-    call void @llvm_emit_str(i64 %t231)
-    %i.32 = alloca i64
-    store i64 0, i64* %i.32
-    br label %L60
-L60:
-    %t232 = load i64, i64* %i.32
-    %t233 = load i64, i64* %arr_size.27
-    %t235 = icmp slt i64 %t232, %t233
-    %t234 = zext i1 %t235 to i64
-    %t236 = icmp ne i64 %t234, 0
-    br i1 %t236, label %L61, label %L62
-L61:
-    %t237 = load i64, i64* %i.32
-    %t239 = icmp sgt i64 %t237, 0
-    %t238 = zext i1 %t239 to i64
-    %t240 = icmp ne i64 %t238, 0
-    br i1 %t240, label %L63, label %L65
-L63:
-    %t241 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str312, i64 0, i64 0) to i64
-    call void @llvm_emit_str(i64 %t241)
-    br label %L65
-L65:
-    %t242 = load i64, i64* %i.32
-    %t243 = load i64, i64* %count.31
-    %t245 = icmp slt i64 %t242, %t243
-    %t244 = zext i1 %t245 to i64
-    %t246 = icmp ne i64 %t244, 0
-    br i1 %t246, label %L66, label %L67
-L66:
-    %elem_ptr.33 = alloca i64
-    %t247 = load i64, i64* %elems.30
-    %t248 = load i64, i64* %i.32
-    %t249 = mul i64 %t248, 8
-    %t250 = add i64 %t247, %t249
-    store i64 %t250, i64* %elem_ptr.33
-    %elem.34 = alloca i64
-    %t251 = load i64, i64* %elem_ptr.33
-    %t253 = inttoptr i64 %t251 to i64*
-    %t252 = load i64, i64* %t253
-    store i64 %t252, i64* %elem.34
-    %t254 = load i64, i64* %elem_type.28
-    call void @llvm_emit_type(i64 %t254)
-    %t255 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @llvm_emit_str(i64 %t255)
-    %t256 = load i64, i64* %elem.34
-    %t257 = load i64, i64* %is_ptr_elem.29
-    call void @llvm_emit_global_array_elem(i64 %t256, i64 %t257)
-    br label %L68
-L67:
-    %t258 = load i64, i64* %elem_type.28
-    call void @llvm_emit_type(i64 %t258)
-    %t259 = load i64, i64* %is_ptr_elem.29
-    %t260 = icmp ne i64 %t259, 0
-    br i1 %t260, label %L69, label %L70
-L69:
-    %t261 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str723, i64 0, i64 0) to i64
-    call void @llvm_emit_str(i64 %t261)
-    br label %L71
-L70:
-    %t262 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str724, i64 0, i64 0) to i64
-    call void @llvm_emit_str(i64 %t262)
-    br label %L71
-L71:
-    br label %L68
-L68:
-    %t263 = load i64, i64* %i.32
-    %t264 = add i64 %t263, 1
-    store i64 %t264, i64* %i.32
-    br label %L60
-L62:
-    %t265 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str95, i64 0, i64 0) to i64
-    call void @llvm_emit_str(i64 %t265)
-    br label %L57
-L56:
-    %t266 = ptrtoint i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str725, i64 0, i64 0) to i64
-    call void @llvm_emit_str(i64 %t266)
-    br label %L57
-L57:
-    call void @llvm_emit_char(i64 10)
-    ret void
-L47:
-    %t267 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str535, i64 0, i64 0) to i64
-    call void @llvm_emit_str(i64 %t267)
-    %t268 = load i64, i64* %init.24
-    %t270 = icmp ne i64 %t268, 0
-    %t269 = zext i1 %t270 to i64
-    %t271 = icmp ne i64 %t269, 0
-    br i1 %t271, label %L72, label %L73
-L72:
-    %t272 = load i64, i64* %init.24
-    call void @llvm_emit_global_init_value(i64 %t272)
-    br label %L74
-L73:
-    %t273 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str13, i64 0, i64 0) to i64
-    call void @llvm_emit_str(i64 %t273)
-    br label %L74
-L74:
-    call void @llvm_emit_char(i64 10)
     ret void
 L41:
-    %t274 = load i64, i64* %k.1
-    %t275 = load i64, i64* @NODE_READER_EXPR
-    %t277 = icmp eq i64 %t274, %t275
-    %t276 = zext i1 %t277 to i64
-    %t278 = icmp ne i64 %t276, 0
-    br i1 %t278, label %L75, label %L77
+    %t156 = load i64, i64* %k.1
+    %t157 = load i64, i64* @NODE_VAR_DECL
+    %t159 = icmp eq i64 %t156, %t157
+    %t158 = zext i1 %t159 to i64
+    %t160 = icmp ne i64 %t158, 0
+    br i1 %t160, label %L42, label %L44
+L42:
+    %name.22 = alloca i64
+    %t161 = load i64, i64* %decl.0
+    %t162 = call i8* @var_decl_name(i64 %t161)
+    %t163 = ptrtoint i8* %t162 to i64
+    store i64 %t163, i64* %name.22
+    %name_len.23 = alloca i64
+    %t164 = load i64, i64* %decl.0
+    %t165 = call i64 @var_decl_name_len(i64 %t164)
+    store i64 %t165, i64* %name_len.23
+    %init.24 = alloca i64
+    %t166 = load i64, i64* %decl.0
+    %t167 = call i8* @var_decl_init(i64 %t166)
+    %t168 = ptrtoint i8* %t167 to i64
+    store i64 %t168, i64* %init.24
+    %is_extern.25 = alloca i64
+    %t169 = load i64, i64* %decl.0
+    %t170 = call i64 @var_decl_is_extern(i64 %t169)
+    store i64 %t170, i64* %is_extern.25
+    %var_type.26 = alloca i64
+    %t171 = load i64, i64* %decl.0
+    %t172 = call i8* @var_decl_type(i64 %t171)
+    %t173 = ptrtoint i8* %t172 to i64
+    store i64 %t173, i64* %var_type.26
+    %t174 = load i64, i64* %name.22
+    %t175 = load i64, i64* %name_len.23
+    call void @llvm_add_global(i64 %t174, i64 %t175)
+    %t176 = load i64, i64* %is_extern.25
+    %t177 = icmp ne i64 %t176, 0
+    br i1 %t177, label %L45, label %L47
+L45:
+    ret void
+L47:
+    %t178 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str713, i64 0, i64 0) to i64
+    call void @llvm_emit_str(i64 %t178)
+    %t179 = load i64, i64* %name.22
+    %t180 = load i64, i64* %name_len.23
+    call void @llvm_emit_n(i64 %t179, i64 %t180)
+    %t181 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str722, i64 0, i64 0) to i64
+    call void @llvm_emit_str(i64 %t181)
+    %t182 = alloca i64
+    store i64 0, i64* %t182
+    %t183 = load i64, i64* %var_type.26
+    %t185 = icmp ne i64 %t183, 0
+    %t184 = zext i1 %t185 to i64
+    %t186 = icmp ne i64 %t184, 0
+    br i1 %t186, label %L51, label %L52
+L51:
+    %t187 = load i64, i64* %var_type.26
+    %t188 = call i64 @type_kind(i64 %t187)
+    %t189 = load i64, i64* @TYPE_ARRAY
+    %t191 = icmp eq i64 %t188, %t189
+    %t190 = zext i1 %t191 to i64
+    %t192 = icmp ne i64 %t190, 0
+    %t193 = zext i1 %t192 to i64
+    store i64 %t193, i64* %t182
+    br label %L52
+L52:
+    %t194 = load i64, i64* %t182
+    %t195 = icmp ne i64 %t194, 0
+    br i1 %t195, label %L48, label %L50
+L48:
+    %arr_size.27 = alloca i64
+    %t196 = load i64, i64* %var_type.26
+    %t197 = call i64 @array_type_size(i64 %t196)
+    store i64 %t197, i64* %arr_size.27
+    %elem_type.28 = alloca i64
+    %t198 = load i64, i64* %var_type.26
+    %t199 = call i8* @array_type_elem(i64 %t198)
+    %t200 = ptrtoint i8* %t199 to i64
+    store i64 %t200, i64* %elem_type.28
+    %is_ptr_elem.29 = alloca i64
+    store i64 0, i64* %is_ptr_elem.29
+    %t201 = alloca i64
+    store i64 0, i64* %t201
+    %t202 = load i64, i64* %elem_type.28
+    %t204 = icmp ne i64 %t202, 0
+    %t203 = zext i1 %t204 to i64
+    %t205 = icmp ne i64 %t203, 0
+    br i1 %t205, label %L56, label %L57
+L56:
+    %t206 = load i64, i64* %elem_type.28
+    %t207 = call i64 @type_kind(i64 %t206)
+    %t208 = load i64, i64* @TYPE_PTR
+    %t210 = icmp eq i64 %t207, %t208
+    %t209 = zext i1 %t210 to i64
+    %t211 = icmp ne i64 %t209, 0
+    %t212 = zext i1 %t211 to i64
+    store i64 %t212, i64* %t201
+    br label %L57
+L57:
+    %t213 = load i64, i64* %t201
+    %t214 = icmp ne i64 %t213, 0
+    br i1 %t214, label %L53, label %L55
+L53:
+    store i64 1, i64* %is_ptr_elem.29
+    br label %L55
+L55:
+    %t215 = load i64, i64* %var_type.26
+    call void @llvm_emit_type(i64 %t215)
+    %t216 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @llvm_emit_str(i64 %t216)
+    %t217 = alloca i64
+    store i64 0, i64* %t217
+    %t218 = load i64, i64* %init.24
+    %t220 = icmp ne i64 %t218, 0
+    %t219 = zext i1 %t220 to i64
+    %t221 = icmp ne i64 %t219, 0
+    br i1 %t221, label %L61, label %L62
+L61:
+    %t222 = load i64, i64* %init.24
+    %t223 = call i64 @node_kind(i64 %t222)
+    %t224 = load i64, i64* @NODE_ARRAY_LITERAL
+    %t226 = icmp eq i64 %t223, %t224
+    %t225 = zext i1 %t226 to i64
+    %t227 = icmp ne i64 %t225, 0
+    %t228 = zext i1 %t227 to i64
+    store i64 %t228, i64* %t217
+    br label %L62
+L62:
+    %t229 = load i64, i64* %t217
+    %t230 = icmp ne i64 %t229, 0
+    br i1 %t230, label %L58, label %L59
+L58:
+    %elems.30 = alloca i64
+    %t231 = load i64, i64* %init.24
+    %t232 = call i8* @array_literal_elems(i64 %t231)
+    %t233 = ptrtoint i8* %t232 to i64
+    store i64 %t233, i64* %elems.30
+    %count.31 = alloca i64
+    %t234 = load i64, i64* %init.24
+    %t235 = call i64 @array_literal_count(i64 %t234)
+    store i64 %t235, i64* %count.31
+    %t236 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str94, i64 0, i64 0) to i64
+    call void @llvm_emit_str(i64 %t236)
+    %i.32 = alloca i64
+    store i64 0, i64* %i.32
+    br label %L63
+L63:
+    %t237 = load i64, i64* %i.32
+    %t238 = load i64, i64* %arr_size.27
+    %t240 = icmp slt i64 %t237, %t238
+    %t239 = zext i1 %t240 to i64
+    %t241 = icmp ne i64 %t239, 0
+    br i1 %t241, label %L64, label %L65
+L64:
+    %t242 = load i64, i64* %i.32
+    %t244 = icmp sgt i64 %t242, 0
+    %t243 = zext i1 %t244 to i64
+    %t245 = icmp ne i64 %t243, 0
+    br i1 %t245, label %L66, label %L68
+L66:
+    %t246 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str312, i64 0, i64 0) to i64
+    call void @llvm_emit_str(i64 %t246)
+    br label %L68
+L68:
+    %t247 = load i64, i64* %i.32
+    %t248 = load i64, i64* %count.31
+    %t250 = icmp slt i64 %t247, %t248
+    %t249 = zext i1 %t250 to i64
+    %t251 = icmp ne i64 %t249, 0
+    br i1 %t251, label %L69, label %L70
+L69:
+    %elem_ptr.33 = alloca i64
+    %t252 = load i64, i64* %elems.30
+    %t253 = load i64, i64* %i.32
+    %t254 = mul i64 %t253, 8
+    %t255 = add i64 %t252, %t254
+    store i64 %t255, i64* %elem_ptr.33
+    %elem.34 = alloca i64
+    %t256 = load i64, i64* %elem_ptr.33
+    %t258 = inttoptr i64 %t256 to i64*
+    %t257 = load i64, i64* %t258
+    store i64 %t257, i64* %elem.34
+    %t259 = load i64, i64* %elem_type.28
+    call void @llvm_emit_type(i64 %t259)
+    %t260 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @llvm_emit_str(i64 %t260)
+    %t261 = load i64, i64* %elem.34
+    %t262 = load i64, i64* %is_ptr_elem.29
+    call void @llvm_emit_global_array_elem(i64 %t261, i64 %t262)
+    br label %L71
+L70:
+    %t263 = load i64, i64* %elem_type.28
+    call void @llvm_emit_type(i64 %t263)
+    %t264 = load i64, i64* %is_ptr_elem.29
+    %t265 = icmp ne i64 %t264, 0
+    br i1 %t265, label %L72, label %L73
+L72:
+    %t266 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str723, i64 0, i64 0) to i64
+    call void @llvm_emit_str(i64 %t266)
+    br label %L74
+L73:
+    %t267 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str724, i64 0, i64 0) to i64
+    call void @llvm_emit_str(i64 %t267)
+    br label %L74
+L74:
+    br label %L71
+L71:
+    %t268 = load i64, i64* %i.32
+    %t269 = add i64 %t268, 1
+    store i64 %t269, i64* %i.32
+    br label %L63
+L65:
+    %t270 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str95, i64 0, i64 0) to i64
+    call void @llvm_emit_str(i64 %t270)
+    br label %L60
+L59:
+    %t271 = ptrtoint i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str725, i64 0, i64 0) to i64
+    call void @llvm_emit_str(i64 %t271)
+    br label %L60
+L60:
+    call void @llvm_emit_char(i64 10)
+    ret void
+L50:
+    %t272 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str535, i64 0, i64 0) to i64
+    call void @llvm_emit_str(i64 %t272)
+    %t273 = load i64, i64* %init.24
+    %t275 = icmp ne i64 %t273, 0
+    %t274 = zext i1 %t275 to i64
+    %t276 = icmp ne i64 %t274, 0
+    br i1 %t276, label %L75, label %L76
 L75:
-    %name.35 = alloca i64
-    %t279 = load i64, i64* %decl.0
-    %t280 = call i8* @reader_expr_name(i64 %t279)
-    %t281 = ptrtoint i8* %t280 to i64
-    store i64 %t281, i64* %name.35
-    %name_len.36 = alloca i64
-    %t282 = load i64, i64* %decl.0
-    %t283 = call i64 @reader_expr_name_len(i64 %t282)
-    store i64 %t283, i64* %name_len.36
-    %content.37 = alloca i64
-    %t284 = load i64, i64* %decl.0
-    %t285 = call i8* @reader_expr_content(i64 %t284)
-    %t286 = ptrtoint i8* %t285 to i64
-    store i64 %t286, i64* %content.37
-    %content_len.38 = alloca i64
-    %t287 = load i64, i64* %decl.0
-    %t288 = call i64 @reader_expr_content_len(i64 %t287)
-    store i64 %t288, i64* %content_len.38
-    %embedded_func.39 = alloca i64
-    %t289 = load i64, i64* %name.35
-    %t290 = load i64, i64* %name_len.36
-    %t291 = call i8* @find_embedded_reader_func(i64 %t289, i64 %t290)
-    %t292 = ptrtoint i8* %t291 to i64
-    store i64 %t292, i64* %embedded_func.39
-    %t293 = load i64, i64* %embedded_func.39
-    %t295 = icmp ne i64 %t293, 0
-    %t294 = zext i1 %t295 to i64
-    %t296 = icmp ne i64 %t294, 0
-    br i1 %t296, label %L78, label %L80
+    %t277 = load i64, i64* %init.24
+    call void @llvm_emit_global_init_value(i64 %t277)
+    br label %L77
+L76:
+    %t278 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str13, i64 0, i64 0) to i64
+    call void @llvm_emit_str(i64 %t278)
+    br label %L77
+L77:
+    call void @llvm_emit_char(i64 10)
+    ret void
+L44:
+    %t279 = load i64, i64* %k.1
+    %t280 = load i64, i64* @NODE_READER_EXPR
+    %t282 = icmp eq i64 %t279, %t280
+    %t281 = zext i1 %t282 to i64
+    %t283 = icmp ne i64 %t281, 0
+    br i1 %t283, label %L78, label %L80
 L78:
-    %reader_fn.40 = alloca i64
-    %t297 = load i64, i64* %embedded_func.39
-    store i64 %t297, i64* %reader_fn.40
-    %output.41 = alloca i64
-    %t298 = load i64, i64* %content.37
-    %t299 = load i64, i64* %reader_fn.40
-    %t300 = inttoptr i64 %t299 to i64 (i64)*
-    %t301 = call i64 %t300(i64 %t298)
-    store i64 %t301, i64* %output.41
-    %t302 = load i64, i64* %output.41
-    %t304 = icmp ne i64 %t302, 0
-    %t303 = zext i1 %t304 to i64
-    %t305 = icmp ne i64 %t303, 0
-    br i1 %t305, label %L81, label %L83
+    %name.35 = alloca i64
+    %t284 = load i64, i64* %decl.0
+    %t285 = call i8* @reader_expr_name(i64 %t284)
+    %t286 = ptrtoint i8* %t285 to i64
+    store i64 %t286, i64* %name.35
+    %name_len.36 = alloca i64
+    %t287 = load i64, i64* %decl.0
+    %t288 = call i64 @reader_expr_name_len(i64 %t287)
+    store i64 %t288, i64* %name_len.36
+    %content.37 = alloca i64
+    %t289 = load i64, i64* %decl.0
+    %t290 = call i8* @reader_expr_content(i64 %t289)
+    %t291 = ptrtoint i8* %t290 to i64
+    store i64 %t291, i64* %content.37
+    %content_len.38 = alloca i64
+    %t292 = load i64, i64* %decl.0
+    %t293 = call i64 @reader_expr_content_len(i64 %t292)
+    store i64 %t293, i64* %content_len.38
+    %embedded_func.39 = alloca i64
+    %t294 = load i64, i64* %name.35
+    %t295 = load i64, i64* %name_len.36
+    %t296 = call i8* @find_embedded_reader_func(i64 %t294, i64 %t295)
+    %t297 = ptrtoint i8* %t296 to i64
+    store i64 %t297, i64* %embedded_func.39
+    %t298 = load i64, i64* %embedded_func.39
+    %t300 = icmp ne i64 %t298, 0
+    %t299 = zext i1 %t300 to i64
+    %t301 = icmp ne i64 %t299, 0
+    br i1 %t301, label %L81, label %L83
 L81:
-    %prog.42 = alloca i64
-    %t306 = load i64, i64* %output.41
-    %t307 = call i8* @parse_ast_from_string(i64 %t306)
-    %t308 = ptrtoint i8* %t307 to i64
-    store i64 %t308, i64* %prog.42
-    %t309 = load i64, i64* %prog.42
-    %t311 = icmp ne i64 %t309, 0
-    %t310 = zext i1 %t311 to i64
-    %t312 = icmp ne i64 %t310, 0
-    br i1 %t312, label %L84, label %L86
+    %reader_fn.40 = alloca i64
+    %t302 = load i64, i64* %embedded_func.39
+    store i64 %t302, i64* %reader_fn.40
+    %output.41 = alloca i64
+    %t303 = load i64, i64* %content.37
+    %t304 = load i64, i64* %reader_fn.40
+    %t305 = inttoptr i64 %t304 to i64 (i64)*
+    %t306 = call i64 %t305(i64 %t303)
+    store i64 %t306, i64* %output.41
+    %t307 = load i64, i64* %output.41
+    %t309 = icmp ne i64 %t307, 0
+    %t308 = zext i1 %t309 to i64
+    %t310 = icmp ne i64 %t308, 0
+    br i1 %t310, label %L84, label %L86
 L84:
+    %prog.42 = alloca i64
+    %t311 = load i64, i64* %output.41
+    %t312 = call i8* @parse_ast_from_string(i64 %t311)
+    %t313 = ptrtoint i8* %t312 to i64
+    store i64 %t313, i64* %prog.42
+    %t314 = load i64, i64* %prog.42
+    %t316 = icmp ne i64 %t314, 0
+    %t315 = zext i1 %t316 to i64
+    %t317 = icmp ne i64 %t315, 0
+    br i1 %t317, label %L87, label %L89
+L87:
     %inc_decls.43 = alloca i64
-    %t313 = load i64, i64* %prog.42
-    %t314 = call i8* @program_decls(i64 %t313)
-    %t315 = ptrtoint i8* %t314 to i64
-    store i64 %t315, i64* %inc_decls.43
+    %t318 = load i64, i64* %prog.42
+    %t319 = call i8* @program_decls(i64 %t318)
+    %t320 = ptrtoint i8* %t319 to i64
+    store i64 %t320, i64* %inc_decls.43
     %inc_count.44 = alloca i64
-    %t316 = load i64, i64* %prog.42
-    %t317 = call i64 @program_decl_count(i64 %t316)
-    store i64 %t317, i64* %inc_count.44
+    %t321 = load i64, i64* %prog.42
+    %t322 = call i64 @program_decl_count(i64 %t321)
+    store i64 %t322, i64* %inc_count.44
     %i.45 = alloca i64
     store i64 0, i64* %i.45
-    br label %L87
-L87:
-    %t318 = load i64, i64* %i.45
-    %t319 = load i64, i64* %inc_count.44
-    %t321 = icmp slt i64 %t318, %t319
-    %t320 = zext i1 %t321 to i64
-    %t322 = icmp ne i64 %t320, 0
-    br i1 %t322, label %L88, label %L89
-L88:
-    %t323 = load i64, i64* %inc_decls.43
-    %t324 = load i64, i64* %i.45
-    %t325 = call i8* @get_decl(i64 %t323, i64 %t324)
-    %t326 = ptrtoint i8* %t325 to i64
-    call void @llvm_emit_decl(i64 %t326)
-    %t327 = load i64, i64* %i.45
-    %t328 = add i64 %t327, 1
-    store i64 %t328, i64* %i.45
-    br label %L87
+    br label %L90
+L90:
+    %t323 = load i64, i64* %i.45
+    %t324 = load i64, i64* %inc_count.44
+    %t326 = icmp slt i64 %t323, %t324
+    %t325 = zext i1 %t326 to i64
+    %t327 = icmp ne i64 %t325, 0
+    br i1 %t327, label %L91, label %L92
+L91:
+    %t328 = load i64, i64* %inc_decls.43
+    %t329 = load i64, i64* %i.45
+    %t330 = call i8* @get_decl(i64 %t328, i64 %t329)
+    %t331 = ptrtoint i8* %t330 to i64
+    call void @llvm_emit_decl(i64 %t331)
+    %t332 = load i64, i64* %i.45
+    %t333 = add i64 %t332, 1
+    store i64 %t333, i64* %i.45
+    br label %L90
+L92:
+    br label %L89
 L89:
     br label %L86
 L86:
-    br label %L83
+    ret void
 L83:
-    ret void
-L80:
     %reader_decl.46 = alloca i64
-    %t329 = load i64, i64* %name.35
-    %t330 = load i64, i64* %name_len.36
-    %t331 = call i8* @find_reader(i64 %t329, i64 %t330)
-    %t332 = ptrtoint i8* %t331 to i64
-    store i64 %t332, i64* %reader_decl.46
-    %t333 = load i64, i64* %reader_decl.46
-    %t335 = icmp eq i64 %t333, 0
-    %t334 = zext i1 %t335 to i64
-    %t336 = icmp ne i64 %t334, 0
-    br i1 %t336, label %L90, label %L92
-L90:
-    ret void
-L92:
-    %exe_path.47 = alloca i64
-    %t337 = load i64, i64* %name.35
-    %t338 = load i64, i64* %name_len.36
-    %t339 = call i8* @build_reader_cache_path(i64 %t337, i64 %t338)
-    %t340 = ptrtoint i8* %t339 to i64
-    store i64 %t340, i64* %exe_path.47
-    %output.48 = alloca i64
-    %t341 = call i8* @alloc(i64 131072)
-    %t342 = ptrtoint i8* %t341 to i64
-    store i64 %t342, i64* %output.48
-    %n.49 = alloca i64
-    %t343 = load i64, i64* %exe_path.47
-    %t344 = load i64, i64* %content.37
-    %t345 = load i64, i64* %content_len.38
-    %t346 = load i64, i64* %output.48
-    %t347 = call i64 @exec_capture(i64 %t343, i64 %t344, i64 %t345, i64 %t346, i64 131072)
-    store i64 %t347, i64* %n.49
-    %t348 = load i64, i64* %n.49
-    %t350 = icmp sle i64 %t348, 0
-    %t349 = zext i1 %t350 to i64
-    %t351 = icmp ne i64 %t349, 0
-    br i1 %t351, label %L93, label %L95
+    %t334 = load i64, i64* %name.35
+    %t335 = load i64, i64* %name_len.36
+    %t336 = call i8* @find_reader(i64 %t334, i64 %t335)
+    %t337 = ptrtoint i8* %t336 to i64
+    store i64 %t337, i64* %reader_decl.46
+    %t338 = load i64, i64* %reader_decl.46
+    %t340 = icmp eq i64 %t338, 0
+    %t339 = zext i1 %t340 to i64
+    %t341 = icmp ne i64 %t339, 0
+    br i1 %t341, label %L93, label %L95
 L93:
     ret void
 L95:
-    %prog.50 = alloca i64
-    %t352 = load i64, i64* %output.48
-    %t353 = call i8* @parse_ast_from_string(i64 %t352)
-    %t354 = ptrtoint i8* %t353 to i64
-    store i64 %t354, i64* %prog.50
-    %t355 = load i64, i64* %prog.50
-    %t357 = icmp ne i64 %t355, 0
-    %t356 = zext i1 %t357 to i64
-    %t358 = icmp ne i64 %t356, 0
-    br i1 %t358, label %L96, label %L98
+    %exe_path.47 = alloca i64
+    %t342 = load i64, i64* %name.35
+    %t343 = load i64, i64* %name_len.36
+    %t344 = call i8* @build_reader_cache_path(i64 %t342, i64 %t343)
+    %t345 = ptrtoint i8* %t344 to i64
+    store i64 %t345, i64* %exe_path.47
+    %output.48 = alloca i64
+    %t346 = call i8* @alloc(i64 131072)
+    %t347 = ptrtoint i8* %t346 to i64
+    store i64 %t347, i64* %output.48
+    %n.49 = alloca i64
+    %t348 = load i64, i64* %exe_path.47
+    %t349 = load i64, i64* %content.37
+    %t350 = load i64, i64* %content_len.38
+    %t351 = load i64, i64* %output.48
+    %t352 = call i64 @exec_capture(i64 %t348, i64 %t349, i64 %t350, i64 %t351, i64 131072)
+    store i64 %t352, i64* %n.49
+    %t353 = load i64, i64* %n.49
+    %t355 = icmp sle i64 %t353, 0
+    %t354 = zext i1 %t355 to i64
+    %t356 = icmp ne i64 %t354, 0
+    br i1 %t356, label %L96, label %L98
 L96:
+    ret void
+L98:
+    %prog.50 = alloca i64
+    %t357 = load i64, i64* %output.48
+    %t358 = call i8* @parse_ast_from_string(i64 %t357)
+    %t359 = ptrtoint i8* %t358 to i64
+    store i64 %t359, i64* %prog.50
+    %t360 = load i64, i64* %prog.50
+    %t362 = icmp ne i64 %t360, 0
+    %t361 = zext i1 %t362 to i64
+    %t363 = icmp ne i64 %t361, 0
+    br i1 %t363, label %L99, label %L101
+L99:
     %inc_decls.51 = alloca i64
-    %t359 = load i64, i64* %prog.50
-    %t360 = call i8* @program_decls(i64 %t359)
-    %t361 = ptrtoint i8* %t360 to i64
-    store i64 %t361, i64* %inc_decls.51
+    %t364 = load i64, i64* %prog.50
+    %t365 = call i8* @program_decls(i64 %t364)
+    %t366 = ptrtoint i8* %t365 to i64
+    store i64 %t366, i64* %inc_decls.51
     %inc_count.52 = alloca i64
-    %t362 = load i64, i64* %prog.50
-    %t363 = call i64 @program_decl_count(i64 %t362)
-    store i64 %t363, i64* %inc_count.52
+    %t367 = load i64, i64* %prog.50
+    %t368 = call i64 @program_decl_count(i64 %t367)
+    store i64 %t368, i64* %inc_count.52
     %i.53 = alloca i64
     store i64 0, i64* %i.53
-    br label %L99
-L99:
-    %t364 = load i64, i64* %i.53
-    %t365 = load i64, i64* %inc_count.52
-    %t367 = icmp slt i64 %t364, %t365
-    %t366 = zext i1 %t367 to i64
-    %t368 = icmp ne i64 %t366, 0
-    br i1 %t368, label %L100, label %L101
-L100:
-    %t369 = load i64, i64* %inc_decls.51
-    %t370 = load i64, i64* %i.53
-    %t371 = call i8* @get_decl(i64 %t369, i64 %t370)
-    %t372 = ptrtoint i8* %t371 to i64
-    call void @llvm_emit_decl(i64 %t372)
-    %t373 = load i64, i64* %i.53
-    %t374 = add i64 %t373, 1
-    store i64 %t374, i64* %i.53
-    br label %L99
+    br label %L102
+L102:
+    %t369 = load i64, i64* %i.53
+    %t370 = load i64, i64* %inc_count.52
+    %t372 = icmp slt i64 %t369, %t370
+    %t371 = zext i1 %t372 to i64
+    %t373 = icmp ne i64 %t371, 0
+    br i1 %t373, label %L103, label %L104
+L103:
+    %t374 = load i64, i64* %inc_decls.51
+    %t375 = load i64, i64* %i.53
+    %t376 = call i8* @get_decl(i64 %t374, i64 %t375)
+    %t377 = ptrtoint i8* %t376 to i64
+    call void @llvm_emit_decl(i64 %t377)
+    %t378 = load i64, i64* %i.53
+    %t379 = add i64 %t378, 1
+    store i64 %t379, i64* %i.53
+    br label %L102
+L104:
+    br label %L101
 L101:
-    br label %L98
-L98:
     ret void
-L77:
+L80:
     ret void
 }
 
@@ -52877,10 +53137,21 @@ L58:
     %t269 = icmp eq i64 %t266, %t267
     %t268 = zext i1 %t269 to i64
     %t270 = icmp ne i64 %t268, 0
-    br i1 %t270, label %L60, label %L62
+    br i1 %t270, label %L60, label %L61
 L60:
     %t271 = load i64, i64* %decl.0
     call void @llvm_add_effect(i64 %t271)
+    br label %L62
+L61:
+    %t272 = load i64, i64* %k.1
+    %t273 = load i64, i64* @NODE_MODULES_DECL
+    %t275 = icmp eq i64 %t272, %t273
+    %t274 = zext i1 %t275 to i64
+    %t276 = icmp ne i64 %t274, 0
+    br i1 %t276, label %L63, label %L65
+L63:
+    br label %L65
+L65:
     br label %L62
 L62:
     br label %L59
@@ -55110,7 +55381,7 @@ L87:
     ret void
 L89:
     %t331 = load i64, i64* %kind.1
-    %t332 = load i64, i64* @NODE_IMPORT
+    %t332 = load i64, i64* @NODE_MODULES_DECL
     %t334 = icmp eq i64 %t331, %t332
     %t333 = zext i1 %t334 to i64
     %t335 = icmp ne i64 %t333, 0
@@ -55118,1154 +55389,1201 @@ L89:
 L90:
     %t336 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str768, i64 0, i64 0) to i64
     call void @ast_emit_str(i64 %t336)
+    %count.22 = alloca i64
     %t337 = load i64, i64* %node.0
-    %t338 = call i8* @import_decl_path(i64 %t337)
-    %t339 = ptrtoint i8* %t338 to i64
-    %t340 = load i64, i64* %node.0
-    %t341 = call i64 @import_decl_path_len(i64 %t340)
-    call void @ast_emit_quoted_string(i64 %t339, i64 %t341)
-    %t342 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t342)
+    %t338 = call i64 @modules_decl_count(i64 %t337)
+    store i64 %t338, i64* %count.22
+    %i.23 = alloca i64
+    store i64 0, i64* %i.23
+    br label %L93
+L93:
+    %t339 = load i64, i64* %i.23
+    %t340 = load i64, i64* %count.22
+    %t342 = icmp slt i64 %t339, %t340
+    %t341 = zext i1 %t342 to i64
+    %t343 = icmp ne i64 %t341, 0
+    br i1 %t343, label %L94, label %L95
+L94:
+    %t344 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t344)
+    %entry.24 = alloca i64
+    %t345 = load i64, i64* %node.0
+    %t346 = load i64, i64* %i.23
+    %t347 = call i8* @modules_decl_get(i64 %t345, i64 %t346)
+    %t348 = ptrtoint i8* %t347 to i64
+    store i64 %t348, i64* %entry.24
+    %t349 = load i64, i64* %entry.24
+    %t350 = call i8* @module_entry_name(i64 %t349)
+    %t351 = ptrtoint i8* %t350 to i64
+    %t352 = load i64, i64* %entry.24
+    %t353 = call i64 @module_entry_len(i64 %t352)
+    call void @ast_emit_quoted_string(i64 %t351, i64 %t353)
+    %t354 = load i64, i64* %i.23
+    %t355 = add i64 %t354, 1
+    store i64 %t355, i64* %i.23
+    br label %L93
+L95:
+    %t356 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t356)
     ret void
 L92:
-    %t343 = load i64, i64* %kind.1
-    %t344 = load i64, i64* @NODE_BLOCK_STMT
-    %t346 = icmp eq i64 %t343, %t344
-    %t345 = zext i1 %t346 to i64
-    %t347 = icmp ne i64 %t345, 0
-    br i1 %t347, label %L93, label %L95
-L93:
-    %t348 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str769, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t348)
-    %stmts.22 = alloca i64
-    %t349 = load i64, i64* %node.0
-    %t350 = call i8* @block_stmt_stmts(i64 %t349)
-    %t351 = ptrtoint i8* %t350 to i64
-    store i64 %t351, i64* %stmts.22
-    %count.23 = alloca i64
-    %t352 = load i64, i64* %node.0
-    %t353 = call i64 @block_stmt_count(i64 %t352)
-    store i64 %t353, i64* %count.23
-    %t354 = load i64, i64* @ast_emit_indent
-    %t355 = add i64 %t354, 1
-    store i64 %t355, i64* @ast_emit_indent
-    %i.24 = alloca i64
-    store i64 0, i64* %i.24
-    br label %L96
+    %t357 = load i64, i64* %kind.1
+    %t358 = load i64, i64* @NODE_IMPORT
+    %t360 = icmp eq i64 %t357, %t358
+    %t359 = zext i1 %t360 to i64
+    %t361 = icmp ne i64 %t359, 0
+    br i1 %t361, label %L96, label %L98
 L96:
-    %t356 = load i64, i64* %i.24
-    %t357 = load i64, i64* %count.23
-    %t359 = icmp slt i64 %t356, %t357
-    %t358 = zext i1 %t359 to i64
-    %t360 = icmp ne i64 %t358, 0
-    br i1 %t360, label %L97, label %L98
-L97:
-    call void @ast_emit_newline()
-    %t361 = load i64, i64* %stmts.22
-    %t362 = load i64, i64* %i.24
-    %t363 = call i8* @get_stmt(i64 %t361, i64 %t362)
-    %t364 = ptrtoint i8* %t363 to i64
-    call void @ast_emit_node(i64 %t364)
-    %t365 = load i64, i64* %i.24
-    %t366 = add i64 %t365, 1
-    store i64 %t366, i64* %i.24
-    br label %L96
-L98:
-    %t367 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t367)
-    %t368 = load i64, i64* @ast_emit_indent
-    %t369 = sub i64 %t368, 1
-    store i64 %t369, i64* @ast_emit_indent
+    %t362 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str769, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t362)
+    %t363 = load i64, i64* %node.0
+    %t364 = call i8* @import_decl_path(i64 %t363)
+    %t365 = ptrtoint i8* %t364 to i64
+    %t366 = load i64, i64* %node.0
+    %t367 = call i64 @import_decl_path_len(i64 %t366)
+    call void @ast_emit_quoted_string(i64 %t365, i64 %t367)
+    %t368 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t368)
     ret void
-L95:
-    %t370 = load i64, i64* %kind.1
-    %t371 = load i64, i64* @NODE_BLOCK_EXPR
-    %t373 = icmp eq i64 %t370, %t371
-    %t372 = zext i1 %t373 to i64
-    %t374 = icmp ne i64 %t372, 0
-    br i1 %t374, label %L99, label %L101
+L98:
+    %t369 = load i64, i64* %kind.1
+    %t370 = load i64, i64* @NODE_BLOCK_STMT
+    %t372 = icmp eq i64 %t369, %t370
+    %t371 = zext i1 %t372 to i64
+    %t373 = icmp ne i64 %t371, 0
+    br i1 %t373, label %L99, label %L101
 L99:
-    %t375 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str770, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t375)
+    %t374 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str770, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t374)
     %stmts.25 = alloca i64
-    %t376 = load i64, i64* %node.0
-    %t377 = call i8* @block_expr_stmts(i64 %t376)
-    %t378 = ptrtoint i8* %t377 to i64
-    store i64 %t378, i64* %stmts.25
+    %t375 = load i64, i64* %node.0
+    %t376 = call i8* @block_stmt_stmts(i64 %t375)
+    %t377 = ptrtoint i8* %t376 to i64
+    store i64 %t377, i64* %stmts.25
     %count.26 = alloca i64
-    %t379 = load i64, i64* %node.0
-    %t380 = call i64 @block_expr_count(i64 %t379)
-    store i64 %t380, i64* %count.26
-    %t381 = load i64, i64* @ast_emit_indent
-    %t382 = add i64 %t381, 1
-    store i64 %t382, i64* @ast_emit_indent
+    %t378 = load i64, i64* %node.0
+    %t379 = call i64 @block_stmt_count(i64 %t378)
+    store i64 %t379, i64* %count.26
+    %t380 = load i64, i64* @ast_emit_indent
+    %t381 = add i64 %t380, 1
+    store i64 %t381, i64* @ast_emit_indent
     %i.27 = alloca i64
     store i64 0, i64* %i.27
     br label %L102
 L102:
-    %t383 = load i64, i64* %i.27
-    %t384 = load i64, i64* %count.26
-    %t386 = icmp slt i64 %t383, %t384
-    %t385 = zext i1 %t386 to i64
-    %t387 = icmp ne i64 %t385, 0
-    br i1 %t387, label %L103, label %L104
+    %t382 = load i64, i64* %i.27
+    %t383 = load i64, i64* %count.26
+    %t385 = icmp slt i64 %t382, %t383
+    %t384 = zext i1 %t385 to i64
+    %t386 = icmp ne i64 %t384, 0
+    br i1 %t386, label %L103, label %L104
 L103:
     call void @ast_emit_newline()
-    %t388 = load i64, i64* %stmts.25
-    %t389 = load i64, i64* %i.27
-    %t390 = call i8* @get_stmt(i64 %t388, i64 %t389)
-    %t391 = ptrtoint i8* %t390 to i64
-    call void @ast_emit_node(i64 %t391)
-    %t392 = load i64, i64* %i.27
-    %t393 = add i64 %t392, 1
-    store i64 %t393, i64* %i.27
+    %t387 = load i64, i64* %stmts.25
+    %t388 = load i64, i64* %i.27
+    %t389 = call i8* @get_stmt(i64 %t387, i64 %t388)
+    %t390 = ptrtoint i8* %t389 to i64
+    call void @ast_emit_node(i64 %t390)
+    %t391 = load i64, i64* %i.27
+    %t392 = add i64 %t391, 1
+    store i64 %t392, i64* %i.27
     br label %L102
 L104:
-    call void @ast_emit_newline()
-    %t394 = load i64, i64* %node.0
-    %t395 = call i8* @block_expr_tail(i64 %t394)
-    %t396 = ptrtoint i8* %t395 to i64
-    call void @ast_emit_node(i64 %t396)
-    %t397 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t397)
-    %t398 = load i64, i64* @ast_emit_indent
-    %t399 = sub i64 %t398, 1
-    store i64 %t399, i64* @ast_emit_indent
+    %t393 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t393)
+    %t394 = load i64, i64* @ast_emit_indent
+    %t395 = sub i64 %t394, 1
+    store i64 %t395, i64* @ast_emit_indent
     ret void
 L101:
-    %t400 = load i64, i64* %kind.1
-    %t401 = load i64, i64* @NODE_ARRAY_LITERAL
-    %t403 = icmp eq i64 %t400, %t401
-    %t402 = zext i1 %t403 to i64
-    %t404 = icmp ne i64 %t402, 0
-    br i1 %t404, label %L105, label %L107
+    %t396 = load i64, i64* %kind.1
+    %t397 = load i64, i64* @NODE_BLOCK_EXPR
+    %t399 = icmp eq i64 %t396, %t397
+    %t398 = zext i1 %t399 to i64
+    %t400 = icmp ne i64 %t398, 0
+    br i1 %t400, label %L105, label %L107
 L105:
-    %t405 = ptrtoint i8* getelementptr inbounds ([15 x i8], [15 x i8]* @.str771, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t405)
-    %elems.28 = alloca i64
-    %t406 = load i64, i64* %node.0
-    %t407 = call i8* @array_literal_elems(i64 %t406)
-    %t408 = ptrtoint i8* %t407 to i64
-    store i64 %t408, i64* %elems.28
+    %t401 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str771, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t401)
+    %stmts.28 = alloca i64
+    %t402 = load i64, i64* %node.0
+    %t403 = call i8* @block_expr_stmts(i64 %t402)
+    %t404 = ptrtoint i8* %t403 to i64
+    store i64 %t404, i64* %stmts.28
     %count.29 = alloca i64
-    %t409 = load i64, i64* %node.0
-    %t410 = call i64 @array_literal_count(i64 %t409)
-    store i64 %t410, i64* %count.29
+    %t405 = load i64, i64* %node.0
+    %t406 = call i64 @block_expr_count(i64 %t405)
+    store i64 %t406, i64* %count.29
+    %t407 = load i64, i64* @ast_emit_indent
+    %t408 = add i64 %t407, 1
+    store i64 %t408, i64* @ast_emit_indent
     %i.30 = alloca i64
     store i64 0, i64* %i.30
     br label %L108
 L108:
-    %t411 = load i64, i64* %i.30
-    %t412 = load i64, i64* %count.29
-    %t414 = icmp slt i64 %t411, %t412
-    %t413 = zext i1 %t414 to i64
-    %t415 = icmp ne i64 %t413, 0
-    br i1 %t415, label %L109, label %L110
+    %t409 = load i64, i64* %i.30
+    %t410 = load i64, i64* %count.29
+    %t412 = icmp slt i64 %t409, %t410
+    %t411 = zext i1 %t412 to i64
+    %t413 = icmp ne i64 %t411, 0
+    br i1 %t413, label %L109, label %L110
 L109:
-    %t416 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t416)
-    %elem_ptr.31 = alloca i64
-    %t417 = load i64, i64* %elems.28
+    call void @ast_emit_newline()
+    %t414 = load i64, i64* %stmts.28
+    %t415 = load i64, i64* %i.30
+    %t416 = call i8* @get_stmt(i64 %t414, i64 %t415)
+    %t417 = ptrtoint i8* %t416 to i64
+    call void @ast_emit_node(i64 %t417)
     %t418 = load i64, i64* %i.30
-    %t419 = mul i64 %t418, 8
-    %t420 = add i64 %t417, %t419
-    store i64 %t420, i64* %elem_ptr.31
-    %elem.32 = alloca i64
-    %t421 = load i64, i64* %elem_ptr.31
-    %t423 = inttoptr i64 %t421 to i64*
-    %t422 = load i64, i64* %t423
-    store i64 %t422, i64* %elem.32
-    %t424 = load i64, i64* %elem.32
-    call void @ast_emit_node(i64 %t424)
-    %t425 = load i64, i64* %i.30
-    %t426 = add i64 %t425, 1
-    store i64 %t426, i64* %i.30
+    %t419 = add i64 %t418, 1
+    store i64 %t419, i64* %i.30
     br label %L108
 L110:
-    %t427 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t427)
+    call void @ast_emit_newline()
+    %t420 = load i64, i64* %node.0
+    %t421 = call i8* @block_expr_tail(i64 %t420)
+    %t422 = ptrtoint i8* %t421 to i64
+    call void @ast_emit_node(i64 %t422)
+    %t423 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t423)
+    %t424 = load i64, i64* @ast_emit_indent
+    %t425 = sub i64 %t424, 1
+    store i64 %t425, i64* @ast_emit_indent
     ret void
 L107:
-    %t428 = load i64, i64* %kind.1
-    %t429 = load i64, i64* @NODE_IF_STMT
-    %t431 = icmp eq i64 %t428, %t429
-    %t430 = zext i1 %t431 to i64
-    %t432 = icmp ne i64 %t430, 0
-    br i1 %t432, label %L111, label %L113
+    %t426 = load i64, i64* %kind.1
+    %t427 = load i64, i64* @NODE_ARRAY_LITERAL
+    %t429 = icmp eq i64 %t426, %t427
+    %t428 = zext i1 %t429 to i64
+    %t430 = icmp ne i64 %t428, 0
+    br i1 %t430, label %L111, label %L113
 L111:
-    %t433 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str772, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t433)
-    %t434 = load i64, i64* %node.0
-    %t435 = call i8* @if_stmt_cond(i64 %t434)
-    %t436 = ptrtoint i8* %t435 to i64
-    call void @ast_emit_node(i64 %t436)
-    %t437 = load i64, i64* @ast_emit_indent
-    %t438 = add i64 %t437, 1
-    store i64 %t438, i64* @ast_emit_indent
-    call void @ast_emit_newline()
-    %t439 = load i64, i64* %node.0
-    %t440 = call i8* @if_stmt_then(i64 %t439)
-    %t441 = ptrtoint i8* %t440 to i64
-    call void @ast_emit_node(i64 %t441)
-    %else_branch.33 = alloca i64
-    %t442 = load i64, i64* %node.0
-    %t443 = call i8* @if_stmt_else(i64 %t442)
-    %t444 = ptrtoint i8* %t443 to i64
-    store i64 %t444, i64* %else_branch.33
-    %t445 = load i64, i64* %else_branch.33
-    %t447 = icmp ne i64 %t445, 0
-    %t446 = zext i1 %t447 to i64
-    %t448 = icmp ne i64 %t446, 0
-    br i1 %t448, label %L114, label %L116
+    %t431 = ptrtoint i8* getelementptr inbounds ([15 x i8], [15 x i8]* @.str772, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t431)
+    %elems.31 = alloca i64
+    %t432 = load i64, i64* %node.0
+    %t433 = call i8* @array_literal_elems(i64 %t432)
+    %t434 = ptrtoint i8* %t433 to i64
+    store i64 %t434, i64* %elems.31
+    %count.32 = alloca i64
+    %t435 = load i64, i64* %node.0
+    %t436 = call i64 @array_literal_count(i64 %t435)
+    store i64 %t436, i64* %count.32
+    %i.33 = alloca i64
+    store i64 0, i64* %i.33
+    br label %L114
 L114:
-    call void @ast_emit_newline()
-    %t449 = load i64, i64* %else_branch.33
-    call void @ast_emit_node(i64 %t449)
-    br label %L116
+    %t437 = load i64, i64* %i.33
+    %t438 = load i64, i64* %count.32
+    %t440 = icmp slt i64 %t437, %t438
+    %t439 = zext i1 %t440 to i64
+    %t441 = icmp ne i64 %t439, 0
+    br i1 %t441, label %L115, label %L116
+L115:
+    %t442 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t442)
+    %elem_ptr.34 = alloca i64
+    %t443 = load i64, i64* %elems.31
+    %t444 = load i64, i64* %i.33
+    %t445 = mul i64 %t444, 8
+    %t446 = add i64 %t443, %t445
+    store i64 %t446, i64* %elem_ptr.34
+    %elem.35 = alloca i64
+    %t447 = load i64, i64* %elem_ptr.34
+    %t449 = inttoptr i64 %t447 to i64*
+    %t448 = load i64, i64* %t449
+    store i64 %t448, i64* %elem.35
+    %t450 = load i64, i64* %elem.35
+    call void @ast_emit_node(i64 %t450)
+    %t451 = load i64, i64* %i.33
+    %t452 = add i64 %t451, 1
+    store i64 %t452, i64* %i.33
+    br label %L114
 L116:
-    %t450 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t450)
-    %t451 = load i64, i64* @ast_emit_indent
-    %t452 = sub i64 %t451, 1
-    store i64 %t452, i64* @ast_emit_indent
+    %t453 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t453)
     ret void
 L113:
-    %t453 = load i64, i64* %kind.1
-    %t454 = load i64, i64* @NODE_WHILE_STMT
-    %t456 = icmp eq i64 %t453, %t454
-    %t455 = zext i1 %t456 to i64
-    %t457 = icmp ne i64 %t455, 0
-    br i1 %t457, label %L117, label %L119
+    %t454 = load i64, i64* %kind.1
+    %t455 = load i64, i64* @NODE_IF_STMT
+    %t457 = icmp eq i64 %t454, %t455
+    %t456 = zext i1 %t457 to i64
+    %t458 = icmp ne i64 %t456, 0
+    br i1 %t458, label %L117, label %L119
 L117:
-    %t458 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str773, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t458)
-    %t459 = load i64, i64* %node.0
-    %t460 = call i8* @while_stmt_cond(i64 %t459)
-    %t461 = ptrtoint i8* %t460 to i64
-    call void @ast_emit_node(i64 %t461)
-    %t462 = load i64, i64* @ast_emit_indent
-    %t463 = add i64 %t462, 1
-    store i64 %t463, i64* @ast_emit_indent
+    %t459 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str773, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t459)
+    %t460 = load i64, i64* %node.0
+    %t461 = call i8* @if_stmt_cond(i64 %t460)
+    %t462 = ptrtoint i8* %t461 to i64
+    call void @ast_emit_node(i64 %t462)
+    %t463 = load i64, i64* @ast_emit_indent
+    %t464 = add i64 %t463, 1
+    store i64 %t464, i64* @ast_emit_indent
     call void @ast_emit_newline()
-    %t464 = load i64, i64* %node.0
-    %t465 = call i8* @while_stmt_body(i64 %t464)
-    %t466 = ptrtoint i8* %t465 to i64
-    call void @ast_emit_node(i64 %t466)
-    %label_len.34 = alloca i64
-    %t467 = load i64, i64* %node.0
-    %t468 = call i64 @while_stmt_label_len(i64 %t467)
-    store i64 %t468, i64* %label_len.34
-    %t469 = load i64, i64* %label_len.34
-    %t471 = icmp sgt i64 %t469, 0
-    %t470 = zext i1 %t471 to i64
-    %t472 = icmp ne i64 %t470, 0
-    br i1 %t472, label %L120, label %L122
+    %t465 = load i64, i64* %node.0
+    %t466 = call i8* @if_stmt_then(i64 %t465)
+    %t467 = ptrtoint i8* %t466 to i64
+    call void @ast_emit_node(i64 %t467)
+    %else_branch.36 = alloca i64
+    %t468 = load i64, i64* %node.0
+    %t469 = call i8* @if_stmt_else(i64 %t468)
+    %t470 = ptrtoint i8* %t469 to i64
+    store i64 %t470, i64* %else_branch.36
+    %t471 = load i64, i64* %else_branch.36
+    %t473 = icmp ne i64 %t471, 0
+    %t472 = zext i1 %t473 to i64
+    %t474 = icmp ne i64 %t472, 0
+    br i1 %t474, label %L120, label %L122
 L120:
-    %t473 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t473)
-    %t474 = load i64, i64* %node.0
-    %t475 = call i8* @while_stmt_label(i64 %t474)
-    %t476 = ptrtoint i8* %t475 to i64
-    %t477 = load i64, i64* %label_len.34
-    call void @ast_emit_strn(i64 %t476, i64 %t477)
+    call void @ast_emit_newline()
+    %t475 = load i64, i64* %else_branch.36
+    call void @ast_emit_node(i64 %t475)
     br label %L122
 L122:
-    %t478 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t478)
-    %t479 = load i64, i64* @ast_emit_indent
-    %t480 = sub i64 %t479, 1
-    store i64 %t480, i64* @ast_emit_indent
+    %t476 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t476)
+    %t477 = load i64, i64* @ast_emit_indent
+    %t478 = sub i64 %t477, 1
+    store i64 %t478, i64* @ast_emit_indent
     ret void
 L119:
-    %t481 = load i64, i64* %kind.1
-    %t482 = load i64, i64* @NODE_RETURN_STMT
-    %t484 = icmp eq i64 %t481, %t482
-    %t483 = zext i1 %t484 to i64
-    %t485 = icmp ne i64 %t483, 0
-    br i1 %t485, label %L123, label %L125
+    %t479 = load i64, i64* %kind.1
+    %t480 = load i64, i64* @NODE_WHILE_STMT
+    %t482 = icmp eq i64 %t479, %t480
+    %t481 = zext i1 %t482 to i64
+    %t483 = icmp ne i64 %t481, 0
+    br i1 %t483, label %L123, label %L125
 L123:
-    %t486 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str774, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t486)
-    %val.35 = alloca i64
-    %t487 = load i64, i64* %node.0
-    %t488 = call i8* @return_stmt_value(i64 %t487)
-    %t489 = ptrtoint i8* %t488 to i64
-    store i64 %t489, i64* %val.35
-    %t490 = load i64, i64* %val.35
-    %t492 = icmp ne i64 %t490, 0
-    %t491 = zext i1 %t492 to i64
-    %t493 = icmp ne i64 %t491, 0
-    br i1 %t493, label %L126, label %L128
+    %t484 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str774, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t484)
+    %t485 = load i64, i64* %node.0
+    %t486 = call i8* @while_stmt_cond(i64 %t485)
+    %t487 = ptrtoint i8* %t486 to i64
+    call void @ast_emit_node(i64 %t487)
+    %t488 = load i64, i64* @ast_emit_indent
+    %t489 = add i64 %t488, 1
+    store i64 %t489, i64* @ast_emit_indent
+    call void @ast_emit_newline()
+    %t490 = load i64, i64* %node.0
+    %t491 = call i8* @while_stmt_body(i64 %t490)
+    %t492 = ptrtoint i8* %t491 to i64
+    call void @ast_emit_node(i64 %t492)
+    %label_len.37 = alloca i64
+    %t493 = load i64, i64* %node.0
+    %t494 = call i64 @while_stmt_label_len(i64 %t493)
+    store i64 %t494, i64* %label_len.37
+    %t495 = load i64, i64* %label_len.37
+    %t497 = icmp sgt i64 %t495, 0
+    %t496 = zext i1 %t497 to i64
+    %t498 = icmp ne i64 %t496, 0
+    br i1 %t498, label %L126, label %L128
 L126:
-    %t494 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t494)
-    %t495 = load i64, i64* %val.35
-    call void @ast_emit_node(i64 %t495)
+    %t499 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t499)
+    %t500 = load i64, i64* %node.0
+    %t501 = call i8* @while_stmt_label(i64 %t500)
+    %t502 = ptrtoint i8* %t501 to i64
+    %t503 = load i64, i64* %label_len.37
+    call void @ast_emit_strn(i64 %t502, i64 %t503)
     br label %L128
 L128:
-    %t496 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t496)
+    %t504 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t504)
+    %t505 = load i64, i64* @ast_emit_indent
+    %t506 = sub i64 %t505, 1
+    store i64 %t506, i64* @ast_emit_indent
     ret void
 L125:
-    %t497 = load i64, i64* %kind.1
-    %t498 = load i64, i64* @NODE_BREAK_STMT
-    %t500 = icmp eq i64 %t497, %t498
-    %t499 = zext i1 %t500 to i64
-    %t501 = icmp ne i64 %t499, 0
-    br i1 %t501, label %L129, label %L131
+    %t507 = load i64, i64* %kind.1
+    %t508 = load i64, i64* @NODE_RETURN_STMT
+    %t510 = icmp eq i64 %t507, %t508
+    %t509 = zext i1 %t510 to i64
+    %t511 = icmp ne i64 %t509, 0
+    br i1 %t511, label %L129, label %L131
 L129:
-    %t502 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str775, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t502)
-    %label_len.36 = alloca i64
-    %t503 = load i64, i64* %node.0
-    %t504 = call i64 @break_stmt_label_len(i64 %t503)
-    store i64 %t504, i64* %label_len.36
-    %t505 = load i64, i64* %label_len.36
-    %t507 = icmp sgt i64 %t505, 0
-    %t506 = zext i1 %t507 to i64
-    %t508 = icmp ne i64 %t506, 0
-    br i1 %t508, label %L132, label %L134
-L132:
-    %t509 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t509)
-    %t510 = load i64, i64* %node.0
-    %t511 = call i8* @break_stmt_label(i64 %t510)
-    %t512 = ptrtoint i8* %t511 to i64
-    %t513 = load i64, i64* %label_len.36
-    call void @ast_emit_strn(i64 %t512, i64 %t513)
-    br label %L134
-L134:
-    %t514 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t514)
-    ret void
-L131:
-    %t515 = load i64, i64* %kind.1
-    %t516 = load i64, i64* @NODE_CONTINUE_STMT
-    %t518 = icmp eq i64 %t515, %t516
+    %t512 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str775, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t512)
+    %val.38 = alloca i64
+    %t513 = load i64, i64* %node.0
+    %t514 = call i8* @return_stmt_value(i64 %t513)
+    %t515 = ptrtoint i8* %t514 to i64
+    store i64 %t515, i64* %val.38
+    %t516 = load i64, i64* %val.38
+    %t518 = icmp ne i64 %t516, 0
     %t517 = zext i1 %t518 to i64
     %t519 = icmp ne i64 %t517, 0
-    br i1 %t519, label %L135, label %L137
-L135:
-    %t520 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str776, i64 0, i64 0) to i64
+    br i1 %t519, label %L132, label %L134
+L132:
+    %t520 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
     call void @ast_emit_str(i64 %t520)
-    %label_len.37 = alloca i64
-    %t521 = load i64, i64* %node.0
-    %t522 = call i64 @continue_stmt_label_len(i64 %t521)
-    store i64 %t522, i64* %label_len.37
-    %t523 = load i64, i64* %label_len.37
-    %t525 = icmp sgt i64 %t523, 0
-    %t524 = zext i1 %t525 to i64
-    %t526 = icmp ne i64 %t524, 0
-    br i1 %t526, label %L138, label %L140
+    %t521 = load i64, i64* %val.38
+    call void @ast_emit_node(i64 %t521)
+    br label %L134
+L134:
+    %t522 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t522)
+    ret void
+L131:
+    %t523 = load i64, i64* %kind.1
+    %t524 = load i64, i64* @NODE_BREAK_STMT
+    %t526 = icmp eq i64 %t523, %t524
+    %t525 = zext i1 %t526 to i64
+    %t527 = icmp ne i64 %t525, 0
+    br i1 %t527, label %L135, label %L137
+L135:
+    %t528 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str776, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t528)
+    %label_len.39 = alloca i64
+    %t529 = load i64, i64* %node.0
+    %t530 = call i64 @break_stmt_label_len(i64 %t529)
+    store i64 %t530, i64* %label_len.39
+    %t531 = load i64, i64* %label_len.39
+    %t533 = icmp sgt i64 %t531, 0
+    %t532 = zext i1 %t533 to i64
+    %t534 = icmp ne i64 %t532, 0
+    br i1 %t534, label %L138, label %L140
 L138:
-    %t527 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t527)
-    %t528 = load i64, i64* %node.0
-    %t529 = call i8* @continue_stmt_label(i64 %t528)
-    %t530 = ptrtoint i8* %t529 to i64
-    %t531 = load i64, i64* %label_len.37
-    call void @ast_emit_strn(i64 %t530, i64 %t531)
+    %t535 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t535)
+    %t536 = load i64, i64* %node.0
+    %t537 = call i8* @break_stmt_label(i64 %t536)
+    %t538 = ptrtoint i8* %t537 to i64
+    %t539 = load i64, i64* %label_len.39
+    call void @ast_emit_strn(i64 %t538, i64 %t539)
     br label %L140
 L140:
-    %t532 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t532)
+    %t540 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t540)
     ret void
 L137:
-    %t533 = load i64, i64* %kind.1
-    %t534 = load i64, i64* @NODE_EXPR_STMT
-    %t536 = icmp eq i64 %t533, %t534
-    %t535 = zext i1 %t536 to i64
-    %t537 = icmp ne i64 %t535, 0
-    br i1 %t537, label %L141, label %L143
+    %t541 = load i64, i64* %kind.1
+    %t542 = load i64, i64* @NODE_CONTINUE_STMT
+    %t544 = icmp eq i64 %t541, %t542
+    %t543 = zext i1 %t544 to i64
+    %t545 = icmp ne i64 %t543, 0
+    br i1 %t545, label %L141, label %L143
 L141:
-    %t538 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str777, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t538)
-    %t539 = load i64, i64* %node.0
-    %t540 = call i8* @expr_stmt_expr(i64 %t539)
-    %t541 = ptrtoint i8* %t540 to i64
-    call void @ast_emit_node(i64 %t541)
-    %t542 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t542)
+    %t546 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str777, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t546)
+    %label_len.40 = alloca i64
+    %t547 = load i64, i64* %node.0
+    %t548 = call i64 @continue_stmt_label_len(i64 %t547)
+    store i64 %t548, i64* %label_len.40
+    %t549 = load i64, i64* %label_len.40
+    %t551 = icmp sgt i64 %t549, 0
+    %t550 = zext i1 %t551 to i64
+    %t552 = icmp ne i64 %t550, 0
+    br i1 %t552, label %L144, label %L146
+L144:
+    %t553 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t553)
+    %t554 = load i64, i64* %node.0
+    %t555 = call i8* @continue_stmt_label(i64 %t554)
+    %t556 = ptrtoint i8* %t555 to i64
+    %t557 = load i64, i64* %label_len.40
+    call void @ast_emit_strn(i64 %t556, i64 %t557)
+    br label %L146
+L146:
+    %t558 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t558)
     ret void
 L143:
-    %t543 = load i64, i64* %kind.1
-    %t544 = load i64, i64* @NODE_ASSIGN_STMT
-    %t546 = icmp eq i64 %t543, %t544
-    %t545 = zext i1 %t546 to i64
-    %t547 = icmp ne i64 %t545, 0
-    br i1 %t547, label %L144, label %L146
-L144:
-    %t548 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str778, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t548)
-    %t549 = load i64, i64* %node.0
-    %t550 = call i8* @assign_stmt_target(i64 %t549)
-    %t551 = ptrtoint i8* %t550 to i64
-    call void @ast_emit_node(i64 %t551)
-    %t552 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t552)
-    %t553 = load i64, i64* %node.0
-    %t554 = call i8* @assign_stmt_value(i64 %t553)
-    %t555 = ptrtoint i8* %t554 to i64
-    call void @ast_emit_node(i64 %t555)
-    %t556 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t556)
-    ret void
-L146:
-    %t557 = load i64, i64* %kind.1
-    %t558 = load i64, i64* @NODE_BINARY_EXPR
-    %t560 = icmp eq i64 %t557, %t558
-    %t559 = zext i1 %t560 to i64
-    %t561 = icmp ne i64 %t559, 0
-    br i1 %t561, label %L147, label %L149
+    %t559 = load i64, i64* %kind.1
+    %t560 = load i64, i64* @NODE_EXPR_STMT
+    %t562 = icmp eq i64 %t559, %t560
+    %t561 = zext i1 %t562 to i64
+    %t563 = icmp ne i64 %t561, 0
+    br i1 %t563, label %L147, label %L149
 L147:
-    %t562 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str779, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t562)
-    %t563 = load i64, i64* %node.0
-    %t564 = call i64 @binary_expr_op(i64 %t563)
-    call void @ast_emit_op(i64 %t564)
-    %t565 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t565)
-    %t566 = load i64, i64* %node.0
-    %t567 = call i8* @binary_expr_left(i64 %t566)
-    %t568 = ptrtoint i8* %t567 to i64
-    call void @ast_emit_node(i64 %t568)
-    %t569 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t569)
-    %t570 = load i64, i64* %node.0
-    %t571 = call i8* @binary_expr_right(i64 %t570)
-    %t572 = ptrtoint i8* %t571 to i64
-    call void @ast_emit_node(i64 %t572)
-    %t573 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t573)
+    %t564 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str778, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t564)
+    %t565 = load i64, i64* %node.0
+    %t566 = call i8* @expr_stmt_expr(i64 %t565)
+    %t567 = ptrtoint i8* %t566 to i64
+    call void @ast_emit_node(i64 %t567)
+    %t568 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t568)
     ret void
 L149:
-    %t574 = load i64, i64* %kind.1
-    %t575 = load i64, i64* @NODE_UNARY_EXPR
-    %t577 = icmp eq i64 %t574, %t575
-    %t576 = zext i1 %t577 to i64
-    %t578 = icmp ne i64 %t576, 0
-    br i1 %t578, label %L150, label %L152
+    %t569 = load i64, i64* %kind.1
+    %t570 = load i64, i64* @NODE_ASSIGN_STMT
+    %t572 = icmp eq i64 %t569, %t570
+    %t571 = zext i1 %t572 to i64
+    %t573 = icmp ne i64 %t571, 0
+    br i1 %t573, label %L150, label %L152
 L150:
-    %t579 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str780, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t579)
-    %t580 = load i64, i64* %node.0
-    %t581 = call i64 @unary_expr_op(i64 %t580)
-    call void @ast_emit_op(i64 %t581)
-    %t582 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    %t574 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str779, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t574)
+    %t575 = load i64, i64* %node.0
+    %t576 = call i8* @assign_stmt_target(i64 %t575)
+    %t577 = ptrtoint i8* %t576 to i64
+    call void @ast_emit_node(i64 %t577)
+    %t578 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t578)
+    %t579 = load i64, i64* %node.0
+    %t580 = call i8* @assign_stmt_value(i64 %t579)
+    %t581 = ptrtoint i8* %t580 to i64
+    call void @ast_emit_node(i64 %t581)
+    %t582 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
     call void @ast_emit_str(i64 %t582)
-    %t583 = load i64, i64* %node.0
-    %t584 = call i8* @unary_expr_expr(i64 %t583)
-    %t585 = ptrtoint i8* %t584 to i64
-    call void @ast_emit_node(i64 %t585)
-    %t586 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t586)
     ret void
 L152:
-    %t587 = load i64, i64* %kind.1
-    %t588 = load i64, i64* @NODE_CALL_EXPR
-    %t590 = icmp eq i64 %t587, %t588
-    %t589 = zext i1 %t590 to i64
-    %t591 = icmp ne i64 %t589, 0
-    br i1 %t591, label %L153, label %L155
+    %t583 = load i64, i64* %kind.1
+    %t584 = load i64, i64* @NODE_BINARY_EXPR
+    %t586 = icmp eq i64 %t583, %t584
+    %t585 = zext i1 %t586 to i64
+    %t587 = icmp ne i64 %t585, 0
+    br i1 %t587, label %L153, label %L155
 L153:
-    %t592 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str781, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t592)
-    %t593 = load i64, i64* %node.0
-    %t594 = call i8* @call_expr_func(i64 %t593)
-    %t595 = ptrtoint i8* %t594 to i64
-    call void @ast_emit_node(i64 %t595)
-    %args.38 = alloca i64
+    %t588 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str780, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t588)
+    %t589 = load i64, i64* %node.0
+    %t590 = call i64 @binary_expr_op(i64 %t589)
+    call void @ast_emit_op(i64 %t590)
+    %t591 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t591)
+    %t592 = load i64, i64* %node.0
+    %t593 = call i8* @binary_expr_left(i64 %t592)
+    %t594 = ptrtoint i8* %t593 to i64
+    call void @ast_emit_node(i64 %t594)
+    %t595 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t595)
     %t596 = load i64, i64* %node.0
-    %t597 = call i8* @call_expr_args(i64 %t596)
+    %t597 = call i8* @binary_expr_right(i64 %t596)
     %t598 = ptrtoint i8* %t597 to i64
-    store i64 %t598, i64* %args.38
-    %count.39 = alloca i64
-    %t599 = load i64, i64* %node.0
-    %t600 = call i64 @call_expr_arg_count(i64 %t599)
-    store i64 %t600, i64* %count.39
-    %i.40 = alloca i64
-    store i64 0, i64* %i.40
-    br label %L156
-L156:
-    %t601 = load i64, i64* %i.40
-    %t602 = load i64, i64* %count.39
-    %t604 = icmp slt i64 %t601, %t602
-    %t603 = zext i1 %t604 to i64
-    %t605 = icmp ne i64 %t603, 0
-    br i1 %t605, label %L157, label %L158
-L157:
-    %t606 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t606)
-    %t607 = load i64, i64* %args.38
-    %t608 = load i64, i64* %i.40
-    %t609 = call i8* @get_ptr_at(i64 %t607, i64 %t608)
-    %t610 = ptrtoint i8* %t609 to i64
-    call void @ast_emit_node(i64 %t610)
-    %t611 = load i64, i64* %i.40
-    %t612 = add i64 %t611, 1
-    store i64 %t612, i64* %i.40
-    br label %L156
-L158:
-    %t613 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t613)
+    call void @ast_emit_node(i64 %t598)
+    %t599 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t599)
     ret void
 L155:
-    %t614 = load i64, i64* %kind.1
-    %t615 = load i64, i64* @NODE_FIELD_EXPR
-    %t617 = icmp eq i64 %t614, %t615
-    %t616 = zext i1 %t617 to i64
-    %t618 = icmp ne i64 %t616, 0
-    br i1 %t618, label %L159, label %L161
+    %t600 = load i64, i64* %kind.1
+    %t601 = load i64, i64* @NODE_UNARY_EXPR
+    %t603 = icmp eq i64 %t600, %t601
+    %t602 = zext i1 %t603 to i64
+    %t604 = icmp ne i64 %t602, 0
+    br i1 %t604, label %L156, label %L158
+L156:
+    %t605 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str781, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t605)
+    %t606 = load i64, i64* %node.0
+    %t607 = call i64 @unary_expr_op(i64 %t606)
+    call void @ast_emit_op(i64 %t607)
+    %t608 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t608)
+    %t609 = load i64, i64* %node.0
+    %t610 = call i8* @unary_expr_expr(i64 %t609)
+    %t611 = ptrtoint i8* %t610 to i64
+    call void @ast_emit_node(i64 %t611)
+    %t612 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t612)
+    ret void
+L158:
+    %t613 = load i64, i64* %kind.1
+    %t614 = load i64, i64* @NODE_CALL_EXPR
+    %t616 = icmp eq i64 %t613, %t614
+    %t615 = zext i1 %t616 to i64
+    %t617 = icmp ne i64 %t615, 0
+    br i1 %t617, label %L159, label %L161
 L159:
-    %t619 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str782, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t619)
-    %t620 = load i64, i64* %node.0
-    %t621 = call i8* @field_expr_expr(i64 %t620)
-    %t622 = ptrtoint i8* %t621 to i64
-    call void @ast_emit_node(i64 %t622)
-    %t623 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t623)
-    %t624 = load i64, i64* %node.0
-    %t625 = call i8* @field_expr_field(i64 %t624)
-    %t626 = ptrtoint i8* %t625 to i64
-    %t627 = load i64, i64* %node.0
-    %t628 = call i64 @field_expr_field_len(i64 %t627)
-    call void @ast_emit_strn(i64 %t626, i64 %t628)
-    %t629 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t629)
+    %t618 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str782, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t618)
+    %t619 = load i64, i64* %node.0
+    %t620 = call i8* @call_expr_func(i64 %t619)
+    %t621 = ptrtoint i8* %t620 to i64
+    call void @ast_emit_node(i64 %t621)
+    %args.41 = alloca i64
+    %t622 = load i64, i64* %node.0
+    %t623 = call i8* @call_expr_args(i64 %t622)
+    %t624 = ptrtoint i8* %t623 to i64
+    store i64 %t624, i64* %args.41
+    %count.42 = alloca i64
+    %t625 = load i64, i64* %node.0
+    %t626 = call i64 @call_expr_arg_count(i64 %t625)
+    store i64 %t626, i64* %count.42
+    %i.43 = alloca i64
+    store i64 0, i64* %i.43
+    br label %L162
+L162:
+    %t627 = load i64, i64* %i.43
+    %t628 = load i64, i64* %count.42
+    %t630 = icmp slt i64 %t627, %t628
+    %t629 = zext i1 %t630 to i64
+    %t631 = icmp ne i64 %t629, 0
+    br i1 %t631, label %L163, label %L164
+L163:
+    %t632 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t632)
+    %t633 = load i64, i64* %args.41
+    %t634 = load i64, i64* %i.43
+    %t635 = call i8* @get_ptr_at(i64 %t633, i64 %t634)
+    %t636 = ptrtoint i8* %t635 to i64
+    call void @ast_emit_node(i64 %t636)
+    %t637 = load i64, i64* %i.43
+    %t638 = add i64 %t637, 1
+    store i64 %t638, i64* %i.43
+    br label %L162
+L164:
+    %t639 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t639)
     ret void
 L161:
-    %t630 = load i64, i64* %kind.1
-    %t631 = load i64, i64* @NODE_INDEX_EXPR
-    %t633 = icmp eq i64 %t630, %t631
-    %t632 = zext i1 %t633 to i64
-    %t634 = icmp ne i64 %t632, 0
-    br i1 %t634, label %L162, label %L164
-L162:
-    %t635 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str783, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t635)
-    %pe.41 = alloca i64
-    %t636 = load i64, i64* %node.0
-    %t637 = add i64 %t636, 8
-    store i64 %t637, i64* %pe.41
-    %pi.42 = alloca i64
-    %t638 = load i64, i64* %node.0
-    %t639 = add i64 %t638, 16
-    store i64 %t639, i64* %pi.42
-    %t640 = load i64, i64* %pe.41
-    %t642 = inttoptr i64 %t640 to i64*
-    %t641 = load i64, i64* %t642
-    call void @ast_emit_node(i64 %t641)
-    %t643 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t643)
-    %t644 = load i64, i64* %pi.42
-    %t646 = inttoptr i64 %t644 to i64*
-    %t645 = load i64, i64* %t646
-    call void @ast_emit_node(i64 %t645)
-    %t647 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t647)
-    ret void
-L164:
-    %t648 = load i64, i64* %kind.1
-    %t649 = load i64, i64* @NODE_IDENT_EXPR
-    %t651 = icmp eq i64 %t648, %t649
-    %t650 = zext i1 %t651 to i64
-    %t652 = icmp ne i64 %t650, 0
-    br i1 %t652, label %L165, label %L167
+    %t640 = load i64, i64* %kind.1
+    %t641 = load i64, i64* @NODE_FIELD_EXPR
+    %t643 = icmp eq i64 %t640, %t641
+    %t642 = zext i1 %t643 to i64
+    %t644 = icmp ne i64 %t642, 0
+    br i1 %t644, label %L165, label %L167
 L165:
-    %t653 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str784, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t653)
-    %t654 = load i64, i64* %node.0
-    %t655 = call i8* @ident_expr_name(i64 %t654)
-    %t656 = ptrtoint i8* %t655 to i64
-    %t657 = load i64, i64* %node.0
-    %t658 = call i64 @ident_expr_name_len(i64 %t657)
-    call void @ast_emit_strn(i64 %t656, i64 %t658)
-    %t659 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t659)
+    %t645 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str783, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t645)
+    %t646 = load i64, i64* %node.0
+    %t647 = call i8* @field_expr_expr(i64 %t646)
+    %t648 = ptrtoint i8* %t647 to i64
+    call void @ast_emit_node(i64 %t648)
+    %t649 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t649)
+    %t650 = load i64, i64* %node.0
+    %t651 = call i8* @field_expr_field(i64 %t650)
+    %t652 = ptrtoint i8* %t651 to i64
+    %t653 = load i64, i64* %node.0
+    %t654 = call i64 @field_expr_field_len(i64 %t653)
+    call void @ast_emit_strn(i64 %t652, i64 %t654)
+    %t655 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t655)
     ret void
 L167:
-    %t660 = load i64, i64* %kind.1
-    %t661 = load i64, i64* @NODE_NUMBER_EXPR
-    %t663 = icmp eq i64 %t660, %t661
-    %t662 = zext i1 %t663 to i64
-    %t664 = icmp ne i64 %t662, 0
-    br i1 %t664, label %L168, label %L170
+    %t656 = load i64, i64* %kind.1
+    %t657 = load i64, i64* @NODE_INDEX_EXPR
+    %t659 = icmp eq i64 %t656, %t657
+    %t658 = zext i1 %t659 to i64
+    %t660 = icmp ne i64 %t658, 0
+    br i1 %t660, label %L168, label %L170
 L168:
-    %t665 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str785, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t665)
-    %t666 = load i64, i64* %node.0
-    %t667 = call i8* @number_expr_value(i64 %t666)
-    %t668 = ptrtoint i8* %t667 to i64
-    %t669 = load i64, i64* %node.0
-    %t670 = call i64 @number_expr_value_len(i64 %t669)
-    call void @ast_emit_strn(i64 %t668, i64 %t670)
-    %t671 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t671)
+    %t661 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str784, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t661)
+    %pe.44 = alloca i64
+    %t662 = load i64, i64* %node.0
+    %t663 = add i64 %t662, 8
+    store i64 %t663, i64* %pe.44
+    %pi.45 = alloca i64
+    %t664 = load i64, i64* %node.0
+    %t665 = add i64 %t664, 16
+    store i64 %t665, i64* %pi.45
+    %t666 = load i64, i64* %pe.44
+    %t668 = inttoptr i64 %t666 to i64*
+    %t667 = load i64, i64* %t668
+    call void @ast_emit_node(i64 %t667)
+    %t669 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t669)
+    %t670 = load i64, i64* %pi.45
+    %t672 = inttoptr i64 %t670 to i64*
+    %t671 = load i64, i64* %t672
+    call void @ast_emit_node(i64 %t671)
+    %t673 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t673)
     ret void
 L170:
-    %t672 = load i64, i64* %kind.1
-    %t673 = load i64, i64* @NODE_STRING_EXPR
-    %t675 = icmp eq i64 %t672, %t673
-    %t674 = zext i1 %t675 to i64
-    %t676 = icmp ne i64 %t674, 0
-    br i1 %t676, label %L171, label %L173
+    %t674 = load i64, i64* %kind.1
+    %t675 = load i64, i64* @NODE_IDENT_EXPR
+    %t677 = icmp eq i64 %t674, %t675
+    %t676 = zext i1 %t677 to i64
+    %t678 = icmp ne i64 %t676, 0
+    br i1 %t678, label %L171, label %L173
 L171:
-    %t677 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str786, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t677)
-    %t678 = load i64, i64* %node.0
-    %t679 = call i8* @string_expr_value(i64 %t678)
-    %t680 = ptrtoint i8* %t679 to i64
-    %t681 = load i64, i64* %node.0
-    %t682 = call i64 @string_expr_value_len(i64 %t681)
-    call void @ast_emit_quoted_string(i64 %t680, i64 %t682)
-    %t683 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t683)
+    %t679 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str785, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t679)
+    %t680 = load i64, i64* %node.0
+    %t681 = call i8* @ident_expr_name(i64 %t680)
+    %t682 = ptrtoint i8* %t681 to i64
+    %t683 = load i64, i64* %node.0
+    %t684 = call i64 @ident_expr_name_len(i64 %t683)
+    call void @ast_emit_strn(i64 %t682, i64 %t684)
+    %t685 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t685)
     ret void
 L173:
-    %t684 = load i64, i64* %kind.1
-    %t685 = load i64, i64* @NODE_BOOL_EXPR
-    %t687 = icmp eq i64 %t684, %t685
-    %t686 = zext i1 %t687 to i64
-    %t688 = icmp ne i64 %t686, 0
-    br i1 %t688, label %L174, label %L176
+    %t686 = load i64, i64* %kind.1
+    %t687 = load i64, i64* @NODE_NUMBER_EXPR
+    %t689 = icmp eq i64 %t686, %t687
+    %t688 = zext i1 %t689 to i64
+    %t690 = icmp ne i64 %t688, 0
+    br i1 %t690, label %L174, label %L176
 L174:
-    %t689 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str787, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t689)
-    %t690 = load i64, i64* %node.0
-    %t691 = call i64 @bool_expr_value(i64 %t690)
-    %t693 = icmp ne i64 %t691, 0
-    %t692 = zext i1 %t693 to i64
-    %t694 = icmp ne i64 %t692, 0
-    br i1 %t694, label %L177, label %L178
-L177:
-    %t695 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str48, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t695)
-    br label %L179
-L178:
-    %t696 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str49, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t696)
-    br label %L179
-L179:
+    %t691 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str786, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t691)
+    %t692 = load i64, i64* %node.0
+    %t693 = call i8* @number_expr_value(i64 %t692)
+    %t694 = ptrtoint i8* %t693 to i64
+    %t695 = load i64, i64* %node.0
+    %t696 = call i64 @number_expr_value_len(i64 %t695)
+    call void @ast_emit_strn(i64 %t694, i64 %t696)
     %t697 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
     call void @ast_emit_str(i64 %t697)
     ret void
 L176:
     %t698 = load i64, i64* %kind.1
-    %t699 = load i64, i64* @NODE_NIL_EXPR
+    %t699 = load i64, i64* @NODE_STRING_EXPR
     %t701 = icmp eq i64 %t698, %t699
     %t700 = zext i1 %t701 to i64
     %t702 = icmp ne i64 %t700, 0
-    br i1 %t702, label %L180, label %L182
-L180:
-    %t703 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str788, i64 0, i64 0) to i64
+    br i1 %t702, label %L177, label %L179
+L177:
+    %t703 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str787, i64 0, i64 0) to i64
     call void @ast_emit_str(i64 %t703)
+    %t704 = load i64, i64* %node.0
+    %t705 = call i8* @string_expr_value(i64 %t704)
+    %t706 = ptrtoint i8* %t705 to i64
+    %t707 = load i64, i64* %node.0
+    %t708 = call i64 @string_expr_value_len(i64 %t707)
+    call void @ast_emit_quoted_string(i64 %t706, i64 %t708)
+    %t709 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t709)
+    ret void
+L179:
+    %t710 = load i64, i64* %kind.1
+    %t711 = load i64, i64* @NODE_BOOL_EXPR
+    %t713 = icmp eq i64 %t710, %t711
+    %t712 = zext i1 %t713 to i64
+    %t714 = icmp ne i64 %t712, 0
+    br i1 %t714, label %L180, label %L182
+L180:
+    %t715 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str788, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t715)
+    %t716 = load i64, i64* %node.0
+    %t717 = call i64 @bool_expr_value(i64 %t716)
+    %t719 = icmp ne i64 %t717, 0
+    %t718 = zext i1 %t719 to i64
+    %t720 = icmp ne i64 %t718, 0
+    br i1 %t720, label %L183, label %L184
+L183:
+    %t721 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str48, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t721)
+    br label %L185
+L184:
+    %t722 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str49, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t722)
+    br label %L185
+L185:
+    %t723 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t723)
     ret void
 L182:
-    %t704 = load i64, i64* %kind.1
-    %t705 = load i64, i64* @NODE_GROUP_EXPR
-    %t707 = icmp eq i64 %t704, %t705
-    %t706 = zext i1 %t707 to i64
-    %t708 = icmp ne i64 %t706, 0
-    br i1 %t708, label %L183, label %L185
-L183:
-    %t709 = load i64, i64* %node.0
-    %t710 = call i8* @group_expr_expr(i64 %t709)
-    %t711 = ptrtoint i8* %t710 to i64
-    call void @ast_emit_node(i64 %t711)
-    ret void
-L185:
-    %t712 = load i64, i64* %kind.1
-    %t713 = load i64, i64* @NODE_LET_EXPR
-    %t715 = icmp eq i64 %t712, %t713
-    %t714 = zext i1 %t715 to i64
-    %t716 = icmp ne i64 %t714, 0
-    br i1 %t716, label %L186, label %L188
-L186:
-    %t717 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str789, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t717)
-    %t718 = load i64, i64* %node.0
-    %t719 = call i8* @let_expr_name(i64 %t718)
-    %t720 = ptrtoint i8* %t719 to i64
-    %t721 = load i64, i64* %node.0
-    %t722 = call i64 @let_expr_name_len(i64 %t721)
-    call void @ast_emit_strn(i64 %t720, i64 %t722)
-    %t.43 = alloca i64
-    %t723 = load i64, i64* %node.0
-    %t724 = call i8* @let_expr_type(i64 %t723)
-    %t725 = ptrtoint i8* %t724 to i64
-    store i64 %t725, i64* %t.43
-    %t726 = load i64, i64* %t.43
+    %t724 = load i64, i64* %kind.1
+    %t725 = load i64, i64* @NODE_NIL_EXPR
+    %t727 = icmp eq i64 %t724, %t725
+    %t726 = zext i1 %t727 to i64
     %t728 = icmp ne i64 %t726, 0
-    %t727 = zext i1 %t728 to i64
-    %t729 = icmp ne i64 %t727, 0
-    br i1 %t729, label %L189, label %L191
-L189:
-    %t730 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t730)
-    %t731 = load i64, i64* %t.43
-    call void @ast_emit_type(i64 %t731)
-    br label %L191
-L191:
-    %t732 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t732)
-    %t733 = load i64, i64* %node.0
-    %t734 = call i8* @let_expr_init(i64 %t733)
-    %t735 = ptrtoint i8* %t734 to i64
-    call void @ast_emit_node(i64 %t735)
-    %t736 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t736)
-    %t737 = load i64, i64* %node.0
-    %t738 = call i8* @let_expr_body(i64 %t737)
-    %t739 = ptrtoint i8* %t738 to i64
-    call void @ast_emit_node(i64 %t739)
-    %t740 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t740)
+    br i1 %t728, label %L186, label %L188
+L186:
+    %t729 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str789, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t729)
     ret void
 L188:
-    %t741 = load i64, i64* %kind.1
-    %t742 = load i64, i64* @NODE_LAMBDA_EXPR
-    %t744 = icmp eq i64 %t741, %t742
-    %t743 = zext i1 %t744 to i64
-    %t745 = icmp ne i64 %t743, 0
-    br i1 %t745, label %L192, label %L194
+    %t730 = load i64, i64* %kind.1
+    %t731 = load i64, i64* @NODE_GROUP_EXPR
+    %t733 = icmp eq i64 %t730, %t731
+    %t732 = zext i1 %t733 to i64
+    %t734 = icmp ne i64 %t732, 0
+    br i1 %t734, label %L189, label %L191
+L189:
+    %t735 = load i64, i64* %node.0
+    %t736 = call i8* @group_expr_expr(i64 %t735)
+    %t737 = ptrtoint i8* %t736 to i64
+    call void @ast_emit_node(i64 %t737)
+    ret void
+L191:
+    %t738 = load i64, i64* %kind.1
+    %t739 = load i64, i64* @NODE_LET_EXPR
+    %t741 = icmp eq i64 %t738, %t739
+    %t740 = zext i1 %t741 to i64
+    %t742 = icmp ne i64 %t740, 0
+    br i1 %t742, label %L192, label %L194
 L192:
-    %t746 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str790, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t746)
-    %params.44 = alloca i64
+    %t743 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str790, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t743)
+    %t744 = load i64, i64* %node.0
+    %t745 = call i8* @let_expr_name(i64 %t744)
+    %t746 = ptrtoint i8* %t745 to i64
     %t747 = load i64, i64* %node.0
-    %t748 = call i8* @lambda_expr_params(i64 %t747)
-    %t749 = ptrtoint i8* %t748 to i64
-    store i64 %t749, i64* %params.44
-    %count.45 = alloca i64
-    %t750 = load i64, i64* %node.0
-    %t751 = call i64 @lambda_expr_param_count(i64 %t750)
-    store i64 %t751, i64* %count.45
-    %i.46 = alloca i64
-    store i64 0, i64* %i.46
-    br label %L195
+    %t748 = call i64 @let_expr_name_len(i64 %t747)
+    call void @ast_emit_strn(i64 %t746, i64 %t748)
+    %t.46 = alloca i64
+    %t749 = load i64, i64* %node.0
+    %t750 = call i8* @let_expr_type(i64 %t749)
+    %t751 = ptrtoint i8* %t750 to i64
+    store i64 %t751, i64* %t.46
+    %t752 = load i64, i64* %t.46
+    %t754 = icmp ne i64 %t752, 0
+    %t753 = zext i1 %t754 to i64
+    %t755 = icmp ne i64 %t753, 0
+    br i1 %t755, label %L195, label %L197
 L195:
-    %t752 = load i64, i64* %i.46
-    %t753 = load i64, i64* %count.45
-    %t755 = icmp slt i64 %t752, %t753
-    %t754 = zext i1 %t755 to i64
-    %t756 = icmp ne i64 %t754, 0
-    br i1 %t756, label %L196, label %L197
-L196:
-    %t757 = load i64, i64* %i.46
-    %t759 = icmp sgt i64 %t757, 0
-    %t758 = zext i1 %t759 to i64
-    %t760 = icmp ne i64 %t758, 0
-    br i1 %t760, label %L198, label %L200
-L198:
-    %t761 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t761)
-    br label %L200
-L200:
-    %t762 = load i64, i64* %params.44
-    %t763 = load i64, i64* %i.46
-    %t764 = call i8* @get_param(i64 %t762, i64 %t763)
-    %t765 = ptrtoint i8* %t764 to i64
-    call void @ast_emit_param(i64 %t765)
-    %t766 = load i64, i64* %i.46
-    %t767 = add i64 %t766, 1
-    store i64 %t767, i64* %i.46
-    br label %L195
+    %t756 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t756)
+    %t757 = load i64, i64* %t.46
+    call void @ast_emit_type(i64 %t757)
+    br label %L197
 L197:
-    %t768 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str450, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t768)
-    %t769 = load i64, i64* %node.0
-    %t770 = call i8* @lambda_expr_ret_type(i64 %t769)
-    %t771 = ptrtoint i8* %t770 to i64
-    call void @ast_emit_type(i64 %t771)
-    %t772 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t772)
-    %t773 = load i64, i64* %node.0
-    %t774 = call i8* @lambda_expr_body(i64 %t773)
-    %t775 = ptrtoint i8* %t774 to i64
-    call void @ast_emit_node(i64 %t775)
-    %t776 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t776)
+    %t758 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t758)
+    %t759 = load i64, i64* %node.0
+    %t760 = call i8* @let_expr_init(i64 %t759)
+    %t761 = ptrtoint i8* %t760 to i64
+    call void @ast_emit_node(i64 %t761)
+    %t762 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t762)
+    %t763 = load i64, i64* %node.0
+    %t764 = call i8* @let_expr_body(i64 %t763)
+    %t765 = ptrtoint i8* %t764 to i64
+    call void @ast_emit_node(i64 %t765)
+    %t766 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t766)
     ret void
 L194:
-    %t777 = load i64, i64* %kind.1
-    %t778 = load i64, i64* @NODE_MATCH_EXPR
-    %t780 = icmp eq i64 %t777, %t778
-    %t779 = zext i1 %t780 to i64
-    %t781 = icmp ne i64 %t779, 0
-    br i1 %t781, label %L201, label %L203
-L201:
-    %t782 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str791, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t782)
-    %t783 = load i64, i64* %node.0
-    %t784 = call i8* @match_expr_scrutinee(i64 %t783)
-    %t785 = ptrtoint i8* %t784 to i64
-    call void @ast_emit_node(i64 %t785)
-    %t786 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str584, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t786)
-    %arms.47 = alloca i64
-    %t787 = load i64, i64* %node.0
-    %t788 = call i8* @match_expr_arms(i64 %t787)
-    %t789 = ptrtoint i8* %t788 to i64
-    store i64 %t789, i64* %arms.47
+    %t767 = load i64, i64* %kind.1
+    %t768 = load i64, i64* @NODE_LAMBDA_EXPR
+    %t770 = icmp eq i64 %t767, %t768
+    %t769 = zext i1 %t770 to i64
+    %t771 = icmp ne i64 %t769, 0
+    br i1 %t771, label %L198, label %L200
+L198:
+    %t772 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str791, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t772)
+    %params.47 = alloca i64
+    %t773 = load i64, i64* %node.0
+    %t774 = call i8* @lambda_expr_params(i64 %t773)
+    %t775 = ptrtoint i8* %t774 to i64
+    store i64 %t775, i64* %params.47
     %count.48 = alloca i64
-    %t790 = load i64, i64* %node.0
-    %t791 = call i64 @match_expr_arm_count(i64 %t790)
-    store i64 %t791, i64* %count.48
-    %t792 = load i64, i64* @ast_emit_indent
-    %t793 = add i64 %t792, 1
-    store i64 %t793, i64* @ast_emit_indent
+    %t776 = load i64, i64* %node.0
+    %t777 = call i64 @lambda_expr_param_count(i64 %t776)
+    store i64 %t777, i64* %count.48
     %i.49 = alloca i64
     store i64 0, i64* %i.49
-    br label %L204
+    br label %L201
+L201:
+    %t778 = load i64, i64* %i.49
+    %t779 = load i64, i64* %count.48
+    %t781 = icmp slt i64 %t778, %t779
+    %t780 = zext i1 %t781 to i64
+    %t782 = icmp ne i64 %t780, 0
+    br i1 %t782, label %L202, label %L203
+L202:
+    %t783 = load i64, i64* %i.49
+    %t785 = icmp sgt i64 %t783, 0
+    %t784 = zext i1 %t785 to i64
+    %t786 = icmp ne i64 %t784, 0
+    br i1 %t786, label %L204, label %L206
 L204:
-    %t794 = load i64, i64* %i.49
-    %t795 = load i64, i64* %count.48
-    %t797 = icmp slt i64 %t794, %t795
-    %t796 = zext i1 %t797 to i64
-    %t798 = icmp ne i64 %t796, 0
-    br i1 %t798, label %L205, label %L206
-L205:
-    call void @ast_emit_newline()
-    %arm.50 = alloca i64
-    %t799 = load i64, i64* %arms.47
-    %t800 = load i64, i64* %i.49
-    %t801 = call i8* @get_match_arm(i64 %t799, i64 %t800)
-    %t802 = ptrtoint i8* %t801 to i64
-    store i64 %t802, i64* %arm.50
-    %t803 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str792, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t803)
-    %t804 = load i64, i64* %arm.50
-    %t805 = call i8* @match_arm_pattern(i64 %t804)
-    %t806 = ptrtoint i8* %t805 to i64
-    call void @ast_emit_pattern(i64 %t806)
-    %t807 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t807)
-    %t808 = load i64, i64* %arm.50
-    %t809 = call i8* @match_arm_body(i64 %t808)
-    %t810 = ptrtoint i8* %t809 to i64
-    call void @ast_emit_node(i64 %t810)
-    %t811 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t811)
-    %t812 = load i64, i64* %i.49
-    %t813 = add i64 %t812, 1
-    store i64 %t813, i64* %i.49
-    br label %L204
+    %t787 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t787)
+    br label %L206
 L206:
-    %t814 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str760, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t814)
-    %t815 = load i64, i64* @ast_emit_indent
-    %t816 = sub i64 %t815, 1
-    store i64 %t816, i64* @ast_emit_indent
-    ret void
+    %t788 = load i64, i64* %params.47
+    %t789 = load i64, i64* %i.49
+    %t790 = call i8* @get_param(i64 %t788, i64 %t789)
+    %t791 = ptrtoint i8* %t790 to i64
+    call void @ast_emit_param(i64 %t791)
+    %t792 = load i64, i64* %i.49
+    %t793 = add i64 %t792, 1
+    store i64 %t793, i64* %i.49
+    br label %L201
 L203:
-    %t817 = load i64, i64* %kind.1
-    %t818 = load i64, i64* @NODE_PERFORM_EXPR
-    %t820 = icmp eq i64 %t817, %t818
-    %t819 = zext i1 %t820 to i64
-    %t821 = icmp ne i64 %t819, 0
-    br i1 %t821, label %L207, label %L209
+    %t794 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str450, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t794)
+    %t795 = load i64, i64* %node.0
+    %t796 = call i8* @lambda_expr_ret_type(i64 %t795)
+    %t797 = ptrtoint i8* %t796 to i64
+    call void @ast_emit_type(i64 %t797)
+    %t798 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t798)
+    %t799 = load i64, i64* %node.0
+    %t800 = call i8* @lambda_expr_body(i64 %t799)
+    %t801 = ptrtoint i8* %t800 to i64
+    call void @ast_emit_node(i64 %t801)
+    %t802 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t802)
+    ret void
+L200:
+    %t803 = load i64, i64* %kind.1
+    %t804 = load i64, i64* @NODE_MATCH_EXPR
+    %t806 = icmp eq i64 %t803, %t804
+    %t805 = zext i1 %t806 to i64
+    %t807 = icmp ne i64 %t805, 0
+    br i1 %t807, label %L207, label %L209
 L207:
-    %t822 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str793, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t822)
-    %t823 = load i64, i64* %node.0
-    %t824 = call i8* @perform_expr_name(i64 %t823)
-    %t825 = ptrtoint i8* %t824 to i64
-    %t826 = load i64, i64* %node.0
-    %t827 = call i64 @perform_expr_name_len(i64 %t826)
-    call void @ast_emit_strn(i64 %t825, i64 %t827)
-    %args.51 = alloca i64
-    %t828 = load i64, i64* %node.0
-    %t829 = call i8* @perform_expr_args(i64 %t828)
-    %t830 = ptrtoint i8* %t829 to i64
-    store i64 %t830, i64* %args.51
-    %count.52 = alloca i64
-    %t831 = load i64, i64* %node.0
-    %t832 = call i64 @perform_expr_arg_count(i64 %t831)
-    store i64 %t832, i64* %count.52
-    %i.53 = alloca i64
-    store i64 0, i64* %i.53
+    %t808 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str792, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t808)
+    %t809 = load i64, i64* %node.0
+    %t810 = call i8* @match_expr_scrutinee(i64 %t809)
+    %t811 = ptrtoint i8* %t810 to i64
+    call void @ast_emit_node(i64 %t811)
+    %t812 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str584, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t812)
+    %arms.50 = alloca i64
+    %t813 = load i64, i64* %node.0
+    %t814 = call i8* @match_expr_arms(i64 %t813)
+    %t815 = ptrtoint i8* %t814 to i64
+    store i64 %t815, i64* %arms.50
+    %count.51 = alloca i64
+    %t816 = load i64, i64* %node.0
+    %t817 = call i64 @match_expr_arm_count(i64 %t816)
+    store i64 %t817, i64* %count.51
+    %t818 = load i64, i64* @ast_emit_indent
+    %t819 = add i64 %t818, 1
+    store i64 %t819, i64* @ast_emit_indent
+    %i.52 = alloca i64
+    store i64 0, i64* %i.52
     br label %L210
 L210:
-    %t833 = load i64, i64* %i.53
-    %t834 = load i64, i64* %count.52
-    %t836 = icmp slt i64 %t833, %t834
-    %t835 = zext i1 %t836 to i64
-    %t837 = icmp ne i64 %t835, 0
-    br i1 %t837, label %L211, label %L212
+    %t820 = load i64, i64* %i.52
+    %t821 = load i64, i64* %count.51
+    %t823 = icmp slt i64 %t820, %t821
+    %t822 = zext i1 %t823 to i64
+    %t824 = icmp ne i64 %t822, 0
+    br i1 %t824, label %L211, label %L212
 L211:
-    %t838 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t838)
-    %t839 = load i64, i64* %args.51
-    %t840 = load i64, i64* %i.53
-    %t841 = call i8* @get_ptr_at(i64 %t839, i64 %t840)
-    %t842 = ptrtoint i8* %t841 to i64
-    call void @ast_emit_node(i64 %t842)
-    %t843 = load i64, i64* %i.53
-    %t844 = add i64 %t843, 1
-    store i64 %t844, i64* %i.53
+    call void @ast_emit_newline()
+    %arm.53 = alloca i64
+    %t825 = load i64, i64* %arms.50
+    %t826 = load i64, i64* %i.52
+    %t827 = call i8* @get_match_arm(i64 %t825, i64 %t826)
+    %t828 = ptrtoint i8* %t827 to i64
+    store i64 %t828, i64* %arm.53
+    %t829 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str793, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t829)
+    %t830 = load i64, i64* %arm.53
+    %t831 = call i8* @match_arm_pattern(i64 %t830)
+    %t832 = ptrtoint i8* %t831 to i64
+    call void @ast_emit_pattern(i64 %t832)
+    %t833 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t833)
+    %t834 = load i64, i64* %arm.53
+    %t835 = call i8* @match_arm_body(i64 %t834)
+    %t836 = ptrtoint i8* %t835 to i64
+    call void @ast_emit_node(i64 %t836)
+    %t837 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t837)
+    %t838 = load i64, i64* %i.52
+    %t839 = add i64 %t838, 1
+    store i64 %t839, i64* %i.52
     br label %L210
 L212:
-    %t845 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t845)
+    %t840 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str760, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t840)
+    %t841 = load i64, i64* @ast_emit_indent
+    %t842 = sub i64 %t841, 1
+    store i64 %t842, i64* @ast_emit_indent
     ret void
 L209:
-    %t846 = load i64, i64* %kind.1
-    %t847 = load i64, i64* @NODE_HANDLE_EXPR
-    %t849 = icmp eq i64 %t846, %t847
-    %t848 = zext i1 %t849 to i64
-    %t850 = icmp ne i64 %t848, 0
-    br i1 %t850, label %L213, label %L215
+    %t843 = load i64, i64* %kind.1
+    %t844 = load i64, i64* @NODE_PERFORM_EXPR
+    %t846 = icmp eq i64 %t843, %t844
+    %t845 = zext i1 %t846 to i64
+    %t847 = icmp ne i64 %t845, 0
+    br i1 %t847, label %L213, label %L215
 L213:
-    %t851 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str794, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t851)
+    %t848 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str794, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t848)
+    %t849 = load i64, i64* %node.0
+    %t850 = call i8* @perform_expr_name(i64 %t849)
+    %t851 = ptrtoint i8* %t850 to i64
     %t852 = load i64, i64* %node.0
-    %t853 = call i8* @handle_expr_body(i64 %t852)
-    %t854 = ptrtoint i8* %t853 to i64
-    call void @ast_emit_node(i64 %t854)
-    %t855 = load i64, i64* @ast_emit_indent
-    %t856 = add i64 %t855, 1
-    store i64 %t856, i64* @ast_emit_indent
-    call void @ast_emit_newline()
-    %t857 = ptrtoint i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str795, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t857)
-    %t858 = load i64, i64* %node.0
-    %t859 = call i8* @handle_expr_ret_bind(i64 %t858)
-    %t860 = ptrtoint i8* %t859 to i64
-    %t861 = load i64, i64* %node.0
-    %t862 = call i64 @handle_expr_ret_bind_len(i64 %t861)
-    call void @ast_emit_strn(i64 %t860, i64 %t862)
-    %t863 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t863)
-    %t864 = load i64, i64* %node.0
-    %t865 = call i8* @handle_expr_ret_body(i64 %t864)
-    %t866 = ptrtoint i8* %t865 to i64
-    call void @ast_emit_node(i64 %t866)
-    %t867 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t867)
-    %handlers.54 = alloca i64
-    %t868 = load i64, i64* %node.0
-    %t869 = call i8* @handle_expr_cases(i64 %t868)
-    %t870 = ptrtoint i8* %t869 to i64
-    store i64 %t870, i64* %handlers.54
+    %t853 = call i64 @perform_expr_name_len(i64 %t852)
+    call void @ast_emit_strn(i64 %t851, i64 %t853)
+    %args.54 = alloca i64
+    %t854 = load i64, i64* %node.0
+    %t855 = call i8* @perform_expr_args(i64 %t854)
+    %t856 = ptrtoint i8* %t855 to i64
+    store i64 %t856, i64* %args.54
     %count.55 = alloca i64
-    %t871 = load i64, i64* %node.0
-    %t872 = call i64 @handle_expr_case_count(i64 %t871)
-    store i64 %t872, i64* %count.55
+    %t857 = load i64, i64* %node.0
+    %t858 = call i64 @perform_expr_arg_count(i64 %t857)
+    store i64 %t858, i64* %count.55
     %i.56 = alloca i64
     store i64 0, i64* %i.56
     br label %L216
 L216:
-    %t873 = load i64, i64* %i.56
-    %t874 = load i64, i64* %count.55
-    %t876 = icmp slt i64 %t873, %t874
-    %t875 = zext i1 %t876 to i64
-    %t877 = icmp ne i64 %t875, 0
-    br i1 %t877, label %L217, label %L218
+    %t859 = load i64, i64* %i.56
+    %t860 = load i64, i64* %count.55
+    %t862 = icmp slt i64 %t859, %t860
+    %t861 = zext i1 %t862 to i64
+    %t863 = icmp ne i64 %t861, 0
+    br i1 %t863, label %L217, label %L218
 L217:
-    call void @ast_emit_newline()
-    %h.57 = alloca i64
-    %t878 = load i64, i64* %handlers.54
-    %t879 = load i64, i64* %i.56
-    %t880 = call i8* @get_effect_case(i64 %t878, i64 %t879)
-    %t881 = ptrtoint i8* %t880 to i64
-    store i64 %t881, i64* %h.57
-    %t882 = ptrtoint i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str796, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t882)
-    %t883 = load i64, i64* %h.57
-    %t884 = call i8* @effect_case_name(i64 %t883)
-    %t885 = ptrtoint i8* %t884 to i64
-    %t886 = load i64, i64* %h.57
-    %t887 = call i64 @effect_case_name_len(i64 %t886)
-    call void @ast_emit_strn(i64 %t885, i64 %t887)
-    %t888 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t888)
-    %bind_len.58 = alloca i64
-    %t889 = load i64, i64* %h.57
-    %t890 = call i64 @effect_case_binding_len(i64 %t889)
-    store i64 %t890, i64* %bind_len.58
-    %t891 = load i64, i64* %bind_len.58
-    %t893 = icmp sgt i64 %t891, 0
-    %t892 = zext i1 %t893 to i64
-    %t894 = icmp ne i64 %t892, 0
-    br i1 %t894, label %L219, label %L220
-L219:
-    %t895 = load i64, i64* %h.57
-    %t896 = call i8* @effect_case_binding(i64 %t895)
-    %t897 = ptrtoint i8* %t896 to i64
-    %t898 = load i64, i64* %bind_len.58
-    call void @ast_emit_strn(i64 %t897, i64 %t898)
-    br label %L221
-L220:
-    %t899 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str797, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t899)
-    br label %L221
-L221:
-    %t900 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t900)
-    %k_len.59 = alloca i64
-    %t901 = load i64, i64* %h.57
-    %t902 = call i64 @effect_case_k_len(i64 %t901)
-    store i64 %t902, i64* %k_len.59
-    %t903 = load i64, i64* %k_len.59
-    %t905 = icmp sgt i64 %t903, 0
-    %t904 = zext i1 %t905 to i64
-    %t906 = icmp ne i64 %t904, 0
-    br i1 %t906, label %L222, label %L223
-L222:
-    %t907 = load i64, i64* %h.57
-    %t908 = call i8* @effect_case_k(i64 %t907)
-    %t909 = ptrtoint i8* %t908 to i64
-    %t910 = load i64, i64* %k_len.59
-    call void @ast_emit_strn(i64 %t909, i64 %t910)
-    br label %L224
-L223:
-    %t911 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str797, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t911)
-    br label %L224
-L224:
-    %t912 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t912)
-    %t913 = load i64, i64* %h.57
-    %t914 = call i8* @effect_case_body(i64 %t913)
-    %t915 = ptrtoint i8* %t914 to i64
-    call void @ast_emit_node(i64 %t915)
-    %t916 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t916)
-    %t917 = load i64, i64* %i.56
-    %t918 = add i64 %t917, 1
-    store i64 %t918, i64* %i.56
+    %t864 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t864)
+    %t865 = load i64, i64* %args.54
+    %t866 = load i64, i64* %i.56
+    %t867 = call i8* @get_ptr_at(i64 %t865, i64 %t866)
+    %t868 = ptrtoint i8* %t867 to i64
+    call void @ast_emit_node(i64 %t868)
+    %t869 = load i64, i64* %i.56
+    %t870 = add i64 %t869, 1
+    store i64 %t870, i64* %i.56
     br label %L216
 L218:
-    %t919 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t919)
-    %t920 = load i64, i64* @ast_emit_indent
-    %t921 = sub i64 %t920, 1
-    store i64 %t921, i64* @ast_emit_indent
+    %t871 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t871)
     ret void
 L215:
-    %t922 = load i64, i64* %kind.1
-    %t923 = load i64, i64* @NODE_RESUME_EXPR
-    %t925 = icmp eq i64 %t922, %t923
-    %t924 = zext i1 %t925 to i64
-    %t926 = icmp ne i64 %t924, 0
-    br i1 %t926, label %L225, label %L227
+    %t872 = load i64, i64* %kind.1
+    %t873 = load i64, i64* @NODE_HANDLE_EXPR
+    %t875 = icmp eq i64 %t872, %t873
+    %t874 = zext i1 %t875 to i64
+    %t876 = icmp ne i64 %t874, 0
+    br i1 %t876, label %L219, label %L221
+L219:
+    %t877 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str795, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t877)
+    %t878 = load i64, i64* %node.0
+    %t879 = call i8* @handle_expr_body(i64 %t878)
+    %t880 = ptrtoint i8* %t879 to i64
+    call void @ast_emit_node(i64 %t880)
+    %t881 = load i64, i64* @ast_emit_indent
+    %t882 = add i64 %t881, 1
+    store i64 %t882, i64* @ast_emit_indent
+    call void @ast_emit_newline()
+    %t883 = ptrtoint i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str796, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t883)
+    %t884 = load i64, i64* %node.0
+    %t885 = call i8* @handle_expr_ret_bind(i64 %t884)
+    %t886 = ptrtoint i8* %t885 to i64
+    %t887 = load i64, i64* %node.0
+    %t888 = call i64 @handle_expr_ret_bind_len(i64 %t887)
+    call void @ast_emit_strn(i64 %t886, i64 %t888)
+    %t889 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t889)
+    %t890 = load i64, i64* %node.0
+    %t891 = call i8* @handle_expr_ret_body(i64 %t890)
+    %t892 = ptrtoint i8* %t891 to i64
+    call void @ast_emit_node(i64 %t892)
+    %t893 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t893)
+    %handlers.57 = alloca i64
+    %t894 = load i64, i64* %node.0
+    %t895 = call i8* @handle_expr_cases(i64 %t894)
+    %t896 = ptrtoint i8* %t895 to i64
+    store i64 %t896, i64* %handlers.57
+    %count.58 = alloca i64
+    %t897 = load i64, i64* %node.0
+    %t898 = call i64 @handle_expr_case_count(i64 %t897)
+    store i64 %t898, i64* %count.58
+    %i.59 = alloca i64
+    store i64 0, i64* %i.59
+    br label %L222
+L222:
+    %t899 = load i64, i64* %i.59
+    %t900 = load i64, i64* %count.58
+    %t902 = icmp slt i64 %t899, %t900
+    %t901 = zext i1 %t902 to i64
+    %t903 = icmp ne i64 %t901, 0
+    br i1 %t903, label %L223, label %L224
+L223:
+    call void @ast_emit_newline()
+    %h.60 = alloca i64
+    %t904 = load i64, i64* %handlers.57
+    %t905 = load i64, i64* %i.59
+    %t906 = call i8* @get_effect_case(i64 %t904, i64 %t905)
+    %t907 = ptrtoint i8* %t906 to i64
+    store i64 %t907, i64* %h.60
+    %t908 = ptrtoint i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str797, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t908)
+    %t909 = load i64, i64* %h.60
+    %t910 = call i8* @effect_case_name(i64 %t909)
+    %t911 = ptrtoint i8* %t910 to i64
+    %t912 = load i64, i64* %h.60
+    %t913 = call i64 @effect_case_name_len(i64 %t912)
+    call void @ast_emit_strn(i64 %t911, i64 %t913)
+    %t914 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t914)
+    %bind_len.61 = alloca i64
+    %t915 = load i64, i64* %h.60
+    %t916 = call i64 @effect_case_binding_len(i64 %t915)
+    store i64 %t916, i64* %bind_len.61
+    %t917 = load i64, i64* %bind_len.61
+    %t919 = icmp sgt i64 %t917, 0
+    %t918 = zext i1 %t919 to i64
+    %t920 = icmp ne i64 %t918, 0
+    br i1 %t920, label %L225, label %L226
 L225:
-    %t927 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str798, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t927)
-    %t928 = load i64, i64* %node.0
-    %t929 = call i8* @resume_expr_k(i64 %t928)
-    %t930 = ptrtoint i8* %t929 to i64
-    call void @ast_emit_node(i64 %t930)
-    %val.60 = alloca i64
-    %t931 = load i64, i64* %node.0
-    %t932 = call i8* @resume_expr_value(i64 %t931)
-    %t933 = ptrtoint i8* %t932 to i64
-    store i64 %t933, i64* %val.60
-    %t934 = load i64, i64* %val.60
-    %t936 = icmp ne i64 %t934, 0
-    %t935 = zext i1 %t936 to i64
-    %t937 = icmp ne i64 %t935, 0
-    br i1 %t937, label %L228, label %L230
+    %t921 = load i64, i64* %h.60
+    %t922 = call i8* @effect_case_binding(i64 %t921)
+    %t923 = ptrtoint i8* %t922 to i64
+    %t924 = load i64, i64* %bind_len.61
+    call void @ast_emit_strn(i64 %t923, i64 %t924)
+    br label %L227
+L226:
+    %t925 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str798, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t925)
+    br label %L227
+L227:
+    %t926 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t926)
+    %k_len.62 = alloca i64
+    %t927 = load i64, i64* %h.60
+    %t928 = call i64 @effect_case_k_len(i64 %t927)
+    store i64 %t928, i64* %k_len.62
+    %t929 = load i64, i64* %k_len.62
+    %t931 = icmp sgt i64 %t929, 0
+    %t930 = zext i1 %t931 to i64
+    %t932 = icmp ne i64 %t930, 0
+    br i1 %t932, label %L228, label %L229
 L228:
-    %t938 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t938)
-    %t939 = load i64, i64* %val.60
-    call void @ast_emit_node(i64 %t939)
+    %t933 = load i64, i64* %h.60
+    %t934 = call i8* @effect_case_k(i64 %t933)
+    %t935 = ptrtoint i8* %t934 to i64
+    %t936 = load i64, i64* %k_len.62
+    call void @ast_emit_strn(i64 %t935, i64 %t936)
+    br label %L230
+L229:
+    %t937 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str798, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t937)
     br label %L230
 L230:
-    %t940 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t940)
+    %t938 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t938)
+    %t939 = load i64, i64* %h.60
+    %t940 = call i8* @effect_case_body(i64 %t939)
+    %t941 = ptrtoint i8* %t940 to i64
+    call void @ast_emit_node(i64 %t941)
+    %t942 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t942)
+    %t943 = load i64, i64* %i.59
+    %t944 = add i64 %t943, 1
+    store i64 %t944, i64* %i.59
+    br label %L222
+L224:
+    %t945 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t945)
+    %t946 = load i64, i64* @ast_emit_indent
+    %t947 = sub i64 %t946, 1
+    store i64 %t947, i64* @ast_emit_indent
     ret void
-L227:
-    %t941 = load i64, i64* %kind.1
-    %t942 = load i64, i64* @NODE_QUOTE_EXPR
-    %t944 = icmp eq i64 %t941, %t942
-    %t943 = zext i1 %t944 to i64
-    %t945 = icmp ne i64 %t943, 0
-    br i1 %t945, label %L231, label %L233
+L221:
+    %t948 = load i64, i64* %kind.1
+    %t949 = load i64, i64* @NODE_RESUME_EXPR
+    %t951 = icmp eq i64 %t948, %t949
+    %t950 = zext i1 %t951 to i64
+    %t952 = icmp ne i64 %t950, 0
+    br i1 %t952, label %L231, label %L233
 L231:
-    %t946 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str799, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t946)
-    %t947 = load i64, i64* %node.0
-    %t948 = call i8* @quote_expr_expr(i64 %t947)
-    %t949 = ptrtoint i8* %t948 to i64
-    call void @ast_emit_node(i64 %t949)
-    %t950 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t950)
+    %t953 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str799, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t953)
+    %t954 = load i64, i64* %node.0
+    %t955 = call i8* @resume_expr_k(i64 %t954)
+    %t956 = ptrtoint i8* %t955 to i64
+    call void @ast_emit_node(i64 %t956)
+    %val.63 = alloca i64
+    %t957 = load i64, i64* %node.0
+    %t958 = call i8* @resume_expr_value(i64 %t957)
+    %t959 = ptrtoint i8* %t958 to i64
+    store i64 %t959, i64* %val.63
+    %t960 = load i64, i64* %val.63
+    %t962 = icmp ne i64 %t960, 0
+    %t961 = zext i1 %t962 to i64
+    %t963 = icmp ne i64 %t961, 0
+    br i1 %t963, label %L234, label %L236
+L234:
+    %t964 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t964)
+    %t965 = load i64, i64* %val.63
+    call void @ast_emit_node(i64 %t965)
+    br label %L236
+L236:
+    %t966 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t966)
     ret void
 L233:
-    %t951 = load i64, i64* %kind.1
-    %t952 = load i64, i64* @NODE_UNQUOTE_EXPR
-    %t954 = icmp eq i64 %t951, %t952
-    %t953 = zext i1 %t954 to i64
-    %t955 = icmp ne i64 %t953, 0
-    br i1 %t955, label %L234, label %L236
-L234:
-    %t956 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str800, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t956)
-    %t957 = load i64, i64* %node.0
-    %t958 = call i8* @unquote_expr_name(i64 %t957)
-    %t959 = ptrtoint i8* %t958 to i64
-    %t960 = load i64, i64* %node.0
-    %t961 = call i64 @unquote_expr_name_len(i64 %t960)
-    call void @ast_emit_strn(i64 %t959, i64 %t961)
-    %t962 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t962)
-    ret void
-L236:
-    %t963 = load i64, i64* %kind.1
-    %t964 = load i64, i64* @NODE_UNQUOTE_STRING_EXPR
-    %t966 = icmp eq i64 %t963, %t964
-    %t965 = zext i1 %t966 to i64
-    %t967 = icmp ne i64 %t965, 0
-    br i1 %t967, label %L237, label %L239
+    %t967 = load i64, i64* %kind.1
+    %t968 = load i64, i64* @NODE_QUOTE_EXPR
+    %t970 = icmp eq i64 %t967, %t968
+    %t969 = zext i1 %t970 to i64
+    %t971 = icmp ne i64 %t969, 0
+    br i1 %t971, label %L237, label %L239
 L237:
-    %t968 = ptrtoint i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str801, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t968)
-    %t969 = load i64, i64* %node.0
-    %t970 = call i8* @unquote_string_expr_name(i64 %t969)
-    %t971 = ptrtoint i8* %t970 to i64
-    %t972 = load i64, i64* %node.0
-    %t973 = call i64 @unquote_string_expr_name_len(i64 %t972)
-    call void @ast_emit_strn(i64 %t971, i64 %t973)
-    %t974 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t974)
+    %t972 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str800, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t972)
+    %t973 = load i64, i64* %node.0
+    %t974 = call i8* @quote_expr_expr(i64 %t973)
+    %t975 = ptrtoint i8* %t974 to i64
+    call void @ast_emit_node(i64 %t975)
+    %t976 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t976)
     ret void
 L239:
-    %t975 = load i64, i64* %kind.1
-    %t976 = load i64, i64* @NODE_READER_EXPR
-    %t978 = icmp eq i64 %t975, %t976
-    %t977 = zext i1 %t978 to i64
-    %t979 = icmp ne i64 %t977, 0
-    br i1 %t979, label %L240, label %L242
+    %t977 = load i64, i64* %kind.1
+    %t978 = load i64, i64* @NODE_UNQUOTE_EXPR
+    %t980 = icmp eq i64 %t977, %t978
+    %t979 = zext i1 %t980 to i64
+    %t981 = icmp ne i64 %t979, 0
+    br i1 %t981, label %L240, label %L242
 L240:
-    %t980 = ptrtoint i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str802, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t980)
-    %t981 = load i64, i64* %node.0
-    %t982 = call i8* @reader_expr_name(i64 %t981)
-    %t983 = ptrtoint i8* %t982 to i64
-    %t984 = load i64, i64* %node.0
-    %t985 = call i64 @reader_expr_name_len(i64 %t984)
-    call void @ast_emit_strn(i64 %t983, i64 %t985)
-    %t986 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t986)
-    %t987 = load i64, i64* %node.0
-    %t988 = call i8* @reader_expr_content(i64 %t987)
-    %t989 = ptrtoint i8* %t988 to i64
-    %t990 = load i64, i64* %node.0
-    %t991 = call i64 @reader_expr_content_len(i64 %t990)
-    call void @ast_emit_quoted_string(i64 %t989, i64 %t991)
-    %t992 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t992)
+    %t982 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str801, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t982)
+    %t983 = load i64, i64* %node.0
+    %t984 = call i8* @unquote_expr_name(i64 %t983)
+    %t985 = ptrtoint i8* %t984 to i64
+    %t986 = load i64, i64* %node.0
+    %t987 = call i64 @unquote_expr_name_len(i64 %t986)
+    call void @ast_emit_strn(i64 %t985, i64 %t987)
+    %t988 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t988)
     ret void
 L242:
-    %t993 = ptrtoint i8* getelementptr inbounds ([15 x i8], [15 x i8]* @.str803, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t993)
-    %t994 = load i64, i64* %kind.1
-    call void @ast_emit_int(i64 %t994)
-    %t995 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @ast_emit_str(i64 %t995)
+    %t989 = load i64, i64* %kind.1
+    %t990 = load i64, i64* @NODE_UNQUOTE_STRING_EXPR
+    %t992 = icmp eq i64 %t989, %t990
+    %t991 = zext i1 %t992 to i64
+    %t993 = icmp ne i64 %t991, 0
+    br i1 %t993, label %L243, label %L245
+L243:
+    %t994 = ptrtoint i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str802, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t994)
+    %t995 = load i64, i64* %node.0
+    %t996 = call i8* @unquote_string_expr_name(i64 %t995)
+    %t997 = ptrtoint i8* %t996 to i64
+    %t998 = load i64, i64* %node.0
+    %t999 = call i64 @unquote_string_expr_name_len(i64 %t998)
+    call void @ast_emit_strn(i64 %t997, i64 %t999)
+    %t1000 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t1000)
+    ret void
+L245:
+    %t1001 = load i64, i64* %kind.1
+    %t1002 = load i64, i64* @NODE_READER_EXPR
+    %t1004 = icmp eq i64 %t1001, %t1002
+    %t1003 = zext i1 %t1004 to i64
+    %t1005 = icmp ne i64 %t1003, 0
+    br i1 %t1005, label %L246, label %L248
+L246:
+    %t1006 = ptrtoint i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str803, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t1006)
+    %t1007 = load i64, i64* %node.0
+    %t1008 = call i8* @reader_expr_name(i64 %t1007)
+    %t1009 = ptrtoint i8* %t1008 to i64
+    %t1010 = load i64, i64* %node.0
+    %t1011 = call i64 @reader_expr_name_len(i64 %t1010)
+    call void @ast_emit_strn(i64 %t1009, i64 %t1011)
+    %t1012 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str456, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t1012)
+    %t1013 = load i64, i64* %node.0
+    %t1014 = call i8* @reader_expr_content(i64 %t1013)
+    %t1015 = ptrtoint i8* %t1014 to i64
+    %t1016 = load i64, i64* %node.0
+    %t1017 = call i64 @reader_expr_content_len(i64 %t1016)
+    call void @ast_emit_quoted_string(i64 %t1015, i64 %t1017)
+    %t1018 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t1018)
+    ret void
+L248:
+    %t1019 = ptrtoint i8* getelementptr inbounds ([15 x i8], [15 x i8]* @.str804, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t1019)
+    %t1020 = load i64, i64* %kind.1
+    call void @ast_emit_int(i64 %t1020)
+    %t1021 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @ast_emit_str(i64 %t1021)
     ret void
 }
 
@@ -56294,7 +56612,7 @@ L2:
     %t11 = icmp ne i64 %t9, 0
     br i1 %t11, label %L3, label %L5
 L3:
-    %t12 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str804, i64 0, i64 0) to i64
+    %t12 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str805, i64 0, i64 0) to i64
     call void @ast_emit_str(i64 %t12)
     %t13 = load i64, i64* %p.0
     %t14 = call i8* @pattern_variant_enum_name(i64 %t13)
@@ -56340,11 +56658,11 @@ L5:
     %t40 = icmp ne i64 %t38, 0
     br i1 %t40, label %L9, label %L11
 L9:
-    %t41 = ptrtoint i8* getelementptr inbounds ([19 x i8], [19 x i8]* @.str805, i64 0, i64 0) to i64
+    %t41 = ptrtoint i8* getelementptr inbounds ([19 x i8], [19 x i8]* @.str806, i64 0, i64 0) to i64
     call void @ast_emit_str(i64 %t41)
     ret void
 L11:
-    %t42 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str806, i64 0, i64 0) to i64
+    %t42 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str807, i64 0, i64 0) to i64
     call void @ast_emit_str(i64 %t42)
     %t43 = load i64, i64* %kind.1
     call void @ast_emit_int(i64 %t43)
@@ -56358,7 +56676,7 @@ L.entry:
     %prog.0 = alloca i64
     store i64 %prog.arg, i64* %prog.0
     call void @ast_emit_init()
-    %t0 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str807, i64 0, i64 0) to i64
+    %t0 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str808, i64 0, i64 0) to i64
     call void @ast_emit_str(i64 %t0)
     %decls.1 = alloca i64
     %t1 = load i64, i64* %prog.0
@@ -58688,7 +59006,7 @@ L17:
     %t96 = icmp ne i64 %t94, 0
     br i1 %t96, label %L23, label %L25
 L23:
-    %t97 = ptrtoint i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str808, i64 0, i64 0) to i64
+    %t97 = ptrtoint i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str809, i64 0, i64 0) to i64
     call void @eprintln(i64 %t97)
     %t98 = inttoptr i64 0 to i8*
     ret i8* %t98
@@ -58701,7 +59019,7 @@ L25:
     %t103 = inttoptr i64 %t102 to i8*
     ret i8* %t103
 L14:
-    %t104 = ptrtoint i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str809, i64 0, i64 0) to i64
+    %t104 = ptrtoint i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str810, i64 0, i64 0) to i64
     call void @eprint(i64 %t104)
     %t105 = load i64, i64* %t.0
     %t106 = call i8* @tok_text(i64 %t105)
@@ -59397,7 +59715,7 @@ L11:
     ret i8* %t39
 L13:
     %t40 = load i64, i64* %head.1
-    %t41 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str810, i64 0, i64 0) to i64
+    %t41 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str811, i64 0, i64 0) to i64
     %t42 = call i64 @streq(i64 %t40, i64 %t41)
     %t43 = icmp ne i64 %t42, 0
     br i1 %t43, label %L14, label %L16
@@ -59431,7 +59749,7 @@ L14:
     ret i8* %t63
 L16:
     %t64 = load i64, i64* %head.1
-    %t65 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str811, i64 0, i64 0) to i64
+    %t65 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str812, i64 0, i64 0) to i64
     %t66 = call i64 @streq(i64 %t64, i64 %t65)
     %t67 = icmp ne i64 %t66, 0
     br i1 %t67, label %L17, label %L19
@@ -59452,7 +59770,7 @@ L17:
     ret i8* %t77
 L19:
     %t78 = load i64, i64* %head.1
-    %t79 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str812, i64 0, i64 0) to i64
+    %t79 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str813, i64 0, i64 0) to i64
     %t80 = call i64 @streq(i64 %t78, i64 %t79)
     %t81 = icmp ne i64 %t80, 0
     br i1 %t81, label %L20, label %L22
@@ -59530,7 +59848,7 @@ L25:
     ret i8* %t126
 L22:
     %t127 = load i64, i64* %head.1
-    %t128 = ptrtoint i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str813, i64 0, i64 0) to i64
+    %t128 = ptrtoint i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str814, i64 0, i64 0) to i64
     %t129 = call i64 @streq(i64 %t127, i64 %t128)
     %t130 = icmp ne i64 %t129, 0
     br i1 %t130, label %L26, label %L28
@@ -59608,7 +59926,7 @@ L31:
     ret i8* %t175
 L28:
     %t176 = load i64, i64* %head.1
-    %t177 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str814, i64 0, i64 0) to i64
+    %t177 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str815, i64 0, i64 0) to i64
     %t178 = call i64 @streq(i64 %t176, i64 %t177)
     %t179 = icmp ne i64 %t178, 0
     br i1 %t179, label %L32, label %L34
@@ -59687,7 +60005,7 @@ L6:
     ret i8* %t20
 L8:
     %t21 = load i64, i64* %head.1
-    %t22 = ptrtoint i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str815, i64 0, i64 0) to i64
+    %t22 = ptrtoint i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str816, i64 0, i64 0) to i64
     %t23 = call i64 @streq(i64 %t21, i64 %t22)
     %t24 = icmp ne i64 %t23, 0
     br i1 %t24, label %L9, label %L11
@@ -59698,7 +60016,7 @@ L9:
     ret i8* %t27
 L11:
     %t28 = load i64, i64* %head.1
-    %t29 = ptrtoint i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str816, i64 0, i64 0) to i64
+    %t29 = ptrtoint i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str817, i64 0, i64 0) to i64
     %t30 = call i64 @streq(i64 %t28, i64 %t29)
     %t31 = icmp ne i64 %t30, 0
     br i1 %t31, label %L12, label %L14
@@ -59888,7 +60206,7 @@ L5:
     %t30 = icmp ne i64 %t28, 0
     br i1 %t30, label %L8, label %L10
 L8:
-    %t31 = ptrtoint i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str817, i64 0, i64 0) to i64
+    %t31 = ptrtoint i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str818, i64 0, i64 0) to i64
     call void @eprintln(i64 %t31)
     %t32 = inttoptr i64 0 to i8*
     ret i8* %t32
@@ -59904,7 +60222,7 @@ L10:
     %t39 = icmp ne i64 %t37, 0
     br i1 %t39, label %L11, label %L13
 L11:
-    %t40 = ptrtoint i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str818, i64 0, i64 0) to i64
+    %t40 = ptrtoint i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str819, i64 0, i64 0) to i64
     call void @eprintln(i64 %t40)
     %t41 = inttoptr i64 0 to i8*
     ret i8* %t41
@@ -59912,7 +60230,7 @@ L13:
     %is_extern_func.2 = alloca i64
     store i64 0, i64* %is_extern_func.2
     %t42 = load i64, i64* %head.1
-    %t43 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str819, i64 0, i64 0) to i64
+    %t43 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str820, i64 0, i64 0) to i64
     %t44 = call i64 @streq(i64 %t42, i64 %t43)
     %t45 = icmp ne i64 %t44, 0
     br i1 %t45, label %L14, label %L16
@@ -60089,7 +60407,7 @@ L19:
     %is_extern_var.13 = alloca i64
     store i64 0, i64* %is_extern_var.13
     %t154 = load i64, i64* %head.1
-    %t155 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str820, i64 0, i64 0) to i64
+    %t155 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str821, i64 0, i64 0) to i64
     %t156 = call i64 @streq(i64 %t154, i64 %t155)
     %t157 = icmp ne i64 %t156, 0
     br i1 %t157, label %L30, label %L32
@@ -60907,1857 +61225,1933 @@ L91:
     ret i8* %t684
 L93:
     %t685 = load i64, i64* %head.1
-    %t686 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str25, i64 0, i64 0) to i64
+    %t686 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str822, i64 0, i64 0) to i64
     %t687 = call i64 @streq(i64 %t685, i64 %t686)
     %t688 = icmp ne i64 %t687, 0
     br i1 %t688, label %L94, label %L96
 L94:
     %n.72 = alloca i64
-    %t689 = call i8* @reader_decl_alloc()
+    %t689 = call i8* @modules_decl_alloc()
     %t690 = ptrtoint i8* %t689 to i64
     store i64 %t690, i64* %n.72
-    %idx.73 = alloca i64
-    store i64 1, i64* %idx.73
-    %is_pub.74 = alloca i64
-    store i64 0, i64* %is_pub.74
-    %first.75 = alloca i64
+    %count.73 = alloca i64
     %t691 = load i64, i64* %node.0
-    %t692 = call i8* @sexpr_get(i64 %t691, i64 1)
-    %t693 = ptrtoint i8* %t692 to i64
-    store i64 %t693, i64* %first.75
-    %t694 = alloca i64
-    store i64 0, i64* %t694
-    %t695 = load i64, i64* %first.75
-    %t696 = inttoptr i64 %t695 to i64*
-    %t697 = load i64, i64* %t696
-    %t698 = load i64, i64* @PNODE_SYMBOL
-    %t700 = icmp eq i64 %t697, %t698
-    %t699 = zext i1 %t700 to i64
-    %t701 = icmp ne i64 %t699, 0
-    br i1 %t701, label %L100, label %L101
-L100:
-    %t702 = load i64, i64* %first.75
-    %t703 = add i64 %t702, 8
-    %t704 = inttoptr i64 %t703 to i64*
-    %t705 = load i64, i64* %t704
-    %t706 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str47, i64 0, i64 0) to i64
-    %t707 = call i64 @streq(i64 %t705, i64 %t706)
-    %t708 = icmp ne i64 %t707, 0
-    %t709 = zext i1 %t708 to i64
-    store i64 %t709, i64* %t694
-    br label %L101
-L101:
-    %t710 = load i64, i64* %t694
-    %t711 = icmp ne i64 %t710, 0
-    br i1 %t711, label %L97, label %L99
+    %t692 = add i64 %t691, 16
+    %t693 = inttoptr i64 %t692 to i64*
+    %t694 = load i64, i64* %t693
+    %t695 = call i64 @vec_len(i64 %t694)
+    %t696 = sub i64 %t695, 1
+    store i64 %t696, i64* %count.73
+    %mods.74 = alloca i64
+    %t697 = load i64, i64* %count.73
+    %t698 = mul i64 %t697, 16
+    %t699 = call i8* @alloc(i64 %t698)
+    %t700 = ptrtoint i8* %t699 to i64
+    store i64 %t700, i64* %mods.74
+    %t701 = load i64, i64* %n.72
+    %t702 = load i64, i64* %mods.74
+    call void @modules_decl_set_modules(i64 %t701, i64 %t702)
+    %t703 = load i64, i64* %n.72
+    %t704 = load i64, i64* %count.73
+    call void @modules_decl_set_count(i64 %t703, i64 %t704)
+    %i.75 = alloca i64
+    store i64 0, i64* %i.75
+    br label %L97
 L97:
-    store i64 1, i64* %is_pub.74
-    store i64 2, i64* %idx.73
-    br label %L99
-L99:
-    %name_node.76 = alloca i64
-    %t712 = load i64, i64* %node.0
-    %t713 = load i64, i64* %idx.73
-    %t714 = call i8* @sexpr_get(i64 %t712, i64 %t713)
-    %t715 = ptrtoint i8* %t714 to i64
-    store i64 %t715, i64* %name_node.76
-    %t716 = load i64, i64* %n.72
-    %t717 = load i64, i64* %name_node.76
-    %t718 = add i64 %t717, 8
-    %t719 = inttoptr i64 %t718 to i64*
-    %t720 = load i64, i64* %t719
-    %t721 = call i8* @sexpr_strdup(i64 %t720)
-    %t722 = ptrtoint i8* %t721 to i64
-    call void @reader_decl_set_name(i64 %t716, i64 %t722)
-    %t723 = load i64, i64* %n.72
-    %t724 = load i64, i64* %name_node.76
-    %t725 = add i64 %t724, 8
-    %t726 = inttoptr i64 %t725 to i64*
-    %t727 = load i64, i64* %t726
+    %t705 = load i64, i64* %i.75
+    %t706 = load i64, i64* %count.73
+    %t708 = icmp slt i64 %t705, %t706
+    %t707 = zext i1 %t708 to i64
+    %t709 = icmp ne i64 %t707, 0
+    br i1 %t709, label %L98, label %L99
+L98:
+    %mod_node.76 = alloca i64
+    %t710 = load i64, i64* %node.0
+    %t711 = load i64, i64* %i.75
+    %t712 = add i64 %t711, 1
+    %t713 = call i8* @sexpr_get(i64 %t710, i64 %t712)
+    %t714 = ptrtoint i8* %t713 to i64
+    store i64 %t714, i64* %mod_node.76
+    %mod.77 = alloca i64
+    %t715 = load i64, i64* %mod_node.76
+    %t716 = add i64 %t715, 8
+    %t717 = inttoptr i64 %t716 to i64*
+    %t718 = load i64, i64* %t717
+    %t719 = call i8* @sexpr_parse_string(i64 %t718)
+    %t720 = ptrtoint i8* %t719 to i64
+    store i64 %t720, i64* %mod.77
+    %entry.78 = alloca i64
+    %t721 = load i64, i64* %mods.74
+    %t722 = load i64, i64* %i.75
+    %t723 = mul i64 %t722, 16
+    %t724 = add i64 %t721, %t723
+    store i64 %t724, i64* %entry.78
+    %t725 = load i64, i64* %entry.78
+    %t726 = load i64, i64* %mod.77
+    %t727 = load i64, i64* %mod.77
     %t728 = call i64 @strlen(i64 %t727)
-    call void @reader_decl_set_name_len(i64 %t723, i64 %t728)
-    %param_node.77 = alloca i64
-    %t729 = load i64, i64* %node.0
-    %t730 = load i64, i64* %idx.73
-    %t731 = add i64 %t730, 1
-    %t732 = call i8* @sexpr_get(i64 %t729, i64 %t731)
-    %t733 = ptrtoint i8* %t732 to i64
-    store i64 %t733, i64* %param_node.77
-    %t734 = load i64, i64* %n.72
-    %t735 = load i64, i64* %param_node.77
-    %t736 = add i64 %t735, 8
-    %t737 = inttoptr i64 %t736 to i64*
-    %t738 = load i64, i64* %t737
-    %t739 = call i8* @sexpr_strdup(i64 %t738)
-    %t740 = ptrtoint i8* %t739 to i64
-    call void @reader_decl_set_param_name(i64 %t734, i64 %t740)
-    %t741 = load i64, i64* %n.72
-    %t742 = load i64, i64* %param_node.77
-    %t743 = add i64 %t742, 8
+    call void @module_entry_set(i64 %t725, i64 %t726, i64 %t728)
+    %t729 = load i64, i64* %i.75
+    %t730 = add i64 %t729, 1
+    store i64 %t730, i64* %i.75
+    br label %L97
+L99:
+    %t731 = load i64, i64* %n.72
+    %t732 = inttoptr i64 %t731 to i8*
+    ret i8* %t732
+L96:
+    %t733 = load i64, i64* %head.1
+    %t734 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str25, i64 0, i64 0) to i64
+    %t735 = call i64 @streq(i64 %t733, i64 %t734)
+    %t736 = icmp ne i64 %t735, 0
+    br i1 %t736, label %L100, label %L102
+L100:
+    %n.79 = alloca i64
+    %t737 = call i8* @reader_decl_alloc()
+    %t738 = ptrtoint i8* %t737 to i64
+    store i64 %t738, i64* %n.79
+    %idx.80 = alloca i64
+    store i64 1, i64* %idx.80
+    %is_pub.81 = alloca i64
+    store i64 0, i64* %is_pub.81
+    %first.82 = alloca i64
+    %t739 = load i64, i64* %node.0
+    %t740 = call i8* @sexpr_get(i64 %t739, i64 1)
+    %t741 = ptrtoint i8* %t740 to i64
+    store i64 %t741, i64* %first.82
+    %t742 = alloca i64
+    store i64 0, i64* %t742
+    %t743 = load i64, i64* %first.82
     %t744 = inttoptr i64 %t743 to i64*
     %t745 = load i64, i64* %t744
-    %t746 = call i64 @strlen(i64 %t745)
-    call void @reader_decl_set_param_len(i64 %t741, i64 %t746)
-    %t747 = load i64, i64* %n.72
-    %t748 = load i64, i64* %node.0
-    %t749 = load i64, i64* %idx.73
-    %t750 = add i64 %t749, 2
-    %t751 = call i8* @sexpr_get(i64 %t748, i64 %t750)
-    %t752 = ptrtoint i8* %t751 to i64
-    %t753 = call i8* @sexpr_to_node(i64 %t752)
-    %t754 = ptrtoint i8* %t753 to i64
-    call void @reader_decl_set_body(i64 %t747, i64 %t754)
-    %t755 = load i64, i64* %n.72
-    %t756 = load i64, i64* %is_pub.74
-    call void @reader_decl_set_is_pub(i64 %t755, i64 %t756)
-    %t757 = load i64, i64* %n.72
-    %t758 = inttoptr i64 %t757 to i8*
-    ret i8* %t758
-L96:
-    %t759 = load i64, i64* %head.1
-    %t760 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str821, i64 0, i64 0) to i64
-    %t761 = call i64 @streq(i64 %t759, i64 %t760)
-    %t762 = icmp ne i64 %t761, 0
-    br i1 %t762, label %L102, label %L104
-L102:
-    %n.78 = alloca i64
-    %t763 = call i8* @block_stmt_alloc()
-    %t764 = ptrtoint i8* %t763 to i64
-    store i64 %t764, i64* %n.78
-    %count.79 = alloca i64
-    %t765 = load i64, i64* %node.0
-    %t766 = call i64 @sexpr_len(i64 %t765)
-    %t767 = sub i64 %t766, 1
-    store i64 %t767, i64* %count.79
-    %stmts.80 = alloca i64
-    %t768 = load i64, i64* %count.79
-    %t769 = mul i64 %t768, 8
-    %t770 = call i8* @alloc(i64 %t769)
-    %t771 = ptrtoint i8* %t770 to i64
-    store i64 %t771, i64* %stmts.80
-    %i.81 = alloca i64
-    store i64 0, i64* %i.81
+    %t746 = load i64, i64* @PNODE_SYMBOL
+    %t748 = icmp eq i64 %t745, %t746
+    %t747 = zext i1 %t748 to i64
+    %t749 = icmp ne i64 %t747, 0
+    br i1 %t749, label %L106, label %L107
+L106:
+    %t750 = load i64, i64* %first.82
+    %t751 = add i64 %t750, 8
+    %t752 = inttoptr i64 %t751 to i64*
+    %t753 = load i64, i64* %t752
+    %t754 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str47, i64 0, i64 0) to i64
+    %t755 = call i64 @streq(i64 %t753, i64 %t754)
+    %t756 = icmp ne i64 %t755, 0
+    %t757 = zext i1 %t756 to i64
+    store i64 %t757, i64* %t742
+    br label %L107
+L107:
+    %t758 = load i64, i64* %t742
+    %t759 = icmp ne i64 %t758, 0
+    br i1 %t759, label %L103, label %L105
+L103:
+    store i64 1, i64* %is_pub.81
+    store i64 2, i64* %idx.80
     br label %L105
 L105:
-    %t772 = load i64, i64* %i.81
-    %t773 = load i64, i64* %count.79
-    %t775 = icmp slt i64 %t772, %t773
-    %t774 = zext i1 %t775 to i64
-    %t776 = icmp ne i64 %t774, 0
-    br i1 %t776, label %L106, label %L107
-L106:
-    %stmt.82 = alloca i64
+    %name_node.83 = alloca i64
+    %t760 = load i64, i64* %node.0
+    %t761 = load i64, i64* %idx.80
+    %t762 = call i8* @sexpr_get(i64 %t760, i64 %t761)
+    %t763 = ptrtoint i8* %t762 to i64
+    store i64 %t763, i64* %name_node.83
+    %t764 = load i64, i64* %n.79
+    %t765 = load i64, i64* %name_node.83
+    %t766 = add i64 %t765, 8
+    %t767 = inttoptr i64 %t766 to i64*
+    %t768 = load i64, i64* %t767
+    %t769 = call i8* @sexpr_strdup(i64 %t768)
+    %t770 = ptrtoint i8* %t769 to i64
+    call void @reader_decl_set_name(i64 %t764, i64 %t770)
+    %t771 = load i64, i64* %n.79
+    %t772 = load i64, i64* %name_node.83
+    %t773 = add i64 %t772, 8
+    %t774 = inttoptr i64 %t773 to i64*
+    %t775 = load i64, i64* %t774
+    %t776 = call i64 @strlen(i64 %t775)
+    call void @reader_decl_set_name_len(i64 %t771, i64 %t776)
+    %param_node.84 = alloca i64
     %t777 = load i64, i64* %node.0
-    %t778 = load i64, i64* %i.81
+    %t778 = load i64, i64* %idx.80
     %t779 = add i64 %t778, 1
     %t780 = call i8* @sexpr_get(i64 %t777, i64 %t779)
     %t781 = ptrtoint i8* %t780 to i64
-    %t782 = call i8* @sexpr_to_node(i64 %t781)
-    %t783 = ptrtoint i8* %t782 to i64
-    store i64 %t783, i64* %stmt.82
-    %sp.83 = alloca i64
-    %t784 = load i64, i64* %stmts.80
-    %t785 = load i64, i64* %i.81
-    %t786 = mul i64 %t785, 8
-    %t787 = add i64 %t784, %t786
-    store i64 %t787, i64* %sp.83
-    %t788 = load i64, i64* %stmt.82
-    %t789 = load i64, i64* %sp.83
-    %t790 = inttoptr i64 %t789 to i64*
-    store i64 %t788, i64* %t790
-    %t791 = load i64, i64* %i.81
-    %t792 = add i64 %t791, 1
-    store i64 %t792, i64* %i.81
-    br label %L105
-L107:
-    %t793 = load i64, i64* %n.78
-    %t794 = load i64, i64* %stmts.80
-    call void @block_stmt_set_stmts(i64 %t793, i64 %t794)
-    %t795 = load i64, i64* %n.78
-    %t796 = load i64, i64* %count.79
-    call void @block_stmt_set_count(i64 %t795, i64 %t796)
-    %t797 = load i64, i64* %n.78
-    %t798 = inttoptr i64 %t797 to i8*
-    ret i8* %t798
-L104:
-    %t799 = load i64, i64* %head.1
-    %t800 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str822, i64 0, i64 0) to i64
-    %t801 = call i64 @streq(i64 %t799, i64 %t800)
-    %t802 = icmp ne i64 %t801, 0
-    br i1 %t802, label %L108, label %L110
+    store i64 %t781, i64* %param_node.84
+    %t782 = load i64, i64* %n.79
+    %t783 = load i64, i64* %param_node.84
+    %t784 = add i64 %t783, 8
+    %t785 = inttoptr i64 %t784 to i64*
+    %t786 = load i64, i64* %t785
+    %t787 = call i8* @sexpr_strdup(i64 %t786)
+    %t788 = ptrtoint i8* %t787 to i64
+    call void @reader_decl_set_param_name(i64 %t782, i64 %t788)
+    %t789 = load i64, i64* %n.79
+    %t790 = load i64, i64* %param_node.84
+    %t791 = add i64 %t790, 8
+    %t792 = inttoptr i64 %t791 to i64*
+    %t793 = load i64, i64* %t792
+    %t794 = call i64 @strlen(i64 %t793)
+    call void @reader_decl_set_param_len(i64 %t789, i64 %t794)
+    %t795 = load i64, i64* %n.79
+    %t796 = load i64, i64* %node.0
+    %t797 = load i64, i64* %idx.80
+    %t798 = add i64 %t797, 2
+    %t799 = call i8* @sexpr_get(i64 %t796, i64 %t798)
+    %t800 = ptrtoint i8* %t799 to i64
+    %t801 = call i8* @sexpr_to_node(i64 %t800)
+    %t802 = ptrtoint i8* %t801 to i64
+    call void @reader_decl_set_body(i64 %t795, i64 %t802)
+    %t803 = load i64, i64* %n.79
+    %t804 = load i64, i64* %is_pub.81
+    call void @reader_decl_set_is_pub(i64 %t803, i64 %t804)
+    %t805 = load i64, i64* %n.79
+    %t806 = inttoptr i64 %t805 to i8*
+    ret i8* %t806
+L102:
+    %t807 = load i64, i64* %head.1
+    %t808 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str823, i64 0, i64 0) to i64
+    %t809 = call i64 @streq(i64 %t807, i64 %t808)
+    %t810 = icmp ne i64 %t809, 0
+    br i1 %t810, label %L108, label %L110
 L108:
-    %n.84 = alloca i64
-    %t803 = call i8* @block_expr_alloc()
-    %t804 = ptrtoint i8* %t803 to i64
-    store i64 %t804, i64* %n.84
-    %total.85 = alloca i64
-    %t805 = load i64, i64* %node.0
-    %t806 = call i64 @sexpr_len(i64 %t805)
-    %t807 = sub i64 %t806, 1
-    store i64 %t807, i64* %total.85
-    %stmt_count.86 = alloca i64
-    %t808 = load i64, i64* %total.85
-    %t809 = sub i64 %t808, 1
-    store i64 %t809, i64* %stmt_count.86
+    %n.85 = alloca i64
+    %t811 = call i8* @block_stmt_alloc()
+    %t812 = ptrtoint i8* %t811 to i64
+    store i64 %t812, i64* %n.85
+    %count.86 = alloca i64
+    %t813 = load i64, i64* %node.0
+    %t814 = call i64 @sexpr_len(i64 %t813)
+    %t815 = sub i64 %t814, 1
+    store i64 %t815, i64* %count.86
     %stmts.87 = alloca i64
-    %t810 = load i64, i64* %stmt_count.86
-    %t811 = mul i64 %t810, 8
-    %t812 = call i8* @alloc(i64 %t811)
-    %t813 = ptrtoint i8* %t812 to i64
-    store i64 %t813, i64* %stmts.87
+    %t816 = load i64, i64* %count.86
+    %t817 = mul i64 %t816, 8
+    %t818 = call i8* @alloc(i64 %t817)
+    %t819 = ptrtoint i8* %t818 to i64
+    store i64 %t819, i64* %stmts.87
     %i.88 = alloca i64
     store i64 0, i64* %i.88
     br label %L111
 L111:
-    %t814 = load i64, i64* %i.88
-    %t815 = load i64, i64* %stmt_count.86
-    %t817 = icmp slt i64 %t814, %t815
-    %t816 = zext i1 %t817 to i64
-    %t818 = icmp ne i64 %t816, 0
-    br i1 %t818, label %L112, label %L113
+    %t820 = load i64, i64* %i.88
+    %t821 = load i64, i64* %count.86
+    %t823 = icmp slt i64 %t820, %t821
+    %t822 = zext i1 %t823 to i64
+    %t824 = icmp ne i64 %t822, 0
+    br i1 %t824, label %L112, label %L113
 L112:
     %stmt.89 = alloca i64
-    %t819 = load i64, i64* %node.0
-    %t820 = load i64, i64* %i.88
-    %t821 = add i64 %t820, 1
-    %t822 = call i8* @sexpr_get(i64 %t819, i64 %t821)
-    %t823 = ptrtoint i8* %t822 to i64
-    %t824 = call i8* @sexpr_to_node(i64 %t823)
-    %t825 = ptrtoint i8* %t824 to i64
-    store i64 %t825, i64* %stmt.89
+    %t825 = load i64, i64* %node.0
+    %t826 = load i64, i64* %i.88
+    %t827 = add i64 %t826, 1
+    %t828 = call i8* @sexpr_get(i64 %t825, i64 %t827)
+    %t829 = ptrtoint i8* %t828 to i64
+    %t830 = call i8* @sexpr_to_node(i64 %t829)
+    %t831 = ptrtoint i8* %t830 to i64
+    store i64 %t831, i64* %stmt.89
     %sp.90 = alloca i64
-    %t826 = load i64, i64* %stmts.87
-    %t827 = load i64, i64* %i.88
-    %t828 = mul i64 %t827, 8
-    %t829 = add i64 %t826, %t828
-    store i64 %t829, i64* %sp.90
-    %t830 = load i64, i64* %stmt.89
-    %t831 = load i64, i64* %sp.90
-    %t832 = inttoptr i64 %t831 to i64*
-    store i64 %t830, i64* %t832
+    %t832 = load i64, i64* %stmts.87
     %t833 = load i64, i64* %i.88
-    %t834 = add i64 %t833, 1
-    store i64 %t834, i64* %i.88
+    %t834 = mul i64 %t833, 8
+    %t835 = add i64 %t832, %t834
+    store i64 %t835, i64* %sp.90
+    %t836 = load i64, i64* %stmt.89
+    %t837 = load i64, i64* %sp.90
+    %t838 = inttoptr i64 %t837 to i64*
+    store i64 %t836, i64* %t838
+    %t839 = load i64, i64* %i.88
+    %t840 = add i64 %t839, 1
+    store i64 %t840, i64* %i.88
     br label %L111
 L113:
-    %t835 = load i64, i64* %n.84
-    %t836 = load i64, i64* %stmts.87
-    call void @block_expr_set_stmts(i64 %t835, i64 %t836)
-    %t837 = load i64, i64* %n.84
-    %t838 = load i64, i64* %stmt_count.86
-    call void @block_expr_set_count(i64 %t837, i64 %t838)
-    %t839 = load i64, i64* %n.84
-    %t840 = load i64, i64* %node.0
-    %t841 = load i64, i64* %total.85
-    %t842 = call i8* @sexpr_get(i64 %t840, i64 %t841)
-    %t843 = ptrtoint i8* %t842 to i64
-    %t844 = call i8* @sexpr_to_node(i64 %t843)
-    %t845 = ptrtoint i8* %t844 to i64
-    call void @block_expr_set_tail(i64 %t839, i64 %t845)
-    %t846 = load i64, i64* %n.84
-    %t847 = inttoptr i64 %t846 to i8*
-    ret i8* %t847
+    %t841 = load i64, i64* %n.85
+    %t842 = load i64, i64* %stmts.87
+    call void @block_stmt_set_stmts(i64 %t841, i64 %t842)
+    %t843 = load i64, i64* %n.85
+    %t844 = load i64, i64* %count.86
+    call void @block_stmt_set_count(i64 %t843, i64 %t844)
+    %t845 = load i64, i64* %n.85
+    %t846 = inttoptr i64 %t845 to i8*
+    ret i8* %t846
 L110:
-    %t848 = load i64, i64* %head.1
-    %t849 = ptrtoint i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str823, i64 0, i64 0) to i64
-    %t850 = call i64 @streq(i64 %t848, i64 %t849)
-    %t851 = icmp ne i64 %t850, 0
-    br i1 %t851, label %L114, label %L116
+    %t847 = load i64, i64* %head.1
+    %t848 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str824, i64 0, i64 0) to i64
+    %t849 = call i64 @streq(i64 %t847, i64 %t848)
+    %t850 = icmp ne i64 %t849, 0
+    br i1 %t850, label %L114, label %L116
 L114:
     %n.91 = alloca i64
-    %t852 = call i8* @array_literal_alloc()
-    %t853 = ptrtoint i8* %t852 to i64
-    store i64 %t853, i64* %n.91
-    %count.92 = alloca i64
-    %t854 = load i64, i64* %node.0
-    %t855 = call i64 @sexpr_len(i64 %t854)
-    %t856 = sub i64 %t855, 1
-    store i64 %t856, i64* %count.92
-    %elems.93 = alloca i64
-    %t857 = load i64, i64* %count.92
-    %t858 = mul i64 %t857, 8
-    %t859 = call i8* @alloc(i64 %t858)
-    %t860 = ptrtoint i8* %t859 to i64
-    store i64 %t860, i64* %elems.93
-    %i.94 = alloca i64
-    store i64 0, i64* %i.94
+    %t851 = call i8* @block_expr_alloc()
+    %t852 = ptrtoint i8* %t851 to i64
+    store i64 %t852, i64* %n.91
+    %total.92 = alloca i64
+    %t853 = load i64, i64* %node.0
+    %t854 = call i64 @sexpr_len(i64 %t853)
+    %t855 = sub i64 %t854, 1
+    store i64 %t855, i64* %total.92
+    %stmt_count.93 = alloca i64
+    %t856 = load i64, i64* %total.92
+    %t857 = sub i64 %t856, 1
+    store i64 %t857, i64* %stmt_count.93
+    %stmts.94 = alloca i64
+    %t858 = load i64, i64* %stmt_count.93
+    %t859 = mul i64 %t858, 8
+    %t860 = call i8* @alloc(i64 %t859)
+    %t861 = ptrtoint i8* %t860 to i64
+    store i64 %t861, i64* %stmts.94
+    %i.95 = alloca i64
+    store i64 0, i64* %i.95
     br label %L117
 L117:
-    %t861 = load i64, i64* %i.94
-    %t862 = load i64, i64* %count.92
-    %t864 = icmp slt i64 %t861, %t862
-    %t863 = zext i1 %t864 to i64
-    %t865 = icmp ne i64 %t863, 0
-    br i1 %t865, label %L118, label %L119
+    %t862 = load i64, i64* %i.95
+    %t863 = load i64, i64* %stmt_count.93
+    %t865 = icmp slt i64 %t862, %t863
+    %t864 = zext i1 %t865 to i64
+    %t866 = icmp ne i64 %t864, 0
+    br i1 %t866, label %L118, label %L119
 L118:
-    %elem.95 = alloca i64
-    %t866 = load i64, i64* %node.0
-    %t867 = load i64, i64* %i.94
-    %t868 = add i64 %t867, 1
-    %t869 = call i8* @sexpr_get(i64 %t866, i64 %t868)
-    %t870 = ptrtoint i8* %t869 to i64
-    %t871 = call i8* @sexpr_to_node(i64 %t870)
-    %t872 = ptrtoint i8* %t871 to i64
-    store i64 %t872, i64* %elem.95
-    %ep.96 = alloca i64
-    %t873 = load i64, i64* %elems.93
-    %t874 = load i64, i64* %i.94
-    %t875 = mul i64 %t874, 8
-    %t876 = add i64 %t873, %t875
-    store i64 %t876, i64* %ep.96
-    %t877 = load i64, i64* %elem.95
-    %t878 = load i64, i64* %ep.96
-    %t879 = inttoptr i64 %t878 to i64*
-    store i64 %t877, i64* %t879
-    %t880 = load i64, i64* %i.94
-    %t881 = add i64 %t880, 1
-    store i64 %t881, i64* %i.94
+    %stmt.96 = alloca i64
+    %t867 = load i64, i64* %node.0
+    %t868 = load i64, i64* %i.95
+    %t869 = add i64 %t868, 1
+    %t870 = call i8* @sexpr_get(i64 %t867, i64 %t869)
+    %t871 = ptrtoint i8* %t870 to i64
+    %t872 = call i8* @sexpr_to_node(i64 %t871)
+    %t873 = ptrtoint i8* %t872 to i64
+    store i64 %t873, i64* %stmt.96
+    %sp.97 = alloca i64
+    %t874 = load i64, i64* %stmts.94
+    %t875 = load i64, i64* %i.95
+    %t876 = mul i64 %t875, 8
+    %t877 = add i64 %t874, %t876
+    store i64 %t877, i64* %sp.97
+    %t878 = load i64, i64* %stmt.96
+    %t879 = load i64, i64* %sp.97
+    %t880 = inttoptr i64 %t879 to i64*
+    store i64 %t878, i64* %t880
+    %t881 = load i64, i64* %i.95
+    %t882 = add i64 %t881, 1
+    store i64 %t882, i64* %i.95
     br label %L117
 L119:
-    %t882 = load i64, i64* %n.91
-    %t883 = load i64, i64* %elems.93
-    call void @array_literal_set_elems(i64 %t882, i64 %t883)
-    %t884 = load i64, i64* %n.91
-    %t885 = load i64, i64* %count.92
-    call void @array_literal_set_count(i64 %t884, i64 %t885)
-    %t886 = load i64, i64* %n.91
-    %t887 = inttoptr i64 %t886 to i8*
-    ret i8* %t887
-L116:
-    %t888 = load i64, i64* %head.1
-    %t889 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str29, i64 0, i64 0) to i64
-    %t890 = call i64 @streq(i64 %t888, i64 %t889)
-    %t891 = icmp ne i64 %t890, 0
-    br i1 %t891, label %L120, label %L122
-L120:
-    %n.97 = alloca i64
-    %t892 = call i8* @if_stmt_alloc()
+    %t883 = load i64, i64* %n.91
+    %t884 = load i64, i64* %stmts.94
+    call void @block_expr_set_stmts(i64 %t883, i64 %t884)
+    %t885 = load i64, i64* %n.91
+    %t886 = load i64, i64* %stmt_count.93
+    call void @block_expr_set_count(i64 %t885, i64 %t886)
+    %t887 = load i64, i64* %n.91
+    %t888 = load i64, i64* %node.0
+    %t889 = load i64, i64* %total.92
+    %t890 = call i8* @sexpr_get(i64 %t888, i64 %t889)
+    %t891 = ptrtoint i8* %t890 to i64
+    %t892 = call i8* @sexpr_to_node(i64 %t891)
     %t893 = ptrtoint i8* %t892 to i64
-    store i64 %t893, i64* %n.97
-    %t894 = load i64, i64* %n.97
-    %t895 = load i64, i64* %node.0
-    %t896 = call i8* @sexpr_get(i64 %t895, i64 1)
-    %t897 = ptrtoint i8* %t896 to i64
-    %t898 = call i8* @sexpr_to_node(i64 %t897)
-    %t899 = ptrtoint i8* %t898 to i64
-    call void @if_stmt_set_cond(i64 %t894, i64 %t899)
-    %t900 = load i64, i64* %n.97
-    %t901 = load i64, i64* %node.0
-    %t902 = call i8* @sexpr_get(i64 %t901, i64 2)
-    %t903 = ptrtoint i8* %t902 to i64
-    %t904 = call i8* @sexpr_to_node(i64 %t903)
-    %t905 = ptrtoint i8* %t904 to i64
-    call void @if_stmt_set_then(i64 %t900, i64 %t905)
-    %t906 = load i64, i64* %node.0
-    %t907 = call i64 @sexpr_len(i64 %t906)
-    %t909 = icmp sgt i64 %t907, 3
-    %t908 = zext i1 %t909 to i64
-    %t910 = icmp ne i64 %t908, 0
-    br i1 %t910, label %L123, label %L124
-L123:
-    %t911 = load i64, i64* %n.97
-    %t912 = load i64, i64* %node.0
-    %t913 = call i8* @sexpr_get(i64 %t912, i64 3)
-    %t914 = ptrtoint i8* %t913 to i64
-    %t915 = call i8* @sexpr_to_node(i64 %t914)
-    %t916 = ptrtoint i8* %t915 to i64
-    call void @if_stmt_set_else(i64 %t911, i64 %t916)
-    br label %L125
-L124:
-    %t917 = load i64, i64* %n.97
-    call void @if_stmt_set_else(i64 %t917, i64 0)
-    br label %L125
-L125:
-    %t918 = load i64, i64* %n.97
-    %t919 = inttoptr i64 %t918 to i8*
-    ret i8* %t919
-L122:
-    %t920 = load i64, i64* %head.1
-    %t921 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str31, i64 0, i64 0) to i64
-    %t922 = call i64 @streq(i64 %t920, i64 %t921)
-    %t923 = icmp ne i64 %t922, 0
-    br i1 %t923, label %L126, label %L128
-L126:
+    call void @block_expr_set_tail(i64 %t887, i64 %t893)
+    %t894 = load i64, i64* %n.91
+    %t895 = inttoptr i64 %t894 to i8*
+    ret i8* %t895
+L116:
+    %t896 = load i64, i64* %head.1
+    %t897 = ptrtoint i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str825, i64 0, i64 0) to i64
+    %t898 = call i64 @streq(i64 %t896, i64 %t897)
+    %t899 = icmp ne i64 %t898, 0
+    br i1 %t899, label %L120, label %L122
+L120:
     %n.98 = alloca i64
-    %t924 = call i8* @while_stmt_alloc()
-    %t925 = ptrtoint i8* %t924 to i64
-    store i64 %t925, i64* %n.98
-    %t926 = load i64, i64* %n.98
-    %t927 = load i64, i64* %node.0
-    %t928 = call i8* @sexpr_get(i64 %t927, i64 1)
-    %t929 = ptrtoint i8* %t928 to i64
-    %t930 = call i8* @sexpr_to_node(i64 %t929)
-    %t931 = ptrtoint i8* %t930 to i64
-    call void @while_stmt_set_cond(i64 %t926, i64 %t931)
+    %t900 = call i8* @array_literal_alloc()
+    %t901 = ptrtoint i8* %t900 to i64
+    store i64 %t901, i64* %n.98
+    %count.99 = alloca i64
+    %t902 = load i64, i64* %node.0
+    %t903 = call i64 @sexpr_len(i64 %t902)
+    %t904 = sub i64 %t903, 1
+    store i64 %t904, i64* %count.99
+    %elems.100 = alloca i64
+    %t905 = load i64, i64* %count.99
+    %t906 = mul i64 %t905, 8
+    %t907 = call i8* @alloc(i64 %t906)
+    %t908 = ptrtoint i8* %t907 to i64
+    store i64 %t908, i64* %elems.100
+    %i.101 = alloca i64
+    store i64 0, i64* %i.101
+    br label %L123
+L123:
+    %t909 = load i64, i64* %i.101
+    %t910 = load i64, i64* %count.99
+    %t912 = icmp slt i64 %t909, %t910
+    %t911 = zext i1 %t912 to i64
+    %t913 = icmp ne i64 %t911, 0
+    br i1 %t913, label %L124, label %L125
+L124:
+    %elem.102 = alloca i64
+    %t914 = load i64, i64* %node.0
+    %t915 = load i64, i64* %i.101
+    %t916 = add i64 %t915, 1
+    %t917 = call i8* @sexpr_get(i64 %t914, i64 %t916)
+    %t918 = ptrtoint i8* %t917 to i64
+    %t919 = call i8* @sexpr_to_node(i64 %t918)
+    %t920 = ptrtoint i8* %t919 to i64
+    store i64 %t920, i64* %elem.102
+    %ep.103 = alloca i64
+    %t921 = load i64, i64* %elems.100
+    %t922 = load i64, i64* %i.101
+    %t923 = mul i64 %t922, 8
+    %t924 = add i64 %t921, %t923
+    store i64 %t924, i64* %ep.103
+    %t925 = load i64, i64* %elem.102
+    %t926 = load i64, i64* %ep.103
+    %t927 = inttoptr i64 %t926 to i64*
+    store i64 %t925, i64* %t927
+    %t928 = load i64, i64* %i.101
+    %t929 = add i64 %t928, 1
+    store i64 %t929, i64* %i.101
+    br label %L123
+L125:
+    %t930 = load i64, i64* %n.98
+    %t931 = load i64, i64* %elems.100
+    call void @array_literal_set_elems(i64 %t930, i64 %t931)
     %t932 = load i64, i64* %n.98
-    %t933 = load i64, i64* %node.0
-    %t934 = call i8* @sexpr_get(i64 %t933, i64 2)
-    %t935 = ptrtoint i8* %t934 to i64
-    %t936 = call i8* @sexpr_to_node(i64 %t935)
-    %t937 = ptrtoint i8* %t936 to i64
-    call void @while_stmt_set_body(i64 %t932, i64 %t937)
-    %t938 = load i64, i64* %node.0
-    %t939 = call i64 @sexpr_len(i64 %t938)
-    %t941 = icmp sgt i64 %t939, 3
-    %t940 = zext i1 %t941 to i64
-    %t942 = icmp ne i64 %t940, 0
-    br i1 %t942, label %L129, label %L130
-L129:
-    %label_node.99 = alloca i64
+    %t933 = load i64, i64* %count.99
+    call void @array_literal_set_count(i64 %t932, i64 %t933)
+    %t934 = load i64, i64* %n.98
+    %t935 = inttoptr i64 %t934 to i8*
+    ret i8* %t935
+L122:
+    %t936 = load i64, i64* %head.1
+    %t937 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str29, i64 0, i64 0) to i64
+    %t938 = call i64 @streq(i64 %t936, i64 %t937)
+    %t939 = icmp ne i64 %t938, 0
+    br i1 %t939, label %L126, label %L128
+L126:
+    %n.104 = alloca i64
+    %t940 = call i8* @if_stmt_alloc()
+    %t941 = ptrtoint i8* %t940 to i64
+    store i64 %t941, i64* %n.104
+    %t942 = load i64, i64* %n.104
     %t943 = load i64, i64* %node.0
-    %t944 = call i8* @sexpr_get(i64 %t943, i64 3)
+    %t944 = call i8* @sexpr_get(i64 %t943, i64 1)
     %t945 = ptrtoint i8* %t944 to i64
-    store i64 %t945, i64* %label_node.99
-    %t946 = load i64, i64* %n.98
-    %t947 = load i64, i64* %label_node.99
-    %t948 = add i64 %t947, 8
-    %t949 = inttoptr i64 %t948 to i64*
-    %t950 = load i64, i64* %t949
-    %t951 = call i8* @sexpr_strdup(i64 %t950)
-    %t952 = ptrtoint i8* %t951 to i64
-    call void @while_stmt_set_label(i64 %t946, i64 %t952)
-    %t953 = load i64, i64* %n.98
-    %t954 = load i64, i64* %label_node.99
-    %t955 = add i64 %t954, 8
-    %t956 = inttoptr i64 %t955 to i64*
-    %t957 = load i64, i64* %t956
-    %t958 = call i64 @strlen(i64 %t957)
-    call void @while_stmt_set_label_len(i64 %t953, i64 %t958)
+    %t946 = call i8* @sexpr_to_node(i64 %t945)
+    %t947 = ptrtoint i8* %t946 to i64
+    call void @if_stmt_set_cond(i64 %t942, i64 %t947)
+    %t948 = load i64, i64* %n.104
+    %t949 = load i64, i64* %node.0
+    %t950 = call i8* @sexpr_get(i64 %t949, i64 2)
+    %t951 = ptrtoint i8* %t950 to i64
+    %t952 = call i8* @sexpr_to_node(i64 %t951)
+    %t953 = ptrtoint i8* %t952 to i64
+    call void @if_stmt_set_then(i64 %t948, i64 %t953)
+    %t954 = load i64, i64* %node.0
+    %t955 = call i64 @sexpr_len(i64 %t954)
+    %t957 = icmp sgt i64 %t955, 3
+    %t956 = zext i1 %t957 to i64
+    %t958 = icmp ne i64 %t956, 0
+    br i1 %t958, label %L129, label %L130
+L129:
+    %t959 = load i64, i64* %n.104
+    %t960 = load i64, i64* %node.0
+    %t961 = call i8* @sexpr_get(i64 %t960, i64 3)
+    %t962 = ptrtoint i8* %t961 to i64
+    %t963 = call i8* @sexpr_to_node(i64 %t962)
+    %t964 = ptrtoint i8* %t963 to i64
+    call void @if_stmt_set_else(i64 %t959, i64 %t964)
     br label %L131
 L130:
-    %t959 = load i64, i64* %n.98
-    call void @while_stmt_set_label(i64 %t959, i64 0)
-    %t960 = load i64, i64* %n.98
-    call void @while_stmt_set_label_len(i64 %t960, i64 0)
+    %t965 = load i64, i64* %n.104
+    call void @if_stmt_set_else(i64 %t965, i64 0)
     br label %L131
 L131:
-    %t961 = load i64, i64* %n.98
-    %t962 = inttoptr i64 %t961 to i8*
-    ret i8* %t962
+    %t966 = load i64, i64* %n.104
+    %t967 = inttoptr i64 %t966 to i8*
+    ret i8* %t967
 L128:
-    %t963 = load i64, i64* %head.1
-    %t964 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str32, i64 0, i64 0) to i64
-    %t965 = call i64 @streq(i64 %t963, i64 %t964)
-    %t966 = icmp ne i64 %t965, 0
-    br i1 %t966, label %L132, label %L134
+    %t968 = load i64, i64* %head.1
+    %t969 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str31, i64 0, i64 0) to i64
+    %t970 = call i64 @streq(i64 %t968, i64 %t969)
+    %t971 = icmp ne i64 %t970, 0
+    br i1 %t971, label %L132, label %L134
 L132:
-    %n.100 = alloca i64
-    %t967 = call i8* @return_stmt_alloc()
-    %t968 = ptrtoint i8* %t967 to i64
-    store i64 %t968, i64* %n.100
-    %t969 = load i64, i64* %node.0
-    %t970 = call i64 @sexpr_len(i64 %t969)
-    %t972 = icmp sgt i64 %t970, 1
-    %t971 = zext i1 %t972 to i64
-    %t973 = icmp ne i64 %t971, 0
-    br i1 %t973, label %L135, label %L136
-L135:
-    %t974 = load i64, i64* %n.100
+    %n.105 = alloca i64
+    %t972 = call i8* @while_stmt_alloc()
+    %t973 = ptrtoint i8* %t972 to i64
+    store i64 %t973, i64* %n.105
+    %t974 = load i64, i64* %n.105
     %t975 = load i64, i64* %node.0
     %t976 = call i8* @sexpr_get(i64 %t975, i64 1)
     %t977 = ptrtoint i8* %t976 to i64
     %t978 = call i8* @sexpr_to_node(i64 %t977)
     %t979 = ptrtoint i8* %t978 to i64
-    call void @return_stmt_set_value(i64 %t974, i64 %t979)
+    call void @while_stmt_set_cond(i64 %t974, i64 %t979)
+    %t980 = load i64, i64* %n.105
+    %t981 = load i64, i64* %node.0
+    %t982 = call i8* @sexpr_get(i64 %t981, i64 2)
+    %t983 = ptrtoint i8* %t982 to i64
+    %t984 = call i8* @sexpr_to_node(i64 %t983)
+    %t985 = ptrtoint i8* %t984 to i64
+    call void @while_stmt_set_body(i64 %t980, i64 %t985)
+    %t986 = load i64, i64* %node.0
+    %t987 = call i64 @sexpr_len(i64 %t986)
+    %t989 = icmp sgt i64 %t987, 3
+    %t988 = zext i1 %t989 to i64
+    %t990 = icmp ne i64 %t988, 0
+    br i1 %t990, label %L135, label %L136
+L135:
+    %label_node.106 = alloca i64
+    %t991 = load i64, i64* %node.0
+    %t992 = call i8* @sexpr_get(i64 %t991, i64 3)
+    %t993 = ptrtoint i8* %t992 to i64
+    store i64 %t993, i64* %label_node.106
+    %t994 = load i64, i64* %n.105
+    %t995 = load i64, i64* %label_node.106
+    %t996 = add i64 %t995, 8
+    %t997 = inttoptr i64 %t996 to i64*
+    %t998 = load i64, i64* %t997
+    %t999 = call i8* @sexpr_strdup(i64 %t998)
+    %t1000 = ptrtoint i8* %t999 to i64
+    call void @while_stmt_set_label(i64 %t994, i64 %t1000)
+    %t1001 = load i64, i64* %n.105
+    %t1002 = load i64, i64* %label_node.106
+    %t1003 = add i64 %t1002, 8
+    %t1004 = inttoptr i64 %t1003 to i64*
+    %t1005 = load i64, i64* %t1004
+    %t1006 = call i64 @strlen(i64 %t1005)
+    call void @while_stmt_set_label_len(i64 %t1001, i64 %t1006)
     br label %L137
 L136:
-    %t980 = load i64, i64* %n.100
-    call void @return_stmt_set_value(i64 %t980, i64 0)
+    %t1007 = load i64, i64* %n.105
+    call void @while_stmt_set_label(i64 %t1007, i64 0)
+    %t1008 = load i64, i64* %n.105
+    call void @while_stmt_set_label_len(i64 %t1008, i64 0)
     br label %L137
 L137:
-    %t981 = load i64, i64* %n.100
-    %t982 = inttoptr i64 %t981 to i8*
-    ret i8* %t982
+    %t1009 = load i64, i64* %n.105
+    %t1010 = inttoptr i64 %t1009 to i8*
+    ret i8* %t1010
 L134:
-    %t983 = load i64, i64* %head.1
-    %t984 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str33, i64 0, i64 0) to i64
-    %t985 = call i64 @streq(i64 %t983, i64 %t984)
-    %t986 = icmp ne i64 %t985, 0
-    br i1 %t986, label %L138, label %L140
+    %t1011 = load i64, i64* %head.1
+    %t1012 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str32, i64 0, i64 0) to i64
+    %t1013 = call i64 @streq(i64 %t1011, i64 %t1012)
+    %t1014 = icmp ne i64 %t1013, 0
+    br i1 %t1014, label %L138, label %L140
 L138:
-    %n.101 = alloca i64
-    %t987 = call i8* @break_stmt_alloc()
-    %t988 = ptrtoint i8* %t987 to i64
-    store i64 %t988, i64* %n.101
-    %t989 = load i64, i64* %node.0
-    %t990 = call i64 @sexpr_len(i64 %t989)
-    %t992 = icmp sgt i64 %t990, 1
-    %t991 = zext i1 %t992 to i64
-    %t993 = icmp ne i64 %t991, 0
-    br i1 %t993, label %L141, label %L142
+    %n.107 = alloca i64
+    %t1015 = call i8* @return_stmt_alloc()
+    %t1016 = ptrtoint i8* %t1015 to i64
+    store i64 %t1016, i64* %n.107
+    %t1017 = load i64, i64* %node.0
+    %t1018 = call i64 @sexpr_len(i64 %t1017)
+    %t1020 = icmp sgt i64 %t1018, 1
+    %t1019 = zext i1 %t1020 to i64
+    %t1021 = icmp ne i64 %t1019, 0
+    br i1 %t1021, label %L141, label %L142
 L141:
-    %label_node.102 = alloca i64
-    %t994 = load i64, i64* %node.0
-    %t995 = call i8* @sexpr_get(i64 %t994, i64 1)
-    %t996 = ptrtoint i8* %t995 to i64
-    store i64 %t996, i64* %label_node.102
-    %t997 = load i64, i64* %n.101
-    %t998 = load i64, i64* %label_node.102
-    %t999 = add i64 %t998, 8
-    %t1000 = inttoptr i64 %t999 to i64*
-    %t1001 = load i64, i64* %t1000
-    %t1002 = call i8* @sexpr_strdup(i64 %t1001)
-    %t1003 = ptrtoint i8* %t1002 to i64
-    call void @break_stmt_set_label(i64 %t997, i64 %t1003)
-    %t1004 = load i64, i64* %n.101
-    %t1005 = load i64, i64* %label_node.102
-    %t1006 = add i64 %t1005, 8
-    %t1007 = inttoptr i64 %t1006 to i64*
-    %t1008 = load i64, i64* %t1007
-    %t1009 = call i64 @strlen(i64 %t1008)
-    call void @break_stmt_set_label_len(i64 %t1004, i64 %t1009)
+    %t1022 = load i64, i64* %n.107
+    %t1023 = load i64, i64* %node.0
+    %t1024 = call i8* @sexpr_get(i64 %t1023, i64 1)
+    %t1025 = ptrtoint i8* %t1024 to i64
+    %t1026 = call i8* @sexpr_to_node(i64 %t1025)
+    %t1027 = ptrtoint i8* %t1026 to i64
+    call void @return_stmt_set_value(i64 %t1022, i64 %t1027)
     br label %L143
 L142:
-    %t1010 = load i64, i64* %n.101
-    call void @break_stmt_set_label(i64 %t1010, i64 0)
-    %t1011 = load i64, i64* %n.101
-    call void @break_stmt_set_label_len(i64 %t1011, i64 0)
+    %t1028 = load i64, i64* %n.107
+    call void @return_stmt_set_value(i64 %t1028, i64 0)
     br label %L143
 L143:
-    %t1012 = load i64, i64* %n.101
-    %t1013 = inttoptr i64 %t1012 to i8*
-    ret i8* %t1013
+    %t1029 = load i64, i64* %n.107
+    %t1030 = inttoptr i64 %t1029 to i8*
+    ret i8* %t1030
 L140:
-    %t1014 = load i64, i64* %head.1
-    %t1015 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str34, i64 0, i64 0) to i64
-    %t1016 = call i64 @streq(i64 %t1014, i64 %t1015)
-    %t1017 = icmp ne i64 %t1016, 0
-    br i1 %t1017, label %L144, label %L146
+    %t1031 = load i64, i64* %head.1
+    %t1032 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str33, i64 0, i64 0) to i64
+    %t1033 = call i64 @streq(i64 %t1031, i64 %t1032)
+    %t1034 = icmp ne i64 %t1033, 0
+    br i1 %t1034, label %L144, label %L146
 L144:
-    %n.103 = alloca i64
-    %t1018 = call i8* @continue_stmt_alloc()
-    %t1019 = ptrtoint i8* %t1018 to i64
-    store i64 %t1019, i64* %n.103
-    %t1020 = load i64, i64* %node.0
-    %t1021 = call i64 @sexpr_len(i64 %t1020)
-    %t1023 = icmp sgt i64 %t1021, 1
-    %t1022 = zext i1 %t1023 to i64
-    %t1024 = icmp ne i64 %t1022, 0
-    br i1 %t1024, label %L147, label %L148
+    %n.108 = alloca i64
+    %t1035 = call i8* @break_stmt_alloc()
+    %t1036 = ptrtoint i8* %t1035 to i64
+    store i64 %t1036, i64* %n.108
+    %t1037 = load i64, i64* %node.0
+    %t1038 = call i64 @sexpr_len(i64 %t1037)
+    %t1040 = icmp sgt i64 %t1038, 1
+    %t1039 = zext i1 %t1040 to i64
+    %t1041 = icmp ne i64 %t1039, 0
+    br i1 %t1041, label %L147, label %L148
 L147:
-    %label_node.104 = alloca i64
-    %t1025 = load i64, i64* %node.0
-    %t1026 = call i8* @sexpr_get(i64 %t1025, i64 1)
-    %t1027 = ptrtoint i8* %t1026 to i64
-    store i64 %t1027, i64* %label_node.104
-    %t1028 = load i64, i64* %n.103
-    %t1029 = load i64, i64* %label_node.104
-    %t1030 = add i64 %t1029, 8
-    %t1031 = inttoptr i64 %t1030 to i64*
-    %t1032 = load i64, i64* %t1031
-    %t1033 = call i8* @sexpr_strdup(i64 %t1032)
-    %t1034 = ptrtoint i8* %t1033 to i64
-    call void @continue_stmt_set_label(i64 %t1028, i64 %t1034)
-    %t1035 = load i64, i64* %n.103
-    %t1036 = load i64, i64* %label_node.104
-    %t1037 = add i64 %t1036, 8
-    %t1038 = inttoptr i64 %t1037 to i64*
-    %t1039 = load i64, i64* %t1038
-    %t1040 = call i64 @strlen(i64 %t1039)
-    call void @continue_stmt_set_label_len(i64 %t1035, i64 %t1040)
+    %label_node.109 = alloca i64
+    %t1042 = load i64, i64* %node.0
+    %t1043 = call i8* @sexpr_get(i64 %t1042, i64 1)
+    %t1044 = ptrtoint i8* %t1043 to i64
+    store i64 %t1044, i64* %label_node.109
+    %t1045 = load i64, i64* %n.108
+    %t1046 = load i64, i64* %label_node.109
+    %t1047 = add i64 %t1046, 8
+    %t1048 = inttoptr i64 %t1047 to i64*
+    %t1049 = load i64, i64* %t1048
+    %t1050 = call i8* @sexpr_strdup(i64 %t1049)
+    %t1051 = ptrtoint i8* %t1050 to i64
+    call void @break_stmt_set_label(i64 %t1045, i64 %t1051)
+    %t1052 = load i64, i64* %n.108
+    %t1053 = load i64, i64* %label_node.109
+    %t1054 = add i64 %t1053, 8
+    %t1055 = inttoptr i64 %t1054 to i64*
+    %t1056 = load i64, i64* %t1055
+    %t1057 = call i64 @strlen(i64 %t1056)
+    call void @break_stmt_set_label_len(i64 %t1052, i64 %t1057)
     br label %L149
 L148:
-    %t1041 = load i64, i64* %n.103
-    call void @continue_stmt_set_label(i64 %t1041, i64 0)
-    %t1042 = load i64, i64* %n.103
-    call void @continue_stmt_set_label_len(i64 %t1042, i64 0)
+    %t1058 = load i64, i64* %n.108
+    call void @break_stmt_set_label(i64 %t1058, i64 0)
+    %t1059 = load i64, i64* %n.108
+    call void @break_stmt_set_label_len(i64 %t1059, i64 0)
     br label %L149
 L149:
-    %t1043 = load i64, i64* %n.103
-    %t1044 = inttoptr i64 %t1043 to i8*
-    ret i8* %t1044
+    %t1060 = load i64, i64* %n.108
+    %t1061 = inttoptr i64 %t1060 to i8*
+    ret i8* %t1061
 L146:
-    %t1045 = load i64, i64* %head.1
-    %t1046 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str824, i64 0, i64 0) to i64
-    %t1047 = call i64 @streq(i64 %t1045, i64 %t1046)
-    %t1048 = icmp ne i64 %t1047, 0
-    br i1 %t1048, label %L150, label %L152
+    %t1062 = load i64, i64* %head.1
+    %t1063 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str34, i64 0, i64 0) to i64
+    %t1064 = call i64 @streq(i64 %t1062, i64 %t1063)
+    %t1065 = icmp ne i64 %t1064, 0
+    br i1 %t1065, label %L150, label %L152
 L150:
-    %n.105 = alloca i64
-    %t1049 = call i8* @expr_stmt_alloc()
-    %t1050 = ptrtoint i8* %t1049 to i64
-    store i64 %t1050, i64* %n.105
-    %t1051 = load i64, i64* %n.105
-    %t1052 = load i64, i64* %node.0
-    %t1053 = call i8* @sexpr_get(i64 %t1052, i64 1)
-    %t1054 = ptrtoint i8* %t1053 to i64
-    %t1055 = call i8* @sexpr_to_node(i64 %t1054)
-    %t1056 = ptrtoint i8* %t1055 to i64
-    call void @expr_stmt_set_expr(i64 %t1051, i64 %t1056)
-    %t1057 = load i64, i64* %n.105
-    %t1058 = inttoptr i64 %t1057 to i8*
-    ret i8* %t1058
-L152:
-    %t1059 = load i64, i64* %head.1
-    %t1060 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str825, i64 0, i64 0) to i64
-    %t1061 = call i64 @streq(i64 %t1059, i64 %t1060)
-    %t1062 = icmp ne i64 %t1061, 0
-    br i1 %t1062, label %L153, label %L155
+    %n.110 = alloca i64
+    %t1066 = call i8* @continue_stmt_alloc()
+    %t1067 = ptrtoint i8* %t1066 to i64
+    store i64 %t1067, i64* %n.110
+    %t1068 = load i64, i64* %node.0
+    %t1069 = call i64 @sexpr_len(i64 %t1068)
+    %t1071 = icmp sgt i64 %t1069, 1
+    %t1070 = zext i1 %t1071 to i64
+    %t1072 = icmp ne i64 %t1070, 0
+    br i1 %t1072, label %L153, label %L154
 L153:
-    %n.106 = alloca i64
-    %t1063 = call i8* @assign_stmt_alloc()
-    %t1064 = ptrtoint i8* %t1063 to i64
-    store i64 %t1064, i64* %n.106
-    %t1065 = load i64, i64* %n.106
-    %t1066 = load i64, i64* %node.0
-    %t1067 = call i8* @sexpr_get(i64 %t1066, i64 1)
-    %t1068 = ptrtoint i8* %t1067 to i64
-    %t1069 = call i8* @sexpr_to_node(i64 %t1068)
-    %t1070 = ptrtoint i8* %t1069 to i64
-    call void @assign_stmt_set_target(i64 %t1065, i64 %t1070)
-    %t1071 = load i64, i64* %n.106
-    %t1072 = load i64, i64* %node.0
-    %t1073 = call i8* @sexpr_get(i64 %t1072, i64 2)
-    %t1074 = ptrtoint i8* %t1073 to i64
-    %t1075 = call i8* @sexpr_to_node(i64 %t1074)
-    %t1076 = ptrtoint i8* %t1075 to i64
-    call void @assign_stmt_set_value(i64 %t1071, i64 %t1076)
-    %t1077 = load i64, i64* %n.106
-    %t1078 = inttoptr i64 %t1077 to i8*
-    ret i8* %t1078
+    %label_node.111 = alloca i64
+    %t1073 = load i64, i64* %node.0
+    %t1074 = call i8* @sexpr_get(i64 %t1073, i64 1)
+    %t1075 = ptrtoint i8* %t1074 to i64
+    store i64 %t1075, i64* %label_node.111
+    %t1076 = load i64, i64* %n.110
+    %t1077 = load i64, i64* %label_node.111
+    %t1078 = add i64 %t1077, 8
+    %t1079 = inttoptr i64 %t1078 to i64*
+    %t1080 = load i64, i64* %t1079
+    %t1081 = call i8* @sexpr_strdup(i64 %t1080)
+    %t1082 = ptrtoint i8* %t1081 to i64
+    call void @continue_stmt_set_label(i64 %t1076, i64 %t1082)
+    %t1083 = load i64, i64* %n.110
+    %t1084 = load i64, i64* %label_node.111
+    %t1085 = add i64 %t1084, 8
+    %t1086 = inttoptr i64 %t1085 to i64*
+    %t1087 = load i64, i64* %t1086
+    %t1088 = call i64 @strlen(i64 %t1087)
+    call void @continue_stmt_set_label_len(i64 %t1083, i64 %t1088)
+    br label %L155
+L154:
+    %t1089 = load i64, i64* %n.110
+    call void @continue_stmt_set_label(i64 %t1089, i64 0)
+    %t1090 = load i64, i64* %n.110
+    call void @continue_stmt_set_label_len(i64 %t1090, i64 0)
+    br label %L155
 L155:
-    %t1079 = load i64, i64* %head.1
-    %t1080 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str826, i64 0, i64 0) to i64
-    %t1081 = call i64 @streq(i64 %t1079, i64 %t1080)
-    %t1082 = icmp ne i64 %t1081, 0
-    br i1 %t1082, label %L156, label %L158
+    %t1091 = load i64, i64* %n.110
+    %t1092 = inttoptr i64 %t1091 to i8*
+    ret i8* %t1092
+L152:
+    %t1093 = load i64, i64* %head.1
+    %t1094 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str826, i64 0, i64 0) to i64
+    %t1095 = call i64 @streq(i64 %t1093, i64 %t1094)
+    %t1096 = icmp ne i64 %t1095, 0
+    br i1 %t1096, label %L156, label %L158
 L156:
-    %n.107 = alloca i64
-    %t1083 = call i8* @ident_expr_alloc()
-    %t1084 = ptrtoint i8* %t1083 to i64
-    store i64 %t1084, i64* %n.107
-    %name_node.108 = alloca i64
-    %t1085 = load i64, i64* %node.0
-    %t1086 = call i8* @sexpr_get(i64 %t1085, i64 1)
-    %t1087 = ptrtoint i8* %t1086 to i64
-    store i64 %t1087, i64* %name_node.108
-    %t1088 = load i64, i64* %n.107
-    %t1089 = load i64, i64* %name_node.108
-    %t1090 = add i64 %t1089, 8
-    %t1091 = inttoptr i64 %t1090 to i64*
-    %t1092 = load i64, i64* %t1091
-    %t1093 = call i8* @sexpr_strdup(i64 %t1092)
-    %t1094 = ptrtoint i8* %t1093 to i64
-    call void @ident_expr_set_name(i64 %t1088, i64 %t1094)
-    %t1095 = load i64, i64* %n.107
-    %t1096 = load i64, i64* %name_node.108
-    %t1097 = add i64 %t1096, 8
-    %t1098 = inttoptr i64 %t1097 to i64*
-    %t1099 = load i64, i64* %t1098
-    %t1100 = call i64 @strlen(i64 %t1099)
-    call void @ident_expr_set_name_len(i64 %t1095, i64 %t1100)
-    %t1101 = load i64, i64* %n.107
-    %t1102 = inttoptr i64 %t1101 to i8*
-    ret i8* %t1102
+    %n.112 = alloca i64
+    %t1097 = call i8* @expr_stmt_alloc()
+    %t1098 = ptrtoint i8* %t1097 to i64
+    store i64 %t1098, i64* %n.112
+    %t1099 = load i64, i64* %n.112
+    %t1100 = load i64, i64* %node.0
+    %t1101 = call i8* @sexpr_get(i64 %t1100, i64 1)
+    %t1102 = ptrtoint i8* %t1101 to i64
+    %t1103 = call i8* @sexpr_to_node(i64 %t1102)
+    %t1104 = ptrtoint i8* %t1103 to i64
+    call void @expr_stmt_set_expr(i64 %t1099, i64 %t1104)
+    %t1105 = load i64, i64* %n.112
+    %t1106 = inttoptr i64 %t1105 to i8*
+    ret i8* %t1106
 L158:
-    %t1103 = load i64, i64* %head.1
-    %t1104 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str827, i64 0, i64 0) to i64
-    %t1105 = call i64 @streq(i64 %t1103, i64 %t1104)
-    %t1106 = icmp ne i64 %t1105, 0
-    br i1 %t1106, label %L159, label %L161
+    %t1107 = load i64, i64* %head.1
+    %t1108 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str827, i64 0, i64 0) to i64
+    %t1109 = call i64 @streq(i64 %t1107, i64 %t1108)
+    %t1110 = icmp ne i64 %t1109, 0
+    br i1 %t1110, label %L159, label %L161
 L159:
-    %n.109 = alloca i64
-    %t1107 = call i8* @number_expr_alloc()
-    %t1108 = ptrtoint i8* %t1107 to i64
-    store i64 %t1108, i64* %n.109
-    %val_node.110 = alloca i64
-    %t1109 = load i64, i64* %node.0
-    %t1110 = call i8* @sexpr_get(i64 %t1109, i64 1)
-    %t1111 = ptrtoint i8* %t1110 to i64
-    store i64 %t1111, i64* %val_node.110
-    %t1112 = load i64, i64* %n.109
-    %t1113 = load i64, i64* %val_node.110
-    %t1114 = add i64 %t1113, 8
-    %t1115 = inttoptr i64 %t1114 to i64*
-    %t1116 = load i64, i64* %t1115
-    %t1117 = call i8* @sexpr_strdup(i64 %t1116)
+    %n.113 = alloca i64
+    %t1111 = call i8* @assign_stmt_alloc()
+    %t1112 = ptrtoint i8* %t1111 to i64
+    store i64 %t1112, i64* %n.113
+    %t1113 = load i64, i64* %n.113
+    %t1114 = load i64, i64* %node.0
+    %t1115 = call i8* @sexpr_get(i64 %t1114, i64 1)
+    %t1116 = ptrtoint i8* %t1115 to i64
+    %t1117 = call i8* @sexpr_to_node(i64 %t1116)
     %t1118 = ptrtoint i8* %t1117 to i64
-    call void @number_expr_set_value(i64 %t1112, i64 %t1118)
-    %t1119 = load i64, i64* %n.109
-    %t1120 = load i64, i64* %val_node.110
-    %t1121 = add i64 %t1120, 8
-    %t1122 = inttoptr i64 %t1121 to i64*
-    %t1123 = load i64, i64* %t1122
-    %t1124 = call i64 @strlen(i64 %t1123)
-    call void @number_expr_set_value_len(i64 %t1119, i64 %t1124)
-    %t1125 = load i64, i64* %n.109
+    call void @assign_stmt_set_target(i64 %t1113, i64 %t1118)
+    %t1119 = load i64, i64* %n.113
+    %t1120 = load i64, i64* %node.0
+    %t1121 = call i8* @sexpr_get(i64 %t1120, i64 2)
+    %t1122 = ptrtoint i8* %t1121 to i64
+    %t1123 = call i8* @sexpr_to_node(i64 %t1122)
+    %t1124 = ptrtoint i8* %t1123 to i64
+    call void @assign_stmt_set_value(i64 %t1119, i64 %t1124)
+    %t1125 = load i64, i64* %n.113
     %t1126 = inttoptr i64 %t1125 to i8*
     ret i8* %t1126
 L161:
     %t1127 = load i64, i64* %head.1
-    %t1128 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str828, i64 0, i64 0) to i64
+    %t1128 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str828, i64 0, i64 0) to i64
     %t1129 = call i64 @streq(i64 %t1127, i64 %t1128)
     %t1130 = icmp ne i64 %t1129, 0
     br i1 %t1130, label %L162, label %L164
 L162:
-    %n.111 = alloca i64
-    %t1131 = call i8* @string_expr_alloc()
+    %n.114 = alloca i64
+    %t1131 = call i8* @ident_expr_alloc()
     %t1132 = ptrtoint i8* %t1131 to i64
-    store i64 %t1132, i64* %n.111
-    %val_node.112 = alloca i64
+    store i64 %t1132, i64* %n.114
+    %name_node.115 = alloca i64
     %t1133 = load i64, i64* %node.0
     %t1134 = call i8* @sexpr_get(i64 %t1133, i64 1)
     %t1135 = ptrtoint i8* %t1134 to i64
-    store i64 %t1135, i64* %val_node.112
-    %val.113 = alloca i64
-    %t1136 = load i64, i64* %val_node.112
-    %t1137 = add i64 %t1136, 8
-    %t1138 = inttoptr i64 %t1137 to i64*
-    %t1139 = load i64, i64* %t1138
-    %t1140 = call i8* @sexpr_parse_string(i64 %t1139)
-    %t1141 = ptrtoint i8* %t1140 to i64
-    store i64 %t1141, i64* %val.113
-    %t1142 = load i64, i64* %n.111
-    %t1143 = load i64, i64* %val.113
-    call void @string_expr_set_value(i64 %t1142, i64 %t1143)
-    %t1144 = load i64, i64* %n.111
-    %t1145 = load i64, i64* %val.113
-    %t1146 = call i64 @strlen(i64 %t1145)
-    call void @string_expr_set_value_len(i64 %t1144, i64 %t1146)
-    %t1147 = load i64, i64* %n.111
-    %t1148 = inttoptr i64 %t1147 to i8*
-    ret i8* %t1148
+    store i64 %t1135, i64* %name_node.115
+    %t1136 = load i64, i64* %n.114
+    %t1137 = load i64, i64* %name_node.115
+    %t1138 = add i64 %t1137, 8
+    %t1139 = inttoptr i64 %t1138 to i64*
+    %t1140 = load i64, i64* %t1139
+    %t1141 = call i8* @sexpr_strdup(i64 %t1140)
+    %t1142 = ptrtoint i8* %t1141 to i64
+    call void @ident_expr_set_name(i64 %t1136, i64 %t1142)
+    %t1143 = load i64, i64* %n.114
+    %t1144 = load i64, i64* %name_node.115
+    %t1145 = add i64 %t1144, 8
+    %t1146 = inttoptr i64 %t1145 to i64*
+    %t1147 = load i64, i64* %t1146
+    %t1148 = call i64 @strlen(i64 %t1147)
+    call void @ident_expr_set_name_len(i64 %t1143, i64 %t1148)
+    %t1149 = load i64, i64* %n.114
+    %t1150 = inttoptr i64 %t1149 to i8*
+    ret i8* %t1150
 L164:
-    %t1149 = load i64, i64* %head.1
-    %t1150 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str59, i64 0, i64 0) to i64
-    %t1151 = call i64 @streq(i64 %t1149, i64 %t1150)
-    %t1152 = icmp ne i64 %t1151, 0
-    br i1 %t1152, label %L165, label %L167
+    %t1151 = load i64, i64* %head.1
+    %t1152 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str829, i64 0, i64 0) to i64
+    %t1153 = call i64 @streq(i64 %t1151, i64 %t1152)
+    %t1154 = icmp ne i64 %t1153, 0
+    br i1 %t1154, label %L165, label %L167
 L165:
-    %n.114 = alloca i64
-    %t1153 = call i8* @bool_expr_alloc()
-    %t1154 = ptrtoint i8* %t1153 to i64
-    store i64 %t1154, i64* %n.114
-    %val_node.115 = alloca i64
-    %t1155 = load i64, i64* %node.0
-    %t1156 = call i8* @sexpr_get(i64 %t1155, i64 1)
-    %t1157 = ptrtoint i8* %t1156 to i64
-    store i64 %t1157, i64* %val_node.115
-    %t1158 = load i64, i64* %val_node.115
-    %t1159 = add i64 %t1158, 8
-    %t1160 = inttoptr i64 %t1159 to i64*
-    %t1161 = load i64, i64* %t1160
-    %t1162 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str48, i64 0, i64 0) to i64
-    %t1163 = call i64 @streq(i64 %t1161, i64 %t1162)
-    %t1164 = icmp ne i64 %t1163, 0
-    br i1 %t1164, label %L168, label %L169
-L168:
-    %t1165 = load i64, i64* %n.114
-    call void @bool_expr_set_value(i64 %t1165, i64 1)
-    br label %L170
-L169:
-    %t1166 = load i64, i64* %n.114
-    call void @bool_expr_set_value(i64 %t1166, i64 0)
-    br label %L170
-L170:
-    %t1167 = load i64, i64* %n.114
-    %t1168 = inttoptr i64 %t1167 to i8*
-    ret i8* %t1168
-L167:
-    %t1169 = load i64, i64* %head.1
-    %t1170 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str50, i64 0, i64 0) to i64
-    %t1171 = call i64 @streq(i64 %t1169, i64 %t1170)
-    %t1172 = icmp ne i64 %t1171, 0
-    br i1 %t1172, label %L171, label %L173
-L171:
-    %t1173 = call i8* @nil_expr_alloc()
-    %t1174 = ptrtoint i8* %t1173 to i64
-    %t1175 = inttoptr i64 %t1174 to i8*
-    ret i8* %t1175
-L173:
-    %t1176 = load i64, i64* %head.1
-    %t1177 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str829, i64 0, i64 0) to i64
-    %t1178 = call i64 @streq(i64 %t1176, i64 %t1177)
-    %t1179 = icmp ne i64 %t1178, 0
-    br i1 %t1179, label %L174, label %L176
-L174:
     %n.116 = alloca i64
-    %t1180 = call i8* @binary_expr_alloc()
-    %t1181 = ptrtoint i8* %t1180 to i64
-    store i64 %t1181, i64* %n.116
-    %op_node.117 = alloca i64
-    %t1182 = load i64, i64* %node.0
-    %t1183 = call i8* @sexpr_get(i64 %t1182, i64 1)
-    %t1184 = ptrtoint i8* %t1183 to i64
-    store i64 %t1184, i64* %op_node.117
-    %t1185 = load i64, i64* %n.116
-    %t1186 = load i64, i64* %op_node.117
-    %t1187 = add i64 %t1186, 8
-    %t1188 = inttoptr i64 %t1187 to i64*
-    %t1189 = load i64, i64* %t1188
-    %t1190 = call i64 @sexpr_op_to_token(i64 %t1189)
-    call void @binary_expr_set_op(i64 %t1185, i64 %t1190)
-    %t1191 = load i64, i64* %n.116
-    %t1192 = load i64, i64* %node.0
-    %t1193 = call i8* @sexpr_get(i64 %t1192, i64 2)
-    %t1194 = ptrtoint i8* %t1193 to i64
-    %t1195 = call i8* @sexpr_to_node(i64 %t1194)
-    %t1196 = ptrtoint i8* %t1195 to i64
-    call void @binary_expr_set_left(i64 %t1191, i64 %t1196)
-    %t1197 = load i64, i64* %n.116
-    %t1198 = load i64, i64* %node.0
-    %t1199 = call i8* @sexpr_get(i64 %t1198, i64 3)
-    %t1200 = ptrtoint i8* %t1199 to i64
-    %t1201 = call i8* @sexpr_to_node(i64 %t1200)
-    %t1202 = ptrtoint i8* %t1201 to i64
-    call void @binary_expr_set_right(i64 %t1197, i64 %t1202)
-    %t1203 = load i64, i64* %n.116
-    %t1204 = inttoptr i64 %t1203 to i8*
-    ret i8* %t1204
-L176:
-    %t1205 = load i64, i64* %head.1
-    %t1206 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str830, i64 0, i64 0) to i64
-    %t1207 = call i64 @streq(i64 %t1205, i64 %t1206)
-    %t1208 = icmp ne i64 %t1207, 0
-    br i1 %t1208, label %L177, label %L179
-L177:
+    %t1155 = call i8* @number_expr_alloc()
+    %t1156 = ptrtoint i8* %t1155 to i64
+    store i64 %t1156, i64* %n.116
+    %val_node.117 = alloca i64
+    %t1157 = load i64, i64* %node.0
+    %t1158 = call i8* @sexpr_get(i64 %t1157, i64 1)
+    %t1159 = ptrtoint i8* %t1158 to i64
+    store i64 %t1159, i64* %val_node.117
+    %t1160 = load i64, i64* %n.116
+    %t1161 = load i64, i64* %val_node.117
+    %t1162 = add i64 %t1161, 8
+    %t1163 = inttoptr i64 %t1162 to i64*
+    %t1164 = load i64, i64* %t1163
+    %t1165 = call i8* @sexpr_strdup(i64 %t1164)
+    %t1166 = ptrtoint i8* %t1165 to i64
+    call void @number_expr_set_value(i64 %t1160, i64 %t1166)
+    %t1167 = load i64, i64* %n.116
+    %t1168 = load i64, i64* %val_node.117
+    %t1169 = add i64 %t1168, 8
+    %t1170 = inttoptr i64 %t1169 to i64*
+    %t1171 = load i64, i64* %t1170
+    %t1172 = call i64 @strlen(i64 %t1171)
+    call void @number_expr_set_value_len(i64 %t1167, i64 %t1172)
+    %t1173 = load i64, i64* %n.116
+    %t1174 = inttoptr i64 %t1173 to i8*
+    ret i8* %t1174
+L167:
+    %t1175 = load i64, i64* %head.1
+    %t1176 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str830, i64 0, i64 0) to i64
+    %t1177 = call i64 @streq(i64 %t1175, i64 %t1176)
+    %t1178 = icmp ne i64 %t1177, 0
+    br i1 %t1178, label %L168, label %L170
+L168:
     %n.118 = alloca i64
-    %t1209 = call i8* @unary_expr_alloc()
-    %t1210 = ptrtoint i8* %t1209 to i64
-    store i64 %t1210, i64* %n.118
-    %op_node.119 = alloca i64
-    %t1211 = load i64, i64* %node.0
-    %t1212 = call i8* @sexpr_get(i64 %t1211, i64 1)
-    %t1213 = ptrtoint i8* %t1212 to i64
-    store i64 %t1213, i64* %op_node.119
-    %t1214 = load i64, i64* %n.118
-    %t1215 = load i64, i64* %op_node.119
-    %t1216 = add i64 %t1215, 8
-    %t1217 = inttoptr i64 %t1216 to i64*
-    %t1218 = load i64, i64* %t1217
-    %t1219 = call i64 @sexpr_op_to_token(i64 %t1218)
-    call void @unary_expr_set_op(i64 %t1214, i64 %t1219)
-    %t1220 = load i64, i64* %n.118
-    %t1221 = load i64, i64* %node.0
-    %t1222 = call i8* @sexpr_get(i64 %t1221, i64 2)
-    %t1223 = ptrtoint i8* %t1222 to i64
-    %t1224 = call i8* @sexpr_to_node(i64 %t1223)
-    %t1225 = ptrtoint i8* %t1224 to i64
-    call void @unary_expr_set_expr(i64 %t1220, i64 %t1225)
-    %t1226 = load i64, i64* %n.118
-    %t1227 = inttoptr i64 %t1226 to i8*
-    ret i8* %t1227
+    %t1179 = call i8* @string_expr_alloc()
+    %t1180 = ptrtoint i8* %t1179 to i64
+    store i64 %t1180, i64* %n.118
+    %val_node.119 = alloca i64
+    %t1181 = load i64, i64* %node.0
+    %t1182 = call i8* @sexpr_get(i64 %t1181, i64 1)
+    %t1183 = ptrtoint i8* %t1182 to i64
+    store i64 %t1183, i64* %val_node.119
+    %val.120 = alloca i64
+    %t1184 = load i64, i64* %val_node.119
+    %t1185 = add i64 %t1184, 8
+    %t1186 = inttoptr i64 %t1185 to i64*
+    %t1187 = load i64, i64* %t1186
+    %t1188 = call i8* @sexpr_parse_string(i64 %t1187)
+    %t1189 = ptrtoint i8* %t1188 to i64
+    store i64 %t1189, i64* %val.120
+    %t1190 = load i64, i64* %n.118
+    %t1191 = load i64, i64* %val.120
+    call void @string_expr_set_value(i64 %t1190, i64 %t1191)
+    %t1192 = load i64, i64* %n.118
+    %t1193 = load i64, i64* %val.120
+    %t1194 = call i64 @strlen(i64 %t1193)
+    call void @string_expr_set_value_len(i64 %t1192, i64 %t1194)
+    %t1195 = load i64, i64* %n.118
+    %t1196 = inttoptr i64 %t1195 to i8*
+    ret i8* %t1196
+L170:
+    %t1197 = load i64, i64* %head.1
+    %t1198 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str59, i64 0, i64 0) to i64
+    %t1199 = call i64 @streq(i64 %t1197, i64 %t1198)
+    %t1200 = icmp ne i64 %t1199, 0
+    br i1 %t1200, label %L171, label %L173
+L171:
+    %n.121 = alloca i64
+    %t1201 = call i8* @bool_expr_alloc()
+    %t1202 = ptrtoint i8* %t1201 to i64
+    store i64 %t1202, i64* %n.121
+    %val_node.122 = alloca i64
+    %t1203 = load i64, i64* %node.0
+    %t1204 = call i8* @sexpr_get(i64 %t1203, i64 1)
+    %t1205 = ptrtoint i8* %t1204 to i64
+    store i64 %t1205, i64* %val_node.122
+    %t1206 = load i64, i64* %val_node.122
+    %t1207 = add i64 %t1206, 8
+    %t1208 = inttoptr i64 %t1207 to i64*
+    %t1209 = load i64, i64* %t1208
+    %t1210 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str48, i64 0, i64 0) to i64
+    %t1211 = call i64 @streq(i64 %t1209, i64 %t1210)
+    %t1212 = icmp ne i64 %t1211, 0
+    br i1 %t1212, label %L174, label %L175
+L174:
+    %t1213 = load i64, i64* %n.121
+    call void @bool_expr_set_value(i64 %t1213, i64 1)
+    br label %L176
+L175:
+    %t1214 = load i64, i64* %n.121
+    call void @bool_expr_set_value(i64 %t1214, i64 0)
+    br label %L176
+L176:
+    %t1215 = load i64, i64* %n.121
+    %t1216 = inttoptr i64 %t1215 to i8*
+    ret i8* %t1216
+L173:
+    %t1217 = load i64, i64* %head.1
+    %t1218 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str50, i64 0, i64 0) to i64
+    %t1219 = call i64 @streq(i64 %t1217, i64 %t1218)
+    %t1220 = icmp ne i64 %t1219, 0
+    br i1 %t1220, label %L177, label %L179
+L177:
+    %t1221 = call i8* @nil_expr_alloc()
+    %t1222 = ptrtoint i8* %t1221 to i64
+    %t1223 = inttoptr i64 %t1222 to i8*
+    ret i8* %t1223
 L179:
-    %t1228 = load i64, i64* %head.1
-    %t1229 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str831, i64 0, i64 0) to i64
-    %t1230 = call i64 @streq(i64 %t1228, i64 %t1229)
-    %t1231 = icmp ne i64 %t1230, 0
-    br i1 %t1231, label %L180, label %L182
+    %t1224 = load i64, i64* %head.1
+    %t1225 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str831, i64 0, i64 0) to i64
+    %t1226 = call i64 @streq(i64 %t1224, i64 %t1225)
+    %t1227 = icmp ne i64 %t1226, 0
+    br i1 %t1227, label %L180, label %L182
 L180:
-    %n.120 = alloca i64
-    %t1232 = call i8* @call_expr_alloc()
-    %t1233 = ptrtoint i8* %t1232 to i64
-    store i64 %t1233, i64* %n.120
-    %t1234 = load i64, i64* %n.120
-    %t1235 = load i64, i64* %node.0
-    %t1236 = call i8* @sexpr_get(i64 %t1235, i64 1)
-    %t1237 = ptrtoint i8* %t1236 to i64
-    %t1238 = call i8* @sexpr_to_node(i64 %t1237)
-    %t1239 = ptrtoint i8* %t1238 to i64
-    call void @call_expr_set_func(i64 %t1234, i64 %t1239)
-    %arg_count.121 = alloca i64
+    %n.123 = alloca i64
+    %t1228 = call i8* @binary_expr_alloc()
+    %t1229 = ptrtoint i8* %t1228 to i64
+    store i64 %t1229, i64* %n.123
+    %op_node.124 = alloca i64
+    %t1230 = load i64, i64* %node.0
+    %t1231 = call i8* @sexpr_get(i64 %t1230, i64 1)
+    %t1232 = ptrtoint i8* %t1231 to i64
+    store i64 %t1232, i64* %op_node.124
+    %t1233 = load i64, i64* %n.123
+    %t1234 = load i64, i64* %op_node.124
+    %t1235 = add i64 %t1234, 8
+    %t1236 = inttoptr i64 %t1235 to i64*
+    %t1237 = load i64, i64* %t1236
+    %t1238 = call i64 @sexpr_op_to_token(i64 %t1237)
+    call void @binary_expr_set_op(i64 %t1233, i64 %t1238)
+    %t1239 = load i64, i64* %n.123
     %t1240 = load i64, i64* %node.0
-    %t1241 = call i64 @sexpr_len(i64 %t1240)
-    %t1242 = sub i64 %t1241, 2
-    store i64 %t1242, i64* %arg_count.121
-    %args.122 = alloca i64
-    %t1243 = load i64, i64* %arg_count.121
-    %t1244 = mul i64 %t1243, 8
-    %t1245 = call i8* @alloc(i64 %t1244)
-    %t1246 = ptrtoint i8* %t1245 to i64
-    store i64 %t1246, i64* %args.122
-    %i.123 = alloca i64
-    store i64 0, i64* %i.123
-    br label %L183
-L183:
-    %t1247 = load i64, i64* %i.123
-    %t1248 = load i64, i64* %arg_count.121
-    %t1250 = icmp slt i64 %t1247, %t1248
-    %t1249 = zext i1 %t1250 to i64
-    %t1251 = icmp ne i64 %t1249, 0
-    br i1 %t1251, label %L184, label %L185
-L184:
-    %arg.124 = alloca i64
-    %t1252 = load i64, i64* %node.0
-    %t1253 = load i64, i64* %i.123
-    %t1254 = add i64 %t1253, 2
-    %t1255 = call i8* @sexpr_get(i64 %t1252, i64 %t1254)
-    %t1256 = ptrtoint i8* %t1255 to i64
-    %t1257 = call i8* @sexpr_to_node(i64 %t1256)
-    %t1258 = ptrtoint i8* %t1257 to i64
-    store i64 %t1258, i64* %arg.124
-    %ap.125 = alloca i64
-    %t1259 = load i64, i64* %args.122
-    %t1260 = load i64, i64* %i.123
-    %t1261 = mul i64 %t1260, 8
-    %t1262 = add i64 %t1259, %t1261
-    store i64 %t1262, i64* %ap.125
-    %t1263 = load i64, i64* %arg.124
-    %t1264 = load i64, i64* %ap.125
-    %t1265 = inttoptr i64 %t1264 to i64*
-    store i64 %t1263, i64* %t1265
-    %t1266 = load i64, i64* %i.123
-    %t1267 = add i64 %t1266, 1
-    store i64 %t1267, i64* %i.123
-    br label %L183
-L185:
-    %t1268 = load i64, i64* %n.120
-    %t1269 = load i64, i64* %args.122
-    call void @call_expr_set_args(i64 %t1268, i64 %t1269)
-    %t1270 = load i64, i64* %n.120
-    %t1271 = load i64, i64* %arg_count.121
-    call void @call_expr_set_arg_count(i64 %t1270, i64 %t1271)
-    %t1272 = load i64, i64* %n.120
-    %t1273 = inttoptr i64 %t1272 to i8*
-    ret i8* %t1273
+    %t1241 = call i8* @sexpr_get(i64 %t1240, i64 2)
+    %t1242 = ptrtoint i8* %t1241 to i64
+    %t1243 = call i8* @sexpr_to_node(i64 %t1242)
+    %t1244 = ptrtoint i8* %t1243 to i64
+    call void @binary_expr_set_left(i64 %t1239, i64 %t1244)
+    %t1245 = load i64, i64* %n.123
+    %t1246 = load i64, i64* %node.0
+    %t1247 = call i8* @sexpr_get(i64 %t1246, i64 3)
+    %t1248 = ptrtoint i8* %t1247 to i64
+    %t1249 = call i8* @sexpr_to_node(i64 %t1248)
+    %t1250 = ptrtoint i8* %t1249 to i64
+    call void @binary_expr_set_right(i64 %t1245, i64 %t1250)
+    %t1251 = load i64, i64* %n.123
+    %t1252 = inttoptr i64 %t1251 to i8*
+    ret i8* %t1252
 L182:
-    %t1274 = load i64, i64* %head.1
-    %t1275 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str832, i64 0, i64 0) to i64
-    %t1276 = call i64 @streq(i64 %t1274, i64 %t1275)
-    %t1277 = icmp ne i64 %t1276, 0
-    br i1 %t1277, label %L186, label %L188
+    %t1253 = load i64, i64* %head.1
+    %t1254 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str832, i64 0, i64 0) to i64
+    %t1255 = call i64 @streq(i64 %t1253, i64 %t1254)
+    %t1256 = icmp ne i64 %t1255, 0
+    br i1 %t1256, label %L183, label %L185
+L183:
+    %n.125 = alloca i64
+    %t1257 = call i8* @unary_expr_alloc()
+    %t1258 = ptrtoint i8* %t1257 to i64
+    store i64 %t1258, i64* %n.125
+    %op_node.126 = alloca i64
+    %t1259 = load i64, i64* %node.0
+    %t1260 = call i8* @sexpr_get(i64 %t1259, i64 1)
+    %t1261 = ptrtoint i8* %t1260 to i64
+    store i64 %t1261, i64* %op_node.126
+    %t1262 = load i64, i64* %n.125
+    %t1263 = load i64, i64* %op_node.126
+    %t1264 = add i64 %t1263, 8
+    %t1265 = inttoptr i64 %t1264 to i64*
+    %t1266 = load i64, i64* %t1265
+    %t1267 = call i64 @sexpr_op_to_token(i64 %t1266)
+    call void @unary_expr_set_op(i64 %t1262, i64 %t1267)
+    %t1268 = load i64, i64* %n.125
+    %t1269 = load i64, i64* %node.0
+    %t1270 = call i8* @sexpr_get(i64 %t1269, i64 2)
+    %t1271 = ptrtoint i8* %t1270 to i64
+    %t1272 = call i8* @sexpr_to_node(i64 %t1271)
+    %t1273 = ptrtoint i8* %t1272 to i64
+    call void @unary_expr_set_expr(i64 %t1268, i64 %t1273)
+    %t1274 = load i64, i64* %n.125
+    %t1275 = inttoptr i64 %t1274 to i8*
+    ret i8* %t1275
+L185:
+    %t1276 = load i64, i64* %head.1
+    %t1277 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str833, i64 0, i64 0) to i64
+    %t1278 = call i64 @streq(i64 %t1276, i64 %t1277)
+    %t1279 = icmp ne i64 %t1278, 0
+    br i1 %t1279, label %L186, label %L188
 L186:
-    %n.126 = alloca i64
-    %t1278 = call i8* @alloc(i64 32)
-    %t1279 = ptrtoint i8* %t1278 to i64
-    store i64 %t1279, i64* %n.126
-    %t1280 = load i64, i64* %n.126
-    %t1281 = load i64, i64* @NODE_FIELD_EXPR
-    call void @node_set_kind(i64 %t1280, i64 %t1281)
-    %pe.127 = alloca i64
-    %t1282 = load i64, i64* %n.126
-    %t1283 = add i64 %t1282, 8
-    store i64 %t1283, i64* %pe.127
-    %t1284 = load i64, i64* %node.0
-    %t1285 = call i8* @sexpr_get(i64 %t1284, i64 1)
-    %t1286 = ptrtoint i8* %t1285 to i64
-    %t1287 = call i8* @sexpr_to_node(i64 %t1286)
-    %t1288 = ptrtoint i8* %t1287 to i64
-    %t1289 = load i64, i64* %pe.127
-    %t1290 = inttoptr i64 %t1289 to i64*
-    store i64 %t1288, i64* %t1290
-    %name_node.128 = alloca i64
-    %t1291 = load i64, i64* %node.0
-    %t1292 = call i8* @sexpr_get(i64 %t1291, i64 2)
-    %t1293 = ptrtoint i8* %t1292 to i64
-    store i64 %t1293, i64* %name_node.128
-    %pf.129 = alloca i64
-    %t1294 = load i64, i64* %n.126
-    %t1295 = add i64 %t1294, 16
-    store i64 %t1295, i64* %pf.129
-    %t1296 = load i64, i64* %name_node.128
-    %t1297 = add i64 %t1296, 8
-    %t1298 = inttoptr i64 %t1297 to i64*
-    %t1299 = load i64, i64* %t1298
-    %t1300 = call i8* @sexpr_strdup(i64 %t1299)
-    %t1301 = ptrtoint i8* %t1300 to i64
-    %t1302 = load i64, i64* %pf.129
-    %t1303 = inttoptr i64 %t1302 to i64*
-    store i64 %t1301, i64* %t1303
-    %pfl.130 = alloca i64
-    %t1304 = load i64, i64* %n.126
-    %t1305 = add i64 %t1304, 24
-    store i64 %t1305, i64* %pfl.130
-    %t1306 = load i64, i64* %name_node.128
-    %t1307 = add i64 %t1306, 8
-    %t1308 = inttoptr i64 %t1307 to i64*
-    %t1309 = load i64, i64* %t1308
-    %t1310 = call i64 @strlen(i64 %t1309)
-    %t1311 = load i64, i64* %pfl.130
-    %t1312 = inttoptr i64 %t1311 to i64*
-    store i64 %t1310, i64* %t1312
-    %t1313 = load i64, i64* %n.126
-    %t1314 = inttoptr i64 %t1313 to i8*
-    ret i8* %t1314
-L188:
-    %t1315 = load i64, i64* %head.1
-    %t1316 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str833, i64 0, i64 0) to i64
-    %t1317 = call i64 @streq(i64 %t1315, i64 %t1316)
-    %t1318 = icmp ne i64 %t1317, 0
-    br i1 %t1318, label %L189, label %L191
+    %n.127 = alloca i64
+    %t1280 = call i8* @call_expr_alloc()
+    %t1281 = ptrtoint i8* %t1280 to i64
+    store i64 %t1281, i64* %n.127
+    %t1282 = load i64, i64* %n.127
+    %t1283 = load i64, i64* %node.0
+    %t1284 = call i8* @sexpr_get(i64 %t1283, i64 1)
+    %t1285 = ptrtoint i8* %t1284 to i64
+    %t1286 = call i8* @sexpr_to_node(i64 %t1285)
+    %t1287 = ptrtoint i8* %t1286 to i64
+    call void @call_expr_set_func(i64 %t1282, i64 %t1287)
+    %arg_count.128 = alloca i64
+    %t1288 = load i64, i64* %node.0
+    %t1289 = call i64 @sexpr_len(i64 %t1288)
+    %t1290 = sub i64 %t1289, 2
+    store i64 %t1290, i64* %arg_count.128
+    %args.129 = alloca i64
+    %t1291 = load i64, i64* %arg_count.128
+    %t1292 = mul i64 %t1291, 8
+    %t1293 = call i8* @alloc(i64 %t1292)
+    %t1294 = ptrtoint i8* %t1293 to i64
+    store i64 %t1294, i64* %args.129
+    %i.130 = alloca i64
+    store i64 0, i64* %i.130
+    br label %L189
 L189:
-    %n.131 = alloca i64
-    %t1319 = call i8* @alloc(i64 24)
-    %t1320 = ptrtoint i8* %t1319 to i64
-    store i64 %t1320, i64* %n.131
-    %t1321 = load i64, i64* %n.131
-    %t1322 = load i64, i64* @NODE_INDEX_EXPR
-    call void @node_set_kind(i64 %t1321, i64 %t1322)
-    %pe.132 = alloca i64
-    %t1323 = load i64, i64* %n.131
-    %t1324 = add i64 %t1323, 8
-    store i64 %t1324, i64* %pe.132
-    %t1325 = load i64, i64* %node.0
-    %t1326 = call i8* @sexpr_get(i64 %t1325, i64 1)
-    %t1327 = ptrtoint i8* %t1326 to i64
-    %t1328 = call i8* @sexpr_to_node(i64 %t1327)
-    %t1329 = ptrtoint i8* %t1328 to i64
-    %t1330 = load i64, i64* %pe.132
-    %t1331 = inttoptr i64 %t1330 to i64*
-    store i64 %t1329, i64* %t1331
-    %pi.133 = alloca i64
-    %t1332 = load i64, i64* %n.131
-    %t1333 = add i64 %t1332, 16
-    store i64 %t1333, i64* %pi.133
-    %t1334 = load i64, i64* %node.0
-    %t1335 = call i8* @sexpr_get(i64 %t1334, i64 2)
-    %t1336 = ptrtoint i8* %t1335 to i64
-    %t1337 = call i8* @sexpr_to_node(i64 %t1336)
-    %t1338 = ptrtoint i8* %t1337 to i64
-    %t1339 = load i64, i64* %pi.133
-    %t1340 = inttoptr i64 %t1339 to i64*
-    store i64 %t1338, i64* %t1340
-    %t1341 = load i64, i64* %n.131
-    %t1342 = inttoptr i64 %t1341 to i8*
-    ret i8* %t1342
+    %t1295 = load i64, i64* %i.130
+    %t1296 = load i64, i64* %arg_count.128
+    %t1298 = icmp slt i64 %t1295, %t1296
+    %t1297 = zext i1 %t1298 to i64
+    %t1299 = icmp ne i64 %t1297, 0
+    br i1 %t1299, label %L190, label %L191
+L190:
+    %arg.131 = alloca i64
+    %t1300 = load i64, i64* %node.0
+    %t1301 = load i64, i64* %i.130
+    %t1302 = add i64 %t1301, 2
+    %t1303 = call i8* @sexpr_get(i64 %t1300, i64 %t1302)
+    %t1304 = ptrtoint i8* %t1303 to i64
+    %t1305 = call i8* @sexpr_to_node(i64 %t1304)
+    %t1306 = ptrtoint i8* %t1305 to i64
+    store i64 %t1306, i64* %arg.131
+    %ap.132 = alloca i64
+    %t1307 = load i64, i64* %args.129
+    %t1308 = load i64, i64* %i.130
+    %t1309 = mul i64 %t1308, 8
+    %t1310 = add i64 %t1307, %t1309
+    store i64 %t1310, i64* %ap.132
+    %t1311 = load i64, i64* %arg.131
+    %t1312 = load i64, i64* %ap.132
+    %t1313 = inttoptr i64 %t1312 to i64*
+    store i64 %t1311, i64* %t1313
+    %t1314 = load i64, i64* %i.130
+    %t1315 = add i64 %t1314, 1
+    store i64 %t1315, i64* %i.130
+    br label %L189
 L191:
-    %t1343 = load i64, i64* %head.1
-    %t1344 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str834, i64 0, i64 0) to i64
-    %t1345 = call i64 @streq(i64 %t1343, i64 %t1344)
-    %t1346 = icmp ne i64 %t1345, 0
-    br i1 %t1346, label %L192, label %L194
+    %t1316 = load i64, i64* %n.127
+    %t1317 = load i64, i64* %args.129
+    call void @call_expr_set_args(i64 %t1316, i64 %t1317)
+    %t1318 = load i64, i64* %n.127
+    %t1319 = load i64, i64* %arg_count.128
+    call void @call_expr_set_arg_count(i64 %t1318, i64 %t1319)
+    %t1320 = load i64, i64* %n.127
+    %t1321 = inttoptr i64 %t1320 to i8*
+    ret i8* %t1321
+L188:
+    %t1322 = load i64, i64* %head.1
+    %t1323 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str834, i64 0, i64 0) to i64
+    %t1324 = call i64 @streq(i64 %t1322, i64 %t1323)
+    %t1325 = icmp ne i64 %t1324, 0
+    br i1 %t1325, label %L192, label %L194
 L192:
-    %n.134 = alloca i64
-    %t1347 = call i8* @quote_expr_alloc()
-    %t1348 = ptrtoint i8* %t1347 to i64
-    store i64 %t1348, i64* %n.134
-    %t1349 = load i64, i64* %n.134
-    %t1350 = load i64, i64* %node.0
-    %t1351 = call i8* @sexpr_get(i64 %t1350, i64 1)
-    %t1352 = ptrtoint i8* %t1351 to i64
-    %t1353 = call i8* @sexpr_to_node(i64 %t1352)
-    %t1354 = ptrtoint i8* %t1353 to i64
-    call void @quote_expr_set_expr(i64 %t1349, i64 %t1354)
-    %t1355 = load i64, i64* %n.134
-    %t1356 = inttoptr i64 %t1355 to i8*
-    ret i8* %t1356
+    %n.133 = alloca i64
+    %t1326 = call i8* @alloc(i64 32)
+    %t1327 = ptrtoint i8* %t1326 to i64
+    store i64 %t1327, i64* %n.133
+    %t1328 = load i64, i64* %n.133
+    %t1329 = load i64, i64* @NODE_FIELD_EXPR
+    call void @node_set_kind(i64 %t1328, i64 %t1329)
+    %pe.134 = alloca i64
+    %t1330 = load i64, i64* %n.133
+    %t1331 = add i64 %t1330, 8
+    store i64 %t1331, i64* %pe.134
+    %t1332 = load i64, i64* %node.0
+    %t1333 = call i8* @sexpr_get(i64 %t1332, i64 1)
+    %t1334 = ptrtoint i8* %t1333 to i64
+    %t1335 = call i8* @sexpr_to_node(i64 %t1334)
+    %t1336 = ptrtoint i8* %t1335 to i64
+    %t1337 = load i64, i64* %pe.134
+    %t1338 = inttoptr i64 %t1337 to i64*
+    store i64 %t1336, i64* %t1338
+    %name_node.135 = alloca i64
+    %t1339 = load i64, i64* %node.0
+    %t1340 = call i8* @sexpr_get(i64 %t1339, i64 2)
+    %t1341 = ptrtoint i8* %t1340 to i64
+    store i64 %t1341, i64* %name_node.135
+    %pf.136 = alloca i64
+    %t1342 = load i64, i64* %n.133
+    %t1343 = add i64 %t1342, 16
+    store i64 %t1343, i64* %pf.136
+    %t1344 = load i64, i64* %name_node.135
+    %t1345 = add i64 %t1344, 8
+    %t1346 = inttoptr i64 %t1345 to i64*
+    %t1347 = load i64, i64* %t1346
+    %t1348 = call i8* @sexpr_strdup(i64 %t1347)
+    %t1349 = ptrtoint i8* %t1348 to i64
+    %t1350 = load i64, i64* %pf.136
+    %t1351 = inttoptr i64 %t1350 to i64*
+    store i64 %t1349, i64* %t1351
+    %pfl.137 = alloca i64
+    %t1352 = load i64, i64* %n.133
+    %t1353 = add i64 %t1352, 24
+    store i64 %t1353, i64* %pfl.137
+    %t1354 = load i64, i64* %name_node.135
+    %t1355 = add i64 %t1354, 8
+    %t1356 = inttoptr i64 %t1355 to i64*
+    %t1357 = load i64, i64* %t1356
+    %t1358 = call i64 @strlen(i64 %t1357)
+    %t1359 = load i64, i64* %pfl.137
+    %t1360 = inttoptr i64 %t1359 to i64*
+    store i64 %t1358, i64* %t1360
+    %t1361 = load i64, i64* %n.133
+    %t1362 = inttoptr i64 %t1361 to i8*
+    ret i8* %t1362
 L194:
-    %t1357 = load i64, i64* %head.1
-    %t1358 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str835, i64 0, i64 0) to i64
-    %t1359 = call i64 @streq(i64 %t1357, i64 %t1358)
-    %t1360 = icmp ne i64 %t1359, 0
-    br i1 %t1360, label %L195, label %L197
+    %t1363 = load i64, i64* %head.1
+    %t1364 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str835, i64 0, i64 0) to i64
+    %t1365 = call i64 @streq(i64 %t1363, i64 %t1364)
+    %t1366 = icmp ne i64 %t1365, 0
+    br i1 %t1366, label %L195, label %L197
 L195:
-    %n.135 = alloca i64
-    %t1361 = call i8* @unquote_expr_alloc()
-    %t1362 = ptrtoint i8* %t1361 to i64
-    store i64 %t1362, i64* %n.135
-    %name_node.136 = alloca i64
-    %t1363 = load i64, i64* %node.0
-    %t1364 = call i8* @sexpr_get(i64 %t1363, i64 1)
-    %t1365 = ptrtoint i8* %t1364 to i64
-    store i64 %t1365, i64* %name_node.136
-    %t1366 = load i64, i64* %n.135
-    %t1367 = load i64, i64* %name_node.136
-    %t1368 = add i64 %t1367, 8
-    %t1369 = inttoptr i64 %t1368 to i64*
-    %t1370 = load i64, i64* %t1369
-    %t1371 = call i8* @sexpr_strdup(i64 %t1370)
-    %t1372 = ptrtoint i8* %t1371 to i64
-    call void @unquote_expr_set_name(i64 %t1366, i64 %t1372)
-    %t1373 = load i64, i64* %n.135
-    %t1374 = load i64, i64* %name_node.136
-    %t1375 = add i64 %t1374, 8
-    %t1376 = inttoptr i64 %t1375 to i64*
-    %t1377 = load i64, i64* %t1376
-    %t1378 = call i64 @strlen(i64 %t1377)
-    call void @unquote_expr_set_name_len(i64 %t1373, i64 %t1378)
-    %t1379 = load i64, i64* %n.135
-    %t1380 = inttoptr i64 %t1379 to i8*
-    ret i8* %t1380
-L197:
-    %t1381 = load i64, i64* %head.1
-    %t1382 = ptrtoint i8* getelementptr inbounds ([15 x i8], [15 x i8]* @.str836, i64 0, i64 0) to i64
-    %t1383 = call i64 @streq(i64 %t1381, i64 %t1382)
-    %t1384 = icmp ne i64 %t1383, 0
-    br i1 %t1384, label %L198, label %L200
-L198:
-    %n.137 = alloca i64
-    %t1385 = call i8* @unquote_string_expr_alloc()
+    %n.138 = alloca i64
+    %t1367 = call i8* @alloc(i64 24)
+    %t1368 = ptrtoint i8* %t1367 to i64
+    store i64 %t1368, i64* %n.138
+    %t1369 = load i64, i64* %n.138
+    %t1370 = load i64, i64* @NODE_INDEX_EXPR
+    call void @node_set_kind(i64 %t1369, i64 %t1370)
+    %pe.139 = alloca i64
+    %t1371 = load i64, i64* %n.138
+    %t1372 = add i64 %t1371, 8
+    store i64 %t1372, i64* %pe.139
+    %t1373 = load i64, i64* %node.0
+    %t1374 = call i8* @sexpr_get(i64 %t1373, i64 1)
+    %t1375 = ptrtoint i8* %t1374 to i64
+    %t1376 = call i8* @sexpr_to_node(i64 %t1375)
+    %t1377 = ptrtoint i8* %t1376 to i64
+    %t1378 = load i64, i64* %pe.139
+    %t1379 = inttoptr i64 %t1378 to i64*
+    store i64 %t1377, i64* %t1379
+    %pi.140 = alloca i64
+    %t1380 = load i64, i64* %n.138
+    %t1381 = add i64 %t1380, 16
+    store i64 %t1381, i64* %pi.140
+    %t1382 = load i64, i64* %node.0
+    %t1383 = call i8* @sexpr_get(i64 %t1382, i64 2)
+    %t1384 = ptrtoint i8* %t1383 to i64
+    %t1385 = call i8* @sexpr_to_node(i64 %t1384)
     %t1386 = ptrtoint i8* %t1385 to i64
-    store i64 %t1386, i64* %n.137
-    %name_node.138 = alloca i64
-    %t1387 = load i64, i64* %node.0
-    %t1388 = call i8* @sexpr_get(i64 %t1387, i64 1)
-    %t1389 = ptrtoint i8* %t1388 to i64
-    store i64 %t1389, i64* %name_node.138
-    %t1390 = load i64, i64* %n.137
-    %t1391 = load i64, i64* %name_node.138
-    %t1392 = add i64 %t1391, 8
-    %t1393 = inttoptr i64 %t1392 to i64*
-    %t1394 = load i64, i64* %t1393
-    %t1395 = call i8* @sexpr_strdup(i64 %t1394)
+    %t1387 = load i64, i64* %pi.140
+    %t1388 = inttoptr i64 %t1387 to i64*
+    store i64 %t1386, i64* %t1388
+    %t1389 = load i64, i64* %n.138
+    %t1390 = inttoptr i64 %t1389 to i8*
+    ret i8* %t1390
+L197:
+    %t1391 = load i64, i64* %head.1
+    %t1392 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str836, i64 0, i64 0) to i64
+    %t1393 = call i64 @streq(i64 %t1391, i64 %t1392)
+    %t1394 = icmp ne i64 %t1393, 0
+    br i1 %t1394, label %L198, label %L200
+L198:
+    %n.141 = alloca i64
+    %t1395 = call i8* @quote_expr_alloc()
     %t1396 = ptrtoint i8* %t1395 to i64
-    call void @unquote_string_expr_set_name(i64 %t1390, i64 %t1396)
-    %t1397 = load i64, i64* %n.137
-    %t1398 = load i64, i64* %name_node.138
-    %t1399 = add i64 %t1398, 8
-    %t1400 = inttoptr i64 %t1399 to i64*
-    %t1401 = load i64, i64* %t1400
-    %t1402 = call i64 @strlen(i64 %t1401)
-    call void @unquote_string_expr_set_name_len(i64 %t1397, i64 %t1402)
-    %t1403 = load i64, i64* %n.137
+    store i64 %t1396, i64* %n.141
+    %t1397 = load i64, i64* %n.141
+    %t1398 = load i64, i64* %node.0
+    %t1399 = call i8* @sexpr_get(i64 %t1398, i64 1)
+    %t1400 = ptrtoint i8* %t1399 to i64
+    %t1401 = call i8* @sexpr_to_node(i64 %t1400)
+    %t1402 = ptrtoint i8* %t1401 to i64
+    call void @quote_expr_set_expr(i64 %t1397, i64 %t1402)
+    %t1403 = load i64, i64* %n.141
     %t1404 = inttoptr i64 %t1403 to i8*
     ret i8* %t1404
 L200:
     %t1405 = load i64, i64* %head.1
-    %t1406 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str35, i64 0, i64 0) to i64
+    %t1406 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str837, i64 0, i64 0) to i64
     %t1407 = call i64 @streq(i64 %t1405, i64 %t1406)
     %t1408 = icmp ne i64 %t1407, 0
     br i1 %t1408, label %L201, label %L203
 L201:
-    %n.139 = alloca i64
-    %t1409 = call i8* @let_expr_alloc()
+    %n.142 = alloca i64
+    %t1409 = call i8* @unquote_expr_alloc()
     %t1410 = ptrtoint i8* %t1409 to i64
-    store i64 %t1410, i64* %n.139
-    %name_node.140 = alloca i64
+    store i64 %t1410, i64* %n.142
+    %name_node.143 = alloca i64
     %t1411 = load i64, i64* %node.0
     %t1412 = call i8* @sexpr_get(i64 %t1411, i64 1)
     %t1413 = ptrtoint i8* %t1412 to i64
-    store i64 %t1413, i64* %name_node.140
-    %t1414 = load i64, i64* %n.139
-    %t1415 = load i64, i64* %name_node.140
+    store i64 %t1413, i64* %name_node.143
+    %t1414 = load i64, i64* %n.142
+    %t1415 = load i64, i64* %name_node.143
     %t1416 = add i64 %t1415, 8
     %t1417 = inttoptr i64 %t1416 to i64*
     %t1418 = load i64, i64* %t1417
     %t1419 = call i8* @sexpr_strdup(i64 %t1418)
     %t1420 = ptrtoint i8* %t1419 to i64
-    call void @let_expr_set_name(i64 %t1414, i64 %t1420)
-    %t1421 = load i64, i64* %n.139
-    %t1422 = load i64, i64* %name_node.140
+    call void @unquote_expr_set_name(i64 %t1414, i64 %t1420)
+    %t1421 = load i64, i64* %n.142
+    %t1422 = load i64, i64* %name_node.143
     %t1423 = add i64 %t1422, 8
     %t1424 = inttoptr i64 %t1423 to i64*
     %t1425 = load i64, i64* %t1424
     %t1426 = call i64 @strlen(i64 %t1425)
-    call void @let_expr_set_name_len(i64 %t1421, i64 %t1426)
-    %next.141 = alloca i64
-    %t1427 = load i64, i64* %node.0
-    %t1428 = call i8* @sexpr_get(i64 %t1427, i64 2)
-    %t1429 = ptrtoint i8* %t1428 to i64
-    store i64 %t1429, i64* %next.141
-    %t1430 = alloca i64
-    store i64 0, i64* %t1430
-    %t1431 = load i64, i64* %next.141
-    %t1432 = inttoptr i64 %t1431 to i64*
-    %t1433 = load i64, i64* %t1432
-    %t1434 = load i64, i64* @PNODE_LIST
-    %t1436 = icmp eq i64 %t1433, %t1434
-    %t1435 = zext i1 %t1436 to i64
-    %t1437 = icmp ne i64 %t1435, 0
-    br i1 %t1437, label %L207, label %L208
-L207:
-    %t1438 = load i64, i64* %next.141
-    %t1439 = call i8* @sexpr_head(i64 %t1438)
-    %t1440 = ptrtoint i8* %t1439 to i64
-    %t1441 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str810, i64 0, i64 0) to i64
-    %t1442 = call i64 @streq(i64 %t1440, i64 %t1441)
-    %t1443 = icmp ne i64 %t1442, 0
-    %t1444 = zext i1 %t1443 to i64
-    store i64 %t1444, i64* %t1430
-    br label %L208
-L208:
-    %t1445 = load i64, i64* %t1430
-    %t1446 = icmp ne i64 %t1445, 0
-    br i1 %t1446, label %L204, label %L205
+    call void @unquote_expr_set_name_len(i64 %t1421, i64 %t1426)
+    %t1427 = load i64, i64* %n.142
+    %t1428 = inttoptr i64 %t1427 to i8*
+    ret i8* %t1428
+L203:
+    %t1429 = load i64, i64* %head.1
+    %t1430 = ptrtoint i8* getelementptr inbounds ([15 x i8], [15 x i8]* @.str838, i64 0, i64 0) to i64
+    %t1431 = call i64 @streq(i64 %t1429, i64 %t1430)
+    %t1432 = icmp ne i64 %t1431, 0
+    br i1 %t1432, label %L204, label %L206
 L204:
-    %t1447 = load i64, i64* %n.139
-    %t1448 = load i64, i64* %next.141
-    %t1449 = call i8* @sexpr_to_type(i64 %t1448)
-    %t1450 = ptrtoint i8* %t1449 to i64
-    call void @let_expr_set_type(i64 %t1447, i64 %t1450)
-    %t1451 = load i64, i64* %n.139
-    %t1452 = load i64, i64* %node.0
-    %t1453 = call i8* @sexpr_get(i64 %t1452, i64 3)
-    %t1454 = ptrtoint i8* %t1453 to i64
-    %t1455 = call i8* @sexpr_to_node(i64 %t1454)
-    %t1456 = ptrtoint i8* %t1455 to i64
-    call void @let_expr_set_init(i64 %t1451, i64 %t1456)
-    %t1457 = load i64, i64* %n.139
-    %t1458 = load i64, i64* %node.0
-    %t1459 = call i8* @sexpr_get(i64 %t1458, i64 4)
-    %t1460 = ptrtoint i8* %t1459 to i64
-    %t1461 = call i8* @sexpr_to_node(i64 %t1460)
-    %t1462 = ptrtoint i8* %t1461 to i64
-    call void @let_expr_set_body(i64 %t1457, i64 %t1462)
-    br label %L206
-L205:
-    %t1463 = alloca i64
-    store i64 0, i64* %t1463
-    %t1464 = load i64, i64* %next.141
+    %n.144 = alloca i64
+    %t1433 = call i8* @unquote_string_expr_alloc()
+    %t1434 = ptrtoint i8* %t1433 to i64
+    store i64 %t1434, i64* %n.144
+    %name_node.145 = alloca i64
+    %t1435 = load i64, i64* %node.0
+    %t1436 = call i8* @sexpr_get(i64 %t1435, i64 1)
+    %t1437 = ptrtoint i8* %t1436 to i64
+    store i64 %t1437, i64* %name_node.145
+    %t1438 = load i64, i64* %n.144
+    %t1439 = load i64, i64* %name_node.145
+    %t1440 = add i64 %t1439, 8
+    %t1441 = inttoptr i64 %t1440 to i64*
+    %t1442 = load i64, i64* %t1441
+    %t1443 = call i8* @sexpr_strdup(i64 %t1442)
+    %t1444 = ptrtoint i8* %t1443 to i64
+    call void @unquote_string_expr_set_name(i64 %t1438, i64 %t1444)
+    %t1445 = load i64, i64* %n.144
+    %t1446 = load i64, i64* %name_node.145
+    %t1447 = add i64 %t1446, 8
+    %t1448 = inttoptr i64 %t1447 to i64*
+    %t1449 = load i64, i64* %t1448
+    %t1450 = call i64 @strlen(i64 %t1449)
+    call void @unquote_string_expr_set_name_len(i64 %t1445, i64 %t1450)
+    %t1451 = load i64, i64* %n.144
+    %t1452 = inttoptr i64 %t1451 to i8*
+    ret i8* %t1452
+L206:
+    %t1453 = load i64, i64* %head.1
+    %t1454 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str35, i64 0, i64 0) to i64
+    %t1455 = call i64 @streq(i64 %t1453, i64 %t1454)
+    %t1456 = icmp ne i64 %t1455, 0
+    br i1 %t1456, label %L207, label %L209
+L207:
+    %n.146 = alloca i64
+    %t1457 = call i8* @let_expr_alloc()
+    %t1458 = ptrtoint i8* %t1457 to i64
+    store i64 %t1458, i64* %n.146
+    %name_node.147 = alloca i64
+    %t1459 = load i64, i64* %node.0
+    %t1460 = call i8* @sexpr_get(i64 %t1459, i64 1)
+    %t1461 = ptrtoint i8* %t1460 to i64
+    store i64 %t1461, i64* %name_node.147
+    %t1462 = load i64, i64* %n.146
+    %t1463 = load i64, i64* %name_node.147
+    %t1464 = add i64 %t1463, 8
     %t1465 = inttoptr i64 %t1464 to i64*
     %t1466 = load i64, i64* %t1465
-    %t1467 = load i64, i64* @PNODE_LIST
-    %t1469 = icmp eq i64 %t1466, %t1467
-    %t1468 = zext i1 %t1469 to i64
-    %t1470 = icmp ne i64 %t1468, 0
-    br i1 %t1470, label %L212, label %L213
-L212:
-    %t1471 = load i64, i64* %next.141
-    %t1472 = call i8* @sexpr_head(i64 %t1471)
-    %t1473 = ptrtoint i8* %t1472 to i64
-    %t1474 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str811, i64 0, i64 0) to i64
-    %t1475 = call i64 @streq(i64 %t1473, i64 %t1474)
-    %t1476 = icmp ne i64 %t1475, 0
-    %t1477 = zext i1 %t1476 to i64
-    store i64 %t1477, i64* %t1463
-    br label %L213
+    %t1467 = call i8* @sexpr_strdup(i64 %t1466)
+    %t1468 = ptrtoint i8* %t1467 to i64
+    call void @let_expr_set_name(i64 %t1462, i64 %t1468)
+    %t1469 = load i64, i64* %n.146
+    %t1470 = load i64, i64* %name_node.147
+    %t1471 = add i64 %t1470, 8
+    %t1472 = inttoptr i64 %t1471 to i64*
+    %t1473 = load i64, i64* %t1472
+    %t1474 = call i64 @strlen(i64 %t1473)
+    call void @let_expr_set_name_len(i64 %t1469, i64 %t1474)
+    %next.148 = alloca i64
+    %t1475 = load i64, i64* %node.0
+    %t1476 = call i8* @sexpr_get(i64 %t1475, i64 2)
+    %t1477 = ptrtoint i8* %t1476 to i64
+    store i64 %t1477, i64* %next.148
+    %t1478 = alloca i64
+    store i64 0, i64* %t1478
+    %t1479 = load i64, i64* %next.148
+    %t1480 = inttoptr i64 %t1479 to i64*
+    %t1481 = load i64, i64* %t1480
+    %t1482 = load i64, i64* @PNODE_LIST
+    %t1484 = icmp eq i64 %t1481, %t1482
+    %t1483 = zext i1 %t1484 to i64
+    %t1485 = icmp ne i64 %t1483, 0
+    br i1 %t1485, label %L213, label %L214
 L213:
-    %t1478 = load i64, i64* %t1463
-    %t1479 = icmp ne i64 %t1478, 0
-    br i1 %t1479, label %L209, label %L210
-L209:
-    %t1480 = load i64, i64* %n.139
-    %t1481 = load i64, i64* %next.141
-    %t1482 = call i8* @sexpr_to_type(i64 %t1481)
-    %t1483 = ptrtoint i8* %t1482 to i64
-    call void @let_expr_set_type(i64 %t1480, i64 %t1483)
-    %t1484 = load i64, i64* %n.139
-    %t1485 = load i64, i64* %node.0
-    %t1486 = call i8* @sexpr_get(i64 %t1485, i64 3)
-    %t1487 = ptrtoint i8* %t1486 to i64
-    %t1488 = call i8* @sexpr_to_node(i64 %t1487)
-    %t1489 = ptrtoint i8* %t1488 to i64
-    call void @let_expr_set_init(i64 %t1484, i64 %t1489)
-    %t1490 = load i64, i64* %n.139
-    %t1491 = load i64, i64* %node.0
-    %t1492 = call i8* @sexpr_get(i64 %t1491, i64 4)
-    %t1493 = ptrtoint i8* %t1492 to i64
-    %t1494 = call i8* @sexpr_to_node(i64 %t1493)
-    %t1495 = ptrtoint i8* %t1494 to i64
-    call void @let_expr_set_body(i64 %t1490, i64 %t1495)
-    br label %L211
-L210:
-    %t1496 = load i64, i64* %n.139
-    call void @let_expr_set_type(i64 %t1496, i64 0)
-    %t1497 = load i64, i64* %n.139
-    %t1498 = load i64, i64* %next.141
-    %t1499 = call i8* @sexpr_to_node(i64 %t1498)
-    %t1500 = ptrtoint i8* %t1499 to i64
-    call void @let_expr_set_init(i64 %t1497, i64 %t1500)
-    %t1501 = load i64, i64* %n.139
-    %t1502 = load i64, i64* %node.0
-    %t1503 = call i8* @sexpr_get(i64 %t1502, i64 3)
-    %t1504 = ptrtoint i8* %t1503 to i64
-    %t1505 = call i8* @sexpr_to_node(i64 %t1504)
-    %t1506 = ptrtoint i8* %t1505 to i64
-    call void @let_expr_set_body(i64 %t1501, i64 %t1506)
-    br label %L211
-L211:
-    br label %L206
-L206:
-    %t1507 = load i64, i64* %n.139
-    %t1508 = inttoptr i64 %t1507 to i8*
-    ret i8* %t1508
-L203:
-    %t1509 = load i64, i64* %head.1
-    %t1510 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str837, i64 0, i64 0) to i64
-    %t1511 = call i64 @streq(i64 %t1509, i64 %t1510)
-    %t1512 = icmp ne i64 %t1511, 0
-    br i1 %t1512, label %L214, label %L216
+    %t1486 = load i64, i64* %next.148
+    %t1487 = call i8* @sexpr_head(i64 %t1486)
+    %t1488 = ptrtoint i8* %t1487 to i64
+    %t1489 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str811, i64 0, i64 0) to i64
+    %t1490 = call i64 @streq(i64 %t1488, i64 %t1489)
+    %t1491 = icmp ne i64 %t1490, 0
+    %t1492 = zext i1 %t1491 to i64
+    store i64 %t1492, i64* %t1478
+    br label %L214
 L214:
-    %n.142 = alloca i64
-    %t1513 = call i8* @lambda_expr_alloc()
-    %t1514 = ptrtoint i8* %t1513 to i64
-    store i64 %t1514, i64* %n.142
-    %params_list.143 = alloca i64
-    %t1515 = load i64, i64* %node.0
-    %t1516 = call i8* @sexpr_get(i64 %t1515, i64 1)
-    %t1517 = ptrtoint i8* %t1516 to i64
-    store i64 %t1517, i64* %params_list.143
-    %params_inner.144 = alloca i64
-    %t1518 = load i64, i64* %params_list.143
-    %t1519 = call i8* @sexpr_inner(i64 %t1518)
-    %t1520 = ptrtoint i8* %t1519 to i64
-    store i64 %t1520, i64* %params_inner.144
-    %param_count.145 = alloca i64
-    %t1521 = load i64, i64* %params_inner.144
-    %t1522 = add i64 %t1521, 16
-    %t1523 = inttoptr i64 %t1522 to i64*
-    %t1524 = load i64, i64* %t1523
-    %t1525 = call i64 @vec_len(i64 %t1524)
-    store i64 %t1525, i64* %param_count.145
-    %params.146 = alloca i64
-    %t1526 = load i64, i64* %param_count.145
-    %t1527 = mul i64 %t1526, 24
-    %t1528 = call i8* @alloc(i64 %t1527)
-    %t1529 = ptrtoint i8* %t1528 to i64
-    store i64 %t1529, i64* %params.146
-    %i.147 = alloca i64
-    store i64 0, i64* %i.147
+    %t1493 = load i64, i64* %t1478
+    %t1494 = icmp ne i64 %t1493, 0
+    br i1 %t1494, label %L210, label %L211
+L210:
+    %t1495 = load i64, i64* %n.146
+    %t1496 = load i64, i64* %next.148
+    %t1497 = call i8* @sexpr_to_type(i64 %t1496)
+    %t1498 = ptrtoint i8* %t1497 to i64
+    call void @let_expr_set_type(i64 %t1495, i64 %t1498)
+    %t1499 = load i64, i64* %n.146
+    %t1500 = load i64, i64* %node.0
+    %t1501 = call i8* @sexpr_get(i64 %t1500, i64 3)
+    %t1502 = ptrtoint i8* %t1501 to i64
+    %t1503 = call i8* @sexpr_to_node(i64 %t1502)
+    %t1504 = ptrtoint i8* %t1503 to i64
+    call void @let_expr_set_init(i64 %t1499, i64 %t1504)
+    %t1505 = load i64, i64* %n.146
+    %t1506 = load i64, i64* %node.0
+    %t1507 = call i8* @sexpr_get(i64 %t1506, i64 4)
+    %t1508 = ptrtoint i8* %t1507 to i64
+    %t1509 = call i8* @sexpr_to_node(i64 %t1508)
+    %t1510 = ptrtoint i8* %t1509 to i64
+    call void @let_expr_set_body(i64 %t1505, i64 %t1510)
+    br label %L212
+L211:
+    %t1511 = alloca i64
+    store i64 0, i64* %t1511
+    %t1512 = load i64, i64* %next.148
+    %t1513 = inttoptr i64 %t1512 to i64*
+    %t1514 = load i64, i64* %t1513
+    %t1515 = load i64, i64* @PNODE_LIST
+    %t1517 = icmp eq i64 %t1514, %t1515
+    %t1516 = zext i1 %t1517 to i64
+    %t1518 = icmp ne i64 %t1516, 0
+    br i1 %t1518, label %L218, label %L219
+L218:
+    %t1519 = load i64, i64* %next.148
+    %t1520 = call i8* @sexpr_head(i64 %t1519)
+    %t1521 = ptrtoint i8* %t1520 to i64
+    %t1522 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str812, i64 0, i64 0) to i64
+    %t1523 = call i64 @streq(i64 %t1521, i64 %t1522)
+    %t1524 = icmp ne i64 %t1523, 0
+    %t1525 = zext i1 %t1524 to i64
+    store i64 %t1525, i64* %t1511
+    br label %L219
+L219:
+    %t1526 = load i64, i64* %t1511
+    %t1527 = icmp ne i64 %t1526, 0
+    br i1 %t1527, label %L215, label %L216
+L215:
+    %t1528 = load i64, i64* %n.146
+    %t1529 = load i64, i64* %next.148
+    %t1530 = call i8* @sexpr_to_type(i64 %t1529)
+    %t1531 = ptrtoint i8* %t1530 to i64
+    call void @let_expr_set_type(i64 %t1528, i64 %t1531)
+    %t1532 = load i64, i64* %n.146
+    %t1533 = load i64, i64* %node.0
+    %t1534 = call i8* @sexpr_get(i64 %t1533, i64 3)
+    %t1535 = ptrtoint i8* %t1534 to i64
+    %t1536 = call i8* @sexpr_to_node(i64 %t1535)
+    %t1537 = ptrtoint i8* %t1536 to i64
+    call void @let_expr_set_init(i64 %t1532, i64 %t1537)
+    %t1538 = load i64, i64* %n.146
+    %t1539 = load i64, i64* %node.0
+    %t1540 = call i8* @sexpr_get(i64 %t1539, i64 4)
+    %t1541 = ptrtoint i8* %t1540 to i64
+    %t1542 = call i8* @sexpr_to_node(i64 %t1541)
+    %t1543 = ptrtoint i8* %t1542 to i64
+    call void @let_expr_set_body(i64 %t1538, i64 %t1543)
+    br label %L217
+L216:
+    %t1544 = load i64, i64* %n.146
+    call void @let_expr_set_type(i64 %t1544, i64 0)
+    %t1545 = load i64, i64* %n.146
+    %t1546 = load i64, i64* %next.148
+    %t1547 = call i8* @sexpr_to_node(i64 %t1546)
+    %t1548 = ptrtoint i8* %t1547 to i64
+    call void @let_expr_set_init(i64 %t1545, i64 %t1548)
+    %t1549 = load i64, i64* %n.146
+    %t1550 = load i64, i64* %node.0
+    %t1551 = call i8* @sexpr_get(i64 %t1550, i64 3)
+    %t1552 = ptrtoint i8* %t1551 to i64
+    %t1553 = call i8* @sexpr_to_node(i64 %t1552)
+    %t1554 = ptrtoint i8* %t1553 to i64
+    call void @let_expr_set_body(i64 %t1549, i64 %t1554)
     br label %L217
 L217:
-    %t1530 = load i64, i64* %i.147
-    %t1531 = load i64, i64* %param_count.145
-    %t1533 = icmp slt i64 %t1530, %t1531
-    %t1532 = zext i1 %t1533 to i64
-    %t1534 = icmp ne i64 %t1532, 0
-    br i1 %t1534, label %L218, label %L219
-L218:
-    %t1535 = load i64, i64* %params_inner.144
-    %t1536 = add i64 %t1535, 16
-    %t1537 = inttoptr i64 %t1536 to i64*
-    %t1538 = load i64, i64* %t1537
-    %t1539 = load i64, i64* %i.147
-    %t1540 = call i64 @vec_get(i64 %t1538, i64 %t1539)
-    %t1541 = load i64, i64* %params.146
-    %t1542 = load i64, i64* %i.147
-    call void @sexpr_to_param(i64 %t1540, i64 %t1541, i64 %t1542)
-    %t1543 = load i64, i64* %i.147
-    %t1544 = add i64 %t1543, 1
-    store i64 %t1544, i64* %i.147
-    br label %L217
-L219:
-    %t1545 = load i64, i64* %n.142
-    %t1546 = load i64, i64* %params.146
-    call void @lambda_expr_set_params(i64 %t1545, i64 %t1546)
-    %t1547 = load i64, i64* %n.142
-    %t1548 = load i64, i64* %param_count.145
-    call void @lambda_expr_set_param_count(i64 %t1547, i64 %t1548)
-    %t1549 = load i64, i64* %n.142
-    %t1550 = load i64, i64* %node.0
-    %t1551 = call i8* @sexpr_get(i64 %t1550, i64 2)
-    %t1552 = ptrtoint i8* %t1551 to i64
-    %t1553 = call i8* @sexpr_to_type(i64 %t1552)
-    %t1554 = ptrtoint i8* %t1553 to i64
-    call void @lambda_expr_set_ret_type(i64 %t1549, i64 %t1554)
-    %t1555 = load i64, i64* %n.142
-    %t1556 = load i64, i64* %node.0
-    %t1557 = call i8* @sexpr_get(i64 %t1556, i64 3)
-    %t1558 = ptrtoint i8* %t1557 to i64
-    %t1559 = call i8* @sexpr_to_node(i64 %t1558)
-    %t1560 = ptrtoint i8* %t1559 to i64
-    call void @lambda_expr_set_body(i64 %t1555, i64 %t1560)
-    %t1561 = load i64, i64* %n.142
-    %t1562 = inttoptr i64 %t1561 to i8*
-    ret i8* %t1562
-L216:
-    %t1563 = load i64, i64* %head.1
-    %t1564 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str39, i64 0, i64 0) to i64
-    %t1565 = call i64 @streq(i64 %t1563, i64 %t1564)
-    %t1566 = icmp ne i64 %t1565, 0
-    br i1 %t1566, label %L220, label %L222
+    br label %L212
+L212:
+    %t1555 = load i64, i64* %n.146
+    %t1556 = inttoptr i64 %t1555 to i8*
+    ret i8* %t1556
+L209:
+    %t1557 = load i64, i64* %head.1
+    %t1558 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str839, i64 0, i64 0) to i64
+    %t1559 = call i64 @streq(i64 %t1557, i64 %t1558)
+    %t1560 = icmp ne i64 %t1559, 0
+    br i1 %t1560, label %L220, label %L222
 L220:
-    %n.148 = alloca i64
-    %t1567 = call i8* @match_expr_alloc()
+    %n.149 = alloca i64
+    %t1561 = call i8* @lambda_expr_alloc()
+    %t1562 = ptrtoint i8* %t1561 to i64
+    store i64 %t1562, i64* %n.149
+    %params_list.150 = alloca i64
+    %t1563 = load i64, i64* %node.0
+    %t1564 = call i8* @sexpr_get(i64 %t1563, i64 1)
+    %t1565 = ptrtoint i8* %t1564 to i64
+    store i64 %t1565, i64* %params_list.150
+    %params_inner.151 = alloca i64
+    %t1566 = load i64, i64* %params_list.150
+    %t1567 = call i8* @sexpr_inner(i64 %t1566)
     %t1568 = ptrtoint i8* %t1567 to i64
-    store i64 %t1568, i64* %n.148
-    %t1569 = load i64, i64* %n.148
-    %t1570 = load i64, i64* %node.0
-    %t1571 = call i8* @sexpr_get(i64 %t1570, i64 1)
-    %t1572 = ptrtoint i8* %t1571 to i64
-    %t1573 = call i8* @sexpr_to_node(i64 %t1572)
-    %t1574 = ptrtoint i8* %t1573 to i64
-    call void @match_expr_set_scrutinee(i64 %t1569, i64 %t1574)
-    %cases_list.149 = alloca i64
-    %t1575 = load i64, i64* %node.0
-    %t1576 = call i8* @sexpr_get(i64 %t1575, i64 2)
+    store i64 %t1568, i64* %params_inner.151
+    %param_count.152 = alloca i64
+    %t1569 = load i64, i64* %params_inner.151
+    %t1570 = add i64 %t1569, 16
+    %t1571 = inttoptr i64 %t1570 to i64*
+    %t1572 = load i64, i64* %t1571
+    %t1573 = call i64 @vec_len(i64 %t1572)
+    store i64 %t1573, i64* %param_count.152
+    %params.153 = alloca i64
+    %t1574 = load i64, i64* %param_count.152
+    %t1575 = mul i64 %t1574, 24
+    %t1576 = call i8* @alloc(i64 %t1575)
     %t1577 = ptrtoint i8* %t1576 to i64
-    store i64 %t1577, i64* %cases_list.149
-    %cases_inner.150 = alloca i64
-    %t1578 = load i64, i64* %cases_list.149
-    %t1579 = call i8* @sexpr_inner(i64 %t1578)
-    %t1580 = ptrtoint i8* %t1579 to i64
-    store i64 %t1580, i64* %cases_inner.150
-    %arm_count.151 = alloca i64
-    %t1581 = load i64, i64* %cases_inner.150
-    %t1582 = add i64 %t1581, 16
-    %t1583 = inttoptr i64 %t1582 to i64*
-    %t1584 = load i64, i64* %t1583
-    %t1585 = call i64 @vec_len(i64 %t1584)
-    store i64 %t1585, i64* %arm_count.151
-    %arms.152 = alloca i64
-    %t1586 = load i64, i64* %arm_count.151
-    %t1587 = mul i64 %t1586, 16
-    %t1588 = call i8* @alloc(i64 %t1587)
-    %t1589 = ptrtoint i8* %t1588 to i64
-    store i64 %t1589, i64* %arms.152
-    %i.153 = alloca i64
-    store i64 0, i64* %i.153
+    store i64 %t1577, i64* %params.153
+    %i.154 = alloca i64
+    store i64 0, i64* %i.154
     br label %L223
 L223:
-    %t1590 = load i64, i64* %i.153
-    %t1591 = load i64, i64* %arm_count.151
-    %t1593 = icmp slt i64 %t1590, %t1591
-    %t1592 = zext i1 %t1593 to i64
-    %t1594 = icmp ne i64 %t1592, 0
-    br i1 %t1594, label %L224, label %L225
+    %t1578 = load i64, i64* %i.154
+    %t1579 = load i64, i64* %param_count.152
+    %t1581 = icmp slt i64 %t1578, %t1579
+    %t1580 = zext i1 %t1581 to i64
+    %t1582 = icmp ne i64 %t1580, 0
+    br i1 %t1582, label %L224, label %L225
 L224:
-    %case_node.154 = alloca i64
-    %t1595 = load i64, i64* %cases_inner.150
-    %t1596 = add i64 %t1595, 16
-    %t1597 = inttoptr i64 %t1596 to i64*
-    %t1598 = load i64, i64* %t1597
-    %t1599 = load i64, i64* %i.153
-    %t1600 = call i64 @vec_get(i64 %t1598, i64 %t1599)
-    store i64 %t1600, i64* %case_node.154
-    %arm.155 = alloca i64
-    %t1601 = load i64, i64* %arms.152
-    %t1602 = load i64, i64* %i.153
-    %t1603 = mul i64 %t1602, 16
-    %t1604 = add i64 %t1601, %t1603
-    store i64 %t1604, i64* %arm.155
-    %t1605 = load i64, i64* %arm.155
-    %t1606 = load i64, i64* %case_node.154
-    %t1607 = call i8* @sexpr_get(i64 %t1606, i64 1)
-    %t1608 = ptrtoint i8* %t1607 to i64
-    %t1609 = call i8* @sexpr_to_pattern(i64 %t1608)
-    %t1610 = ptrtoint i8* %t1609 to i64
-    call void @match_arm_set_pattern(i64 %t1605, i64 %t1610)
-    %t1611 = load i64, i64* %arm.155
-    %t1612 = load i64, i64* %case_node.154
-    %t1613 = call i8* @sexpr_get(i64 %t1612, i64 2)
-    %t1614 = ptrtoint i8* %t1613 to i64
-    %t1615 = call i8* @sexpr_to_node(i64 %t1614)
-    %t1616 = ptrtoint i8* %t1615 to i64
-    call void @match_arm_set_body(i64 %t1611, i64 %t1616)
-    %t1617 = load i64, i64* %i.153
-    %t1618 = add i64 %t1617, 1
-    store i64 %t1618, i64* %i.153
+    %t1583 = load i64, i64* %params_inner.151
+    %t1584 = add i64 %t1583, 16
+    %t1585 = inttoptr i64 %t1584 to i64*
+    %t1586 = load i64, i64* %t1585
+    %t1587 = load i64, i64* %i.154
+    %t1588 = call i64 @vec_get(i64 %t1586, i64 %t1587)
+    %t1589 = load i64, i64* %params.153
+    %t1590 = load i64, i64* %i.154
+    call void @sexpr_to_param(i64 %t1588, i64 %t1589, i64 %t1590)
+    %t1591 = load i64, i64* %i.154
+    %t1592 = add i64 %t1591, 1
+    store i64 %t1592, i64* %i.154
     br label %L223
 L225:
-    %t1619 = load i64, i64* %n.148
-    %t1620 = load i64, i64* %arms.152
-    call void @match_expr_set_arms(i64 %t1619, i64 %t1620)
-    %t1621 = load i64, i64* %n.148
-    %t1622 = load i64, i64* %arm_count.151
-    call void @match_expr_set_arm_count(i64 %t1621, i64 %t1622)
-    %t1623 = load i64, i64* %n.148
-    %t1624 = inttoptr i64 %t1623 to i8*
-    ret i8* %t1624
+    %t1593 = load i64, i64* %n.149
+    %t1594 = load i64, i64* %params.153
+    call void @lambda_expr_set_params(i64 %t1593, i64 %t1594)
+    %t1595 = load i64, i64* %n.149
+    %t1596 = load i64, i64* %param_count.152
+    call void @lambda_expr_set_param_count(i64 %t1595, i64 %t1596)
+    %t1597 = load i64, i64* %n.149
+    %t1598 = load i64, i64* %node.0
+    %t1599 = call i8* @sexpr_get(i64 %t1598, i64 2)
+    %t1600 = ptrtoint i8* %t1599 to i64
+    %t1601 = call i8* @sexpr_to_type(i64 %t1600)
+    %t1602 = ptrtoint i8* %t1601 to i64
+    call void @lambda_expr_set_ret_type(i64 %t1597, i64 %t1602)
+    %t1603 = load i64, i64* %n.149
+    %t1604 = load i64, i64* %node.0
+    %t1605 = call i8* @sexpr_get(i64 %t1604, i64 3)
+    %t1606 = ptrtoint i8* %t1605 to i64
+    %t1607 = call i8* @sexpr_to_node(i64 %t1606)
+    %t1608 = ptrtoint i8* %t1607 to i64
+    call void @lambda_expr_set_body(i64 %t1603, i64 %t1608)
+    %t1609 = load i64, i64* %n.149
+    %t1610 = inttoptr i64 %t1609 to i8*
+    ret i8* %t1610
 L222:
-    %t1625 = load i64, i64* %head.1
-    %t1626 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str41, i64 0, i64 0) to i64
-    %t1627 = call i64 @streq(i64 %t1625, i64 %t1626)
-    %t1628 = icmp ne i64 %t1627, 0
-    br i1 %t1628, label %L226, label %L228
+    %t1611 = load i64, i64* %head.1
+    %t1612 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str39, i64 0, i64 0) to i64
+    %t1613 = call i64 @streq(i64 %t1611, i64 %t1612)
+    %t1614 = icmp ne i64 %t1613, 0
+    br i1 %t1614, label %L226, label %L228
 L226:
-    %n.156 = alloca i64
-    %t1629 = call i8* @perform_expr_alloc()
-    %t1630 = ptrtoint i8* %t1629 to i64
-    store i64 %t1630, i64* %n.156
-    %name_node.157 = alloca i64
-    %t1631 = load i64, i64* %node.0
-    %t1632 = call i8* @sexpr_get(i64 %t1631, i64 1)
-    %t1633 = ptrtoint i8* %t1632 to i64
-    store i64 %t1633, i64* %name_node.157
-    %t1634 = load i64, i64* %n.156
-    %t1635 = load i64, i64* %name_node.157
-    %t1636 = add i64 %t1635, 8
-    %t1637 = inttoptr i64 %t1636 to i64*
-    %t1638 = load i64, i64* %t1637
-    %t1639 = call i8* @sexpr_strdup(i64 %t1638)
-    %t1640 = ptrtoint i8* %t1639 to i64
-    call void @perform_expr_set_name(i64 %t1634, i64 %t1640)
-    %t1641 = load i64, i64* %n.156
-    %t1642 = load i64, i64* %name_node.157
-    %t1643 = add i64 %t1642, 8
-    %t1644 = inttoptr i64 %t1643 to i64*
-    %t1645 = load i64, i64* %t1644
-    %t1646 = call i64 @strlen(i64 %t1645)
-    call void @perform_expr_set_name_len(i64 %t1641, i64 %t1646)
-    %arg_count.158 = alloca i64
-    %t1647 = load i64, i64* %node.0
-    %t1648 = call i64 @sexpr_len(i64 %t1647)
-    %t1649 = sub i64 %t1648, 2
-    store i64 %t1649, i64* %arg_count.158
-    %args.159 = alloca i64
-    %t1650 = load i64, i64* %arg_count.158
-    %t1651 = mul i64 %t1650, 8
-    %t1652 = call i8* @alloc(i64 %t1651)
-    %t1653 = ptrtoint i8* %t1652 to i64
-    store i64 %t1653, i64* %args.159
+    %n.155 = alloca i64
+    %t1615 = call i8* @match_expr_alloc()
+    %t1616 = ptrtoint i8* %t1615 to i64
+    store i64 %t1616, i64* %n.155
+    %t1617 = load i64, i64* %n.155
+    %t1618 = load i64, i64* %node.0
+    %t1619 = call i8* @sexpr_get(i64 %t1618, i64 1)
+    %t1620 = ptrtoint i8* %t1619 to i64
+    %t1621 = call i8* @sexpr_to_node(i64 %t1620)
+    %t1622 = ptrtoint i8* %t1621 to i64
+    call void @match_expr_set_scrutinee(i64 %t1617, i64 %t1622)
+    %cases_list.156 = alloca i64
+    %t1623 = load i64, i64* %node.0
+    %t1624 = call i8* @sexpr_get(i64 %t1623, i64 2)
+    %t1625 = ptrtoint i8* %t1624 to i64
+    store i64 %t1625, i64* %cases_list.156
+    %cases_inner.157 = alloca i64
+    %t1626 = load i64, i64* %cases_list.156
+    %t1627 = call i8* @sexpr_inner(i64 %t1626)
+    %t1628 = ptrtoint i8* %t1627 to i64
+    store i64 %t1628, i64* %cases_inner.157
+    %arm_count.158 = alloca i64
+    %t1629 = load i64, i64* %cases_inner.157
+    %t1630 = add i64 %t1629, 16
+    %t1631 = inttoptr i64 %t1630 to i64*
+    %t1632 = load i64, i64* %t1631
+    %t1633 = call i64 @vec_len(i64 %t1632)
+    store i64 %t1633, i64* %arm_count.158
+    %arms.159 = alloca i64
+    %t1634 = load i64, i64* %arm_count.158
+    %t1635 = mul i64 %t1634, 16
+    %t1636 = call i8* @alloc(i64 %t1635)
+    %t1637 = ptrtoint i8* %t1636 to i64
+    store i64 %t1637, i64* %arms.159
     %i.160 = alloca i64
     store i64 0, i64* %i.160
     br label %L229
 L229:
-    %t1654 = load i64, i64* %i.160
-    %t1655 = load i64, i64* %arg_count.158
-    %t1657 = icmp slt i64 %t1654, %t1655
-    %t1656 = zext i1 %t1657 to i64
-    %t1658 = icmp ne i64 %t1656, 0
-    br i1 %t1658, label %L230, label %L231
+    %t1638 = load i64, i64* %i.160
+    %t1639 = load i64, i64* %arm_count.158
+    %t1641 = icmp slt i64 %t1638, %t1639
+    %t1640 = zext i1 %t1641 to i64
+    %t1642 = icmp ne i64 %t1640, 0
+    br i1 %t1642, label %L230, label %L231
 L230:
-    %arg.161 = alloca i64
-    %t1659 = load i64, i64* %node.0
-    %t1660 = load i64, i64* %i.160
-    %t1661 = add i64 %t1660, 2
-    %t1662 = call i8* @sexpr_get(i64 %t1659, i64 %t1661)
-    %t1663 = ptrtoint i8* %t1662 to i64
-    %t1664 = call i8* @sexpr_to_node(i64 %t1663)
-    %t1665 = ptrtoint i8* %t1664 to i64
-    store i64 %t1665, i64* %arg.161
-    %ap.162 = alloca i64
-    %t1666 = load i64, i64* %args.159
-    %t1667 = load i64, i64* %i.160
-    %t1668 = mul i64 %t1667, 8
-    %t1669 = add i64 %t1666, %t1668
-    store i64 %t1669, i64* %ap.162
-    %t1670 = load i64, i64* %arg.161
-    %t1671 = load i64, i64* %ap.162
-    %t1672 = inttoptr i64 %t1671 to i64*
-    store i64 %t1670, i64* %t1672
-    %t1673 = load i64, i64* %i.160
-    %t1674 = add i64 %t1673, 1
-    store i64 %t1674, i64* %i.160
+    %case_node.161 = alloca i64
+    %t1643 = load i64, i64* %cases_inner.157
+    %t1644 = add i64 %t1643, 16
+    %t1645 = inttoptr i64 %t1644 to i64*
+    %t1646 = load i64, i64* %t1645
+    %t1647 = load i64, i64* %i.160
+    %t1648 = call i64 @vec_get(i64 %t1646, i64 %t1647)
+    store i64 %t1648, i64* %case_node.161
+    %arm.162 = alloca i64
+    %t1649 = load i64, i64* %arms.159
+    %t1650 = load i64, i64* %i.160
+    %t1651 = mul i64 %t1650, 16
+    %t1652 = add i64 %t1649, %t1651
+    store i64 %t1652, i64* %arm.162
+    %t1653 = load i64, i64* %arm.162
+    %t1654 = load i64, i64* %case_node.161
+    %t1655 = call i8* @sexpr_get(i64 %t1654, i64 1)
+    %t1656 = ptrtoint i8* %t1655 to i64
+    %t1657 = call i8* @sexpr_to_pattern(i64 %t1656)
+    %t1658 = ptrtoint i8* %t1657 to i64
+    call void @match_arm_set_pattern(i64 %t1653, i64 %t1658)
+    %t1659 = load i64, i64* %arm.162
+    %t1660 = load i64, i64* %case_node.161
+    %t1661 = call i8* @sexpr_get(i64 %t1660, i64 2)
+    %t1662 = ptrtoint i8* %t1661 to i64
+    %t1663 = call i8* @sexpr_to_node(i64 %t1662)
+    %t1664 = ptrtoint i8* %t1663 to i64
+    call void @match_arm_set_body(i64 %t1659, i64 %t1664)
+    %t1665 = load i64, i64* %i.160
+    %t1666 = add i64 %t1665, 1
+    store i64 %t1666, i64* %i.160
     br label %L229
 L231:
-    %t1675 = load i64, i64* %n.156
-    %t1676 = load i64, i64* %args.159
-    call void @perform_expr_set_args(i64 %t1675, i64 %t1676)
-    %t1677 = load i64, i64* %n.156
-    %t1678 = load i64, i64* %arg_count.158
-    call void @perform_expr_set_arg_count(i64 %t1677, i64 %t1678)
-    %t1679 = load i64, i64* %n.156
-    %t1680 = inttoptr i64 %t1679 to i8*
-    ret i8* %t1680
+    %t1667 = load i64, i64* %n.155
+    %t1668 = load i64, i64* %arms.159
+    call void @match_expr_set_arms(i64 %t1667, i64 %t1668)
+    %t1669 = load i64, i64* %n.155
+    %t1670 = load i64, i64* %arm_count.158
+    call void @match_expr_set_arm_count(i64 %t1669, i64 %t1670)
+    %t1671 = load i64, i64* %n.155
+    %t1672 = inttoptr i64 %t1671 to i8*
+    ret i8* %t1672
 L228:
-    %t1681 = load i64, i64* %head.1
-    %t1682 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str42, i64 0, i64 0) to i64
-    %t1683 = call i64 @streq(i64 %t1681, i64 %t1682)
-    %t1684 = icmp ne i64 %t1683, 0
-    br i1 %t1684, label %L232, label %L234
+    %t1673 = load i64, i64* %head.1
+    %t1674 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str41, i64 0, i64 0) to i64
+    %t1675 = call i64 @streq(i64 %t1673, i64 %t1674)
+    %t1676 = icmp ne i64 %t1675, 0
+    br i1 %t1676, label %L232, label %L234
 L232:
     %n.163 = alloca i64
-    %t1685 = call i8* @handle_expr_alloc()
-    %t1686 = ptrtoint i8* %t1685 to i64
-    store i64 %t1686, i64* %n.163
-    %t1687 = load i64, i64* %n.163
-    %t1688 = load i64, i64* %node.0
-    %t1689 = call i8* @sexpr_get(i64 %t1688, i64 1)
-    %t1690 = ptrtoint i8* %t1689 to i64
-    %t1691 = call i8* @sexpr_to_node(i64 %t1690)
-    %t1692 = ptrtoint i8* %t1691 to i64
-    call void @handle_expr_set_body(i64 %t1687, i64 %t1692)
-    %ret_handler.164 = alloca i64
-    %t1693 = load i64, i64* %node.0
-    %t1694 = call i8* @sexpr_get(i64 %t1693, i64 2)
-    %t1695 = ptrtoint i8* %t1694 to i64
-    store i64 %t1695, i64* %ret_handler.164
-    %ret_bind.165 = alloca i64
-    %t1696 = load i64, i64* %ret_handler.164
-    %t1697 = call i8* @sexpr_get(i64 %t1696, i64 1)
-    %t1698 = ptrtoint i8* %t1697 to i64
-    store i64 %t1698, i64* %ret_bind.165
-    %t1699 = load i64, i64* %n.163
-    %t1700 = load i64, i64* %ret_bind.165
-    %t1701 = add i64 %t1700, 8
-    %t1702 = inttoptr i64 %t1701 to i64*
-    %t1703 = load i64, i64* %t1702
-    %t1704 = call i8* @sexpr_strdup(i64 %t1703)
-    %t1705 = ptrtoint i8* %t1704 to i64
-    call void @handle_expr_set_ret_bind(i64 %t1699, i64 %t1705)
-    %t1706 = load i64, i64* %n.163
-    %t1707 = load i64, i64* %ret_bind.165
-    %t1708 = add i64 %t1707, 8
-    %t1709 = inttoptr i64 %t1708 to i64*
-    %t1710 = load i64, i64* %t1709
-    %t1711 = call i64 @strlen(i64 %t1710)
-    call void @handle_expr_set_ret_bind_len(i64 %t1706, i64 %t1711)
-    %t1712 = load i64, i64* %n.163
-    %t1713 = load i64, i64* %ret_handler.164
-    %t1714 = call i8* @sexpr_get(i64 %t1713, i64 2)
-    %t1715 = ptrtoint i8* %t1714 to i64
-    %t1716 = call i8* @sexpr_to_node(i64 %t1715)
-    %t1717 = ptrtoint i8* %t1716 to i64
-    call void @handle_expr_set_ret_body(i64 %t1712, i64 %t1717)
-    %effect_count.166 = alloca i64
-    %t1718 = load i64, i64* %node.0
-    %t1719 = call i64 @sexpr_len(i64 %t1718)
-    %t1720 = sub i64 %t1719, 3
-    store i64 %t1720, i64* %effect_count.166
-    %cases.167 = alloca i64
-    %t1721 = load i64, i64* %effect_count.166
-    %t1722 = mul i64 %t1721, 56
-    %t1723 = call i8* @alloc(i64 %t1722)
-    %t1724 = ptrtoint i8* %t1723 to i64
-    store i64 %t1724, i64* %cases.167
-    %i.168 = alloca i64
-    store i64 0, i64* %i.168
+    %t1677 = call i8* @perform_expr_alloc()
+    %t1678 = ptrtoint i8* %t1677 to i64
+    store i64 %t1678, i64* %n.163
+    %name_node.164 = alloca i64
+    %t1679 = load i64, i64* %node.0
+    %t1680 = call i8* @sexpr_get(i64 %t1679, i64 1)
+    %t1681 = ptrtoint i8* %t1680 to i64
+    store i64 %t1681, i64* %name_node.164
+    %t1682 = load i64, i64* %n.163
+    %t1683 = load i64, i64* %name_node.164
+    %t1684 = add i64 %t1683, 8
+    %t1685 = inttoptr i64 %t1684 to i64*
+    %t1686 = load i64, i64* %t1685
+    %t1687 = call i8* @sexpr_strdup(i64 %t1686)
+    %t1688 = ptrtoint i8* %t1687 to i64
+    call void @perform_expr_set_name(i64 %t1682, i64 %t1688)
+    %t1689 = load i64, i64* %n.163
+    %t1690 = load i64, i64* %name_node.164
+    %t1691 = add i64 %t1690, 8
+    %t1692 = inttoptr i64 %t1691 to i64*
+    %t1693 = load i64, i64* %t1692
+    %t1694 = call i64 @strlen(i64 %t1693)
+    call void @perform_expr_set_name_len(i64 %t1689, i64 %t1694)
+    %arg_count.165 = alloca i64
+    %t1695 = load i64, i64* %node.0
+    %t1696 = call i64 @sexpr_len(i64 %t1695)
+    %t1697 = sub i64 %t1696, 2
+    store i64 %t1697, i64* %arg_count.165
+    %args.166 = alloca i64
+    %t1698 = load i64, i64* %arg_count.165
+    %t1699 = mul i64 %t1698, 8
+    %t1700 = call i8* @alloc(i64 %t1699)
+    %t1701 = ptrtoint i8* %t1700 to i64
+    store i64 %t1701, i64* %args.166
+    %i.167 = alloca i64
+    store i64 0, i64* %i.167
     br label %L235
 L235:
-    %t1725 = load i64, i64* %i.168
-    %t1726 = load i64, i64* %effect_count.166
-    %t1728 = icmp slt i64 %t1725, %t1726
-    %t1727 = zext i1 %t1728 to i64
-    %t1729 = icmp ne i64 %t1727, 0
-    br i1 %t1729, label %L236, label %L237
+    %t1702 = load i64, i64* %i.167
+    %t1703 = load i64, i64* %arg_count.165
+    %t1705 = icmp slt i64 %t1702, %t1703
+    %t1704 = zext i1 %t1705 to i64
+    %t1706 = icmp ne i64 %t1704, 0
+    br i1 %t1706, label %L236, label %L237
 L236:
-    %eh.169 = alloca i64
-    %t1730 = load i64, i64* %node.0
-    %t1731 = load i64, i64* %i.168
-    %t1732 = add i64 %t1731, 3
-    %t1733 = call i8* @sexpr_get(i64 %t1730, i64 %t1732)
-    %t1734 = ptrtoint i8* %t1733 to i64
-    store i64 %t1734, i64* %eh.169
-    %c.170 = alloca i64
-    %t1735 = load i64, i64* %cases.167
-    %t1736 = load i64, i64* %i.168
-    %t1737 = mul i64 %t1736, 56
-    %t1738 = add i64 %t1735, %t1737
-    store i64 %t1738, i64* %c.170
-    %ename.171 = alloca i64
-    %t1739 = load i64, i64* %eh.169
-    %t1740 = call i8* @sexpr_get(i64 %t1739, i64 1)
-    %t1741 = ptrtoint i8* %t1740 to i64
-    store i64 %t1741, i64* %ename.171
-    %cp.172 = alloca i64
-    %t1742 = load i64, i64* %c.170
-    store i64 %t1742, i64* %cp.172
-    %t1743 = load i64, i64* %ename.171
-    %t1744 = add i64 %t1743, 8
-    %t1745 = inttoptr i64 %t1744 to i64*
-    %t1746 = load i64, i64* %t1745
-    %t1747 = call i8* @sexpr_strdup(i64 %t1746)
-    %t1748 = ptrtoint i8* %t1747 to i64
-    %t1749 = load i64, i64* %cp.172
-    %t1750 = inttoptr i64 %t1749 to i64*
-    store i64 %t1748, i64* %t1750
-    %cl.173 = alloca i64
-    %t1751 = load i64, i64* %c.170
-    %t1752 = add i64 %t1751, 8
-    store i64 %t1752, i64* %cl.173
-    %t1753 = load i64, i64* %ename.171
-    %t1754 = add i64 %t1753, 8
-    %t1755 = inttoptr i64 %t1754 to i64*
-    %t1756 = load i64, i64* %t1755
-    %t1757 = call i64 @strlen(i64 %t1756)
-    %t1758 = load i64, i64* %cl.173
-    %t1759 = inttoptr i64 %t1758 to i64*
-    store i64 %t1757, i64* %t1759
-    %ebind.174 = alloca i64
-    %t1760 = load i64, i64* %eh.169
-    %t1761 = call i8* @sexpr_get(i64 %t1760, i64 2)
-    %t1762 = ptrtoint i8* %t1761 to i64
-    store i64 %t1762, i64* %ebind.174
-    %bp.175 = alloca i64
-    %t1763 = load i64, i64* %c.170
-    %t1764 = add i64 %t1763, 16
-    store i64 %t1764, i64* %bp.175
-    %t1765 = load i64, i64* %ebind.174
-    %t1766 = add i64 %t1765, 8
-    %t1767 = inttoptr i64 %t1766 to i64*
-    %t1768 = load i64, i64* %t1767
-    %t1769 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str797, i64 0, i64 0) to i64
-    %t1770 = call i64 @streq(i64 %t1768, i64 %t1769)
-    %t1771 = icmp ne i64 %t1770, 0
-    br i1 %t1771, label %L238, label %L239
+    %arg.168 = alloca i64
+    %t1707 = load i64, i64* %node.0
+    %t1708 = load i64, i64* %i.167
+    %t1709 = add i64 %t1708, 2
+    %t1710 = call i8* @sexpr_get(i64 %t1707, i64 %t1709)
+    %t1711 = ptrtoint i8* %t1710 to i64
+    %t1712 = call i8* @sexpr_to_node(i64 %t1711)
+    %t1713 = ptrtoint i8* %t1712 to i64
+    store i64 %t1713, i64* %arg.168
+    %ap.169 = alloca i64
+    %t1714 = load i64, i64* %args.166
+    %t1715 = load i64, i64* %i.167
+    %t1716 = mul i64 %t1715, 8
+    %t1717 = add i64 %t1714, %t1716
+    store i64 %t1717, i64* %ap.169
+    %t1718 = load i64, i64* %arg.168
+    %t1719 = load i64, i64* %ap.169
+    %t1720 = inttoptr i64 %t1719 to i64*
+    store i64 %t1718, i64* %t1720
+    %t1721 = load i64, i64* %i.167
+    %t1722 = add i64 %t1721, 1
+    store i64 %t1722, i64* %i.167
+    br label %L235
+L237:
+    %t1723 = load i64, i64* %n.163
+    %t1724 = load i64, i64* %args.166
+    call void @perform_expr_set_args(i64 %t1723, i64 %t1724)
+    %t1725 = load i64, i64* %n.163
+    %t1726 = load i64, i64* %arg_count.165
+    call void @perform_expr_set_arg_count(i64 %t1725, i64 %t1726)
+    %t1727 = load i64, i64* %n.163
+    %t1728 = inttoptr i64 %t1727 to i8*
+    ret i8* %t1728
+L234:
+    %t1729 = load i64, i64* %head.1
+    %t1730 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str42, i64 0, i64 0) to i64
+    %t1731 = call i64 @streq(i64 %t1729, i64 %t1730)
+    %t1732 = icmp ne i64 %t1731, 0
+    br i1 %t1732, label %L238, label %L240
 L238:
-    %t1772 = load i64, i64* %bp.175
-    %t1773 = inttoptr i64 %t1772 to i64*
-    store i64 0, i64* %t1773
-    %bl.176 = alloca i64
-    %t1774 = load i64, i64* %c.170
-    %t1775 = add i64 %t1774, 24
-    store i64 %t1775, i64* %bl.176
-    %t1776 = load i64, i64* %bl.176
-    %t1777 = inttoptr i64 %t1776 to i64*
-    store i64 0, i64* %t1777
-    br label %L240
-L239:
-    %t1778 = load i64, i64* %ebind.174
-    %t1779 = add i64 %t1778, 8
-    %t1780 = inttoptr i64 %t1779 to i64*
-    %t1781 = load i64, i64* %t1780
-    %t1782 = call i8* @sexpr_strdup(i64 %t1781)
-    %t1783 = ptrtoint i8* %t1782 to i64
-    %t1784 = load i64, i64* %bp.175
-    %t1785 = inttoptr i64 %t1784 to i64*
-    store i64 %t1783, i64* %t1785
-    %bl.177 = alloca i64
-    %t1786 = load i64, i64* %c.170
-    %t1787 = add i64 %t1786, 24
-    store i64 %t1787, i64* %bl.177
-    %t1788 = load i64, i64* %ebind.174
-    %t1789 = add i64 %t1788, 8
-    %t1790 = inttoptr i64 %t1789 to i64*
-    %t1791 = load i64, i64* %t1790
-    %t1792 = call i64 @strlen(i64 %t1791)
-    %t1793 = load i64, i64* %bl.177
-    %t1794 = inttoptr i64 %t1793 to i64*
-    store i64 %t1792, i64* %t1794
-    br label %L240
-L240:
-    %ek.178 = alloca i64
-    %t1795 = load i64, i64* %eh.169
-    %t1796 = call i8* @sexpr_get(i64 %t1795, i64 3)
-    %t1797 = ptrtoint i8* %t1796 to i64
-    store i64 %t1797, i64* %ek.178
-    %kp.179 = alloca i64
-    %t1798 = load i64, i64* %c.170
-    %t1799 = add i64 %t1798, 32
-    store i64 %t1799, i64* %kp.179
-    %t1800 = load i64, i64* %ek.178
-    %t1801 = add i64 %t1800, 8
-    %t1802 = inttoptr i64 %t1801 to i64*
-    %t1803 = load i64, i64* %t1802
-    %t1804 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str797, i64 0, i64 0) to i64
-    %t1805 = call i64 @streq(i64 %t1803, i64 %t1804)
-    %t1806 = icmp ne i64 %t1805, 0
-    br i1 %t1806, label %L241, label %L242
+    %n.170 = alloca i64
+    %t1733 = call i8* @handle_expr_alloc()
+    %t1734 = ptrtoint i8* %t1733 to i64
+    store i64 %t1734, i64* %n.170
+    %t1735 = load i64, i64* %n.170
+    %t1736 = load i64, i64* %node.0
+    %t1737 = call i8* @sexpr_get(i64 %t1736, i64 1)
+    %t1738 = ptrtoint i8* %t1737 to i64
+    %t1739 = call i8* @sexpr_to_node(i64 %t1738)
+    %t1740 = ptrtoint i8* %t1739 to i64
+    call void @handle_expr_set_body(i64 %t1735, i64 %t1740)
+    %ret_handler.171 = alloca i64
+    %t1741 = load i64, i64* %node.0
+    %t1742 = call i8* @sexpr_get(i64 %t1741, i64 2)
+    %t1743 = ptrtoint i8* %t1742 to i64
+    store i64 %t1743, i64* %ret_handler.171
+    %ret_bind.172 = alloca i64
+    %t1744 = load i64, i64* %ret_handler.171
+    %t1745 = call i8* @sexpr_get(i64 %t1744, i64 1)
+    %t1746 = ptrtoint i8* %t1745 to i64
+    store i64 %t1746, i64* %ret_bind.172
+    %t1747 = load i64, i64* %n.170
+    %t1748 = load i64, i64* %ret_bind.172
+    %t1749 = add i64 %t1748, 8
+    %t1750 = inttoptr i64 %t1749 to i64*
+    %t1751 = load i64, i64* %t1750
+    %t1752 = call i8* @sexpr_strdup(i64 %t1751)
+    %t1753 = ptrtoint i8* %t1752 to i64
+    call void @handle_expr_set_ret_bind(i64 %t1747, i64 %t1753)
+    %t1754 = load i64, i64* %n.170
+    %t1755 = load i64, i64* %ret_bind.172
+    %t1756 = add i64 %t1755, 8
+    %t1757 = inttoptr i64 %t1756 to i64*
+    %t1758 = load i64, i64* %t1757
+    %t1759 = call i64 @strlen(i64 %t1758)
+    call void @handle_expr_set_ret_bind_len(i64 %t1754, i64 %t1759)
+    %t1760 = load i64, i64* %n.170
+    %t1761 = load i64, i64* %ret_handler.171
+    %t1762 = call i8* @sexpr_get(i64 %t1761, i64 2)
+    %t1763 = ptrtoint i8* %t1762 to i64
+    %t1764 = call i8* @sexpr_to_node(i64 %t1763)
+    %t1765 = ptrtoint i8* %t1764 to i64
+    call void @handle_expr_set_ret_body(i64 %t1760, i64 %t1765)
+    %effect_count.173 = alloca i64
+    %t1766 = load i64, i64* %node.0
+    %t1767 = call i64 @sexpr_len(i64 %t1766)
+    %t1768 = sub i64 %t1767, 3
+    store i64 %t1768, i64* %effect_count.173
+    %cases.174 = alloca i64
+    %t1769 = load i64, i64* %effect_count.173
+    %t1770 = mul i64 %t1769, 56
+    %t1771 = call i8* @alloc(i64 %t1770)
+    %t1772 = ptrtoint i8* %t1771 to i64
+    store i64 %t1772, i64* %cases.174
+    %i.175 = alloca i64
+    store i64 0, i64* %i.175
+    br label %L241
 L241:
-    %t1807 = load i64, i64* %kp.179
-    %t1808 = inttoptr i64 %t1807 to i64*
-    store i64 0, i64* %t1808
-    %kl.180 = alloca i64
-    %t1809 = load i64, i64* %c.170
-    %t1810 = add i64 %t1809, 40
-    store i64 %t1810, i64* %kl.180
-    %t1811 = load i64, i64* %kl.180
-    %t1812 = inttoptr i64 %t1811 to i64*
-    store i64 0, i64* %t1812
-    br label %L243
+    %t1773 = load i64, i64* %i.175
+    %t1774 = load i64, i64* %effect_count.173
+    %t1776 = icmp slt i64 %t1773, %t1774
+    %t1775 = zext i1 %t1776 to i64
+    %t1777 = icmp ne i64 %t1775, 0
+    br i1 %t1777, label %L242, label %L243
 L242:
-    %t1813 = load i64, i64* %ek.178
+    %eh.176 = alloca i64
+    %t1778 = load i64, i64* %node.0
+    %t1779 = load i64, i64* %i.175
+    %t1780 = add i64 %t1779, 3
+    %t1781 = call i8* @sexpr_get(i64 %t1778, i64 %t1780)
+    %t1782 = ptrtoint i8* %t1781 to i64
+    store i64 %t1782, i64* %eh.176
+    %c.177 = alloca i64
+    %t1783 = load i64, i64* %cases.174
+    %t1784 = load i64, i64* %i.175
+    %t1785 = mul i64 %t1784, 56
+    %t1786 = add i64 %t1783, %t1785
+    store i64 %t1786, i64* %c.177
+    %ename.178 = alloca i64
+    %t1787 = load i64, i64* %eh.176
+    %t1788 = call i8* @sexpr_get(i64 %t1787, i64 1)
+    %t1789 = ptrtoint i8* %t1788 to i64
+    store i64 %t1789, i64* %ename.178
+    %cp.179 = alloca i64
+    %t1790 = load i64, i64* %c.177
+    store i64 %t1790, i64* %cp.179
+    %t1791 = load i64, i64* %ename.178
+    %t1792 = add i64 %t1791, 8
+    %t1793 = inttoptr i64 %t1792 to i64*
+    %t1794 = load i64, i64* %t1793
+    %t1795 = call i8* @sexpr_strdup(i64 %t1794)
+    %t1796 = ptrtoint i8* %t1795 to i64
+    %t1797 = load i64, i64* %cp.179
+    %t1798 = inttoptr i64 %t1797 to i64*
+    store i64 %t1796, i64* %t1798
+    %cl.180 = alloca i64
+    %t1799 = load i64, i64* %c.177
+    %t1800 = add i64 %t1799, 8
+    store i64 %t1800, i64* %cl.180
+    %t1801 = load i64, i64* %ename.178
+    %t1802 = add i64 %t1801, 8
+    %t1803 = inttoptr i64 %t1802 to i64*
+    %t1804 = load i64, i64* %t1803
+    %t1805 = call i64 @strlen(i64 %t1804)
+    %t1806 = load i64, i64* %cl.180
+    %t1807 = inttoptr i64 %t1806 to i64*
+    store i64 %t1805, i64* %t1807
+    %ebind.181 = alloca i64
+    %t1808 = load i64, i64* %eh.176
+    %t1809 = call i8* @sexpr_get(i64 %t1808, i64 2)
+    %t1810 = ptrtoint i8* %t1809 to i64
+    store i64 %t1810, i64* %ebind.181
+    %bp.182 = alloca i64
+    %t1811 = load i64, i64* %c.177
+    %t1812 = add i64 %t1811, 16
+    store i64 %t1812, i64* %bp.182
+    %t1813 = load i64, i64* %ebind.181
     %t1814 = add i64 %t1813, 8
     %t1815 = inttoptr i64 %t1814 to i64*
     %t1816 = load i64, i64* %t1815
-    %t1817 = call i8* @sexpr_strdup(i64 %t1816)
-    %t1818 = ptrtoint i8* %t1817 to i64
-    %t1819 = load i64, i64* %kp.179
-    %t1820 = inttoptr i64 %t1819 to i64*
-    store i64 %t1818, i64* %t1820
-    %kl.181 = alloca i64
-    %t1821 = load i64, i64* %c.170
-    %t1822 = add i64 %t1821, 40
-    store i64 %t1822, i64* %kl.181
-    %t1823 = load i64, i64* %ek.178
-    %t1824 = add i64 %t1823, 8
-    %t1825 = inttoptr i64 %t1824 to i64*
-    %t1826 = load i64, i64* %t1825
-    %t1827 = call i64 @strlen(i64 %t1826)
-    %t1828 = load i64, i64* %kl.181
-    %t1829 = inttoptr i64 %t1828 to i64*
-    store i64 %t1827, i64* %t1829
-    br label %L243
-L243:
-    %bodyp.182 = alloca i64
-    %t1830 = load i64, i64* %c.170
-    %t1831 = add i64 %t1830, 48
-    store i64 %t1831, i64* %bodyp.182
-    %t1832 = load i64, i64* %eh.169
-    %t1833 = call i8* @sexpr_get(i64 %t1832, i64 4)
-    %t1834 = ptrtoint i8* %t1833 to i64
-    %t1835 = call i8* @sexpr_to_node(i64 %t1834)
-    %t1836 = ptrtoint i8* %t1835 to i64
-    %t1837 = load i64, i64* %bodyp.182
-    %t1838 = inttoptr i64 %t1837 to i64*
-    store i64 %t1836, i64* %t1838
-    %t1839 = load i64, i64* %i.168
-    %t1840 = add i64 %t1839, 1
-    store i64 %t1840, i64* %i.168
-    br label %L235
-L237:
-    %t1841 = load i64, i64* %n.163
-    %t1842 = load i64, i64* %cases.167
-    call void @handle_expr_set_cases(i64 %t1841, i64 %t1842)
-    %t1843 = load i64, i64* %n.163
-    %t1844 = load i64, i64* %effect_count.166
-    call void @handle_expr_set_case_count(i64 %t1843, i64 %t1844)
-    %t1845 = load i64, i64* %n.163
-    %t1846 = inttoptr i64 %t1845 to i8*
-    ret i8* %t1846
-L234:
-    %t1847 = load i64, i64* %head.1
-    %t1848 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str44, i64 0, i64 0) to i64
-    %t1849 = call i64 @streq(i64 %t1847, i64 %t1848)
-    %t1850 = icmp ne i64 %t1849, 0
-    br i1 %t1850, label %L244, label %L246
+    %t1817 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str798, i64 0, i64 0) to i64
+    %t1818 = call i64 @streq(i64 %t1816, i64 %t1817)
+    %t1819 = icmp ne i64 %t1818, 0
+    br i1 %t1819, label %L244, label %L245
 L244:
-    %n.183 = alloca i64
-    %t1851 = call i8* @resume_expr_alloc()
-    %t1852 = ptrtoint i8* %t1851 to i64
-    store i64 %t1852, i64* %n.183
-    %t1853 = load i64, i64* %n.183
-    %t1854 = load i64, i64* %node.0
-    %t1855 = call i8* @sexpr_get(i64 %t1854, i64 1)
-    %t1856 = ptrtoint i8* %t1855 to i64
-    %t1857 = call i8* @sexpr_to_node(i64 %t1856)
-    %t1858 = ptrtoint i8* %t1857 to i64
-    call void @resume_expr_set_k(i64 %t1853, i64 %t1858)
-    %t1859 = load i64, i64* %node.0
-    %t1860 = call i64 @sexpr_len(i64 %t1859)
-    %t1862 = icmp sgt i64 %t1860, 2
-    %t1861 = zext i1 %t1862 to i64
-    %t1863 = icmp ne i64 %t1861, 0
-    br i1 %t1863, label %L247, label %L248
+    %t1820 = load i64, i64* %bp.182
+    %t1821 = inttoptr i64 %t1820 to i64*
+    store i64 0, i64* %t1821
+    %bl.183 = alloca i64
+    %t1822 = load i64, i64* %c.177
+    %t1823 = add i64 %t1822, 24
+    store i64 %t1823, i64* %bl.183
+    %t1824 = load i64, i64* %bl.183
+    %t1825 = inttoptr i64 %t1824 to i64*
+    store i64 0, i64* %t1825
+    br label %L246
+L245:
+    %t1826 = load i64, i64* %ebind.181
+    %t1827 = add i64 %t1826, 8
+    %t1828 = inttoptr i64 %t1827 to i64*
+    %t1829 = load i64, i64* %t1828
+    %t1830 = call i8* @sexpr_strdup(i64 %t1829)
+    %t1831 = ptrtoint i8* %t1830 to i64
+    %t1832 = load i64, i64* %bp.182
+    %t1833 = inttoptr i64 %t1832 to i64*
+    store i64 %t1831, i64* %t1833
+    %bl.184 = alloca i64
+    %t1834 = load i64, i64* %c.177
+    %t1835 = add i64 %t1834, 24
+    store i64 %t1835, i64* %bl.184
+    %t1836 = load i64, i64* %ebind.181
+    %t1837 = add i64 %t1836, 8
+    %t1838 = inttoptr i64 %t1837 to i64*
+    %t1839 = load i64, i64* %t1838
+    %t1840 = call i64 @strlen(i64 %t1839)
+    %t1841 = load i64, i64* %bl.184
+    %t1842 = inttoptr i64 %t1841 to i64*
+    store i64 %t1840, i64* %t1842
+    br label %L246
+L246:
+    %ek.185 = alloca i64
+    %t1843 = load i64, i64* %eh.176
+    %t1844 = call i8* @sexpr_get(i64 %t1843, i64 3)
+    %t1845 = ptrtoint i8* %t1844 to i64
+    store i64 %t1845, i64* %ek.185
+    %kp.186 = alloca i64
+    %t1846 = load i64, i64* %c.177
+    %t1847 = add i64 %t1846, 32
+    store i64 %t1847, i64* %kp.186
+    %t1848 = load i64, i64* %ek.185
+    %t1849 = add i64 %t1848, 8
+    %t1850 = inttoptr i64 %t1849 to i64*
+    %t1851 = load i64, i64* %t1850
+    %t1852 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str798, i64 0, i64 0) to i64
+    %t1853 = call i64 @streq(i64 %t1851, i64 %t1852)
+    %t1854 = icmp ne i64 %t1853, 0
+    br i1 %t1854, label %L247, label %L248
 L247:
-    %t1864 = load i64, i64* %n.183
-    %t1865 = load i64, i64* %node.0
-    %t1866 = call i8* @sexpr_get(i64 %t1865, i64 2)
-    %t1867 = ptrtoint i8* %t1866 to i64
-    %t1868 = call i8* @sexpr_to_node(i64 %t1867)
-    %t1869 = ptrtoint i8* %t1868 to i64
-    call void @resume_expr_set_value(i64 %t1864, i64 %t1869)
+    %t1855 = load i64, i64* %kp.186
+    %t1856 = inttoptr i64 %t1855 to i64*
+    store i64 0, i64* %t1856
+    %kl.187 = alloca i64
+    %t1857 = load i64, i64* %c.177
+    %t1858 = add i64 %t1857, 40
+    store i64 %t1858, i64* %kl.187
+    %t1859 = load i64, i64* %kl.187
+    %t1860 = inttoptr i64 %t1859 to i64*
+    store i64 0, i64* %t1860
     br label %L249
 L248:
-    %t1870 = load i64, i64* %n.183
-    call void @resume_expr_set_value(i64 %t1870, i64 0)
+    %t1861 = load i64, i64* %ek.185
+    %t1862 = add i64 %t1861, 8
+    %t1863 = inttoptr i64 %t1862 to i64*
+    %t1864 = load i64, i64* %t1863
+    %t1865 = call i8* @sexpr_strdup(i64 %t1864)
+    %t1866 = ptrtoint i8* %t1865 to i64
+    %t1867 = load i64, i64* %kp.186
+    %t1868 = inttoptr i64 %t1867 to i64*
+    store i64 %t1866, i64* %t1868
+    %kl.188 = alloca i64
+    %t1869 = load i64, i64* %c.177
+    %t1870 = add i64 %t1869, 40
+    store i64 %t1870, i64* %kl.188
+    %t1871 = load i64, i64* %ek.185
+    %t1872 = add i64 %t1871, 8
+    %t1873 = inttoptr i64 %t1872 to i64*
+    %t1874 = load i64, i64* %t1873
+    %t1875 = call i64 @strlen(i64 %t1874)
+    %t1876 = load i64, i64* %kl.188
+    %t1877 = inttoptr i64 %t1876 to i64*
+    store i64 %t1875, i64* %t1877
     br label %L249
 L249:
-    %t1871 = load i64, i64* %n.183
-    %t1872 = inttoptr i64 %t1871 to i8*
-    ret i8* %t1872
-L246:
-    %t1873 = load i64, i64* %head.1
-    %t1874 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str838, i64 0, i64 0) to i64
-    %t1875 = call i64 @streq(i64 %t1873, i64 %t1874)
-    %t1876 = icmp ne i64 %t1875, 0
-    br i1 %t1876, label %L250, label %L252
+    %bodyp.189 = alloca i64
+    %t1878 = load i64, i64* %c.177
+    %t1879 = add i64 %t1878, 48
+    store i64 %t1879, i64* %bodyp.189
+    %t1880 = load i64, i64* %eh.176
+    %t1881 = call i8* @sexpr_get(i64 %t1880, i64 4)
+    %t1882 = ptrtoint i8* %t1881 to i64
+    %t1883 = call i8* @sexpr_to_node(i64 %t1882)
+    %t1884 = ptrtoint i8* %t1883 to i64
+    %t1885 = load i64, i64* %bodyp.189
+    %t1886 = inttoptr i64 %t1885 to i64*
+    store i64 %t1884, i64* %t1886
+    %t1887 = load i64, i64* %i.175
+    %t1888 = add i64 %t1887, 1
+    store i64 %t1888, i64* %i.175
+    br label %L241
+L243:
+    %t1889 = load i64, i64* %n.170
+    %t1890 = load i64, i64* %cases.174
+    call void @handle_expr_set_cases(i64 %t1889, i64 %t1890)
+    %t1891 = load i64, i64* %n.170
+    %t1892 = load i64, i64* %effect_count.173
+    call void @handle_expr_set_case_count(i64 %t1891, i64 %t1892)
+    %t1893 = load i64, i64* %n.170
+    %t1894 = inttoptr i64 %t1893 to i8*
+    ret i8* %t1894
+L240:
+    %t1895 = load i64, i64* %head.1
+    %t1896 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str44, i64 0, i64 0) to i64
+    %t1897 = call i64 @streq(i64 %t1895, i64 %t1896)
+    %t1898 = icmp ne i64 %t1897, 0
+    br i1 %t1898, label %L250, label %L252
 L250:
-    %n.184 = alloca i64
-    %t1877 = call i8* @reader_expr_alloc()
-    %t1878 = ptrtoint i8* %t1877 to i64
-    store i64 %t1878, i64* %n.184
-    %name_node.185 = alloca i64
-    %t1879 = load i64, i64* %node.0
-    %t1880 = call i8* @sexpr_get(i64 %t1879, i64 1)
-    %t1881 = ptrtoint i8* %t1880 to i64
-    store i64 %t1881, i64* %name_node.185
-    %t1882 = load i64, i64* %n.184
-    %t1883 = load i64, i64* %name_node.185
-    %t1884 = add i64 %t1883, 8
-    %t1885 = inttoptr i64 %t1884 to i64*
-    %t1886 = load i64, i64* %t1885
-    %t1887 = call i8* @sexpr_strdup(i64 %t1886)
-    %t1888 = ptrtoint i8* %t1887 to i64
-    call void @reader_expr_set_name(i64 %t1882, i64 %t1888)
-    %t1889 = load i64, i64* %n.184
-    %t1890 = load i64, i64* %name_node.185
-    %t1891 = add i64 %t1890, 8
-    %t1892 = inttoptr i64 %t1891 to i64*
-    %t1893 = load i64, i64* %t1892
-    %t1894 = call i64 @strlen(i64 %t1893)
-    call void @reader_expr_set_name_len(i64 %t1889, i64 %t1894)
-    %content_node.186 = alloca i64
-    %t1895 = load i64, i64* %node.0
-    %t1896 = call i8* @sexpr_get(i64 %t1895, i64 2)
-    %t1897 = ptrtoint i8* %t1896 to i64
-    store i64 %t1897, i64* %content_node.186
-    %content.187 = alloca i64
-    %t1898 = load i64, i64* %content_node.186
-    %t1899 = add i64 %t1898, 8
-    %t1900 = inttoptr i64 %t1899 to i64*
-    %t1901 = load i64, i64* %t1900
-    %t1902 = call i8* @sexpr_parse_string(i64 %t1901)
-    %t1903 = ptrtoint i8* %t1902 to i64
-    store i64 %t1903, i64* %content.187
-    %t1904 = load i64, i64* %n.184
-    %t1905 = load i64, i64* %content.187
-    call void @reader_expr_set_content(i64 %t1904, i64 %t1905)
-    %t1906 = load i64, i64* %n.184
-    %t1907 = load i64, i64* %content.187
-    %t1908 = call i64 @strlen(i64 %t1907)
-    call void @reader_expr_set_content_len(i64 %t1906, i64 %t1908)
-    %t1909 = load i64, i64* %n.184
-    %t1910 = inttoptr i64 %t1909 to i8*
-    ret i8* %t1910
+    %n.190 = alloca i64
+    %t1899 = call i8* @resume_expr_alloc()
+    %t1900 = ptrtoint i8* %t1899 to i64
+    store i64 %t1900, i64* %n.190
+    %t1901 = load i64, i64* %n.190
+    %t1902 = load i64, i64* %node.0
+    %t1903 = call i8* @sexpr_get(i64 %t1902, i64 1)
+    %t1904 = ptrtoint i8* %t1903 to i64
+    %t1905 = call i8* @sexpr_to_node(i64 %t1904)
+    %t1906 = ptrtoint i8* %t1905 to i64
+    call void @resume_expr_set_k(i64 %t1901, i64 %t1906)
+    %t1907 = load i64, i64* %node.0
+    %t1908 = call i64 @sexpr_len(i64 %t1907)
+    %t1910 = icmp sgt i64 %t1908, 2
+    %t1909 = zext i1 %t1910 to i64
+    %t1911 = icmp ne i64 %t1909, 0
+    br i1 %t1911, label %L253, label %L254
+L253:
+    %t1912 = load i64, i64* %n.190
+    %t1913 = load i64, i64* %node.0
+    %t1914 = call i8* @sexpr_get(i64 %t1913, i64 2)
+    %t1915 = ptrtoint i8* %t1914 to i64
+    %t1916 = call i8* @sexpr_to_node(i64 %t1915)
+    %t1917 = ptrtoint i8* %t1916 to i64
+    call void @resume_expr_set_value(i64 %t1912, i64 %t1917)
+    br label %L255
+L254:
+    %t1918 = load i64, i64* %n.190
+    call void @resume_expr_set_value(i64 %t1918, i64 0)
+    br label %L255
+L255:
+    %t1919 = load i64, i64* %n.190
+    %t1920 = inttoptr i64 %t1919 to i8*
+    ret i8* %t1920
 L252:
-    %t1911 = ptrtoint i8* getelementptr inbounds ([40 x i8], [40 x i8]* @.str839, i64 0, i64 0) to i64
-    call void @eprint(i64 %t1911)
-    %t1912 = load i64, i64* %head.1
-    call void @eprintln(i64 %t1912)
-    %t1913 = inttoptr i64 0 to i8*
-    ret i8* %t1913
+    %t1921 = load i64, i64* %head.1
+    %t1922 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str840, i64 0, i64 0) to i64
+    %t1923 = call i64 @streq(i64 %t1921, i64 %t1922)
+    %t1924 = icmp ne i64 %t1923, 0
+    br i1 %t1924, label %L256, label %L258
+L256:
+    %n.191 = alloca i64
+    %t1925 = call i8* @reader_expr_alloc()
+    %t1926 = ptrtoint i8* %t1925 to i64
+    store i64 %t1926, i64* %n.191
+    %name_node.192 = alloca i64
+    %t1927 = load i64, i64* %node.0
+    %t1928 = call i8* @sexpr_get(i64 %t1927, i64 1)
+    %t1929 = ptrtoint i8* %t1928 to i64
+    store i64 %t1929, i64* %name_node.192
+    %t1930 = load i64, i64* %n.191
+    %t1931 = load i64, i64* %name_node.192
+    %t1932 = add i64 %t1931, 8
+    %t1933 = inttoptr i64 %t1932 to i64*
+    %t1934 = load i64, i64* %t1933
+    %t1935 = call i8* @sexpr_strdup(i64 %t1934)
+    %t1936 = ptrtoint i8* %t1935 to i64
+    call void @reader_expr_set_name(i64 %t1930, i64 %t1936)
+    %t1937 = load i64, i64* %n.191
+    %t1938 = load i64, i64* %name_node.192
+    %t1939 = add i64 %t1938, 8
+    %t1940 = inttoptr i64 %t1939 to i64*
+    %t1941 = load i64, i64* %t1940
+    %t1942 = call i64 @strlen(i64 %t1941)
+    call void @reader_expr_set_name_len(i64 %t1937, i64 %t1942)
+    %content_node.193 = alloca i64
+    %t1943 = load i64, i64* %node.0
+    %t1944 = call i8* @sexpr_get(i64 %t1943, i64 2)
+    %t1945 = ptrtoint i8* %t1944 to i64
+    store i64 %t1945, i64* %content_node.193
+    %content.194 = alloca i64
+    %t1946 = load i64, i64* %content_node.193
+    %t1947 = add i64 %t1946, 8
+    %t1948 = inttoptr i64 %t1947 to i64*
+    %t1949 = load i64, i64* %t1948
+    %t1950 = call i8* @sexpr_parse_string(i64 %t1949)
+    %t1951 = ptrtoint i8* %t1950 to i64
+    store i64 %t1951, i64* %content.194
+    %t1952 = load i64, i64* %n.191
+    %t1953 = load i64, i64* %content.194
+    call void @reader_expr_set_content(i64 %t1952, i64 %t1953)
+    %t1954 = load i64, i64* %n.191
+    %t1955 = load i64, i64* %content.194
+    %t1956 = call i64 @strlen(i64 %t1955)
+    call void @reader_expr_set_content_len(i64 %t1954, i64 %t1956)
+    %t1957 = load i64, i64* %n.191
+    %t1958 = inttoptr i64 %t1957 to i8*
+    ret i8* %t1958
+L258:
+    %t1959 = ptrtoint i8* getelementptr inbounds ([40 x i8], [40 x i8]* @.str841, i64 0, i64 0) to i64
+    call void @eprint(i64 %t1959)
+    %t1960 = load i64, i64* %head.1
+    call void @eprintln(i64 %t1960)
+    %t1961 = inttoptr i64 0 to i8*
+    ret i8* %t1961
 }
 
 define i8* @sexpr_to_program(i64 %node.arg) {
@@ -62774,7 +63168,7 @@ L.entry:
     %t6 = icmp ne i64 %t4, 0
     br i1 %t6, label %L0, label %L2
 L0:
-    %t7 = ptrtoint i8* getelementptr inbounds ([30 x i8], [30 x i8]* @.str840, i64 0, i64 0) to i64
+    %t7 = ptrtoint i8* getelementptr inbounds ([30 x i8], [30 x i8]* @.str842, i64 0, i64 0) to i64
     call void @eprintln(i64 %t7)
     %t8 = inttoptr i64 0 to i8*
     ret i8* %t8
@@ -62793,7 +63187,7 @@ L2:
     br i1 %t16, label %L6, label %L7
 L6:
     %t17 = load i64, i64* %head.1
-    %t18 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str841, i64 0, i64 0) to i64
+    %t18 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str843, i64 0, i64 0) to i64
     %t19 = call i64 @streq(i64 %t17, i64 %t18)
     %t21 = icmp eq i64 %t19, 0
     %t20 = zext i1 %t21 to i64
@@ -62806,7 +63200,7 @@ L7:
     %t25 = icmp ne i64 %t24, 0
     br i1 %t25, label %L3, label %L5
 L3:
-    %t26 = ptrtoint i8* getelementptr inbounds ([30 x i8], [30 x i8]* @.str840, i64 0, i64 0) to i64
+    %t26 = ptrtoint i8* getelementptr inbounds ([30 x i8], [30 x i8]* @.str842, i64 0, i64 0) to i64
     call void @eprintln(i64 %t26)
     %t27 = inttoptr i64 0 to i8*
     ret i8* %t27
@@ -62852,7 +63246,7 @@ L11:
     br i1 %t52, label %L17, label %L18
 L17:
     %t53 = load i64, i64* %first_head.5
-    %t54 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str842, i64 0, i64 0) to i64
+    %t54 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str844, i64 0, i64 0) to i64
     %t55 = call i64 @streq(i64 %t53, i64 %t54)
     %t56 = icmp ne i64 %t55, 0
     %t57 = zext i1 %t56 to i64
@@ -62998,7 +63392,7 @@ L.entry:
     %t9 = icmp ne i64 %t7, 0
     br i1 %t9, label %L0, label %L2
 L0:
-    %t10 = ptrtoint i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str843, i64 0, i64 0) to i64
+    %t10 = ptrtoint i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str845, i64 0, i64 0) to i64
     call void @eprintln(i64 %t10)
     %t11 = inttoptr i64 0 to i8*
     ret i8* %t11
@@ -63030,7 +63424,7 @@ L.entry:
     %t9 = icmp ne i64 %t7, 0
     br i1 %t9, label %L0, label %L2
 L0:
-    %t10 = ptrtoint i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str843, i64 0, i64 0) to i64
+    %t10 = ptrtoint i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str845, i64 0, i64 0) to i64
     call void @eprintln(i64 %t10)
     %t11 = inttoptr i64 0 to i8*
     ret i8* %t11
@@ -63246,7 +63640,7 @@ L.entry:
     %t5 = icmp ne i64 %t3, 0
     br i1 %t5, label %L0, label %L2
 L0:
-    %t6 = ptrtoint i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str844, i64 0, i64 0) to i64
+    %t6 = ptrtoint i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str846, i64 0, i64 0) to i64
     call void @eprint(i64 %t6)
     %t7 = load i64, i64* %path.0
     call void @eprintln(i64 %t7)
@@ -63272,7 +63666,7 @@ L2:
     %t20 = icmp ne i64 %t18, 0
     br i1 %t20, label %L3, label %L5
 L3:
-    %t21 = ptrtoint i8* getelementptr inbounds ([24 x i8], [24 x i8]* @.str845, i64 0, i64 0) to i64
+    %t21 = ptrtoint i8* getelementptr inbounds ([24 x i8], [24 x i8]* @.str847, i64 0, i64 0) to i64
     call void @eprintln(i64 %t21)
     %t22 = inttoptr i64 0 to i8*
     ret i8* %t22
@@ -63365,8 +63759,75 @@ L2:
 @add_reader_name = global i64 0
 @add_reader_file = global i64 0
 @self_kernel = global i64 ptrtoint (i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64)
+@kernel_modules = global [256 x i8*] [i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null, i8* null]
+define i64 @has_kernel_module(i64 %path.arg, i64 %path_len.arg) {
+L.entry:
+    %path.0 = alloca i64
+    store i64 %path.arg, i64* %path.0
+    %path_len.1 = alloca i64
+    store i64 %path_len.arg, i64* %path_len.1
+    %i.2 = alloca i64
+    store i64 0, i64* %i.2
+    br label %L0
+L0:
+    %t0 = load i64, i64* %i.2
+    %t2 = icmp slt i64 %t0, 256
+    %t1 = zext i1 %t2 to i64
+    %t3 = icmp ne i64 %t1, 0
+    br i1 %t3, label %L1, label %L2
+L1:
+    %mod.3 = alloca i64
+    %t4 = load i64, i64* %i.2
+    %t5 = getelementptr [256 x i8*], [256 x i8*]* @kernel_modules, i64 0, i64 0
+    %t6 = getelementptr i8*, i8** %t5, i64 %t4
+    %t7 = load i8*, i8** %t6
+    %t8 = ptrtoint i8* %t7 to i64
+    store i64 %t8, i64* %mod.3
+    %t9 = load i64, i64* %mod.3
+    %t11 = icmp eq i64 %t9, 0
+    %t10 = zext i1 %t11 to i64
+    %t12 = icmp ne i64 %t10, 0
+    br i1 %t12, label %L3, label %L5
+L3:
+    ret i64 0
+L5:
+    %t13 = alloca i64
+    store i64 0, i64* %t13
+    %t14 = load i64, i64* %mod.3
+    %t15 = call i64 @strlen(i64 %t14)
+    %t16 = load i64, i64* %path_len.1
+    %t18 = icmp eq i64 %t15, %t16
+    %t17 = zext i1 %t18 to i64
+    %t19 = icmp ne i64 %t17, 0
+    br i1 %t19, label %L9, label %L10
+L9:
+    %t20 = load i64, i64* %mod.3
+    %t21 = load i64, i64* %path.0
+    %t22 = load i64, i64* %path_len.1
+    %t23 = call i1 @memcmp(i64 %t20, i64 %t21, i64 %t22)
+    %t24 = zext i1 %t23 to i64
+    %t25 = icmp ne i64 %t24, 0
+    %t26 = zext i1 %t25 to i64
+    store i64 %t26, i64* %t13
+    br label %L10
+L10:
+    %t27 = load i64, i64* %t13
+    %t28 = icmp ne i64 %t27, 0
+    br i1 %t28, label %L6, label %L8
+L6:
+    ret i64 1
+L8:
+    %t29 = load i64, i64* %i.2
+    %t30 = add i64 %t29, 1
+    store i64 %t30, i64* %i.2
+    br label %L0
+L2:
+    ret i64 0
+}
+
 @expand_included_map = global i64 0
 @expand_collected_decls = global i64 0
+@expand_input_files = global i64 0
 define void @expand_collect_decl(i64 %decl.arg) {
 L.entry:
     %decl.0 = alloca i64
@@ -63422,7 +63883,7 @@ L5:
     %t29 = icmp ne i64 %t27, 0
     br i1 %t29, label %L6, label %L8
 L6:
-    %t30 = ptrtoint i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str846, i64 0, i64 0) to i64
+    %t30 = ptrtoint i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str848, i64 0, i64 0) to i64
     call void @eprint(i64 %t30)
     %t31 = load i64, i64* %path_str.4
     call void @eprintln(i64 %t31)
@@ -63523,261 +63984,372 @@ L2:
 
 define i8* @build_expanded_program() {
 L.entry:
-    %count.0 = alloca i64
-    %t0 = load i64, i64* @expand_collected_decls
+    %input_count.0 = alloca i64
+    %t0 = load i64, i64* @expand_input_files
     %t1 = call i64 @vec_len(i64 %t0)
-    store i64 %t1, i64* %count.0
-    %decls.1 = alloca i64
-    %t2 = load i64, i64* %count.0
-    %t3 = mul i64 %t2, 8
-    %t4 = call i8* @alloc(i64 %t3)
-    %t5 = ptrtoint i8* %t4 to i64
-    store i64 %t5, i64* %decls.1
-    %i.2 = alloca i64
-    store i64 0, i64* %i.2
+    store i64 %t1, i64* %input_count.0
+    %include_count.1 = alloca i64
+    %t2 = load i64, i64* @expand_included_map
+    %t3 = call i64 @map_size(i64 %t2)
+    store i64 %t3, i64* %include_count.1
+    %module_count.2 = alloca i64
+    %t4 = load i64, i64* %input_count.0
+    %t5 = load i64, i64* %include_count.1
+    %t6 = add i64 %t4, %t5
+    store i64 %t6, i64* %module_count.2
+    %modules_node.3 = alloca i64
+    %t7 = call i8* @modules_decl_alloc()
+    %t8 = ptrtoint i8* %t7 to i64
+    store i64 %t8, i64* %modules_node.3
+    %mods.4 = alloca i64
+    %t9 = load i64, i64* %module_count.2
+    %t10 = mul i64 %t9, 16
+    %t11 = call i8* @alloc(i64 %t10)
+    %t12 = ptrtoint i8* %t11 to i64
+    store i64 %t12, i64* %mods.4
+    %t13 = load i64, i64* %modules_node.3
+    %t14 = load i64, i64* %mods.4
+    call void @modules_decl_set_modules(i64 %t13, i64 %t14)
+    %t15 = load i64, i64* %modules_node.3
+    %t16 = load i64, i64* %module_count.2
+    call void @modules_decl_set_count(i64 %t15, i64 %t16)
+    %i.5 = alloca i64
+    store i64 0, i64* %i.5
     br label %L0
 L0:
-    %t6 = load i64, i64* %i.2
-    %t7 = load i64, i64* %count.0
-    %t9 = icmp slt i64 %t6, %t7
-    %t8 = zext i1 %t9 to i64
-    %t10 = icmp ne i64 %t8, 0
-    br i1 %t10, label %L1, label %L2
+    %t17 = load i64, i64* %i.5
+    %t18 = load i64, i64* %input_count.0
+    %t20 = icmp slt i64 %t17, %t18
+    %t19 = zext i1 %t20 to i64
+    %t21 = icmp ne i64 %t19, 0
+    br i1 %t21, label %L1, label %L2
 L1:
-    %d.3 = alloca i64
-    %t11 = load i64, i64* @expand_collected_decls
-    %t12 = load i64, i64* %i.2
-    %t13 = call i64 @vec_get(i64 %t11, i64 %t12)
-    store i64 %t13, i64* %d.3
-    %dp.4 = alloca i64
-    %t14 = load i64, i64* %decls.1
-    %t15 = load i64, i64* %i.2
-    %t16 = mul i64 %t15, 8
-    %t17 = add i64 %t14, %t16
-    store i64 %t17, i64* %dp.4
-    %t18 = load i64, i64* %d.3
-    %t19 = load i64, i64* %dp.4
-    %t20 = inttoptr i64 %t19 to i64*
-    store i64 %t18, i64* %t20
-    %t21 = load i64, i64* %i.2
-    %t22 = add i64 %t21, 1
-    store i64 %t22, i64* %i.2
+    %path.6 = alloca i64
+    %t22 = load i64, i64* @expand_input_files
+    %t23 = load i64, i64* %i.5
+    %t24 = call i64 @vec_get(i64 %t22, i64 %t23)
+    store i64 %t24, i64* %path.6
+    %entry.7 = alloca i64
+    %t25 = load i64, i64* %mods.4
+    %t26 = load i64, i64* %i.5
+    %t27 = mul i64 %t26, 16
+    %t28 = add i64 %t25, %t27
+    store i64 %t28, i64* %entry.7
+    %t29 = load i64, i64* %entry.7
+    %t30 = load i64, i64* %path.6
+    %t31 = load i64, i64* %path.6
+    %t32 = call i64 @strlen(i64 %t31)
+    call void @module_entry_set(i64 %t29, i64 %t30, i64 %t32)
+    %t33 = load i64, i64* %i.5
+    %t34 = add i64 %t33, 1
+    store i64 %t34, i64* %i.5
     br label %L0
 L2:
-    %prog.5 = alloca i64
-    %t23 = call i8* @alloc(i64 16)
-    %t24 = ptrtoint i8* %t23 to i64
-    store i64 %t24, i64* %prog.5
-    %pd.6 = alloca i64
-    %t25 = load i64, i64* %prog.5
-    store i64 %t25, i64* %pd.6
-    %t26 = load i64, i64* %decls.1
-    %t27 = load i64, i64* %pd.6
-    %t28 = inttoptr i64 %t27 to i64*
-    store i64 %t26, i64* %t28
-    %pc.7 = alloca i64
-    %t29 = load i64, i64* %prog.5
-    %t30 = add i64 %t29, 8
-    store i64 %t30, i64* %pc.7
-    %t31 = load i64, i64* %count.0
-    %t32 = load i64, i64* %pc.7
-    %t33 = inttoptr i64 %t32 to i64*
-    store i64 %t31, i64* %t33
-    %t34 = load i64, i64* %prog.5
-    %t35 = inttoptr i64 %t34 to i8*
-    ret i8* %t35
+    %keys.8 = alloca i64
+    %t35 = load i64, i64* @expand_included_map
+    %t36 = call i8* @map_keys(i64 %t35)
+    %t37 = ptrtoint i8* %t36 to i64
+    store i64 %t37, i64* %keys.8
+    %j.9 = alloca i64
+    store i64 0, i64* %j.9
+    br label %L3
+L3:
+    %t38 = load i64, i64* %j.9
+    %t39 = load i64, i64* %include_count.1
+    %t41 = icmp slt i64 %t38, %t39
+    %t40 = zext i1 %t41 to i64
+    %t42 = icmp ne i64 %t40, 0
+    br i1 %t42, label %L4, label %L5
+L4:
+    %key.10 = alloca i64
+    %t43 = load i64, i64* %keys.8
+    %t44 = load i64, i64* %j.9
+    %t45 = call i64 @vec_get(i64 %t43, i64 %t44)
+    store i64 %t45, i64* %key.10
+    %entry.11 = alloca i64
+    %t46 = load i64, i64* %mods.4
+    %t47 = load i64, i64* %input_count.0
+    %t48 = load i64, i64* %j.9
+    %t49 = add i64 %t47, %t48
+    %t50 = mul i64 %t49, 16
+    %t51 = add i64 %t46, %t50
+    store i64 %t51, i64* %entry.11
+    %t52 = load i64, i64* %entry.11
+    %t53 = load i64, i64* %key.10
+    %t54 = load i64, i64* %key.10
+    %t55 = call i64 @strlen(i64 %t54)
+    call void @module_entry_set(i64 %t52, i64 %t53, i64 %t55)
+    %t56 = load i64, i64* %j.9
+    %t57 = add i64 %t56, 1
+    store i64 %t57, i64* %j.9
+    br label %L3
+L5:
+    %decl_count.12 = alloca i64
+    %t58 = load i64, i64* @expand_collected_decls
+    %t59 = call i64 @vec_len(i64 %t58)
+    store i64 %t59, i64* %decl_count.12
+    %total_count.13 = alloca i64
+    %t60 = load i64, i64* %decl_count.12
+    %t61 = add i64 %t60, 1
+    store i64 %t61, i64* %total_count.13
+    %decls.14 = alloca i64
+    %t62 = load i64, i64* %total_count.13
+    %t63 = mul i64 %t62, 8
+    %t64 = call i8* @alloc(i64 %t63)
+    %t65 = ptrtoint i8* %t64 to i64
+    store i64 %t65, i64* %decls.14
+    %dp0.15 = alloca i64
+    %t66 = load i64, i64* %decls.14
+    store i64 %t66, i64* %dp0.15
+    %t67 = load i64, i64* %modules_node.3
+    %t68 = load i64, i64* %dp0.15
+    %t69 = inttoptr i64 %t68 to i64*
+    store i64 %t67, i64* %t69
+    store i64 0, i64* %i.5
+    br label %L6
+L6:
+    %t70 = load i64, i64* %i.5
+    %t71 = load i64, i64* %decl_count.12
+    %t73 = icmp slt i64 %t70, %t71
+    %t72 = zext i1 %t73 to i64
+    %t74 = icmp ne i64 %t72, 0
+    br i1 %t74, label %L7, label %L8
+L7:
+    %d.16 = alloca i64
+    %t75 = load i64, i64* @expand_collected_decls
+    %t76 = load i64, i64* %i.5
+    %t77 = call i64 @vec_get(i64 %t75, i64 %t76)
+    store i64 %t77, i64* %d.16
+    %dp.17 = alloca i64
+    %t78 = load i64, i64* %decls.14
+    %t79 = load i64, i64* %i.5
+    %t80 = add i64 %t79, 1
+    %t81 = mul i64 %t80, 8
+    %t82 = add i64 %t78, %t81
+    store i64 %t82, i64* %dp.17
+    %t83 = load i64, i64* %d.16
+    %t84 = load i64, i64* %dp.17
+    %t85 = inttoptr i64 %t84 to i64*
+    store i64 %t83, i64* %t85
+    %t86 = load i64, i64* %i.5
+    %t87 = add i64 %t86, 1
+    store i64 %t87, i64* %i.5
+    br label %L6
+L8:
+    %prog.18 = alloca i64
+    %t88 = call i8* @alloc(i64 16)
+    %t89 = ptrtoint i8* %t88 to i64
+    store i64 %t89, i64* %prog.18
+    %pd.19 = alloca i64
+    %t90 = load i64, i64* %prog.18
+    store i64 %t90, i64* %pd.19
+    %t91 = load i64, i64* %decls.14
+    %t92 = load i64, i64* %pd.19
+    %t93 = inttoptr i64 %t92 to i64*
+    store i64 %t91, i64* %t93
+    %pc.20 = alloca i64
+    %t94 = load i64, i64* %prog.18
+    %t95 = add i64 %t94, 8
+    store i64 %t95, i64* %pc.20
+    %t96 = load i64, i64* %total_count.13
+    %t97 = load i64, i64* %pc.20
+    %t98 = inttoptr i64 %t97 to i64*
+    store i64 %t96, i64* %t98
+    %t99 = load i64, i64* %prog.18
+    %t100 = inttoptr i64 %t99 to i8*
+    ret i8* %t100
 }
 
 define i64 @cmd_help_compile() {
 L.entry:
-    %t0 = ptrtoint i8* getelementptr inbounds ([48 x i8], [48 x i8]* @.str847, i64 0, i64 0) to i64
+    %t0 = ptrtoint i8* getelementptr inbounds ([48 x i8], [48 x i8]* @.str849, i64 0, i64 0) to i64
     call void @println(i64 %t0)
     %t1 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t1)
-    %t2 = ptrtoint i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str848, i64 0, i64 0) to i64
+    %t2 = ptrtoint i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str850, i64 0, i64 0) to i64
     call void @println(i64 %t2)
     %t3 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t3)
-    %t4 = ptrtoint i8* getelementptr inbounds ([80 x i8], [80 x i8]* @.str849, i64 0, i64 0) to i64
+    %t4 = ptrtoint i8* getelementptr inbounds ([80 x i8], [80 x i8]* @.str851, i64 0, i64 0) to i64
     call void @println(i64 %t4)
     %t5 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t5)
-    %t6 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str850, i64 0, i64 0) to i64
+    %t6 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str852, i64 0, i64 0) to i64
     call void @println(i64 %t6)
-    %t7 = ptrtoint i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str851, i64 0, i64 0) to i64
+    %t7 = ptrtoint i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str853, i64 0, i64 0) to i64
     call void @println(i64 %t7)
-    %t8 = ptrtoint i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str852, i64 0, i64 0) to i64
+    %t8 = ptrtoint i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str854, i64 0, i64 0) to i64
     call void @println(i64 %t8)
-    %t9 = ptrtoint i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str853, i64 0, i64 0) to i64
+    %t9 = ptrtoint i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str855, i64 0, i64 0) to i64
     call void @println(i64 %t9)
     %t10 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t10)
-    %t11 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str854, i64 0, i64 0) to i64
+    %t11 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str856, i64 0, i64 0) to i64
     call void @println(i64 %t11)
-    %t12 = ptrtoint i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str855, i64 0, i64 0) to i64
+    %t12 = ptrtoint i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str857, i64 0, i64 0) to i64
     call void @println(i64 %t12)
-    %t13 = ptrtoint i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str856, i64 0, i64 0) to i64
+    %t13 = ptrtoint i8* getelementptr inbounds ([63 x i8], [63 x i8]* @.str858, i64 0, i64 0) to i64
     call void @println(i64 %t13)
-    %t14 = ptrtoint i8* getelementptr inbounds ([65 x i8], [65 x i8]* @.str857, i64 0, i64 0) to i64
+    %t14 = ptrtoint i8* getelementptr inbounds ([65 x i8], [65 x i8]* @.str859, i64 0, i64 0) to i64
     call void @println(i64 %t14)
-    %t15 = ptrtoint i8* getelementptr inbounds ([65 x i8], [65 x i8]* @.str858, i64 0, i64 0) to i64
+    %t15 = ptrtoint i8* getelementptr inbounds ([65 x i8], [65 x i8]* @.str860, i64 0, i64 0) to i64
     call void @println(i64 %t15)
-    %t16 = ptrtoint i8* getelementptr inbounds ([47 x i8], [47 x i8]* @.str859, i64 0, i64 0) to i64
+    %t16 = ptrtoint i8* getelementptr inbounds ([47 x i8], [47 x i8]* @.str861, i64 0, i64 0) to i64
     call void @println(i64 %t16)
-    %t17 = ptrtoint i8* getelementptr inbounds ([64 x i8], [64 x i8]* @.str860, i64 0, i64 0) to i64
+    %t17 = ptrtoint i8* getelementptr inbounds ([64 x i8], [64 x i8]* @.str862, i64 0, i64 0) to i64
     call void @println(i64 %t17)
-    %t18 = ptrtoint i8* getelementptr inbounds ([55 x i8], [55 x i8]* @.str861, i64 0, i64 0) to i64
+    %t18 = ptrtoint i8* getelementptr inbounds ([55 x i8], [55 x i8]* @.str863, i64 0, i64 0) to i64
     call void @println(i64 %t18)
     %t19 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t19)
-    %t20 = ptrtoint i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str862, i64 0, i64 0) to i64
+    %t20 = ptrtoint i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str864, i64 0, i64 0) to i64
     call void @println(i64 %t20)
-    %t21 = ptrtoint i8* getelementptr inbounds ([60 x i8], [60 x i8]* @.str863, i64 0, i64 0) to i64
+    %t21 = ptrtoint i8* getelementptr inbounds ([60 x i8], [60 x i8]* @.str865, i64 0, i64 0) to i64
     call void @println(i64 %t21)
-    %t22 = ptrtoint i8* getelementptr inbounds ([65 x i8], [65 x i8]* @.str864, i64 0, i64 0) to i64
+    %t22 = ptrtoint i8* getelementptr inbounds ([65 x i8], [65 x i8]* @.str866, i64 0, i64 0) to i64
     call void @println(i64 %t22)
     ret i64 0
 }
 
 define i64 @cmd_help_env() {
 L.entry:
-    %t0 = ptrtoint i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str865, i64 0, i64 0) to i64
+    %t0 = ptrtoint i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str867, i64 0, i64 0) to i64
     call void @println(i64 %t0)
     %t1 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t1)
-    %t2 = ptrtoint i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str866, i64 0, i64 0) to i64
+    %t2 = ptrtoint i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str868, i64 0, i64 0) to i64
     call void @println(i64 %t2)
     %t3 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t3)
-    %t4 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str850, i64 0, i64 0) to i64
+    %t4 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str852, i64 0, i64 0) to i64
     call void @println(i64 %t4)
-    %t5 = ptrtoint i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str867, i64 0, i64 0) to i64
+    %t5 = ptrtoint i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str869, i64 0, i64 0) to i64
     call void @println(i64 %t5)
-    %t6 = ptrtoint i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str868, i64 0, i64 0) to i64
+    %t6 = ptrtoint i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str870, i64 0, i64 0) to i64
     call void @println(i64 %t6)
     %t7 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t7)
-    %t8 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str869, i64 0, i64 0) to i64
+    %t8 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str871, i64 0, i64 0) to i64
     call void @println(i64 %t8)
-    %t9 = ptrtoint i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str870, i64 0, i64 0) to i64
+    %t9 = ptrtoint i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str872, i64 0, i64 0) to i64
     call void @println(i64 %t9)
-    %t10 = ptrtoint i8* getelementptr inbounds ([46 x i8], [46 x i8]* @.str871, i64 0, i64 0) to i64
+    %t10 = ptrtoint i8* getelementptr inbounds ([46 x i8], [46 x i8]* @.str873, i64 0, i64 0) to i64
     call void @println(i64 %t10)
-    %t11 = ptrtoint i8* getelementptr inbounds ([46 x i8], [46 x i8]* @.str872, i64 0, i64 0) to i64
+    %t11 = ptrtoint i8* getelementptr inbounds ([46 x i8], [46 x i8]* @.str874, i64 0, i64 0) to i64
     call void @println(i64 %t11)
-    %t12 = ptrtoint i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str873, i64 0, i64 0) to i64
+    %t12 = ptrtoint i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str875, i64 0, i64 0) to i64
     call void @println(i64 %t12)
     ret i64 0
 }
 
 define i64 @cmd_help_version() {
 L.entry:
-    %t0 = ptrtoint i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str874, i64 0, i64 0) to i64
+    %t0 = ptrtoint i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str876, i64 0, i64 0) to i64
     call void @println(i64 %t0)
     %t1 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t1)
-    %t2 = ptrtoint i8* getelementptr inbounds ([20 x i8], [20 x i8]* @.str875, i64 0, i64 0) to i64
+    %t2 = ptrtoint i8* getelementptr inbounds ([20 x i8], [20 x i8]* @.str877, i64 0, i64 0) to i64
     call void @println(i64 %t2)
     %t3 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t3)
-    %t4 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str876, i64 0, i64 0) to i64
+    %t4 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str878, i64 0, i64 0) to i64
     call void @println(i64 %t4)
-    %t5 = ptrtoint i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str877, i64 0, i64 0) to i64
+    %t5 = ptrtoint i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str879, i64 0, i64 0) to i64
     call void @println(i64 %t5)
-    %t6 = ptrtoint i8* getelementptr inbounds ([50 x i8], [50 x i8]* @.str878, i64 0, i64 0) to i64
+    %t6 = ptrtoint i8* getelementptr inbounds ([50 x i8], [50 x i8]* @.str880, i64 0, i64 0) to i64
     call void @println(i64 %t6)
-    %t7 = ptrtoint i8* getelementptr inbounds ([52 x i8], [52 x i8]* @.str879, i64 0, i64 0) to i64
+    %t7 = ptrtoint i8* getelementptr inbounds ([52 x i8], [52 x i8]* @.str881, i64 0, i64 0) to i64
     call void @println(i64 %t7)
     %t8 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t8)
-    %t9 = ptrtoint i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str880, i64 0, i64 0) to i64
+    %t9 = ptrtoint i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str882, i64 0, i64 0) to i64
     call void @println(i64 %t9)
     ret i64 0
 }
 
 define i64 @cmd_help_tools() {
 L.entry:
-    %t0 = ptrtoint i8* getelementptr inbounds ([50 x i8], [50 x i8]* @.str881, i64 0, i64 0) to i64
+    %t0 = ptrtoint i8* getelementptr inbounds ([50 x i8], [50 x i8]* @.str883, i64 0, i64 0) to i64
     call void @println(i64 %t0)
     %t1 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t1)
-    %t2 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str882, i64 0, i64 0) to i64
+    %t2 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str884, i64 0, i64 0) to i64
     call void @println(i64 %t2)
     %t3 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t3)
-    %t4 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str876, i64 0, i64 0) to i64
+    %t4 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str878, i64 0, i64 0) to i64
     call void @println(i64 %t4)
-    %t5 = ptrtoint i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str883, i64 0, i64 0) to i64
+    %t5 = ptrtoint i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str885, i64 0, i64 0) to i64
     call void @println(i64 %t5)
-    %t6 = ptrtoint i8* getelementptr inbounds ([39 x i8], [39 x i8]* @.str884, i64 0, i64 0) to i64
+    %t6 = ptrtoint i8* getelementptr inbounds ([39 x i8], [39 x i8]* @.str886, i64 0, i64 0) to i64
     call void @println(i64 %t6)
-    %t7 = ptrtoint i8* getelementptr inbounds ([33 x i8], [33 x i8]* @.str885, i64 0, i64 0) to i64
+    %t7 = ptrtoint i8* getelementptr inbounds ([33 x i8], [33 x i8]* @.str887, i64 0, i64 0) to i64
     call void @println(i64 %t7)
-    %t8 = ptrtoint i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str886, i64 0, i64 0) to i64
+    %t8 = ptrtoint i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str888, i64 0, i64 0) to i64
     call void @println(i64 %t8)
     ret i64 0
 }
 
 define i64 @cmd_help_help() {
 L.entry:
-    %t0 = ptrtoint i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str887, i64 0, i64 0) to i64
+    %t0 = ptrtoint i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str889, i64 0, i64 0) to i64
     call void @println(i64 %t0)
     %t1 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t1)
-    %t2 = ptrtoint i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str888, i64 0, i64 0) to i64
+    %t2 = ptrtoint i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str890, i64 0, i64 0) to i64
     call void @println(i64 %t2)
     %t3 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t3)
-    %t4 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str850, i64 0, i64 0) to i64
+    %t4 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str852, i64 0, i64 0) to i64
     call void @println(i64 %t4)
-    %t5 = ptrtoint i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str889, i64 0, i64 0) to i64
+    %t5 = ptrtoint i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str891, i64 0, i64 0) to i64
     call void @println(i64 %t5)
-    %t6 = ptrtoint i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str890, i64 0, i64 0) to i64
+    %t6 = ptrtoint i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str892, i64 0, i64 0) to i64
     call void @println(i64 %t6)
-    %t7 = ptrtoint i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str891, i64 0, i64 0) to i64
+    %t7 = ptrtoint i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str893, i64 0, i64 0) to i64
     call void @println(i64 %t7)
     %t8 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t8)
-    %t9 = ptrtoint i8* getelementptr inbounds ([20 x i8], [20 x i8]* @.str892, i64 0, i64 0) to i64
+    %t9 = ptrtoint i8* getelementptr inbounds ([20 x i8], [20 x i8]* @.str894, i64 0, i64 0) to i64
     call void @println(i64 %t9)
     ret i64 0
 }
 
 define i64 @cmd_help_compose() {
 L.entry:
-    %t0 = ptrtoint i8* getelementptr inbounds ([57 x i8], [57 x i8]* @.str893, i64 0, i64 0) to i64
+    %t0 = ptrtoint i8* getelementptr inbounds ([57 x i8], [57 x i8]* @.str895, i64 0, i64 0) to i64
     call void @println(i64 %t0)
     %t1 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t1)
-    %t2 = ptrtoint i8* getelementptr inbounds ([58 x i8], [58 x i8]* @.str894, i64 0, i64 0) to i64
+    %t2 = ptrtoint i8* getelementptr inbounds ([58 x i8], [58 x i8]* @.str896, i64 0, i64 0) to i64
     call void @println(i64 %t2)
     %t3 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t3)
-    %t4 = ptrtoint i8* getelementptr inbounds ([52 x i8], [52 x i8]* @.str895, i64 0, i64 0) to i64
+    %t4 = ptrtoint i8* getelementptr inbounds ([52 x i8], [52 x i8]* @.str897, i64 0, i64 0) to i64
     call void @println(i64 %t4)
-    %t5 = ptrtoint i8* getelementptr inbounds ([53 x i8], [53 x i8]* @.str896, i64 0, i64 0) to i64
+    %t5 = ptrtoint i8* getelementptr inbounds ([53 x i8], [53 x i8]* @.str898, i64 0, i64 0) to i64
     call void @println(i64 %t5)
-    %t6 = ptrtoint i8* getelementptr inbounds ([69 x i8], [69 x i8]* @.str897, i64 0, i64 0) to i64
+    %t6 = ptrtoint i8* getelementptr inbounds ([69 x i8], [69 x i8]* @.str899, i64 0, i64 0) to i64
     call void @println(i64 %t6)
     %t7 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t7)
-    %t8 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str850, i64 0, i64 0) to i64
+    %t8 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str852, i64 0, i64 0) to i64
     call void @println(i64 %t8)
-    %t9 = ptrtoint i8* getelementptr inbounds ([52 x i8], [52 x i8]* @.str898, i64 0, i64 0) to i64
+    %t9 = ptrtoint i8* getelementptr inbounds ([52 x i8], [52 x i8]* @.str900, i64 0, i64 0) to i64
     call void @println(i64 %t9)
     %t10 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t10)
-    %t11 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str854, i64 0, i64 0) to i64
+    %t11 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str856, i64 0, i64 0) to i64
     call void @println(i64 %t11)
-    %t12 = ptrtoint i8* getelementptr inbounds ([71 x i8], [71 x i8]* @.str899, i64 0, i64 0) to i64
+    %t12 = ptrtoint i8* getelementptr inbounds ([71 x i8], [71 x i8]* @.str901, i64 0, i64 0) to i64
     call void @println(i64 %t12)
-    %t13 = ptrtoint i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str900, i64 0, i64 0) to i64
+    %t13 = ptrtoint i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str902, i64 0, i64 0) to i64
     call void @println(i64 %t13)
     %t14 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t14)
-    %t15 = ptrtoint i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str901, i64 0, i64 0) to i64
+    %t15 = ptrtoint i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str903, i64 0, i64 0) to i64
     call void @println(i64 %t15)
-    %t16 = ptrtoint i8* getelementptr inbounds ([73 x i8], [73 x i8]* @.str902, i64 0, i64 0) to i64
+    %t16 = ptrtoint i8* getelementptr inbounds ([73 x i8], [73 x i8]* @.str904, i64 0, i64 0) to i64
     call void @println(i64 %t16)
     ret i64 0
 }
@@ -63803,7 +64375,7 @@ L0:
     %t7 = ptrtoint i8* %t6 to i64
     store i64 %t7, i64* %subcmd.3
     %t8 = load i64, i64* %subcmd.3
-    %t9 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str903, i64 0, i64 0) to i64
+    %t9 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str905, i64 0, i64 0) to i64
     %t10 = call i64 @streq(i64 %t8, i64 %t9)
     %t11 = icmp ne i64 %t10, 0
     br i1 %t11, label %L3, label %L5
@@ -63812,7 +64384,7 @@ L3:
     ret i64 %t12
 L5:
     %t13 = load i64, i64* %subcmd.3
-    %t14 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str904, i64 0, i64 0) to i64
+    %t14 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str906, i64 0, i64 0) to i64
     %t15 = call i64 @streq(i64 %t13, i64 %t14)
     %t16 = icmp ne i64 %t15, 0
     br i1 %t16, label %L6, label %L8
@@ -63821,7 +64393,7 @@ L6:
     ret i64 %t17
 L8:
     %t18 = load i64, i64* %subcmd.3
-    %t19 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str905, i64 0, i64 0) to i64
+    %t19 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str907, i64 0, i64 0) to i64
     %t20 = call i64 @streq(i64 %t18, i64 %t19)
     %t21 = icmp ne i64 %t20, 0
     br i1 %t21, label %L9, label %L11
@@ -63830,7 +64402,7 @@ L9:
     ret i64 %t22
 L11:
     %t23 = load i64, i64* %subcmd.3
-    %t24 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str906, i64 0, i64 0) to i64
+    %t24 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str908, i64 0, i64 0) to i64
     %t25 = call i64 @streq(i64 %t23, i64 %t24)
     %t26 = icmp ne i64 %t25, 0
     br i1 %t26, label %L12, label %L14
@@ -63839,7 +64411,7 @@ L12:
     ret i64 %t27
 L14:
     %t28 = load i64, i64* %subcmd.3
-    %t29 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str907, i64 0, i64 0) to i64
+    %t29 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str909, i64 0, i64 0) to i64
     %t30 = call i64 @streq(i64 %t28, i64 %t29)
     %t31 = icmp ne i64 %t30, 0
     br i1 %t31, label %L15, label %L17
@@ -63848,7 +64420,7 @@ L15:
     ret i64 %t32
 L17:
     %t33 = load i64, i64* %subcmd.3
-    %t34 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str908, i64 0, i64 0) to i64
+    %t34 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str910, i64 0, i64 0) to i64
     %t35 = call i64 @streq(i64 %t33, i64 %t34)
     %t36 = icmp ne i64 %t35, 0
     br i1 %t36, label %L18, label %L20
@@ -63856,7 +64428,7 @@ L18:
     %t37 = call i64 @cmd_help_help()
     ret i64 %t37
 L20:
-    %t38 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str909, i64 0, i64 0) to i64
+    %t38 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str911, i64 0, i64 0) to i64
     call void @eprint(i64 %t38)
     %t39 = load i64, i64* %subcmd.3
     call void @eprintln(i64 %t39)
@@ -63864,54 +64436,54 @@ L20:
     call void @println(i64 %t40)
     br label %L2
 L2:
-    %t41 = ptrtoint i8* getelementptr inbounds ([55 x i8], [55 x i8]* @.str910, i64 0, i64 0) to i64
+    %t41 = ptrtoint i8* getelementptr inbounds ([55 x i8], [55 x i8]* @.str912, i64 0, i64 0) to i64
     call void @println(i64 %t41)
     %t42 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t42)
-    %t43 = ptrtoint i8* getelementptr inbounds ([32 x i8], [32 x i8]* @.str911, i64 0, i64 0) to i64
+    %t43 = ptrtoint i8* getelementptr inbounds ([32 x i8], [32 x i8]* @.str913, i64 0, i64 0) to i64
     call void @println(i64 %t43)
     %t44 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t44)
-    %t45 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str912, i64 0, i64 0) to i64
+    %t45 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str914, i64 0, i64 0) to i64
     call void @println(i64 %t45)
-    %t46 = ptrtoint i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str913, i64 0, i64 0) to i64
+    %t46 = ptrtoint i8* getelementptr inbounds ([44 x i8], [44 x i8]* @.str915, i64 0, i64 0) to i64
     call void @println(i64 %t46)
-    %t47 = ptrtoint i8* getelementptr inbounds ([51 x i8], [51 x i8]* @.str914, i64 0, i64 0) to i64
+    %t47 = ptrtoint i8* getelementptr inbounds ([51 x i8], [51 x i8]* @.str916, i64 0, i64 0) to i64
     call void @println(i64 %t47)
-    %t48 = ptrtoint i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str915, i64 0, i64 0) to i64
+    %t48 = ptrtoint i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str917, i64 0, i64 0) to i64
     call void @println(i64 %t48)
-    %t49 = ptrtoint i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str916, i64 0, i64 0) to i64
+    %t49 = ptrtoint i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str918, i64 0, i64 0) to i64
     call void @println(i64 %t49)
-    %t50 = ptrtoint i8* getelementptr inbounds ([40 x i8], [40 x i8]* @.str917, i64 0, i64 0) to i64
+    %t50 = ptrtoint i8* getelementptr inbounds ([40 x i8], [40 x i8]* @.str919, i64 0, i64 0) to i64
     call void @println(i64 %t50)
-    %t51 = ptrtoint i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str918, i64 0, i64 0) to i64
+    %t51 = ptrtoint i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str920, i64 0, i64 0) to i64
     call void @println(i64 %t51)
     %t52 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t52)
-    %t53 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str850, i64 0, i64 0) to i64
+    %t53 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str852, i64 0, i64 0) to i64
     call void @println(i64 %t53)
-    %t54 = ptrtoint i8* getelementptr inbounds ([53 x i8], [53 x i8]* @.str919, i64 0, i64 0) to i64
+    %t54 = ptrtoint i8* getelementptr inbounds ([53 x i8], [53 x i8]* @.str921, i64 0, i64 0) to i64
     call void @println(i64 %t54)
-    %t55 = ptrtoint i8* getelementptr inbounds ([58 x i8], [58 x i8]* @.str920, i64 0, i64 0) to i64
+    %t55 = ptrtoint i8* getelementptr inbounds ([58 x i8], [58 x i8]* @.str922, i64 0, i64 0) to i64
     call void @println(i64 %t55)
     %t56 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t56)
-    %t57 = ptrtoint i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str921, i64 0, i64 0) to i64
+    %t57 = ptrtoint i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str923, i64 0, i64 0) to i64
     call void @println(i64 %t57)
-    %t58 = ptrtoint i8* getelementptr inbounds ([54 x i8], [54 x i8]* @.str922, i64 0, i64 0) to i64
+    %t58 = ptrtoint i8* getelementptr inbounds ([54 x i8], [54 x i8]* @.str924, i64 0, i64 0) to i64
     call void @println(i64 %t58)
-    %t59 = ptrtoint i8* getelementptr inbounds ([52 x i8], [52 x i8]* @.str923, i64 0, i64 0) to i64
+    %t59 = ptrtoint i8* getelementptr inbounds ([52 x i8], [52 x i8]* @.str925, i64 0, i64 0) to i64
     call void @println(i64 %t59)
     %t60 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t60)
-    %t61 = ptrtoint i8* getelementptr inbounds ([53 x i8], [53 x i8]* @.str924, i64 0, i64 0) to i64
+    %t61 = ptrtoint i8* getelementptr inbounds ([53 x i8], [53 x i8]* @.str926, i64 0, i64 0) to i64
     call void @println(i64 %t61)
     ret i64 0
 }
 
 define i64 @cmd_version() {
 L.entry:
-    %t0 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str925, i64 0, i64 0) to i64
+    %t0 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str927, i64 0, i64 0) to i64
     call void @print(i64 %t0)
     %t1 = load i64, i64* @LANG_VERSION
     call void @print(i64 %t1)
@@ -63921,7 +64493,7 @@ L.entry:
     call void @print(i64 %t3)
     %t4 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
     call void @println(i64 %t4)
-    %t5 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str926, i64 0, i64 0) to i64
+    %t5 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str928, i64 0, i64 0) to i64
     call void @print(i64 %t5)
     %t6 = load i64, i64* @LANG_BUILD_BACKEND
     call void @print(i64 %t6)
@@ -63939,13 +64511,13 @@ L.entry:
     %t14 = icmp ne i64 %t13, 0
     br i1 %t14, label %L0, label %L2
 L0:
-    %t15 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str927, i64 0, i64 0) to i64
+    %t15 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str929, i64 0, i64 0) to i64
     call void @print(i64 %t15)
     br label %L2
 L2:
     %t16 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t16)
-    %t17 = ptrtoint i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str928, i64 0, i64 0) to i64
+    %t17 = ptrtoint i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str930, i64 0, i64 0) to i64
     call void @print(i64 %t17)
     %t18 = load i64, i64* @LANG_BOOTSTRAP_FROM
     call void @println(i64 %t18)
@@ -63991,7 +64563,7 @@ L2:
     %t16 = call i8* @getenv(i64 %t15)
     %t17 = ptrtoint i8* %t16 to i64
     store i64 %t17, i64* %langbe.4
-    %t18 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str929, i64 0, i64 0) to i64
+    %t18 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str931, i64 0, i64 0) to i64
     call void @print(i64 %t18)
     %t19 = load i64, i64* %langbe.4
     %t21 = icmp ne i64 %t19, 0
@@ -64012,7 +64584,7 @@ L8:
     %t26 = call i8* @getenv(i64 %t25)
     %t27 = ptrtoint i8* %t26 to i64
     store i64 %t27, i64* %langos.5
-    %t28 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str930, i64 0, i64 0) to i64
+    %t28 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str932, i64 0, i64 0) to i64
     call void @print(i64 %t28)
     %t29 = load i64, i64* %langos.5
     %t31 = icmp ne i64 %t29, 0
@@ -64029,11 +64601,11 @@ L10:
     br label %L11
 L11:
     %langlibc.6 = alloca i64
-    %t35 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str931, i64 0, i64 0) to i64
+    %t35 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str933, i64 0, i64 0) to i64
     %t36 = call i8* @getenv(i64 %t35)
     %t37 = ptrtoint i8* %t36 to i64
     store i64 %t37, i64* %langlibc.6
-    %t38 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str932, i64 0, i64 0) to i64
+    %t38 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str934, i64 0, i64 0) to i64
     call void @print(i64 %t38)
     %t39 = load i64, i64* %langlibc.6
     %t41 = icmp ne i64 %t39, 0
@@ -64054,7 +64626,7 @@ L14:
     %t46 = call i8* @getenv(i64 %t45)
     %t47 = ptrtoint i8* %t46 to i64
     store i64 %t47, i64* %path.7
-    %t48 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str933, i64 0, i64 0) to i64
+    %t48 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str935, i64 0, i64 0) to i64
     call void @print(i64 %t48)
     %t49 = load i64, i64* %path.7
     %t51 = icmp ne i64 %t49, 0
@@ -64084,7 +64656,7 @@ L.entry:
     %t1 = call i8* @find_in_path(i64 %t0)
     %t2 = ptrtoint i8* %t1 to i64
     store i64 %t2, i64* %path.2
-    %t3 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str934, i64 0, i64 0) to i64
+    %t3 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str936, i64 0, i64 0) to i64
     call void @print(i64 %t3)
     %t4 = load i64, i64* %name.0
     call void @print(i64 %t4)
@@ -64115,13 +64687,13 @@ L2:
     %t18 = icmp ne i64 %t16, 0
     br i1 %t18, label %L3, label %L4
 L3:
-    %t19 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str935, i64 0, i64 0) to i64
+    %t19 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str937, i64 0, i64 0) to i64
     call void @print(i64 %t19)
     %t20 = load i64, i64* %path.2
     call void @println(i64 %t20)
     br label %L5
 L4:
-    %t21 = ptrtoint i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str936, i64 0, i64 0) to i64
+    %t21 = ptrtoint i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str938, i64 0, i64 0) to i64
     call void @print(i64 %t21)
     %t22 = load i64, i64* %desc.1
     call void @print(i64 %t22)
@@ -64134,7 +64706,7 @@ L5:
 
 define i64 @cmd_tools() {
 L.entry:
-    %t0 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str937, i64 0, i64 0) to i64
+    %t0 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str939, i64 0, i64 0) to i64
     call void @print(i64 %t0)
     %t1 = load i64, i64* @LANG_BUILD_OS
     call void @print(i64 %t1)
@@ -64148,11 +64720,11 @@ L.entry:
     %t7 = icmp ne i64 %t6, 0
     br i1 %t7, label %L0, label %L1
 L0:
-    %t8 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str938, i64 0, i64 0) to i64
+    %t8 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str940, i64 0, i64 0) to i64
     call void @print(i64 %t8)
     br label %L2
 L1:
-    %t9 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str939, i64 0, i64 0) to i64
+    %t9 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str941, i64 0, i64 0) to i64
     call void @print(i64 %t9)
     br label %L2
 L2:
@@ -64160,42 +64732,42 @@ L2:
     call void @println(i64 %t10)
     %t11 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t11)
-    %t12 = ptrtoint i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str940, i64 0, i64 0) to i64
+    %t12 = ptrtoint i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str942, i64 0, i64 0) to i64
     call void @println(i64 %t12)
-    %t13 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str941, i64 0, i64 0) to i64
+    %t13 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str943, i64 0, i64 0) to i64
     call void @println(i64 %t13)
     %t14 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str1, i64 0, i64 0) to i64
-    %t15 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str942, i64 0, i64 0) to i64
+    %t15 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str944, i64 0, i64 0) to i64
     call void @print_tool_status(i64 %t14, i64 %t15)
-    %t16 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str943, i64 0, i64 0) to i64
+    %t16 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str945, i64 0, i64 0) to i64
     call void @println(i64 %t16)
     %t17 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str9, i64 0, i64 0) to i64
-    %t18 = ptrtoint i8* getelementptr inbounds ([32 x i8], [32 x i8]* @.str944, i64 0, i64 0) to i64
+    %t18 = ptrtoint i8* getelementptr inbounds ([32 x i8], [32 x i8]* @.str946, i64 0, i64 0) to i64
     call void @print_tool_status(i64 %t17, i64 %t18)
-    %t19 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str945, i64 0, i64 0) to i64
-    %t20 = ptrtoint i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str946, i64 0, i64 0) to i64
+    %t19 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str947, i64 0, i64 0) to i64
+    %t20 = ptrtoint i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str948, i64 0, i64 0) to i64
     call void @print_tool_status(i64 %t19, i64 %t20)
     %t21 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t21)
-    %t22 = ptrtoint i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str947, i64 0, i64 0) to i64
+    %t22 = ptrtoint i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str949, i64 0, i64 0) to i64
     call void @println(i64 %t22)
-    %t23 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str941, i64 0, i64 0) to i64
+    %t23 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str943, i64 0, i64 0) to i64
     call void @println(i64 %t23)
     %t24 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str5, i64 0, i64 0) to i64
-    %t25 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str948, i64 0, i64 0) to i64
+    %t25 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str950, i64 0, i64 0) to i64
     call void @print_tool_status(i64 %t24, i64 %t25)
     %t26 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str7, i64 0, i64 0) to i64
-    %t27 = ptrtoint i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str949, i64 0, i64 0) to i64
+    %t27 = ptrtoint i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str951, i64 0, i64 0) to i64
     call void @print_tool_status(i64 %t26, i64 %t27)
     %t28 = ptrtoint i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str249, i64 0, i64 0) to i64
     call void @println(i64 %t28)
-    %t29 = ptrtoint i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str950, i64 0, i64 0) to i64
+    %t29 = ptrtoint i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str952, i64 0, i64 0) to i64
     call void @println(i64 %t29)
-    %t30 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str951, i64 0, i64 0) to i64
-    %t31 = ptrtoint i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str952, i64 0, i64 0) to i64
+    %t30 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str953, i64 0, i64 0) to i64
+    %t31 = ptrtoint i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str954, i64 0, i64 0) to i64
     call void @print_tool_status(i64 %t30, i64 %t31)
-    %t32 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str953, i64 0, i64 0) to i64
-    %t33 = ptrtoint i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str954, i64 0, i64 0) to i64
+    %t32 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str955, i64 0, i64 0) to i64
+    %t33 = ptrtoint i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str956, i64 0, i64 0) to i64
     call void @print_tool_status(i64 %t32, i64 %t33)
     ret i64 0
 }
@@ -64581,13 +65153,13 @@ L3:
     %t15 = alloca i64
     store i64 1, i64* %t15
     %t16 = load i64, i64* %first.2
-    %t17 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str908, i64 0, i64 0) to i64
+    %t17 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str910, i64 0, i64 0) to i64
     %t18 = call i64 @streq(i64 %t16, i64 %t17)
     %t19 = icmp eq i64 %t18, 0
     br i1 %t19, label %L11, label %L12
 L11:
     %t20 = load i64, i64* %first.2
-    %t21 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str955, i64 0, i64 0) to i64
+    %t21 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str957, i64 0, i64 0) to i64
     %t22 = call i64 @streq(i64 %t20, i64 %t21)
     %t23 = icmp ne i64 %t22, 0
     %t24 = zext i1 %t23 to i64
@@ -64599,7 +65171,7 @@ L12:
     br i1 %t26, label %L9, label %L10
 L9:
     %t27 = load i64, i64* %first.2
-    %t28 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str956, i64 0, i64 0) to i64
+    %t28 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str958, i64 0, i64 0) to i64
     %t29 = call i64 @streq(i64 %t27, i64 %t28)
     %t30 = icmp ne i64 %t29, 0
     %t31 = zext i1 %t30 to i64
@@ -64621,13 +65193,13 @@ L8:
     %t39 = alloca i64
     store i64 1, i64* %t39
     %t40 = load i64, i64* %first.2
-    %t41 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str906, i64 0, i64 0) to i64
+    %t41 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str908, i64 0, i64 0) to i64
     %t42 = call i64 @streq(i64 %t40, i64 %t41)
     %t43 = icmp eq i64 %t42, 0
     br i1 %t43, label %L18, label %L19
 L18:
     %t44 = load i64, i64* %first.2
-    %t45 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str957, i64 0, i64 0) to i64
+    %t45 = ptrtoint i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str959, i64 0, i64 0) to i64
     %t46 = call i64 @streq(i64 %t44, i64 %t45)
     %t47 = icmp ne i64 %t46, 0
     %t48 = zext i1 %t47 to i64
@@ -64639,7 +65211,7 @@ L19:
     br i1 %t50, label %L16, label %L17
 L16:
     %t51 = load i64, i64* %first.2
-    %t52 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str958, i64 0, i64 0) to i64
+    %t52 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str960, i64 0, i64 0) to i64
     %t53 = call i64 @streq(i64 %t51, i64 %t52)
     %t54 = icmp ne i64 %t53, 0
     %t55 = zext i1 %t54 to i64
@@ -64654,7 +65226,7 @@ L13:
     ret i64 %t58
 L15:
     %t59 = load i64, i64* %first.2
-    %t60 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str905, i64 0, i64 0) to i64
+    %t60 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str907, i64 0, i64 0) to i64
     %t61 = call i64 @streq(i64 %t59, i64 %t60)
     %t62 = icmp ne i64 %t61, 0
     br i1 %t62, label %L20, label %L22
@@ -64668,7 +65240,7 @@ L20:
     ret i64 %t68
 L22:
     %t69 = load i64, i64* %first.2
-    %t70 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str907, i64 0, i64 0) to i64
+    %t70 = ptrtoint i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str909, i64 0, i64 0) to i64
     %t71 = call i64 @streq(i64 %t69, i64 %t70)
     %t72 = icmp ne i64 %t71, 0
     br i1 %t72, label %L23, label %L25
@@ -64677,7 +65249,7 @@ L23:
     ret i64 %t73
 L25:
     %t74 = load i64, i64* %first.2
-    %t75 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str903, i64 0, i64 0) to i64
+    %t75 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str905, i64 0, i64 0) to i64
     %t76 = call i64 @streq(i64 %t74, i64 %t75)
     %t77 = icmp ne i64 %t76, 0
     br i1 %t77, label %L26, label %L27
@@ -64751,7 +65323,7 @@ L36:
 L32:
     %t113 = load i64, i64* %arg.7
     %t114 = add i64 %t113, 2
-    %t115 = ptrtoint i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str959, i64 0, i64 0) to i64
+    %t115 = ptrtoint i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str961, i64 0, i64 0) to i64
     %t116 = call i1 @memcmp(i64 %t114, i64 %t115, i64 13)
     %t117 = zext i1 %t116 to i64
     %t118 = icmp ne i64 %t117, 0
@@ -64771,7 +65343,7 @@ L39:
 L43:
     %t124 = load i64, i64* %arg.7
     %t125 = add i64 %t124, 2
-    %t126 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str960, i64 0, i64 0) to i64
+    %t126 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str962, i64 0, i64 0) to i64
     %t127 = call i1 @memcmp(i64 %t125, i64 %t126, i64 8)
     %t128 = zext i1 %t127 to i64
     %t129 = icmp ne i64 %t128, 0
@@ -64797,7 +65369,7 @@ L42:
 L48:
     %t138 = load i64, i64* %arg.7
     %t139 = add i64 %t138, 2
-    %t140 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str961, i64 0, i64 0) to i64
+    %t140 = ptrtoint i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str963, i64 0, i64 0) to i64
     %t141 = call i1 @memcmp(i64 %t139, i64 %t140, i64 17)
     %t142 = zext i1 %t141 to i64
     %t143 = icmp ne i64 %t142, 0
@@ -64823,7 +65395,7 @@ L47:
 L53:
     %t152 = load i64, i64* %arg.7
     %t153 = add i64 %t152, 2
-    %t154 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str962, i64 0, i64 0) to i64
+    %t154 = ptrtoint i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str964, i64 0, i64 0) to i64
     %t155 = call i1 @memcmp(i64 %t153, i64 %t154, i64 8)
     %t156 = zext i1 %t155 to i64
     %t157 = icmp ne i64 %t156, 0
@@ -64849,7 +65421,7 @@ L52:
 L58:
     %t166 = load i64, i64* %arg.7
     %t167 = add i64 %t166, 2
-    %t168 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str963, i64 0, i64 0) to i64
+    %t168 = ptrtoint i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str965, i64 0, i64 0) to i64
     %t169 = call i1 @memcmp(i64 %t167, i64 %t168, i64 10)
     %t170 = zext i1 %t169 to i64
     %t171 = icmp ne i64 %t170, 0
@@ -65149,7 +65721,7 @@ L107:
 L108:
     %t346 = load i64, i64* %source_buf.9
     %t347 = ptrtoint i64* %source_len.10 to i64
-    %t348 = ptrtoint i8* getelementptr inbounds ([43 x i8], [43 x i8]* @.str964, i64 0, i64 0) to i64
+    %t348 = ptrtoint i8* getelementptr inbounds ([43 x i8], [43 x i8]* @.str966, i64 0, i64 0) to i64
     call void @append_str(i64 %t346, i64 %t347, i64 %t348)
     %t349 = load i64, i64* %source_buf.9
     %t350 = ptrtoint i64* %source_len.10 to i64
@@ -65157,15 +65729,15 @@ L108:
     call void @append_str(i64 %t349, i64 %t350, i64 %t351)
     %t352 = load i64, i64* %source_buf.9
     %t353 = ptrtoint i64* %source_len.10 to i64
-    %t354 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str965, i64 0, i64 0) to i64
+    %t354 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str967, i64 0, i64 0) to i64
     call void @append_str(i64 %t352, i64 %t353, i64 %t354)
     %t355 = load i64, i64* %source_buf.9
     %t356 = ptrtoint i64* %source_len.10 to i64
-    %t357 = ptrtoint i8* getelementptr inbounds ([31 x i8], [31 x i8]* @.str966, i64 0, i64 0) to i64
+    %t357 = ptrtoint i8* getelementptr inbounds ([31 x i8], [31 x i8]* @.str968, i64 0, i64 0) to i64
     call void @append_str(i64 %t355, i64 %t356, i64 %t357)
     %t358 = load i64, i64* %source_buf.9
     %t359 = ptrtoint i64* %source_len.10 to i64
-    %t360 = ptrtoint i8* getelementptr inbounds ([99 x i8], [99 x i8]* @.str967, i64 0, i64 0) to i64
+    %t360 = ptrtoint i8* getelementptr inbounds ([99 x i8], [99 x i8]* @.str969, i64 0, i64 0) to i64
     call void @append_str(i64 %t358, i64 %t359, i64 %t360)
     br label %L105
 L104:
@@ -65226,7 +65798,7 @@ L117:
 L119:
     %t393 = load i64, i64* %source_buf.9
     %t394 = ptrtoint i64* %source_len.10 to i64
-    %t395 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str968, i64 0, i64 0) to i64
+    %t395 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str970, i64 0, i64 0) to i64
     call void @append_str(i64 %t393, i64 %t394, i64 %t395)
     %t396 = load i64, i64* %source_buf.9
     %t397 = ptrtoint i64* %source_len.10 to i64
@@ -65317,7 +65889,7 @@ L129:
 L125:
     %t446 = load i64, i64* %source_buf.9
     %t447 = ptrtoint i64* %source_len.10 to i64
-    %t448 = ptrtoint i8* getelementptr inbounds ([79 x i8], [79 x i8]* @.str969, i64 0, i64 0) to i64
+    %t448 = ptrtoint i8* getelementptr inbounds ([79 x i8], [79 x i8]* @.str971, i64 0, i64 0) to i64
     call void @append_str(i64 %t446, i64 %t447, i64 %t448)
     br label %L127
 L127:
@@ -65335,7 +65907,7 @@ L105:
     %t457 = icmp ne i64 %t455, 0
     br i1 %t457, label %L130, label %L132
 L130:
-    %t458 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str970, i64 0, i64 0) to i64
+    %t458 = ptrtoint i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str972, i64 0, i64 0) to i64
     store i64 %t458, i64* %output_file.3
     br label %L132
 L132:
@@ -65352,7 +65924,7 @@ L133:
     %t467 = icmp ne i64 %t465, 0
     br i1 %t467, label %L136, label %L138
 L136:
-    %t468 = ptrtoint i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str971, i64 0, i64 0) to i64
+    %t468 = ptrtoint i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str973, i64 0, i64 0) to i64
     call void @eprintln(i64 %t468)
     ret i64 1
 L138:
@@ -65384,7 +65956,7 @@ L141:
     %t484 = icmp ne i64 %t482, 0
     br i1 %t484, label %L142, label %L144
 L142:
-    %t485 = ptrtoint i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str972, i64 0, i64 0) to i64
+    %t485 = ptrtoint i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str974, i64 0, i64 0) to i64
     call void @eprintln(i64 %t485)
     ret i64 1
 L144:
@@ -65423,7 +65995,7 @@ L146:
     call void @generate(i64 %t503, i64 %t504)
     br label %L147
 L147:
-    %t505 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str973, i64 0, i64 0) to i64
+    %t505 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str975, i64 0, i64 0) to i64
     call void @print(i64 %t505)
     %t506 = load i64, i64* %output_file.3
     call void @println(i64 %t506)
@@ -65442,7 +66014,7 @@ L150:
     %t515 = icmp ne i64 %t513, 0
     br i1 %t515, label %L153, label %L155
 L153:
-    %t516 = ptrtoint i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str974, i64 0, i64 0) to i64
+    %t516 = ptrtoint i8* getelementptr inbounds ([38 x i8], [38 x i8]* @.str976, i64 0, i64 0) to i64
     call void @eprintln(i64 %t516)
     ret i64 1
 L155:
@@ -65478,12 +66050,12 @@ L158:
     %t534 = icmp ne i64 %t532, 0
     br i1 %t534, label %L159, label %L161
 L159:
-    %t535 = ptrtoint i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str972, i64 0, i64 0) to i64
+    %t535 = ptrtoint i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str974, i64 0, i64 0) to i64
     call void @eprintln(i64 %t535)
     ret i64 1
 L161:
-    %found.25 = alloca i64
-    store i64 0, i64* %found.25
+    %modules_node.25 = alloca i64
+    store i64 0, i64* %modules_node.25
     %decls.26 = alloca i64
     %t536 = load i64, i64* %prog.24
     %t537 = call i8* @program_decls(i64 %t536)
@@ -65512,976 +66084,1254 @@ L163:
     store i64 %t549, i64* %decl.29
     %t550 = load i64, i64* %decl.29
     %t551 = call i64 @node_kind(i64 %t550)
-    %t552 = load i64, i64* @NODE_VAR_DECL
+    %t552 = load i64, i64* @NODE_MODULES_DECL
     %t554 = icmp eq i64 %t551, %t552
     %t553 = zext i1 %t554 to i64
     %t555 = icmp ne i64 %t553, 0
     br i1 %t555, label %L165, label %L167
 L165:
-    %name.30 = alloca i64
     %t556 = load i64, i64* %decl.29
-    %t557 = call i8* @var_decl_name(i64 %t556)
-    %t558 = ptrtoint i8* %t557 to i64
-    store i64 %t558, i64* %name.30
-    %name_len.31 = alloca i64
-    %t559 = load i64, i64* %decl.29
-    %t560 = call i64 @var_decl_name_len(i64 %t559)
-    store i64 %t560, i64* %name_len.31
-    %t561 = alloca i64
-    store i64 0, i64* %t561
-    %t562 = load i64, i64* %name_len.31
-    %t564 = icmp eq i64 %t562, 11
-    %t563 = zext i1 %t564 to i64
-    %t565 = icmp ne i64 %t563, 0
-    br i1 %t565, label %L171, label %L172
-L171:
-    %t566 = load i64, i64* %name.30
-    %t567 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str975, i64 0, i64 0) to i64
-    %t568 = call i1 @memcmp(i64 %t566, i64 %t567, i64 11)
-    %t569 = zext i1 %t568 to i64
-    %t570 = icmp ne i64 %t569, 0
-    %t571 = zext i1 %t570 to i64
-    store i64 %t571, i64* %t561
-    br label %L172
-L172:
-    %t572 = load i64, i64* %t561
-    %t573 = icmp ne i64 %t572, 0
-    br i1 %t573, label %L168, label %L170
-L168:
-    %str_node.32 = alloca i64
-    %t574 = call i8* @string_expr_alloc()
-    %t575 = ptrtoint i8* %t574 to i64
-    store i64 %t575, i64* %str_node.32
-    %t576 = load i64, i64* %str_node.32
-    %t577 = load i64, i64* %ast_source.22
-    call void @string_expr_set_value(i64 %t576, i64 %t577)
-    %t578 = load i64, i64* %str_node.32
-    %t579 = load i64, i64* %ast_source_len.23
-    call void @string_expr_set_value_len(i64 %t578, i64 %t579)
-    %t580 = load i64, i64* %decl.29
-    %t581 = load i64, i64* %str_node.32
-    call void @var_decl_set_init(i64 %t580, i64 %t581)
-    store i64 1, i64* %found.25
-    br label %L170
-L170:
+    store i64 %t556, i64* %modules_node.25
     br label %L167
 L167:
-    %t582 = load i64, i64* %j.28
-    %t583 = add i64 %t582, 1
-    store i64 %t583, i64* %j.28
+    %t557 = load i64, i64* %j.28
+    %t558 = add i64 %t557, 1
+    store i64 %t558, i64* %j.28
     br label %L162
 L164:
-    %t584 = load i64, i64* %found.25
-    %t586 = icmp eq i64 %t584, 0
-    %t585 = zext i1 %t586 to i64
-    %t587 = icmp ne i64 %t585, 0
-    br i1 %t587, label %L173, label %L175
-L173:
-    %t588 = ptrtoint i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str976, i64 0, i64 0) to i64
-    call void @eprintln(i64 %t588)
-    ret i64 1
-L175:
-    %langbe.33 = alloca i64
-    %t589 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str219, i64 0, i64 0) to i64
-    %t590 = call i8* @getenv(i64 %t589)
-    %t591 = ptrtoint i8* %t590 to i64
-    store i64 %t591, i64* %langbe.33
-    %t592 = alloca i64
-    store i64 0, i64* %t592
-    %t593 = load i64, i64* %langbe.33
-    %t595 = icmp ne i64 %t593, 0
-    %t594 = zext i1 %t595 to i64
-    %t596 = icmp ne i64 %t594, 0
-    br i1 %t596, label %L179, label %L180
-L179:
-    %t597 = load i64, i64* %langbe.33
-    %t598 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str16, i64 0, i64 0) to i64
-    %t599 = call i64 @streq(i64 %t597, i64 %t598)
-    %t600 = icmp ne i64 %t599, 0
-    %t601 = zext i1 %t600 to i64
-    store i64 %t601, i64* %t592
-    br label %L180
-L180:
-    %t602 = load i64, i64* %t592
-    %t603 = icmp ne i64 %t602, 0
-    br i1 %t603, label %L176, label %L177
-L176:
-    %t604 = load i64, i64* %prog.24
-    %t605 = load i64, i64* %output_file.3
-    call void @generate_llvm(i64 %t604, i64 %t605)
-    br label %L178
+    %found_self.30 = alloca i64
+    store i64 0, i64* %found_self.30
+    %found_mods.31 = alloca i64
+    store i64 0, i64* %found_mods.31
+    store i64 0, i64* %j.28
+    br label %L168
+L168:
+    %t559 = load i64, i64* %j.28
+    %t560 = load i64, i64* %decl_count.27
+    %t562 = icmp slt i64 %t559, %t560
+    %t561 = zext i1 %t562 to i64
+    %t563 = icmp ne i64 %t561, 0
+    br i1 %t563, label %L169, label %L170
+L169:
+    %decl.32 = alloca i64
+    %t564 = load i64, i64* %decls.26
+    %t565 = load i64, i64* %j.28
+    %t566 = call i8* @get_decl(i64 %t564, i64 %t565)
+    %t567 = ptrtoint i8* %t566 to i64
+    store i64 %t567, i64* %decl.32
+    %t568 = load i64, i64* %decl.32
+    %t569 = call i64 @node_kind(i64 %t568)
+    %t570 = load i64, i64* @NODE_VAR_DECL
+    %t572 = icmp eq i64 %t569, %t570
+    %t571 = zext i1 %t572 to i64
+    %t573 = icmp ne i64 %t571, 0
+    br i1 %t573, label %L171, label %L173
+L171:
+    %name.33 = alloca i64
+    %t574 = load i64, i64* %decl.32
+    %t575 = call i8* @var_decl_name(i64 %t574)
+    %t576 = ptrtoint i8* %t575 to i64
+    store i64 %t576, i64* %name.33
+    %name_len.34 = alloca i64
+    %t577 = load i64, i64* %decl.32
+    %t578 = call i64 @var_decl_name_len(i64 %t577)
+    store i64 %t578, i64* %name_len.34
+    %t579 = alloca i64
+    store i64 0, i64* %t579
+    %t580 = load i64, i64* %name_len.34
+    %t582 = icmp eq i64 %t580, 11
+    %t581 = zext i1 %t582 to i64
+    %t583 = icmp ne i64 %t581, 0
+    br i1 %t583, label %L177, label %L178
 L177:
-    %t606 = load i64, i64* %prog.24
-    %t607 = load i64, i64* %output_file.3
-    call void @generate(i64 %t606, i64 %t607)
+    %t584 = load i64, i64* %name.33
+    %t585 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str977, i64 0, i64 0) to i64
+    %t586 = call i1 @memcmp(i64 %t584, i64 %t585, i64 11)
+    %t587 = zext i1 %t586 to i64
+    %t588 = icmp ne i64 %t587, 0
+    %t589 = zext i1 %t588 to i64
+    store i64 %t589, i64* %t579
     br label %L178
 L178:
-    %t608 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str973, i64 0, i64 0) to i64
-    call void @print(i64 %t608)
-    %t609 = load i64, i64* %output_file.3
-    call void @println(i64 %t609)
+    %t590 = load i64, i64* %t579
+    %t591 = icmp ne i64 %t590, 0
+    br i1 %t591, label %L174, label %L176
+L174:
+    %str_node.35 = alloca i64
+    %t592 = call i8* @string_expr_alloc()
+    %t593 = ptrtoint i8* %t592 to i64
+    store i64 %t593, i64* %str_node.35
+    %t594 = load i64, i64* %str_node.35
+    %t595 = load i64, i64* %ast_source.22
+    call void @string_expr_set_value(i64 %t594, i64 %t595)
+    %t596 = load i64, i64* %str_node.35
+    %t597 = load i64, i64* %ast_source_len.23
+    call void @string_expr_set_value_len(i64 %t596, i64 %t597)
+    %t598 = load i64, i64* %decl.32
+    %t599 = load i64, i64* %str_node.35
+    call void @var_decl_set_init(i64 %t598, i64 %t599)
+    store i64 1, i64* %found_self.30
+    br label %L176
+L176:
+    %t600 = alloca i64
+    store i64 0, i64* %t600
+    %t601 = load i64, i64* %name_len.34
+    %t603 = icmp eq i64 %t601, 14
+    %t602 = zext i1 %t603 to i64
+    %t604 = icmp ne i64 %t602, 0
+    br i1 %t604, label %L182, label %L183
+L182:
+    %t605 = load i64, i64* %name.33
+    %t606 = ptrtoint i8* getelementptr inbounds ([15 x i8], [15 x i8]* @.str978, i64 0, i64 0) to i64
+    %t607 = call i1 @memcmp(i64 %t605, i64 %t606, i64 14)
+    %t608 = zext i1 %t607 to i64
+    %t609 = icmp ne i64 %t608, 0
+    %t610 = zext i1 %t609 to i64
+    store i64 %t610, i64* %t600
+    br label %L183
+L183:
+    %t611 = load i64, i64* %t600
+    %t612 = icmp ne i64 %t611, 0
+    br i1 %t612, label %L179, label %L181
+L179:
+    %t613 = load i64, i64* %modules_node.25
+    %t615 = icmp ne i64 %t613, 0
+    %t614 = zext i1 %t615 to i64
+    %t616 = icmp ne i64 %t614, 0
+    br i1 %t616, label %L184, label %L186
+L184:
+    %mod_count.36 = alloca i64
+    %t617 = load i64, i64* %modules_node.25
+    %t618 = call i64 @modules_decl_count(i64 %t617)
+    store i64 %t618, i64* %mod_count.36
+    %elements.37 = alloca i64
+    %t619 = load i64, i64* %mod_count.36
+    %t620 = mul i64 %t619, 8
+    %t621 = call i8* @alloc(i64 %t620)
+    %t622 = ptrtoint i8* %t621 to i64
+    store i64 %t622, i64* %elements.37
+    %k.38 = alloca i64
+    store i64 0, i64* %k.38
+    br label %L187
+L187:
+    %t623 = load i64, i64* %k.38
+    %t624 = load i64, i64* %mod_count.36
+    %t626 = icmp slt i64 %t623, %t624
+    %t625 = zext i1 %t626 to i64
+    %t627 = icmp ne i64 %t625, 0
+    br i1 %t627, label %L188, label %L189
+L188:
+    %entry.39 = alloca i64
+    %t628 = load i64, i64* %modules_node.25
+    %t629 = load i64, i64* %k.38
+    %t630 = call i8* @modules_decl_get(i64 %t628, i64 %t629)
+    %t631 = ptrtoint i8* %t630 to i64
+    store i64 %t631, i64* %entry.39
+    %mod_name.40 = alloca i64
+    %t632 = load i64, i64* %entry.39
+    %t633 = call i8* @module_entry_name(i64 %t632)
+    %t634 = ptrtoint i8* %t633 to i64
+    store i64 %t634, i64* %mod_name.40
+    %mod_len.41 = alloca i64
+    %t635 = load i64, i64* %entry.39
+    %t636 = call i64 @module_entry_len(i64 %t635)
+    store i64 %t636, i64* %mod_len.41
+    %str_node.42 = alloca i64
+    %t637 = call i8* @string_expr_alloc()
+    %t638 = ptrtoint i8* %t637 to i64
+    store i64 %t638, i64* %str_node.42
+    %t639 = load i64, i64* %str_node.42
+    %t640 = load i64, i64* %mod_name.40
+    call void @string_expr_set_value(i64 %t639, i64 %t640)
+    %t641 = load i64, i64* %str_node.42
+    %t642 = load i64, i64* %mod_len.41
+    call void @string_expr_set_value_len(i64 %t641, i64 %t642)
+    %ep.43 = alloca i64
+    %t643 = load i64, i64* %elements.37
+    %t644 = load i64, i64* %k.38
+    %t645 = mul i64 %t644, 8
+    %t646 = add i64 %t643, %t645
+    store i64 %t646, i64* %ep.43
+    %t647 = load i64, i64* %str_node.42
+    %t648 = load i64, i64* %ep.43
+    %t649 = inttoptr i64 %t648 to i64*
+    store i64 %t647, i64* %t649
+    %t650 = load i64, i64* %k.38
+    %t651 = add i64 %t650, 1
+    store i64 %t651, i64* %k.38
+    br label %L187
+L189:
+    %arr_node.44 = alloca i64
+    %t652 = call i8* @array_literal_alloc()
+    %t653 = ptrtoint i8* %t652 to i64
+    store i64 %t653, i64* %arr_node.44
+    %t654 = load i64, i64* %arr_node.44
+    %t655 = load i64, i64* %elements.37
+    call void @array_literal_set_elems(i64 %t654, i64 %t655)
+    %t656 = load i64, i64* %arr_node.44
+    %t657 = load i64, i64* %mod_count.36
+    call void @array_literal_set_count(i64 %t656, i64 %t657)
+    %t658 = load i64, i64* %decl.32
+    %t659 = load i64, i64* %arr_node.44
+    call void @var_decl_set_init(i64 %t658, i64 %t659)
+    br label %L186
+L186:
+    store i64 1, i64* %found_mods.31
+    br label %L181
+L181:
+    br label %L173
+L173:
+    %t660 = load i64, i64* %j.28
+    %t661 = add i64 %t660, 1
+    store i64 %t661, i64* %j.28
+    br label %L168
+L170:
+    %t662 = load i64, i64* %found_self.30
+    %t664 = icmp eq i64 %t662, 0
+    %t663 = zext i1 %t664 to i64
+    %t665 = icmp ne i64 %t663, 0
+    br i1 %t665, label %L190, label %L192
+L190:
+    %t666 = ptrtoint i8* getelementptr inbounds ([45 x i8], [45 x i8]* @.str979, i64 0, i64 0) to i64
+    call void @eprintln(i64 %t666)
+    ret i64 1
+L192:
+    %langbe.45 = alloca i64
+    %t667 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str219, i64 0, i64 0) to i64
+    %t668 = call i8* @getenv(i64 %t667)
+    %t669 = ptrtoint i8* %t668 to i64
+    store i64 %t669, i64* %langbe.45
+    %t670 = alloca i64
+    store i64 0, i64* %t670
+    %t671 = load i64, i64* %langbe.45
+    %t673 = icmp ne i64 %t671, 0
+    %t672 = zext i1 %t673 to i64
+    %t674 = icmp ne i64 %t672, 0
+    br i1 %t674, label %L196, label %L197
+L196:
+    %t675 = load i64, i64* %langbe.45
+    %t676 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str16, i64 0, i64 0) to i64
+    %t677 = call i64 @streq(i64 %t675, i64 %t676)
+    %t678 = icmp ne i64 %t677, 0
+    %t679 = zext i1 %t678 to i64
+    store i64 %t679, i64* %t670
+    br label %L197
+L197:
+    %t680 = load i64, i64* %t670
+    %t681 = icmp ne i64 %t680, 0
+    br i1 %t681, label %L193, label %L194
+L193:
+    %t682 = load i64, i64* %prog.24
+    %t683 = load i64, i64* %output_file.3
+    call void @generate_llvm(i64 %t682, i64 %t683)
+    br label %L195
+L194:
+    %t684 = load i64, i64* %prog.24
+    %t685 = load i64, i64* %output_file.3
+    call void @generate(i64 %t684, i64 %t685)
+    br label %L195
+L195:
+    %t686 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str975, i64 0, i64 0) to i64
+    call void @print(i64 %t686)
+    %t687 = load i64, i64* %output_file.3
+    call void @println(i64 %t687)
     ret i64 0
 L152:
-    %t610 = load i64, i64* @add_reader_mode
-    %t612 = icmp ne i64 %t610, 0
-    %t611 = zext i1 %t612 to i64
-    %t613 = icmp ne i64 %t611, 0
-    br i1 %t613, label %L181, label %L183
-L181:
-    %t614 = alloca i64
-    store i64 1, i64* %t614
-    %t615 = load i64, i64* @add_reader_name
-    %t617 = icmp eq i64 %t615, 0
-    %t616 = zext i1 %t617 to i64
-    %t618 = icmp eq i64 %t616, 0
-    br i1 %t618, label %L187, label %L188
-L187:
-    %t619 = load i64, i64* @add_reader_file
-    %t621 = icmp eq i64 %t619, 0
-    %t620 = zext i1 %t621 to i64
-    %t622 = icmp ne i64 %t620, 0
-    %t623 = zext i1 %t622 to i64
-    store i64 %t623, i64* %t614
-    br label %L188
-L188:
-    %t624 = load i64, i64* %t614
-    %t625 = icmp ne i64 %t624, 0
-    br i1 %t625, label %L184, label %L186
-L184:
-    %t626 = ptrtoint i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str977, i64 0, i64 0) to i64
-    call void @eprintln(i64 %t626)
-    ret i64 1
-L186:
-    %t627 = load i64, i64* @self_kernel
-    %t628 = call i64 @strlen(i64 %t627)
-    %t630 = icmp eq i64 %t628, 0
-    %t629 = zext i1 %t630 to i64
-    %t631 = icmp ne i64 %t629, 0
-    br i1 %t631, label %L189, label %L191
-L189:
-    %t632 = ptrtoint i8* getelementptr inbounds ([64 x i8], [64 x i8]* @.str978, i64 0, i64 0) to i64
-    call void @eprintln(i64 %t632)
-    ret i64 1
-L191:
-    %base_prog.34 = alloca i64
-    %t633 = load i64, i64* @self_kernel
-    %t634 = call i8* @parse_ast_from_string(i64 %t633)
-    %t635 = ptrtoint i8* %t634 to i64
-    store i64 %t635, i64* %base_prog.34
-    %t636 = load i64, i64* %base_prog.34
-    %t638 = icmp eq i64 %t636, 0
-    %t637 = zext i1 %t638 to i64
-    %t639 = icmp ne i64 %t637, 0
-    br i1 %t639, label %L192, label %L194
-L192:
-    %t640 = ptrtoint i8* getelementptr inbounds ([39 x i8], [39 x i8]* @.str979, i64 0, i64 0) to i64
-    call void @eprintln(i64 %t640)
-    ret i64 1
-L194:
-    %reader_source.35 = alloca i64
-    %t641 = load i64, i64* @add_reader_file
-    %t642 = call i8* @read_file(i64 %t641)
-    %t643 = ptrtoint i8* %t642 to i64
-    store i64 %t643, i64* %reader_source.35
-    %t644 = load i64, i64* %reader_source.35
-    %t646 = icmp eq i64 %t644, 0
-    %t645 = zext i1 %t646 to i64
-    %t647 = icmp ne i64 %t645, 0
-    br i1 %t647, label %L195, label %L197
-L195:
-    ret i64 1
-L197:
-    %reader_prog.36 = alloca i64
-    %t648 = load i64, i64* %reader_source.35
-    %t649 = call i8* @parse_ast_from_string(i64 %t648)
-    %t650 = ptrtoint i8* %t649 to i64
-    store i64 %t650, i64* %reader_prog.36
-    %t651 = load i64, i64* %reader_prog.36
-    %t653 = icmp eq i64 %t651, 0
-    %t652 = zext i1 %t653 to i64
-    %t654 = icmp ne i64 %t652, 0
-    br i1 %t654, label %L198, label %L200
+    %t688 = load i64, i64* @add_reader_mode
+    %t690 = icmp ne i64 %t688, 0
+    %t689 = zext i1 %t690 to i64
+    %t691 = icmp ne i64 %t689, 0
+    br i1 %t691, label %L198, label %L200
 L198:
-    %t655 = ptrtoint i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str980, i64 0, i64 0) to i64
-    call void @eprintln(i64 %t655)
-    ret i64 1
-L200:
-    %base_decls.37 = alloca i64
-    %t656 = load i64, i64* %base_prog.34
-    %t657 = call i8* @program_decls(i64 %t656)
-    %t658 = ptrtoint i8* %t657 to i64
-    store i64 %t658, i64* %base_decls.37
-    %base_count.38 = alloca i64
-    %t659 = load i64, i64* %base_prog.34
-    %t660 = call i64 @program_decl_count(i64 %t659)
-    store i64 %t660, i64* %base_count.38
-    %reader_decls.39 = alloca i64
-    %t661 = load i64, i64* %reader_prog.36
-    %t662 = call i8* @program_decls(i64 %t661)
-    %t663 = ptrtoint i8* %t662 to i64
-    store i64 %t663, i64* %reader_decls.39
-    %reader_count.40 = alloca i64
-    %t664 = load i64, i64* %reader_prog.36
-    %t665 = call i64 @program_decl_count(i64 %t664)
-    store i64 %t665, i64* %reader_count.40
-    %total.41 = alloca i64
-    %t666 = load i64, i64* %base_count.38
-    %t667 = load i64, i64* %reader_count.40
-    %t668 = add i64 %t666, %t667
-    store i64 %t668, i64* %total.41
-    %combined_decls.42 = alloca i64
-    %t669 = load i64, i64* %total.41
-    %t670 = mul i64 %t669, 8
-    %t671 = call i8* @alloc(i64 %t670)
-    %t672 = ptrtoint i8* %t671 to i64
-    store i64 %t672, i64* %combined_decls.42
-    %j.43 = alloca i64
-    store i64 0, i64* %j.43
-    br label %L201
-L201:
-    %t673 = load i64, i64* %j.43
-    %t674 = load i64, i64* %base_count.38
-    %t676 = icmp slt i64 %t673, %t674
-    %t675 = zext i1 %t676 to i64
-    %t677 = icmp ne i64 %t675, 0
-    br i1 %t677, label %L202, label %L203
-L202:
-    %src.44 = alloca i64
-    %t678 = load i64, i64* %base_decls.37
-    %t679 = load i64, i64* %j.43
-    %t680 = mul i64 %t679, 8
-    %t681 = add i64 %t678, %t680
-    store i64 %t681, i64* %src.44
-    %dst.45 = alloca i64
-    %t682 = load i64, i64* %combined_decls.42
-    %t683 = load i64, i64* %j.43
-    %t684 = mul i64 %t683, 8
-    %t685 = add i64 %t682, %t684
-    store i64 %t685, i64* %dst.45
-    %t686 = load i64, i64* %src.44
-    %t688 = inttoptr i64 %t686 to i64*
-    %t687 = load i64, i64* %t688
-    %t689 = load i64, i64* %dst.45
-    %t690 = inttoptr i64 %t689 to i64*
-    store i64 %t687, i64* %t690
-    %t691 = load i64, i64* %j.43
-    %t692 = add i64 %t691, 1
-    store i64 %t692, i64* %j.43
-    br label %L201
-L203:
-    store i64 0, i64* %j.43
-    br label %L204
+    %t692 = alloca i64
+    store i64 1, i64* %t692
+    %t693 = load i64, i64* @add_reader_name
+    %t695 = icmp eq i64 %t693, 0
+    %t694 = zext i1 %t695 to i64
+    %t696 = icmp eq i64 %t694, 0
+    br i1 %t696, label %L204, label %L205
 L204:
-    %t693 = load i64, i64* %j.43
-    %t694 = load i64, i64* %reader_count.40
-    %t696 = icmp slt i64 %t693, %t694
-    %t695 = zext i1 %t696 to i64
-    %t697 = icmp ne i64 %t695, 0
-    br i1 %t697, label %L205, label %L206
+    %t697 = load i64, i64* @add_reader_file
+    %t699 = icmp eq i64 %t697, 0
+    %t698 = zext i1 %t699 to i64
+    %t700 = icmp ne i64 %t698, 0
+    %t701 = zext i1 %t700 to i64
+    store i64 %t701, i64* %t692
+    br label %L205
 L205:
-    %src.46 = alloca i64
-    %t698 = load i64, i64* %reader_decls.39
-    %t699 = load i64, i64* %j.43
-    %t700 = mul i64 %t699, 8
-    %t701 = add i64 %t698, %t700
-    store i64 %t701, i64* %src.46
-    %dst.47 = alloca i64
-    %t702 = load i64, i64* %combined_decls.42
-    %t703 = load i64, i64* %base_count.38
-    %t704 = load i64, i64* %j.43
-    %t705 = add i64 %t703, %t704
-    %t706 = mul i64 %t705, 8
-    %t707 = add i64 %t702, %t706
-    store i64 %t707, i64* %dst.47
-    %decl.48 = alloca i64
-    %t708 = load i64, i64* %src.46
-    %t710 = inttoptr i64 %t708 to i64*
-    %t709 = load i64, i64* %t710
-    store i64 %t709, i64* %decl.48
-    %t711 = load i64, i64* %decl.48
-    %t712 = load i64, i64* %dst.47
-    %t713 = inttoptr i64 %t712 to i64*
-    store i64 %t711, i64* %t713
-    %t714 = load i64, i64* %decl.48
-    %t715 = call i64 @node_kind(i64 %t714)
-    %t716 = load i64, i64* @NODE_READER_DECL
-    %t718 = icmp eq i64 %t715, %t716
-    %t717 = zext i1 %t718 to i64
-    %t719 = icmp ne i64 %t717, 0
-    br i1 %t719, label %L207, label %L209
-L207:
-    %t720 = load i64, i64* %decl.48
-    call void @reader_decl_set_is_ast(i64 %t720, i64 1)
-    br label %L209
-L209:
-    %t721 = load i64, i64* %j.43
-    %t722 = add i64 %t721, 1
-    store i64 %t722, i64* %j.43
-    br label %L204
+    %t702 = load i64, i64* %t692
+    %t703 = icmp ne i64 %t702, 0
+    br i1 %t703, label %L201, label %L203
+L201:
+    %t704 = ptrtoint i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str980, i64 0, i64 0) to i64
+    call void @eprintln(i64 %t704)
+    ret i64 1
+L203:
+    %t705 = load i64, i64* @self_kernel
+    %t706 = call i64 @strlen(i64 %t705)
+    %t708 = icmp eq i64 %t706, 0
+    %t707 = zext i1 %t708 to i64
+    %t709 = icmp ne i64 %t707, 0
+    br i1 %t709, label %L206, label %L208
 L206:
-    %combined_prog.49 = alloca i64
-    %t723 = call i8* @alloc(i64 16)
-    %t724 = ptrtoint i8* %t723 to i64
-    store i64 %t724, i64* %combined_prog.49
-    %pd.50 = alloca i64
-    %t725 = load i64, i64* %combined_prog.49
-    store i64 %t725, i64* %pd.50
-    %t726 = load i64, i64* %combined_decls.42
-    %t727 = load i64, i64* %pd.50
-    %t728 = inttoptr i64 %t727 to i64*
-    store i64 %t726, i64* %t728
-    %pc.51 = alloca i64
-    %t729 = load i64, i64* %combined_prog.49
-    %t730 = add i64 %t729, 8
-    store i64 %t730, i64* %pc.51
-    %t731 = load i64, i64* %total.41
-    %t732 = load i64, i64* %pc.51
-    %t733 = inttoptr i64 %t732 to i64*
-    store i64 %t731, i64* %t733
-    %func_name.52 = alloca i64
-    %t734 = load i64, i64* @add_reader_name
-    store i64 %t734, i64* %func_name.52
-    %func_name_len.53 = alloca i64
-    %t735 = load i64, i64* %func_name.52
-    %t736 = call i64 @strlen(i64 %t735)
-    store i64 %t736, i64* %func_name_len.53
-    %combined_ast_str.54 = alloca i64
-    %t737 = load i64, i64* %combined_prog.49
-    %t738 = call i8* @ast_emit_program(i64 %t737)
-    %t739 = ptrtoint i8* %t738 to i64
-    store i64 %t739, i64* %combined_ast_str.54
-    %combined_ast_len.55 = alloca i64
-    %t740 = load i64, i64* %combined_ast_str.54
-    %t741 = call i64 @strlen(i64 %t740)
-    store i64 %t741, i64* %combined_ast_len.55
-    %found_self.56 = alloca i64
-    store i64 0, i64* %found_self.56
-    %found_names.57 = alloca i64
-    store i64 0, i64* %found_names.57
-    %found_funcs.58 = alloca i64
-    store i64 0, i64* %found_funcs.58
-    store i64 0, i64* %j.43
-    br label %L210
-L210:
-    %t742 = load i64, i64* %j.43
-    %t743 = load i64, i64* %total.41
-    %t745 = icmp slt i64 %t742, %t743
-    %t744 = zext i1 %t745 to i64
-    %t746 = icmp ne i64 %t744, 0
-    br i1 %t746, label %L211, label %L212
+    %t710 = ptrtoint i8* getelementptr inbounds ([64 x i8], [64 x i8]* @.str981, i64 0, i64 0) to i64
+    call void @eprintln(i64 %t710)
+    ret i64 1
+L208:
+    %base_prog.46 = alloca i64
+    %t711 = load i64, i64* @self_kernel
+    %t712 = call i8* @parse_ast_from_string(i64 %t711)
+    %t713 = ptrtoint i8* %t712 to i64
+    store i64 %t713, i64* %base_prog.46
+    %t714 = load i64, i64* %base_prog.46
+    %t716 = icmp eq i64 %t714, 0
+    %t715 = zext i1 %t716 to i64
+    %t717 = icmp ne i64 %t715, 0
+    br i1 %t717, label %L209, label %L211
+L209:
+    %t718 = ptrtoint i8* getelementptr inbounds ([39 x i8], [39 x i8]* @.str982, i64 0, i64 0) to i64
+    call void @eprintln(i64 %t718)
+    ret i64 1
 L211:
-    %decl.59 = alloca i64
-    %t747 = load i64, i64* %combined_decls.42
-    %t748 = load i64, i64* %j.43
-    %t749 = call i8* @get_decl(i64 %t747, i64 %t748)
-    %t750 = ptrtoint i8* %t749 to i64
-    store i64 %t750, i64* %decl.59
-    %t751 = load i64, i64* %decl.59
-    %t752 = call i64 @node_kind(i64 %t751)
-    %t753 = load i64, i64* @NODE_VAR_DECL
-    %t755 = icmp eq i64 %t752, %t753
-    %t754 = zext i1 %t755 to i64
-    %t756 = icmp ne i64 %t754, 0
-    br i1 %t756, label %L213, label %L215
-L213:
-    %name.60 = alloca i64
-    %t757 = load i64, i64* %decl.59
-    %t758 = call i8* @var_decl_name(i64 %t757)
-    %t759 = ptrtoint i8* %t758 to i64
-    store i64 %t759, i64* %name.60
-    %name_len.61 = alloca i64
-    %t760 = load i64, i64* %decl.59
-    %t761 = call i64 @var_decl_name_len(i64 %t760)
-    store i64 %t761, i64* %name_len.61
-    %t762 = alloca i64
-    store i64 0, i64* %t762
-    %t763 = load i64, i64* %name_len.61
-    %t765 = icmp eq i64 %t763, 11
-    %t764 = zext i1 %t765 to i64
-    %t766 = icmp ne i64 %t764, 0
-    br i1 %t766, label %L219, label %L220
-L219:
-    %t767 = load i64, i64* %name.60
-    %t768 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str975, i64 0, i64 0) to i64
-    %t769 = call i1 @memcmp(i64 %t767, i64 %t768, i64 11)
-    %t770 = zext i1 %t769 to i64
-    %t771 = icmp ne i64 %t770, 0
-    %t772 = zext i1 %t771 to i64
-    store i64 %t772, i64* %t762
-    br label %L220
-L220:
-    %t773 = load i64, i64* %t762
-    %t774 = icmp ne i64 %t773, 0
-    br i1 %t774, label %L216, label %L218
-L216:
-    %str_node.62 = alloca i64
-    %t775 = call i8* @string_expr_alloc()
-    %t776 = ptrtoint i8* %t775 to i64
-    store i64 %t776, i64* %str_node.62
-    %t777 = load i64, i64* %str_node.62
-    %t778 = load i64, i64* %combined_ast_str.54
-    call void @string_expr_set_value(i64 %t777, i64 %t778)
-    %t779 = load i64, i64* %str_node.62
-    %t780 = load i64, i64* %combined_ast_len.55
-    call void @string_expr_set_value_len(i64 %t779, i64 %t780)
-    %t781 = load i64, i64* %decl.59
-    %t782 = load i64, i64* %str_node.62
-    call void @var_decl_set_init(i64 %t781, i64 %t782)
-    store i64 1, i64* %found_self.56
+    %reader_source.47 = alloca i64
+    %t719 = load i64, i64* @add_reader_file
+    %t720 = call i8* @read_file(i64 %t719)
+    %t721 = ptrtoint i8* %t720 to i64
+    store i64 %t721, i64* %reader_source.47
+    %t722 = load i64, i64* %reader_source.47
+    %t724 = icmp eq i64 %t722, 0
+    %t723 = zext i1 %t724 to i64
+    %t725 = icmp ne i64 %t723, 0
+    br i1 %t725, label %L212, label %L214
+L212:
+    ret i64 1
+L214:
+    %reader_prog.48 = alloca i64
+    %t726 = load i64, i64* %reader_source.47
+    %t727 = call i8* @parse_ast_from_string(i64 %t726)
+    %t728 = ptrtoint i8* %t727 to i64
+    store i64 %t728, i64* %reader_prog.48
+    %t729 = load i64, i64* %reader_prog.48
+    %t731 = icmp eq i64 %t729, 0
+    %t730 = zext i1 %t731 to i64
+    %t732 = icmp ne i64 %t730, 0
+    br i1 %t732, label %L215, label %L217
+L215:
+    %t733 = ptrtoint i8* getelementptr inbounds ([34 x i8], [34 x i8]* @.str983, i64 0, i64 0) to i64
+    call void @eprintln(i64 %t733)
+    ret i64 1
+L217:
+    %base_decls.49 = alloca i64
+    %t734 = load i64, i64* %base_prog.46
+    %t735 = call i8* @program_decls(i64 %t734)
+    %t736 = ptrtoint i8* %t735 to i64
+    store i64 %t736, i64* %base_decls.49
+    %base_count.50 = alloca i64
+    %t737 = load i64, i64* %base_prog.46
+    %t738 = call i64 @program_decl_count(i64 %t737)
+    store i64 %t738, i64* %base_count.50
+    %reader_decls.51 = alloca i64
+    %t739 = load i64, i64* %reader_prog.48
+    %t740 = call i8* @program_decls(i64 %t739)
+    %t741 = ptrtoint i8* %t740 to i64
+    store i64 %t741, i64* %reader_decls.51
+    %reader_count.52 = alloca i64
+    %t742 = load i64, i64* %reader_prog.48
+    %t743 = call i64 @program_decl_count(i64 %t742)
+    store i64 %t743, i64* %reader_count.52
+    %included_count.53 = alloca i64
+    store i64 0, i64* %included_count.53
+    %j.54 = alloca i64
+    store i64 0, i64* %j.54
     br label %L218
 L218:
-    %t783 = alloca i64
-    store i64 0, i64* %t783
-    %t784 = load i64, i64* %name_len.61
-    %t786 = icmp eq i64 %t784, 21
-    %t785 = zext i1 %t786 to i64
-    %t787 = icmp ne i64 %t785, 0
-    br i1 %t787, label %L224, label %L225
-L224:
-    %t788 = load i64, i64* %name.60
-    %t789 = ptrtoint i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str981, i64 0, i64 0) to i64
-    %t790 = call i1 @memcmp(i64 %t788, i64 %t789, i64 21)
-    %t791 = zext i1 %t790 to i64
-    %t792 = icmp ne i64 %t791, 0
-    %t793 = zext i1 %t792 to i64
-    store i64 %t793, i64* %t783
-    br label %L225
-L225:
-    %t794 = load i64, i64* %t783
-    %t795 = icmp ne i64 %t794, 0
-    br i1 %t795, label %L221, label %L223
+    %t744 = load i64, i64* %j.54
+    %t745 = load i64, i64* %reader_count.52
+    %t747 = icmp slt i64 %t744, %t745
+    %t746 = zext i1 %t747 to i64
+    %t748 = icmp ne i64 %t746, 0
+    br i1 %t748, label %L219, label %L220
+L219:
+    %src.55 = alloca i64
+    %t749 = load i64, i64* %reader_decls.51
+    %t750 = load i64, i64* %j.54
+    %t751 = mul i64 %t750, 8
+    %t752 = add i64 %t749, %t751
+    store i64 %t752, i64* %src.55
+    %decl.56 = alloca i64
+    %t753 = load i64, i64* %src.55
+    %t755 = inttoptr i64 %t753 to i64*
+    %t754 = load i64, i64* %t755
+    store i64 %t754, i64* %decl.56
+    %skip.57 = alloca i64
+    store i64 0, i64* %skip.57
+    %t756 = load i64, i64* %decl.56
+    %t757 = call i64 @node_kind(i64 %t756)
+    %t758 = load i64, i64* @NODE_REQUIRE_DECL
+    %t760 = icmp eq i64 %t757, %t758
+    %t759 = zext i1 %t760 to i64
+    %t761 = icmp ne i64 %t759, 0
+    br i1 %t761, label %L221, label %L223
 L221:
-    %init.63 = alloca i64
-    %t796 = load i64, i64* %decl.59
-    %t797 = call i8* @var_decl_init(i64 %t796)
-    %t798 = ptrtoint i8* %t797 to i64
-    store i64 %t798, i64* %init.63
-    %t799 = alloca i64
-    store i64 0, i64* %t799
-    %t800 = load i64, i64* %init.63
-    %t802 = icmp ne i64 %t800, 0
-    %t801 = zext i1 %t802 to i64
-    %t803 = icmp ne i64 %t801, 0
-    br i1 %t803, label %L229, label %L230
-L229:
-    %t804 = load i64, i64* %init.63
-    %t805 = call i64 @node_kind(i64 %t804)
-    %t806 = load i64, i64* @NODE_ARRAY_LITERAL
-    %t808 = icmp eq i64 %t805, %t806
-    %t807 = zext i1 %t808 to i64
-    %t809 = icmp ne i64 %t807, 0
-    %t810 = zext i1 %t809 to i64
-    store i64 %t810, i64* %t799
-    br label %L230
-L230:
-    %t811 = load i64, i64* %t799
-    %t812 = icmp ne i64 %t811, 0
-    br i1 %t812, label %L226, label %L228
+    %mod.58 = alloca i64
+    %t762 = load i64, i64* %decl.56
+    %t763 = call i8* @require_decl_module(i64 %t762)
+    %t764 = ptrtoint i8* %t763 to i64
+    store i64 %t764, i64* %mod.58
+    %mod_len.59 = alloca i64
+    %t765 = load i64, i64* %decl.56
+    %t766 = call i64 @require_decl_module_len(i64 %t765)
+    store i64 %t766, i64* %mod_len.59
+    %t767 = load i64, i64* %mod.58
+    %t768 = load i64, i64* %mod_len.59
+    %t769 = call i64 @has_kernel_module(i64 %t767, i64 %t768)
+    %t770 = icmp ne i64 %t769, 0
+    br i1 %t770, label %L224, label %L226
+L224:
+    store i64 1, i64* %skip.57
+    br label %L226
 L226:
-    %old_elems.64 = alloca i64
-    %t813 = load i64, i64* %init.63
-    %t814 = call i8* @array_literal_elems(i64 %t813)
-    %t815 = ptrtoint i8* %t814 to i64
-    store i64 %t815, i64* %old_elems.64
-    %old_count.65 = alloca i64
-    %t816 = load i64, i64* %init.63
-    %t817 = call i64 @array_literal_count(i64 %t816)
-    store i64 %t817, i64* %old_count.65
-    %new_count.66 = alloca i64
-    %t818 = load i64, i64* %old_count.65
-    %t819 = add i64 %t818, 1
-    store i64 %t819, i64* %new_count.66
-    %new_elems.67 = alloca i64
-    %t820 = load i64, i64* %new_count.66
-    %t821 = mul i64 %t820, 8
-    %t822 = call i8* @alloc(i64 %t821)
-    %t823 = ptrtoint i8* %t822 to i64
-    store i64 %t823, i64* %new_elems.67
-    %k.68 = alloca i64
-    store i64 0, i64* %k.68
-    br label %L231
-L231:
-    %t824 = load i64, i64* %k.68
-    %t825 = load i64, i64* %old_count.65
-    %t827 = icmp slt i64 %t824, %t825
-    %t826 = zext i1 %t827 to i64
-    %t828 = icmp ne i64 %t826, 0
-    br i1 %t828, label %L232, label %L233
-L232:
-    %src.69 = alloca i64
-    %t829 = load i64, i64* %old_elems.64
-    %t830 = load i64, i64* %k.68
-    %t831 = mul i64 %t830, 8
-    %t832 = add i64 %t829, %t831
-    store i64 %t832, i64* %src.69
-    %dst.70 = alloca i64
-    %t833 = load i64, i64* %new_elems.67
-    %t834 = load i64, i64* %k.68
-    %t835 = mul i64 %t834, 8
-    %t836 = add i64 %t833, %t835
-    store i64 %t836, i64* %dst.70
-    %t837 = load i64, i64* %src.69
-    %t839 = inttoptr i64 %t837 to i64*
-    %t838 = load i64, i64* %t839
-    %t840 = load i64, i64* %dst.70
-    %t841 = inttoptr i64 %t840 to i64*
-    store i64 %t838, i64* %t841
-    %t842 = load i64, i64* %k.68
-    %t843 = add i64 %t842, 1
-    store i64 %t843, i64* %k.68
-    br label %L231
-L233:
-    %str_node.71 = alloca i64
-    %t844 = call i8* @string_expr_alloc()
-    %t845 = ptrtoint i8* %t844 to i64
-    store i64 %t845, i64* %str_node.71
-    %t846 = load i64, i64* %str_node.71
-    %t847 = load i64, i64* @add_reader_name
-    call void @string_expr_set_value(i64 %t846, i64 %t847)
-    %t848 = load i64, i64* %str_node.71
-    %t849 = load i64, i64* %func_name_len.53
-    call void @string_expr_set_value_len(i64 %t848, i64 %t849)
-    %new_slot.72 = alloca i64
-    %t850 = load i64, i64* %new_elems.67
-    %t851 = load i64, i64* %old_count.65
-    %t852 = mul i64 %t851, 8
-    %t853 = add i64 %t850, %t852
-    store i64 %t853, i64* %new_slot.72
-    %t854 = load i64, i64* %str_node.71
-    %t855 = load i64, i64* %new_slot.72
-    %t856 = inttoptr i64 %t855 to i64*
-    store i64 %t854, i64* %t856
-    %t857 = load i64, i64* %init.63
-    %t858 = load i64, i64* %new_elems.67
-    call void @array_literal_set_elems(i64 %t857, i64 %t858)
-    %t859 = load i64, i64* %init.63
-    %t860 = load i64, i64* %new_count.66
-    call void @array_literal_set_count(i64 %t859, i64 %t860)
-    br label %L228
-L228:
-    store i64 1, i64* %found_names.57
     br label %L223
 L223:
-    %t861 = alloca i64
-    store i64 0, i64* %t861
-    %t862 = load i64, i64* %name_len.61
-    %t864 = icmp eq i64 %t862, 21
-    %t863 = zext i1 %t864 to i64
-    %t865 = icmp ne i64 %t863, 0
-    br i1 %t865, label %L237, label %L238
-L237:
-    %t866 = load i64, i64* %name.60
-    %t867 = ptrtoint i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str982, i64 0, i64 0) to i64
-    %t868 = call i1 @memcmp(i64 %t866, i64 %t867, i64 21)
-    %t869 = zext i1 %t868 to i64
-    %t870 = icmp ne i64 %t869, 0
-    %t871 = zext i1 %t870 to i64
-    store i64 %t871, i64* %t861
-    br label %L238
-L238:
-    %t872 = load i64, i64* %t861
-    %t873 = icmp ne i64 %t872, 0
-    br i1 %t873, label %L234, label %L236
+    %t771 = load i64, i64* %decl.56
+    %t772 = call i64 @node_kind(i64 %t771)
+    %t773 = load i64, i64* @NODE_MODULES_DECL
+    %t775 = icmp eq i64 %t772, %t773
+    %t774 = zext i1 %t775 to i64
+    %t776 = icmp ne i64 %t774, 0
+    br i1 %t776, label %L227, label %L229
+L227:
+    store i64 1, i64* %skip.57
+    br label %L229
+L229:
+    %t777 = load i64, i64* %skip.57
+    %t779 = icmp eq i64 %t777, 0
+    %t778 = zext i1 %t779 to i64
+    %t780 = icmp ne i64 %t778, 0
+    br i1 %t780, label %L230, label %L232
+L230:
+    %t781 = load i64, i64* %included_count.53
+    %t782 = add i64 %t781, 1
+    store i64 %t782, i64* %included_count.53
+    br label %L232
+L232:
+    %t783 = load i64, i64* %j.54
+    %t784 = add i64 %t783, 1
+    store i64 %t784, i64* %j.54
+    br label %L218
+L220:
+    %total.60 = alloca i64
+    %t785 = load i64, i64* %base_count.50
+    %t786 = load i64, i64* %included_count.53
+    %t787 = add i64 %t785, %t786
+    store i64 %t787, i64* %total.60
+    %combined_decls.61 = alloca i64
+    %t788 = load i64, i64* %total.60
+    %t789 = mul i64 %t788, 8
+    %t790 = call i8* @alloc(i64 %t789)
+    %t791 = ptrtoint i8* %t790 to i64
+    store i64 %t791, i64* %combined_decls.61
+    store i64 0, i64* %j.54
+    br label %L233
+L233:
+    %t792 = load i64, i64* %j.54
+    %t793 = load i64, i64* %base_count.50
+    %t795 = icmp slt i64 %t792, %t793
+    %t794 = zext i1 %t795 to i64
+    %t796 = icmp ne i64 %t794, 0
+    br i1 %t796, label %L234, label %L235
 L234:
-    %init.73 = alloca i64
-    %t874 = load i64, i64* %decl.59
-    %t875 = call i8* @var_decl_init(i64 %t874)
-    %t876 = ptrtoint i8* %t875 to i64
-    store i64 %t876, i64* %init.73
-    %t877 = alloca i64
-    store i64 0, i64* %t877
-    %t878 = load i64, i64* %init.73
-    %t880 = icmp ne i64 %t878, 0
-    %t879 = zext i1 %t880 to i64
-    %t881 = icmp ne i64 %t879, 0
-    br i1 %t881, label %L242, label %L243
-L242:
-    %t882 = load i64, i64* %init.73
-    %t883 = call i64 @node_kind(i64 %t882)
-    %t884 = load i64, i64* @NODE_ARRAY_LITERAL
-    %t886 = icmp eq i64 %t883, %t884
-    %t885 = zext i1 %t886 to i64
-    %t887 = icmp ne i64 %t885, 0
-    %t888 = zext i1 %t887 to i64
-    store i64 %t888, i64* %t877
-    br label %L243
-L243:
-    %t889 = load i64, i64* %t877
-    %t890 = icmp ne i64 %t889, 0
-    br i1 %t890, label %L239, label %L241
-L239:
-    %old_elems.74 = alloca i64
-    %t891 = load i64, i64* %init.73
-    %t892 = call i8* @array_literal_elems(i64 %t891)
-    %t893 = ptrtoint i8* %t892 to i64
-    store i64 %t893, i64* %old_elems.74
-    %old_count.75 = alloca i64
-    %t894 = load i64, i64* %init.73
-    %t895 = call i64 @array_literal_count(i64 %t894)
-    store i64 %t895, i64* %old_count.75
-    %new_count.76 = alloca i64
-    %t896 = load i64, i64* %old_count.75
-    %t897 = add i64 %t896, 1
-    store i64 %t897, i64* %new_count.76
-    %new_elems.77 = alloca i64
-    %t898 = load i64, i64* %new_count.76
-    %t899 = mul i64 %t898, 8
-    %t900 = call i8* @alloc(i64 %t899)
-    %t901 = ptrtoint i8* %t900 to i64
-    store i64 %t901, i64* %new_elems.77
-    %k.78 = alloca i64
-    store i64 0, i64* %k.78
-    br label %L244
-L244:
-    %t902 = load i64, i64* %k.78
-    %t903 = load i64, i64* %old_count.75
-    %t905 = icmp slt i64 %t902, %t903
-    %t904 = zext i1 %t905 to i64
-    %t906 = icmp ne i64 %t904, 0
-    br i1 %t906, label %L245, label %L246
-L245:
-    %src.79 = alloca i64
-    %t907 = load i64, i64* %old_elems.74
-    %t908 = load i64, i64* %k.78
-    %t909 = mul i64 %t908, 8
-    %t910 = add i64 %t907, %t909
-    store i64 %t910, i64* %src.79
-    %dst.80 = alloca i64
-    %t911 = load i64, i64* %new_elems.77
-    %t912 = load i64, i64* %k.78
-    %t913 = mul i64 %t912, 8
-    %t914 = add i64 %t911, %t913
-    store i64 %t914, i64* %dst.80
-    %t915 = load i64, i64* %src.79
-    %t917 = inttoptr i64 %t915 to i64*
-    %t916 = load i64, i64* %t917
-    %t918 = load i64, i64* %dst.80
-    %t919 = inttoptr i64 %t918 to i64*
-    store i64 %t916, i64* %t919
-    %t920 = load i64, i64* %k.78
-    %t921 = add i64 %t920, 1
-    store i64 %t921, i64* %k.78
-    br label %L244
-L246:
-    %ident_node.81 = alloca i64
-    %t922 = call i8* @ident_expr_alloc()
-    %t923 = ptrtoint i8* %t922 to i64
-    store i64 %t923, i64* %ident_node.81
-    %t924 = load i64, i64* %ident_node.81
-    %t925 = load i64, i64* %func_name.52
-    call void @ident_expr_set_name(i64 %t924, i64 %t925)
-    %t926 = load i64, i64* %ident_node.81
-    %t927 = load i64, i64* %func_name_len.53
-    call void @ident_expr_set_name_len(i64 %t926, i64 %t927)
-    %new_slot.82 = alloca i64
-    %t928 = load i64, i64* %new_elems.77
-    %t929 = load i64, i64* %old_count.75
-    %t930 = mul i64 %t929, 8
-    %t931 = add i64 %t928, %t930
-    store i64 %t931, i64* %new_slot.82
-    %t932 = load i64, i64* %ident_node.81
-    %t933 = load i64, i64* %new_slot.82
-    %t934 = inttoptr i64 %t933 to i64*
-    store i64 %t932, i64* %t934
-    %t935 = load i64, i64* %init.73
-    %t936 = load i64, i64* %new_elems.77
-    call void @array_literal_set_elems(i64 %t935, i64 %t936)
-    %t937 = load i64, i64* %init.73
-    %t938 = load i64, i64* %new_count.76
-    call void @array_literal_set_count(i64 %t937, i64 %t938)
-    br label %L241
-L241:
-    store i64 1, i64* %found_funcs.58
+    %src.62 = alloca i64
+    %t797 = load i64, i64* %base_decls.49
+    %t798 = load i64, i64* %j.54
+    %t799 = mul i64 %t798, 8
+    %t800 = add i64 %t797, %t799
+    store i64 %t800, i64* %src.62
+    %dst.63 = alloca i64
+    %t801 = load i64, i64* %combined_decls.61
+    %t802 = load i64, i64* %j.54
+    %t803 = mul i64 %t802, 8
+    %t804 = add i64 %t801, %t803
+    store i64 %t804, i64* %dst.63
+    %t805 = load i64, i64* %src.62
+    %t807 = inttoptr i64 %t805 to i64*
+    %t806 = load i64, i64* %t807
+    %t808 = load i64, i64* %dst.63
+    %t809 = inttoptr i64 %t808 to i64*
+    store i64 %t806, i64* %t809
+    %t810 = load i64, i64* %j.54
+    %t811 = add i64 %t810, 1
+    store i64 %t811, i64* %j.54
+    br label %L233
+L235:
+    %dst_idx.64 = alloca i64
+    %t812 = load i64, i64* %base_count.50
+    store i64 %t812, i64* %dst_idx.64
+    store i64 0, i64* %j.54
     br label %L236
 L236:
-    br label %L215
-L215:
-    %t939 = load i64, i64* %j.43
-    %t940 = add i64 %t939, 1
-    store i64 %t940, i64* %j.43
-    br label %L210
-L212:
-    %t941 = load i64, i64* %found_self.56
-    %t943 = icmp eq i64 %t941, 0
-    %t942 = zext i1 %t943 to i64
-    %t944 = icmp ne i64 %t942, 0
-    br i1 %t944, label %L247, label %L249
+    %t813 = load i64, i64* %j.54
+    %t814 = load i64, i64* %reader_count.52
+    %t816 = icmp slt i64 %t813, %t814
+    %t815 = zext i1 %t816 to i64
+    %t817 = icmp ne i64 %t815, 0
+    br i1 %t817, label %L237, label %L238
+L237:
+    %src.65 = alloca i64
+    %t818 = load i64, i64* %reader_decls.51
+    %t819 = load i64, i64* %j.54
+    %t820 = mul i64 %t819, 8
+    %t821 = add i64 %t818, %t820
+    store i64 %t821, i64* %src.65
+    %decl.66 = alloca i64
+    %t822 = load i64, i64* %src.65
+    %t824 = inttoptr i64 %t822 to i64*
+    %t823 = load i64, i64* %t824
+    store i64 %t823, i64* %decl.66
+    %skip.67 = alloca i64
+    store i64 0, i64* %skip.67
+    %t825 = load i64, i64* %decl.66
+    %t826 = call i64 @node_kind(i64 %t825)
+    %t827 = load i64, i64* @NODE_REQUIRE_DECL
+    %t829 = icmp eq i64 %t826, %t827
+    %t828 = zext i1 %t829 to i64
+    %t830 = icmp ne i64 %t828, 0
+    br i1 %t830, label %L239, label %L241
+L239:
+    %mod.68 = alloca i64
+    %t831 = load i64, i64* %decl.66
+    %t832 = call i8* @require_decl_module(i64 %t831)
+    %t833 = ptrtoint i8* %t832 to i64
+    store i64 %t833, i64* %mod.68
+    %mod_len.69 = alloca i64
+    %t834 = load i64, i64* %decl.66
+    %t835 = call i64 @require_decl_module_len(i64 %t834)
+    store i64 %t835, i64* %mod_len.69
+    %t836 = load i64, i64* %mod.68
+    %t837 = load i64, i64* %mod_len.69
+    %t838 = call i64 @has_kernel_module(i64 %t836, i64 %t837)
+    %t839 = icmp ne i64 %t838, 0
+    br i1 %t839, label %L242, label %L244
+L242:
+    store i64 1, i64* %skip.67
+    br label %L244
+L244:
+    br label %L241
+L241:
+    %t840 = load i64, i64* %decl.66
+    %t841 = call i64 @node_kind(i64 %t840)
+    %t842 = load i64, i64* @NODE_MODULES_DECL
+    %t844 = icmp eq i64 %t841, %t842
+    %t843 = zext i1 %t844 to i64
+    %t845 = icmp ne i64 %t843, 0
+    br i1 %t845, label %L245, label %L247
+L245:
+    store i64 1, i64* %skip.67
+    br label %L247
 L247:
-    %t945 = ptrtoint i8* getelementptr inbounds ([54 x i8], [54 x i8]* @.str983, i64 0, i64 0) to i64
-    call void @eprintln(i64 %t945)
-    ret i64 1
-L249:
-    %langbe.83 = alloca i64
-    %t946 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str219, i64 0, i64 0) to i64
-    %t947 = call i8* @getenv(i64 %t946)
-    %t948 = ptrtoint i8* %t947 to i64
-    store i64 %t948, i64* %langbe.83
-    %t949 = alloca i64
-    store i64 0, i64* %t949
-    %t950 = load i64, i64* %langbe.83
-    %t952 = icmp ne i64 %t950, 0
-    %t951 = zext i1 %t952 to i64
-    %t953 = icmp ne i64 %t951, 0
-    br i1 %t953, label %L253, label %L254
+    %t846 = load i64, i64* %skip.67
+    %t848 = icmp eq i64 %t846, 0
+    %t847 = zext i1 %t848 to i64
+    %t849 = icmp ne i64 %t847, 0
+    br i1 %t849, label %L248, label %L250
+L248:
+    %dst.70 = alloca i64
+    %t850 = load i64, i64* %combined_decls.61
+    %t851 = load i64, i64* %dst_idx.64
+    %t852 = mul i64 %t851, 8
+    %t853 = add i64 %t850, %t852
+    store i64 %t853, i64* %dst.70
+    %t854 = load i64, i64* %decl.66
+    %t855 = load i64, i64* %dst.70
+    %t856 = inttoptr i64 %t855 to i64*
+    store i64 %t854, i64* %t856
+    %t857 = load i64, i64* %decl.66
+    %t858 = call i64 @node_kind(i64 %t857)
+    %t859 = load i64, i64* @NODE_READER_DECL
+    %t861 = icmp eq i64 %t858, %t859
+    %t860 = zext i1 %t861 to i64
+    %t862 = icmp ne i64 %t860, 0
+    br i1 %t862, label %L251, label %L253
+L251:
+    %t863 = load i64, i64* %decl.66
+    call void @reader_decl_set_is_ast(i64 %t863, i64 1)
+    br label %L253
 L253:
-    %t954 = load i64, i64* %langbe.83
-    %t955 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str16, i64 0, i64 0) to i64
-    %t956 = call i64 @streq(i64 %t954, i64 %t955)
-    %t957 = icmp ne i64 %t956, 0
-    %t958 = zext i1 %t957 to i64
-    store i64 %t958, i64* %t949
+    %t864 = load i64, i64* %dst_idx.64
+    %t865 = add i64 %t864, 1
+    store i64 %t865, i64* %dst_idx.64
+    br label %L250
+L250:
+    %t866 = load i64, i64* %j.54
+    %t867 = add i64 %t866, 1
+    store i64 %t867, i64* %j.54
+    br label %L236
+L238:
+    %combined_prog.71 = alloca i64
+    %t868 = call i8* @alloc(i64 16)
+    %t869 = ptrtoint i8* %t868 to i64
+    store i64 %t869, i64* %combined_prog.71
+    %pd.72 = alloca i64
+    %t870 = load i64, i64* %combined_prog.71
+    store i64 %t870, i64* %pd.72
+    %t871 = load i64, i64* %combined_decls.61
+    %t872 = load i64, i64* %pd.72
+    %t873 = inttoptr i64 %t872 to i64*
+    store i64 %t871, i64* %t873
+    %pc.73 = alloca i64
+    %t874 = load i64, i64* %combined_prog.71
+    %t875 = add i64 %t874, 8
+    store i64 %t875, i64* %pc.73
+    %t876 = load i64, i64* %total.60
+    %t877 = load i64, i64* %pc.73
+    %t878 = inttoptr i64 %t877 to i64*
+    store i64 %t876, i64* %t878
+    %func_name.74 = alloca i64
+    %t879 = load i64, i64* @add_reader_name
+    store i64 %t879, i64* %func_name.74
+    %func_name_len.75 = alloca i64
+    %t880 = load i64, i64* %func_name.74
+    %t881 = call i64 @strlen(i64 %t880)
+    store i64 %t881, i64* %func_name_len.75
+    %combined_ast_str.76 = alloca i64
+    %t882 = load i64, i64* %combined_prog.71
+    %t883 = call i8* @ast_emit_program(i64 %t882)
+    %t884 = ptrtoint i8* %t883 to i64
+    store i64 %t884, i64* %combined_ast_str.76
+    %combined_ast_len.77 = alloca i64
+    %t885 = load i64, i64* %combined_ast_str.76
+    %t886 = call i64 @strlen(i64 %t885)
+    store i64 %t886, i64* %combined_ast_len.77
+    %found_self.78 = alloca i64
+    store i64 0, i64* %found_self.78
+    %found_names.79 = alloca i64
+    store i64 0, i64* %found_names.79
+    %found_funcs.80 = alloca i64
+    store i64 0, i64* %found_funcs.80
+    store i64 0, i64* %j.54
     br label %L254
 L254:
-    %t959 = load i64, i64* %t949
-    %t960 = icmp ne i64 %t959, 0
-    br i1 %t960, label %L250, label %L251
-L250:
-    %t961 = load i64, i64* %combined_prog.49
-    %t962 = load i64, i64* %output_file.3
-    call void @generate_llvm(i64 %t961, i64 %t962)
-    br label %L252
-L251:
-    %t963 = load i64, i64* %combined_prog.49
-    %t964 = load i64, i64* %output_file.3
-    call void @generate(i64 %t963, i64 %t964)
-    br label %L252
-L252:
-    %t965 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str973, i64 0, i64 0) to i64
-    call void @print(i64 %t965)
-    %t966 = load i64, i64* %output_file.3
-    call void @print(i64 %t966)
-    %t967 = ptrtoint i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str984, i64 0, i64 0) to i64
-    call void @print(i64 %t967)
-    %t968 = load i64, i64* @add_reader_name
-    call void @print(i64 %t968)
-    %t969 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
-    call void @println(i64 %t969)
-    ret i64 0
-L183:
-    %t970 = load i64, i64* %source_len.10
-    %t972 = icmp eq i64 %t970, 0
-    %t971 = zext i1 %t972 to i64
-    %t973 = icmp ne i64 %t971, 0
-    br i1 %t973, label %L255, label %L257
+    %t887 = load i64, i64* %j.54
+    %t888 = load i64, i64* %total.60
+    %t890 = icmp slt i64 %t887, %t888
+    %t889 = zext i1 %t890 to i64
+    %t891 = icmp ne i64 %t889, 0
+    br i1 %t891, label %L255, label %L256
 L255:
-    %t974 = ptrtoint i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str985, i64 0, i64 0) to i64
-    call void @eprintln(i64 %t974)
-    ret i64 1
+    %decl.81 = alloca i64
+    %t892 = load i64, i64* %combined_decls.61
+    %t893 = load i64, i64* %j.54
+    %t894 = call i8* @get_decl(i64 %t892, i64 %t893)
+    %t895 = ptrtoint i8* %t894 to i64
+    store i64 %t895, i64* %decl.81
+    %t896 = load i64, i64* %decl.81
+    %t897 = call i64 @node_kind(i64 %t896)
+    %t898 = load i64, i64* @NODE_VAR_DECL
+    %t900 = icmp eq i64 %t897, %t898
+    %t899 = zext i1 %t900 to i64
+    %t901 = icmp ne i64 %t899, 0
+    br i1 %t901, label %L257, label %L259
 L257:
-    %t975 = load i64, i64* %source_buf.9
-    call void @parser_tokenize(i64 %t975)
-    store i64 0, i64* %i.6
-    br label %L258
-L258:
-    %t976 = load i64, i64* %i.6
-    %t977 = call i64 @parser_token_count()
-    %t979 = icmp slt i64 %t976, %t977
-    %t978 = zext i1 %t979 to i64
-    %t980 = icmp ne i64 %t978, 0
-    br i1 %t980, label %L259, label %L260
-L259:
-    %tok.84 = alloca i64
-    %t981 = load i64, i64* %i.6
-    %t982 = call i8* @get_token(i64 %t981)
-    %t983 = ptrtoint i8* %t982 to i64
-    store i64 %t983, i64* %tok.84
-    %t984 = load i64, i64* %tok.84
-    %t985 = call i64 @tok_type(i64 %t984)
-    %t986 = load i64, i64* @TOKEN_ERROR
-    %t988 = icmp eq i64 %t985, %t986
-    %t987 = zext i1 %t988 to i64
-    %t989 = icmp ne i64 %t987, 0
-    br i1 %t989, label %L261, label %L263
-L261:
-    %t990 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str986, i64 0, i64 0) to i64
-    call void @eprint(i64 %t990)
-    %t991 = load i64, i64* %tok.84
-    %t992 = call i8* @tok_lexeme(i64 %t991)
-    %t993 = ptrtoint i8* %t992 to i64
-    call void @eprintln(i64 %t993)
-    ret i64 1
+    %name.82 = alloca i64
+    %t902 = load i64, i64* %decl.81
+    %t903 = call i8* @var_decl_name(i64 %t902)
+    %t904 = ptrtoint i8* %t903 to i64
+    store i64 %t904, i64* %name.82
+    %name_len.83 = alloca i64
+    %t905 = load i64, i64* %decl.81
+    %t906 = call i64 @var_decl_name_len(i64 %t905)
+    store i64 %t906, i64* %name_len.83
+    %t907 = alloca i64
+    store i64 0, i64* %t907
+    %t908 = load i64, i64* %name_len.83
+    %t910 = icmp eq i64 %t908, 11
+    %t909 = zext i1 %t910 to i64
+    %t911 = icmp ne i64 %t909, 0
+    br i1 %t911, label %L263, label %L264
 L263:
-    %t994 = load i64, i64* %i.6
-    %t995 = add i64 %t994, 1
-    store i64 %t995, i64* %i.6
-    br label %L258
-L260:
-    %prog.85 = alloca i64
-    %t996 = call i8* @parse_program()
-    %t997 = ptrtoint i8* %t996 to i64
-    store i64 %t997, i64* %prog.85
-    %t998 = load i64, i64* @parse_error_count
-    %t1000 = icmp sgt i64 %t998, 0
-    %t999 = zext i1 %t1000 to i64
-    %t1001 = icmp ne i64 %t999, 0
-    br i1 %t1001, label %L264, label %L266
+    %t912 = load i64, i64* %name.82
+    %t913 = ptrtoint i8* getelementptr inbounds ([12 x i8], [12 x i8]* @.str977, i64 0, i64 0) to i64
+    %t914 = call i1 @memcmp(i64 %t912, i64 %t913, i64 11)
+    %t915 = zext i1 %t914 to i64
+    %t916 = icmp ne i64 %t915, 0
+    %t917 = zext i1 %t916 to i64
+    store i64 %t917, i64* %t907
+    br label %L264
 L264:
-    ret i64 1
-L266:
-    %t1002 = load i64, i64* @emit_expanded_ast_mode
-    %t1004 = icmp ne i64 %t1002, 0
-    %t1003 = zext i1 %t1004 to i64
-    %t1005 = icmp ne i64 %t1003, 0
-    br i1 %t1005, label %L267, label %L268
-L267:
-    %t1006 = call i8* @map_new()
-    %t1007 = ptrtoint i8* %t1006 to i64
-    store i64 %t1007, i64* @expand_included_map
-    %t1008 = call i8* @vec_new(i64 1024)
-    %t1009 = ptrtoint i8* %t1008 to i64
-    store i64 %t1009, i64* @expand_collected_decls
-    %decls.86 = alloca i64
-    %t1010 = load i64, i64* %prog.85
-    %t1011 = call i8* @program_decls(i64 %t1010)
-    %t1012 = ptrtoint i8* %t1011 to i64
-    store i64 %t1012, i64* %decls.86
-    %decl_count.87 = alloca i64
-    %t1013 = load i64, i64* %prog.85
-    %t1014 = call i64 @program_decl_count(i64 %t1013)
-    store i64 %t1014, i64* %decl_count.87
-    store i64 0, i64* %i.6
-    br label %L270
-L270:
-    %t1015 = load i64, i64* %i.6
-    %t1016 = load i64, i64* %decl_count.87
-    %t1018 = icmp slt i64 %t1015, %t1016
-    %t1017 = zext i1 %t1018 to i64
-    %t1019 = icmp ne i64 %t1017, 0
-    br i1 %t1019, label %L271, label %L272
-L271:
-    %t1020 = load i64, i64* %decls.86
-    %t1021 = load i64, i64* %i.6
-    %t1022 = call i8* @get_decl(i64 %t1020, i64 %t1021)
-    %t1023 = ptrtoint i8* %t1022 to i64
-    call void @expand_collect_decl(i64 %t1023)
-    %t1024 = load i64, i64* %i.6
-    %t1025 = add i64 %t1024, 1
-    store i64 %t1025, i64* %i.6
-    br label %L270
-L272:
-    %expanded_prog.88 = alloca i64
-    %t1026 = call i8* @build_expanded_program()
-    %t1027 = ptrtoint i8* %t1026 to i64
-    store i64 %t1027, i64* %expanded_prog.88
-    %ast_str.89 = alloca i64
-    %t1028 = load i64, i64* %expanded_prog.88
-    %t1029 = call i8* @ast_emit_program(i64 %t1028)
-    %t1030 = ptrtoint i8* %t1029 to i64
-    store i64 %t1030, i64* %ast_str.89
-    %fd.90 = alloca i64
-    %t1031 = load i64, i64* %output_file.3
-    %t1032 = load i64, i64* @O_WRONLY_CREAT_TRUNC
-    %t1033 = call i64 @file_open(i64 %t1031, i64 %t1032)
-    store i64 %t1033, i64* %fd.90
-    %t1034 = load i64, i64* %fd.90
-    %t1036 = icmp slt i64 %t1034, 0
-    %t1035 = zext i1 %t1036 to i64
-    %t1037 = icmp ne i64 %t1035, 0
-    br i1 %t1037, label %L273, label %L275
-L273:
-    %t1038 = ptrtoint i8* getelementptr inbounds ([33 x i8], [33 x i8]* @.str484, i64 0, i64 0) to i64
-    call void @eprint(i64 %t1038)
-    %t1039 = load i64, i64* %output_file.3
-    call void @eprintln(i64 %t1039)
-    ret i64 1
-L275:
-    %t1040 = load i64, i64* %fd.90
-    %t1041 = load i64, i64* %ast_str.89
-    %t1042 = load i64, i64* %ast_str.89
-    %t1043 = call i64 @strlen(i64 %t1042)
-    %t1044 = call i64 @file_write(i64 %t1040, i64 %t1041, i64 %t1043)
-    %t1045 = load i64, i64* %fd.90
-    call void @file_close(i64 %t1045)
-    %t1046 = ptrtoint i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str987, i64 0, i64 0) to i64
-    call void @print(i64 %t1046)
-    %t1047 = load i64, i64* %output_file.3
-    call void @println(i64 %t1047)
-    br label %L269
+    %t918 = load i64, i64* %t907
+    %t919 = icmp ne i64 %t918, 0
+    br i1 %t919, label %L260, label %L262
+L260:
+    %str_node.84 = alloca i64
+    %t920 = call i8* @string_expr_alloc()
+    %t921 = ptrtoint i8* %t920 to i64
+    store i64 %t921, i64* %str_node.84
+    %t922 = load i64, i64* %str_node.84
+    %t923 = load i64, i64* %combined_ast_str.76
+    call void @string_expr_set_value(i64 %t922, i64 %t923)
+    %t924 = load i64, i64* %str_node.84
+    %t925 = load i64, i64* %combined_ast_len.77
+    call void @string_expr_set_value_len(i64 %t924, i64 %t925)
+    %t926 = load i64, i64* %decl.81
+    %t927 = load i64, i64* %str_node.84
+    call void @var_decl_set_init(i64 %t926, i64 %t927)
+    store i64 1, i64* %found_self.78
+    br label %L262
+L262:
+    %t928 = alloca i64
+    store i64 0, i64* %t928
+    %t929 = load i64, i64* %name_len.83
+    %t931 = icmp eq i64 %t929, 21
+    %t930 = zext i1 %t931 to i64
+    %t932 = icmp ne i64 %t930, 0
+    br i1 %t932, label %L268, label %L269
 L268:
-    %t1048 = load i64, i64* @emit_ast_mode
-    %t1050 = icmp ne i64 %t1048, 0
-    %t1049 = zext i1 %t1050 to i64
-    %t1051 = icmp ne i64 %t1049, 0
-    br i1 %t1051, label %L276, label %L277
-L276:
-    %ast_str.91 = alloca i64
-    %t1052 = load i64, i64* %prog.85
-    %t1053 = call i8* @ast_emit_program(i64 %t1052)
-    %t1054 = ptrtoint i8* %t1053 to i64
-    store i64 %t1054, i64* %ast_str.91
-    %fd.92 = alloca i64
-    %t1055 = load i64, i64* %output_file.3
-    %t1056 = load i64, i64* @O_WRONLY_CREAT_TRUNC
-    %t1057 = call i64 @file_open(i64 %t1055, i64 %t1056)
-    store i64 %t1057, i64* %fd.92
-    %t1058 = load i64, i64* %fd.92
-    %t1060 = icmp slt i64 %t1058, 0
-    %t1059 = zext i1 %t1060 to i64
-    %t1061 = icmp ne i64 %t1059, 0
-    br i1 %t1061, label %L279, label %L281
-L279:
-    %t1062 = ptrtoint i8* getelementptr inbounds ([33 x i8], [33 x i8]* @.str484, i64 0, i64 0) to i64
-    call void @eprint(i64 %t1062)
-    %t1063 = load i64, i64* %output_file.3
-    call void @eprintln(i64 %t1063)
-    ret i64 1
-L281:
-    %t1064 = load i64, i64* %fd.92
-    %t1065 = load i64, i64* %ast_str.91
-    %t1066 = load i64, i64* %ast_str.91
-    %t1067 = call i64 @strlen(i64 %t1066)
-    %t1068 = call i64 @file_write(i64 %t1064, i64 %t1065, i64 %t1067)
-    %t1069 = load i64, i64* %fd.92
-    call void @file_close(i64 %t1069)
-    %t1070 = ptrtoint i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str988, i64 0, i64 0) to i64
-    call void @print(i64 %t1070)
-    %t1071 = load i64, i64* %output_file.3
-    call void @println(i64 %t1071)
-    br label %L278
-L277:
-    %langbe.93 = alloca i64
-    %t1072 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str219, i64 0, i64 0) to i64
-    %t1073 = call i8* @getenv(i64 %t1072)
-    %t1074 = ptrtoint i8* %t1073 to i64
-    store i64 %t1074, i64* %langbe.93
-    %t1075 = alloca i64
-    store i64 0, i64* %t1075
-    %t1076 = load i64, i64* %langbe.93
-    %t1078 = icmp ne i64 %t1076, 0
-    %t1077 = zext i1 %t1078 to i64
-    %t1079 = icmp ne i64 %t1077, 0
-    br i1 %t1079, label %L285, label %L286
-L285:
-    %t1080 = load i64, i64* %langbe.93
-    %t1081 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str16, i64 0, i64 0) to i64
-    %t1082 = call i64 @streq(i64 %t1080, i64 %t1081)
-    %t1083 = icmp ne i64 %t1082, 0
-    %t1084 = zext i1 %t1083 to i64
-    store i64 %t1084, i64* %t1075
-    br label %L286
-L286:
-    %t1085 = load i64, i64* %t1075
-    %t1086 = icmp ne i64 %t1085, 0
-    br i1 %t1086, label %L282, label %L283
-L282:
-    %t1087 = load i64, i64* %prog.85
-    %t1088 = load i64, i64* %output_file.3
-    call void @generate_llvm(i64 %t1087, i64 %t1088)
-    br label %L284
-L283:
-    %t1089 = load i64, i64* %prog.85
-    %t1090 = load i64, i64* %output_file.3
-    call void @generate(i64 %t1089, i64 %t1090)
-    br label %L284
-L284:
-    %t1091 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str973, i64 0, i64 0) to i64
-    call void @print(i64 %t1091)
-    %t1092 = load i64, i64* %output_file.3
-    call void @println(i64 %t1092)
-    br label %L278
-L278:
+    %t933 = load i64, i64* %name.82
+    %t934 = ptrtoint i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str984, i64 0, i64 0) to i64
+    %t935 = call i1 @memcmp(i64 %t933, i64 %t934, i64 21)
+    %t936 = zext i1 %t935 to i64
+    %t937 = icmp ne i64 %t936, 0
+    %t938 = zext i1 %t937 to i64
+    store i64 %t938, i64* %t928
     br label %L269
 L269:
+    %t939 = load i64, i64* %t928
+    %t940 = icmp ne i64 %t939, 0
+    br i1 %t940, label %L265, label %L267
+L265:
+    %init.85 = alloca i64
+    %t941 = load i64, i64* %decl.81
+    %t942 = call i8* @var_decl_init(i64 %t941)
+    %t943 = ptrtoint i8* %t942 to i64
+    store i64 %t943, i64* %init.85
+    %t944 = alloca i64
+    store i64 0, i64* %t944
+    %t945 = load i64, i64* %init.85
+    %t947 = icmp ne i64 %t945, 0
+    %t946 = zext i1 %t947 to i64
+    %t948 = icmp ne i64 %t946, 0
+    br i1 %t948, label %L273, label %L274
+L273:
+    %t949 = load i64, i64* %init.85
+    %t950 = call i64 @node_kind(i64 %t949)
+    %t951 = load i64, i64* @NODE_ARRAY_LITERAL
+    %t953 = icmp eq i64 %t950, %t951
+    %t952 = zext i1 %t953 to i64
+    %t954 = icmp ne i64 %t952, 0
+    %t955 = zext i1 %t954 to i64
+    store i64 %t955, i64* %t944
+    br label %L274
+L274:
+    %t956 = load i64, i64* %t944
+    %t957 = icmp ne i64 %t956, 0
+    br i1 %t957, label %L270, label %L272
+L270:
+    %old_elems.86 = alloca i64
+    %t958 = load i64, i64* %init.85
+    %t959 = call i8* @array_literal_elems(i64 %t958)
+    %t960 = ptrtoint i8* %t959 to i64
+    store i64 %t960, i64* %old_elems.86
+    %old_count.87 = alloca i64
+    %t961 = load i64, i64* %init.85
+    %t962 = call i64 @array_literal_count(i64 %t961)
+    store i64 %t962, i64* %old_count.87
+    %new_count.88 = alloca i64
+    %t963 = load i64, i64* %old_count.87
+    %t964 = add i64 %t963, 1
+    store i64 %t964, i64* %new_count.88
+    %new_elems.89 = alloca i64
+    %t965 = load i64, i64* %new_count.88
+    %t966 = mul i64 %t965, 8
+    %t967 = call i8* @alloc(i64 %t966)
+    %t968 = ptrtoint i8* %t967 to i64
+    store i64 %t968, i64* %new_elems.89
+    %k.90 = alloca i64
+    store i64 0, i64* %k.90
+    br label %L275
+L275:
+    %t969 = load i64, i64* %k.90
+    %t970 = load i64, i64* %old_count.87
+    %t972 = icmp slt i64 %t969, %t970
+    %t971 = zext i1 %t972 to i64
+    %t973 = icmp ne i64 %t971, 0
+    br i1 %t973, label %L276, label %L277
+L276:
+    %src.91 = alloca i64
+    %t974 = load i64, i64* %old_elems.86
+    %t975 = load i64, i64* %k.90
+    %t976 = mul i64 %t975, 8
+    %t977 = add i64 %t974, %t976
+    store i64 %t977, i64* %src.91
+    %dst.92 = alloca i64
+    %t978 = load i64, i64* %new_elems.89
+    %t979 = load i64, i64* %k.90
+    %t980 = mul i64 %t979, 8
+    %t981 = add i64 %t978, %t980
+    store i64 %t981, i64* %dst.92
+    %t982 = load i64, i64* %src.91
+    %t984 = inttoptr i64 %t982 to i64*
+    %t983 = load i64, i64* %t984
+    %t985 = load i64, i64* %dst.92
+    %t986 = inttoptr i64 %t985 to i64*
+    store i64 %t983, i64* %t986
+    %t987 = load i64, i64* %k.90
+    %t988 = add i64 %t987, 1
+    store i64 %t988, i64* %k.90
+    br label %L275
+L277:
+    %str_node.93 = alloca i64
+    %t989 = call i8* @string_expr_alloc()
+    %t990 = ptrtoint i8* %t989 to i64
+    store i64 %t990, i64* %str_node.93
+    %t991 = load i64, i64* %str_node.93
+    %t992 = load i64, i64* @add_reader_name
+    call void @string_expr_set_value(i64 %t991, i64 %t992)
+    %t993 = load i64, i64* %str_node.93
+    %t994 = load i64, i64* %func_name_len.75
+    call void @string_expr_set_value_len(i64 %t993, i64 %t994)
+    %new_slot.94 = alloca i64
+    %t995 = load i64, i64* %new_elems.89
+    %t996 = load i64, i64* %old_count.87
+    %t997 = mul i64 %t996, 8
+    %t998 = add i64 %t995, %t997
+    store i64 %t998, i64* %new_slot.94
+    %t999 = load i64, i64* %str_node.93
+    %t1000 = load i64, i64* %new_slot.94
+    %t1001 = inttoptr i64 %t1000 to i64*
+    store i64 %t999, i64* %t1001
+    %t1002 = load i64, i64* %init.85
+    %t1003 = load i64, i64* %new_elems.89
+    call void @array_literal_set_elems(i64 %t1002, i64 %t1003)
+    %t1004 = load i64, i64* %init.85
+    %t1005 = load i64, i64* %new_count.88
+    call void @array_literal_set_count(i64 %t1004, i64 %t1005)
+    br label %L272
+L272:
+    store i64 1, i64* %found_names.79
+    br label %L267
+L267:
+    %t1006 = alloca i64
+    store i64 0, i64* %t1006
+    %t1007 = load i64, i64* %name_len.83
+    %t1009 = icmp eq i64 %t1007, 21
+    %t1008 = zext i1 %t1009 to i64
+    %t1010 = icmp ne i64 %t1008, 0
+    br i1 %t1010, label %L281, label %L282
+L281:
+    %t1011 = load i64, i64* %name.82
+    %t1012 = ptrtoint i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str985, i64 0, i64 0) to i64
+    %t1013 = call i1 @memcmp(i64 %t1011, i64 %t1012, i64 21)
+    %t1014 = zext i1 %t1013 to i64
+    %t1015 = icmp ne i64 %t1014, 0
+    %t1016 = zext i1 %t1015 to i64
+    store i64 %t1016, i64* %t1006
+    br label %L282
+L282:
+    %t1017 = load i64, i64* %t1006
+    %t1018 = icmp ne i64 %t1017, 0
+    br i1 %t1018, label %L278, label %L280
+L278:
+    %init.95 = alloca i64
+    %t1019 = load i64, i64* %decl.81
+    %t1020 = call i8* @var_decl_init(i64 %t1019)
+    %t1021 = ptrtoint i8* %t1020 to i64
+    store i64 %t1021, i64* %init.95
+    %t1022 = alloca i64
+    store i64 0, i64* %t1022
+    %t1023 = load i64, i64* %init.95
+    %t1025 = icmp ne i64 %t1023, 0
+    %t1024 = zext i1 %t1025 to i64
+    %t1026 = icmp ne i64 %t1024, 0
+    br i1 %t1026, label %L286, label %L287
+L286:
+    %t1027 = load i64, i64* %init.95
+    %t1028 = call i64 @node_kind(i64 %t1027)
+    %t1029 = load i64, i64* @NODE_ARRAY_LITERAL
+    %t1031 = icmp eq i64 %t1028, %t1029
+    %t1030 = zext i1 %t1031 to i64
+    %t1032 = icmp ne i64 %t1030, 0
+    %t1033 = zext i1 %t1032 to i64
+    store i64 %t1033, i64* %t1022
+    br label %L287
+L287:
+    %t1034 = load i64, i64* %t1022
+    %t1035 = icmp ne i64 %t1034, 0
+    br i1 %t1035, label %L283, label %L285
+L283:
+    %old_elems.96 = alloca i64
+    %t1036 = load i64, i64* %init.95
+    %t1037 = call i8* @array_literal_elems(i64 %t1036)
+    %t1038 = ptrtoint i8* %t1037 to i64
+    store i64 %t1038, i64* %old_elems.96
+    %old_count.97 = alloca i64
+    %t1039 = load i64, i64* %init.95
+    %t1040 = call i64 @array_literal_count(i64 %t1039)
+    store i64 %t1040, i64* %old_count.97
+    %new_count.98 = alloca i64
+    %t1041 = load i64, i64* %old_count.97
+    %t1042 = add i64 %t1041, 1
+    store i64 %t1042, i64* %new_count.98
+    %new_elems.99 = alloca i64
+    %t1043 = load i64, i64* %new_count.98
+    %t1044 = mul i64 %t1043, 8
+    %t1045 = call i8* @alloc(i64 %t1044)
+    %t1046 = ptrtoint i8* %t1045 to i64
+    store i64 %t1046, i64* %new_elems.99
+    %k.100 = alloca i64
+    store i64 0, i64* %k.100
+    br label %L288
+L288:
+    %t1047 = load i64, i64* %k.100
+    %t1048 = load i64, i64* %old_count.97
+    %t1050 = icmp slt i64 %t1047, %t1048
+    %t1049 = zext i1 %t1050 to i64
+    %t1051 = icmp ne i64 %t1049, 0
+    br i1 %t1051, label %L289, label %L290
+L289:
+    %src.101 = alloca i64
+    %t1052 = load i64, i64* %old_elems.96
+    %t1053 = load i64, i64* %k.100
+    %t1054 = mul i64 %t1053, 8
+    %t1055 = add i64 %t1052, %t1054
+    store i64 %t1055, i64* %src.101
+    %dst.102 = alloca i64
+    %t1056 = load i64, i64* %new_elems.99
+    %t1057 = load i64, i64* %k.100
+    %t1058 = mul i64 %t1057, 8
+    %t1059 = add i64 %t1056, %t1058
+    store i64 %t1059, i64* %dst.102
+    %t1060 = load i64, i64* %src.101
+    %t1062 = inttoptr i64 %t1060 to i64*
+    %t1061 = load i64, i64* %t1062
+    %t1063 = load i64, i64* %dst.102
+    %t1064 = inttoptr i64 %t1063 to i64*
+    store i64 %t1061, i64* %t1064
+    %t1065 = load i64, i64* %k.100
+    %t1066 = add i64 %t1065, 1
+    store i64 %t1066, i64* %k.100
+    br label %L288
+L290:
+    %ident_node.103 = alloca i64
+    %t1067 = call i8* @ident_expr_alloc()
+    %t1068 = ptrtoint i8* %t1067 to i64
+    store i64 %t1068, i64* %ident_node.103
+    %t1069 = load i64, i64* %ident_node.103
+    %t1070 = load i64, i64* %func_name.74
+    call void @ident_expr_set_name(i64 %t1069, i64 %t1070)
+    %t1071 = load i64, i64* %ident_node.103
+    %t1072 = load i64, i64* %func_name_len.75
+    call void @ident_expr_set_name_len(i64 %t1071, i64 %t1072)
+    %new_slot.104 = alloca i64
+    %t1073 = load i64, i64* %new_elems.99
+    %t1074 = load i64, i64* %old_count.97
+    %t1075 = mul i64 %t1074, 8
+    %t1076 = add i64 %t1073, %t1075
+    store i64 %t1076, i64* %new_slot.104
+    %t1077 = load i64, i64* %ident_node.103
+    %t1078 = load i64, i64* %new_slot.104
+    %t1079 = inttoptr i64 %t1078 to i64*
+    store i64 %t1077, i64* %t1079
+    %t1080 = load i64, i64* %init.95
+    %t1081 = load i64, i64* %new_elems.99
+    call void @array_literal_set_elems(i64 %t1080, i64 %t1081)
+    %t1082 = load i64, i64* %init.95
+    %t1083 = load i64, i64* %new_count.98
+    call void @array_literal_set_count(i64 %t1082, i64 %t1083)
+    br label %L285
+L285:
+    store i64 1, i64* %found_funcs.80
+    br label %L280
+L280:
+    br label %L259
+L259:
+    %t1084 = load i64, i64* %j.54
+    %t1085 = add i64 %t1084, 1
+    store i64 %t1085, i64* %j.54
+    br label %L254
+L256:
+    %t1086 = load i64, i64* %found_self.78
+    %t1088 = icmp eq i64 %t1086, 0
+    %t1087 = zext i1 %t1088 to i64
+    %t1089 = icmp ne i64 %t1087, 0
+    br i1 %t1089, label %L291, label %L293
+L291:
+    %t1090 = ptrtoint i8* getelementptr inbounds ([54 x i8], [54 x i8]* @.str986, i64 0, i64 0) to i64
+    call void @eprintln(i64 %t1090)
+    ret i64 1
+L293:
+    %langbe.105 = alloca i64
+    %t1091 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str219, i64 0, i64 0) to i64
+    %t1092 = call i8* @getenv(i64 %t1091)
+    %t1093 = ptrtoint i8* %t1092 to i64
+    store i64 %t1093, i64* %langbe.105
+    %t1094 = alloca i64
+    store i64 0, i64* %t1094
+    %t1095 = load i64, i64* %langbe.105
+    %t1097 = icmp ne i64 %t1095, 0
+    %t1096 = zext i1 %t1097 to i64
+    %t1098 = icmp ne i64 %t1096, 0
+    br i1 %t1098, label %L297, label %L298
+L297:
+    %t1099 = load i64, i64* %langbe.105
+    %t1100 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str16, i64 0, i64 0) to i64
+    %t1101 = call i64 @streq(i64 %t1099, i64 %t1100)
+    %t1102 = icmp ne i64 %t1101, 0
+    %t1103 = zext i1 %t1102 to i64
+    store i64 %t1103, i64* %t1094
+    br label %L298
+L298:
+    %t1104 = load i64, i64* %t1094
+    %t1105 = icmp ne i64 %t1104, 0
+    br i1 %t1105, label %L294, label %L295
+L294:
+    %t1106 = load i64, i64* %combined_prog.71
+    %t1107 = load i64, i64* %output_file.3
+    call void @generate_llvm(i64 %t1106, i64 %t1107)
+    br label %L296
+L295:
+    %t1108 = load i64, i64* %combined_prog.71
+    %t1109 = load i64, i64* %output_file.3
+    call void @generate(i64 %t1108, i64 %t1109)
+    br label %L296
+L296:
+    %t1110 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str975, i64 0, i64 0) to i64
+    call void @print(i64 %t1110)
+    %t1111 = load i64, i64* %output_file.3
+    call void @print(i64 %t1111)
+    %t1112 = ptrtoint i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str987, i64 0, i64 0) to i64
+    call void @print(i64 %t1112)
+    %t1113 = load i64, i64* @add_reader_name
+    call void @print(i64 %t1113)
+    %t1114 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str91, i64 0, i64 0) to i64
+    call void @println(i64 %t1114)
+    ret i64 0
+L200:
+    %t1115 = load i64, i64* %source_len.10
+    %t1117 = icmp eq i64 %t1115, 0
+    %t1116 = zext i1 %t1117 to i64
+    %t1118 = icmp ne i64 %t1116, 0
+    br i1 %t1118, label %L299, label %L301
+L299:
+    %t1119 = ptrtoint i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str988, i64 0, i64 0) to i64
+    call void @eprintln(i64 %t1119)
+    ret i64 1
+L301:
+    %t1120 = load i64, i64* %source_buf.9
+    call void @parser_tokenize(i64 %t1120)
+    store i64 0, i64* %i.6
+    br label %L302
+L302:
+    %t1121 = load i64, i64* %i.6
+    %t1122 = call i64 @parser_token_count()
+    %t1124 = icmp slt i64 %t1121, %t1122
+    %t1123 = zext i1 %t1124 to i64
+    %t1125 = icmp ne i64 %t1123, 0
+    br i1 %t1125, label %L303, label %L304
+L303:
+    %tok.106 = alloca i64
+    %t1126 = load i64, i64* %i.6
+    %t1127 = call i8* @get_token(i64 %t1126)
+    %t1128 = ptrtoint i8* %t1127 to i64
+    store i64 %t1128, i64* %tok.106
+    %t1129 = load i64, i64* %tok.106
+    %t1130 = call i64 @tok_type(i64 %t1129)
+    %t1131 = load i64, i64* @TOKEN_ERROR
+    %t1133 = icmp eq i64 %t1130, %t1131
+    %t1132 = zext i1 %t1133 to i64
+    %t1134 = icmp ne i64 %t1132, 0
+    br i1 %t1134, label %L305, label %L307
+L305:
+    %t1135 = ptrtoint i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str989, i64 0, i64 0) to i64
+    call void @eprint(i64 %t1135)
+    %t1136 = load i64, i64* %tok.106
+    %t1137 = call i8* @tok_lexeme(i64 %t1136)
+    %t1138 = ptrtoint i8* %t1137 to i64
+    call void @eprintln(i64 %t1138)
+    ret i64 1
+L307:
+    %t1139 = load i64, i64* %i.6
+    %t1140 = add i64 %t1139, 1
+    store i64 %t1140, i64* %i.6
+    br label %L302
+L304:
+    %prog.107 = alloca i64
+    %t1141 = call i8* @parse_program()
+    %t1142 = ptrtoint i8* %t1141 to i64
+    store i64 %t1142, i64* %prog.107
+    %t1143 = load i64, i64* @parse_error_count
+    %t1145 = icmp sgt i64 %t1143, 0
+    %t1144 = zext i1 %t1145 to i64
+    %t1146 = icmp ne i64 %t1144, 0
+    br i1 %t1146, label %L308, label %L310
+L308:
+    ret i64 1
+L310:
+    %t1147 = load i64, i64* @emit_expanded_ast_mode
+    %t1149 = icmp ne i64 %t1147, 0
+    %t1148 = zext i1 %t1149 to i64
+    %t1150 = icmp ne i64 %t1148, 0
+    br i1 %t1150, label %L311, label %L312
+L311:
+    %t1151 = call i8* @map_new()
+    %t1152 = ptrtoint i8* %t1151 to i64
+    store i64 %t1152, i64* @expand_included_map
+    %t1153 = call i8* @vec_new(i64 1024)
+    %t1154 = ptrtoint i8* %t1153 to i64
+    store i64 %t1154, i64* @expand_collected_decls
+    %t1155 = load i64, i64* %input_files.5
+    store i64 %t1155, i64* @expand_input_files
+    %decls.108 = alloca i64
+    %t1156 = load i64, i64* %prog.107
+    %t1157 = call i8* @program_decls(i64 %t1156)
+    %t1158 = ptrtoint i8* %t1157 to i64
+    store i64 %t1158, i64* %decls.108
+    %decl_count.109 = alloca i64
+    %t1159 = load i64, i64* %prog.107
+    %t1160 = call i64 @program_decl_count(i64 %t1159)
+    store i64 %t1160, i64* %decl_count.109
+    store i64 0, i64* %i.6
+    br label %L314
+L314:
+    %t1161 = load i64, i64* %i.6
+    %t1162 = load i64, i64* %decl_count.109
+    %t1164 = icmp slt i64 %t1161, %t1162
+    %t1163 = zext i1 %t1164 to i64
+    %t1165 = icmp ne i64 %t1163, 0
+    br i1 %t1165, label %L315, label %L316
+L315:
+    %t1166 = load i64, i64* %decls.108
+    %t1167 = load i64, i64* %i.6
+    %t1168 = call i8* @get_decl(i64 %t1166, i64 %t1167)
+    %t1169 = ptrtoint i8* %t1168 to i64
+    call void @expand_collect_decl(i64 %t1169)
+    %t1170 = load i64, i64* %i.6
+    %t1171 = add i64 %t1170, 1
+    store i64 %t1171, i64* %i.6
+    br label %L314
+L316:
+    %expanded_prog.110 = alloca i64
+    %t1172 = call i8* @build_expanded_program()
+    %t1173 = ptrtoint i8* %t1172 to i64
+    store i64 %t1173, i64* %expanded_prog.110
+    %ast_str.111 = alloca i64
+    %t1174 = load i64, i64* %expanded_prog.110
+    %t1175 = call i8* @ast_emit_program(i64 %t1174)
+    %t1176 = ptrtoint i8* %t1175 to i64
+    store i64 %t1176, i64* %ast_str.111
+    %fd.112 = alloca i64
+    %t1177 = load i64, i64* %output_file.3
+    %t1178 = load i64, i64* @O_WRONLY_CREAT_TRUNC
+    %t1179 = call i64 @file_open(i64 %t1177, i64 %t1178)
+    store i64 %t1179, i64* %fd.112
+    %t1180 = load i64, i64* %fd.112
+    %t1182 = icmp slt i64 %t1180, 0
+    %t1181 = zext i1 %t1182 to i64
+    %t1183 = icmp ne i64 %t1181, 0
+    br i1 %t1183, label %L317, label %L319
+L317:
+    %t1184 = ptrtoint i8* getelementptr inbounds ([33 x i8], [33 x i8]* @.str484, i64 0, i64 0) to i64
+    call void @eprint(i64 %t1184)
+    %t1185 = load i64, i64* %output_file.3
+    call void @eprintln(i64 %t1185)
+    ret i64 1
+L319:
+    %t1186 = load i64, i64* %fd.112
+    %t1187 = load i64, i64* %ast_str.111
+    %t1188 = load i64, i64* %ast_str.111
+    %t1189 = call i64 @strlen(i64 %t1188)
+    %t1190 = call i64 @file_write(i64 %t1186, i64 %t1187, i64 %t1189)
+    %t1191 = load i64, i64* %fd.112
+    call void @file_close(i64 %t1191)
+    %t1192 = ptrtoint i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str990, i64 0, i64 0) to i64
+    call void @print(i64 %t1192)
+    %t1193 = load i64, i64* %output_file.3
+    call void @println(i64 %t1193)
+    br label %L313
+L312:
+    %t1194 = load i64, i64* @emit_ast_mode
+    %t1196 = icmp ne i64 %t1194, 0
+    %t1195 = zext i1 %t1196 to i64
+    %t1197 = icmp ne i64 %t1195, 0
+    br i1 %t1197, label %L320, label %L321
+L320:
+    %ast_str.113 = alloca i64
+    %t1198 = load i64, i64* %prog.107
+    %t1199 = call i8* @ast_emit_program(i64 %t1198)
+    %t1200 = ptrtoint i8* %t1199 to i64
+    store i64 %t1200, i64* %ast_str.113
+    %fd.114 = alloca i64
+    %t1201 = load i64, i64* %output_file.3
+    %t1202 = load i64, i64* @O_WRONLY_CREAT_TRUNC
+    %t1203 = call i64 @file_open(i64 %t1201, i64 %t1202)
+    store i64 %t1203, i64* %fd.114
+    %t1204 = load i64, i64* %fd.114
+    %t1206 = icmp slt i64 %t1204, 0
+    %t1205 = zext i1 %t1206 to i64
+    %t1207 = icmp ne i64 %t1205, 0
+    br i1 %t1207, label %L323, label %L325
+L323:
+    %t1208 = ptrtoint i8* getelementptr inbounds ([33 x i8], [33 x i8]* @.str484, i64 0, i64 0) to i64
+    call void @eprint(i64 %t1208)
+    %t1209 = load i64, i64* %output_file.3
+    call void @eprintln(i64 %t1209)
+    ret i64 1
+L325:
+    %t1210 = load i64, i64* %fd.114
+    %t1211 = load i64, i64* %ast_str.113
+    %t1212 = load i64, i64* %ast_str.113
+    %t1213 = call i64 @strlen(i64 %t1212)
+    %t1214 = call i64 @file_write(i64 %t1210, i64 %t1211, i64 %t1213)
+    %t1215 = load i64, i64* %fd.114
+    call void @file_close(i64 %t1215)
+    %t1216 = ptrtoint i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str991, i64 0, i64 0) to i64
+    call void @print(i64 %t1216)
+    %t1217 = load i64, i64* %output_file.3
+    call void @println(i64 %t1217)
+    br label %L322
+L321:
+    %langbe.115 = alloca i64
+    %t1218 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str219, i64 0, i64 0) to i64
+    %t1219 = call i8* @getenv(i64 %t1218)
+    %t1220 = ptrtoint i8* %t1219 to i64
+    store i64 %t1220, i64* %langbe.115
+    %t1221 = alloca i64
+    store i64 0, i64* %t1221
+    %t1222 = load i64, i64* %langbe.115
+    %t1224 = icmp ne i64 %t1222, 0
+    %t1223 = zext i1 %t1224 to i64
+    %t1225 = icmp ne i64 %t1223, 0
+    br i1 %t1225, label %L329, label %L330
+L329:
+    %t1226 = load i64, i64* %langbe.115
+    %t1227 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str16, i64 0, i64 0) to i64
+    %t1228 = call i64 @streq(i64 %t1226, i64 %t1227)
+    %t1229 = icmp ne i64 %t1228, 0
+    %t1230 = zext i1 %t1229 to i64
+    store i64 %t1230, i64* %t1221
+    br label %L330
+L330:
+    %t1231 = load i64, i64* %t1221
+    %t1232 = icmp ne i64 %t1231, 0
+    br i1 %t1232, label %L326, label %L327
+L326:
+    %t1233 = load i64, i64* %prog.107
+    %t1234 = load i64, i64* %output_file.3
+    call void @generate_llvm(i64 %t1233, i64 %t1234)
+    br label %L328
+L327:
+    %t1235 = load i64, i64* %prog.107
+    %t1236 = load i64, i64* %output_file.3
+    call void @generate(i64 %t1235, i64 %t1236)
+    br label %L328
+L328:
+    %t1237 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str975, i64 0, i64 0) to i64
+    call void @print(i64 %t1237)
+    %t1238 = load i64, i64* %output_file.3
+    call void @println(i64 %t1238)
+    br label %L322
+L322:
+    br label %L313
+L313:
     ret i64 0
 }
 
@@ -66500,12 +67350,12 @@ L269:
 @.str12 = private constant [2 x i8] c"-\00"
 @.str13 = private constant [2 x i8] c"0\00"
 @.str14 = private constant [6 x i8] c"0.1.0\00"
-@.str15 = private constant [8 x i8] c"6d774c6\00"
+@.str15 = private constant [8 x i8] c"2db0b22\00"
 @.str16 = private constant [5 x i8] c"llvm\00"
 @.str17 = private constant [6 x i8] c"macos\00"
 @.str18 = private constant [6 x i8] c"arm64\00"
 @.str19 = private constant [7 x i8] c"system\00"
-@.str20 = private constant [8 x i8] c"e52184e\00"
+@.str20 = private constant [8 x i8] c"6d774c6\00"
 @.str21 = private constant [5 x i8] c"func\00"
 @.str22 = private constant [4 x i8] c"var\00"
 @.str23 = private constant [7 x i8] c"struct\00"
@@ -67253,225 +68103,228 @@ L269:
 @.str765 = private constant [9 x i8] c"(reader \00"
 @.str766 = private constant [10 x i8] c"(include \00"
 @.str767 = private constant [10 x i8] c"(require \00"
-@.str768 = private constant [9 x i8] c"(import \00"
-@.str769 = private constant [7 x i8] c"(block\00"
-@.str770 = private constant [12 x i8] c"(block_expr\00"
-@.str771 = private constant [15 x i8] c"(array_literal\00"
-@.str772 = private constant [5 x i8] c"(if \00"
-@.str773 = private constant [8 x i8] c"(while \00"
-@.str774 = private constant [8 x i8] c"(return\00"
-@.str775 = private constant [7 x i8] c"(break\00"
-@.str776 = private constant [10 x i8] c"(continue\00"
-@.str777 = private constant [12 x i8] c"(expr_stmt \00"
-@.str778 = private constant [9 x i8] c"(assign \00"
-@.str779 = private constant [8 x i8] c"(binop \00"
-@.str780 = private constant [7 x i8] c"(unop \00"
-@.str781 = private constant [7 x i8] c"(call \00"
-@.str782 = private constant [8 x i8] c"(field \00"
-@.str783 = private constant [8 x i8] c"(index \00"
-@.str784 = private constant [8 x i8] c"(ident \00"
-@.str785 = private constant [9 x i8] c"(number \00"
-@.str786 = private constant [9 x i8] c"(string \00"
-@.str787 = private constant [7 x i8] c"(bool \00"
-@.str788 = private constant [6 x i8] c"(nil)\00"
-@.str789 = private constant [6 x i8] c"(let \00"
-@.str790 = private constant [10 x i8] c"(lambda (\00"
-@.str791 = private constant [8 x i8] c"(match \00"
-@.str792 = private constant [7 x i8] c"(case \00"
-@.str793 = private constant [10 x i8] c"(perform \00"
-@.str794 = private constant [9 x i8] c"(handle \00"
-@.str795 = private constant [17 x i8] c"(return_handler \00"
-@.str796 = private constant [17 x i8] c"(effect_handler \00"
-@.str797 = private constant [2 x i8] c"_\00"
-@.str798 = private constant [9 x i8] c"(resume \00"
-@.str799 = private constant [8 x i8] c"(quote \00"
-@.str800 = private constant [10 x i8] c"(unquote \00"
-@.str801 = private constant [17 x i8] c"(unquote_string \00"
-@.str802 = private constant [14 x i8] c"(reader_expr \00"
-@.str803 = private constant [15 x i8] c"(unknown_node \00"
-@.str804 = private constant [18 x i8] c"(pattern_variant \00"
-@.str805 = private constant [19 x i8] c"(pattern_wildcard)\00"
-@.str806 = private constant [18 x i8] c"(unknown_pattern \00"
-@.str807 = private constant [9 x i8] c"(program\00"
-@.str808 = private constant [36 x i8] c"Error: expected ')' in S-expression\00"
-@.str809 = private constant [42 x i8] c"Error: unexpected token in S-expression: \00"
-@.str810 = private constant [10 x i8] c"type_base\00"
-@.str811 = private constant [9 x i8] c"type_ptr\00"
-@.str812 = private constant [10 x i8] c"type_func\00"
-@.str813 = private constant [13 x i8] c"type_closure\00"
-@.str814 = private constant [11 x i8] c"type_array\00"
-@.str815 = private constant [17 x i8] c"pattern_wildcard\00"
-@.str816 = private constant [16 x i8] c"pattern_variant\00"
-@.str817 = private constant [34 x i8] c"Error: expected S-expression list\00"
-@.str818 = private constant [26 x i8] c"Error: empty S-expression\00"
-@.str819 = private constant [12 x i8] c"extern_func\00"
-@.str820 = private constant [11 x i8] c"extern_var\00"
-@.str821 = private constant [6 x i8] c"block\00"
-@.str822 = private constant [11 x i8] c"block_expr\00"
-@.str823 = private constant [14 x i8] c"array_literal\00"
-@.str824 = private constant [10 x i8] c"expr_stmt\00"
-@.str825 = private constant [7 x i8] c"assign\00"
-@.str826 = private constant [6 x i8] c"ident\00"
-@.str827 = private constant [7 x i8] c"number\00"
-@.str828 = private constant [7 x i8] c"string\00"
-@.str829 = private constant [6 x i8] c"binop\00"
-@.str830 = private constant [5 x i8] c"unop\00"
-@.str831 = private constant [5 x i8] c"call\00"
-@.str832 = private constant [6 x i8] c"field\00"
-@.str833 = private constant [6 x i8] c"index\00"
-@.str834 = private constant [6 x i8] c"quote\00"
-@.str835 = private constant [8 x i8] c"unquote\00"
-@.str836 = private constant [15 x i8] c"unquote_string\00"
-@.str837 = private constant [7 x i8] c"lambda\00"
-@.str838 = private constant [12 x i8] c"reader_expr\00"
-@.str839 = private constant [40 x i8] c"Error: unknown S-expression node type: \00"
-@.str840 = private constant [30 x i8] c"Error: expected (program ...)\00"
-@.str841 = private constant [8 x i8] c"program\00"
-@.str842 = private constant [12 x i8] c"ast-version\00"
-@.str843 = private constant [36 x i8] c"Error: failed to parse S-expression\00"
-@.str844 = private constant [26 x i8] c"Error: cannot open file: \00"
-@.str845 = private constant [24 x i8] c"Error: cannot read file\00"
-@.str846 = private constant [34 x i8] c"Error: cannot open include file: \00"
-@.str847 = private constant [48 x i8] c"lang compile - compile source files to assembly\00"
-@.str848 = private constant [45 x i8] c"Usage: lang [compile] <files...> -o <output>\00"
-@.str849 = private constant [80 x i8] c"The 'compile' command is implicit when the first argument has a file extension.\00"
-@.str850 = private constant [10 x i8] c"Examples:\00"
-@.str851 = private constant [26 x i8] c"  lang file.lang -o out.s\00"
-@.str852 = private constant [34 x i8] c"  lang compile file.lang -o out.s\00"
-@.str853 = private constant [44 x i8] c"  lang std/core.lang main.lang -o program.s\00"
-@.str854 = private constant [9 x i8] c"Options:\00"
-@.str855 = private constant [45 x i8] c"  -o <file>           Output file (required)\00"
-@.str856 = private constant [63 x i8] c"  -c <reader>         Generate standalone compiler with reader\00"
-@.str857 = private constant [65 x i8] c"  --emit-ast          Emit AST S-expressions instead of assembly\00"
-@.str858 = private constant [65 x i8] c"  --emit-expanded-ast Emit fully expanded AST (includes inlined)\00"
-@.str859 = private constant [47 x i8] c"  --from-ast          Input is AST, not source\00"
-@.str860 = private constant [64 x i8] c"  --embed-self        Inject AST file into self_kernel variable\00"
-@.str861 = private constant [55 x i8] c"  --expand-macros     Print macro expansions to stderr\00"
-@.str862 = private constant [26 x i8] c"Multi-syntax compilation:\00"
-@.str863 = private constant [60 x i8] c"  Files with .lang extension are parsed by the lang reader.\00"
-@.str864 = private constant [65 x i8] c"  Other extensions invoke reader macros: file.lisp -> #lisp{...}\00"
-@.str865 = private constant [38 x i8] c"lang env - show environment variables\00"
-@.str866 = private constant [27 x i8] c"Usage: lang env [variable]\00"
-@.str867 = private constant [41 x i8] c"  lang env            Show all variables\00"
-@.str868 = private constant [45 x i8] c"  lang env LANGBE     Show specific variable\00"
-@.str869 = private constant [11 x i8] c"Variables:\00"
-@.str870 = private constant [41 x i8] c"  LANGBE    Backend: x86 (default), llvm\00"
-@.str871 = private constant [46 x i8] c"  LANGOS    Target OS: linux (default), macos\00"
-@.str872 = private constant [46 x i8] c"  LANGLIBC  Libc mode: none (default), system\00"
-@.str873 = private constant [34 x i8] c"  PATH      Search path for tools\00"
-@.str874 = private constant [38 x i8] c"lang version - show compiler identity\00"
-@.str875 = private constant [20 x i8] c"Usage: lang version\00"
-@.str876 = private constant [7 x i8] c"Shows:\00"
-@.str877 = private constant [28 x i8] c"  - Version and commit hash\00"
-@.str878 = private constant [50 x i8] c"  - Build configuration (backend, OS, arch, libc)\00"
-@.str879 = private constant [52 x i8] c"  - Bootstrap provenance (what compiler built this)\00"
-@.str880 = private constant [23 x i8] c"Aliases: --version, -V\00"
-@.str881 = private constant [50 x i8] c"lang tools - show platform and build capabilities\00"
-@.str882 = private constant [18 x i8] c"Usage: lang tools\00"
-@.str883 = private constant [41 x i8] c"  - Platform this compiler was built for\00"
-@.str884 = private constant [39 x i8] c"  - Available emit targets (x86, llvm)\00"
-@.str885 = private constant [33 x i8] c"  - Current output configuration\00"
-@.str886 = private constant [49 x i8] c"  - Required toolchains for building executables\00"
-@.str887 = private constant [34 x i8] c"lang help - show help information\00"
-@.str888 = private constant [27 x i8] c"Usage: lang help [command]\00"
-@.str889 = private constant [41 x i8] c"  lang help            Show general help\00"
-@.str890 = private constant [49 x i8] c"  lang help compile    Show compile command help\00"
-@.str891 = private constant [45 x i8] c"  lang help env        Show env command help\00"
-@.str892 = private constant [20 x i8] c"Aliases: --help, -h\00"
-@.str893 = private constant [57 x i8] c"lang compose - create compiler with embedded reader ASTs\00"
-@.str894 = private constant [58 x i8] c"Usage: lang compose -r <name> <file> [-r ...] -o <output>\00"
-@.str895 = private constant [52 x i8] c"Embeds reader ASTs into a new compiler source file.\00"
-@.str896 = private constant [53 x i8] c"The reader source is compiled to AST, then embedded.\00"
-@.str897 = private constant [69 x i8] c"The resulting compiler can use those readers without external files.\00"
-@.str898 = private constant [52 x i8] c"  lang compose -r lisp reader.lang -o composed.lang\00"
-@.str899 = private constant [71 x i8] c"  -r <name> <file>    Add reader (name=extension, file=source or .ast)\00"
-@.str900 = private constant [49 x i8] c"  -o <output>         Output file (.lang source)\00"
-@.str901 = private constant [38 x i8] c"After generating, compile the output:\00"
-@.str902 = private constant [73 x i8] c"  LANGBE=llvm ./lang composed.lang -o out.ll && clang out.ll -o compiler\00"
-@.str903 = private constant [8 x i8] c"compile\00"
-@.str904 = private constant [8 x i8] c"compose\00"
-@.str905 = private constant [4 x i8] c"env\00"
-@.str906 = private constant [8 x i8] c"version\00"
-@.str907 = private constant [6 x i8] c"tools\00"
-@.str908 = private constant [5 x i8] c"help\00"
-@.str909 = private constant [18 x i8] c"Unknown command: \00"
-@.str910 = private constant [55 x i8] c"lang - a self-hosted compiler where syntax is a plugin\00"
-@.str911 = private constant [32 x i8] c"Usage: lang [command] [options]\00"
-@.str912 = private constant [10 x i8] c"Commands:\00"
-@.str913 = private constant [44 x i8] c"  compile    Compile source files (default)\00"
-@.str914 = private constant [51 x i8] c"  compose    Create compiler with embedded readers\00"
-@.str915 = private constant [36 x i8] c"  help       Show this help message\00"
-@.str916 = private constant [38 x i8] c"  version    Show version information\00"
-@.str917 = private constant [40 x i8] c"  env        Show environment variables\00"
-@.str918 = private constant [41 x i8] c"  tools      Show toolchain availability\00"
-@.str919 = private constant [53 x i8] c"  lang file.lang -o out.s        Compile to assembly\00"
-@.str920 = private constant [58 x i8] c"  lang help compile              Help for compile command\00"
-@.str921 = private constant [13 x i8] c"Environment:\00"
-@.str922 = private constant [54 x i8] c"  LANGBE=llvm         Use LLVM backend (default: x86)\00"
-@.str923 = private constant [52 x i8] c"  LANGOS=macos        Target macOS (default: linux)\00"
-@.str924 = private constant [53 x i8] c"Run 'lang help <command>' for command-specific help.\00"
-@.str925 = private constant [6 x i8] c"lang \00"
-@.str926 = private constant [8 x i8] c"built: \00"
-@.str927 = private constant [7 x i8] c", libc\00"
-@.str928 = private constant [17 x i8] c"bootstrap: from \00"
-@.str929 = private constant [8 x i8] c"LANGBE=\00"
-@.str930 = private constant [8 x i8] c"LANGOS=\00"
-@.str931 = private constant [9 x i8] c"LANGLIBC\00"
-@.str932 = private constant [10 x i8] c"LANGLIBC=\00"
-@.str933 = private constant [6 x i8] c"PATH=\00"
-@.str934 = private constant [3 x i8] c"  \00"
-@.str935 = private constant [8 x i8] c"found: \00"
-@.str936 = private constant [13 x i8] c"NOT FOUND  (\00"
-@.str937 = private constant [11 x i8] c"Platform: \00"
-@.str938 = private constant [8 x i8] c" (libc)\00"
-@.str939 = private constant [11 x i8] c" (no libc)\00"
-@.str940 = private constant [28 x i8] c"LLVM backend (LANGBE=llvm):\00"
-@.str941 = private constant [12 x i8] c"  Required:\00"
-@.str942 = private constant [18 x i8] c".ll -> executable\00"
-@.str943 = private constant [12 x i8] c"  Optional:\00"
-@.str944 = private constant [32 x i8] c"run .ll directly (fast testing)\00"
-@.str945 = private constant [4 x i8] c"llc\00"
-@.str946 = private constant [27 x i8] c".ll -> .s (then use as/ld)\00"
-@.str947 = private constant [26 x i8] c"x86 backend (LANGBE=x86):\00"
-@.str948 = private constant [18 x i8] c"assemble .s -> .o\00"
-@.str949 = private constant [22 x i8] c"link .o -> executable\00"
-@.str950 = private constant [16 x i8] c"Test utilities:\00"
-@.str951 = private constant [8 x i8] c"timeout\00"
-@.str952 = private constant [22 x i8] c"test timeouts (Linux)\00"
-@.str953 = private constant [9 x i8] c"gtimeout\00"
-@.str954 = private constant [22 x i8] c"test timeouts (macOS)\00"
-@.str955 = private constant [7 x i8] c"--help\00"
-@.str956 = private constant [3 x i8] c"-h\00"
-@.str957 = private constant [10 x i8] c"--version\00"
-@.str958 = private constant [3 x i8] c"-V\00"
-@.str959 = private constant [14 x i8] c"expand-macros\00"
-@.str960 = private constant [9 x i8] c"emit-ast\00"
-@.str961 = private constant [18 x i8] c"emit-expanded-ast\00"
-@.str962 = private constant [9 x i8] c"from-ast\00"
-@.str963 = private constant [11 x i8] c"embed-self\00"
-@.str964 = private constant [43 x i8] c"func reader_transform(t *u8) *u8 { return \00"
-@.str965 = private constant [8 x i8] c"(t); }\0A\00"
-@.str966 = private constant [31 x i8] c"include \22src/standalone.lang\22\0A\00"
-@.str967 = private constant [99 x i8] c"func ___main(argc i64, argv **u8, envp **u8) i64 { init_environ(envp); return main(argc, argv); }\0A\00"
-@.str968 = private constant [2 x i8] c"#\00"
-@.str969 = private constant [79 x i8] c"func ___main(argc i64, argv **u8, envp **u8) i64 { return main(argc, argv); }\0A\00"
-@.str970 = private constant [4 x i8] c"a.s\00"
-@.str971 = private constant [36 x i8] c"Error: no input file for --from-ast\00"
-@.str972 = private constant [27 x i8] c"Error: failed to parse AST\00"
-@.str973 = private constant [7 x i8] c"Wrote \00"
-@.str974 = private constant [38 x i8] c"Error: no input file for --embed-self\00"
-@.str975 = private constant [12 x i8] c"self_kernel\00"
-@.str976 = private constant [45 x i8] c"Error: self_kernel variable not found in AST\00"
-@.str977 = private constant [37 x i8] c"Error: -r requires <name> <file.ast>\00"
-@.str978 = private constant [64 x i8] c"Error: -r requires a self-aware kernel (use --embed-self first)\00"
-@.str979 = private constant [39 x i8] c"Error: failed to parse self_kernel AST\00"
-@.str980 = private constant [34 x i8] c"Error: failed to parse reader AST\00"
-@.str981 = private constant [22 x i8] c"embedded_reader_names\00"
-@.str982 = private constant [22 x i8] c"embedded_reader_funcs\00"
-@.str983 = private constant [54 x i8] c"Error: self_kernel variable not found in combined AST\00"
-@.str984 = private constant [17 x i8] c" (added reader: \00"
-@.str985 = private constant [22 x i8] c"Error: no input files\00"
-@.str986 = private constant [8 x i8] c"Error: \00"
-@.str987 = private constant [23 x i8] c"Wrote expanded AST to \00"
-@.str988 = private constant [14 x i8] c"Wrote AST to \00"
+@.str768 = private constant [9 x i8] c"(modules\00"
+@.str769 = private constant [9 x i8] c"(import \00"
+@.str770 = private constant [7 x i8] c"(block\00"
+@.str771 = private constant [12 x i8] c"(block_expr\00"
+@.str772 = private constant [15 x i8] c"(array_literal\00"
+@.str773 = private constant [5 x i8] c"(if \00"
+@.str774 = private constant [8 x i8] c"(while \00"
+@.str775 = private constant [8 x i8] c"(return\00"
+@.str776 = private constant [7 x i8] c"(break\00"
+@.str777 = private constant [10 x i8] c"(continue\00"
+@.str778 = private constant [12 x i8] c"(expr_stmt \00"
+@.str779 = private constant [9 x i8] c"(assign \00"
+@.str780 = private constant [8 x i8] c"(binop \00"
+@.str781 = private constant [7 x i8] c"(unop \00"
+@.str782 = private constant [7 x i8] c"(call \00"
+@.str783 = private constant [8 x i8] c"(field \00"
+@.str784 = private constant [8 x i8] c"(index \00"
+@.str785 = private constant [8 x i8] c"(ident \00"
+@.str786 = private constant [9 x i8] c"(number \00"
+@.str787 = private constant [9 x i8] c"(string \00"
+@.str788 = private constant [7 x i8] c"(bool \00"
+@.str789 = private constant [6 x i8] c"(nil)\00"
+@.str790 = private constant [6 x i8] c"(let \00"
+@.str791 = private constant [10 x i8] c"(lambda (\00"
+@.str792 = private constant [8 x i8] c"(match \00"
+@.str793 = private constant [7 x i8] c"(case \00"
+@.str794 = private constant [10 x i8] c"(perform \00"
+@.str795 = private constant [9 x i8] c"(handle \00"
+@.str796 = private constant [17 x i8] c"(return_handler \00"
+@.str797 = private constant [17 x i8] c"(effect_handler \00"
+@.str798 = private constant [2 x i8] c"_\00"
+@.str799 = private constant [9 x i8] c"(resume \00"
+@.str800 = private constant [8 x i8] c"(quote \00"
+@.str801 = private constant [10 x i8] c"(unquote \00"
+@.str802 = private constant [17 x i8] c"(unquote_string \00"
+@.str803 = private constant [14 x i8] c"(reader_expr \00"
+@.str804 = private constant [15 x i8] c"(unknown_node \00"
+@.str805 = private constant [18 x i8] c"(pattern_variant \00"
+@.str806 = private constant [19 x i8] c"(pattern_wildcard)\00"
+@.str807 = private constant [18 x i8] c"(unknown_pattern \00"
+@.str808 = private constant [9 x i8] c"(program\00"
+@.str809 = private constant [36 x i8] c"Error: expected ')' in S-expression\00"
+@.str810 = private constant [42 x i8] c"Error: unexpected token in S-expression: \00"
+@.str811 = private constant [10 x i8] c"type_base\00"
+@.str812 = private constant [9 x i8] c"type_ptr\00"
+@.str813 = private constant [10 x i8] c"type_func\00"
+@.str814 = private constant [13 x i8] c"type_closure\00"
+@.str815 = private constant [11 x i8] c"type_array\00"
+@.str816 = private constant [17 x i8] c"pattern_wildcard\00"
+@.str817 = private constant [16 x i8] c"pattern_variant\00"
+@.str818 = private constant [34 x i8] c"Error: expected S-expression list\00"
+@.str819 = private constant [26 x i8] c"Error: empty S-expression\00"
+@.str820 = private constant [12 x i8] c"extern_func\00"
+@.str821 = private constant [11 x i8] c"extern_var\00"
+@.str822 = private constant [8 x i8] c"modules\00"
+@.str823 = private constant [6 x i8] c"block\00"
+@.str824 = private constant [11 x i8] c"block_expr\00"
+@.str825 = private constant [14 x i8] c"array_literal\00"
+@.str826 = private constant [10 x i8] c"expr_stmt\00"
+@.str827 = private constant [7 x i8] c"assign\00"
+@.str828 = private constant [6 x i8] c"ident\00"
+@.str829 = private constant [7 x i8] c"number\00"
+@.str830 = private constant [7 x i8] c"string\00"
+@.str831 = private constant [6 x i8] c"binop\00"
+@.str832 = private constant [5 x i8] c"unop\00"
+@.str833 = private constant [5 x i8] c"call\00"
+@.str834 = private constant [6 x i8] c"field\00"
+@.str835 = private constant [6 x i8] c"index\00"
+@.str836 = private constant [6 x i8] c"quote\00"
+@.str837 = private constant [8 x i8] c"unquote\00"
+@.str838 = private constant [15 x i8] c"unquote_string\00"
+@.str839 = private constant [7 x i8] c"lambda\00"
+@.str840 = private constant [12 x i8] c"reader_expr\00"
+@.str841 = private constant [40 x i8] c"Error: unknown S-expression node type: \00"
+@.str842 = private constant [30 x i8] c"Error: expected (program ...)\00"
+@.str843 = private constant [8 x i8] c"program\00"
+@.str844 = private constant [12 x i8] c"ast-version\00"
+@.str845 = private constant [36 x i8] c"Error: failed to parse S-expression\00"
+@.str846 = private constant [26 x i8] c"Error: cannot open file: \00"
+@.str847 = private constant [24 x i8] c"Error: cannot read file\00"
+@.str848 = private constant [34 x i8] c"Error: cannot open include file: \00"
+@.str849 = private constant [48 x i8] c"lang compile - compile source files to assembly\00"
+@.str850 = private constant [45 x i8] c"Usage: lang [compile] <files...> -o <output>\00"
+@.str851 = private constant [80 x i8] c"The 'compile' command is implicit when the first argument has a file extension.\00"
+@.str852 = private constant [10 x i8] c"Examples:\00"
+@.str853 = private constant [26 x i8] c"  lang file.lang -o out.s\00"
+@.str854 = private constant [34 x i8] c"  lang compile file.lang -o out.s\00"
+@.str855 = private constant [44 x i8] c"  lang std/core.lang main.lang -o program.s\00"
+@.str856 = private constant [9 x i8] c"Options:\00"
+@.str857 = private constant [45 x i8] c"  -o <file>           Output file (required)\00"
+@.str858 = private constant [63 x i8] c"  -c <reader>         Generate standalone compiler with reader\00"
+@.str859 = private constant [65 x i8] c"  --emit-ast          Emit AST S-expressions instead of assembly\00"
+@.str860 = private constant [65 x i8] c"  --emit-expanded-ast Emit fully expanded AST (includes inlined)\00"
+@.str861 = private constant [47 x i8] c"  --from-ast          Input is AST, not source\00"
+@.str862 = private constant [64 x i8] c"  --embed-self        Inject AST file into self_kernel variable\00"
+@.str863 = private constant [55 x i8] c"  --expand-macros     Print macro expansions to stderr\00"
+@.str864 = private constant [26 x i8] c"Multi-syntax compilation:\00"
+@.str865 = private constant [60 x i8] c"  Files with .lang extension are parsed by the lang reader.\00"
+@.str866 = private constant [65 x i8] c"  Other extensions invoke reader macros: file.lisp -> #lisp{...}\00"
+@.str867 = private constant [38 x i8] c"lang env - show environment variables\00"
+@.str868 = private constant [27 x i8] c"Usage: lang env [variable]\00"
+@.str869 = private constant [41 x i8] c"  lang env            Show all variables\00"
+@.str870 = private constant [45 x i8] c"  lang env LANGBE     Show specific variable\00"
+@.str871 = private constant [11 x i8] c"Variables:\00"
+@.str872 = private constant [41 x i8] c"  LANGBE    Backend: x86 (default), llvm\00"
+@.str873 = private constant [46 x i8] c"  LANGOS    Target OS: linux (default), macos\00"
+@.str874 = private constant [46 x i8] c"  LANGLIBC  Libc mode: none (default), system\00"
+@.str875 = private constant [34 x i8] c"  PATH      Search path for tools\00"
+@.str876 = private constant [38 x i8] c"lang version - show compiler identity\00"
+@.str877 = private constant [20 x i8] c"Usage: lang version\00"
+@.str878 = private constant [7 x i8] c"Shows:\00"
+@.str879 = private constant [28 x i8] c"  - Version and commit hash\00"
+@.str880 = private constant [50 x i8] c"  - Build configuration (backend, OS, arch, libc)\00"
+@.str881 = private constant [52 x i8] c"  - Bootstrap provenance (what compiler built this)\00"
+@.str882 = private constant [23 x i8] c"Aliases: --version, -V\00"
+@.str883 = private constant [50 x i8] c"lang tools - show platform and build capabilities\00"
+@.str884 = private constant [18 x i8] c"Usage: lang tools\00"
+@.str885 = private constant [41 x i8] c"  - Platform this compiler was built for\00"
+@.str886 = private constant [39 x i8] c"  - Available emit targets (x86, llvm)\00"
+@.str887 = private constant [33 x i8] c"  - Current output configuration\00"
+@.str888 = private constant [49 x i8] c"  - Required toolchains for building executables\00"
+@.str889 = private constant [34 x i8] c"lang help - show help information\00"
+@.str890 = private constant [27 x i8] c"Usage: lang help [command]\00"
+@.str891 = private constant [41 x i8] c"  lang help            Show general help\00"
+@.str892 = private constant [49 x i8] c"  lang help compile    Show compile command help\00"
+@.str893 = private constant [45 x i8] c"  lang help env        Show env command help\00"
+@.str894 = private constant [20 x i8] c"Aliases: --help, -h\00"
+@.str895 = private constant [57 x i8] c"lang compose - create compiler with embedded reader ASTs\00"
+@.str896 = private constant [58 x i8] c"Usage: lang compose -r <name> <file> [-r ...] -o <output>\00"
+@.str897 = private constant [52 x i8] c"Embeds reader ASTs into a new compiler source file.\00"
+@.str898 = private constant [53 x i8] c"The reader source is compiled to AST, then embedded.\00"
+@.str899 = private constant [69 x i8] c"The resulting compiler can use those readers without external files.\00"
+@.str900 = private constant [52 x i8] c"  lang compose -r lisp reader.lang -o composed.lang\00"
+@.str901 = private constant [71 x i8] c"  -r <name> <file>    Add reader (name=extension, file=source or .ast)\00"
+@.str902 = private constant [49 x i8] c"  -o <output>         Output file (.lang source)\00"
+@.str903 = private constant [38 x i8] c"After generating, compile the output:\00"
+@.str904 = private constant [73 x i8] c"  LANGBE=llvm ./lang composed.lang -o out.ll && clang out.ll -o compiler\00"
+@.str905 = private constant [8 x i8] c"compile\00"
+@.str906 = private constant [8 x i8] c"compose\00"
+@.str907 = private constant [4 x i8] c"env\00"
+@.str908 = private constant [8 x i8] c"version\00"
+@.str909 = private constant [6 x i8] c"tools\00"
+@.str910 = private constant [5 x i8] c"help\00"
+@.str911 = private constant [18 x i8] c"Unknown command: \00"
+@.str912 = private constant [55 x i8] c"lang - a self-hosted compiler where syntax is a plugin\00"
+@.str913 = private constant [32 x i8] c"Usage: lang [command] [options]\00"
+@.str914 = private constant [10 x i8] c"Commands:\00"
+@.str915 = private constant [44 x i8] c"  compile    Compile source files (default)\00"
+@.str916 = private constant [51 x i8] c"  compose    Create compiler with embedded readers\00"
+@.str917 = private constant [36 x i8] c"  help       Show this help message\00"
+@.str918 = private constant [38 x i8] c"  version    Show version information\00"
+@.str919 = private constant [40 x i8] c"  env        Show environment variables\00"
+@.str920 = private constant [41 x i8] c"  tools      Show toolchain availability\00"
+@.str921 = private constant [53 x i8] c"  lang file.lang -o out.s        Compile to assembly\00"
+@.str922 = private constant [58 x i8] c"  lang help compile              Help for compile command\00"
+@.str923 = private constant [13 x i8] c"Environment:\00"
+@.str924 = private constant [54 x i8] c"  LANGBE=llvm         Use LLVM backend (default: x86)\00"
+@.str925 = private constant [52 x i8] c"  LANGOS=macos        Target macOS (default: linux)\00"
+@.str926 = private constant [53 x i8] c"Run 'lang help <command>' for command-specific help.\00"
+@.str927 = private constant [6 x i8] c"lang \00"
+@.str928 = private constant [8 x i8] c"built: \00"
+@.str929 = private constant [7 x i8] c", libc\00"
+@.str930 = private constant [17 x i8] c"bootstrap: from \00"
+@.str931 = private constant [8 x i8] c"LANGBE=\00"
+@.str932 = private constant [8 x i8] c"LANGOS=\00"
+@.str933 = private constant [9 x i8] c"LANGLIBC\00"
+@.str934 = private constant [10 x i8] c"LANGLIBC=\00"
+@.str935 = private constant [6 x i8] c"PATH=\00"
+@.str936 = private constant [3 x i8] c"  \00"
+@.str937 = private constant [8 x i8] c"found: \00"
+@.str938 = private constant [13 x i8] c"NOT FOUND  (\00"
+@.str939 = private constant [11 x i8] c"Platform: \00"
+@.str940 = private constant [8 x i8] c" (libc)\00"
+@.str941 = private constant [11 x i8] c" (no libc)\00"
+@.str942 = private constant [28 x i8] c"LLVM backend (LANGBE=llvm):\00"
+@.str943 = private constant [12 x i8] c"  Required:\00"
+@.str944 = private constant [18 x i8] c".ll -> executable\00"
+@.str945 = private constant [12 x i8] c"  Optional:\00"
+@.str946 = private constant [32 x i8] c"run .ll directly (fast testing)\00"
+@.str947 = private constant [4 x i8] c"llc\00"
+@.str948 = private constant [27 x i8] c".ll -> .s (then use as/ld)\00"
+@.str949 = private constant [26 x i8] c"x86 backend (LANGBE=x86):\00"
+@.str950 = private constant [18 x i8] c"assemble .s -> .o\00"
+@.str951 = private constant [22 x i8] c"link .o -> executable\00"
+@.str952 = private constant [16 x i8] c"Test utilities:\00"
+@.str953 = private constant [8 x i8] c"timeout\00"
+@.str954 = private constant [22 x i8] c"test timeouts (Linux)\00"
+@.str955 = private constant [9 x i8] c"gtimeout\00"
+@.str956 = private constant [22 x i8] c"test timeouts (macOS)\00"
+@.str957 = private constant [7 x i8] c"--help\00"
+@.str958 = private constant [3 x i8] c"-h\00"
+@.str959 = private constant [10 x i8] c"--version\00"
+@.str960 = private constant [3 x i8] c"-V\00"
+@.str961 = private constant [14 x i8] c"expand-macros\00"
+@.str962 = private constant [9 x i8] c"emit-ast\00"
+@.str963 = private constant [18 x i8] c"emit-expanded-ast\00"
+@.str964 = private constant [9 x i8] c"from-ast\00"
+@.str965 = private constant [11 x i8] c"embed-self\00"
+@.str966 = private constant [43 x i8] c"func reader_transform(t *u8) *u8 { return \00"
+@.str967 = private constant [8 x i8] c"(t); }\0A\00"
+@.str968 = private constant [31 x i8] c"include \22src/standalone.lang\22\0A\00"
+@.str969 = private constant [99 x i8] c"func ___main(argc i64, argv **u8, envp **u8) i64 { init_environ(envp); return main(argc, argv); }\0A\00"
+@.str970 = private constant [2 x i8] c"#\00"
+@.str971 = private constant [79 x i8] c"func ___main(argc i64, argv **u8, envp **u8) i64 { return main(argc, argv); }\0A\00"
+@.str972 = private constant [4 x i8] c"a.s\00"
+@.str973 = private constant [36 x i8] c"Error: no input file for --from-ast\00"
+@.str974 = private constant [27 x i8] c"Error: failed to parse AST\00"
+@.str975 = private constant [7 x i8] c"Wrote \00"
+@.str976 = private constant [38 x i8] c"Error: no input file for --embed-self\00"
+@.str977 = private constant [12 x i8] c"self_kernel\00"
+@.str978 = private constant [15 x i8] c"kernel_modules\00"
+@.str979 = private constant [45 x i8] c"Error: self_kernel variable not found in AST\00"
+@.str980 = private constant [37 x i8] c"Error: -r requires <name> <file.ast>\00"
+@.str981 = private constant [64 x i8] c"Error: -r requires a self-aware kernel (use --embed-self first)\00"
+@.str982 = private constant [39 x i8] c"Error: failed to parse self_kernel AST\00"
+@.str983 = private constant [34 x i8] c"Error: failed to parse reader AST\00"
+@.str984 = private constant [22 x i8] c"embedded_reader_names\00"
+@.str985 = private constant [22 x i8] c"embedded_reader_funcs\00"
+@.str986 = private constant [54 x i8] c"Error: self_kernel variable not found in combined AST\00"
+@.str987 = private constant [17 x i8] c" (added reader: \00"
+@.str988 = private constant [22 x i8] c"Error: no input files\00"
+@.str989 = private constant [8 x i8] c"Error: \00"
+@.str990 = private constant [23 x i8] c"Wrote expanded AST to \00"
+@.str991 = private constant [14 x i8] c"Wrote AST to \00"
 
