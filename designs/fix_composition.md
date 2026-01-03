@@ -251,45 +251,26 @@ clang /tmp/hello.ll -o /tmp/hello
 
 ## Next Steps (Implementation Order)
 
-### Phase 1: Add `require` keyword (composition_dependencies.md)
+### Phase 1: Kernel/Reader Split (kernel_reader_split.md) ← DO FIRST
 
-1. Add `TOKEN_REQUIRE` to lexer.lang
-2. Add `NODE_REQUIRE` and `RequireDecl` to parser.lang
-3. Add `kernel_modules [256]*u8` array to codegen.lang
-4. Update `--embed-self` to populate `kernel_modules`
-5. Update `-r` mode to check requires against `kernel_modules`
-6. Add `LANG_MODULE_PATH` resolution for missing modules
+1. Fix reader output parsing: `parse_program_from_string` → `parse_ast_from_string`
+2. Remove include handling from codegen (readers expand includes)
+3. Factor out reader compilation from codegen
+4. Update Makefile: kernel without lexer/parser
+5. Bootstrap after each step
 
-### Phase 2: Update reader to use requires
+### Phase 2: Add `require` keyword (composition_dependencies.md)
 
-1. Create `src/lang_reader_v2.lang` with requires instead of includes:
-   ```lang
-   require "std/core"
-   require "src/lexer"
-   require "src/parser"
-   require "src/ast_emit"
+1. Add `TOKEN_REQUIRE` to lexer, `NODE_REQUIRE` to parser
+2. Add `kernel_modules [256]*u8` tracking to codegen
+3. Update `--embed-self` to populate `kernel_modules`
+4. Update `-r` mode to resolve requires against `kernel_modules`
+5. Add `LANG_MODULE_PATH` for external module resolution
 
-   reader lang(text *u8) *u8 { ... }
-   ```
-
-2. Add `--emit-reader-ast` flag (keeps requires, doesn't expand)
-
-### Phase 3: Test composition
+### Phase 3: Test full composition
 
 1. Build kernel_self with module tracking
-2. Build lang_reader_v2.ast with requires
+2. Build lang_reader with requires
 3. Compose and verify no duplicates
 4. Run acceptance criteria tests
-
-### Phase 4: Kernel/Reader Split (kernel_reader_split.md)
-
-1. Remove `parse_program_from_string` from codegen
-2. Update reader output parsing to use `parse_ast_from_string`
-3. Build minimal kernel (no lexer/parser)
-4. Verify composition with minimal kernel + lang_reader
-
-### Phase 5: Bootstrap
-
-1. Run `make bootstrap` after each phase
-2. Ensure all 169 tests pass
-3. Archive successful bootstrap
+5. Bootstrap
