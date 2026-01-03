@@ -2490,12 +2490,23 @@ func llvm_emit_expr(expr *u8) void {
         llvm_emit_int(gep_temp);
         llvm_emit_line("");
 
-        // Zero-extend small types to i64
+        // Convert result to i64 for uniform handling
         var elem_size i64 = 8;
         if elem_type != nil {
             elem_size = get_type_size(elem_type);
         }
-        if elem_size < 8 {
+
+        // If element is pointer type, convert to i64 with ptrtoint
+        if elem_type != nil && type_kind(elem_type) == TYPE_PTR {
+            var ptrtoint_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(ptrtoint_temp);
+            llvm_emit_str(" = ptrtoint i8* %t");
+            llvm_emit_int(load_temp);
+            llvm_emit_line(" to i64");
+            llvm_set_result_temp(ptrtoint_temp);
+        } else if elem_size < 8 {
+            // Zero-extend small types to i64
             var zext_temp i64 = llvm_next_temp();
             llvm_emit_str("    %t");
             llvm_emit_int(zext_temp);
@@ -4600,24 +4611,39 @@ func llvm_emit_stmt(stmt *u8) void {
             llvm_emit_str(index_val);
             llvm_emit_line("");
 
-            // Store value
-            llvm_emit_str("    store ");
-            if elem_type != nil {
-                llvm_emit_type(elem_type);
+            // Store value - convert i64 to pointer if needed
+            if elem_type != nil && type_kind(elem_type) == TYPE_PTR {
+                // Convert i64 to pointer with inttoptr, then store
+                var inttoptr_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(inttoptr_temp);
+                llvm_emit_str(" = inttoptr i64 ");
+                llvm_emit_str(val);
+                llvm_emit_line(" to i8*");
+                llvm_emit_str("    store i8* %t");
+                llvm_emit_int(inttoptr_temp);
+                llvm_emit_str(", i8** %t");
+                llvm_emit_int(gep_temp);
+                llvm_emit_line("");
             } else {
-                llvm_emit_str("i64");
+                llvm_emit_str("    store ");
+                if elem_type != nil {
+                    llvm_emit_type(elem_type);
+                } else {
+                    llvm_emit_str("i64");
+                }
+                llvm_emit_str(" ");
+                llvm_emit_str(val);
+                llvm_emit_str(", ");
+                if elem_type != nil {
+                    llvm_emit_type(elem_type);
+                } else {
+                    llvm_emit_str("i64");
+                }
+                llvm_emit_str("* %t");
+                llvm_emit_int(gep_temp);
+                llvm_emit_line("");
             }
-            llvm_emit_str(" ");
-            llvm_emit_str(val);
-            llvm_emit_str(", ");
-            if elem_type != nil {
-                llvm_emit_type(elem_type);
-            } else {
-                llvm_emit_str("i64");
-            }
-            llvm_emit_str("* %t");
-            llvm_emit_int(gep_temp);
-            llvm_emit_line("");
 
             return;
         }
@@ -5443,6 +5469,124 @@ func llvm_emit_reader(reader_node *u8) void {
     llvm_emit_char(10);
 }
 
+// Helper: emit an array element value for global array initializers
+// For pointer elements, emit the pointer directly (not ptrtoint)
+// For non-pointer elements, emit the value directly
+func llvm_emit_global_array_elem(init *u8, is_ptr i64) void {
+    if init == nil {
+        if is_ptr {
+            llvm_emit_str("null");
+        } else {
+            llvm_emit_str("0");
+        }
+        return;
+    }
+
+    var kind i64 = node_kind(init);
+
+    if kind == NODE_NUMBER_EXPR {
+        var val *u8 = number_expr_value(init);
+        var val_len i64 = number_expr_value_len(init);
+        llvm_emit_n(val, val_len);
+        return;
+    }
+
+    if kind == NODE_STRING_EXPR {
+        // String literal - emit pointer to string
+        var str_val *u8 = string_expr_value(init);
+        var str_len i64 = string_expr_value_len(init);
+        var idx i64 = llvm_add_string(str_val, str_len);
+
+        // getelementptr inbounds ([N x i8], [N x i8]* @.strI, i64 0, i64 0)
+        llvm_emit_str("getelementptr inbounds ([");
+        llvm_emit_int(str_len + 1);
+        llvm_emit_str(" x i8], [");
+        llvm_emit_int(str_len + 1);
+        llvm_emit_str(" x i8]* @.str");
+        llvm_emit_int(idx);
+        llvm_emit_str(", i64 0, i64 0)");
+        return;
+    }
+
+    if kind == NODE_IDENT_EXPR {
+        // Identifier - function pointer
+        var ident_name *u8 = ident_expr_name(init);
+        var ident_len i64 = ident_expr_name_len(init);
+        llvm_emit_str("@");
+        llvm_emit_n(ident_name, ident_len);
+        return;
+    }
+
+    if kind == NODE_NIL_EXPR {
+        if is_ptr {
+            llvm_emit_str("null");
+        } else {
+            llvm_emit_str("0");
+        }
+        return;
+    }
+
+    // Unsupported - emit null/0
+    if is_ptr {
+        llvm_emit_str("null");
+    } else {
+        llvm_emit_str("0");
+    }
+}
+
+// Helper: emit a constant expression value for global initializers
+func llvm_emit_global_init_value(init *u8) void {
+    if init == nil {
+        llvm_emit_str("0");
+        return;
+    }
+
+    var kind i64 = node_kind(init);
+
+    if kind == NODE_NUMBER_EXPR {
+        var val *u8 = number_expr_value(init);
+        var val_len i64 = number_expr_value_len(init);
+        llvm_emit_n(val, val_len);
+        return;
+    }
+
+    if kind == NODE_STRING_EXPR {
+        // String literal: use constant expression for pointer
+        var str_val *u8 = string_expr_value(init);
+        var str_len i64 = string_expr_value_len(init);
+        var idx i64 = llvm_add_string(str_val, str_len);
+
+        // ptrtoint (i8* getelementptr inbounds ([N x i8], [N x i8]* @.strI, i64 0, i64 0) to i64)
+        llvm_emit_str("ptrtoint (i8* getelementptr inbounds ([");
+        llvm_emit_int(str_len + 1);
+        llvm_emit_str(" x i8], [");
+        llvm_emit_int(str_len + 1);
+        llvm_emit_str(" x i8]* @.str");
+        llvm_emit_int(idx);
+        llvm_emit_str(", i64 0, i64 0) to i64)");
+        return;
+    }
+
+    if kind == NODE_IDENT_EXPR {
+        // Identifier - could be a function pointer
+        var ident_name *u8 = ident_expr_name(init);
+        var ident_len i64 = ident_expr_name_len(init);
+        // Emit: ptrtoint (i8* @funcname to i64)
+        llvm_emit_str("ptrtoint (i8* @");
+        llvm_emit_n(ident_name, ident_len);
+        llvm_emit_str(" to i64)");
+        return;
+    }
+
+    if kind == NODE_NIL_EXPR {
+        llvm_emit_str("0");
+        return;
+    }
+
+    // Unsupported initializer type - use 0
+    llvm_emit_str("0");
+}
+
 func llvm_emit_decl(decl *u8) void {
     if decl == nil {
         return;
@@ -5507,6 +5651,7 @@ func llvm_emit_decl(decl *u8) void {
         var name_len i64 = var_decl_name_len(decl);
         var init *u8 = var_decl_init(decl);
         var is_extern i64 = var_decl_is_extern(decl);
+        var var_type *u8 = var_decl_type(decl);
 
         // Register as global
         llvm_add_global(name, name_len);
@@ -5519,41 +5664,66 @@ func llvm_emit_decl(decl *u8) void {
         // Emit global
         llvm_emit_str("@");
         llvm_emit_n(name, name_len);
-        llvm_emit_str(" = global i64 ");
+        llvm_emit_str(" = global ");
+
+        // Check if this is an array type
+        if var_type != nil && type_kind(var_type) == TYPE_ARRAY {
+            var arr_size i64 = array_type_size(var_type);
+            var elem_type *u8 = array_type_elem(var_type);
+            var is_ptr_elem i64 = 0;
+            if elem_type != nil && type_kind(elem_type) == TYPE_PTR {
+                is_ptr_elem = 1;
+            }
+
+            // Emit array type: [N x T]
+            llvm_emit_type(var_type);
+            llvm_emit_str(" ");
+
+            // Check if we have an array_literal initializer
+            if init != nil && node_kind(init) == NODE_ARRAY_LITERAL {
+                var elems *u8 = array_literal_elems(init);
+                var count i64 = array_literal_count(init);
+
+                // Emit [T val1, T val2, ..., T 0/null, ...]
+                llvm_emit_str("[");
+                var i i64 = 0;
+                while i < arr_size {
+                    if i > 0 {
+                        llvm_emit_str(", ");
+                    }
+                    if i < count {
+                        // Get element at index i
+                        var elem_ptr **u8 = elems + (i * 8);
+                        var elem *u8 = *elem_ptr;
+                        llvm_emit_type(elem_type);
+                        llvm_emit_str(" ");
+                        llvm_emit_global_array_elem(elem, is_ptr_elem);
+                    } else {
+                        // Emit zero/null for remaining elements
+                        llvm_emit_type(elem_type);
+                        if is_ptr_elem {
+                            llvm_emit_str(" null");
+                        } else {
+                            llvm_emit_str(" 0");
+                        }
+                    }
+                    i = i + 1;
+                }
+                llvm_emit_str("]");
+            } else {
+                // No initializer or empty - use zeroinitializer
+                llvm_emit_str("zeroinitializer");
+            }
+            llvm_emit_char(10);
+            return;
+        }
+
+        // Non-array: emit i64 as before
+        llvm_emit_str("i64 ");
 
         // Get initial value
         if init != nil {
-            if node_kind(init) == NODE_NUMBER_EXPR {
-                var val *u8 = number_expr_value(init);
-                var val_len i64 = number_expr_value_len(init);
-                llvm_emit_n(val, val_len);
-            } else if node_kind(init) == NODE_STRING_EXPR {
-                // String literal: use constant expression for pointer
-                // String value is raw content (no quotes, escapes already processed)
-                var str_val *u8 = string_expr_value(init);
-                var str_len i64 = string_expr_value_len(init);
-                var idx i64 = llvm_add_string(str_val, str_len);
-
-                // ptrtoint (i8* getelementptr inbounds ([N x i8], [N x i8]* @.strI, i64 0, i64 0) to i64)
-                llvm_emit_str("ptrtoint (i8* getelementptr inbounds ([");
-                llvm_emit_int(str_len + 1);
-                llvm_emit_str(" x i8], [");
-                llvm_emit_int(str_len + 1);
-                llvm_emit_str(" x i8]* @.str");
-                llvm_emit_int(idx);
-                llvm_emit_str(", i64 0, i64 0) to i64)");
-            } else if node_kind(init) == NODE_IDENT_EXPR {
-                // Identifier - could be a function pointer
-                var ident_name *u8 = ident_expr_name(init);
-                var ident_len i64 = ident_expr_name_len(init);
-                // Emit: ptrtoint (i8* @funcname to i64)
-                llvm_emit_str("ptrtoint (i8* @");
-                llvm_emit_n(ident_name, ident_len);
-                llvm_emit_str(" to i64)");
-            } else {
-                // Non-constant initializer - use 0 for now
-                llvm_emit_str("0");
-            }
+            llvm_emit_global_init_value(init);
         } else {
             llvm_emit_str("0");
         }
