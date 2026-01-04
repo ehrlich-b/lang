@@ -94,11 +94,17 @@ With Zig captured:
 
 **Solid (169/169 tests passing):**
 - Self-hosting with fixed-point verification
-- Dual backends (x86 + LLVM)
+- LLVM backend (primary, all features)
 - Cross-platform (Linux x86-64, macOS ARM64)
 - Reader macro system with recursive expansion
 - Algebraic effects with resume
 - CLI: `help`, `version`, `env`, `tools`
+
+**x86 backend: FROZEN**
+- The x86 backend is feature-complete for what it has (integers, basic control flow, effects)
+- No new features (floats, calling conventions) will be added
+- Kept as emergency bootstrap fallback only
+- LLVM is the sole target for Language Forge development
 
 **Spartan (not blocking Zig capture):**
 - Platform auto-detection (need `LANGOS=macos LANGBE=llvm` manually)
@@ -137,16 +143,19 @@ Explain readers in detail:
 
 ## Backlog
 
-### Language features
-- Floating point (f32, f64) - **needed for full Zig capture**
+### Language features (LLVM backend only)
+- Floating point (f32, f64) - **needed for full Zig capture** - see `designs/float_support.md`
 - Struct literals `Point{x: 1, y: 2}`
 - Type aliases `type Fd = i64`
 - Generics (monomorphization)
 - Debug symbols (DWARF)
+- Calling conventions (`extern "C"`, `extern "Zig"`)
 
 ### Backends
-- WASM (direct or via LLVM)
-- Windows (Win64 ABI)
+- WASM (via LLVM)
+- Windows (Win64 ABI, via LLVM)
+
+**Note:** The x86 backend is frozen. All new features target LLVM only.
 
 ### Forge
 - Capture Rust (MIR → lang AST)

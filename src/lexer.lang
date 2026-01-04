@@ -129,6 +129,11 @@ var TOKEN_REQUIRE i64 = 84;       // require (module dependency reference)
 // Visibility
 var TOKEN_PUB i64 = 85;           // pub (public visibility modifier)
 
+// Floating point types
+var TOKEN_F32 i64 = 86;           // f32
+var TOKEN_F64 i64 = 87;           // f64
+var TOKEN_FLOAT i64 = 88;         // float literal (contains decimal point)
+
 // ============================================================
 // Token struct
 // ============================================================
@@ -458,6 +463,8 @@ func check_keyword() i64 {
     if lexeme_eq("u16") { return TOKEN_U16; }
     if lexeme_eq("u32") { return TOKEN_U32; }
     if lexeme_eq("u64") { return TOKEN_U64; }
+    if lexeme_eq("f32") { return TOKEN_F32; }
+    if lexeme_eq("f64") { return TOKEN_F64; }
     if lexeme_eq("bool") { return TOKEN_BOOL; }
     if lexeme_eq("void") { return TOKEN_VOID; }
 
@@ -482,6 +489,19 @@ func scan_number() *u8 {
     while is_digit(lex_peek()) {
         lex_advance();
     }
+
+    // Check for decimal point (float literal)
+    // Only if followed by a digit (not method call like 1.to_string())
+    if lex_peek() == 46 {  // '.'
+        if is_digit(lex_peek_next()) {
+            lex_advance();  // consume '.'
+            while is_digit(lex_peek()) {
+                lex_advance();
+            }
+            return make_token(TOKEN_FLOAT);
+        }
+    }
+
     return make_token(TOKEN_NUMBER);
 }
 

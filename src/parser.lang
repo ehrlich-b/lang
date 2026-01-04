@@ -2592,6 +2592,7 @@ func parse_type() *u8 {
 
     if tt == TOKEN_I8 || tt == TOKEN_I16 || tt == TOKEN_I32 || tt == TOKEN_I64 ||
        tt == TOKEN_U8 || tt == TOKEN_U16 || tt == TOKEN_U32 || tt == TOKEN_U64 ||
+       tt == TOKEN_F32 || tt == TOKEN_F64 ||
        tt == TOKEN_BOOL || tt == TOKEN_VOID || tt == TOKEN_IDENT {
         var t *u8 = base_type_alloc();
         base_type_set_name(t, tok_lexeme(tok));
@@ -2901,6 +2902,15 @@ func parse_pattern() *u8 {
 
 func parse_primary() *u8 {
     if parse_match(TOKEN_NUMBER) {
+        var tok *u8 = parse_previous();
+        var node *u8 = number_expr_alloc();
+        number_expr_set_value(node, tok_lexeme(tok));
+        number_expr_set_value_len(node, tok_lexeme_len(tok));
+        return node;
+    }
+
+    // Float literals (e.g., 3.14) - reuse number_expr, LLVM accepts floats directly
+    if parse_match(TOKEN_FLOAT) {
         var tok *u8 = parse_previous();
         var node *u8 = number_expr_alloc();
         number_expr_set_value(node, tok_lexeme(tok));

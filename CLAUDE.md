@@ -2,9 +2,9 @@
 
 *"There are many like it but this one is mine."*
 
-**Vision**: A self-hosted compiler compiler with dual backends. For fun.
+**Vision**: A self-hosted compiler compiler. For fun.
 
-Lang + reader macro = native compiler for any syntax. Outputs x86-64 assembly or LLVM IR.
+Lang + reader macro = native compiler for any syntax. Outputs LLVM IR → native binary.
 
 ## Anchor Documents
 
@@ -20,11 +20,11 @@ Lang + reader macro = native compiler for any syntax. Outputs x86-64 assembly or
 ```
 lang/
 ├── src/            # Compiler (written in lang)
-│   ├── codegen.lang      # x86-64 backend
-│   └── codegen_llvm.lang # LLVM IR backend
+│   ├── codegen.lang      # x86-64 backend (FROZEN - emergency bootstrap only)
+│   └── codegen_llvm.lang # LLVM IR backend (PRIMARY - all new features)
 ├── std/            # Standard library
-├── test/           # Test programs (167 tests)
-├── bootstrap/      # Dual-backend bootstrap (x86 + LLVM)
+├── test/           # Test programs (169 tests)
+├── bootstrap/      # LLVM IR bootstrap (primary) + x86 assembly (frozen)
 ├── example/        # Example programs
 ├── designs/        # Design documents
 ├── devlog/         # Development journal
@@ -50,23 +50,23 @@ clang -O2 out.ll -o binary                 # Use clang to compile
 
 **After compiler changes:** Always `make bootstrap`.
 
-## Dual-Backend Bootstrap
+## Bootstrap
 
-The compiler can bootstrap from either backend:
-- `bootstrap/current/x86/compiler.s` - x86-64 assembly (Linux)
-- `bootstrap/current/llvm/compiler.ll` - LLVM IR (cross-platform)
+**Primary**: `bootstrap/current/llvm/compiler.ll` - LLVM IR (cross-platform)
 
-Both are semantically equivalent and can compile the full compiler.
+**Frozen**: `bootstrap/current/x86/compiler.s` - x86-64 assembly (emergency fallback only)
+
+The x86 backend is frozen - no new features (floats, calling conventions) will be added. LLVM is the sole target for Language Forge development.
 
 ## Testing
 
 ### Test suites
 ```bash
-# x86 backend (Linux only)
-./test/run_lang1_suite.sh
-
-# LLVM backend (167/167 - all features, cross-platform)
+# LLVM backend (169/169 - all features, cross-platform)
 ./test/run_llvm_suite.sh
+
+# x86 backend (Linux only, frozen - no new tests)
+./test/run_lang1_suite.sh
 ```
 
 ### Development Workflow
@@ -88,10 +88,11 @@ grep "FAIL" /tmp/suite.txt  # Query cached results
 3. ✓ Language polish (break/continue, bitwise ops, char literals)
 4. ✓ AST 2.0: closures, algebraic effects, sum types
 5. ✓ Kernel/reader split (lang as a reader, bootstrap verified)
-6. ✓ **Cross-platform + LLVM backend** (167/167 tests, Linux + macOS)
-7. → **Polish and distribution** ← current
-8. → WASM backend (via LLVM or direct)
-9. → Language forge (any syntax → any target)
+6. ✓ **Cross-platform + LLVM backend** (169/169 tests, Linux + macOS)
+7. ✓ Kernel/reader composition (bare kernel + -r reader = compiler)
+8. → **Language forge: Zig capture** ← current (needs floats first)
+9. → WASM backend (via LLVM)
+10. → Capture more languages
 
 ## Code Style
 
@@ -225,7 +226,7 @@ The LLVM backend can rescue a corrupted x86 bootstrap.
 | Decision | Choice | Why |
 |----------|--------|-----|
 | Bootstrap | Go (deleted) | Fast to write, goal was to delete it |
-| x86 Backend | Direct assembly | Educational, no dependencies |
-| LLVM Backend | LLVM IR text | Portable, optimizable, cross-platform |
+| x86 Backend | **FROZEN** | Served its purpose (self-hosting proof), too much work for new features |
+| LLVM Backend | LLVM IR text | Portable, optimizable, cross-platform - sole target going forward |
 | Reader output | AST S-expressions | Universal format, debuggable |
 | Effects | Algebraic (resumable) | Powerful, composable |

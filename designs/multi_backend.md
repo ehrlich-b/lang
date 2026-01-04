@@ -1,6 +1,24 @@
 # Multi-Backend Kernel Design
 
-**Goal**: Cross-platform compiler — macOS + LLVM as first +1 targets
+**Goal**: Cross-platform compiler via LLVM
+
+**Status**: LLVM is the primary backend. x86 backend is **FROZEN** (see below).
+
+---
+
+## x86 Backend: FROZEN
+
+The x86 assembly backend is frozen as of January 2025:
+
+- **No new features** will be added (floats, calling conventions, etc.)
+- Kept as emergency bootstrap fallback only
+- LLVM is the sole target for Language Forge development
+
+**Rationale:**
+- LLVM handles floats, calling conventions, optimization automatically
+- x86 backend would require significant work for each new feature (SSE2 for floats, explicit ABI handling)
+- The x86 backend served its purpose: proved self-hosting, educational value, no-dependency bootstrap
+- Language Forge (Zig capture, polyglot compilation) requires features best handled by LLVM
 
 ---
 

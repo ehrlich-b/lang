@@ -14,9 +14,9 @@ A self-hosted compiler where syntax is a plugin.
                                  │
                                  │ kernel
                                  ▼
-┌───────────────────────────┬─────────────────────────────────────┐
-│     x86-64 (Linux)        │     LLVM IR (Linux, macOS, ...)     │
-└───────────────────────────┴─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    LLVM IR (Linux, macOS, ...)                  │
+└─────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
                             native exe
@@ -24,7 +24,7 @@ A self-hosted compiler where syntax is a plugin.
 
 The compiler has two parts: a kernel (AST to native code) and readers (syntax to AST). The lang reader - the one that parses `func`, `if`, `while` - is just one reader. You can swap it for anything.
 
-**Cross-platform**: Linux x86-64 (direct assembly, no libc) and macOS ARM64 (via LLVM). 167 tests pass on both.
+**Cross-platform**: Linux x86-64 and macOS ARM64 via LLVM. 169 tests pass on both.
 
 ## It's a language
 
@@ -92,26 +92,24 @@ make build        # Compile from source → out/lang_next
 make run FILE=... # Compile and run a program
 ```
 
-### LLVM backend
+### Building
 
 ```bash
 LANGBE=llvm ./out/lang hello.lang -o hello.ll
 clang -O2 hello.ll -o hello
 ```
 
-The LLVM backend handles everything the x86 backend does: closures, algebraic effects, reader macros. On macOS, set `LANGOS=macos`.
+The LLVM backend is the primary target - handles closures, algebraic effects, reader macros, and all future features (floats, calling conventions, etc.). On macOS, set `LANGOS=macos`.
 
-### Dual-backend bootstrap
+### Bootstrap
 
-The compiler bootstraps from preserved assembly or LLVM IR:
+The compiler bootstraps from preserved LLVM IR:
 
 ```
-bootstrap/current/
-├── x86/compiler.s       # x86-64 assembly (Linux)
-└── llvm/compiler.ll     # LLVM IR (cross-platform)
+bootstrap/current/llvm/compiler.ll   # LLVM IR (cross-platform)
 ```
 
-On Linux, `make bootstrap` uses x86 assembly. On macOS, `make llvm-verify` uses the LLVM bootstrap. Both produce compilers that pass 167 tests and rebuild themselves.
+A legacy x86 assembly bootstrap exists (`bootstrap/current/x86/compiler.s`) but is frozen - no new features will be added. The x86 backend served its purpose (self-hosting proof, educational value) but LLVM is the future for Language Forge.
 
 ## Docs
 

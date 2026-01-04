@@ -14,3 +14,4 @@ archive/boot-go/lang0
 .DS_Store
 .lang-cache/
 std/os.lang
+/zig/
