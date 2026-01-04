@@ -61,6 +61,8 @@ var NODE_BLOCK_EXPR i64 = 41;     // { stmts; tail_expr } - block as expression
 var NODE_ARRAY_LITERAL i64 = 42;  // [e1, e2, e3, ...] - array literal
 var NODE_REQUIRE_DECL i64 = 43;   // require "module" - module dependency
 var NODE_MODULES_DECL i64 = 44;   // (modules "m1" "m2" ...) - kernel's baked-in modules
+var NODE_CAST_EXPR i64 = 45;      // cast(type, expr) - type conversion
+var NODE_BITCAST_EXPR i64 = 46;   // bitcast(type, expr) - reinterpret bits
 
 // Type kinds
 var TYPE_BASE i64 = 1;
@@ -1291,6 +1293,66 @@ pub func unary_expr_expr(node *u8) *u8 {
 }
 
 func unary_expr_set_expr(node *u8, expr *u8) void {
+    var p **u8 = node + 16;
+    *p = expr;
+}
+
+// ============================================================
+// CastExpr accessors - [kind:8][type:8][expr:8] = 24 bytes
+// ============================================================
+
+func cast_expr_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_CAST_EXPR);
+    return node;
+}
+
+pub func cast_expr_type(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func cast_expr_set_type(node *u8, t *u8) void {
+    var p **u8 = node + 8;
+    *p = t;
+}
+
+pub func cast_expr_expr(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func cast_expr_set_expr(node *u8, expr *u8) void {
+    var p **u8 = node + 16;
+    *p = expr;
+}
+
+// ============================================================
+// BitcastExpr accessors - [kind:8][type:8][expr:8] = 24 bytes
+// ============================================================
+
+func bitcast_expr_alloc() *u8 {
+    var node *u8 = alloc(24);
+    node_set_kind(node, NODE_BITCAST_EXPR);
+    return node;
+}
+
+pub func bitcast_expr_type(node *u8) *u8 {
+    var p **u8 = node + 8;
+    return *p;
+}
+
+func bitcast_expr_set_type(node *u8, t *u8) void {
+    var p **u8 = node + 8;
+    *p = t;
+}
+
+pub func bitcast_expr_expr(node *u8) *u8 {
+    var p **u8 = node + 16;
+    return *p;
+}
+
+func bitcast_expr_set_expr(node *u8, expr *u8) void {
     var p **u8 = node + 16;
     *p = expr;
 }

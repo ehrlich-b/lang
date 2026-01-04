@@ -945,6 +945,22 @@ func sexpr_to_node(node *PNode) *u8 {
         return n;
     }
 
+    // (cast type expr) - type conversion
+    if streq(head, "cast") {
+        var n *u8 = cast_expr_alloc();
+        cast_expr_set_type(n, sexpr_to_type(sexpr_get(node, 1)));
+        cast_expr_set_expr(n, sexpr_to_node(sexpr_get(node, 2)));
+        return n;
+    }
+
+    // (bitcast type expr) - reinterpret bits
+    if streq(head, "bitcast") {
+        var n *u8 = bitcast_expr_alloc();
+        bitcast_expr_set_type(n, sexpr_to_type(sexpr_get(node, 1)));
+        bitcast_expr_set_expr(n, sexpr_to_node(sexpr_get(node, 2)));
+        return n;
+    }
+
     // (call func args...)
     if streq(head, "call") {
         var n *u8 = call_expr_alloc();
