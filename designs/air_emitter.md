@@ -592,9 +592,11 @@ fn mapIntType(bits: u16, signed: bool) []const u8 {
 
 ### Phase 3: Control Flow (Days 4-5)
 
+**PREREQUISITE:** Fix unsigned comparisons in lang (see Risk Assessment section).
+
 1. Implement `airCondBr` - if/else
 2. Implement `airBlock`, `airBr` - blocks and jumps
-3. Implement `airCmpOp` - comparisons
+3. Implement `airCmpOp` - comparisons (must emit `ult`/`ugt` for unsigned!)
 4. Test: Factorial function compiles
 
 ### Phase 4: Types (Days 6-7)
@@ -681,6 +683,40 @@ diff <(./test_native) <(./test_via_lang)
 # 5. Fixed-point: use lang_zig to emit itself
 ./lang_zig build-obj /path/to/zig/src/main.zig -ofmt=lang-ast -femit-bin=/tmp/zig_compiler2.ast
 diff /tmp/zig_compiler.ast /tmp/zig_compiler2.ast  # Should match!
+```
+
+---
+
+## Risk Assessment (Validated)
+
+Technical risks were validated against Zig 0.15.x source code. See conversation for full analysis.
+
+### Confirmed Blockers
+
+| Risk | Status | Required Action |
+|------|--------|-----------------|
+| **Unsigned comparisons** | BLOCKER | Lang's codegen_llvm.lang always emits `slt`/`sgt`. Must emit `ult`/`ugt` for unsigned types. Fix BEFORE Phase 3. |
+
+**Why this matters:** Zig's AIR `cmp_lt` instruction doesn't encode signedness - it comes from the operand type. If we emit signed comparisons for `usize`, pointer comparisons break (high addresses treated as negative).
+
+**Fix location:** `src/codegen_llvm.lang:2247-2252` - check operand type signedness before emitting icmp.
+
+### Mitigated Risks
+
+| Risk | Mitigation |
+|------|------------|
+| **Syscall inline ASM** | Use `-lc` flag. When `link_libc=true`, all syscalls route through libc's extern C functions. |
+| **compiler_rt ASM** | Pure Zig fallbacks exist for all operations. Link system libcompiler_rt at final link. |
+| **switch_br complexity** | Lowerable to if-else chains or lang's `match`. O(n) acceptable for MVP. |
+
+### Build Configuration
+
+The manifest MUST include `-lc` to avoid inline assembly:
+
+```yaml
+build:
+  command: zig build -Doptimize=Debug
+  link_flags: ["-lc"]  # CRITICAL: eliminates inline ASM syscalls
 ```
 
 ---
