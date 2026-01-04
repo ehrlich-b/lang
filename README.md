@@ -24,7 +24,7 @@ A self-hosted compiler where syntax is a plugin.
 
 The compiler has two parts: a kernel (AST to native code) and readers (syntax to AST). The lang reader - the one that parses `func`, `if`, `while` - is just one reader. You can swap it for anything.
 
-**Cross-platform**: Linux x86-64 and macOS ARM64 via LLVM. 169 tests pass on both.
+**Cross-platform**: Linux x86-64 and macOS ARM64 via LLVM. 170 tests pass on both.
 
 ## It's a language
 

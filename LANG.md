@@ -49,6 +49,8 @@ syscall(60, 0);  // exit(0)
 | `u64`  | 8 bytes | Unsigned 64-bit integer                    |
 | `bool` | 1 byte  | Boolean (true/false)                       |
 | `void` | 0 bytes | No return value                            |
+| `f32`  | 4 bytes | 32-bit floating point (LLVM backend only)  |
+| `f64`  | 8 bytes | 64-bit floating point (LLVM backend only)  |
 
 ### Pointer Types
 - `*T` - pointer to type T
@@ -435,7 +437,6 @@ See [designs/reader_v2_design.md](./designs/reader_v2_design.md) for the design.
 - Passing/returning structs by value
 - For loops (use while)
 - Switch/case (use if/else)
-- Floating point types
 
 ## Common Patterns
 

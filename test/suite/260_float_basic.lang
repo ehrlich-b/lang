@@ -1,5 +1,14 @@
-// expect: 115
-// Float: basic arithmetic and comparisons
+// expect: 215
+// Float: basic arithmetic, comparisons, and function parameters
+
+func double_it(x f64) f64 {
+    return x + x;
+}
+
+func add_floats(a f64, b f64) f64 {
+    return a + b;
+}
+
 func main() i64 {
     var result i64 = 0;
 
@@ -48,6 +57,17 @@ func main() i64 {
         result = result + 5;
     }
 
-    // All pass: 10+20+30+40+1+2+3+4+5 = 115
+    // Float function parameters
+    // double_it(2.5) = 5.0
+    if double_it(2.5) > 4.9 {
+        result = result + 50;
+    }
+
+    // add_floats(3.5, 4.5) = 8.0
+    if add_floats(3.5, 4.5) > 7.9 {
+        result = result + 50;
+    }
+
+    // All pass: 10+20+30+40+1+2+3+4+5+50+50 = 215
     return result;
 }

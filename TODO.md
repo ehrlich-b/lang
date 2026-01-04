@@ -79,14 +79,14 @@ With Zig captured:
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| Floating point | High | Needed for Zig compiler itself, not hello world |
+| Floating point | ✅ Done | f32/f64 types, literals, arithmetic, comparisons |
 | SIMD vectors | Low | Skip initially |
 | Packed structs | Low | Skip initially |
 | Atomics | Low | Skip initially |
 
 **Minimum viable capture:** Integer/string Zig programs compile through lang.
 
-**Full capture (future):** Zig compiler self-hosts through lang. Requires float support.
+**Full capture (future):** Zig compiler self-hosts through lang.
 
 ---
 
@@ -110,7 +110,7 @@ With Zig captured:
 - Platform auto-detection (need `LANGOS=macos LANGBE=llvm` manually)
 - Error messages (some errors leak to codegen)
 - No negative test suite
-- No floats, no struct literals
+- No struct literals
 
 ---
 
@@ -144,7 +144,7 @@ Explain readers in detail:
 ## Backlog
 
 ### Language features (LLVM backend only)
-- Floating point (f32, f64) - **needed for full Zig capture** - see `designs/float_support.md`
+- ✅ Floating point (f32, f64) - implemented, see `designs/float_support.md`
 - Struct literals `Point{x: 1, y: 2}`
 - Type aliases `type Fd = i64`
 - Generics (monomorphization)
@@ -205,4 +205,4 @@ Explain readers in detail:
 | Forge proof | Zig | Modern, self-hosted, heavy comptime, good test case |
 | Capture method | Patch backend | Reuse their frontend, just emit our AST |
 | Interop ABI | C (System V) | Lingua franca, Zig/Rust/everyone uses it |
-| Initial scope | No floats | Get hello world first, add floats for full capture |
+| Float support | ✅ Done | f32/f64 via LLVM backend |
