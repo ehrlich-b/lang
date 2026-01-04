@@ -134,6 +134,10 @@ var TOKEN_F32 i64 = 86;           // f32
 var TOKEN_F64 i64 = 87;           // f64
 var TOKEN_FLOAT i64 = 88;         // float literal (contains decimal point)
 
+// Type conversion
+var TOKEN_CAST i64 = 89;          // cast (type conversion)
+var TOKEN_BITCAST i64 = 90;       // bitcast (reinterpret bits)
+
 // ============================================================
 // Token struct
 // ============================================================
@@ -467,6 +471,8 @@ func check_keyword() i64 {
     if lexeme_eq("f64") { return TOKEN_F64; }
     if lexeme_eq("bool") { return TOKEN_BOOL; }
     if lexeme_eq("void") { return TOKEN_VOID; }
+    if lexeme_eq("cast") { return TOKEN_CAST; }
+    if lexeme_eq("bitcast") { return TOKEN_BITCAST; }
 
     // Built-in (treated like keyword)
     if lexeme_eq("syscall") { return TOKEN_IDENT; }
@@ -854,6 +860,8 @@ func print_token_type(t i64) void {
     if t == TOKEN_CLOSURE { print("closure"); return; }
     if t == TOKEN_EXTERN { print("extern"); return; }
     if t == TOKEN_PUB { print("pub"); return; }
+    if t == TOKEN_CAST { print("cast"); return; }
+    if t == TOKEN_BITCAST { print("bitcast"); return; }
     print("UNKNOWN");
 }
 

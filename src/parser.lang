@@ -3034,6 +3034,32 @@ func parse_primary() *u8 {
         return node;
     }
 
+    // Cast: cast(type, expr)
+    if parse_match(TOKEN_CAST) {
+        parse_expect(TOKEN_LPAREN, "expected '(' after 'cast'");
+        var target_type *u8 = parse_type();
+        parse_expect(TOKEN_COMMA, "expected ',' after type in cast");
+        var src_expr *u8 = parse_expression();
+        parse_expect(TOKEN_RPAREN, "expected ')' after cast expression");
+        var node *u8 = cast_expr_alloc();
+        cast_expr_set_type(node, target_type);
+        cast_expr_set_expr(node, src_expr);
+        return node;
+    }
+
+    // Bitcast: bitcast(type, expr)
+    if parse_match(TOKEN_BITCAST) {
+        parse_expect(TOKEN_LPAREN, "expected '(' after 'bitcast'");
+        var target_type *u8 = parse_type();
+        parse_expect(TOKEN_COMMA, "expected ',' after type in bitcast");
+        var src_expr *u8 = parse_expression();
+        parse_expect(TOKEN_RPAREN, "expected ')' after bitcast expression");
+        var node *u8 = bitcast_expr_alloc();
+        bitcast_expr_set_type(node, target_type);
+        bitcast_expr_set_expr(node, src_expr);
+        return node;
+    }
+
     if parse_match(TOKEN_IDENT) {
         var tok *u8 = parse_previous();
         var node *u8 = ident_expr_alloc();
