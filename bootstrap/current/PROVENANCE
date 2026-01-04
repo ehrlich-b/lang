@@ -1,15 +1,15 @@
 compiler_linux.ll:
-  sha256: fab0e70e32d4a53eb9327eddbe22cef7c514d2bd5eae1d36cd8163d761695a86
+  sha256: 8a42816f52945cbc20e3c21aae75e031f1e2b5368736e4ced83a2b0f2f4153c6
 compiler_macos.ll:
-  sha256: 1d229aa197f2e9985327a750accc10926d635e96675915def35acf5eaa8a7d8a
-built_by: b1dd430
-built_at: 2026-01-03T19:41:15-05:00
-source_commit: b1dd430
+  sha256: 9307efe7166a477c94337fa358b8ee37eb446efc6bc1b3a7e286ebcb848cf039
+built_by: 719f173
+built_at: 2026-01-03T19:45:13-05:00
+source_commit: 719f173
 verification:
   llvm_fixed_point: true (kernel1.ll === kernel2.ll)
   ast_fixed_point: true (reader_ast1 === reader_ast2)
   clang_compiled: true (both .ll files compile with clang -O2)
   test_suite: true (ran on compiler_macos binary)
 lang_reader/source.ast:
-  sha256: 277a84c34fd52a330ba6ca99dd0aa3478b46669eef4540e7007c3b53ea5667fe
-  lines:     5766
+  sha256: b92c73cad2fc9df9135d4f39decdd57b3a1961f2d8d0d435711c18c6d13dba04
+  lines:     5069
