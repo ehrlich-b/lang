@@ -1994,90 +1994,138 @@ func process_decl_first_pass(decl *u8) void {
         return;
     }
     if k == NODE_REQUIRE_DECL {
-        // Process require like include, but with different module ID
-        // This creates a visibility boundary - symbols from require need pub
+        // Require resolution algorithm:
+        // 1. Look for local source (./x/y.lang) - use if exists
+        // 2. Check kernel built-ins - for distribution fallback
+        //    -r mode: skip (links against kernel)
+        //    normal mode: include AST
         var path *u8 = require_decl_module(decl);
         var path_len i64 = require_decl_module_len(decl);
 
-        // Build full path: add .lang extension
+        // Build full path for tracking (matches include tracking format)
         var full_path *u8 = alloc(path_len + 6);
         memcpy(full_path, path, path_len);
         memcpy(full_path + path_len, ".lang", 5);
         *(full_path + path_len + 5) = 0;
         var full_len i64 = path_len + 5;
+        var path_str *u8 = str_dup_n(full_path, full_len);
 
-        // Skip if already required (idempotent requires)
-        if map_has(cg_included_files, str_dup_n(full_path, full_len)) {
+        // Skip if already required
+        if map_has(cg_included_files, path_str) {
             return;
         }
-        map_set(cg_included_files, str_dup_n(full_path, full_len), 1);
+        map_set(cg_included_files, path_str, 1);
 
-        // Check for circular require
-        if include_stack_contains(full_path, full_len) {
-            eprint("error: circular require detected: ");
-            eprint_buf(path, path_len);
-            eprintln("");
-            return;
-        }
+        // Check if local file exists (file_mtime returns 0 if not found)
+        var local_exists i64 = file_mtime(full_path);
 
-        // Push onto include stack
-        include_stack_push(full_path, full_len);
+        if local_exists != 0 {
+            // Local file found - check for circular require
+            if include_stack_contains(full_path, full_len) {
+                eprint("error: circular require detected: ");
+                eprint_buf(path, path_len);
+                eprintln("");
+                return;
+            }
+            include_stack_push(full_path, full_len);
 
-        // Read file
-        var buf *u8 = alloc(1048576);  // 1MB max
-        var n i64 = read_file_contents(full_path, full_len, buf, 1048576);
-        if n < 0 {
-            eprint("error: cannot open require file: ");
-            eprint_buf(path, path_len);
-            eprintln("");
+            // Read file
+            var buf *u8 = alloc(1048576);  // 1MB max
+            var n i64 = read_file_contents(full_path, full_len, buf, 1048576);
+            if n < 0 {
+                eprint("error: cannot open require file: ");
+                eprint_buf(path, path_len);
+                eprintln("");
+                include_stack_pop();
+                return;
+            }
+
+            var prog *u8 = parse_program_from_string(buf);
+            if prog == nil {
+                eprint("error: failed to parse require file: ");
+                eprint_buf(path, path_len);
+                eprintln("");
+                include_stack_pop();
+                return;
+            }
+
+            // Switch to new module ID (require creates visibility boundary)
+            var saved_module i64 = cg_current_module;
+            cg_current_module = cg_next_module;
+            cg_next_module = cg_next_module + 1;
+
+            var req_decls *u8 = program_decls(prog);
+            var req_count i64 = program_decl_count(prog);
+
+            var saved_file_decls *u8 = cg_current_file_decls;
+            var saved_file_count i64 = cg_current_file_decl_count;
+            var saved_scoped i64 = cg_in_scoped_context;
+            cg_current_file_decls = req_decls;
+            cg_current_file_decl_count = req_count;
+            cg_in_scoped_context = 1;
+
+            var i i64 = 0;
+            while i < req_count {
+                process_decl_first_pass(get_decl(req_decls, i));
+                i = i + 1;
+            }
+
+            cg_current_file_decls = saved_file_decls;
+            cg_current_file_decl_count = saved_file_count;
+            cg_in_scoped_context = saved_scoped;
+            cg_current_module = saved_module;
             include_stack_pop();
             return;
         }
 
-        // Parse file
-        var prog *u8 = parse_program_from_string(buf);
-        if prog == nil {
-            eprint("error: failed to parse require file: ");
-            eprint_buf(path, path_len);
-            eprintln("");
-            include_stack_pop();
+        // Step 2: Check kernel built-ins (distribution fallback)
+        var builtin_ast *u8 = find_kernel_builtin(path, path_len);
+        if builtin_ast != nil {
+            // -r mode: skip (module links against kernel's existing functions)
+            if add_reader_mode != 0 {
+                return;
+            }
+
+            // Normal mode: parse and emit the built-in AST
+            var prog *u8 = parse_ast_from_string(builtin_ast);
+            if prog == nil {
+                eprint("error: cannot parse kernel builtin: ");
+                eprint_buf(path, path_len);
+                eprintln("");
+                return;
+            }
+
+            var saved_module i64 = cg_current_module;
+            cg_current_module = cg_next_module;
+            cg_next_module = cg_next_module + 1;
+
+            var req_decls *u8 = program_decls(prog);
+            var req_count i64 = program_decl_count(prog);
+
+            var saved_file_decls *u8 = cg_current_file_decls;
+            var saved_file_count i64 = cg_current_file_decl_count;
+            var saved_scoped i64 = cg_in_scoped_context;
+            cg_current_file_decls = req_decls;
+            cg_current_file_decl_count = req_count;
+            cg_in_scoped_context = 1;
+
+            var i i64 = 0;
+            while i < req_count {
+                process_decl_first_pass(get_decl(req_decls, i));
+                i = i + 1;
+            }
+
+            cg_current_file_decls = saved_file_decls;
+            cg_current_file_decl_count = saved_file_count;
+            cg_in_scoped_context = saved_scoped;
+            cg_current_module = saved_module;
             return;
         }
 
-        // KEY DIFFERENCE FROM INCLUDE: switch to new module ID
-        // Symbols defined in this module will have different module ID
-        var saved_module i64 = cg_current_module;
-        cg_current_module = cg_next_module;
-        cg_next_module = cg_next_module + 1;
-
-        // Process declarations from required file (first pass)
-        var req_decls *u8 = program_decls(prog);
-        var req_count i64 = program_decl_count(prog);
-
-        // Save and set current file context (for reader compilation)
-        var saved_file_decls *u8 = cg_current_file_decls;
-        var saved_file_count i64 = cg_current_file_decl_count;
-        var saved_scoped i64 = cg_in_scoped_context;
-        cg_current_file_decls = req_decls;
-        cg_current_file_decl_count = req_count;
-        cg_in_scoped_context = 1;
-
-        var i i64 = 0;
-        while i < req_count {
-            process_decl_first_pass(get_decl(req_decls, i));
-            i = i + 1;
-        }
-
-        // Restore current file context
-        cg_current_file_decls = saved_file_decls;
-        cg_current_file_decl_count = saved_file_count;
-        cg_in_scoped_context = saved_scoped;
-
-        // Restore module ID
-        cg_current_module = saved_module;
-
-        // Pop from include stack
-        include_stack_pop();
+        // Step 3: Module not found
+        eprint("error: module not found: ");
+        eprint_buf(path, path_len);
+        eprintln("");
         return;
     }
 
@@ -5465,55 +5513,83 @@ func gen_decl(decl *u8) void {
     }
 
     if k == NODE_REQUIRE_DECL {
-        // Generate code for required declarations
+        // Generate code for required declarations (second pass)
+        // Uses same resolution algorithm as first pass
         var path *u8 = require_decl_module(decl);
         var path_len i64 = require_decl_module_len(decl);
 
-        // Build full path: add .lang extension
+        // Build full path for tracking (matches include tracking format)
         var full_path *u8 = alloc(path_len + 6);
         memcpy(full_path, path, path_len);
         memcpy(full_path + path_len, ".lang", 5);
         *(full_path + path_len + 5) = 0;
         var full_len i64 = path_len + 5;
+        var path_str *u8 = str_dup_n(full_path, full_len);
 
-        // Skip if already required (idempotent requires)
-        if map_has(cg_included_files, str_dup_n(full_path, full_len)) {
+        // Skip if already required
+        if map_has(cg_included_files, path_str) {
             return;
         }
-        map_set(cg_included_files, str_dup_n(full_path, full_len), 1);
+        map_set(cg_included_files, path_str, 1);
 
-        // Check for circular require (same check as first pass)
-        if include_stack_contains(full_path, full_len) {
-            return;
-        }
+        var local_exists i64 = file_mtime(full_path);
 
-        // Push onto include stack
-        include_stack_push(full_path, full_len);
+        if local_exists != 0 {
+            if include_stack_contains(full_path, full_len) {
+                return;
+            }
+            include_stack_push(full_path, full_len);
 
-        // Re-read and re-parse file
-        var buf *u8 = alloc(1048576);
-        var n i64 = read_file_contents(full_path, full_len, buf, 1048576);
-        if n < 0 {
+            var buf *u8 = alloc(1048576);
+            var n i64 = read_file_contents(full_path, full_len, buf, 1048576);
+            if n < 0 {
+                include_stack_pop();
+                return;
+            }
+
+            var prog *u8 = parse_program_from_string(buf);
+            if prog == nil {
+                include_stack_pop();
+                return;
+            }
+
+            var req_decls *u8 = program_decls(prog);
+            var req_count i64 = program_decl_count(prog);
+            var i i64 = 0;
+            while i < req_count {
+                gen_decl(get_decl(req_decls, i));
+                i = i + 1;
+            }
+
             include_stack_pop();
             return;
         }
 
-        var prog *u8 = parse_program_from_string(buf);
-        if prog == nil {
-            include_stack_pop();
+        // Step 2: Check kernel built-ins (distribution fallback)
+        var builtin_ast *u8 = find_kernel_builtin(path, path_len);
+        if builtin_ast != nil {
+            // -r mode: skip (module links against kernel's existing functions)
+            if add_reader_mode != 0 {
+                return;
+            }
+
+            // Normal mode: parse and emit the built-in AST
+            var prog *u8 = parse_ast_from_string(builtin_ast);
+            if prog == nil {
+                return;
+            }
+
+            var req_decls *u8 = program_decls(prog);
+            var req_count i64 = program_decl_count(prog);
+            var i i64 = 0;
+            while i < req_count {
+                gen_decl(get_decl(req_decls, i));
+                i = i + 1;
+            }
             return;
         }
 
-        // Generate code for required declarations
-        var req_decls *u8 = program_decls(prog);
-        var req_count i64 = program_decl_count(prog);
-        var i i64 = 0;
-        while i < req_count {
-            gen_decl(get_decl(req_decls, i));
-            i = i + 1;
-        }
-
-        include_stack_pop();
+        // Module not found - error was already reported in first pass
         return;
     }
 

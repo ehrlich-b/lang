@@ -730,6 +730,8 @@ func sexpr_to_node(node *PNode) *u8 {
         reader_decl_set_param_len(n, strlen(param_node.text));
         reader_decl_set_body(n, sexpr_to_node(sexpr_get(node, idx + 2)));
         reader_decl_set_is_pub(n, is_pub);
+        // Body is already AST since we're parsing S-expressions
+        reader_decl_set_is_ast(n, 1);
         return n;
     }
 

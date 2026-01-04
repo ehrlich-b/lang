@@ -5671,17 +5671,20 @@ func llvm_emit_decl(decl *u8) void {
     }
 
     if k == NODE_REQUIRE_DECL {
-        // Process required file (same as include for code generation)
+        // Require resolution algorithm:
+        // 1. Look for local source (./x/y.lang) - use if exists
+        // 2. Check kernel built-ins - for distribution fallback
+        //    -r mode: skip (links against kernel)
+        //    normal mode: include AST
         var path *u8 = require_decl_module(decl);
         var path_len i64 = require_decl_module_len(decl);
 
-        // Build full path: add .lang extension
+        // Build full path for tracking (matches include tracking format)
         var full_path *u8 = alloc(path_len + 6);
         memcpy(full_path, path, path_len);
         memcpy(full_path + path_len, ".lang", 5);
         *(full_path + path_len + 5) = 0;
         var full_len i64 = path_len + 5;
-
         var path_str *u8 = str_dup_n(full_path, full_len);
 
         // Skip if already required
@@ -5690,31 +5693,66 @@ func llvm_emit_decl(decl *u8) void {
         }
         map_set(llvm_included_files, path_str, 1);
 
-        // Read file
-        var buf *u8 = alloc(1048576);  // 1MB max
-        var n i64 = read_file_contents(full_path, full_len, buf, 1048576);
-        if n < 0 {
-            eprint("Error: cannot read require file: ");
-            eprintln(path_str);
+        // Check if local file exists (file_mtime returns 0 if not found)
+        var local_exists i64 = file_mtime(full_path);
+
+        if local_exists != 0 {
+            // Local file found - read and parse it
+            var buf *u8 = alloc(1048576);  // 1MB max
+            var n i64 = read_file_contents(full_path, full_len, buf, 1048576);
+            if n < 0 {
+                eprint("Error: cannot read require file: ");
+                eprintln(full_path);
+                return;
+            }
+
+            var req_prog *u8 = parse_program_from_string(buf);
+            if req_prog == nil {
+                eprint("Error: cannot parse require file: ");
+                eprintln(full_path);
+                return;
+            }
+
+            // Emit declarations from local file
+            var req_decls *u8 = program_decls(req_prog);
+            var req_count i64 = program_decl_count(req_prog);
+            var i i64 = 0;
+            while i < req_count {
+                llvm_emit_decl(get_decl(req_decls, i));
+                i = i + 1;
+            }
             return;
         }
 
-        // Parse file
-        var req_prog *u8 = parse_program_from_string(buf);
-        if req_prog == nil {
-            eprint("Error: cannot parse require file: ");
-            eprintln(path_str);
+        // Step 2: Check kernel built-ins (distribution fallback)
+        var builtin_ast *u8 = find_kernel_builtin(path, path_len);
+        if builtin_ast != nil {
+            // -r mode: skip (module links against kernel's existing functions)
+            if add_reader_mode != 0 {
+                return;
+            }
+
+            // Normal mode: parse and emit the built-in AST
+            var builtin_prog *u8 = parse_ast_from_string(builtin_ast);
+            if builtin_prog == nil {
+                eprint("Error: cannot parse kernel builtin: ");
+                eprintln(path_str);
+                return;
+            }
+
+            var req_decls *u8 = program_decls(builtin_prog);
+            var req_count i64 = program_decl_count(builtin_prog);
+            var i i64 = 0;
+            while i < req_count {
+                llvm_emit_decl(get_decl(req_decls, i));
+                i = i + 1;
+            }
             return;
         }
 
-        // Emit declarations from required file
-        var req_decls *u8 = program_decls(req_prog);
-        var req_count i64 = program_decl_count(req_prog);
-        var i i64 = 0;
-        while i < req_count {
-            llvm_emit_decl(get_decl(req_decls, i));
-            i = i + 1;
-        }
+        // Step 3: Module not found
+        eprint("Error: module not found: ");
+        eprintln(path_str);
         return;
     }
 
@@ -5960,56 +5998,74 @@ func llvm_register_decl(decl *u8) void {
         cg_current_file_decls = saved_file_decls;
         cg_current_file_decl_count = saved_file_count;
     } else if k == NODE_REQUIRE_DECL {
-        // Process required file with different module ID (visibility boundary)
+        // Require resolution (registration pass) - same algorithm as emit pass
         var path *u8 = require_decl_module(decl);
         var path_len i64 = require_decl_module_len(decl);
 
-        // Build full path: add .lang extension
+        // Build full path for tracking (matches include tracking format)
         var full_path *u8 = alloc(path_len + 6);
         memcpy(full_path, path, path_len);
         memcpy(full_path + path_len, ".lang", 5);
         *(full_path + path_len + 5) = 0;
         var full_len i64 = path_len + 5;
+        var path_str *u8 = str_dup_n(full_path, full_len);
 
         // Skip if already required
-        var path_key *u8 = str_dup_n(full_path, full_len);
-        if map_has(llvm_first_pass_included, path_key) {
+        if map_has(llvm_first_pass_included, path_str) {
             return;
         }
-        map_set(llvm_first_pass_included, path_key, 1);
+        map_set(llvm_first_pass_included, path_str, 1);
 
-        // Read and parse require file
-        var buf *u8 = alloc(1024 * 1024);  // 1MB buffer
-        var buf_cap i64 = 1024 * 1024;
-        var fd i64 = file_open(str_dup_n(full_path, full_len), 0);
-        if fd < 0 {
-            eprint("error: cannot open require file: ");
-            eprint_buf(path, path_len);
-            eprintln("");
-            return;
-        }
-        var n i64 = file_read(fd, buf, buf_cap);
-        file_close(fd);
-        if n < 0 {
-            return;
-        }
-        *(buf + n) = 0;
+        var local_exists i64 = file_mtime(full_path);
+        var req_prog *u8 = nil;
 
-        // Parse file
-        var req_prog *u8 = parse_program_from_string(buf);
-        if req_prog == nil {
-            eprint("error: failed to parse require file: ");
-            eprint_buf(path, path_len);
-            eprintln("");
-            return;
+        if local_exists != 0 {
+            var buf *u8 = alloc(1024 * 1024);
+            var fd i64 = file_open(str_dup_n(full_path, full_len), 0);
+            if fd < 0 {
+                eprint("error: cannot open require file: ");
+                eprint_buf(path, path_len);
+                eprintln("");
+                return;
+            }
+            var n i64 = file_read(fd, buf, 1024 * 1024);
+            file_close(fd);
+            if n < 0 { return; }
+            *(buf + n) = 0;
+
+            req_prog = parse_program_from_string(buf);
+            if req_prog == nil {
+                eprint("error: failed to parse require file: ");
+                eprint_buf(path, path_len);
+                eprintln("");
+                return;
+            }
+        } else {
+            // Step 2: Check kernel built-ins
+            var builtin_ast *u8 = find_kernel_builtin(path, path_len);
+            if builtin_ast != nil {
+                // -r mode: skip (already in kernel)
+                if add_reader_mode != 0 {
+                    return;
+                }
+                req_prog = parse_ast_from_string(builtin_ast);
+                if req_prog == nil {
+                    eprint("error: cannot parse kernel builtin: ");
+                    eprint_buf(path, path_len);
+                    eprintln("");
+                    return;
+                }
+            } else {
+                // Not found
+                return;
+            }
         }
 
-        // KEY DIFFERENCE: switch to new module ID for visibility tracking
+        // Switch to new module ID for visibility tracking
         var saved_module i64 = cg_current_module;
         cg_current_module = cg_next_module;
         cg_next_module = cg_next_module + 1;
 
-        // Save and set current file context
         var saved_file_decls *u8 = cg_current_file_decls;
         var saved_file_count i64 = cg_current_file_decl_count;
         var req_decls *u8 = program_decls(req_prog);
@@ -6017,18 +6073,14 @@ func llvm_register_decl(decl *u8) void {
         cg_current_file_decls = req_decls;
         cg_current_file_decl_count = req_count;
 
-        // Process declarations from required file
         var i i64 = 0;
         while i < req_count {
             llvm_register_decl(get_decl(req_decls, i));
             i = i + 1;
         }
 
-        // Restore file context
         cg_current_file_decls = saved_file_decls;
         cg_current_file_decl_count = saved_file_count;
-
-        // Restore module ID
         cg_current_module = saved_module;
     } else if k == NODE_READER_DECL {
         add_reader(decl);

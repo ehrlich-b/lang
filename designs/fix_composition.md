@@ -157,6 +157,117 @@ clang hello.ll -o hello && ./hello  # Prints "Hi"
 
 ---
 
+## Current Status (WIP 2025-01-03)
+
+### Completed This Session
+
+1. **Added kernel_builtin_modules/asts arrays** (main.lang:110-111)
+   - `kernel_builtin_modules [256]*u8` - extension-less names like "std/core"
+   - `kernel_builtin_asts [256]*u8` - full AST strings for each module
+
+2. **Added find_kernel_builtin()** (main.lang:118-134)
+   - Looks up module by extension-less name, returns AST string
+
+3. **Updated --embed-self** (main.lang:916-1025)
+   - Populates kernel_builtin_modules with extension-less names for std/* modules
+   - Populates kernel_builtin_asts by reading/parsing each std/* source file
+
+4. **Updated resolve_require in BOTH backends**:
+   - codegen.lang: first pass (lines 1996-2130) and second pass (lines 5515-5594)
+   - codegen_llvm.lang: emit pass (lines 5673-5757) and register pass (lines 6000-6085)
+   - Algorithm: local file → kernel built-in → error
+   - -r mode: skip kernel built-ins (link against kernel)
+   - Normal mode: include kernel built-in AST
+
+5. **Fixed lang_reader.lang** to use `require` instead of `include`
+   - Changed from: `include "std/core.lang"` etc.
+   - Changed to: `require "std/core"` etc.
+   - This preserves require statements in AST for -r mode to filter
+
+6. **All 168/168 tests pass** with changes
+
+### Current Blocker: ___main Wrapper in AST
+
+When running the acceptance test:
+```bash
+/tmp/kernel -r lang /tmp/lang_reader.ast -o /tmp/lang1.ll
+clang /tmp/lang1.ll -o /tmp/lang1
+# ERROR: redefinition of function '___main'
+```
+
+**Root cause**: `--emit-expanded-ast` adds a `___main` wrapper function to make
+the output directly compilable as an executable. But for -r mode, we're combining
+two ASTs that BOTH have ___main:
+1. The kernel AST (from --emit-expanded-ast of the compiler)
+2. The reader AST (from --emit-expanded-ast of lang_reader.lang)
+
+The ___main wrapper is added at main.lang:789-793:
+```lang
+if emit_ast_mode == 0 && is_llvm == 0 {
+    append_str(source_buf, &source_len,
+        "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(argc, argv); }\n");
+}
+```
+
+Note: This only checks `emit_ast_mode`, not `emit_expanded_ast_mode`.
+
+---
+
+## NEXT: AST Mode Refactor
+
+### Problem
+
+`--emit-expanded-ast` serves two conflicting purposes:
+1. **Composition**: Produce a module AST for -r mode (NO ___main)
+2. **Standalone**: Produce a runnable program AST (WITH ___main)
+
+Current behavior adds ___main, breaking composition.
+
+### Solution: Split into Two Modes
+
+**Breaking change to --emit-expanded-ast**: Remove ___main wrapper.
+**New --emit-exe-ast mode**: Emit with ___main wrapper for standalone compilation.
+
+| Mode | ___main | Use Case |
+|------|---------|----------|
+| `--emit-ast` | No | Debug: show AST structure (includes not expanded) |
+| `--emit-expanded-ast` | **No** (CHANGE) | Composition: module AST for -r mode |
+| `--emit-exe-ast` | Yes | Standalone: directly compilable program |
+
+### Migration Plan
+
+1. **Add --emit-exe-ast flag** (main.lang)
+   - New mode: `emit_exe_ast_mode`
+   - Behavior: like current --emit-expanded-ast (with ___main)
+
+2. **Update --emit-expanded-ast**
+   - Remove ___main wrapper addition
+   - Now suitable for composition
+
+3. **Update consumers**:
+   - Makefile: If any targets use --emit-expanded-ast for standalone → --emit-exe-ast
+   - Bootstrap scripts: Same
+   - Tests: Check if any expect ___main in expanded AST
+
+4. **Update acceptance test** (this doc):
+   ```bash
+   # Kernel: use --emit-exe-ast (needs ___main to run)
+   ./out/lang --emit-exe-ast std/core.lang src/... -o /tmp/full.ast
+
+   # Reader: use --emit-expanded-ast (NO ___main, for composition)
+   ./out/lang --emit-expanded-ast src/lang_reader.lang -o /tmp/lang_reader.ast
+   ```
+
+### Implementation Order
+
+1. Add `emit_exe_ast_mode` flag and `--emit-exe-ast` parsing
+2. Move ___main addition to ONLY happen in emit_exe_ast_mode
+3. Grep for --emit-expanded-ast consumers, migrate if needed
+4. Test acceptance flow
+5. Bootstrap
+
+---
+
 ## History (Completed Work)
 
 - **Limit overflow** (2025-01-03): LIMIT_TOP_DECLS 1000→4000, LIMIT_FUNCS 1000→3000, etc. - was causing heap corruption

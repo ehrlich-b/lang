@@ -104,13 +104,39 @@ var self_kernel *u8 = "";
 // Format: nil-terminated array of module path strings
 var kernel_modules [256]*u8 = [];
 
+// Kernel built-in modules for distribution fallback
+// When no local source file exists, these provide the AST
+// Populated by --embed-self mode from source files
+var kernel_builtin_modules [256]*u8 = [];  // Extension-less names: "std/core", ...
+var kernel_builtin_asts [256]*u8 = [];     // Full AST strings: "(program ...)", ...
+
 // Embedded reader registry (in codegen.lang):
 // var embedded_reader_names [1024]*u8 = [];
 // var embedded_reader_funcs [1024]*u8 = [];
 // These get poked by -r mode to add readers (arrays, nil-terminated)
 
+// Find kernel built-in module by name (extension-less)
+// Returns the AST string or nil if not found
+func find_kernel_builtin(name *u8, name_len i64) *u8 {
+    var i i64 = 0;
+    while i < 256 {
+        var mod *u8 = kernel_builtin_modules[i];
+        if mod == nil {
+            return nil;  // End of list
+        }
+        var mod_len i64 = strlen(mod);
+        if mod_len == name_len && memcmp(mod, name, name_len) {
+            return kernel_builtin_asts[i];
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
 // Check if a module path is in kernel_modules
 // Returns 1 if found, 0 if not
+// Handles: "std/core" matches "std/core.lang", "std/core.lisp", etc.
+// Uses dynamic extension matching - checks for path + "." prefix
 func has_kernel_module(path *u8, path_len i64) i64 {
     var i i64 = 0;
     while i < 256 {
@@ -118,9 +144,25 @@ func has_kernel_module(path *u8, path_len i64) i64 {
         if mod == nil {
             return 0;  // End of list
         }
-        if strlen(mod) == path_len && memcmp(mod, path, path_len) {
+        var mod_len i64 = strlen(mod);
+
+        // Exact match (for paths that already have extension)
+        if mod_len == path_len && memcmp(mod, path, path_len) {
             return 1;
         }
+
+        // Check if mod starts with path + "." (any extension)
+        // e.g., "std/core.lang" matches "std/core" because it starts with "std/core."
+        // But "std/core_extra.lang" does NOT match "std/core" (no dot after path)
+        if mod_len > path_len + 1 {  // mod must be at least path + "." + one char
+            if memcmp(mod, path, path_len) {
+                // Check for '.' immediately after path
+                if *(mod + path_len) == 46 {  // '.'
+                    return 1;
+                }
+            }
+        }
+
         i = i + 1;
     }
     return 0;
@@ -869,6 +911,117 @@ func main(argc i64, argv **u8) i64 {
                         var_decl_set_init(decl, arr_node);
                     }
                     found_mods = 1;
+                }
+
+                // Poke kernel_builtin_modules with extension-less names for std/* modules
+                if name_len == 22 && memcmp(name, "kernel_builtin_modules", 22) {
+                    if modules_node != nil {
+                        // Count std/* modules only
+                        var mod_count i64 = modules_decl_count(modules_node);
+                        var std_count i64 = 0;
+                        var k i64 = 0;
+                        while k < mod_count {
+                            var entry *u8 = modules_decl_get(modules_node, k);
+                            var mod_name *u8 = module_entry_name(entry);
+                            // Check for "std/" prefix
+                            if *mod_name == 's' && *(mod_name + 1) == 't' && *(mod_name + 2) == 'd' && *(mod_name + 3) == '/' {
+                                std_count = std_count + 1;
+                            }
+                            k = k + 1;
+                        }
+
+                        // Build array of extension-less names
+                        var elements *u8 = alloc(std_count * 8);
+                        var idx i64 = 0;
+                        k = 0;
+                        while k < mod_count {
+                            var entry *u8 = modules_decl_get(modules_node, k);
+                            var mod_name *u8 = module_entry_name(entry);
+                            var mod_len i64 = module_entry_len(entry);
+                            // Check for "std/" prefix
+                            if *mod_name == 's' && *(mod_name + 1) == 't' && *(mod_name + 2) == 'd' && *(mod_name + 3) == '/' {
+                                // Strip extension: find last '.' and truncate
+                                var base_len i64 = mod_len;
+                                var p i64 = mod_len - 1;
+                                while p > 0 {
+                                    if *(mod_name + p) == '.' {
+                                        base_len = p;
+                                    }
+                                    p = p - 1;
+                                }
+
+                                var str_node *u8 = string_expr_alloc();
+                                string_expr_set_value(str_node, mod_name);
+                                string_expr_set_value_len(str_node, base_len);
+
+                                var ep **u8 = elements + (idx * 8);
+                                *ep = str_node;
+                                idx = idx + 1;
+                            }
+                            k = k + 1;
+                        }
+
+                        var arr_node *u8 = array_literal_alloc();
+                        array_literal_set_elems(arr_node, elements);
+                        array_literal_set_count(arr_node, std_count);
+                        var_decl_set_init(decl, arr_node);
+                    }
+                }
+
+                // Poke kernel_builtin_asts with AST strings for std/* modules
+                if name_len == 19 && memcmp(name, "kernel_builtin_asts", 19) {
+                    if modules_node != nil {
+                        // Count std/* modules only
+                        var mod_count i64 = modules_decl_count(modules_node);
+                        var std_count i64 = 0;
+                        var k i64 = 0;
+                        while k < mod_count {
+                            var entry *u8 = modules_decl_get(modules_node, k);
+                            var mod_name *u8 = module_entry_name(entry);
+                            if *mod_name == 's' && *(mod_name + 1) == 't' && *(mod_name + 2) == 'd' && *(mod_name + 3) == '/' {
+                                std_count = std_count + 1;
+                            }
+                            k = k + 1;
+                        }
+
+                        // Build array of AST strings
+                        var elements *u8 = alloc(std_count * 8);
+                        var idx i64 = 0;
+                        k = 0;
+                        while k < mod_count {
+                            var entry *u8 = modules_decl_get(modules_node, k);
+                            var mod_name *u8 = module_entry_name(entry);
+                            var mod_len i64 = module_entry_len(entry);
+                            if *mod_name == 's' && *(mod_name + 1) == 't' && *(mod_name + 2) == 'd' && *(mod_name + 3) == '/' {
+                                // Read source file
+                                var path_str *u8 = str_dup_n(mod_name, mod_len);
+                                var src *u8 = read_file(path_str);
+                                var ast_str *u8 = "";
+                                if src != nil {
+                                    // Parse and emit AST
+                                    parser_tokenize(src);
+                                    var mod_prog *u8 = parse_program();
+                                    if mod_prog != nil && parse_error_count == 0 {
+                                        ast_str = ast_emit_program(mod_prog);
+                                    }
+                                }
+
+                                var str_node *u8 = string_expr_alloc();
+                                string_expr_set_value(str_node, ast_str);
+                                string_expr_set_value_len(str_node, strlen(ast_str));
+
+                                var ep **u8 = elements + (idx * 8);
+                                *ep = str_node;
+                                idx = idx + 1;
+                            }
+                            k = k + 1;
+                        }
+
+                        var arr_node *u8 = array_literal_alloc();
+                        array_literal_set_elems(arr_node, elements);
+                        array_literal_set_count(arr_node, std_count);
+                        var_decl_set_init(decl, arr_node);
+                    }
                 }
             }
             j = j + 1;
