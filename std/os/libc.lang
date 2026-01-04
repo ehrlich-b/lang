@@ -80,6 +80,9 @@ pub extern func getpid() i64;
 pub extern func getppid() i64;
 pub extern func getenv(name *u8) *u8;
 
+// Formatted I/O (variadic - codegen emits proper declaration)
+extern func printf(fmt *u8, val f64) i64;
+
 // Process - for subprocess execution (reader macros)
 extern func fork() i64;
 extern func execve(path *u8, argv **u8, envp **u8) i64;
