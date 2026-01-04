@@ -2,7 +2,13 @@
 
 ## Vision
 
-A self-hosted compiler compiler. The AST is the language. Syntax is a plugin.
+A **language forge**: one compiler that understands any syntax, compiles to any target.
+
+```
+lang hello.zig world.lang whats.lisp up.my_dsl -o program
+```
+
+Different syntaxes, same compilation pipeline, same ABI, single binary.
 
 ---
 
@@ -13,281 +19,181 @@ A self-hosted compiler compiler. The AST is the language. Syntax is a plugin.
 3. ✓ Language polish (break/continue, bitwise ops, char literals)
 4. ✓ AST 2.0: closures, algebraic effects, sum types
 5. ✓ Kernel/reader split (lang as a reader, bootstrap verified)
-6. ✓ **Cross-platform + LLVM backend** (167/167 tests, Linux + macOS)
-7. ✓ **Kernel/reader composition** (bare kernel + -r reader = compiler)
-8. → **Polish for release** ← current
-9. → Bring your own runtime
-10. → WASM backend
-11. → Language forge (any syntax → any target)
+6. ✓ Cross-platform + LLVM backend (169/169 tests, Linux + macOS)
+7. ✓ Kernel/reader composition (bare kernel + -r reader = compiler)
+8. → **Language forge: Zig capture** ← current
+9. → WASM backend
+10. → Capture more languages (Rust? OCaml?)
 
 ---
 
-## Current: polish for release
+## Current: Zig Capture (Language Forge Proof)
 
-The compiler works. Composition works. Now cleanup before showing anyone.
+**The thesis:** Lang AST can capture any compiled language. Zig is the proof.
 
-### High priority
+**The method:** "Yoink & Bootstrap" - don't write frontends, capture compilers.
 
-#### Negative tests
+```
+Traditional (years of work):
+  Zig source → [NEW Zig frontend we write] → lang AST → LLVM → binary
 
-Lots of obvious errors leak all the way to code emission:
-- Undefined variables
-- Type mismatches
-- Missing returns
+Yoink & Bootstrap (weeks of work):
+  Zig source → [Zig's own compiler, patched] → lang AST → LLVM → binary
+```
 
-Need a suite of "this should fail" tests that verify errors are caught at the right phase.
+See **[designs/zig_ast_compatibility.md](designs/zig_ast_compatibility.md)** for full design.
 
-#### Reader documentation
+### Why This Matters
 
-Explain readers in stupidly high detail:
-- What they are (syntax plugins that emit AST)
-- How they work (recursive expansion, S-expression output)
-- How to write one (the lang_reader as reference)
-- The composition model (kernel + reader = compiler)
+With Zig captured:
+- `lang main.lang utility.zig -o program` - true polyglot compilation
+- DSLs (50 lines of reader macro) interop with production Zig code
+- Proves the forge vision works on a real language
 
-#### Platform auto-detection
+### The Plan
 
-Shouldn't have to provide `LANGOS=macos LANGBE=llvm` manually. When the compiler finds itself on macOS:
+#### Phase 1: Reconnaissance (Day 1-2)
+- [ ] Clone Zig source, build from source
+- [ ] Study AIR format (`src/Air.zig`, `--verbose-air` output)
+- [ ] Document AIR instruction → lang AST mapping
+- [ ] Identify required AST extensions
+
+#### Phase 2: AST Extensions (Day 3-4)
+- [ ] Implement `callconv` attribute on func nodes (if needed)
+- [ ] Implement `inline-asm` node (if needed)
+- [ ] Implement `type-aligned` wrapper (if needed)
+- [ ] Defer SIMD/packed-struct (not needed for hello world)
+
+#### Phase 3: Backend Implementation (Day 5-7)
+- [ ] Write lang-ast backend for Zig compiler (~3-5k lines of Zig)
+- [ ] Start with simplest instructions (constants, basic ops)
+- [ ] Handle function definitions, calls, control flow
+- [ ] Get "hello world" through the pipeline
+
+#### Phase 4: Demo (Day 8+)
+- [ ] Compile simple Zig program through lang
+- [ ] Compose Zig + lang in same compilation
+- [ ] Document limitations (no floats initially)
+
+### Known Gaps
+
+| Gap | Severity | Notes |
+|-----|----------|-------|
+| Floating point | High | Needed for Zig compiler itself, not hello world |
+| SIMD vectors | Low | Skip initially |
+| Packed structs | Low | Skip initially |
+| Atomics | Low | Skip initially |
+
+**Minimum viable capture:** Integer/string Zig programs compile through lang.
+
+**Full capture (future):** Zig compiler self-hosts through lang. Requires float support.
+
+---
+
+## Foundation Status
+
+**Solid (169/169 tests passing):**
+- Self-hosting with fixed-point verification
+- Dual backends (x86 + LLVM)
+- Cross-platform (Linux x86-64, macOS ARM64)
+- Reader macro system with recursive expansion
+- Algebraic effects with resume
+- CLI: `help`, `version`, `env`, `tools`
+
+**Spartan (not blocking Zig capture):**
+- Platform auto-detection (need `LANGOS=macos LANGBE=llvm` manually)
+- Error messages (some errors leak to codegen)
+- No negative test suite
+- No floats, no struct literals
+
+---
+
+## Deferred: Polish
+
+These are nice-to-have but don't block the forge vision.
+
+### Platform auto-detection
+
+When the compiler finds itself on macOS:
 - Default to `llvm` backend (no x86 on ARM)
 - Default to `libc` (required on macOS anyway)
 - Default to `macos` OS layer
 
-Just `./out/lang foo.lang` should work on any platform.
+### Negative tests
 
-### Medium priority
+Suite of "this should fail" tests:
+- Undefined variables
+- Type mismatches
+- Missing returns
 
-#### Bootstrap restructure: bare kernel + reader composition
+### Reader documentation
 
-Current chain works. ON TOP of it, add the "canonical" path:
-1. Build bare kernel (no reader baked in)
-2. Build lang reader with `--emit-expanded-ast`
-3. `bare_kernel -r lang reader.ast` = composed compiler
-4. This composed compiler runs validation + becomes the distribution artifact
-
-This proves the composition architecture is the real thing, not a sideshow.
-
-#### AST binary mode + compression
-
-The embedded `self_kernel` AST is huge (text S-expressions). Options:
-1. Binary AST format (no parsing overhead, smaller)
-2. Compression before embedding (need to implement in lang)
-3. Both
-
-Could shrink the binary by 10x. Makes the quine pattern less embarrassing.
-
-### Questionable / maybe not worth it
-
-#### "Require tree shaking"
-
-The idea: don't include requires that are already compiled into the kernel.
-
-Problems:
-- It's not tree shaking - the code IS needed, just already present
-- What happens when you add a new std requirement?
-- Outer requires vs inner requires get confusing
-- Is this even worth it on top of compression?
-
-**Verdict:** Probably not worth the complexity. Compression solves the size problem more directly.
-
----
-
-## Previous: architecture hardening
-
-The compiler works. Now it needs cleanup and decisions about what it actually is.
-
-### The forest view
-
-**What's solid:**
-- Self-hosting with fixed-point verification
-- Dual backends (x86 + LLVM) both passing 167 tests
-- Cross-platform (Linux x86-64, macOS ARM64)
-- Reader macro system with recursive expansion
-- Algebraic effects with resume
-
-**What's weird:**
-- No architecture reference doc (AST format buried in 1500-line design doc)
-- ABI not explicitly documented or decided
-- Bootstrap still x86-centric despite LLVM being the portable path
-- "Bring your own runtime" exists in design but not implementation
-
-### Upcoming priorities
-
-#### ✓ Technical Documentation - Done
-
-Created `docs/` folder with standalone reference documentation:
-- [docs/AST.md](docs/AST.md) - All 41 AST node types with S-expression format
-- [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md) - Bootstrap chain, trust flow, toolchain requirements
-- [docs/BUILDING.md](docs/BUILDING.md) - Build instructions, compilation pipeline, flags
-
-#### ABI and language capture
-
-See **[designs/abi.md](designs/abi.md)** for deep analysis of:
-- What calling conventions lang should support
-- What it takes to "fully capture" another language (parse it, emit lang AST)
-- Why Go can't be captured (fundamentally incompatible ABI)
-- How to capture Zig (C-convention code works, exotic conventions need AST extension)
-
-**Key decision:** C ABI is the interop boundary. Languages with exotic conventions (naked functions, interrupt handlers) need AST extension to `func` nodes.
-
-#### Bootstrap: when does LLVM become primary?
-
-**Current:** x86 is fast (~5s), LLVM is faster now (~10s with optimized tests). Keep both.
-
-**Optimizations applied:**
-- Parallel test execution (`xargs -P`) - 5x speedup
-- ORC JIT for LLVM tests (`lli --jit-kind=orc`) - 13x faster than interpreter
-
-**Mental model shift:** LLVM+libc is "canonical" (works everywhere), x86 is "fast path" (Linux dev). Both produce identical compilers.
-
-**Future:** `make bootstrap` auto-selects based on platform
-
-#### → CLI commands (in progress)
-
-See **[designs/cli_commands.md](designs/cli_commands.md)** for full design.
-
-**Done:**
-- `lang help [subcommand]` - usage information
-- `lang version` - version with baked-in build info
-- `lang env` - environment variables
-- `lang tools` - toolchain detection with PATH search
-
-**In progress:**
-- `lang compose` / `-c` fix - see **[designs/fix_composition.md](designs/fix_composition.md)**
-
-**Not started:**
-- `lang readers` - list available readers
-
-Key insight: files have extensions, commands don't → unambiguous parsing.
-
-#### Compiler emission modes (backlog)
-
-See **[designs/emission_modes.md](designs/emission_modes.md)** for design.
-
-The compiler should have clean modes for:
-1. Emit AST fragment (declarations only)
-2. Emit expanded AST (includes inlined)
-3. Emit full program AST
-4. Emit self-as-compiler AST
-5. Emit native assembly
-6. Emit native executable (new)
-
----
-
-## Code quality debt
-
-| Issue | Priority | Notes |
-|-------|----------|-------|
-| ~~ARCHITECTURE.md extraction~~ | ~~High~~ | Done: `docs/` folder |
-| Composition flow (`-c`) broken | Medium | **In progress** - see `designs/fix_composition.md` |
-| Include deduplication for CLI | Medium | CLI files not deduplicated |
-| Block expression scopes | Medium | Inline reader vars collide |
-| Semantic checks | Low | Undefined vars reach codegen |
-| `const` keyword | Low | Compile-time constants |
-
----
-
-## Bring your own runtime
-
-The `designs/ast_as_language.md` describes this but it's not implemented.
-
-**The idea:**
-- Memory allocation via `prim_mem_*` intrinsics
-- GC implementations in `.lang` files: none, refcount, tracing, arena
-- Readers include their preferred runtime
-- Kernel doesn't know or care what allocator is linked
-
-**What exists:**
-- `std/core.lang` has bump allocator and malloc/free
-- `extern func` works for FFI
-- OS abstraction layer (`std/os/*.lang`)
-
-**What's missing:**
-- `prim` node type in AST (currently no intrinsics)
-- Multiple allocator implementations to choose from
-- Documentation of the "runtime interface"
-
-**Priority:** Low. Current allocator works. This becomes important when someone wants GC'd reader output.
+Explain readers in detail:
+- What they are (syntax plugins that emit AST)
+- How they work (recursive expansion, S-expression output)
+- How to write one (the lang_reader as reference)
 
 ---
 
 ## Backlog
 
 ### Language features
-- Platform conditional compilation (Go-style `_linux.lang` suffixes)
-- Interfaces / traits
-- Variadic parameters (`open()` is special-cased)
-- Floating point (f32, f64)
+- Floating point (f32, f64) - **needed for full Zig capture**
 - Struct literals `Point{x: 1, y: 2}`
-- Debug symbols (DWARF)
 - Type aliases `type Fd = i64`
-- `for` loop sugar
 - Generics (monomorphization)
+- Debug symbols (DWARF)
 
 ### Backends
 - WASM (direct or via LLVM)
 - Windows (Win64 ABI)
 
-### Runtime
-- `prim` intrinsics for pluggable allocation
-- `std/gc/refcount.lang`
-- `std/gc/arena.lang`
+### Forge
+- Capture Rust (MIR → lang AST)
+- Capture OCaml (Lambda/Cmm → lang AST)
+- Capture Go (SSA → lang AST) - hard due to ABI
 
 ---
 
-## What's done
+## What's Done
 
-### Architecture hardening (milestone 7 - in progress)
-- Fork-self reader compilation (removes `./out/lang` hardcode)
-- Fix LLVM `&func` address-of for void functions
-- Documentation: [docs/](docs/) folder with BUILDING.md, BOOTSTRAP.md, AST.md
+### Milestone 7: Kernel/reader composition
+- `--emit-expanded-ast` for reader AST capture
+- Bare kernel + `-r` reader = composed compiler
+- 169/169 tests passing
 
-### Cross-platform (milestone 6)
+### Milestone 6: Cross-platform + LLVM
 - OS abstraction layer (`std/os/*.lang`)
 - `LANGOS` / `LANGBE` / `LANGLIBC` env vars
 - ARM64 inline asm for algebraic effects
-- Reader compilation respects LANGBE
 - Dual bootstrap: x86 assembly + LLVM IR
-- 167/167 tests on Linux x86-64 and macOS ARM64
 
-### LLVM backend
-- All language features work
-- Target triple selection (x86_64-linux, arm64-apple-macosx)
-- `extern func` for FFI
-- `open()` variadic ABI workaround
-
-### Test hardening (41 tests added)
-- Effects, closures, sum types, stress tests, interaction tests
-- 12 bugs fixed during hardening
-
-### Previous milestones
+### Earlier milestones
 - Self-hosting compiler with fixed-point verification
 - Reader macros (`#parser{}`, `#lisp{}`)
 - Algebraic effects (perform, handle, resume)
 - Closures with capture analysis
 - Sum types (enum, match)
-- Kernel/reader split architecture
 
 ---
 
-## Design documents
+## Design Documents
 
 | Document | Topic |
 |----------|-------|
-| [designs/abi.md](designs/abi.md) | Calling conventions, language capture, Zig/Go analysis |
-| [designs/ast_as_language.md](designs/ast_as_language.md) | AST format, kernel/reader architecture, effects |
+| [designs/zig_ast_compatibility.md](designs/zig_ast_compatibility.md) | **Yoink & Bootstrap**: capturing Zig |
+| [designs/abi.md](designs/abi.md) | Calling conventions, language capture analysis |
+| [designs/ast_as_language.md](designs/ast_as_language.md) | AST format, kernel/reader architecture |
 | [designs/multi_backend.md](designs/multi_backend.md) | x86 and LLVM backend design |
 | [designs/cli_commands.md](designs/cli_commands.md) | CLI subcommands design |
-| [designs/fix_composition.md](designs/fix_composition.md) | Fixing -c composition (in progress) |
-| [designs/emission_modes.md](designs/emission_modes.md) | Compiler output modes (backlog) |
 
 ---
 
-## Decision log
+## Decision Log
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Interop ABI | C (System V / Win64) | Lingua franca, Zig/Rust/everyone uses it |
-| Go interop | Not directly supported | Fundamentally incompatible ABI, use cgo |
-| Bootstrap primary | Dual (x86 fast, LLVM portable) | Speed matters for iteration |
-| Zig targeting | Emit source or link objects | No Zig AST interchange format exists |
-| Runtime model | Bring your own (future) | Kernel stays simple, policy in libraries |
+| Forge proof | Zig | Modern, self-hosted, heavy comptime, good test case |
+| Capture method | Patch backend | Reuse their frontend, just emit our AST |
+| Interop ABI | C (System V) | Lingua franca, Zig/Rust/everyone uses it |
+| Initial scope | No floats | Get hello world first, add floats for full capture |
