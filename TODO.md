@@ -19,7 +19,7 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 3. ✓ Language polish (break/continue, bitwise ops, char literals)
 4. ✓ AST 2.0: closures, algebraic effects, sum types
 5. ✓ Kernel/reader split (lang as a reader, bootstrap verified)
-6. ✓ Cross-platform + LLVM backend (169/169 tests, Linux + macOS)
+6. ✓ Cross-platform + LLVM backend (170/170 tests, Linux + macOS)
 7. ✓ Kernel/reader composition (bare kernel + -r reader = compiler)
 8. → **Language forge: Zig capture** ← current
 9. → WASM backend
@@ -92,7 +92,7 @@ With Zig captured:
 
 ## Foundation Status
 
-**Solid (169/169 tests passing):**
+**Solid (170/170 tests passing):**
 - Self-hosting with fixed-point verification
 - LLVM backend (primary, all features)
 - Cross-platform (Linux x86-64, macOS ARM64)
@@ -169,7 +169,7 @@ Explain readers in detail:
 ### Milestone 7: Kernel/reader composition
 - `--emit-expanded-ast` for reader AST capture
 - Bare kernel + `-r` reader = composed compiler
-- 169/169 tests passing
+- 170/170 tests passing (includes float support)
 
 ### Milestone 6: Cross-platform + LLVM
 - OS abstraction layer (`std/os/*.lang`)

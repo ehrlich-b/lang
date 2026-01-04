@@ -1,21 +1,20 @@
 # Float Support Design
 
-**Status:** Design
-**Priority:** High (blocks full Zig capture)
-**Effort:** Medium (3-5 days)
+**Status:** ✅ Implemented
+**Implemented:** 2025-01-04
 
 ## Summary
 
-Add `f32` and `f64` floating-point types to lang. Required for the Zig capture milestone - the Zig compiler itself uses floats extensively, and the Zig stdlib is float-heavy.
+`f32` and `f64` floating-point types in lang. LLVM backend only (x86 backend frozen).
 
-## Current State
+## What Works
 
-Lang has 10 primitive types, all integer-based:
-- Signed: `i8`, `i16`, `i32`, `i64`
-- Unsigned: `u8`, `u16`, `u32`, `u64`
-- Other: `bool`, `void`
-
-No floating point support exists anywhere in the pipeline.
+- **Types:** `f32`, `f64` in declarations, parameters, return types
+- **Literals:** `3.14`, `2.5` (inferred as f64)
+- **Arithmetic:** `+`, `-`, `*`, `/` → `fadd`, `fsub`, `fmul`, `fdiv`
+- **Comparisons:** `==`, `!=`, `<`, `>`, `<=`, `>=` → `fcmp` with ordered predicates
+- **Function params/returns:** Full f64 ABI support
+- **Test:** `test/suite/260_float_basic.lang` (170/170 tests pass)
 
 ## Design Goals
 
