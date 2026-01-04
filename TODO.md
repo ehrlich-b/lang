@@ -38,13 +38,17 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 - [x] **Reconnaissance complete** - Built debug zig, captured 20K lines of AIR from zig self-compile
 - [x] **Mapping complete** - 88 AIR instructions analyzed, most map directly to lang AST
 - [x] **Floats done** - f32/f64 support added, 170/170 tests passing
+- [x] **Cast nodes done** - `cast(type, expr)` and `bitcast(type, expr)` syntax, 172/172 tests
+- [x] **i128/u128 done** - Types recognized (full allocation requires integer type system work)
+- [x] **AIR emitter designed** - See [designs/air_emitter.md](designs/air_emitter.md)
 
-### Next Steps (only 2 lang changes needed!)
+### Next Steps
 
-- [ ] **Add `cast` node** - for intcast/bitcast/trunc (1074 uses in zig compiler)
-- [ ] **Add i128/u128 types** - for compiler-rt (753 uses)
-- [ ] **Write AIR→AST emitter** - ~500 lines of Zig in `zig/src/codegen/lang_ast.zig`
-- [ ] **Hello world through pipeline** - simple zig program → lang AST → binary
+- [ ] **Patches infrastructure** - `patches/` directory, `make patch-zig`, manifest.yaml
+- [ ] **Write AIR→AST emitter** - `patches/zig/src/codegen/lang_ast.zig` (~2000 lines)
+- [ ] **Simple function through pipeline** - arithmetic function → lang AST → binary
+- [ ] **Reader composition** - `./out/lang -r zig compiler.ast -o lang_zig`
+- [ ] **Hello world** - `./lang_zig hello.zig` compiles and runs
 
 ### What Doesn't Need Lang Changes
 
@@ -171,7 +175,8 @@ Explain readers in detail:
 
 | Document | Topic |
 |----------|-------|
-| [designs/zig_ast_compatibility.md](designs/zig_ast_compatibility.md) | **Yoink & Bootstrap**: capturing Zig |
+| [designs/zig_ast_compatibility.md](designs/zig_ast_compatibility.md) | **Yoink & Bootstrap**: capturing Zig (analysis) |
+| [designs/air_emitter.md](designs/air_emitter.md) | **AIR Emitter**: patches approach, implementation plan |
 | [designs/abi.md](designs/abi.md) | Calling conventions, language capture analysis |
 | [designs/ast_as_language.md](designs/ast_as_language.md) | AST format, kernel/reader architecture |
 | [designs/multi_backend.md](designs/multi_backend.md) | x86 and LLVM backend design |
