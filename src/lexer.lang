@@ -6,8 +6,8 @@
 // ============================================================
 
 // Special
-var TOKEN_EOF i64 = 0;
-var TOKEN_ERROR i64 = 1;
+pub var TOKEN_EOF i64 = 0;
+pub var TOKEN_ERROR i64 = 1;
 
 // Literals
 var TOKEN_IDENT i64 = 2;
@@ -15,9 +15,9 @@ var TOKEN_NUMBER i64 = 3;
 var TOKEN_STRING i64 = 4;
 
 // Keywords
-var TOKEN_FUNC i64 = 5;
-var TOKEN_VAR i64 = 6;
-var TOKEN_STRUCT i64 = 7;
+pub var TOKEN_FUNC i64 = 5;
+pub var TOKEN_VAR i64 = 6;
+pub var TOKEN_STRUCT i64 = 7;
 var TOKEN_IF i64 = 8;
 var TOKEN_ELSE i64 = 9;
 var TOKEN_WHILE i64 = 10;
@@ -70,16 +70,16 @@ var TOKEN_COLON i64 = 50;     // :
 var TOKEN_COLONEQ i64 = 51;   // :=
 
 // Macro tokens
-var TOKEN_MACRO i64 = 52;         // 'macro' keyword
+pub var TOKEN_MACRO i64 = 52;         // 'macro' keyword
 var TOKEN_DOLLAR_LBRACE i64 = 53; // ${ (quote start)
 var TOKEN_DOLLAR i64 = 54;        // $ (unquote)
 var TOKEN_DOLLAR_AT i64 = 55;     // $@ (unquote string as identifier)
 
 // Reader macro tokens
-var TOKEN_IMPORT i64 = 56;        // 'import' keyword
-var TOKEN_READER i64 = 57;        // 'reader' keyword
+pub var TOKEN_IMPORT i64 = 56;        // 'import' keyword
+pub var TOKEN_READER i64 = 57;        // 'reader' keyword
 var TOKEN_READER_MACRO i64 = 58;  // #name{...} reader macro invocation
-var TOKEN_INCLUDE i64 = 59;       // 'include' keyword
+pub var TOKEN_INCLUDE i64 = 59;       // 'include' keyword
 
 // Bitwise operators
 var TOKEN_PIPE i64 = 60;          // |
@@ -106,12 +106,12 @@ var TOKEN_IN i64 = 72;            // in
 var TOKEN_FN i64 = 73;            // fn (for function pointer types)
 
 // Sum types
-var TOKEN_ENUM i64 = 74;          // enum
+pub var TOKEN_ENUM i64 = 74;          // enum
 var TOKEN_MATCH i64 = 75;         // match
 var TOKEN_ARROW i64 = 76;         // => (fat arrow for match arms)
 
 // Algebraic effects
-var TOKEN_EFFECT i64 = 77;        // effect
+pub var TOKEN_EFFECT i64 = 77;        // effect
 var TOKEN_PERFORM i64 = 78;       // perform
 var TOKEN_HANDLE i64 = 79;        // handle
 var TOKEN_WITH i64 = 80;          // with
@@ -146,7 +146,7 @@ struct Token {
 // Accessor functions for backward compatibility
 // These cast *u8 to *Token and use field access
 
-func tok_type(tok *u8) i64 {
+pub func tok_type(tok *u8) i64 {
     var t *Token = tok;
     return t.type_tok;
 }
@@ -156,7 +156,7 @@ func tok_set_type(tok *u8, typ i64) void {
     t.type_tok = typ;
 }
 
-func tok_lexeme(tok *u8) *u8 {
+pub func tok_lexeme(tok *u8) *u8 {
     var t *Token = tok;
     return t.lexeme;
 }
@@ -166,7 +166,7 @@ func tok_set_lexeme(tok *u8, ptr *u8) void {
     t.lexeme = ptr;
 }
 
-func tok_lexeme_len(tok *u8) i64 {
+pub func tok_lexeme_len(tok *u8) i64 {
     var t *Token = tok;
     return t.lexeme_len;
 }
@@ -176,7 +176,7 @@ func tok_set_lexeme_len(tok *u8, len i64) void {
     t.lexeme_len = len;
 }
 
-func tok_line(tok *u8) i64 {
+pub func tok_line(tok *u8) i64 {
     var t *Token = tok;
     return t.line;
 }
@@ -186,7 +186,7 @@ func tok_set_line(tok *u8, ln i64) void {
     t.line = ln;
 }
 
-func tok_col(tok *u8) i64 {
+pub func tok_col(tok *u8) i64 {
     var t *Token = tok;
     return t.col;
 }
@@ -196,7 +196,7 @@ func tok_set_col(tok *u8, c i64) void {
     t.col = c;
 }
 
-func tok_content(tok *u8) *u8 {
+pub func tok_content(tok *u8) *u8 {
     var t *Token = tok;
     return t.content;
 }
@@ -206,7 +206,7 @@ func tok_set_content(tok *u8, ptr *u8) void {
     t.content = ptr;
 }
 
-func tok_content_len(tok *u8) i64 {
+pub func tok_content_len(tok *u8) i64 {
     var t *Token = tok;
     return t.content_len;
 }
@@ -232,7 +232,7 @@ var lex_line i64 = 1;
 var lex_col i64 = 1;
 var lex_start_col i64 = 1;
 
-func lexer_init(source *u8) void {
+pub func lexer_init(source *u8) void {
     lex_source = source;
     lex_source_len = strlen(source);
     lex_start = 0;
@@ -641,7 +641,7 @@ func scan_reader_macro() *u8 {
 // Main scan function
 // ============================================================
 
-func scan_token() *u8 {
+pub func scan_token() *u8 {
     skip_whitespace();
     lex_start = lex_current;
     lex_start_col = lex_col;

@@ -1194,6 +1194,15 @@ func compile_reader_to_executable(decl *u8) void {
             if k == NODE_INCLUDE_DECL {
                 ast_to_string_include_decl(sibling);
             }
+            // For reader caching, treat require like include (inline the code)
+            if k == NODE_REQUIRE_DECL {
+                // Convert require "x/y" to include "x/y.lang"
+                var mod *u8 = require_decl_module(sibling);
+                var mod_len i64 = require_decl_module_len(sibling);
+                ast_str_append_cstr("include \"");
+                ast_str_append(mod, mod_len);
+                ast_str_append_cstr(".lang\"\n");
+            }
             i = i + 1;
         }
 

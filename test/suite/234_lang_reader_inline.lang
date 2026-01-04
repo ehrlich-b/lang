@@ -1,4 +1,5 @@
 // expect: 0
+//clang
 // Test: #lang{} reader as inline expression
 // This proves lang syntax is just another reader emitting AST.
 // #lang{1 + 1} should be identical to writing 1 + 1 directly.

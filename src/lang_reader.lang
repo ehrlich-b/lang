@@ -13,12 +13,9 @@
 // Module dependencies (visibility boundary, -r mode can filter)
 require "std/core"
 require "src/limits"
-
-// Compiler infrastructure (included, no visibility boundary)
-// These are kernel internals that lang_reader is part of
-include "src/lexer.lang"
-include "src/parser.lang"
-include "src/ast_emit.lang"
+require "src/lexer"
+require "src/parser"
+require "src/ast_emit"
 
 // Check if token type indicates a declaration
 func is_decl_token(t i64) bool {

@@ -2,6 +2,7 @@
 // Recursive descent parser with precedence climbing for expressions
 
 include "src/limits.lang"
+require "src/lexer"
 
 // ============================================================
 // AST Node Types (constants)
@@ -154,7 +155,7 @@ func parse_number_value(tok *u8) i64 {
 // Node accessor functions
 // ============================================================
 
-func node_kind(node *u8) i64 {
+pub func node_kind(node *u8) i64 {
     var p *i64 = node;
     return *p;
 }
@@ -174,7 +175,7 @@ func func_decl_alloc() *u8 {
     return node;
 }
 
-func func_decl_name(node *u8) *u8 {
+pub func func_decl_name(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -184,7 +185,7 @@ func func_decl_set_name(node *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func func_decl_name_len(node *u8) i64 {
+pub func func_decl_name_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -194,7 +195,7 @@ func func_decl_set_name_len(node *u8, len i64) void {
     *p = len;
 }
 
-func func_decl_params(node *u8) *u8 {
+pub func func_decl_params(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -204,7 +205,7 @@ func func_decl_set_params(node *u8, params *u8) void {
     *p = params;
 }
 
-func func_decl_param_count(node *u8) i64 {
+pub func func_decl_param_count(node *u8) i64 {
     var p *i64 = node + 32;
     return *p;
 }
@@ -214,7 +215,7 @@ func func_decl_set_param_count(node *u8, count i64) void {
     *p = count;
 }
 
-func func_decl_ret_type(node *u8) *u8 {
+pub func func_decl_ret_type(node *u8) *u8 {
     var p **u8 = node + 40;
     return *p;
 }
@@ -224,7 +225,7 @@ func func_decl_set_ret_type(node *u8, t *u8) void {
     *p = t;
 }
 
-func func_decl_body(node *u8) *u8 {
+pub func func_decl_body(node *u8) *u8 {
     var p **u8 = node + 48;
     return *p;
 }
@@ -234,7 +235,7 @@ func func_decl_set_body(node *u8, body *u8) void {
     *p = body;
 }
 
-func func_decl_is_extern(node *u8) i64 {
+pub func func_decl_is_extern(node *u8) i64 {
     var p *i64 = node + 56;
     return *p;
 }
@@ -244,7 +245,7 @@ func func_decl_set_is_extern(node *u8, is_extern i64) void {
     *p = is_extern;
 }
 
-func func_decl_is_pub(node *u8) i64 {
+pub func func_decl_is_pub(node *u8) i64 {
     var p *i64 = node + 64;
     return *p;
 }
@@ -264,7 +265,7 @@ func var_decl_alloc() *u8 {
     return node;
 }
 
-func var_decl_name(node *u8) *u8 {
+pub func var_decl_name(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -274,7 +275,7 @@ func var_decl_set_name(node *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func var_decl_name_len(node *u8) i64 {
+pub func var_decl_name_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -284,7 +285,7 @@ func var_decl_set_name_len(node *u8, len i64) void {
     *p = len;
 }
 
-func var_decl_type(node *u8) *u8 {
+pub func var_decl_type(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -294,7 +295,7 @@ func var_decl_set_type(node *u8, t *u8) void {
     *p = t;
 }
 
-func var_decl_init(node *u8) *u8 {
+pub func var_decl_init(node *u8) *u8 {
     var p **u8 = node + 32;
     return *p;
 }
@@ -304,7 +305,7 @@ func var_decl_set_init(node *u8, init *u8) void {
     *p = init;
 }
 
-func var_decl_is_extern(node *u8) i64 {
+pub func var_decl_is_extern(node *u8) i64 {
     var p *i64 = node + 40;
     return *p;
 }
@@ -314,7 +315,7 @@ func var_decl_set_is_extern(node *u8, is_extern i64) void {
     *p = is_extern;
 }
 
-func var_decl_is_pub(node *u8) i64 {
+pub func var_decl_is_pub(node *u8) i64 {
     var p *i64 = node + 48;
     return *p;
 }
@@ -336,7 +337,7 @@ func struct_decl_alloc() *u8 {
     return node;
 }
 
-func struct_decl_name(node *u8) *u8 {
+pub func struct_decl_name(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -346,7 +347,7 @@ func struct_decl_set_name(node *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func struct_decl_name_len(node *u8) i64 {
+pub func struct_decl_name_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -356,7 +357,7 @@ func struct_decl_set_name_len(node *u8, len i64) void {
     *p = len;
 }
 
-func struct_decl_fields(node *u8) *u8 {
+pub func struct_decl_fields(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -366,7 +367,7 @@ func struct_decl_set_fields(node *u8, fields *u8) void {
     *p = fields;
 }
 
-func struct_decl_field_count(node *u8) i64 {
+pub func struct_decl_field_count(node *u8) i64 {
     var p *i64 = node + 32;
     return *p;
 }
@@ -376,7 +377,7 @@ func struct_decl_set_field_count(node *u8, count i64) void {
     *p = count;
 }
 
-func struct_decl_is_pub(node *u8) i64 {
+pub func struct_decl_is_pub(node *u8) i64 {
     var p *i64 = node + 40;
     return *p;
 }
@@ -387,7 +388,7 @@ func struct_decl_set_is_pub(node *u8, is_pub i64) void {
 }
 
 // StructField accessors (24-byte entries, same layout as Param)
-func struct_field_name(field *u8) *u8 {
+pub func struct_field_name(field *u8) *u8 {
     var p **u8 = field;
     return *p;
 }
@@ -397,7 +398,7 @@ func struct_field_set_name(field *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func struct_field_name_len(field *u8) i64 {
+pub func struct_field_name_len(field *u8) i64 {
     var p *i64 = field + 8;
     return *p;
 }
@@ -407,7 +408,7 @@ func struct_field_set_name_len(field *u8, len i64) void {
     *p = len;
 }
 
-func struct_field_type(field *u8) *u8 {
+pub func struct_field_type(field *u8) *u8 {
     var p **u8 = field + 16;
     return *p;
 }
@@ -417,7 +418,7 @@ func struct_field_set_type(field *u8, t *u8) void {
     *p = t;
 }
 
-func get_struct_field(fields *u8, index i64) *u8 {
+pub func get_struct_field(fields *u8, index i64) *u8 {
     return fields + (index * 24);
 }
 
@@ -433,7 +434,7 @@ func enum_decl_alloc() *u8 {
     return node;
 }
 
-func enum_decl_name(node *u8) *u8 {
+pub func enum_decl_name(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -443,7 +444,7 @@ func enum_decl_set_name(node *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func enum_decl_name_len(node *u8) i64 {
+pub func enum_decl_name_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -453,7 +454,7 @@ func enum_decl_set_name_len(node *u8, len i64) void {
     *p = len;
 }
 
-func enum_decl_variants(node *u8) *u8 {
+pub func enum_decl_variants(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -463,7 +464,7 @@ func enum_decl_set_variants(node *u8, variants *u8) void {
     *p = variants;
 }
 
-func enum_decl_variant_count(node *u8) i64 {
+pub func enum_decl_variant_count(node *u8) i64 {
     var p *i64 = node + 32;
     return *p;
 }
@@ -473,7 +474,7 @@ func enum_decl_set_variant_count(node *u8, count i64) void {
     *p = count;
 }
 
-func enum_decl_is_pub(node *u8) i64 {
+pub func enum_decl_is_pub(node *u8) i64 {
     var p *i64 = node + 40;
     return *p;
 }
@@ -484,7 +485,7 @@ func enum_decl_set_is_pub(node *u8, is_pub i64) void {
 }
 
 // EnumVariant accessors (32-byte entries)
-func enum_variant_name(v *u8) *u8 {
+pub func enum_variant_name(v *u8) *u8 {
     var p **u8 = v;
     return *p;
 }
@@ -494,7 +495,7 @@ func enum_variant_set_name(v *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func enum_variant_name_len(v *u8) i64 {
+pub func enum_variant_name_len(v *u8) i64 {
     var p *i64 = v + 8;
     return *p;
 }
@@ -504,7 +505,7 @@ func enum_variant_set_name_len(v *u8, len i64) void {
     *p = len;
 }
 
-func enum_variant_type(v *u8) *u8 {
+pub func enum_variant_type(v *u8) *u8 {
     var p **u8 = v + 16;
     return *p;
 }
@@ -524,7 +525,7 @@ func enum_variant_set_tag(v *u8, tag i64) void {
     *p = tag;
 }
 
-func get_enum_variant(variants *u8, index i64) *u8 {
+pub func get_enum_variant(variants *u8, index i64) *u8 {
     return variants + (index * 32);
 }
 
@@ -539,7 +540,7 @@ func match_expr_alloc() *u8 {
     return node;
 }
 
-func match_expr_scrutinee(node *u8) *u8 {
+pub func match_expr_scrutinee(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -549,7 +550,7 @@ func match_expr_set_scrutinee(node *u8, expr *u8) void {
     *p = expr;
 }
 
-func match_expr_arms(node *u8) *u8 {
+pub func match_expr_arms(node *u8) *u8 {
     var p **u8 = node + 16;
     return *p;
 }
@@ -559,7 +560,7 @@ func match_expr_set_arms(node *u8, arms *u8) void {
     *p = arms;
 }
 
-func match_expr_arm_count(node *u8) i64 {
+pub func match_expr_arm_count(node *u8) i64 {
     var p *i64 = node + 24;
     return *p;
 }
@@ -570,11 +571,11 @@ func match_expr_set_arm_count(node *u8, count i64) void {
 }
 
 // MatchArm layout: [pattern:8][body:8] = 16 bytes
-func get_match_arm(arms *u8, index i64) *u8 {
+pub func get_match_arm(arms *u8, index i64) *u8 {
     return arms + (index * 16);
 }
 
-func match_arm_pattern(arm *u8) *u8 {
+pub func match_arm_pattern(arm *u8) *u8 {
     var p **u8 = arm;
     return *p;
 }
@@ -584,7 +585,7 @@ func match_arm_set_pattern(arm *u8, pattern *u8) void {
     *p = pattern;
 }
 
-func match_arm_body(arm *u8) *u8 {
+pub func match_arm_body(arm *u8) *u8 {
     var p **u8 = arm + 8;
     return *p;
 }
@@ -606,7 +607,7 @@ func pattern_variant_alloc() *u8 {
     return node;
 }
 
-func pattern_variant_enum_name(node *u8) *u8 {
+pub func pattern_variant_enum_name(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -616,7 +617,7 @@ func pattern_variant_set_enum_name(node *u8, name *u8) void {
     *p = name;
 }
 
-func pattern_variant_enum_len(node *u8) i64 {
+pub func pattern_variant_enum_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -626,7 +627,7 @@ func pattern_variant_set_enum_len(node *u8, len i64) void {
     *p = len;
 }
 
-func pattern_variant_name(node *u8) *u8 {
+pub func pattern_variant_name(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -636,7 +637,7 @@ func pattern_variant_set_name(node *u8, name *u8) void {
     *p = name;
 }
 
-func pattern_variant_name_len(node *u8) i64 {
+pub func pattern_variant_name_len(node *u8) i64 {
     var p *i64 = node + 32;
     return *p;
 }
@@ -646,7 +647,7 @@ func pattern_variant_set_name_len(node *u8, len i64) void {
     *p = len;
 }
 
-func pattern_variant_binding(node *u8) *u8 {
+pub func pattern_variant_binding(node *u8) *u8 {
     var p **u8 = node + 40;
     return *p;
 }
@@ -656,7 +657,7 @@ func pattern_variant_set_binding(node *u8, name *u8) void {
     *p = name;
 }
 
-func pattern_variant_binding_len(node *u8) i64 {
+pub func pattern_variant_binding_len(node *u8) i64 {
     var p *i64 = node + 48;
     return *p;
 }
@@ -685,7 +686,7 @@ func effect_decl_alloc() *u8 {
     return node;
 }
 
-func effect_decl_name(node *u8) *u8 {
+pub func effect_decl_name(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -695,7 +696,7 @@ func effect_decl_set_name(node *u8, name *u8) void {
     *p = name;
 }
 
-func effect_decl_name_len(node *u8) i64 {
+pub func effect_decl_name_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -705,7 +706,7 @@ func effect_decl_set_name_len(node *u8, len i64) void {
     *p = len;
 }
 
-func effect_decl_param_types(node *u8) *u8 {
+pub func effect_decl_param_types(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -715,7 +716,7 @@ func effect_decl_set_param_types(node *u8, params *u8) void {
     *p = params;
 }
 
-func effect_decl_param_type_count(node *u8) i64 {
+pub func effect_decl_param_type_count(node *u8) i64 {
     var p *i64 = node + 32;
     return *p;
 }
@@ -725,7 +726,7 @@ func effect_decl_set_param_type_count(node *u8, count i64) void {
     *p = count;
 }
 
-func effect_decl_return_type(node *u8) *u8 {
+pub func effect_decl_return_type(node *u8) *u8 {
     var p **u8 = node + 40;
     return *p;
 }
@@ -735,7 +736,7 @@ func effect_decl_set_return_type(node *u8, ret_type *u8) void {
     *p = ret_type;
 }
 
-func effect_decl_is_pub(node *u8) i64 {
+pub func effect_decl_is_pub(node *u8) i64 {
     var p *i64 = node + 48;
     return *p;
 }
@@ -754,7 +755,7 @@ func perform_expr_alloc() *u8 {
     return node;
 }
 
-func perform_expr_name(node *u8) *u8 {
+pub func perform_expr_name(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -764,7 +765,7 @@ func perform_expr_set_name(node *u8, name *u8) void {
     *p = name;
 }
 
-func perform_expr_name_len(node *u8) i64 {
+pub func perform_expr_name_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -774,7 +775,7 @@ func perform_expr_set_name_len(node *u8, len i64) void {
     *p = len;
 }
 
-func perform_expr_args(node *u8) *u8 {
+pub func perform_expr_args(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -784,7 +785,7 @@ func perform_expr_set_args(node *u8, args *u8) void {
     *p = args;
 }
 
-func perform_expr_arg_count(node *u8) i64 {
+pub func perform_expr_arg_count(node *u8) i64 {
     var p *i64 = node + 32;
     return *p;
 }
@@ -804,7 +805,7 @@ func handle_expr_alloc() *u8 {
     return node;
 }
 
-func handle_expr_body(node *u8) *u8 {
+pub func handle_expr_body(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -814,7 +815,7 @@ func handle_expr_set_body(node *u8, body *u8) void {
     *p = body;
 }
 
-func handle_expr_cases(node *u8) *u8 {
+pub func handle_expr_cases(node *u8) *u8 {
     var p **u8 = node + 16;
     return *p;
 }
@@ -824,7 +825,7 @@ func handle_expr_set_cases(node *u8, cases *u8) void {
     *p = cases;
 }
 
-func handle_expr_case_count(node *u8) i64 {
+pub func handle_expr_case_count(node *u8) i64 {
     var p *i64 = node + 24;
     return *p;
 }
@@ -834,7 +835,7 @@ func handle_expr_set_case_count(node *u8, count i64) void {
     *p = count;
 }
 
-func handle_expr_ret_bind(node *u8) *u8 {
+pub func handle_expr_ret_bind(node *u8) *u8 {
     var p **u8 = node + 32;
     return *p;
 }
@@ -844,7 +845,7 @@ func handle_expr_set_ret_bind(node *u8, bind *u8) void {
     *p = bind;
 }
 
-func handle_expr_ret_bind_len(node *u8) i64 {
+pub func handle_expr_ret_bind_len(node *u8) i64 {
     var p *i64 = node + 40;
     return *p;
 }
@@ -854,7 +855,7 @@ func handle_expr_set_ret_bind_len(node *u8, len i64) void {
     *p = len;
 }
 
-func handle_expr_ret_body(node *u8) *u8 {
+pub func handle_expr_ret_body(node *u8) *u8 {
     var p **u8 = node + 48;
     return *p;
 }
@@ -868,37 +869,37 @@ func handle_expr_set_ret_body(node *u8, body *u8) void {
 // Stored in a Vec
 // Example: Fail(e, k) => body
 
-func effect_case_name(entry *u8) *u8 {
+pub func effect_case_name(entry *u8) *u8 {
     var p **u8 = entry;
     return *p;
 }
 
-func effect_case_name_len(entry *u8) i64 {
+pub func effect_case_name_len(entry *u8) i64 {
     var p *i64 = entry + 8;
     return *p;
 }
 
-func effect_case_binding(entry *u8) *u8 {
+pub func effect_case_binding(entry *u8) *u8 {
     var p **u8 = entry + 16;
     return *p;
 }
 
-func effect_case_binding_len(entry *u8) i64 {
+pub func effect_case_binding_len(entry *u8) i64 {
     var p *i64 = entry + 24;
     return *p;
 }
 
-func effect_case_k(entry *u8) *u8 {
+pub func effect_case_k(entry *u8) *u8 {
     var p **u8 = entry + 32;
     return *p;
 }
 
-func effect_case_k_len(entry *u8) i64 {
+pub func effect_case_k_len(entry *u8) i64 {
     var p *i64 = entry + 40;
     return *p;
 }
 
-func effect_case_body(entry *u8) *u8 {
+pub func effect_case_body(entry *u8) *u8 {
     var p **u8 = entry + 48;
     return *p;
 }
@@ -912,7 +913,7 @@ func resume_expr_alloc() *u8 {
     return node;
 }
 
-func resume_expr_k(node *u8) *u8 {
+pub func resume_expr_k(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -922,7 +923,7 @@ func resume_expr_set_k(node *u8, k *u8) void {
     *p = k;
 }
 
-func resume_expr_value(node *u8) *u8 {
+pub func resume_expr_value(node *u8) *u8 {
     var p **u8 = node + 16;
     return *p;
 }
@@ -942,7 +943,7 @@ func block_stmt_alloc() *u8 {
     return node;
 }
 
-func block_stmt_stmts(node *u8) *u8 {
+pub func block_stmt_stmts(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -952,7 +953,7 @@ func block_stmt_set_stmts(node *u8, stmts *u8) void {
     *p = stmts;
 }
 
-func block_stmt_count(node *u8) i64 {
+pub func block_stmt_count(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -973,7 +974,7 @@ func block_expr_alloc() *u8 {
     return node;
 }
 
-func block_expr_stmts(node *u8) *u8 {
+pub func block_expr_stmts(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -983,7 +984,7 @@ func block_expr_set_stmts(node *u8, stmts *u8) void {
     *p = stmts;
 }
 
-func block_expr_count(node *u8) i64 {
+pub func block_expr_count(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -993,7 +994,7 @@ func block_expr_set_count(node *u8, count i64) void {
     *p = count;
 }
 
-func block_expr_tail(node *u8) *u8 {
+pub func block_expr_tail(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -1013,7 +1014,7 @@ func if_stmt_alloc() *u8 {
     return node;
 }
 
-func if_stmt_cond(node *u8) *u8 {
+pub func if_stmt_cond(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1023,7 +1024,7 @@ func if_stmt_set_cond(node *u8, cond *u8) void {
     *p = cond;
 }
 
-func if_stmt_then(node *u8) *u8 {
+pub func if_stmt_then(node *u8) *u8 {
     var p **u8 = node + 16;
     return *p;
 }
@@ -1033,7 +1034,7 @@ func if_stmt_set_then(node *u8, then *u8) void {
     *p = then;
 }
 
-func if_stmt_else(node *u8) *u8 {
+pub func if_stmt_else(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -1053,7 +1054,7 @@ func while_stmt_alloc() *u8 {
     return node;
 }
 
-func while_stmt_cond(node *u8) *u8 {
+pub func while_stmt_cond(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1063,7 +1064,7 @@ func while_stmt_set_cond(node *u8, cond *u8) void {
     *p = cond;
 }
 
-func while_stmt_body(node *u8) *u8 {
+pub func while_stmt_body(node *u8) *u8 {
     var p **u8 = node + 16;
     return *p;
 }
@@ -1073,7 +1074,7 @@ func while_stmt_set_body(node *u8, body *u8) void {
     *p = body;
 }
 
-func while_stmt_label(node *u8) *u8 {
+pub func while_stmt_label(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -1083,7 +1084,7 @@ func while_stmt_set_label(node *u8, label *u8) void {
     *p = label;
 }
 
-func while_stmt_label_len(node *u8) i64 {
+pub func while_stmt_label_len(node *u8) i64 {
     var p *i64 = node + 32;
     return *p;
 }
@@ -1103,7 +1104,7 @@ func break_stmt_alloc() *u8 {
     return node;
 }
 
-func break_stmt_label(node *u8) *u8 {
+pub func break_stmt_label(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1113,7 +1114,7 @@ func break_stmt_set_label(node *u8, label *u8) void {
     *p = label;
 }
 
-func break_stmt_label_len(node *u8) i64 {
+pub func break_stmt_label_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -1133,7 +1134,7 @@ func continue_stmt_alloc() *u8 {
     return node;
 }
 
-func continue_stmt_label(node *u8) *u8 {
+pub func continue_stmt_label(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1143,7 +1144,7 @@ func continue_stmt_set_label(node *u8, label *u8) void {
     *p = label;
 }
 
-func continue_stmt_label_len(node *u8) i64 {
+pub func continue_stmt_label_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -1163,7 +1164,7 @@ func return_stmt_alloc() *u8 {
     return node;
 }
 
-func return_stmt_value(node *u8) *u8 {
+pub func return_stmt_value(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1183,7 +1184,7 @@ func expr_stmt_alloc() *u8 {
     return node;
 }
 
-func expr_stmt_expr(node *u8) *u8 {
+pub func expr_stmt_expr(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1204,7 +1205,7 @@ func assign_stmt_alloc() *u8 {
     return node;
 }
 
-func assign_stmt_target(node *u8) *u8 {
+pub func assign_stmt_target(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1214,7 +1215,7 @@ func assign_stmt_set_target(node *u8, target *u8) void {
     *p = target;
 }
 
-func assign_stmt_value(node *u8) *u8 {
+pub func assign_stmt_value(node *u8) *u8 {
     var p **u8 = node + 16;
     return *p;
 }
@@ -1234,7 +1235,7 @@ func binary_expr_alloc() *u8 {
     return node;
 }
 
-func binary_expr_op(node *u8) i64 {
+pub func binary_expr_op(node *u8) i64 {
     var p *i64 = node + 8;
     return *p;
 }
@@ -1244,7 +1245,7 @@ func binary_expr_set_op(node *u8, op i64) void {
     *p = op;
 }
 
-func binary_expr_left(node *u8) *u8 {
+pub func binary_expr_left(node *u8) *u8 {
     var p **u8 = node + 16;
     return *p;
 }
@@ -1254,7 +1255,7 @@ func binary_expr_set_left(node *u8, left *u8) void {
     *p = left;
 }
 
-func binary_expr_right(node *u8) *u8 {
+pub func binary_expr_right(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -1274,7 +1275,7 @@ func unary_expr_alloc() *u8 {
     return node;
 }
 
-func unary_expr_op(node *u8) i64 {
+pub func unary_expr_op(node *u8) i64 {
     var p *i64 = node + 8;
     return *p;
 }
@@ -1284,7 +1285,7 @@ func unary_expr_set_op(node *u8, op i64) void {
     *p = op;
 }
 
-func unary_expr_expr(node *u8) *u8 {
+pub func unary_expr_expr(node *u8) *u8 {
     var p **u8 = node + 16;
     return *p;
 }
@@ -1304,7 +1305,7 @@ func call_expr_alloc() *u8 {
     return node;
 }
 
-func call_expr_func(node *u8) *u8 {
+pub func call_expr_func(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1314,7 +1315,7 @@ func call_expr_set_func(node *u8, f *u8) void {
     *p = f;
 }
 
-func call_expr_args(node *u8) *u8 {
+pub func call_expr_args(node *u8) *u8 {
     var p **u8 = node + 16;
     return *p;
 }
@@ -1324,7 +1325,7 @@ func call_expr_set_args(node *u8, args *u8) void {
     *p = args;
 }
 
-func call_expr_arg_count(node *u8) i64 {
+pub func call_expr_arg_count(node *u8) i64 {
     var p *i64 = node + 24;
     return *p;
 }
@@ -1344,7 +1345,7 @@ func ident_expr_alloc() *u8 {
     return node;
 }
 
-func ident_expr_name(node *u8) *u8 {
+pub func ident_expr_name(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1354,7 +1355,7 @@ func ident_expr_set_name(node *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func ident_expr_name_len(node *u8) i64 {
+pub func ident_expr_name_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -1369,17 +1370,17 @@ func ident_expr_set_name_len(node *u8, len i64) void {
 // ============================================================
 // FieldExpr: [kind:8][expr:8][field_ptr:8][field_len:8] = 32 bytes
 
-func field_expr_expr(node *u8) *u8 {
+pub func field_expr_expr(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
 
-func field_expr_field(node *u8) *u8 {
+pub func field_expr_field(node *u8) *u8 {
     var p **u8 = node + 16;
     return *p;
 }
 
-func field_expr_field_len(node *u8) i64 {
+pub func field_expr_field_len(node *u8) i64 {
     var p *i64 = node + 24;
     return *p;
 }
@@ -1394,7 +1395,7 @@ func number_expr_alloc() *u8 {
     return node;
 }
 
-func number_expr_value(node *u8) *u8 {
+pub func number_expr_value(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1404,7 +1405,7 @@ func number_expr_set_value(node *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func number_expr_value_len(node *u8) i64 {
+pub func number_expr_value_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -1424,7 +1425,7 @@ func string_expr_alloc() *u8 {
     return node;
 }
 
-func string_expr_value(node *u8) *u8 {
+pub func string_expr_value(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1434,7 +1435,7 @@ func string_expr_set_value(node *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func string_expr_value_len(node *u8) i64 {
+pub func string_expr_value_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -1507,7 +1508,7 @@ func bool_expr_alloc() *u8 {
     return node;
 }
 
-func bool_expr_value(node *u8) i64 {
+pub func bool_expr_value(node *u8) i64 {
     var p *i64 = node + 8;
     return *p;
 }
@@ -1537,7 +1538,7 @@ func group_expr_alloc() *u8 {
     return node;
 }
 
-func group_expr_expr(node *u8) *u8 {
+pub func group_expr_expr(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1557,7 +1558,7 @@ func quote_expr_alloc() *u8 {
     return node;
 }
 
-func quote_expr_expr(node *u8) *u8 {
+pub func quote_expr_expr(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1577,7 +1578,7 @@ func unquote_expr_alloc() *u8 {
     return node;
 }
 
-func unquote_expr_name(node *u8) *u8 {
+pub func unquote_expr_name(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1587,7 +1588,7 @@ func unquote_expr_set_name(node *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func unquote_expr_name_len(node *u8) i64 {
+pub func unquote_expr_name_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -1607,7 +1608,7 @@ func unquote_string_expr_alloc() *u8 {
     return node;
 }
 
-func unquote_string_expr_name(node *u8) *u8 {
+pub func unquote_string_expr_name(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1617,7 +1618,7 @@ func unquote_string_expr_set_name(node *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func unquote_string_expr_name_len(node *u8) i64 {
+pub func unquote_string_expr_name_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -1637,7 +1638,7 @@ func macro_decl_alloc() *u8 {
     return node;
 }
 
-func macro_decl_name(node *u8) *u8 {
+pub func macro_decl_name(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1647,7 +1648,7 @@ func macro_decl_set_name(node *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func macro_decl_name_len(node *u8) i64 {
+pub func macro_decl_name_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -1657,7 +1658,7 @@ func macro_decl_set_name_len(node *u8, len i64) void {
     *p = len;
 }
 
-func macro_decl_params(node *u8) *u8 {
+pub func macro_decl_params(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -1667,7 +1668,7 @@ func macro_decl_set_params(node *u8, params *u8) void {
     *p = params;
 }
 
-func macro_decl_param_count(node *u8) i64 {
+pub func macro_decl_param_count(node *u8) i64 {
     var p *i64 = node + 32;
     return *p;
 }
@@ -1677,7 +1678,7 @@ func macro_decl_set_param_count(node *u8, count i64) void {
     *p = count;
 }
 
-func macro_decl_body(node *u8) *u8 {
+pub func macro_decl_body(node *u8) *u8 {
     var p **u8 = node + 40;
     return *p;
 }
@@ -1697,7 +1698,7 @@ func let_expr_alloc() *u8 {
     return node;
 }
 
-func let_expr_name(node *u8) *u8 {
+pub func let_expr_name(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1707,7 +1708,7 @@ func let_expr_set_name(node *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func let_expr_name_len(node *u8) i64 {
+pub func let_expr_name_len(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -1717,7 +1718,7 @@ func let_expr_set_name_len(node *u8, len i64) void {
     *p = len;
 }
 
-func let_expr_type(node *u8) *u8 {
+pub func let_expr_type(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -1727,7 +1728,7 @@ func let_expr_set_type(node *u8, typ *u8) void {
     *p = typ;
 }
 
-func let_expr_init(node *u8) *u8 {
+pub func let_expr_init(node *u8) *u8 {
     var p **u8 = node + 32;
     return *p;
 }
@@ -1737,7 +1738,7 @@ func let_expr_set_init(node *u8, init *u8) void {
     *p = init;
 }
 
-func let_expr_body(node *u8) *u8 {
+pub func let_expr_body(node *u8) *u8 {
     var p **u8 = node + 40;
     return *p;
 }
@@ -1758,7 +1759,7 @@ func lambda_expr_alloc() *u8 {
     return node;
 }
 
-func lambda_expr_params(node *u8) *u8 {
+pub func lambda_expr_params(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -1768,7 +1769,7 @@ func lambda_expr_set_params(node *u8, params *u8) void {
     *p = params;
 }
 
-func lambda_expr_param_count(node *u8) i64 {
+pub func lambda_expr_param_count(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -1778,7 +1779,7 @@ func lambda_expr_set_param_count(node *u8, count i64) void {
     *p = count;
 }
 
-func lambda_expr_ret_type(node *u8) *u8 {
+pub func lambda_expr_ret_type(node *u8) *u8 {
     var p **u8 = node + 24;
     return *p;
 }
@@ -1788,7 +1789,7 @@ func lambda_expr_set_ret_type(node *u8, typ *u8) void {
     *p = typ;
 }
 
-func lambda_expr_body(node *u8) *u8 {
+pub func lambda_expr_body(node *u8) *u8 {
     var p **u8 = node + 32;
     return *p;
 }
@@ -1814,7 +1815,7 @@ func import_decl_alloc() *u8 {
     return node;
 }
 
-func import_decl_path(node *u8) *u8 {
+pub func import_decl_path(node *u8) *u8 {
     var n *ImportDecl = node;
     return n.path;
 }
@@ -1824,7 +1825,7 @@ func import_decl_set_path(node *u8, ptr *u8) void {
     n.path = ptr;
 }
 
-func import_decl_path_len(node *u8) i64 {
+pub func import_decl_path_len(node *u8) i64 {
     var n *ImportDecl = node;
     return n.path_len;
 }
@@ -1855,7 +1856,7 @@ func reader_decl_alloc() *u8 {
     return node;
 }
 
-func reader_decl_name(node *u8) *u8 {
+pub func reader_decl_name(node *u8) *u8 {
     var n *ReaderDecl = node;
     return n.name;
 }
@@ -1865,7 +1866,7 @@ func reader_decl_set_name(node *u8, ptr *u8) void {
     n.name = ptr;
 }
 
-func reader_decl_name_len(node *u8) i64 {
+pub func reader_decl_name_len(node *u8) i64 {
     var n *ReaderDecl = node;
     return n.name_len;
 }
@@ -1875,7 +1876,7 @@ func reader_decl_set_name_len(node *u8, len i64) void {
     n.name_len = len;
 }
 
-func reader_decl_param_name(node *u8) *u8 {
+pub func reader_decl_param_name(node *u8) *u8 {
     var n *ReaderDecl = node;
     return n.param_name;
 }
@@ -1885,7 +1886,7 @@ func reader_decl_set_param_name(node *u8, ptr *u8) void {
     n.param_name = ptr;
 }
 
-func reader_decl_param_len(node *u8) i64 {
+pub func reader_decl_param_len(node *u8) i64 {
     var n *ReaderDecl = node;
     return n.param_len;
 }
@@ -1895,7 +1896,7 @@ func reader_decl_set_param_len(node *u8, len i64) void {
     n.param_len = len;
 }
 
-func reader_decl_body(node *u8) *u8 {
+pub func reader_decl_body(node *u8) *u8 {
     var n *ReaderDecl = node;
     return n.body;
 }
@@ -1915,7 +1916,7 @@ func reader_decl_set_is_ast(node *u8, val i64) void {
     n.is_ast = val;
 }
 
-func reader_decl_is_pub(node *u8) i64 {
+pub func reader_decl_is_pub(node *u8) i64 {
     var n *ReaderDecl = node;
     return n.is_pub;
 }
@@ -1944,7 +1945,7 @@ func reader_expr_alloc() *u8 {
     return node;
 }
 
-func reader_expr_name(node *u8) *u8 {
+pub func reader_expr_name(node *u8) *u8 {
     var n *ReaderExpr = node;
     return n.name;
 }
@@ -1954,7 +1955,7 @@ func reader_expr_set_name(node *u8, ptr *u8) void {
     n.name = ptr;
 }
 
-func reader_expr_name_len(node *u8) i64 {
+pub func reader_expr_name_len(node *u8) i64 {
     var n *ReaderExpr = node;
     return n.name_len;
 }
@@ -1964,7 +1965,7 @@ func reader_expr_set_name_len(node *u8, len i64) void {
     n.name_len = len;
 }
 
-func reader_expr_content(node *u8) *u8 {
+pub func reader_expr_content(node *u8) *u8 {
     var n *ReaderExpr = node;
     return n.content;
 }
@@ -1974,7 +1975,7 @@ func reader_expr_set_content(node *u8, ptr *u8) void {
     n.content = ptr;
 }
 
-func reader_expr_content_len(node *u8) i64 {
+pub func reader_expr_content_len(node *u8) i64 {
     var n *ReaderExpr = node;
     return n.content_len;
 }
@@ -2001,7 +2002,7 @@ func include_decl_alloc() *u8 {
     return node;
 }
 
-func include_decl_path(node *u8) *u8 {
+pub func include_decl_path(node *u8) *u8 {
     var n *IncludeDecl = node;
     return n.path;
 }
@@ -2011,7 +2012,7 @@ func include_decl_set_path(node *u8, ptr *u8) void {
     n.path = ptr;
 }
 
-func include_decl_path_len(node *u8) i64 {
+pub func include_decl_path_len(node *u8) i64 {
     var n *IncludeDecl = node;
     return n.path_len;
 }
@@ -2035,7 +2036,7 @@ func require_decl_alloc() *u8 {
     return node;
 }
 
-func require_decl_module(node *u8) *u8 {
+pub func require_decl_module(node *u8) *u8 {
     var n *RequireDecl = node;
     return n.module;
 }
@@ -2045,7 +2046,7 @@ func require_decl_set_module(node *u8, ptr *u8) void {
     n.module = ptr;
 }
 
-func require_decl_module_len(node *u8) i64 {
+pub func require_decl_module_len(node *u8) i64 {
     var n *RequireDecl = node;
     return n.module_len;
 }
@@ -2080,7 +2081,7 @@ func modules_decl_set_modules(node *u8, ptr *u8) void {
     n.modules = ptr;
 }
 
-func modules_decl_count(node *u8) i64 {
+pub func modules_decl_count(node *u8) i64 {
     var n *ModulesDecl = node;
     return n.count;
 }
@@ -2091,19 +2092,19 @@ func modules_decl_set_count(node *u8, c i64) void {
 }
 
 // Get module path at index (returns ptr to 16-byte entry)
-func modules_decl_get(node *u8, index i64) *u8 {
+pub func modules_decl_get(node *u8, index i64) *u8 {
     var mods *u8 = modules_decl_modules(node);
     return mods + (index * 16);
 }
 
 // Get module name pointer from entry
-func module_entry_name(entry *u8) *u8 {
+pub func module_entry_name(entry *u8) *u8 {
     var p **u8 = entry;
     return *p;
 }
 
 // Get module name length from entry
-func module_entry_len(entry *u8) i64 {
+pub func module_entry_len(entry *u8) i64 {
     var p *i64 = entry + 8;
     return *p;
 }
@@ -2136,7 +2137,7 @@ func base_type_alloc() *u8 {
     return t;
 }
 
-func base_type_name(t *u8) *u8 {
+pub func base_type_name(t *u8) *u8 {
     var p **u8 = t + 8;
     return *p;
 }
@@ -2146,7 +2147,7 @@ func base_type_set_name(t *u8, ptr *u8) void {
     *p = ptr;
 }
 
-func base_type_name_len(t *u8) i64 {
+pub func base_type_name_len(t *u8) i64 {
     var p *i64 = t + 16;
     return *p;
 }
@@ -2162,7 +2163,7 @@ func ptr_type_alloc() *u8 {
     return t;
 }
 
-func ptr_type_elem(t *u8) *u8 {
+pub func ptr_type_elem(t *u8) *u8 {
     var p **u8 = t + 8;
     return *p;
 }
@@ -2184,7 +2185,7 @@ func func_type_alloc() *u8 {
     return t;
 }
 
-func func_type_params(t *u8) *u8 {
+pub func func_type_params(t *u8) *u8 {
     var p **u8 = t + 8;
     return *p;
 }
@@ -2194,7 +2195,7 @@ func func_type_set_params(t *u8, params *u8) void {
     *p = params;
 }
 
-func func_type_param_count(t *u8) i64 {
+pub func func_type_param_count(t *u8) i64 {
     var p *i64 = t + 16;
     return *p;
 }
@@ -2204,7 +2205,7 @@ func func_type_set_param_count(t *u8, count i64) void {
     *p = count;
 }
 
-func func_type_ret(t *u8) *u8 {
+pub func func_type_ret(t *u8) *u8 {
     var p **u8 = t + 24;
     return *p;
 }
@@ -2226,7 +2227,7 @@ func closure_type_alloc() *u8 {
     return t;
 }
 
-func closure_type_params(t *u8) *u8 {
+pub func closure_type_params(t *u8) *u8 {
     var p **u8 = t + 8;
     return *p;
 }
@@ -2236,7 +2237,7 @@ func closure_type_set_params(t *u8, params *u8) void {
     *p = params;
 }
 
-func closure_type_param_count(t *u8) i64 {
+pub func closure_type_param_count(t *u8) i64 {
     var p *i64 = t + 16;
     return *p;
 }
@@ -2246,7 +2247,7 @@ func closure_type_set_param_count(t *u8, count i64) void {
     *p = count;
 }
 
-func closure_type_ret(t *u8) *u8 {
+pub func closure_type_ret(t *u8) *u8 {
     var p **u8 = t + 24;
     return *p;
 }
@@ -2267,7 +2268,7 @@ func array_type_alloc() *u8 {
     return t;
 }
 
-func array_type_size(t *u8) i64 {
+pub func array_type_size(t *u8) i64 {
     var p *i64 = t + 8;
     return *p;
 }
@@ -2277,7 +2278,7 @@ func array_type_set_size(t *u8, size i64) void {
     *p = size;
 }
 
-func array_type_elem(t *u8) *u8 {
+pub func array_type_elem(t *u8) *u8 {
     var p **u8 = t + 16;
     return *p;
 }
@@ -2298,7 +2299,7 @@ func array_literal_alloc() *u8 {
     return node;
 }
 
-func array_literal_elems(node *u8) *u8 {
+pub func array_literal_elems(node *u8) *u8 {
     var p **u8 = node + 8;
     return *p;
 }
@@ -2308,7 +2309,7 @@ func array_literal_set_elems(node *u8, elems *u8) void {
     *p = elems;
 }
 
-func array_literal_count(node *u8) i64 {
+pub func array_literal_count(node *u8) i64 {
     var p *i64 = node + 16;
     return *p;
 }
@@ -2353,7 +2354,7 @@ func index_expr_set_index(node *u8, idx *u8) void {
 // Param accessors (24 bytes each)
 // ============================================================
 
-func param_name(p *u8) *u8 {
+pub func param_name(p *u8) *u8 {
     var ptr **u8 = p;
     return *ptr;
 }
@@ -2363,7 +2364,7 @@ func param_set_name(p *u8, name *u8) void {
     *ptr = name;
 }
 
-func param_name_len(p *u8) i64 {
+pub func param_name_len(p *u8) i64 {
     var ptr *i64 = p + 8;
     return *ptr;
 }
@@ -2373,7 +2374,7 @@ func param_set_name_len(p *u8, len i64) void {
     *ptr = len;
 }
 
-func param_type(p *u8) *u8 {
+pub func param_type(p *u8) *u8 {
     var ptr **u8 = p + 16;
     return *ptr;
 }
@@ -2389,21 +2390,21 @@ func param_set_type(p *u8, t *u8) void {
 
 var parse_tokens *u8 = nil;      // vec of token pointers
 var parse_current i64 = 0;
-var parse_error_count i64 = 0;  // v2
+pub var parse_error_count i64 = 0;  // v2
 var parse_max_errors i64 = 10;   // Stop after this many errors
 
 // ============================================================
 // Token array helper (using vec)
 // ============================================================
 
-func get_token(index i64) *u8 {
+pub func get_token(index i64) *u8 {
     var ptr_as_int i64 = vec_get(parse_tokens, index);
     var p *i64 = &ptr_as_int;
     var pp **u8 = p;
     return *pp;
 }
 
-func parser_token_count() i64 {
+pub func parser_token_count() i64 {
     return vec_len(parse_tokens);
 }
 
@@ -2425,7 +2426,7 @@ func parser_add_token(tok *u8) void {
 }
 
 // Tokenize source and fill token array
-func parser_tokenize(source *u8) void {
+pub func parser_tokenize(source *u8) void {
     parser_init();
     lexer_init(source);
 
@@ -2611,7 +2612,7 @@ func parse_type() *u8 {
 
 // Forward declarations via recursive calls
 
-func parse_expression() *u8 {
+pub func parse_expression() *u8 {
     return parse_assignment();
 }
 
@@ -4018,7 +4019,7 @@ func parse_declaration() *u8 {
 
 // Program: [decls:8][decl_count:8] = 16 bytes
 
-func parse_program() *u8 {
+pub func parse_program() *u8 {
     // Allocate decls array (max 1000)
     var decls *u8 = alloc(LIMIT_TOP_DECLS * 8);
     var decl_count i64 = 0;
@@ -4042,17 +4043,17 @@ func parse_program() *u8 {
 }
 
 // Program accessors
-func program_decls(prog *u8) *u8 {
+pub func program_decls(prog *u8) *u8 {
     var p **u8 = prog;
     return *p;
 }
 
-func program_decl_count(prog *u8) i64 {
+pub func program_decl_count(prog *u8) i64 {
     var p *i64 = prog + 8;
     return *p;
 }
 
-func get_decl(decls *u8, index i64) *u8 {
+pub func get_decl(decls *u8, index i64) *u8 {
     var p **u8 = decls + (index * 8);
     return *p;
 }

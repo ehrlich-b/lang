@@ -6,6 +6,10 @@
 // - Reader macro protocol (readers output S-expr AST)
 // - Round-trip testing
 
+require "src/limits"
+require "src/lexer"
+require "src/parser"
+
 // ============================================================
 // Array accessor helpers for raw arrays (not Vecs)
 // ============================================================
@@ -933,7 +937,7 @@ func ast_emit_pattern(p *u8) void {
 // Program emission (top-level)
 // ============================================================
 
-func ast_emit_program(prog *u8) *u8 {
+pub func ast_emit_program(prog *u8) *u8 {
     ast_emit_init();
     ast_emit_str("(program");
 
@@ -955,7 +959,7 @@ func ast_emit_program(prog *u8) *u8 {
 }
 
 // Emit a single expression as S-expr AST (for inline readers)
-func ast_emit_expression(expr *u8) *u8 {
+pub func ast_emit_expression(expr *u8) *u8 {
     ast_emit_init();
     ast_emit_node(expr);
     return ast_emit_finish();

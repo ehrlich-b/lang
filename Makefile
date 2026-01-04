@@ -623,23 +623,56 @@ seed-bootstrap: emit-kernel-ast emit-lang-reader-ast emit-compiler-ast
 	@echo "Seeded: bootstrap/$(GIT_COMMIT)/"
 	@echo "To activate: ln -sfn $(GIT_COMMIT) bootstrap/current"
 
-# Test composition: kernel -c lang_reader.ast -o lang_composed.s
-test-composition: build-kernel emit-kernel-ast emit-lang-reader-ast emit-compiler-ast
-	@echo "=== Testing composition: kernel -c lang_reader.ast ==="
-	./out/kernel -c out/ast/lang_reader.ast \
-		--kernel-ast out/ast/kernel.ast \
-		--compiler-ast out/ast/compiler.ast \
-		-o out/lang_composed.s
-	as out/lang_composed.s -o out/lang_composed.o
-	ld out/lang_composed.o -o out/lang_composed
-	rm -f out/lang_composed.o
-	@echo "Built: out/lang_composed"
+# Test composition: kernel + reader via -r mode
+# This is the new composition flow:
+#   1. Build kernel AST with --emit-exe-ast (standalone, with ___main)
+#   2. Build kernel binary with --embed-self (self-aware, carries its own AST)
+#   3. Build reader AST with --emit-expanded-ast (for composition, NO ___main)
+#   4. Compose: kernel -r lang reader.ast -> lang1
+#   5. Test: lang1 can compile programs that require "std/core"
+test-composition:
+	@echo "╔════════════════════════════════════════════════════════════════╗"
+	@echo "║              TEST COMPOSITION (LLVM)                           ║"
+	@echo "╚════════════════════════════════════════════════════════════════╝"
+	@mkdir -p /tmp/compose_test
 	@echo ""
-	@echo "Testing composed compiler on hello.lang..."
-	./out/lang_composed test/suite/181_hello.lang -o /tmp/hello_composed.s
-	as /tmp/hello_composed.s -o /tmp/hello_composed.o
-	ld /tmp/hello_composed.o -o /tmp/hello_composed
-	@/tmp/hello_composed && echo "SUCCESS: Composed compiler works!"
+	@echo "┌─ Step 1: Build kernel AST (--emit-exe-ast, with ___main) ──────┐"
+	LANGBE=llvm LANGOS=$(PLATFORM) ./out/lang --emit-exe-ast \
+		std/core.lang src/version_info.lang src/lexer.lang src/parser.lang \
+		src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang \
+		src/sexpr_reader.lang src/main.lang \
+		-o /tmp/compose_test/kernel.ast
+	@echo "  Kernel AST: $$(wc -l < /tmp/compose_test/kernel.ast) lines"
+	@echo ""
+	@echo "┌─ Step 2: Build kernel binary (--embed-self) ───────────────────┐"
+	LANGBE=llvm LANGOS=$(PLATFORM) ./out/lang /tmp/compose_test/kernel.ast \
+		--embed-self -o /tmp/compose_test/kernel.ll
+	clang -O2 /tmp/compose_test/kernel.ll -o /tmp/compose_test/kernel
+	@echo "  Built: /tmp/compose_test/kernel"
+	/tmp/compose_test/kernel version || true
+	@echo ""
+	@echo "┌─ Step 3: Build reader AST (--emit-expanded-ast, NO ___main) ───┐"
+	./out/lang --emit-expanded-ast src/lang_reader.lang \
+		-o /tmp/compose_test/lang_reader.ast
+	@echo "  Reader AST: $$(wc -l < /tmp/compose_test/lang_reader.ast) lines"
+	@echo ""
+	@echo "┌─ Step 4: Compose kernel + reader (-r lang) ────────────────────┐"
+	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/compose_test/kernel -r lang /tmp/compose_test/lang_reader.ast \
+		-o /tmp/compose_test/lang1.ll
+	clang -O2 /tmp/compose_test/lang1.ll -o /tmp/compose_test/lang1
+	@echo "  Built: /tmp/compose_test/lang1"
+	/tmp/compose_test/lang1 version || true
+	@echo ""
+	@echo "┌─ Step 5: Test composed compiler ───────────────────────────────┐"
+	@echo 'require "std/core"' > /tmp/compose_test/hello.lang
+	@echo 'func main() i64 { println("Hello from composed compiler!"); return 0; }' >> /tmp/compose_test/hello.lang
+	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/compose_test/lang1 /tmp/compose_test/hello.lang -o /tmp/compose_test/hello.ll
+	clang /tmp/compose_test/hello.ll -o /tmp/compose_test/hello
+	@/tmp/compose_test/hello
+	@echo ""
+	@echo "╔════════════════════════════════════════════════════════════════╗"
+	@echo "║              COMPOSITION TEST PASSED                           ║"
+	@echo "╚════════════════════════════════════════════════════════════════╝"
 
 # Test bootstrap: verify true fixed point
 # The fixed point is: A -c lang.lang === B -c lang.lang
