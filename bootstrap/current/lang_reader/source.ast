@@ -5763,8 +5763,5 @@
         (if (binop > (ident parse_error_count) (number 0))
           (block
             (return (nil))))
-        (return (call (ident ast_emit_expression) (ident expr)))))))
-  (func ___main ((param argc (type_base i64)) (param argv (type_ptr (type_ptr (type_base u8)))) (param envp (type_ptr (type_ptr (type_base u8))))) (type_base i64)
-    (block
-      (return (call (ident main) (ident argc) (ident argv))))))
+        (return (call (ident ast_emit_expression) (ident expr))))))))
   

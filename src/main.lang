@@ -86,7 +86,8 @@ func append_str(buf *u8, len *i64, s *u8) void {
 
 // Global flags for AST modes
 var emit_ast_mode i64 = 0;
-var emit_expanded_ast_mode i64 = 0;  // Emit with includes fully expanded
+var emit_expanded_ast_mode i64 = 0;  // Emit with includes fully expanded (NO ___main, for composition)
+var emit_exe_ast_mode i64 = 0;       // Emit with includes expanded AND ___main (standalone executable)
 var from_ast_mode i64 = 0;
 var from_ast_file *u8 = nil;
 var embed_self_mode i64 = 0;  // --embed-self: inject AST file into self_kernel variable
@@ -304,7 +305,8 @@ func cmd_help_compile() i64 {
     println("  -o <file>           Output file (required)");
     println("  -c <reader>         Generate standalone compiler with reader");
     println("  --emit-ast          Emit AST S-expressions instead of assembly");
-    println("  --emit-expanded-ast Emit fully expanded AST (includes inlined)");
+    println("  --emit-expanded-ast Emit fully expanded AST (for composition, no ___main)");
+    println("  --emit-exe-ast      Emit executable AST (expanded with ___main)");
     println("  --from-ast          Input is AST, not source");
     println("  --embed-self        Inject AST file into self_kernel variable");
     println("  --expand-macros     Print macro expansions to stderr");
@@ -658,9 +660,14 @@ func main(argc i64, argv **u8) i64 {
                 emit_ast_mode = 1;
                 handled = 1;
             }
-            // Check for --emit-expanded-ast flag (fully expand includes)
+            // Check for --emit-expanded-ast flag (fully expand includes, NO ___main)
             if handled == 0 && memcmp(arg + 2, "emit-expanded-ast", 17) {
                 emit_expanded_ast_mode = 1;
+                handled = 1;
+            }
+            // Check for --emit-exe-ast flag (expanded includes WITH ___main for standalone)
+            if handled == 0 && memcmp(arg + 2, "emit-exe-ast", 12) {
+                emit_exe_ast_mode = 1;
                 handled = 1;
             }
             // Check for --from-ast flag
@@ -777,16 +784,16 @@ func main(argc i64, argv **u8) i64 {
             i = i + 1;
         }
 
-        // Add ___main wrapper that calls user's main (skip in --emit-ast mode for composition)
-        // Passes argc/argv - arg count check skipped for 'main' to support both signatures
-        // Skip for LLVM backend - clang provides entry point
-        // Note: envp is received but not used - programs needing getenv should call init_environ explicitly
+        // Add ___main wrapper that calls user's main
+        // Skip for: --emit-ast (debug), --emit-expanded-ast (composition), LLVM backend (clang provides entry)
+        // Include for: normal x86 compile, --emit-exe-ast (standalone executable AST)
         var langbe_check *u8 = getenv("LANGBE");
         var is_llvm i64 = 0;
         if langbe_check != nil && streq(langbe_check, "llvm") {
             is_llvm = 1;
         }
-        if emit_ast_mode == 0 && is_llvm == 0 {
+        // Add ___main if: exe-ast mode OR (normal compile without AST modes and not LLVM)
+        if emit_exe_ast_mode != 0 || (emit_ast_mode == 0 && emit_expanded_ast_mode == 0 && is_llvm == 0) {
             // Simple ___main - no environment setup for basic programs
             // Programs needing getenv should include std/core.lang
             append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(argc, argv); }\n");
@@ -1305,8 +1312,10 @@ func main(argc i64, argv **u8) i64 {
     }
 
     // Output based on mode
-    if emit_expanded_ast_mode != 0 {
+    if emit_expanded_ast_mode != 0 || emit_exe_ast_mode != 0 {
         // Emit FULLY EXPANDED AST (all includes resolved inline)
+        // emit_expanded_ast: for composition (no ___main)
+        // emit_exe_ast: for standalone compilation (has ___main)
         expand_included_map = map_new();
         expand_collected_decls = vec_new(1024);
         expand_input_files = input_files;  // Track input files for modules metadata

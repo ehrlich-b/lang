@@ -140,16 +140,21 @@ No `./std/core.lang` exists. The AST must come from the kernel.
 ## Acceptance Test
 
 ```bash
-# 1. Build kernel
-./out/lang --emit-expanded-ast std/core.lang src/*.lang -o /tmp/full.ast
+# 1. Build kernel (use --emit-exe-ast for standalone with ___main)
+./out/lang --emit-exe-ast std/core.lang src/version_info.lang src/lexer.lang \
+    src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang \
+    src/sexpr_reader.lang src/main.lang -o /tmp/full.ast
 ./out/lang /tmp/full.ast --embed-self -o /tmp/kernel.ll
 clang -O2 /tmp/kernel.ll -o /tmp/kernel
 
-# 2. Add lang reader
-/tmp/kernel -r lang lang_reader.ast -o /tmp/lang1.ll
+# 2. Build reader AST (use --emit-expanded-ast for composition, NO ___main)
+./out/lang --emit-expanded-ast src/lang_reader.lang -o /tmp/lang_reader.ast
+
+# 3. Compose kernel + reader
+/tmp/kernel -r lang /tmp/lang_reader.ast -o /tmp/lang1.ll
 clang -O2 /tmp/lang1.ll -o /tmp/lang1
 
-# 3. Compile standalone program (no external files needed!)
+# 4. Compile standalone program (no external files needed!)
 echo 'require "std/core" func main() i64 { println("Hi"); return 0; }' > hello.lang
 /tmp/lang1 hello.lang -o hello.ll
 clang hello.ll -o hello && ./hello  # Prints "Hi"

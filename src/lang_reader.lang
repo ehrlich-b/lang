@@ -10,11 +10,11 @@
 //
 // This makes lang's syntax a plugin - just another reader that emits AST.
 
-require "std/core"
-require "src/limits"
-require "src/lexer"
-require "src/parser"
-require "src/ast_emit"
+include "std/core.lang"
+include "src/limits.lang"
+include "src/lexer.lang"
+include "src/parser.lang"
+include "src/ast_emit.lang"
 
 // Check if token type indicates a declaration
 func is_decl_token(t i64) bool {
