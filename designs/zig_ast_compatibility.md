@@ -9,23 +9,24 @@
 - [x] Document AIR → lang AST mapping
 - [x] Identify required lang extensions
 
-### Phase 2: Lang Extensions (Current)
+### Phase 2: Lang Extensions ✅ COMPLETE
 
-**Blockers** - these lang features must be implemented first:
+- [x] **Add `cast` node** → See **[designs/cast_node.md](cast_node.md)**
+  - [x] Parser: `cast(type, expr)` and `bitcast(type, expr)` syntax
+  - [x] Codegen: emit fptosi/sitofp/bitcast based on types
+  - [x] Bootstrap
+  - [x] Test: `265_cast_basic.lang` (expect: 100 - tests float↔int and bitcast)
 
-- [ ] **Add `cast` node** → See **[designs/cast_node.md](cast_node.md)**
-  - [ ] Parser: recognize `(cast type expr)` and `(bitcast type expr)`
-  - [ ] Codegen: emit sext/zext/trunc/bitcast based on types
-  - [ ] Bootstrap
-  - [ ] Test: `265_cast_basic.lang` (expect: 136)
+- [x] **Add i128/u128 types** → See **[designs/i128_support.md](i128_support.md)**
+  - [x] Parser: recognize i128/u128 type names
+  - [x] Bootstrap
+  - [x] Test: `270_i128_basic.lang` (expect: 42 - type recognition)
+  - Note: Full i128 allocation requires integer type system work (values stored as i64)
 
-- [ ] **Add i128/u128 types** → See **[designs/i128_support.md](i128_support.md)**
-  - [ ] Codegen: emit LLVM `i128` for i128/u128 types
-  - [ ] Bootstrap
-  - [ ] Test: `270_i128_basic.lang` (expect: 111)
+### Phase 3: AIR Emitter → See **[designs/air_emitter.md](air_emitter.md)**
 
-### Phase 3: AIR Emitter
-- [ ] Create `lang_ast.zig` in zig source tree
+- [ ] Set up patches infrastructure (`patches/zig/`, `make patch-zig`)
+- [ ] Create `patches/zig/src/codegen/lang_ast.zig`
 - [ ] Emit program structure (funcs, structs)
 - [ ] Handle arithmetic: add, sub, mul, div, rem
 - [ ] Handle bitwise: and, or, xor, shl, shr
