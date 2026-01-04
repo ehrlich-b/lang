@@ -219,6 +219,53 @@ func expand_collect_decl(decl *u8) void {
             expand_collect_decl(get_decl(inc_decls, j));
             j = j + 1;
         }
+    } else if k == NODE_REQUIRE_DECL {
+        // Handle require like include for expansion
+        var mod *u8 = require_decl_module(decl);
+        var mod_len i64 = require_decl_module_len(decl);
+
+        // Build full path: "src/lexer" -> "src/lexer.lang"
+        var path_str *u8 = alloc(mod_len + 6);
+        memcpy(path_str, mod, mod_len);
+        memcpy(path_str + mod_len, ".lang", 5);
+        *(path_str + mod_len + 5) = 0;
+
+        // Skip if already included/required
+        if map_has(expand_included_map, path_str) {
+            return;
+        }
+        map_set(expand_included_map, path_str, 1);
+
+        // Read and parse file
+        var buf *u8 = alloc(1048576);
+        var fd i64 = file_open(path_str, 0);
+        if fd < 0 {
+            eprint("Error: cannot open require file: ");
+            eprintln(path_str);
+            return;
+        }
+        var n i64 = file_read(fd, buf, 1048576);
+        file_close(fd);
+        if n < 0 { return; }
+        *(buf + n) = 0;
+
+        // Parse
+        parser_tokenize(buf);
+        var prog *u8 = parse_program();
+        if prog == nil || parse_error_count > 0 {
+            eprint("Error: cannot parse require file: ");
+            eprintln(path_str);
+            return;
+        }
+
+        // Recursively collect declarations
+        var inc_decls *u8 = program_decls(prog);
+        var inc_count i64 = program_decl_count(prog);
+        var j i64 = 0;
+        while j < inc_count {
+            expand_collect_decl(get_decl(inc_decls, j));
+            j = j + 1;
+        }
     } else {
         // Non-include declaration - add to collected list
         vec_push(expand_collected_decls, decl);
@@ -1319,6 +1366,16 @@ func main(argc i64, argv **u8) i64 {
         expand_included_map = map_new();
         expand_collected_decls = vec_new(1024);
         expand_input_files = input_files;  // Track input files for modules metadata
+
+        // Pre-populate expand_included_map with input files
+        // This prevents requires from re-including files already on command line
+        var input_count i64 = vec_len(input_files);
+        var inp_idx i64 = 0;
+        while inp_idx < input_count {
+            var inp_path *u8 = vec_get(input_files, inp_idx);
+            map_set(expand_included_map, inp_path, 1);
+            inp_idx = inp_idx + 1;
+        }
 
         // Process all declarations, expanding includes
         var decls *u8 = program_decls(prog);
