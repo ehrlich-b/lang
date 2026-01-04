@@ -675,7 +675,7 @@ func llvm_is_float_literal(val *u8) i64 {
 
 func llvm_register_func(name *u8, len i64, ret_type *u8) void {
     var key *u8 = str_dup_n(name, len);
-    // Store: 0 = i64, 1 = void, 2 = pointer, 3 = bool, 4 = u8
+    // Store: 0 = i64, 1 = void, 2 = pointer, 3 = bool, 4 = u8, 5 = f32, 6 = f64
     var ret_kind i64 = 0;
     if llvm_is_void_type(ret_type) {
         ret_kind = 1;
@@ -685,6 +685,10 @@ func llvm_register_func(name *u8, len i64, ret_type *u8) void {
         ret_kind = 3;
     } else if llvm_is_u8_type(ret_type) {
         ret_kind = 4;
+    } else if llvm_is_f32_type(ret_type) {
+        ret_kind = 5;
+    } else if llvm_is_f64_type(ret_type) {
+        ret_kind = 6;
     }
     map_set(llvm_func_ret_types, key, ret_kind);
 }
@@ -719,6 +723,22 @@ func llvm_func_returns_u8(name *u8, len i64) i64 {
         return map_get(llvm_func_ret_types, key) == 4;
     }
     return 0;  // Default: assume i64
+}
+
+func llvm_func_returns_f32(name *u8, len i64) i64 {
+    var key *u8 = str_dup_n(name, len);
+    if map_has(llvm_func_ret_types, key) {
+        return map_get(llvm_func_ret_types, key) == 5;
+    }
+    return 0;
+}
+
+func llvm_func_returns_f64(name *u8, len i64) i64 {
+    var key *u8 = str_dup_n(name, len);
+    if map_has(llvm_func_ret_types, key) {
+        return map_get(llvm_func_ret_types, key) == 6;
+    }
+    return 0;
 }
 
 // Set llvm_expr_result to "%t{n}"
@@ -938,11 +958,15 @@ func llvm_emit_array_addr(expr *u8) void {
 // Emit expression, return the LLVM value reference (e.g., "%1" or "42")
 // Result is written to a temp buffer that caller must use immediately
 var llvm_expr_result *u8 = nil;
+var llvm_expr_is_float i64 = 0;  // Track if last expression result is a float type
 
 func llvm_emit_expr(expr *u8) void {
     if llvm_expr_result == nil {
         llvm_expr_result = alloc(256);
     }
+
+    // Reset float tracking (will be set if we emit a float)
+    llvm_expr_is_float = 0;
 
     if expr == nil {
         // Return void/undef
@@ -957,6 +981,10 @@ func llvm_emit_expr(expr *u8) void {
     if k == NODE_NUMBER_EXPR {
         // Emit literal number - value is stored as a string
         var ptr *u8 = number_expr_value(expr);
+        // Check if it's a float literal (contains '.')
+        if llvm_is_float_literal(ptr) {
+            llvm_expr_is_float = 1;
+        }
         var len i64 = number_expr_value_len(expr);
         var i i64 = 0;
         while i < len {
@@ -1053,11 +1081,20 @@ func llvm_emit_expr(expr *u8) void {
                 llvm_emit_line(" to i64");
                 llvm_set_result_temp(temp);
             } else {
-                // Primitive let binding: load from unique name
+                // Primitive let binding: load from unique name with proper type
                 var temp i64 = llvm_next_temp();
                 llvm_emit_str("    %t");
                 llvm_emit_int(temp);
-                llvm_emit_str(" = load i64, i64* %");
+                llvm_emit_str(" = load ");
+                if local_type != nil && llvm_is_float_type(local_type) {
+                    llvm_expr_is_float = 1;
+                    llvm_emit_type(local_type);
+                    llvm_emit_str(", ");
+                    llvm_emit_type(local_type);
+                    llvm_emit_str("* %");
+                } else {
+                    llvm_emit_str("i64, i64* %");
+                }
                 llvm_emit_n(unique, unique_len);
                 llvm_emit_char(10);
                 llvm_set_result_temp(temp);
@@ -1100,21 +1137,44 @@ func llvm_emit_expr(expr *u8) void {
                 llvm_emit_line(" to i64");
                 llvm_set_result_temp(temp);
             } else {
-                // Primitive type: emit load
+                // Primitive type: emit load with proper type
                 var temp i64 = llvm_next_temp();
                 llvm_emit_str("    %t");
                 llvm_emit_int(temp);
-                llvm_emit_str(" = load i64, i64* %");
+                llvm_emit_str(" = load ");
+                if local_type != nil && llvm_is_float_type(local_type) {
+                    llvm_expr_is_float = 1;
+                    llvm_emit_type(local_type);
+                    llvm_emit_str(", ");
+                    llvm_emit_type(local_type);
+                    llvm_emit_str("* %");
+                } else {
+                    llvm_emit_str("i64, i64* %");
+                }
                 llvm_emit_n(name, len);
                 llvm_emit_char(10);
                 llvm_set_result_temp(temp);
             }
         } else if llvm_is_global(name, len) {
             // Global variable: emit load from @name
+            var global_idx i64 = find_global(name, len);
+            var global_type *u8 = nil;
+            if global_idx >= 0 {
+                global_type = global_get_type(global_idx);
+            }
             var temp i64 = llvm_next_temp();
             llvm_emit_str("    %t");
             llvm_emit_int(temp);
-            llvm_emit_str(" = load i64, i64* @");
+            llvm_emit_str(" = load ");
+            if global_type != nil && llvm_is_float_type(global_type) {
+                llvm_expr_is_float = 1;
+                llvm_emit_type(global_type);
+                llvm_emit_str(", ");
+                llvm_emit_type(global_type);
+                llvm_emit_str("* @");
+            } else {
+                llvm_emit_str("i64, i64* @");
+            }
             llvm_emit_n(name, len);
             llvm_emit_char(10);
             llvm_set_result_temp(temp);
@@ -1645,11 +1705,13 @@ func llvm_emit_expr(expr *u8) void {
             indirect_ptr_val = buf2;
         }
 
-        // Check if function returns void, pointer, bool, or u8
+        // Check if function returns void, pointer, bool, u8, or float
         var is_void i64 = llvm_func_returns_void(func_name, func_name_len);
         var is_ptr i64 = llvm_func_returns_ptr(func_name, func_name_len);
         var is_bool i64 = llvm_func_returns_bool(func_name, func_name_len);
         var is_u8 i64 = llvm_func_returns_u8(func_name, func_name_len);
+        var is_f32 i64 = llvm_func_returns_f32(func_name, func_name_len);
+        var is_f64 i64 = llvm_func_returns_f64(func_name, func_name_len);
 
         // Check if this is syscall (variadic)
         var is_syscall i64 = 0;
@@ -1718,6 +1780,22 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_str(" = call i8 @");
             llvm_emit_n(func_name, func_name_len);
             llvm_emit_str("(");
+        } else if is_f32 {
+            // f32-returning function: call float
+            call_temp = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(call_temp);
+            llvm_emit_str(" = call float @");
+            llvm_emit_n(func_name, func_name_len);
+            llvm_emit_str("(");
+        } else if is_f64 {
+            // f64-returning function: call double
+            call_temp = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(call_temp);
+            llvm_emit_str(" = call double @");
+            llvm_emit_n(func_name, func_name_len);
+            llvm_emit_str("(");
         } else {
             // Non-void function returning i64: assign result to temp
             call_temp = llvm_next_temp();
@@ -1737,12 +1815,31 @@ func llvm_emit_expr(expr *u8) void {
             }
         }
 
+        // Get function parameters for type information
+        var func_params *u8 = nil;
+        if known_func != nil {
+            func_params = func_decl_params(known_func);
+        }
+
         i = 0;
         while i < emit_arg_count {
             if i > 0 {
                 llvm_emit_str(", ");
             }
-            llvm_emit_str("i64 ");
+            // Check if this parameter is a float type
+            var param_is_float i64 = 0;
+            if func_params != nil {
+                var p *u8 = func_params + (i * 24);
+                var ptype *u8 = param_type(p);
+                if ptype != nil && llvm_is_float_type(ptype) {
+                    param_is_float = 1;
+                    llvm_emit_type(ptype);
+                    llvm_emit_str(" ");
+                }
+            }
+            if param_is_float == 0 {
+                llvm_emit_str("i64 ");
+            }
             llvm_emit_str(*(arg_vals + i));
             i = i + 1;
         }
@@ -1784,6 +1881,10 @@ func llvm_emit_expr(expr *u8) void {
         // Set result to the temp (only meaningful for non-void)
         if is_void == 0 {
             llvm_set_result_temp(call_temp);
+            // Track if result is a float type
+            if is_f32 || is_f64 {
+                llvm_expr_is_float = 1;
+            }
         }
         return;
     }
@@ -1998,9 +2099,15 @@ func llvm_emit_expr(expr *u8) void {
         llvm_emit_expr(right);
         var right_val *u8 = str_dup(llvm_expr_result);
 
+        // Check operand types for float (using get_expr_type, not global tracking)
+        var left_type *u8 = get_expr_type(left);
+        var right_type *u8 = get_expr_type(right);
+        var left_is_float i64 = left_type != nil && llvm_is_float_type(left_type);
+        var right_is_float i64 = right_type != nil && llvm_is_float_type(right_type);
+
         // Pointer arithmetic scaling: ptr + n -> ptr + (n * sizeof(*ptr))
         if op == 25 || op == 26 {  // TOKEN_PLUS or TOKEN_MINUS
-            var left_type *u8 = get_expr_type(left);
+            // left_type already computed above
             if left_type != nil && type_kind(left_type) == TYPE_PTR {
                 var elem_type *u8 = ptr_type_elem(left_type);
                 var elem_size i64 = 8;  // default
@@ -2030,8 +2137,8 @@ func llvm_emit_expr(expr *u8) void {
         var is_cmp i64 = 0;
         if op >= 33 && op <= 38 { is_cmp = 1; }
 
-        // Check if either operand is a float literal
-        var is_float i64 = llvm_is_float_literal(left_val) || llvm_is_float_literal(right_val);
+        // Check if either operand is a float (via literal check OR tracked type)
+        var is_float i64 = left_is_float || right_is_float || llvm_is_float_literal(left_val) || llvm_is_float_literal(right_val);
 
         // Allocate temp for result
         var temp i64 = llvm_next_temp();
@@ -2487,19 +2594,35 @@ func llvm_emit_expr(expr *u8) void {
         // Push let binding for name->unique_name mapping
         llvm_push_let_binding(name, name_len, unique_name, unique_len);
 
-        // Allocate stack slot for let binding
+        // Allocate stack slot for let binding - use proper type for floats
         llvm_emit_str("    %");
         llvm_emit_n(unique_name, unique_len);
-        llvm_emit_line(" = alloca i64");
+        llvm_emit_str(" = alloca ");
+        if var_type != nil && llvm_is_float_type(var_type) {
+            llvm_emit_type(var_type);
+        } else {
+            llvm_emit_str("i64");
+        }
+        llvm_emit_char(10);
 
         // Generate init expression
         llvm_emit_expr(let_expr_init(expr));
         var init_val *u8 = str_dup(llvm_expr_result);
 
-        // Store init value
-        llvm_emit_str("    store i64 ");
-        llvm_emit_str(init_val);
-        llvm_emit_str(", i64* %");
+        // Store init value - use proper type for floats
+        llvm_emit_str("    store ");
+        if var_type != nil && llvm_is_float_type(var_type) {
+            llvm_emit_type(var_type);
+            llvm_emit_str(" ");
+            llvm_emit_str(init_val);
+            llvm_emit_str(", ");
+            llvm_emit_type(var_type);
+            llvm_emit_str("* %");
+        } else {
+            llvm_emit_str("i64 ");
+            llvm_emit_str(init_val);
+            llvm_emit_str(", i64* %");
+        }
         llvm_emit_n(unique_name, unique_len);
         llvm_emit_char(10);
 
@@ -4419,6 +4542,11 @@ func llvm_emit_stmt(stmt *u8) void {
             llvm_emit_str(" = alloca [");
             llvm_emit_int(alloc_size);
             llvm_emit_line(" x i8]");
+        } else if var_type != nil && llvm_is_float_type(var_type) {
+            // Float type: alloca with proper type
+            llvm_emit_str(" = alloca ");
+            llvm_emit_type(var_type);
+            llvm_emit_char(10);
         } else if alloc_size <= 8 {
             llvm_emit_line(" = alloca i64");
         } else {
@@ -4493,10 +4621,20 @@ func llvm_emit_stmt(stmt *u8) void {
             }
 
             if is_aggregate == 0 {
-                // Simple store for primitives
-                llvm_emit_str("    store i64 ");
-                llvm_emit_str(init_val);
-                llvm_emit_str(", i64* %");
+                // Simple store for primitives - use proper type for floats
+                llvm_emit_str("    store ");
+                if var_type != nil && llvm_is_float_type(var_type) {
+                    llvm_emit_type(var_type);
+                    llvm_emit_str(" ");
+                    llvm_emit_str(init_val);
+                    llvm_emit_str(", ");
+                    llvm_emit_type(var_type);
+                    llvm_emit_str("* %");
+                } else {
+                    llvm_emit_str("i64 ");
+                    llvm_emit_str(init_val);
+                    llvm_emit_str(", i64* %");
+                }
                 llvm_emit_n(actual_name, actual_name_len);
                 llvm_emit_char(10);
             } else {
@@ -5383,7 +5521,7 @@ func llvm_emit_func(func_node *u8) void {
     llvm_emit_n(name, name_len);
     llvm_emit_str("(");
 
-    // Parameters - use i64 for all types (simplification)
+    // Parameters - emit proper types for each parameter
     // Name LLVM params with .arg suffix to allow shadowing
     var params *u8 = func_decl_params(func_node);
     var param_count i64 = func_decl_param_count(func_node);
@@ -5393,7 +5531,14 @@ func llvm_emit_func(func_node *u8) void {
             llvm_emit_str(", ");
         }
         var p *u8 = params + (i * 24);
-        llvm_emit_str("i64 %");
+        var ptype *u8 = param_type(p);
+        // Use actual type for floats, i64 for everything else
+        if ptype != nil && llvm_is_float_type(ptype) {
+            llvm_emit_type(ptype);
+        } else {
+            llvm_emit_str("i64");
+        }
+        llvm_emit_str(" %");
         llvm_emit_n(param_name(p), param_name_len(p));
         llvm_emit_str(".arg");
         i = i + 1;
@@ -5469,15 +5614,34 @@ func llvm_emit_func(func_node *u8) void {
         // Register let binding: pname -> unique_name
         llvm_push_let_binding(pname, pname_len, unique_name, actual_name_len);
 
-        // Allocate local with unique name
+        // Allocate local with unique name - use proper type for floats, i64 otherwise
+        var is_float_param i64 = ptype != nil && llvm_is_float_type(ptype);
         llvm_emit_str("    %");
         llvm_emit_n(unique_name, actual_name_len);
-        llvm_emit_line(" = alloca i64");
+        llvm_emit_str(" = alloca ");
+        if is_float_param {
+            llvm_emit_type(ptype);
+        } else {
+            llvm_emit_str("i64");
+        }
+        llvm_emit_char(10);
 
-        // Copy param.arg to local
-        llvm_emit_str("    store i64 %");
+        // Copy param.arg to local - use proper type for floats, i64 otherwise
+        llvm_emit_str("    store ");
+        if is_float_param {
+            llvm_emit_type(ptype);
+        } else {
+            llvm_emit_str("i64");
+        }
+        llvm_emit_str(" %");
         llvm_emit_n(pname, pname_len);
-        llvm_emit_str(".arg, i64* %");
+        llvm_emit_str(".arg, ");
+        if is_float_param {
+            llvm_emit_type(ptype);
+        } else {
+            llvm_emit_str("i64");
+        }
+        llvm_emit_str("* %");
         llvm_emit_n(unique_name, actual_name_len);
         llvm_emit_char(10);
 
