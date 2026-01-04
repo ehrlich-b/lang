@@ -14,14 +14,84 @@ A self-hosted compiler compiler. The AST is the language. Syntax is a plugin.
 4. ✓ AST 2.0: closures, algebraic effects, sum types
 5. ✓ Kernel/reader split (lang as a reader, bootstrap verified)
 6. ✓ **Cross-platform + LLVM backend** (167/167 tests, Linux + macOS)
-7. → **Architecture hardening** ← current
-8. → Bring your own runtime
-9. → WASM backend
-10. → Language forge (any syntax → any target)
+7. ✓ **Kernel/reader composition** (bare kernel + -r reader = compiler)
+8. → **Polish for release** ← current
+9. → Bring your own runtime
+10. → WASM backend
+11. → Language forge (any syntax → any target)
 
 ---
 
-## Current: architecture hardening
+## Current: polish for release
+
+The compiler works. Composition works. Now cleanup before showing anyone.
+
+### High priority
+
+#### Negative tests
+
+Lots of obvious errors leak all the way to code emission:
+- Undefined variables
+- Type mismatches
+- Missing returns
+
+Need a suite of "this should fail" tests that verify errors are caught at the right phase.
+
+#### Reader documentation
+
+Explain readers in stupidly high detail:
+- What they are (syntax plugins that emit AST)
+- How they work (recursive expansion, S-expression output)
+- How to write one (the lang_reader as reference)
+- The composition model (kernel + reader = compiler)
+
+#### Platform auto-detection
+
+Shouldn't have to provide `LANGOS=macos LANGBE=llvm` manually. When the compiler finds itself on macOS:
+- Default to `llvm` backend (no x86 on ARM)
+- Default to `libc` (required on macOS anyway)
+- Default to `macos` OS layer
+
+Just `./out/lang foo.lang` should work on any platform.
+
+### Medium priority
+
+#### Bootstrap restructure: bare kernel + reader composition
+
+Current chain works. ON TOP of it, add the "canonical" path:
+1. Build bare kernel (no reader baked in)
+2. Build lang reader with `--emit-expanded-ast`
+3. `bare_kernel -r lang reader.ast` = composed compiler
+4. This composed compiler runs validation + becomes the distribution artifact
+
+This proves the composition architecture is the real thing, not a sideshow.
+
+#### AST binary mode + compression
+
+The embedded `self_kernel` AST is huge (text S-expressions). Options:
+1. Binary AST format (no parsing overhead, smaller)
+2. Compression before embedding (need to implement in lang)
+3. Both
+
+Could shrink the binary by 10x. Makes the quine pattern less embarrassing.
+
+### Questionable / maybe not worth it
+
+#### "Require tree shaking"
+
+The idea: don't include requires that are already compiled into the kernel.
+
+Problems:
+- It's not tree shaking - the code IS needed, just already present
+- What happens when you add a new std requirement?
+- Outer requires vs inner requires get confusing
+- Is this even worth it on top of compression?
+
+**Verdict:** Probably not worth the complexity. Compression solves the size problem more directly.
+
+---
+
+## Previous: architecture hardening
 
 The compiler works. Now it needs cleanup and decisions about what it actually is.
 
