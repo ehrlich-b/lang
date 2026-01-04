@@ -10,14 +10,19 @@
 - [x] Identify required lang extensions
 
 ### Phase 2: Lang Extensions (Current)
-- [ ] **Add `cast` node** to lang AST
-  - [ ] Parser: recognize `(cast type expr)`
-  - [ ] Codegen: emit sext/zext/trunc based on types
+
+**Blockers** - these lang features must be implemented first:
+
+- [ ] **Add `cast` node** → See **[designs/cast_node.md](cast_node.md)**
+  - [ ] Parser: recognize `(cast type expr)` and `(bitcast type expr)`
+  - [ ] Codegen: emit sext/zext/trunc/bitcast based on types
   - [ ] Bootstrap
-- [ ] **Add i128/u128 types** to lang
-  - [ ] Lexer: recognize `i128`, `u128`
-  - [ ] Codegen: emit LLVM `i128`
+  - [ ] Test: `265_cast_basic.lang` (expect: 136)
+
+- [ ] **Add i128/u128 types** → See **[designs/i128_support.md](i128_support.md)**
+  - [ ] Codegen: emit LLVM `i128` for i128/u128 types
   - [ ] Bootstrap
+  - [ ] Test: `270_i128_basic.lang` (expect: 111)
 
 ### Phase 3: AIR Emitter
 - [ ] Create `lang_ast.zig` in zig source tree

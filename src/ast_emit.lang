@@ -631,6 +631,24 @@ func ast_emit_node(node *u8) void {
         return;
     }
 
+    if kind == NODE_CAST_EXPR {
+        ast_emit_str("(cast ");
+        ast_emit_type(cast_expr_type(node));
+        ast_emit_str(" ");
+        ast_emit_node(cast_expr_expr(node));
+        ast_emit_str(")");
+        return;
+    }
+
+    if kind == NODE_BITCAST_EXPR {
+        ast_emit_str("(bitcast ");
+        ast_emit_type(bitcast_expr_type(node));
+        ast_emit_str(" ");
+        ast_emit_node(bitcast_expr_expr(node));
+        ast_emit_str(")");
+        return;
+    }
+
     if kind == NODE_CALL_EXPR {
         ast_emit_str("(call ");
         ast_emit_node(call_expr_func(node));

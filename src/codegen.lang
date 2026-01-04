@@ -2533,6 +2533,9 @@ func get_type_size(t *u8) i64 {
             if memcmp(name, "void", 4) {
                 return 0;
             }
+            if memcmp(name, "i128", 4) || memcmp(name, "u128", 4) {
+                return 16;
+            }
         }
         // Check if it's a struct type
         var struct_decl *u8 = find_struct(name, len);

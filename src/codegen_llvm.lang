@@ -133,6 +133,10 @@ func llvm_emit_type(type_node *u8) void {
             llvm_emit_str("float");
         } else if len == 3 && memcmp(name, "f64", 3) {
             llvm_emit_str("double");
+        } else if len == 4 && memcmp(name, "i128", 4) {
+            llvm_emit_str("i128");
+        } else if len == 4 && memcmp(name, "u128", 4) {
+            llvm_emit_str("i128");  // LLVM uses i128 for both signed/unsigned
         } else if len == 4 && memcmp(name, "bool", 4) {
             llvm_emit_str("i1");
         } else if len == 4 && memcmp(name, "void", 4) {
@@ -673,6 +677,37 @@ func llvm_is_float_literal(val *u8) i64 {
     return 0;
 }
 
+// Check if type is a signed integer (i8, i16, i32, i64, i128)
+func llvm_is_signed_int(t *u8) i64 {
+    if t == nil { return 0; }
+    if type_kind(t) != TYPE_BASE { return 0; }
+    var name *u8 = base_type_name(t);
+    return *name == 'i';  // i8, i16, i32, i64, i128 start with 'i'
+}
+
+// Get type size in bits (for cast decisions)
+func llvm_type_bits(t *u8) i64 {
+    if t == nil { return 64; }
+    if type_kind(t) != TYPE_BASE { return 64; }
+    var name *u8 = base_type_name(t);
+    var len i64 = base_type_name_len(t);
+
+    if len == 2 && memcmp(name, "i8", 2) { return 8; }
+    if len == 2 && memcmp(name, "u8", 2) { return 8; }
+    if len == 3 && memcmp(name, "i16", 3) { return 16; }
+    if len == 3 && memcmp(name, "u16", 3) { return 16; }
+    if len == 3 && memcmp(name, "i32", 3) { return 32; }
+    if len == 3 && memcmp(name, "u32", 3) { return 32; }
+    if len == 3 && memcmp(name, "f32", 3) { return 32; }
+    if len == 3 && memcmp(name, "i64", 3) { return 64; }
+    if len == 3 && memcmp(name, "u64", 3) { return 64; }
+    if len == 3 && memcmp(name, "f64", 3) { return 64; }
+    if len == 4 && memcmp(name, "i128", 4) { return 128; }
+    if len == 4 && memcmp(name, "u128", 4) { return 128; }
+    if len == 4 && memcmp(name, "bool", 4) { return 1; }
+    return 64;  // default
+}
+
 func llvm_register_func(name *u8, len i64, ret_type *u8) void {
     var key *u8 = str_dup_n(name, len);
     // Store: 0 = i64, 1 = void, 2 = pointer, 3 = bool, 4 = u8, 5 = f32, 6 = f64
@@ -842,6 +877,14 @@ func llvm_get_expr_type(expr *u8) *u8 {
             return ptr_type_elem(base_type);
         }
         return nil;
+    }
+
+    if k == NODE_CAST_EXPR {
+        return cast_expr_type(expr);
+    }
+
+    if k == NODE_BITCAST_EXPR {
+        return bitcast_expr_type(expr);
     }
 
     if k == NODE_UNARY_EXPR {
@@ -2292,6 +2335,138 @@ func llvm_emit_expr(expr *u8) void {
     if k == NODE_GROUP_EXPR {
         // Parenthesized expression - just emit the inner expression
         llvm_emit_expr(group_expr_expr(expr));
+        return;
+    }
+
+    // Cast expression: (cast type expr)
+    if k == NODE_CAST_EXPR {
+        var target_type *u8 = cast_expr_type(expr);
+        var src_expr *u8 = cast_expr_expr(expr);
+
+        // Emit source expression
+        llvm_emit_expr(src_expr);
+        var src_val *u8 = str_dup(llvm_expr_result);
+        var src_was_float i64 = llvm_expr_is_float;
+
+        // Get type info
+        var src_type *u8 = llvm_get_expr_type(src_expr);
+        var src_bits i64 = llvm_type_bits(src_type);
+        var dst_bits i64 = llvm_type_bits(target_type);
+        var src_is_float i64 = llvm_is_float_type(src_type);
+        var dst_is_float i64 = llvm_is_float_type(target_type);
+        var src_is_signed i64 = llvm_is_signed_int(src_type);
+        var dst_is_signed i64 = llvm_is_signed_int(target_type);
+
+        var temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(temp);
+        llvm_emit_str(" = ");
+
+        // Determine the cast instruction
+        if src_is_float && !dst_is_float {
+            // Float to int
+            if dst_is_signed {
+                llvm_emit_str("fptosi ");
+            } else {
+                llvm_emit_str("fptoui ");
+            }
+            llvm_emit_type(src_type);
+            llvm_emit_str(" ");
+            llvm_emit_str(src_val);
+            llvm_emit_str(" to ");
+            llvm_emit_type(target_type);
+        } else if !src_is_float && dst_is_float {
+            // Int to float
+            if src_is_signed {
+                llvm_emit_str("sitofp ");
+            } else {
+                llvm_emit_str("uitofp ");
+            }
+            llvm_emit_type(src_type);
+            llvm_emit_str(" ");
+            llvm_emit_str(src_val);
+            llvm_emit_str(" to ");
+            llvm_emit_type(target_type);
+        } else if src_is_float && dst_is_float {
+            // Float to float
+            if dst_bits > src_bits {
+                llvm_emit_str("fpext ");
+            } else {
+                llvm_emit_str("fptrunc ");
+            }
+            llvm_emit_type(src_type);
+            llvm_emit_str(" ");
+            llvm_emit_str(src_val);
+            llvm_emit_str(" to ");
+            llvm_emit_type(target_type);
+        } else {
+            // Int to int
+            if dst_bits > src_bits {
+                // Widening
+                if src_is_signed {
+                    llvm_emit_str("sext ");
+                } else {
+                    llvm_emit_str("zext ");
+                }
+            } else if dst_bits < src_bits {
+                // Truncation
+                llvm_emit_str("trunc ");
+            } else {
+                // Same size - no conversion needed, just copy
+                // But we still need valid LLVM IR, use add with 0
+                llvm_emit_str("add ");
+                llvm_emit_type(src_type);
+                llvm_emit_str(" ");
+                llvm_emit_str(src_val);
+                llvm_emit_line(", 0");
+                llvm_set_result_temp(temp);
+                if dst_is_float {
+                    llvm_expr_is_float = 1;
+                }
+                return;
+            }
+            llvm_emit_type(src_type);
+            llvm_emit_str(" ");
+            llvm_emit_str(src_val);
+            llvm_emit_str(" to ");
+            llvm_emit_type(target_type);
+        }
+
+        llvm_emit_char(10);
+        llvm_set_result_temp(temp);
+        if dst_is_float {
+            llvm_expr_is_float = 1;
+        }
+        return;
+    }
+
+    // Bitcast expression: (bitcast type expr) - reinterpret bits
+    if k == NODE_BITCAST_EXPR {
+        var target_type *u8 = bitcast_expr_type(expr);
+        var src_expr *u8 = bitcast_expr_expr(expr);
+
+        // Emit source expression
+        llvm_emit_expr(src_expr);
+        var src_val *u8 = str_dup(llvm_expr_result);
+
+        // Get source type
+        var src_type *u8 = llvm_get_expr_type(src_expr);
+
+        var temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(temp);
+        llvm_emit_str(" = bitcast ");
+        llvm_emit_type(src_type);
+        llvm_emit_str(" ");
+        llvm_emit_str(src_val);
+        llvm_emit_str(" to ");
+        llvm_emit_type(target_type);
+        llvm_emit_char(10);
+
+        llvm_set_result_temp(temp);
+        if llvm_is_float_type(target_type) {
+            llvm_expr_is_float = 1;
+        }
         return;
     }
 
