@@ -286,6 +286,7 @@ func println(s *u8) void;   // Print string + newline
 func eprint(s *u8) void;    // Print to stderr
 func eprintln(s *u8) void;  // Print to stderr + newline
 func print_int(n i64) void; // Print integer
+func print_f64(val f64) void; // Print float (LLVM backend only)
 func exit(code i64) void;   // Exit program
 ```
 

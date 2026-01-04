@@ -1729,6 +1729,30 @@ func llvm_emit_expr(expr *u8) void {
             }
         }
 
+        // Check if this is printf() (variadic)
+        var is_printf i64 = 0;
+        if func_name_len == 6 {
+            if memcmp(func_name, "printf", 6) {
+                is_printf = 1;
+            }
+        }
+
+        // For printf, convert first arg (format string) from i64 to i8* BEFORE the call
+        var printf_fmt_ptr *u8 = nil;
+        if is_printf && arg_count > 0 {
+            var fmt_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(fmt_temp);
+            llvm_emit_str(" = inttoptr i64 ");
+            llvm_emit_str(*(arg_vals + 0));
+            llvm_emit_line(" to i8*");
+            // Store the converted value for later use
+            var buf *u8 = alloc(32);
+            *buf = 37; *(buf+1) = 116;  // "%t"
+            itoa(fmt_temp, buf + 2);
+            printf_fmt_ptr = buf;
+        }
+
         // Now emit the call with pre-computed argument values
         var call_temp i64 = 0;
         if is_indirect != 0 {
@@ -1756,6 +1780,12 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_str("    %t");
             llvm_emit_int(call_temp);
             llvm_emit_str(" = call i64 (i64, i64, ...) @open(");
+        } else if is_printf {
+            // printf() is variadic: call i64 (i8*, ...) @printf(...)
+            call_temp = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(call_temp);
+            llvm_emit_str(" = call i64 (i8*, ...) @printf(");
         } else if is_ptr {
             // Pointer-returning function: call i8*
             call_temp = llvm_next_temp();
@@ -1826,8 +1856,9 @@ func llvm_emit_expr(expr *u8) void {
             if i > 0 {
                 llvm_emit_str(", ");
             }
-            // Check if this parameter is a float type
+            // Check parameter type for proper emission
             var param_is_float i64 = 0;
+            var param_is_ptr i64 = 0;
             if func_params != nil {
                 var p *u8 = func_params + (i * 24);
                 var ptype *u8 = param_type(p);
@@ -1835,12 +1866,21 @@ func llvm_emit_expr(expr *u8) void {
                     param_is_float = 1;
                     llvm_emit_type(ptype);
                     llvm_emit_str(" ");
+                } else if is_printf && i == 0 {
+                    // printf first arg is format string (i8*)
+                    param_is_ptr = 1;
+                    llvm_emit_str("i8* ");
                 }
             }
-            if param_is_float == 0 {
+            if param_is_float == 0 && param_is_ptr == 0 {
                 llvm_emit_str("i64 ");
             }
-            llvm_emit_str(*(arg_vals + i));
+            // Use converted pointer for printf format string
+            if is_printf && i == 0 && printf_fmt_ptr != nil {
+                llvm_emit_str(printf_fmt_ptr);
+            } else {
+                llvm_emit_str(*(arg_vals + i));
+            }
             i = i + 1;
         }
         llvm_emit_line(")");
@@ -5473,6 +5513,14 @@ func llvm_emit_func(func_node *u8) void {
             }
         }
 
+        // Check if this is printf() - it's variadic
+        var is_printf_extern i64 = 0;
+        if name_len == 6 {
+            if memcmp(name, "printf", 6) {
+                is_printf_extern = 1;
+            }
+        }
+
         // Parameters - use i64 for all types for consistency with call sites
         var params *u8 = func_decl_params(func_node);
         var param_count i64 = func_decl_param_count(func_node);
@@ -5485,6 +5533,12 @@ func llvm_emit_func(func_node *u8) void {
             if is_open_extern && i == 2 {
                 llvm_emit_str("...");
                 i = param_count;  // Skip remaining params
+            } else if is_printf_extern {
+                // printf: first param is i8*, then ...
+                if i == 0 {
+                    llvm_emit_str("i8*, ...");
+                    i = param_count;  // Skip remaining params
+                }
             } else {
                 llvm_emit_str("i64");
                 i = i + 1;

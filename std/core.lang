@@ -589,6 +589,11 @@ pub func print_int(n i64) {
     }
 }
 
+// Print f64 to stdout (LLVM backend only)
+pub func print_f64(val f64) void {
+    printf("%f\n", val);
+}
+
 // Convert integer to string, write to buffer, return length
 pub func itoa(n i64, buf *u8) i64 {
     var pos i64 = 0;
