@@ -51,9 +51,37 @@ The language now exists as lang AST. You can:
 
 ---
 
+## The Language Forge Value Proposition
+
+**The killer feature isn't "Zig through lang" - it's ONE COMPILER, ONE COMMAND:**
+
+```bash
+lang hello.zig world.lang whats.lisp up.my_dsl -o program
+```
+
+All syntaxes compose at AST level, compile through one pipeline, produce one binary.
+
+**This is different from LLVM interop:**
+- LLVM requires separate frontends for each language
+- Each frontend is a massive undertaking (Clang: millions of lines)
+- "Interop" means linking, not composition
+- DSLs require building an entire compiler
+
+**With lang:**
+- Frontends are readers (50-500 lines for a DSL)
+- Languages share the same AST before codegen
+- Cross-language inlining at AST level
+- Create a DSL in 50 lines of `#parser{}` that interops with Zig
+
+**The real value:** A junior dev can create a domain-specific language in an afternoon that compiles to native code and interoperates with production Zig/Rust libraries.
+
+---
+
 ## Case Study: Capturing Zig
 
 ### Why Zig?
+
+Zig is the credibility move. If lang can capture Zig, it proves the AST is powerful enough for real languages.
 
 Zig is interesting because:
 - Self-hosted (stage2 compiler written in Zig)
@@ -61,6 +89,7 @@ Zig is interesting because:
 - Excellent stdlib - practical programs possible
 - C ABI compatible - clean interop story
 - Relatively small compiler (~200k lines vs GCC's millions)
+- **Already has a C backend** - proves backends can be small (~5600 lines)
 
 ### Zig's Compiler Architecture
 
@@ -91,6 +120,53 @@ Zig source
 
 AIR is **low-level enough** that most constructs map directly to lang AST.
 
+### AIR Format Details
+
+AIR has approximately **180 instruction types** organized into categories:
+
+**Arithmetic/Logic (~30 instructions):**
+- `add`, `sub`, `mul`, `div_trunc`, `div_floor`, `mod`, `rem`
+- `and`, `or`, `xor`, `shl`, `shr`
+- `cmp_lt`, `cmp_lte`, `cmp_eq`, `cmp_neq`, `cmp_gte`, `cmp_gt`
+
+**Memory (~20 instructions):**
+- `load`, `store`, `memcpy`, `memset`
+- `alloc`, `ret_ptr`, `arg`
+- `struct_field_ptr`, `slice_ptr`, `array_elem_ptr`
+
+**Control Flow (~15 instructions):**
+- `br`, `cond_br`, `switch_br`
+- `loop`, `repeat`, `block`
+- `call`, `ret`
+
+**Type Operations (~25 instructions):**
+- `bitcast`, `intcast`, `trunc`, `fpext`, `fptrunc`
+- `int_from_ptr`, `ptr_from_int`
+- `aggregate_init`, `union_init`, `array_init`
+
+**Float Operations (~20 instructions):**
+- `fadd`, `fsub`, `fmul`, `fdiv`
+- `fmax`, `fmin`, `sqrt`, `ceil`, `floor`
+- `cmp_eq_optimized`, `cmp_lt_optimized` (float-specific)
+
+**SIMD/Vector (~15 instructions):**
+- `splat`, `shuffle`, `reduce`
+- `select`, `mask_*`
+
+**Atomics (~10 instructions):**
+- `atomic_load`, `atomic_store`
+- `atomic_rmw` (with sub-ops: add, sub, xchg, cmpxchg)
+- `fence`
+
+**Debug/Trap (~5 instructions):**
+- `dbg_stmt`, `dbg_inline_block`
+- `trap`, `breakpoint`
+
+Most of these map cleanly to lang AST. Key exceptions:
+- Float ops → lang needs f32/f64 support
+- SIMD → lang needs vector types
+- Atomics → lang needs atomic primitives
+
 ### What AIR Looks Like
 
 After Zig's semantic analysis, complex code becomes simple:
@@ -108,6 +184,13 @@ const x = max(i64, 10, 20);
 // The generic is gone - just a concrete i64 function
 // The comptime call is gone - x is just the value 20
 ```
+
+**Using `--verbose-air` to see real AIR output:**
+```bash
+zig build-obj hello.zig --verbose-air
+```
+
+Produces output showing the lowered instructions, which is invaluable for understanding the mapping.
 
 This AIR representation is what we emit as lang AST.
 
@@ -407,6 +490,64 @@ This isn't about replacing languages. It's about **factoring out the kernel** - 
 
 ---
 
+## Feasibility Assessment
+
+### Timeline Estimates
+
+| Milestone | Effort | Dependencies |
+|-----------|--------|--------------|
+| Hello world through lang | 2-3 weeks | Integer/string support only |
+| Zig stdlib basics | 1-2 months | Float support critical |
+| Zig compiler self-hosts | 3-6 months | Float, many AIR instructions |
+| Full capture (all features) | 6-12 months | SIMD, atomics, packed structs |
+
+### Known Gaps in Lang
+
+| Gap | Severity | Impact on Zig Capture |
+|-----|----------|----------------------|
+| **Floating point (f32, f64)** | **Critical** | Zig compiler uses floats; hello world doesn't |
+| SIMD vectors | Medium | Skip initially, needed for perf-sensitive code |
+| Atomics | Low | Skip initially, needed for threading |
+| Packed structs | Low | Skip initially, Zig can workaround |
+| Inline assembly (structured) | Medium | Lang has raw asm; structured needs work |
+
+**Floating point is the gate:** Simple programs can work without floats. The Zig compiler itself uses floats for various calculations. Full capture requires f32/f64 support.
+
+### Reference: Zig's C Backend
+
+Zig already has a C backend in `src/codegen/c.zig` (~5600 lines). This proves:
+1. Backends can be small relative to the compiler
+2. Text-based output (like AST S-exprs) is viable
+3. The AIR → text emission pattern works
+
+Our lang AST backend would be similar in approach.
+
+### Risk Assessment
+
+**Low risk:**
+- Basic arithmetic, control flow, function calls
+- Struct definitions and field access
+- Pointer operations
+
+**Medium risk:**
+- Calling convention variations
+- Alignment requirements
+- Error union lowering
+
+**High risk:**
+- Float operations (completely missing in lang)
+- SIMD (needs new type system support)
+- Async/suspend (complex control flow)
+
+### Recommended Approach
+
+1. **Start with integer-only subset** - Get "hello world" working first
+2. **Add floats to lang** - Required for serious Zig programs
+3. **Iterate on AIR coverage** - Handle instructions as needed
+4. **Defer SIMD/atomics** - Not needed for initial capture
+
+---
+
 ## Appendix: Why Not Just Use LLVM IR?
 
 "Zig already emits LLVM IR. Why not capture that?"
@@ -430,3 +571,44 @@ Lang AST sits at the right level - high enough to preserve semantics, low enough
 The "Yoink & Bootstrap" methodology turns compiler capture from an impossible task into a tractable engineering project. Zig is the proof of concept - if we can capture Zig, we can capture anything self-hosted.
 
 **Lang's thesis: Syntax is arbitrary. Semantics are universal. The kernel captures both.**
+
+---
+
+## Appendix: Resources
+
+### Zig Internals
+
+**Mitchell Hashimoto's articles** (https://mitchellh.com/zig) - Excellent deep dives:
+- "Zig Compiler Internals" - Covers tokenizer → AST → Sema → AIR pipeline
+- Performance analysis and optimization insights
+- Practical experience building with Zig
+
+**DeepWiki Zig C Backend docs** - The C backend implementation:
+- `src/codegen/c.zig` structure and approach
+- Type emission patterns
+- How AIR instructions map to C constructs
+
+**Zig source code reference:**
+- `src/Air.zig` - AIR instruction definitions (~180 tags)
+- `src/codegen.zig` - Backend interface
+- `src/codegen/c.zig` - C backend (~5600 lines, good reference)
+- `src/codegen/llvm.zig` - LLVM backend (more complex)
+
+### Using --verbose-air
+
+```bash
+# See AIR for a simple program
+echo 'pub fn main() void { @import("std").debug.print("hello", .{}); }' > /tmp/test.zig
+zig build-obj /tmp/test.zig --verbose-air 2>&1 | head -100
+```
+
+This shows the lowered representation we'd be capturing.
+
+### Lang AST Reference
+
+See `docs/AST.md` for the 41 node types lang currently supports. Key mappings:
+- AIR `add/sub/mul` → lang `(binop + ...)`, `(binop - ...)`, `(binop * ...)`
+- AIR `load/store` → lang `(unop * ...)` (deref), `(assign ...)`
+- AIR `call` → lang `(call ...)`
+- AIR `br/cond_br` → lang `(if ...)`, `(while ...)`
+- AIR `ret` → lang `(return ...)`
