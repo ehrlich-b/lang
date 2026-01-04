@@ -1,5 +1,44 @@
 # Yoink & Bootstrap: Capturing Languages Through Their Own Compilers
 
+## Progress Checklist
+
+### Phase 1: Reconnaissance ✅ COMPLETE
+- [x] Clone Zig source, build debug version
+- [x] Capture AIR from zig self-compile (`zig/ZIG_COMPILER_AIR.txt`)
+- [x] Analyze instruction frequency (`zig/AIR_INSTRUCTION_FREQ.txt`)
+- [x] Document AIR → lang AST mapping
+- [x] Identify required lang extensions
+
+### Phase 2: Lang Extensions (Current)
+- [ ] **Add `cast` node** to lang AST
+  - [ ] Parser: recognize `(cast type expr)`
+  - [ ] Codegen: emit sext/zext/trunc based on types
+  - [ ] Bootstrap
+- [ ] **Add i128/u128 types** to lang
+  - [ ] Lexer: recognize `i128`, `u128`
+  - [ ] Codegen: emit LLVM `i128`
+  - [ ] Bootstrap
+
+### Phase 3: AIR Emitter
+- [ ] Create `lang_ast.zig` in zig source tree
+- [ ] Emit program structure (funcs, structs)
+- [ ] Handle arithmetic: add, sub, mul, div, rem
+- [ ] Handle bitwise: and, or, xor, shl, shr
+- [ ] Handle compare: eq, neq, lt, lte, gt, gte
+- [ ] Handle memory: load, store, alloc
+- [ ] Handle control: block, cond_br, loop, ret, call
+- [ ] Handle casts: intcast, bitcast, trunc
+- [ ] Handle structs: field_val, field_ptr, union_init
+- [ ] Skip debug instructions (dbg_*)
+
+### Phase 4: Integration
+- [ ] Compile simple Zig program through lang
+- [ ] Test with zig compiler-rt functions
+- [ ] Compile zig compiler itself to lang AST
+- [ ] Verify fixed point (gen1 == gen2)
+
+---
+
 ## The Insight
 
 Don't write frontends. **Capture compilers.**
@@ -22,58 +61,6 @@ Yoink & Bootstrap (elegant):
 ```
 
 The Zig team spent years building their frontend. We spend weeks patching their backend.
-
----
-
-## The Methodology
-
-### Phase 1: Yoink
-
-1. Clone the target language's compiler source
-2. Build it on your system (using their bootstrap)
-3. Study their internal IR (the representation between frontend and backend)
-4. Write a new backend that emits lang AST S-expressions
-
-### Phase 2: Bootstrap
-
-1. Use patched compiler to compile itself → `compiler.ast`
-2. Use lang kernel to compile the AST → `compiler_gen1`
-3. Use `compiler_gen1` to compile source again → `compiler.ast` (should be identical)
-4. **Fixed point achieved** - language is captured
-
-### Phase 3: Captured
-
-The language now exists as lang AST. You can:
-- Compile it through any lang backend (x86, LLVM, future WASM)
-- Compose it with other lang programs
-- Apply lang's tooling (analysis, transformation)
-- The original compiler becomes optional - lang IS the compiler now
-
----
-
-## The Language Forge Value Proposition
-
-**The killer feature isn't "Zig through lang" - it's ONE COMPILER, ONE COMMAND:**
-
-```bash
-lang hello.zig world.lang whats.lisp up.my_dsl -o program
-```
-
-All syntaxes compose at AST level, compile through one pipeline, produce one binary.
-
-**This is different from LLVM interop:**
-- LLVM requires separate frontends for each language
-- Each frontend is a massive undertaking (Clang: millions of lines)
-- "Interop" means linking, not composition
-- DSLs require building an entire compiler
-
-**With lang:**
-- Frontends are readers (50-500 lines for a DSL)
-- Languages share the same AST before codegen
-- Cross-language inlining at AST level
-- Create a DSL in 50 lines of `#parser{}` that interops with Zig
-
-**The real value:** A junior dev can create a domain-specific language in an afternoon that compiles to native code and interoperates with production Zig/Rust libraries.
 
 ---
 
@@ -120,197 +107,427 @@ Zig source
 
 AIR is **low-level enough** that most constructs map directly to lang AST.
 
-### AIR Format Details
+---
 
-AIR has approximately **180 instruction types** organized into categories:
+## The Rubric: AIR from Zig Self-Compile
 
-**Arithmetic/Logic (~30 instructions):**
-- `add`, `sub`, `mul`, `div_trunc`, `div_floor`, `mod`, `rem`
-- `and`, `or`, `xor`, `shl`, `shr`
-- `cmp_lt`, `cmp_lte`, `cmp_eq`, `cmp_neq`, `cmp_gte`, `cmp_gt`
+We captured AIR output from the Zig compiler compiling itself using a debug build.
 
-**Memory (~20 instructions):**
-- `load`, `store`, `memcpy`, `memset`
-- `alloc`, `ret_ptr`, `arg`
-- `struct_field_ptr`, `slice_ptr`, `array_elem_ptr`
+### Tooling
 
-**Control Flow (~15 instructions):**
-- `br`, `cond_br`, `switch_br`
-- `loop`, `repeat`, `block`
-- `call`, `ret`
-
-**Type Operations (~25 instructions):**
-- `bitcast`, `intcast`, `trunc`, `fpext`, `fptrunc`
-- `int_from_ptr`, `ptr_from_int`
-- `aggregate_init`, `union_init`, `array_init`
-
-**Float Operations (~20 instructions):**
-- `fadd`, `fsub`, `fmul`, `fdiv`
-- `fmax`, `fmin`, `sqrt`, `ceil`, `floor`
-- `cmp_eq_optimized`, `cmp_lt_optimized` (float-specific)
-
-**SIMD/Vector (~15 instructions):**
-- `splat`, `shuffle`, `reduce`
-- `select`, `mask_*`
-
-**Atomics (~10 instructions):**
-- `atomic_load`, `atomic_store`
-- `atomic_rmw` (with sub-ops: add, sub, xchg, cmpxchg)
-- `fence`
-
-**Debug/Trap (~5 instructions):**
-- `dbg_stmt`, `dbg_inline_block`
-- `trap`, `breakpoint`
-
-Most of these map cleanly to lang AST. Key exceptions:
-- Float ops → lang needs f32/f64 support
-- SIMD → lang needs vector types
-- Atomics → lang needs atomic primitives
-
-### What AIR Looks Like
-
-After Zig's semantic analysis, complex code becomes simple:
-
-```zig
-// Original Zig (generic + comptime)
-fn max(comptime T: type, a: T, b: T) T {
-    return if (a > b) a else b;
-}
-const x = max(i64, 10, 20);
-```
-
-```
-// In AIR (after monomorphization + evaluation)
-// The generic is gone - just a concrete i64 function
-// The comptime call is gone - x is just the value 20
-```
-
-**Using `--verbose-air` to see real AIR output:**
 ```bash
-zig build-obj hello.zig --verbose-air
+# Debug zig build (required for --verbose-air output)
+zig/bin/zig-debug   # Built from zig 0.15.2 source with -Doptimize=Debug
+
+# Captured data
+zig/ZIG_COMPILER_AIR.txt      # 20K+ lines of AIR from zig self-compile
+zig/AIR_INSTRUCTION_FREQ.txt  # Instruction frequency analysis
+zig/AIR_MAPPING.md            # Detailed instruction mapping
 ```
 
-Produces output showing the lowered instructions, which is invaluable for understanding the mapping.
+### Building the Debug Zig
 
-This AIR representation is what we emit as lang AST.
+```bash
+# Clone and checkout matching version
+git clone https://github.com/ziglang/zig.git /tmp/zig-src
+cd /tmp/zig-src && git checkout 0.15.2
 
-### AST Extensions Needed
+# Build debug version (release builds strip --verbose-air output)
+zig build -Doptimize=Debug
 
-Lang's AST is already close. These extensions complete the capture:
+# Save to lang repo
+cp -r zig-out/* /path/to/lang/zig/
+mv zig/bin/zig zig/bin/zig-debug
+```
 
-| Extension | AIR Feature | Difficulty | Implementation |
-|-----------|-------------|------------|----------------|
-| `callconv` | Calling conventions | Medium | Add attribute to `func` node |
-| `inline-asm` | Inline assembly | Medium | Structured asm node with inputs/outputs/clobbers |
-| `type-vector` | SIMD types | Medium | `(type-vector 4 (type-base f32))` |
-| `packed-struct` | Bit-level layout | Hard | New struct variant with bit fields |
-| `type-aligned` | Alignment control | Easy | Wrapper type with alignment annotation |
+### Capturing AIR
 
-#### callconv
+```bash
+# Simple program
+zig/bin/zig-debug build-obj test.zig --verbose-air 2>&1
+
+# Zig compiler self-compile (requires zig build, not build-obj)
+cd /tmp/zig-src
+/path/to/zig-debug build -Doptimize=Debug --verbose-air 2>&1 | head -50000 > AIR.txt
+```
+
+---
+
+## AIR Instruction Analysis
+
+### Frequency from Zig Compiler Self-Compile
+
+88 unique instruction types. Top 50 (covering 99%+ of usage):
+
+```
+5651 dbg_stmt           Debug: source location (SKIP)
+1432 br                 Control: branch to block
+ 974 load               Memory: load from pointer
+ 934 store              Memory: store to pointer
+ 858 dbg_var_val        Debug: variable value (SKIP)
+ 583 intcast            Type: integer cast ⚠️ NEED CAST NODE
+ 534 block              Control: block scope
+ 493 cond_br            Control: conditional branch
+ 462 dbg_inline_block   Debug: inline function (SKIP)
+ 458 bitcast            Type: reinterpret bits ⚠️ NEED CAST NODE
+ 392 sub                Arith: subtract
+ 351 shr                Bitwise: shift right
+ 283 bit_and            Bitwise: and
+ 242 arg                Func: argument
+ 230 shl                Bitwise: shift left
+ 230 alloc              Memory: stack alloc
+ 205 add                Arith: add
+ 203 ret                Control: return
+ 195 bit_or             Bitwise: or
+ 173 dbg_var_ptr        Debug: variable pointer (SKIP)
+ 171 dbg_arg_inline     Debug: inline arg (SKIP)
+ 144 call               Control: function call
+ 138 struct_field_val   Struct: field access
+ 127 cmp_eq             Compare: equal
+ 122 cmp_lt             Compare: less than
+  89 cmp_neq            Compare: not equal
+  81 slice_len          Slice: get length ⚠️ NEED SLICE TYPE
+  80 dbg_empty_stmt     Debug: empty (SKIP)
+  79 slice_ptr          Slice: get pointer ⚠️ NEED SLICE TYPE
+  79 ptr_add            Pointer: add offset
+  71 xor                Bitwise: xor
+  70 cmp_gt             Compare: greater than
+  63 sub_wrap           Arith: wrapping sub
+  56 cmp_gte            Compare: >=
+  41 slice              Slice: create slice ⚠️ NEED SLICE TYPE
+  40 cmp_lte            Compare: <=
+  39 clz                Bit: count leading zeros ⚠️ NEED BUILTIN
+  37 not                Logic: not
+  36 unreach            Control: unreachable
+  33 trunc              Type: truncate ⚠️ NEED CAST NODE
+  33 add_wrap           Arith: wrapping add
+  29 slice_elem_val     Slice: element value
+  29 div_trunc          Arith: truncating div
+  28 array_elem_val     Array: element value
+  25 int_from_float     Type: float→int ✅ (have floats)
+  24 switch_br          Control: switch
+  23 ret_safe           Control: checked return
+  20 mul_wrap           Arith: wrapping mul
+```
+
+### Complete Instruction Categories
+
+**All 88 instructions organized:**
+
+| Category | Instructions | Lang Support |
+|----------|--------------|--------------|
+| **Arithmetic (13)** | add, sub, mul, div_trunc, rem, abs, min, max + wrap/safe variants | ✅ Direct mapping |
+| **Bitwise (7)** | bit_and, bit_or, xor, shl, shr, not, trunc | ✅ Direct mapping |
+| **Compare (6)** | cmp_eq, cmp_neq, cmp_lt, cmp_lte, cmp_gt, cmp_gte | ✅ Direct mapping |
+| **Memory (6)** | load, store, alloc, memset, memcpy + safe variants | ✅ Direct mapping |
+| **Control (10)** | block, br, cond_br, loop, repeat, switch_br, ret, unreach, trap, try | ✅ Direct mapping |
+| **Pointer (3)** | ptr_add, ptr_elem_ptr, struct_field_ptr* | ✅ Direct mapping |
+| **Struct/Union (5)** | struct_field_val, struct_field_ptr, union_init, get/set_union_tag | ✅ Direct mapping |
+| **Type Cast (5)** | intcast, bitcast, trunc, float_from_int, int_from_float | ⚠️ Need cast node |
+| **Slice (6)** | slice, slice_ptr, slice_len, slice_elem_val, slice_elem_ptr, array_elem_val | ⚠️ Need slice type |
+| **Optional (3)** | is_non_null, optional_payload, wrap_optional | ⚠️ Need optional type |
+| **Error Union (6)** | try, unwrap_errunion_*, wrap_errunion_*, is_non_err | ⚠️ Need error union |
+| **Bit Ops (2)** | clz, ctz | ⚠️ Need builtins |
+| **Debug (6)** | dbg_stmt, dbg_var_val, dbg_var_ptr, dbg_inline_block, dbg_arg_inline, dbg_empty_stmt | ✅ Skip |
+| **Misc (3)** | call, arg, array_to_slice, bool_or | ✅ Direct mapping |
+
+---
+
+## Type Requirements
+
+### Types Found in Zig Compiler AIR
+
+| Type | Occurrences | Lang Support |
+|------|-------------|--------------|
+| u32 | 1013 | ✅ |
+| void | 861 | ✅ |
+| u64 | 703 | ✅ |
+| **u128** | 549 | ❌ **NEED** |
+| i32 | 522 | ✅ |
+| u8 | 454 | ✅ |
+| u16 | 446 | ✅ |
+| usize | 408 | ✅ (→ i64) |
+| i64 | 223 | ✅ |
+| **i128** | 204 | ❌ **NEED** |
+| f64 | 52 | ✅ |
+| **f80** | 46 | ❌ (defer) |
+| f32 | 46 | ✅ |
+| bool | 33 | ✅ |
+| noreturn | 53 | ✅ (→ void) |
+| i16 | 3 | ✅ |
+
+### Arbitrary Bit-Width Integers
+
+AIR uses types like `u5`, `u6`, `u80` for shift amounts and extended precision:
+```
+%25 = shr(%23, <u5, 16>)   // u5 for shift amount
+%52 = bitcast(u80, %0)     // u80 for extended float bits
+```
+
+**Strategy:** Emit as next power-of-2 size. `u5` → `u8`, `u80` → `u128`.
+
+### Complex Types
+
+**Optional pointers:**
+```
+?*u128              // Optional pointer
+<?*u128, null>      // Null optional constant
+```
+
+**Slices:**
+```
+[]const u8          // Slice type
+"hello"[0..5]       // Slice of string literal
+```
+
+**Error unions:**
+```
+error{OutOfMemory}!void           // Error union type
+error{Overflow}!usize             // Error union with payload
+```
+
+**Function types with calling convention:**
+```
+<fn (i128, i128) callconv(.c) i128, (function '__divti3')>
+<fn (comptime type, anytype) callconv(.@"inline") i32, (function 'clzXi2')>
+```
+
+---
+
+## Required Lang Extensions
+
+### Priority 1: Cast Node (Critical)
+
+**Needed for:** intcast (583), bitcast (458), trunc (33) = 1074 uses
 
 ```lisp
-;; Current
-(func syscall3 ((param n (type-base i64)) ...) (type-base i64) ...)
-
-;; Extended
-(func syscall3 ((param n (type-base i64)) ...) (type-base i64)
-  (callconv naked)  ; or: interrupt, c, stdcall, etc.
-  ...)
+;; Proposed AST nodes
+(cast type expr)        ;; Integer cast (sext/zext/trunc)
+(bitcast type expr)     ;; Reinterpret bits
 ```
 
-Kernel impact: Codegen needs multiple prologue/epilogue patterns.
+**LLVM codegen:**
+- `intcast` → `sext` (sign extend), `zext` (zero extend), or `trunc`
+- `bitcast` → `bitcast`
+- `trunc` → `trunc`
 
-#### inline-asm
+### Priority 2: 128-bit Integers (Critical for compiler-rt)
+
+**Needed for:** i128 (204 uses), u128 (549 uses) in compiler runtime
+
+The Zig compiler's runtime library (`compiler_rt`) heavily uses 128-bit integers for:
+- Division: `__divti3`, `__udivti3`
+- Multiplication overflow detection
+- Float conversion routines
 
 ```lisp
-(inline-asm "syscall"
-  ((output "={rax}" (ident ret)))
-  ((input "{rax}" (ident num))
-   (input "{rdi}" (ident arg1)))
-  ((clobber "rcx")
-   (clobber "r11")))
+;; Type support
+(type_base i128)
+(type_base u128)
 ```
 
-Kernel impact: Already have raw asm for effects. This adds structure.
+**LLVM:** Native `i128` support, straightforward.
 
-#### type-vector
+### Priority 3: Slice Type (Medium)
+
+**Needed for:** slice_len (81), slice_ptr (79), slice (41), slice_elem_* (40)
+
+**Option A: Emit as struct**
+```lisp
+(struct __slice_u8 ((field_decl ptr (type_ptr (type_base u8)))
+                    (field_decl len (type_base i64))))
+(field_access s 0)  ;; ptr
+(field_access s 1)  ;; len
+```
+
+**Option B: Native slice type**
+```lisp
+(type_slice (type_base u8))
+(slice_ptr s)
+(slice_len s)
+```
+
+Recommend Option A initially - requires no kernel changes.
+
+### Priority 4: Bit/Memory Operations (Medium)
+
+**Needed for:** clz (39), ctz (17), abs (11), min (1), max (5), memset (8), memcpy (1)
+
+**Two approaches:**
+
+| Approach | Example | Pros | Cons |
+|----------|---------|------|------|
+| **extern** | `extern func __clzdi2(x i64) i64;` | Simple, uses compiler-rt | Function call overhead |
+| **builtin** | Compiler emits `@llvm.ctlz.i64` | Single instruction | Must wire into codegen |
+
+**Recommendation: Use extern initially.**
+
+Zig's compiler-rt already provides these functions. The AIR emitter just emits calls:
+```lisp
+;; clz(x) becomes:
+(call __clzdi2 x)
+
+;; memset(ptr, val, len) becomes:
+(call memset ptr val len)
+```
+
+No lang changes needed - these are just regular extern function calls. Add builtins later for performance if needed.
+
+### Priority 5: Optional/Error Types (Deferred)
+
+Can initially emit as tagged unions using existing lang sum types:
 
 ```lisp
-(var v (type-vector 4 (type-base f32))
-  (vector-literal (number 1.0) (number 2.0) (number 3.0) (number 4.0)))
-(binop + (ident v) (ident v))  ; SIMD add
+;; Optional as enum
+(enum __optional_i64
+  ((variant_decl None)
+   (variant_decl Some (type_base i64))))
+
+;; Error union as enum
+(enum __result_void_OutOfMemory
+  ((variant_decl Ok (type_base void))
+   (variant_decl Err (type_base i64))))  ;; error code
 ```
 
-Kernel impact: Need SIMD register allocation, vector operations in codegen.
+---
 
-#### packed-struct
+## AIR Syntax Reference
 
-```lisp
-(packed-struct Flags
-  ((field-decl a (type-bits 1))
-   (field-decl b (type-bits 3))
-   (field-decl c (type-bits 4))))
-;; Total size: 1 byte, not 3 bytes
+### Instruction Format
+
+```
+%N = instruction(args...)
 ```
 
-Kernel impact: Bit-level field access. This is the hardest extension.
+### Value References
 
-#### type-aligned
+| Syntax | Meaning |
+|--------|---------|
+| `%0`, `%1` | SSA register reference |
+| `<i64, 42>` | Typed constant |
+| `<u32, 0>` | Typed constant |
+| `<?*u128, null>` | Null optional |
+| `@.void_value` | Void constant |
+| `@.bool_true` | Boolean true |
 
-```lisp
-(var buffer (type-aligned 16 (type-array 64 (type-base u8))) ...)
+### Example AIR
+
+```
+# Begin Function AIR: test.factorial:
+  %0 = arg(i64, 0)
+  %1 = dbg_stmt(2:9)
+  %2 = block(void, {
+    %3 = cmp_lte(%0, <i64, 1>)
+    %7 = cond_br(%3, poi {
+      %4 = dbg_stmt(2:17)
+      %5 = ret_safe(<i64, 1>)
+    }, poi {
+      %6 = br(%2, @.void_value)
+    })
+  })
+  %8 = dbg_stmt(3:28)
+  %9 = sub_safe(%0, <i64, 1>)
+  %10 = call(<fn (i64) i64, (function 'factorial')>, [%9])
+  %11 = mul_safe(%0, %10)
+  %12 = ret_safe(%11)
+# End Function AIR: test.factorial
 ```
 
-Kernel impact: Stack allocation respects alignment. Relatively easy.
+---
 
-### The Backend Implementation
+## Direct Mapping Table
 
-The new Zig backend (written in Zig, ~3-5k lines estimated):
+| AIR Instruction | Lang AST | Notes |
+|-----------------|----------|-------|
+| `arg(type, n)` | `(param name type)` | Function parameter |
+| `add`, `add_wrap`, `add_safe` | `(binop + a b)` | Addition |
+| `sub`, `sub_wrap`, `sub_safe` | `(binop - a b)` | Subtraction |
+| `mul`, `mul_wrap`, `mul_safe` | `(binop * a b)` | Multiplication |
+| `div_trunc`, `div_exact` | `(binop / a b)` | Division |
+| `rem` | `(binop % a b)` | Remainder |
+| `bit_and` | `(binop & a b)` | Bitwise and |
+| `bit_or` | `(binop \| a b)` | Bitwise or |
+| `xor` | `(binop ^ a b)` | Bitwise xor |
+| `shl` | `(binop << a b)` | Shift left |
+| `shr` | `(binop >> a b)` | Shift right |
+| `cmp_eq` | `(binop == a b)` | Equal |
+| `cmp_neq` | `(binop != a b)` | Not equal |
+| `cmp_lt` | `(binop < a b)` | Less than |
+| `cmp_lte` | `(binop <= a b)` | Less or equal |
+| `cmp_gt` | `(binop > a b)` | Greater than |
+| `cmp_gte` | `(binop >= a b)` | Greater or equal |
+| `not` | `(unop ! a)` | Logical not |
+| `load` | `(unop * ptr)` | Dereference |
+| `store`, `store_safe` | `(assign (unop * ptr) val)` | Store to memory |
+| `alloc` | `(var name type)` | Stack allocation |
+| `ret`, `ret_safe` | `(return val)` | Return value |
+| `call` | `(call func args...)` | Function call |
+| `block` | `(block ...)` | Code block |
+| `cond_br` | `(if cond then else)` | Conditional |
+| `loop`, `repeat` | `(while cond body)` | Loop |
+| `br` | N/A | Implicit in block structure |
+| `switch_br` | `(match expr ...)` | Switch statement |
+| `struct_field_val` | `(field_access expr n)` | Field by index |
+| `struct_field_ptr` | `(unop & (field_access ...))` | Field pointer |
+| `ptr_add` | `(binop + ptr n)` | Pointer arithmetic |
+| `unreach`, `trap` | `(call os_exit 1)` | Abort |
+| `union_init` | `(variant Type Name val)` | Union initialization |
+| `float_from_int` | `(cast f64 expr)` | Int to float |
+| `int_from_float` | `(cast i64 expr)` | Float to int |
 
-```zig
-// pseudocode structure
-const LangAstBackend = struct {
-    output: std.fs.File,
+---
 
-    pub fn emit(self: *@This(), air: Air) !void {
-        try self.output.writeAll("(program\n");
+## Implementation Plan
 
-        // Emit all struct definitions
-        for (air.types) |ty| {
-            if (ty.isStruct()) try self.emitStruct(ty);
-        }
+### Phase 1: Core Extensions (Enables Hello World)
 
-        // Emit all functions
-        for (air.functions) |func| {
-            try self.emitFunction(func);
-        }
+1. **Add `cast` node** to lang AST
+   - Parser: `(cast type expr)`
+   - Codegen: emit `sext`/`zext`/`trunc`/`bitcast` based on types
+   - Bootstrap immediately
 
-        try self.output.writeAll(")\n");
-    }
+2. **Add i128/u128 types**
+   - Parser: recognize `i128`, `u128`
+   - Codegen: LLVM native `i128`
+   - Required for compiler-rt
 
-    fn emitFunction(self: *@This(), func: Air.Function) !void {
-        // (func name (params...) ret-type body)
-        try self.output.print("(func {s} (", .{func.name});
-        for (func.params) |p| try self.emitParam(p);
-        try self.output.writeAll(") ");
-        try self.emitType(func.return_type);
-        try self.output.writeAll("\n");
-        try self.emitBody(func.body);
-        try self.output.writeAll(")\n");
-    }
+3. **Write AIR→AST emitter** in Zig
+   - New file: `src/codegen/lang_ast.zig`
+   - Handle top 30 non-debug instructions
+   - Emit S-expression text
 
-    fn emitInstruction(self: *@This(), inst: Air.Inst) !void {
-        switch (inst.tag) {
-            .add => try self.output.print("(binop + {s} {s})", .{...}),
-            .call => try self.output.print("(call {s} ...)", .{...}),
-            .br => try self.output.print("(if {s} ...)", .{...}),
-            // ... ~50 instruction types
-        }
-    }
-};
-```
+### Phase 2: Slices and Arrays
 
-### The Bootstrap Sequence
+1. Emit slices as anonymous structs (no kernel change)
+2. Handle `slice_ptr`, `slice_len`, `slice_elem_*`
+3. Handle `array_elem_val`, `array_to_slice`
+
+### Phase 3: Optional/Error (If Needed)
+
+1. Emit as sum types using existing `enum`/`match`
+2. Handle `optional_payload`, `is_non_null`
+3. Handle `try`, `unwrap_errunion_*`
+
+---
+
+## Gap Summary
+
+| Gap | Severity | Impact | Status |
+|-----|----------|--------|--------|
+| Cast node | **CRITICAL** | 1074 uses | 🔲 TODO |
+| i128/u128 | **CRITICAL** | 753 uses, compiler-rt | 🔲 TODO |
+| Slice type | MEDIUM | 230 uses | ✅ Use struct |
+| clz/ctz/memset | MEDIUM | 56 uses | ✅ Use extern (compiler-rt) |
+| f80 | LOW | 46 uses | Defer |
+| Optional | LOW | 17 uses | ✅ Use enum |
+| Error union | LOW | 27 uses | ✅ Use enum |
+| Calling conv | LOW | Decoration only | ✅ Ignore initially |
+
+**Floats: ✅ DONE** - f32/f64 support added, 170/170 tests passing.
+
+---
+
+## The Bootstrap Sequence
 
 ```bash
 # 1. Build Zig's compiler with our patched backend
@@ -332,283 +549,44 @@ diff zig-compiler.ast zig-compiler2.ast  # Should be identical!
 # 6. Zig is captured. zig-gen1 IS the Zig compiler, running on lang kernel.
 ```
 
-### What We Get
-
-Once Zig is captured:
-
-1. **Zig programs compile through lang's LLVM backend**
-   - All of Zig's optimizations from their frontend
-   - All of LLVM's optimizations from our backend
-
-2. **Zig stdlib available to lang programs**
-   - Import Zig modules into lang readers
-   - Cross-language composition at AST level
-
-3. **Single toolchain**
-   - One compiler binary handles `.lang`, `.zig`, any captured syntax
-   - Unified debugging, profiling, analysis
-
-4. **Future backends automatic**
-   - When lang gets WASM backend, Zig gets WASM
-   - When lang gets new target, Zig gets it free
-
 ---
 
-## Generalized: The Capture Protocol
-
-This works for any self-hosted language:
-
-| Language | Compiler | Internal IR | Capture Difficulty |
-|----------|----------|-------------|-------------------|
-| Zig | stage2 | AIR | Medium - clean IR |
-| Rust | rustc | MIR | Hard - complex, huge |
-| Go | gc | SSA | Medium - well-documented |
-| OCaml | ocamlopt | Lambda/Cmm | Medium |
-| Haskell | GHC | Core/STG | Hard - lazy semantics |
-| Swift | swiftc | SIL | Hard - ARC complexity |
-| D | dmd | ? | Medium |
-
-**The pattern:**
-1. Find where frontend ends and codegen begins
-2. Insert AST emitter at that boundary
-3. Handle any semantic gaps with AST extensions
-
-### Languages That Can't Be Captured
-
-Some languages resist this approach:
-
-**Languages with runtime-dependent semantics:**
-- Python, Ruby, JavaScript - semantics depend on runtime behavior
-- No clear "compile" phase to intercept
-- Would need to capture the interpreter instead
-
-**Languages with exotic execution models:**
-- Erlang/BEAM - bytecode for specific VM
-- Prolog - unification-based execution
-- Would need to emulate their runtime model
-
-**Non-self-hosted languages:**
-- If the compiler is written in C, you can't bootstrap through lang
-- You'd compile a C compiler first, then the target language
-
----
-
-## What Makes This Powerful
-
-### The Semantic Funnel
-
-```
-     Zig  ───┐
-     Rust ───┼───→ lang AST ───→ LLVM IR ───→ native
-     Go   ───┤        ↑
-     ... ────┘        │
-                 single kernel
-```
-
-Every captured language funnels through one semantic representation. This is the "language forge" - syntax is a plugin, lang AST is the common core.
-
-### Composition Becomes Natural
-
-```lisp
-;; A program mixing syntaxes
-(program
-  (require "crypto.zig")      ; Zig's crypto library, as AST
-  (require "parser.lang")     ; Our parser, native lang
-  (require "server.rs")       ; Rust HTTP server, as AST
-
-  (func main () ...)          ; Glue code
-)
-```
-
-Different languages, same compilation pipeline, same ABI, single binary.
-
-### Optimization Across Languages
-
-Because everything becomes lang AST before LLVM:
-- Cross-language inlining possible at AST level
-- Unified memory layout analysis
-- Whole-program optimization spans languages
-
----
-
-## The Vision
-
-Lang is not trying to be a better Zig or a better Rust. It's trying to be the **kernel that captures them all**.
-
-```
-Traditional world:
-  Source → [Language-specific compiler] → Binary
-
-Lang forge world:
-  Source → [Language's own frontend, patched] → lang AST → [lang kernel] → Binary
-```
-
-The "language forge" endgame:
-1. Capture major languages via their own compilers
-2. Any syntax compiles to lang AST
-3. Lang AST compiles to any target
-4. **Syntax is decoupled from execution**
-
-This isn't about replacing languages. It's about **factoring out the kernel** - the part that actually generates code - and letting languages focus on their frontend (parsing, type checking, ergonomics) while lang handles the backend (optimization, codegen, targets).
-
----
-
-## Immediate Next Steps
-
-### Week 1-2: Zig Deep Dive
-- Study Zig's AIR format in detail
-- Document AIR instruction → lang AST mapping
-- Identify all needed AST extensions
-
-### Week 3-4: AST Extensions
-- Implement `callconv` support in kernel
-- Implement `inline-asm` node
-- Implement `type-aligned`
-- Defer packed-struct and SIMD (not needed for bootstrap)
-
-### Week 5-6: Backend Implementation
-- Write lang-ast backend for Zig compiler
-- Start with subset (no async, no SIMD)
-- Get "hello world" through the pipeline
-
-### Week 7-8: Bootstrap Attempt
-- Compile Zig compiler to AST
-- Fix issues as they arise
-- Achieve fixed point
-
-### Success Criteria
+## Success Criteria
 
 **Minimum viable capture:**
-- Zig compiler compiles through lang
-- Can compile simple Zig programs
-- Fixed point bootstrap achieved
+- [ ] Cast node implemented
+- [ ] i128/u128 types added
+- [ ] AIR emitter handles core instructions
+- [ ] Simple Zig program compiles through lang
+- [ ] Zig compiler compiles through lang
 
 **Full capture:**
-- Zig stdlib works
-- All Zig language features handled
-- Performance parity with native Zig
-
----
-
-## Feasibility Assessment
-
-### Timeline Estimates
-
-| Milestone | Effort | Dependencies |
-|-----------|--------|--------------|
-| Hello world through lang | 2-3 weeks | Integer/string support only |
-| Zig stdlib basics | 1-2 months | Float support critical |
-| Zig compiler self-hosts | 3-6 months | Float, many AIR instructions |
-| Full capture (all features) | 6-12 months | SIMD, atomics, packed structs |
-
-### Known Gaps in Lang
-
-| Gap | Severity | Impact on Zig Capture |
-|-----|----------|----------------------|
-| **Floating point (f32, f64)** | **Critical** | Zig compiler uses floats; hello world doesn't |
-| SIMD vectors | Medium | Skip initially, needed for perf-sensitive code |
-| Atomics | Low | Skip initially, needed for threading |
-| Packed structs | Low | Skip initially, Zig can workaround |
-| Inline assembly (structured) | Medium | Lang has raw asm; structured needs work |
-
-**Floating point is the gate:** Simple programs can work without floats. The Zig compiler itself uses floats for various calculations. Full capture requires f32/f64 support.
-
-### Reference: Zig's C Backend
-
-Zig already has a C backend in `src/codegen/c.zig` (~5600 lines). This proves:
-1. Backends can be small relative to the compiler
-2. Text-based output (like AST S-exprs) is viable
-3. The AIR → text emission pattern works
-
-Our lang AST backend would be similar in approach.
-
-### Risk Assessment
-
-**Low risk:**
-- Basic arithmetic, control flow, function calls
-- Struct definitions and field access
-- Pointer operations
-
-**Medium risk:**
-- Calling convention variations
-- Alignment requirements
-- Error union lowering
-
-**High risk:**
-- Float operations (completely missing in lang)
-- SIMD (needs new type system support)
-- Async/suspend (complex control flow)
-
-### Recommended Approach
-
-1. **Start with integer-only subset** - Get "hello world" working first
-2. **Add floats to lang** - Required for serious Zig programs
-3. **Iterate on AIR coverage** - Handle instructions as needed
-4. **Defer SIMD/atomics** - Not needed for initial capture
-
----
-
-## Appendix: Why Not Just Use LLVM IR?
-
-"Zig already emits LLVM IR. Why not capture that?"
-
-1. **LLVM IR is too low-level** - No structs, no types beyond primitives, no functions as values
-2. **Lost semantic information** - Can't do lang-level analysis or composition
-3. **Lost portability** - LLVM IR is target-specific after lowering
-4. **Not the forge vision** - We want to capture languages, not just compile them
-
-Lang AST sits at the right level - high enough to preserve semantics, low enough to compile efficiently.
-
----
-
-## Summary
-
-| Approach | Effort | Result |
-|----------|--------|--------|
-| Write Zig frontend | Years | Another Zig implementation |
-| Patch Zig backend | Weeks | Zig captured by lang |
-
-The "Yoink & Bootstrap" methodology turns compiler capture from an impossible task into a tractable engineering project. Zig is the proof of concept - if we can capture Zig, we can capture anything self-hosted.
-
-**Lang's thesis: Syntax is arbitrary. Semantics are universal. The kernel captures both.**
+- [ ] All 88 AIR instructions mapped
+- [ ] Zig stdlib works
+- [ ] Fixed point bootstrap achieved
+- [ ] Performance parity with native Zig
 
 ---
 
 ## Appendix: Resources
 
-### Zig Internals
+### Local Tooling
 
-**Mitchell Hashimoto's articles** (https://mitchellh.com/zig) - Excellent deep dives:
-- "Zig Compiler Internals" - Covers tokenizer → AST → Sema → AIR pipeline
-- Performance analysis and optimization insights
-- Practical experience building with Zig
-
-**DeepWiki Zig C Backend docs** - The C backend implementation:
-- `src/codegen/c.zig` structure and approach
-- Type emission patterns
-- How AIR instructions map to C constructs
-
-**Zig source code reference:**
-- `src/Air.zig` - AIR instruction definitions (~180 tags)
-- `src/codegen.zig` - Backend interface
-- `src/codegen/c.zig` - C backend (~5600 lines, good reference)
-- `src/codegen/llvm.zig` - LLVM backend (more complex)
-
-### Using --verbose-air
-
-```bash
-# See AIR for a simple program
-echo 'pub fn main() void { @import("std").debug.print("hello", .{}); }' > /tmp/test.zig
-zig build-obj /tmp/test.zig --verbose-air 2>&1 | head -100
+```
+zig/bin/zig-debug           # Debug build of zig 0.15.2
+zig/ZIG_COMPILER_AIR.txt    # AIR from zig self-compile (20K lines)
+zig/AIR_INSTRUCTION_FREQ.txt # Instruction frequency
+zig/AIR_MAPPING.md          # Detailed mapping notes
 ```
 
-This shows the lowered representation we'd be capturing.
+### Zig Source References
 
-### Lang AST Reference
+- `src/Air.zig` - AIR instruction definitions
+- `src/codegen.zig` - Backend interface
+- `src/codegen/c.zig` - C backend (~5600 lines, good reference)
+- `src/codegen/llvm.zig` - LLVM backend
 
-See `docs/AST.md` for the 41 node types lang currently supports. Key mappings:
-- AIR `add/sub/mul` → lang `(binop + ...)`, `(binop - ...)`, `(binop * ...)`
-- AIR `load/store` → lang `(unop * ...)` (deref), `(assign ...)`
-- AIR `call` → lang `(call ...)`
-- AIR `br/cond_br` → lang `(if ...)`, `(while ...)`
-- AIR `ret` → lang `(return ...)`
+### External
+
+- Mitchell Hashimoto's Zig articles: https://mitchellh.com/zig
+- Zig compiler internals documentation

@@ -31,49 +31,30 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 
 **The thesis:** Lang AST can capture any compiled language. Zig is the proof.
 
-**The method:** "Yoink & Bootstrap" - don't write frontends, capture compilers.
+**Design doc:** **[designs/zig_ast_compatibility.md](designs/zig_ast_compatibility.md)** - full analysis and checklist.
 
-```
-Traditional (years of work):
-  Zig source → [NEW Zig frontend we write] → lang AST → LLVM → binary
+### Status
 
-Yoink & Bootstrap (weeks of work):
-  Zig source → [Zig's own compiler, patched] → lang AST → LLVM → binary
-```
+- [x] **Reconnaissance complete** - Built debug zig, captured 20K lines of AIR from zig self-compile
+- [x] **Mapping complete** - 88 AIR instructions analyzed, most map directly to lang AST
+- [x] **Floats done** - f32/f64 support added, 170/170 tests passing
 
-See **[designs/zig_ast_compatibility.md](designs/zig_ast_compatibility.md)** for full design.
+### Next Steps (only 2 lang changes needed!)
 
-### Why This Matters
+- [ ] **Add `cast` node** - for intcast/bitcast/trunc (1074 uses in zig compiler)
+- [ ] **Add i128/u128 types** - for compiler-rt (753 uses)
+- [ ] **Write AIR→AST emitter** - ~500 lines of Zig in `zig/src/codegen/lang_ast.zig`
+- [ ] **Hello world through pipeline** - simple zig program → lang AST → binary
 
-With Zig captured:
-- `lang main.lang utility.zig -o program` - true polyglot compilation
-- DSLs (50 lines of reader macro) interop with production Zig code
-- Proves the forge vision works on a real language
+### What Doesn't Need Lang Changes
 
-### The Plan
-
-#### Phase 1: Reconnaissance (Day 1-2)
-- [ ] Clone Zig source, build from source
-- [ ] Study AIR format (`src/Air.zig`, `--verbose-air` output)
-- [ ] Document AIR instruction → lang AST mapping
-- [ ] Identify required AST extensions
-
-#### Phase 2: AST Extensions (Day 3-4)
-- [ ] Implement `callconv` attribute on func nodes (if needed)
-- [ ] Implement `inline-asm` node (if needed)
-- [ ] Implement `type-aligned` wrapper (if needed)
-- [ ] Defer SIMD/packed-struct (not needed for hello world)
-
-#### Phase 3: Backend Implementation (Day 5-7)
-- [ ] Write lang-ast backend for Zig compiler (~3-5k lines of Zig)
-- [ ] Start with simplest instructions (constants, basic ops)
-- [ ] Handle function definitions, calls, control flow
-- [ ] Get "hello world" through the pipeline
-
-#### Phase 4: Demo (Day 8+)
-- [ ] Compile simple Zig program through lang
-- [ ] Compose Zig + lang in same compilation
-- [ ] Document limitations (no floats initially)
+| Feature | Workaround |
+|---------|------------|
+| Slices | Emit as structs |
+| clz/ctz/memset | Extern calls to compiler-rt |
+| Optionals | Emit as enums |
+| Error unions | Emit as enums |
+| Calling conventions | Ignore initially |
 
 ### Known Gaps
 
