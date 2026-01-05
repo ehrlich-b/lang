@@ -1,0 +1,49 @@
+// expect: 42
+// Unsigned integer comparisons emit ult/ugt/ule/uge
+
+func main() i64 {
+    var result i64 = 0;
+
+    // Test u8: 200 > 100 (both positive, trivial)
+    var a u8 = 200;
+    var b u8 = 100;
+    if a > b {
+        result = result + 1;
+    }
+
+    // Test u8: 255 > 127
+    // As signed i8: 255 = -1, 127 = 127, so -1 > 127 is FALSE
+    // As unsigned u8: 255 > 127 is TRUE
+    var c u8 = 255;
+    var d u8 = 127;
+    if c > d {
+        result = result + 2;
+    }
+
+    // Test u8 < comparison
+    if d < c {
+        result = result + 4;
+    }
+
+    // Test u8 <= and >=
+    var e u8 = 255;
+    var f u8 = 255;
+    if e >= f {
+        result = result + 8;
+    }
+    if e <= f {
+        result = result + 16;
+    }
+
+    // Test u64 with large values that differ in sign bit
+    // max i64 = 9223372036854775807, which is less than max u64
+    // if treated as signed: values > max_i64 would be "negative"
+    var x u64 = 9223372036854775808;  // 2^63 (one more than max i64)
+    var y u64 = 1;
+    if x > y {
+        result = result + 11;  // unsigned: 2^63 > 1 is TRUE
+    }
+
+    // All pass: 1+2+4+8+16+11 = 42
+    return result;
+}

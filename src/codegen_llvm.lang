@@ -685,6 +685,14 @@ func llvm_is_signed_int(t *u8) i64 {
     return *name == 'i';  // i8, i16, i32, i64, i128 start with 'i'
 }
 
+// Check if type is an unsigned integer (u8, u16, u32, u64, u128)
+func llvm_is_unsigned_int(t *u8) i64 {
+    if t == nil { return 0; }
+    if type_kind(t) != TYPE_BASE { return 0; }
+    var name *u8 = base_type_name(t);
+    return *name == 'u';  // u8, u16, u32, u64, u128 start with 'u'
+}
+
 // Get type size in bits (for cast decisions)
 func llvm_type_bits(t *u8) i64 {
     if t == nil { return 64; }
@@ -2244,13 +2252,26 @@ func llvm_emit_expr(expr *u8) void {
                 llvm_emit_str(" double ");
             } else {
                 // Integer comparison
+                // Check if either operand is unsigned (or pointer - addresses are unsigned)
+                var left_unsigned i64 = llvm_is_unsigned_int(left_type) || (left_type != nil && type_kind(left_type) == TYPE_PTR);
+                var right_unsigned i64 = llvm_is_unsigned_int(right_type) || (right_type != nil && type_kind(right_type) == TYPE_PTR);
+                var use_unsigned i64 = left_unsigned || right_unsigned;
+
                 llvm_emit_str(" = icmp ");
-                if op == 33 { llvm_emit_str("eq"); }       // ==
-                else if op == 34 { llvm_emit_str("ne"); }  // !=
-                else if op == 35 { llvm_emit_str("slt"); } // <
-                else if op == 36 { llvm_emit_str("sgt"); } // >
-                else if op == 37 { llvm_emit_str("sle"); } // <=
-                else if op == 38 { llvm_emit_str("sge"); } // >=
+                if op == 33 { llvm_emit_str("eq"); }       // == (same for signed/unsigned)
+                else if op == 34 { llvm_emit_str("ne"); }  // != (same for signed/unsigned)
+                else if op == 35 {
+                    if use_unsigned { llvm_emit_str("ult"); } else { llvm_emit_str("slt"); }
+                }
+                else if op == 36 {
+                    if use_unsigned { llvm_emit_str("ugt"); } else { llvm_emit_str("sgt"); }
+                }
+                else if op == 37 {
+                    if use_unsigned { llvm_emit_str("ule"); } else { llvm_emit_str("sle"); }
+                }
+                else if op == 38 {
+                    if use_unsigned { llvm_emit_str("uge"); } else { llvm_emit_str("sge"); }
+                }
                 llvm_emit_str(" i64 ");
             }
 

@@ -44,7 +44,7 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 
 ### Next Steps
 
-- [ ] **Unsigned comparisons in lang** - Fix codegen_llvm.lang to emit `ult`/`ugt`/`ule`/`uge` for unsigned types (BLOCKER for Zig capture)
+- [x] **Unsigned comparisons in lang** - Fixed! `codegen_llvm.lang` emits `ult`/`ugt`/`ule`/`uge` for unsigned types
 - [ ] **Patches infrastructure** - `patches/` directory, `make patch-zig`, manifest.yaml
 - [ ] **Write AIR→AST emitter** - `patches/zig/src/codegen/lang_ast.zig` (~2000 lines)
 - [ ] **Simple function through pipeline** - arithmetic function → lang AST → binary
@@ -66,7 +66,7 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | Floating point | ✅ Done | f32/f64 types, literals, arithmetic, comparisons |
-| Unsigned comparisons | **HIGH** | Lang always emits `slt`/`sgt` - must fix before Zig capture |
+| Unsigned comparisons | ✅ Done | `ult`/`ugt`/`ule`/`uge` for u8/u16/u32/u64 and pointers |
 | Inline ASM | ✅ Mitigated | Use `-lc` flag - routes syscalls through libc |
 | compiler_rt ASM | ✅ Mitigated | Pure Zig fallbacks exist; link system libcompiler_rt |
 | SIMD vectors | Low | Skip initially |

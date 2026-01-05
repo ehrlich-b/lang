@@ -170,23 +170,25 @@ bootstrap: generate-os-layer
 	@echo "Emitted: reader_ast1.ast ($$(wc -l < /tmp/bootstrap_verify/reader_ast1.ast) lines)"
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
-	@echo "│ STAGE 3: GENERATION 2 + LLVM FIXED POINT                       │"
+	@echo "│ STAGE 3: GENERATION 2 + 3 (LLVM FIXED POINT)                   │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
 	@# Build kernel2 (kernel1 compiles sources)
 	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/kernel1 std/core.lang src/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/kernel2.ll
+	clang -O2 /tmp/bootstrap_verify/kernel2.ll -o /tmp/bootstrap_verify/kernel2
+	@echo "Built: kernel2 (LLVM)"
+	@# Build kernel3 (kernel2 compiles sources) for true fixed point
+	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/kernel2 std/core.lang src/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/kernel3.ll
 	@echo ""
-	@echo "Checking LLVM FIXED POINT (kernel1.ll === kernel2.ll)..."
-	@if diff -q /tmp/bootstrap_verify/kernel1.ll /tmp/bootstrap_verify/kernel2.ll > /dev/null; then \
+	@echo "Checking LLVM FIXED POINT (kernel2.ll === kernel3.ll)..."
+	@if diff -q /tmp/bootstrap_verify/kernel2.ll /tmp/bootstrap_verify/kernel3.ll > /dev/null; then \
 		echo "✓ LLVM FIXED POINT VERIFIED"; \
 	else \
 		echo ""; \
 		echo "!!! LLVM FIXED POINT FAILED !!!"; \
-		echo "kernel1.ll and kernel2.ll differ:"; \
-		diff /tmp/bootstrap_verify/kernel1.ll /tmp/bootstrap_verify/kernel2.ll | head -20; \
+		echo "kernel2.ll and kernel3.ll differ:"; \
+		diff /tmp/bootstrap_verify/kernel2.ll /tmp/bootstrap_verify/kernel3.ll | head -20; \
 		exit 1; \
 	fi
-	clang -O2 /tmp/bootstrap_verify/kernel2.ll -o /tmp/bootstrap_verify/kernel2
-	@echo "Built: kernel2 (LLVM)"
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
 	@echo "│ STAGE 4: AST FIXED POINT                                       │"
@@ -294,7 +296,7 @@ bootstrap: generate-os-layer
 	@echo "built_at: $$(date -Iseconds)" >> bootstrap/current/PROVENANCE
 	@echo "source_commit: $(GIT_COMMIT)" >> bootstrap/current/PROVENANCE
 	@echo "verification:" >> bootstrap/current/PROVENANCE
-	@echo "  llvm_fixed_point: true (kernel1.ll === kernel2.ll)" >> bootstrap/current/PROVENANCE
+	@echo "  llvm_fixed_point: true (kernel2.ll === kernel3.ll)" >> bootstrap/current/PROVENANCE
 	@echo "  ast_fixed_point: true (reader_ast1 === reader_ast2)" >> bootstrap/current/PROVENANCE
 	@echo "  clang_compiled: true (both .ll files compile with clang -O2)" >> bootstrap/current/PROVENANCE
 	@echo "  test_suite: true (ran on compiler_$(PLATFORM) binary)" >> bootstrap/current/PROVENANCE
@@ -307,7 +309,7 @@ bootstrap: generate-os-layer
 	@echo "║                    BOOTSTRAP COMPLETE                          ║"
 	@echo "╠════════════════════════════════════════════════════════════════╣"
 	@echo "║ Verified:                                                      ║"
-	@echo "║   ✓ LLVM fixed point (kernel1.ll === kernel2.ll)               ║"
+	@echo "║   ✓ LLVM fixed point (kernel2.ll === kernel3.ll)               ║"
 	@echo "║   ✓ AST fixed point (reader_ast1 === reader_ast2)              ║"
 	@echo "║   ✓ Both .ll files clang-compiled                              ║"
 	@echo "║   ✓ Test suite on final binary (compiler_$(PLATFORM))          ║"
@@ -374,10 +376,11 @@ bootstrap-verify: generate-os-layer
 	clang -O2 /tmp/bootstrap_verify/kernel1.ll -o /tmp/bootstrap_verify/kernel1
 	/tmp/bootstrap_verify/kernel1 src/lang_reader.lang --emit-expanded-ast -o /tmp/bootstrap_verify/reader_ast1.ast
 	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/kernel1 std/core.lang src/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/kernel2.ll
-	@if ! diff -q /tmp/bootstrap_verify/kernel1.ll /tmp/bootstrap_verify/kernel2.ll > /dev/null; then \
+	clang -O2 /tmp/bootstrap_verify/kernel2.ll -o /tmp/bootstrap_verify/kernel2
+	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/kernel2 std/core.lang src/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/ast_emit.lang src/sexpr_reader.lang src/main.lang -o /tmp/bootstrap_verify/kernel3.ll
+	@if ! diff -q /tmp/bootstrap_verify/kernel2.ll /tmp/bootstrap_verify/kernel3.ll > /dev/null; then \
 		echo "LLVM FIXED POINT FAILED"; exit 1; \
 	fi
-	clang -O2 /tmp/bootstrap_verify/kernel2.ll -o /tmp/bootstrap_verify/kernel2
 	/tmp/bootstrap_verify/kernel2 src/lang_reader.lang --emit-expanded-ast -o /tmp/bootstrap_verify/reader_ast2.ast
 	@if ! diff -q /tmp/bootstrap_verify/reader_ast1.ast /tmp/bootstrap_verify/reader_ast2.ast > /dev/null; then \
 		echo "AST FIXED POINT FAILED"; exit 1; \
