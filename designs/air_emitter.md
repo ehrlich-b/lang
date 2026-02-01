@@ -6,46 +6,48 @@ The AIR emitter is a new Zig codegen backend that emits lang AST (S-expressions)
 
 ## Repository Strategy
 
-### Decision: Patches (No Fork)
+### Decision: Fork on Codeberg
 
-We use a **patches-based approach** - no fork repository, no submodule, no drama.
+We tried a patches-based approach first (see `patches/` directory for artifacts), but it was too painful:
+- Bootstrap chicken-and-egg: host Zig doesn't know our new enum values
+- Piggyback on C backend worked but output was hybrid garbage
+- Too much fighting with the build system
 
-**Why patches:**
+**Fork is simpler:**
+- Full control over the codebase
+- Add `lang_ast` backend properly (new ObjectFormat, new CompilerBackend)
+- Build once, use forever
+- Update from upstream when needed (Zig releases ~2x/year)
 
 | Option | Vibes | Practical | Chosen |
 |--------|-------|-----------|--------|
 | Fork on GitHub | Bad - undermines their Codeberg move | Works | No |
-| Fork on Codeberg | Okay | Works | No |
+| **Fork on Codeberg** | **Good** | **Works** | **Yes** |
 | Submodule | Neutral | 500MB pollution | No |
-| **Patches** | **Best** | **Clean, transferable** | **Yes** |
+| Patches | Neutral | Bootstrap hell | No (tried, abandoned) |
 
-The patches approach:
-- Zero confusion with upstream
-- Full responsibility is ours
-- Transferable pattern for capturing other languages
-- Explicit upstream reference in manifest
-- No fork relationship to maintain
+### Fork Location
 
-### Directory Structure
+Fork will be at: `https://codeberg.org/lang-forge/zig` (or similar)
+
+Based on Zig 0.15.0 (commit `94cda37`).
+
+### Files to Add/Modify in Fork
 
 ```
-patches/
-├── README.md                    # How this system works
-├── zig/
-│   ├── manifest.yaml            # Repo, commit, build instructions
-│   ├── 001-add-lang-ast-objectformat.patch
-│   ├── 002-add-backend-dispatch.patch
-│   ├── 003-lang-ast-codegen.patch
-│   └── src/
-│       └── codegen/
-│           └── lang_ast.zig     # New file (not a patch, just add)
-├── rust/                        # Future
-│   ├── manifest.yaml
-│   └── ...
-└── go/                          # Future
-    ├── manifest.yaml
-    └── ...
+lib/std/Target.zig          # Add lang_ast to ObjectFormat enum
+lib/std/builtin.zig         # Add stage2_lang_ast to CompilerBackend enum
+src/target.zig              # Add lang_ast check in zigBackend()
+src/dev.zig                 # Add lang_ast_backend to Feature enum
+src/codegen.zig             # Wire into importBackend, devFeatureForBackend, AnyMir, etc.
+src/codegen/lang_ast.zig    # NEW: The actual AIR→lang AST emitter
 ```
+
+### Patches Directory (Historical)
+
+The `patches/` directory contains our failed patches attempt. Kept for reference:
+- `patches/zig/001-lang-ast-piggyback.patch` - Piggyback on C backend (worked but ugly)
+- `patches/zig/manifest.yaml` - Build configuration
 
 ### Manifest Format
 
@@ -565,18 +567,18 @@ fn mapIntType(bits: u16, signed: bool) []const u8 {
 
 ## Implementation Plan
 
-### Phase 0: Patches Infrastructure
+### Phase 0: Patches Infrastructure ✅ COMPLETE
 
-1. Create `patches/` directory structure
-2. Create `patches/README.md` explaining the system
-3. Create `patches/zig/manifest.yaml` pinned to Zig 0.14.0
-4. Create `scripts/apply-patches.sh`
-5. Add `patch-zig` target to Makefile
-6. Test: `make patch-zig` clones and builds vanilla Zig
+1. ✅ Create `patches/` directory structure
+2. ✅ Create `patches/README.md` explaining the system
+3. ✅ Create `patches/zig/manifest.yaml` pinned to Zig 0.15.0
+4. ✅ Create `scripts/apply-patches.sh`
+5. ✅ Add `patch-zig` target to Makefile
+6. ✅ Create skeleton `lang_ast.zig` (copied on build)
 
 ### Phase 1: Skeleton
 
-1. Create `patches/zig/src/codegen/lang_ast.zig` with minimal structure
+1. ✅ Create `patches/zig/src/codegen/lang_ast.zig` with minimal structure
 2. Create patch: Add `lang_ast` to `ObjectFormat` enum
 3. Create patch: Add `stage2_lang_ast` to `CompilerBackend` enum
 4. Create patch: Wire into `codegen.zig` dispatch

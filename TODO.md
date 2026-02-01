@@ -33,6 +33,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 
 **Design doc:** **[designs/zig_ast_compatibility.md](designs/zig_ast_compatibility.md)** - full analysis and checklist.
 
+**Zig fork:** `~/repos/lang-zig` - See **[LANG_AST_BACKEND.md](../lang-zig/LANG_AST_BACKEND.md)** for build instructions.
+
 ### Status
 
 - [x] **Reconnaissance complete** - Built debug zig, captured 20K lines of AIR from zig self-compile
@@ -41,12 +43,14 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 - [x] **Cast nodes done** - `cast(type, expr)` and `bitcast(type, expr)` syntax, 172/172 tests
 - [x] **i128/u128 done** - Types recognized (full allocation requires integer type system work)
 - [x] **AIR emitter designed** - See [designs/air_emitter.md](designs/air_emitter.md)
+- [x] **Backend pipeline working** - `-ofmt=lang_ast` outputs `.ast` files with S-expressions
 
 ### Next Steps
 
 - [x] **Unsigned comparisons in lang** - Fixed! `codegen_llvm.lang` emits `ult`/`ugt`/`ule`/`uge` for unsigned types
-- [ ] **Patches infrastructure** - `patches/` directory, `make patch-zig`, manifest.yaml
-- [ ] **Write AIR→AST emitter** - `patches/zig/src/codegen/lang_ast.zig` (~2000 lines)
+- [x] **Patches infrastructure** - Attempted, but too painful. Pivoting to fork.
+- [x] **Fork Zig** - `~/repos/lang-zig` on branch `lang-ast-backend`, `-ofmt=lang_ast` recognized
+- [ ] **Write AIR→AST emitter** - `src/codegen/lang_ast.zig` - currently stubs `(func name (todo))`
 - [ ] **Simple function through pipeline** - arithmetic function → lang AST → binary
 - [ ] **Reader composition** - `./out/lang -r zig compiler.ast -o lang_zig`
 - [ ] **Hello world** - `./lang_zig hello.zig` compiles and runs
@@ -193,6 +197,6 @@ Explain readers in detail:
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Forge proof | Zig | Modern, self-hosted, heavy comptime, good test case |
-| Capture method | Patch backend | Reuse their frontend, just emit our AST |
+| Capture method | Fork | Patches too painful (bootstrap issues). Fork is cleaner. |
 | Interop ABI | C (System V) | Lingua franca, Zig/Rust/everyone uses it |
 | Float support | ✅ Done | f32/f64 via LLVM backend |
