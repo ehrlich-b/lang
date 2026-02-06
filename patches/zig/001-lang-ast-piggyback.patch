@@ -1,0 +1,63 @@
+diff --git a/src/codegen/c.zig b/src/codegen/c.zig
+index b6717183..6713397b 100644
+--- a/src/codegen/c.zig
++++ b/src/codegen/c.zig
+@@ -3010,6 +3010,40 @@ pub fn genLazyFn(o: *Object, lazy_ctype_pool: *const CType.Pool, lazy_fn: LazyFn
+     }
+ }
+
++/// Generate lang AST S-expressions instead of C code.
++/// Used for language capture - emitting Zig programs as lang AST.
++fn generateLangAst(
++    gpa: Allocator,
++    zcu: *const Zcu,
++    func_index: InternPool.Index,
++    air: *const Air,
++) @import("../codegen.zig").CodeGenError!Mir {
++    _ = air; // TODO: walk AIR instructions
++
++    const ip = &zcu.intern_pool;
++    const func = zcu.funcInfo(func_index);
++    const name = ip.getNav(func.owner_nav).name.toSlice(ip);
++
++    var code: std.ArrayListUnmanaged(u8) = .empty;
++    errdefer code.deinit(gpa);
++
++    try code.ensureUnusedCapacity(gpa, 256);
++    var writer = code.writer(gpa);
++    try writer.print(";; Function: {s}\n", .{name});
++    try writer.print("(func {s} () void\n", .{name});
++    try writer.writeAll("  ;; TODO: AIR translation\n");
++    try writer.writeAll("  (return (number 0)))\n");
++
++    return .{
++        .uavs = .empty,
++        .code = try code.toOwnedSlice(gpa),
++        .code_header = &.{},
++        .fwd_decl = &.{},
++        .ctype_pool = .empty,
++        .lazy_fns = .empty,
++    };
++}
++
+ pub fn generate(
+     lf: *link.File,
+     pt: Zcu.PerThread,
+@@ -3022,10 +3056,16 @@ pub fn generate(
+     const gpa = zcu.gpa;
+
+     _ = src_loc;
+-    assert(lf.tag == .c);
+
+     const func = zcu.funcInfo(func_index);
+
++    // Lang AST capture mode
++    if (std.posix.getenv("LANG_AST")) |_| {
++        return generateLangAst(gpa, zcu, func_index, air);
++    }
++
++    assert(lf.tag == .c);
++
+     var function: Function = .{
+         .value_map = .init(gpa),
+         .air = air.*,

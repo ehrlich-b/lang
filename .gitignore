@@ -15,4 +15,3 @@ archive/boot-go/lang0
 .lang-cache/
 std/os.lang
 /zig/
-zig/

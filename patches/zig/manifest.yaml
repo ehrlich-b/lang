@@ -1,0 +1,24 @@
+# Zig compiler with lang-ast backend
+name: zig
+description: Zig compiler patched to emit lang AST
+
+upstream:
+  repo: https://codeberg.org/ziglang/zig.git
+  commit: 94cda37  # 0.15.0 release
+  version: 0.15.0
+
+# Patches to apply (in order)
+patches:
+  - 001-lang-ast-piggyback.patch
+
+# New files to copy into the tree (none needed for piggyback approach)
+copy: []
+
+build:
+  # CRITICAL: -lc eliminates inline ASM syscalls
+  command: zig build -Doptimize=Debug
+  output: zig-out/bin/zig
+
+# What we extract after build
+artifacts:
+  - zig-out/bin/zig -> tools/zig-lang-ast
