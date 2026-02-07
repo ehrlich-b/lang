@@ -41,13 +41,20 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 - [x] **Cast nodes done** - `cast(type, expr)` and `bitcast(type, expr)` syntax, 172/172 tests
 - [x] **i128/u128 done** - Types recognized (full allocation requires integer type system work)
 - [x] **AIR emitter designed** - See [designs/air_emitter.md](designs/air_emitter.md)
+- [x] **AIR emitter built** - `lang_ast.zig` piggybacks on Zig's C backend, emits lang kernel AST
+- [x] **End-to-end pipeline proven** - Zig → patched Zig → lang AST → kernel → LLVM IR → binary (wrapping add, exit 42)
 
 ### Next Steps
 
 - [x] **Unsigned comparisons in lang** - Fixed! `codegen_llvm.lang` emits `ult`/`ugt`/`ule`/`uge` for unsigned types
-- [ ] **Patches infrastructure** - `patches/` directory, `make patch-zig`, manifest.yaml
-- [ ] **Write AIR→AST emitter** - `patches/zig/src/codegen/lang_ast.zig` (~2000 lines)
-- [ ] **Simple function through pipeline** - arithmetic function → lang AST → binary
+- [x] **Patches infrastructure** - `patches/` dir, `scripts/apply-patches.sh`, `manifest.yaml` pinned to Zig 0.15.2
+- [x] **Write AIR→AST emitter** - `patches/zig/src/codegen/lang_ast.zig` (~600 lines), piggyback on c.zig via `LANG_AST` env var
+- [x] **Match kernel AST format** - `(type_base ...)`, `(param ...)`, `(binop ...)`, `(ident ...)`, `(number ...)`, `(block ...)`
+- [x] **Resolve function names** - InternPool `.func`/`.@"extern"` key handling for call targets
+- [x] **Simple function through pipeline** - `add(30,12)` → lang AST → kernel → LLVM IR → clang → exit code 42
+- [ ] **Extraction script** - Strip C boilerplate from `-ofmt=c` output, wrap in `(program ...)`
+- [ ] **Safe arithmetic** - Zig `+` generates `add_with_overflow` + branch; need to handle or lower
+- [ ] **Control flow** - Test if/while/loops through the pipeline
 - [ ] **Reader composition** - `./out/lang -r zig compiler.ast -o lang_zig`
 - [ ] **Hello world** - `./lang_zig hello.zig` compiles and runs
 
