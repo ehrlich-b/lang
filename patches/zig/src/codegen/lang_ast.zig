@@ -1,553 +1,430 @@
-// lang_ast.zig - AIR→lang AST S-expression codegen backend
+// lang_ast.zig - AIR→lang AST S-expression emitter
 //
-// This is a Zig compiler backend that emits lang AST (S-expressions) instead
-// of machine code. It allows capturing Zig programs as lang AST, which can
-// then be compiled through lang's LLVM backend.
+// Piggybacks on the C backend: c.zig calls generateLangAst() when LANG_AST
+// env var is set, and wraps our []u8 output in its Mir struct.
 //
-// Output format matches lang's ast_emit.lang / sexpr_reader.lang format:
+// Output format matches lang's S-expression AST:
 //   (func name ((param1 type1) (param2 type2)) ret_type body...)
-//
-// Integration: Activated by -ofmt=lang-ast flag. Wired through:
-//   lib/std/Target.zig    - ObjectFormat.lang_ast
-//   lib/std/builtin.zig   - CompilerBackend.stage2_lang_ast
-//   src/codegen.zig       - dispatch to this file
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Air = @import("../Air.zig");
-const Liveness = Air.Liveness;
 const Zcu = @import("../Zcu.zig");
 const InternPool = @import("../InternPool.zig");
-const link = @import("../link.zig");
 const Type = @import("../Type.zig");
 
-/// Result of code generation for a single function.
-pub const Mir = struct {
-    code: []u8,
+const Inst = Air.Inst;
 
-    pub fn deinit(mir: *Mir, gpa: Allocator) void {
-        gpa.free(mir.code);
-    }
-};
-
-/// Tracks state for generating a single function's S-expression output.
 const Function = struct {
     gpa: Allocator,
-    air: Air,
-    zcu: *Zcu,
-    output: std.ArrayList(u8),
+    air: *const Air,
+    ip: *const InternPool,
+    out: std.ArrayList(u8),
     indent: u32,
-
-    /// AIR inst index -> variable name string
-    value_map: std.AutoHashMap(Air.InstIndex, []const u8),
-
-    /// Counter for generating temporary variable names
+    value_map: std.AutoHashMap(u32, []const u8),
+    names: std.ArrayList([]const u8),
     next_temp: u32,
 
-    /// Counter for generating block labels
-    next_block: u32,
-
-    /// Tracks names allocated by this function (for cleanup)
-    allocated_names: std.ArrayList([]const u8),
-
-    fn init(gpa: Allocator, air: Air, zcu: *Zcu) Function {
+    fn init(gpa: Allocator, air: *const Air, ip: *const InternPool) Function {
         return .{
             .gpa = gpa,
             .air = air,
-            .zcu = zcu,
-            .output = std.ArrayList(u8).init(gpa),
+            .ip = ip,
+            .out = std.ArrayList(u8).init(gpa),
             .indent = 0,
-            .value_map = std.AutoHashMap(Air.InstIndex, []const u8).init(gpa),
+            .value_map = std.AutoHashMap(u32, []const u8).init(gpa),
+            .names = std.ArrayList([]const u8).init(gpa),
             .next_temp = 0,
-            .next_block = 0,
-            .allocated_names = std.ArrayList([]const u8).init(gpa),
         };
     }
 
     fn deinit(f: *Function) void {
-        for (f.allocated_names.items) |name| {
-            f.gpa.free(name);
-        }
-        f.allocated_names.deinit();
+        for (f.names.items) |n| f.gpa.free(n);
+        f.names.deinit();
         f.value_map.deinit();
-        f.output.deinit();
+        // don't free f.out — caller takes ownership via toOwnedSlice
     }
 
-    // -----------------------------------------------------------------
-    // Output helpers
-    // -----------------------------------------------------------------
+    // -- output helpers --
 
-    fn emit(f: *Function, s: []const u8) !void {
-        try f.output.appendSlice(s);
+    fn w(f: *Function) std.ArrayList(u8).Writer {
+        return f.out.writer();
     }
 
-    fn emitByte(f: *Function, b: u8) !void {
-        try f.output.append(b);
+    fn nl(f: *Function) !void {
+        try f.out.append('\n');
+        for (0..f.indent) |_| try f.out.appendSlice("  ");
     }
 
-    fn emitFmt(f: *Function, comptime fmt: []const u8, args: anytype) !void {
-        try f.output.writer().print(fmt, args);
-    }
+    // -- name management --
 
-    fn emitNewline(f: *Function) !void {
-        try f.emitByte('\n');
-        var i: u32 = 0;
-        while (i < f.indent) : (i += 1) {
-            try f.emit("  ");
-        }
-    }
-
-    // -----------------------------------------------------------------
-    // Name management
-    // -----------------------------------------------------------------
-
-    fn allocName(f: *Function, comptime fmt: []const u8, args: anytype) ![]const u8 {
+    fn alloc_name(f: *Function, comptime fmt: []const u8, args: anytype) ![]const u8 {
         const name = try std.fmt.allocPrint(f.gpa, fmt, args);
-        try f.allocated_names.append(name);
+        try f.names.append(name);
         return name;
     }
 
-    fn freshTemp(f: *Function) ![]const u8 {
+    fn temp(f: *Function) ![]const u8 {
         const n = f.next_temp;
         f.next_temp += 1;
-        return f.allocName("t{d}", .{n});
+        return f.alloc_name("t{d}", .{n});
     }
 
-    fn freshBlock(f: *Function) ![]const u8 {
-        const n = f.next_block;
-        f.next_block += 1;
-        return f.allocName("blk{d}", .{n});
+    fn inst_name(f: *Function, inst: u32) ![]const u8 {
+        if (f.value_map.get(inst)) |n| return n;
+        const n = try f.temp();
+        try f.value_map.put(inst, n);
+        return n;
     }
 
-    fn nameForInst(f: *Function, inst: Air.InstIndex) ![]const u8 {
-        if (f.value_map.get(inst)) |name| return name;
-        const name = try f.freshTemp();
-        try f.value_map.put(inst, name);
-        return name;
-    }
+    // -- type mapping --
 
-    // -----------------------------------------------------------------
-    // Type mapping
-    // -----------------------------------------------------------------
-
-    fn mapType(f: *Function, ty: Type) ![]const u8 {
-        const ip = &f.zcu.intern_pool;
-        const tag = ty.toIntern();
-        switch (ip.indexToKey(tag)) {
-            .int_type => |int_info| {
-                return mapIntType(int_info.bits, int_info.signedness);
+    fn map_type(f: *Function, ty: Type) []const u8 {
+        const key = f.ip.indexToKey(ty.toIntern());
+        switch (key) {
+            .int_type => |info| return map_int(info.bits, info.signedness),
+            .ptr_type => return "*u8",
+            .simple_type => |st| return switch (st) {
+                .void => "void",
+                .bool => "bool",
+                .usize => "u64",
+                .isize => "i64",
+                .f32 => "f32",
+                .f64 => "f64",
+                .noreturn => "void",
+                .u8 => "u8",
+                .i8 => "i8",
+                .u16 => "u16",
+                .i16 => "i16",
+                .u32 => "u32",
+                .i32 => "i32",
+                .u64 => "u64",
+                .i64 => "i64",
+                .u128 => "u128",
+                .i128 => "i128",
+                .comptime_int => "i64",
+                .comptime_float => "f64",
+                else => "i64",
             },
-            .ptr_type => return "*u8", // simplified pointer representation
-            .simple_type => |st| {
-                return switch (st) {
-                    .void => "void",
-                    .bool => "bool",
-                    .usize => "u64",
-                    .isize => "i64",
-                    .f32 => "f32",
-                    .f64 => "f64",
-                    .noreturn => "void",
-                    .u8 => "u8",
-                    .i8 => "i8",
-                    .u16 => "u16",
-                    .i16 => "i16",
-                    .u32 => "u32",
-                    .i32 => "i32",
-                    .u64 => "u64",
-                    .i64 => "i64",
-                    .u128 => "u128",
-                    .i128 => "i128",
-                    .comptime_int => "i64",
-                    .comptime_float => "f64",
-                    else => "i64", // fallback
-                };
-            },
-            .float_type => |float_info| {
-                return switch (float_info.bits) {
-                    32 => "f32",
-                    64 => "f64",
-                    else => "f64",
-                };
-            },
-            else => return "i64", // fallback for complex types
+            else => return "i64",
         }
     }
 
-    fn mapIntType(bits: u16, signedness: std.builtin.Signedness) []const u8 {
-        const is_signed = signedness == .signed;
-        if (bits <= 8) return if (is_signed) "i8" else "u8";
-        if (bits <= 16) return if (is_signed) "i16" else "u16";
-        if (bits <= 32) return if (is_signed) "i32" else "u32";
-        if (bits <= 64) return if (is_signed) "i64" else "u64";
-        if (bits <= 128) return if (is_signed) "i128" else "u128";
-        return "i64"; // fallback
+    fn map_int(bits: u16, signedness: std.builtin.Signedness) []const u8 {
+        const s = signedness == .signed;
+        if (bits <= 8) return if (s) "i8" else "u8";
+        if (bits <= 16) return if (s) "i16" else "u16";
+        if (bits <= 32) return if (s) "i32" else "u32";
+        if (bits <= 64) return if (s) "i64" else "u64";
+        if (bits <= 128) return if (s) "i128" else "u128";
+        return "i64";
     }
 
-    /// Returns whether a type is unsigned (for comparison instruction selection)
-    fn isUnsigned(f: *Function, ty: Type) bool {
-        const ip = &f.zcu.intern_pool;
-        const tag = ty.toIntern();
-        switch (ip.indexToKey(tag)) {
-            .int_type => |int_info| return int_info.signedness == .unsigned,
-            .ptr_type => return true, // pointers are unsigned for comparison
-            .simple_type => |st| {
-                return switch (st) {
-                    .u8, .u16, .u32, .u64, .u128, .usize => true,
-                    .bool => true,
-                    else => false,
-                };
+    fn is_unsigned(f: *Function, ty: Type) bool {
+        const key = f.ip.indexToKey(ty.toIntern());
+        switch (key) {
+            .int_type => |info| return info.signedness == .unsigned,
+            .ptr_type => return true,
+            .simple_type => |st| return switch (st) {
+                .u8, .u16, .u32, .u64, .u128, .usize, .bool => true,
+                else => false,
             },
             else => return false,
         }
     }
 
-    // -----------------------------------------------------------------
-    // Operand resolution
-    // -----------------------------------------------------------------
+    // -- operand resolution --
 
-    fn resolveInst(f: *Function, ref: Air.Inst.Ref) ![]const u8 {
-        if (ref.toIndex()) |inst| {
-            return f.nameForInst(inst);
+    fn resolve(f: *Function, ref: Inst.Ref) ![]const u8 {
+        if (ref.toIndex()) |idx| {
+            return f.inst_name(@intFromEnum(idx));
         }
-        // It's a constant reference - resolve from intern pool
-        return f.resolveConstant(ref);
+        if (ref.toInterned()) |ip_idx| {
+            return f.resolve_const(ip_idx);
+        }
+        return "0";
     }
 
-    fn resolveConstant(f: *Function, ref: Air.Inst.Ref) ![]const u8 {
-        const ip = &f.zcu.intern_pool;
-        const ip_index = ref.toInterned().?;
-        switch (ip.indexToKey(ip_index)) {
+    fn resolve_const(f: *Function, idx: InternPool.Index) ![]const u8 {
+        const key = f.ip.indexToKey(idx);
+        switch (key) {
             .int => |int_val| {
-                const val = switch (int_val.storage) {
-                    .u64 => |v| return f.allocName("{d}", .{v}),
-                    .i64 => |v| return f.allocName("{d}", .{v}),
-                    .big_int => return "0", // simplified
+                switch (int_val.storage) {
+                    .u64 => |v| return f.alloc_name("{d}", .{v}),
+                    .i64 => |v| return f.alloc_name("{d}", .{v}),
+                    .big_int => return "0",
                     .lazy_align, .lazy_size => return "0",
-                };
-                _ = val;
+                }
             },
             .float => |float_val| {
-                return switch (float_val.storage) {
-                    .f32 => |v| f.allocName("{d:.6}", .{v}),
-                    .f64 => |v| f.allocName("{d:.6}", .{v}),
-                    else => "0.0",
-                };
+                switch (float_val.storage) {
+                    .f32 => |v| return f.alloc_name("{d:.6}", .{v}),
+                    .f64 => |v| return f.alloc_name("{d:.6}", .{v}),
+                    else => return "0.0",
+                }
             },
-            .enum_tag => return "0", // simplified enum handling
             .undef => return "0",
             .ptr => return "nil",
             else => return "0",
         }
     }
 
-    // -----------------------------------------------------------------
-    // Type resolution for an AIR instruction's result
-    // -----------------------------------------------------------------
-
-    fn typeOfInst(f: *Function, inst: Air.InstIndex) Type {
-        return f.air.typeOfIndex(inst, f.zcu);
+    fn type_of_ref(f: *Function, ref: Inst.Ref) Type {
+        return f.air.typeOf(ref, f.ip);
     }
 
-    fn typeOfRef(f: *Function, ref: Air.Inst.Ref) Type {
-        return f.air.typeOf(ref, f.zcu);
+    fn type_of_inst(f: *Function, inst: u32) Type {
+        return f.air.typeOfIndex(@enumFromInt(inst), f.ip);
     }
 
-    // -----------------------------------------------------------------
-    // Instruction handlers
-    // -----------------------------------------------------------------
+    // -- instruction handlers --
 
-    fn airArg(f: *Function, inst: Air.InstIndex) !void {
-        const ty = f.typeOfInst(inst);
-        const ty_str = try f.mapType(ty);
-        // Args are pre-named by generate(); just record the mapping if needed
-        const name = try f.nameForInst(inst);
-        _ = name;
-        _ = ty_str;
-    }
-
-    fn airRet(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
+    fn airRet(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
         const operand = data.un_op;
-        try f.emitNewline();
+        try f.nl();
         if (operand == .none) {
-            try f.emit("(return)");
+            try f.out.appendSlice("(return)");
         } else {
-            const val = try f.resolveInst(operand);
-            try f.emitFmt("(return {s})", .{val});
+            const val = try f.resolve(operand);
+            try f.w().print("(return {s})", .{val});
         }
     }
 
     fn airRetVoid(f: *Function) !void {
-        try f.emitNewline();
-        try f.emit("(return)");
+        try f.nl();
+        try f.out.appendSlice("(return)");
     }
 
-    fn airBinOp(f: *Function, inst: Air.InstIndex, op_str: []const u8) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
-        const bin_op = data.bin_op;
-        const lhs = try f.resolveInst(bin_op.lhs);
-        const rhs = try f.resolveInst(bin_op.rhs);
-        const name = try f.nameForInst(inst);
-        try f.emitNewline();
-        try f.emitFmt("(var {s} i64 ({s} {s} {s}))", .{ name, op_str, lhs, rhs });
+    fn airBinOp(f: *Function, inst: u32, op: []const u8) !void {
+        const data = f.air.instructions.items(.data)[inst];
+        const lhs = try f.resolve(data.bin_op.lhs);
+        const rhs = try f.resolve(data.bin_op.rhs);
+        const name = try f.inst_name(inst);
+        const ty = f.map_type(f.type_of_inst(inst));
+        try f.nl();
+        try f.w().print("(var {s} {s} ({s} {s} {s}))", .{ name, ty, op, lhs, rhs });
     }
 
-    fn airCmpOp(f: *Function, inst: Air.InstIndex, op_str: []const u8) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
-        const bin_op = data.bin_op;
-        const lhs = try f.resolveInst(bin_op.lhs);
-        const rhs = try f.resolveInst(bin_op.rhs);
-        const name = try f.nameForInst(inst);
-        // Check signedness for unsigned comparisons (ult/ugt/ule/uge)
-        const lhs_ty = f.typeOfRef(bin_op.lhs);
-        const unsigned = f.isUnsigned(lhs_ty);
-        const actual_op = if (unsigned) unsignedCmpOp(op_str) else op_str;
-        try f.emitNewline();
-        try f.emitFmt("(var {s} bool ({s} {s} {s}))", .{ name, actual_op, lhs, rhs });
+    fn airCmpOp(f: *Function, inst: u32, op: []const u8) !void {
+        const data = f.air.instructions.items(.data)[inst];
+        const lhs = try f.resolve(data.bin_op.lhs);
+        const rhs = try f.resolve(data.bin_op.rhs);
+        const name = try f.inst_name(inst);
+        const lhs_ty = f.type_of_ref(data.bin_op.lhs);
+        const actual_op = if (f.is_unsigned(lhs_ty)) unsigned_cmp(op) else op;
+        try f.nl();
+        try f.w().print("(var {s} bool ({s} {s} {s}))", .{ name, actual_op, lhs, rhs });
     }
 
-    fn unsignedCmpOp(op: []const u8) []const u8 {
+    fn unsigned_cmp(op: []const u8) []const u8 {
         if (std.mem.eql(u8, op, "<")) return "ult";
         if (std.mem.eql(u8, op, ">")) return "ugt";
         if (std.mem.eql(u8, op, "<=")) return "ule";
         if (std.mem.eql(u8, op, ">=")) return "uge";
-        return op; // == and != are sign-agnostic
+        return op;
     }
 
-    fn airUnaryOp(f: *Function, inst: Air.InstIndex, op_str: []const u8) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
-        const operand = data.un_op;
-        const val = try f.resolveInst(operand);
-        const name = try f.nameForInst(inst);
-        try f.emitNewline();
-        try f.emitFmt("(var {s} i64 ({s} {s}))", .{ name, op_str, val });
+    fn airNot(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
+        const val = try f.resolve(data.un_op);
+        const name = try f.inst_name(inst);
+        try f.nl();
+        try f.w().print("(var {s} bool (! {s}))", .{ name, val });
     }
 
-    fn airNot(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
-        const operand = data.un_op;
-        const val = try f.resolveInst(operand);
-        const name = try f.nameForInst(inst);
-        try f.emitNewline();
-        try f.emitFmt("(var {s} bool (! {s}))", .{ name, val });
+    fn airUnaryOp(f: *Function, inst: u32, op: []const u8) !void {
+        const data = f.air.instructions.items(.data)[inst];
+        const val = try f.resolve(data.un_op);
+        const name = try f.inst_name(inst);
+        const ty = f.map_type(f.type_of_inst(inst));
+        try f.nl();
+        try f.w().print("(var {s} {s} ({s} {s}))", .{ name, ty, op, val });
     }
 
-    fn airAlloc(f: *Function, inst: Air.InstIndex) !void {
-        const ty = f.typeOfInst(inst);
-        const ty_str = try f.mapType(ty);
-        const name = try f.nameForInst(inst);
-        try f.emitNewline();
-        try f.emitFmt("(var {s} {s})", .{ name, ty_str });
+    fn airAlloc(f: *Function, inst: u32) !void {
+        const ty = f.map_type(f.type_of_inst(inst));
+        const name = try f.inst_name(inst);
+        try f.nl();
+        try f.w().print("(var {s} {s})", .{ name, ty });
     }
 
-    fn airLoad(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
-        const ptr_operand = data.un_op;
-        const ptr = try f.resolveInst(ptr_operand);
-        const name = try f.nameForInst(inst);
-        // In lang, loading from a var is just using the var name.
-        // But if this is a real pointer deref, use *.
-        // For now, emit the simple case: just alias the name.
+    fn airLoad(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
+        const ptr = try f.resolve(data.un_op);
+        // Alias: loading from a var is just using the var name
         try f.value_map.put(inst, ptr);
-        _ = name;
     }
 
-    fn airStore(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
-        const bin_op = data.bin_op;
-        const ptr = try f.resolveInst(bin_op.lhs);
-        const val = try f.resolveInst(bin_op.rhs);
-        try f.emitNewline();
-        try f.emitFmt("(assign {s} {s})", .{ ptr, val });
+    fn airStore(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
+        const ptr = try f.resolve(data.bin_op.lhs);
+        const val = try f.resolve(data.bin_op.rhs);
+        try f.nl();
+        try f.w().print("(assign {s} {s})", .{ ptr, val });
     }
 
-    fn airCall(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
-        const extra = f.air.extraData(Air.Call, data.pl_op.payload);
-        const callee = try f.resolveInst(data.pl_op.operand);
-        const name = try f.nameForInst(inst);
-        try f.emitNewline();
-        try f.emitFmt("(var {s} i64 (call {s}", .{ name, callee });
-        for (extra.data.args_len) |arg_ref| {
-            const arg = try f.resolveInst(arg_ref);
-            try f.emitFmt(" {s}", .{arg});
+    fn airCall(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
+        const pl_op = data.pl_op;
+        const extra = f.air.extraData(Air.Call, pl_op.payload);
+        const args: []const Inst.Ref = @ptrCast(
+            f.air.extra.items[extra.end..][0..extra.data.args_len],
+        );
+        const callee = try f.resolve(pl_op.operand);
+        const name = try f.inst_name(inst);
+        const ty = f.map_type(f.type_of_inst(inst));
+        try f.nl();
+        try f.w().print("(var {s} {s} (call {s}", .{ name, ty, callee });
+        for (args) |arg_ref| {
+            const arg = try f.resolve(arg_ref);
+            try f.w().print(" {s}", .{arg});
         }
-        try f.emit("))");
+        try f.out.appendSlice("))");
     }
 
-    fn airCondBr(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
-        const extra = f.air.extraData(Air.CondBr, data.pl_op.payload);
-        const cond = try f.resolveInst(data.pl_op.operand);
-        try f.emitNewline();
-        try f.emitFmt("(if {s}", .{cond});
+    fn airCondBr(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
+        const pl_op = data.pl_op;
+        const extra = f.air.extraData(Air.CondBr, pl_op.payload);
+        const cond = try f.resolve(pl_op.operand);
+        const then_body: []const Inst.Index = @ptrCast(
+            f.air.extra.items[extra.end..][0..extra.data.then_body_len],
+        );
+        const else_body: []const Inst.Index = @ptrCast(
+            f.air.extra.items[extra.end + extra.data.then_body_len ..][0..extra.data.else_body_len],
+        );
+        try f.nl();
+        try f.w().print("(if {s}", .{cond});
         f.indent += 1;
-        // Then branch
-        try f.emitNewline();
-        try f.emit("(block");
+        try f.nl();
+        try f.out.appendSlice("(block");
         f.indent += 1;
-        for (extra.data.then_body) |then_inst| {
-            try f.genInst(then_inst);
-        }
+        for (then_body) |bi| try f.gen_inst(@intFromEnum(bi));
         f.indent -= 1;
-        try f.emit(")");
-        // Else branch
-        try f.emitNewline();
-        try f.emit("(block");
+        try f.out.appendSlice(")");
+        try f.nl();
+        try f.out.appendSlice("(block");
         f.indent += 1;
-        for (extra.data.else_body) |else_inst| {
-            try f.genInst(else_inst);
-        }
+        for (else_body) |bi| try f.gen_inst(@intFromEnum(bi));
         f.indent -= 1;
-        try f.emit(")");
+        try f.out.appendSlice(")");
         f.indent -= 1;
-        try f.emit(")");
+        try f.out.appendSlice(")");
     }
 
-    fn airBlock(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
+    fn airBlock(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
         const extra = f.air.extraData(Air.Block, data.ty_pl.payload);
-        try f.emitNewline();
-        try f.emit("(block");
+        const body: []const Inst.Index = @ptrCast(
+            f.air.extra.items[extra.end..][0..extra.data.body_len],
+        );
+        try f.nl();
+        try f.out.appendSlice("(block");
         f.indent += 1;
-        for (extra.data.body) |body_inst| {
-            try f.genInst(body_inst);
-        }
+        for (body) |bi| try f.gen_inst(@intFromEnum(bi));
         f.indent -= 1;
-        try f.emit(")");
+        try f.out.appendSlice(")");
     }
 
-    fn airBr(f: *Function, inst: Air.InstIndex) !void {
-        // Branch to block - in lang AST, control flow is structural,
-        // so we emit a break with the target block's value if any.
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
+    fn airBr(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
         const operand = data.br.operand;
         if (operand != .none) {
-            const val = try f.resolveInst(operand);
-            try f.emitNewline();
-            try f.emitFmt("(break {s})", .{val});
+            const val = try f.resolve(operand);
+            try f.nl();
+            try f.w().print("(break {s})", .{val});
         }
     }
 
-    fn airLoop(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
+    fn airLoop(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
         const extra = f.air.extraData(Air.Block, data.ty_pl.payload);
-        try f.emitNewline();
-        try f.emit("(while (bool true)");
+        const body: []const Inst.Index = @ptrCast(
+            f.air.extra.items[extra.end..][0..extra.data.body_len],
+        );
+        try f.nl();
+        try f.out.appendSlice("(while (bool true)");
         f.indent += 1;
-        for (extra.data.body) |body_inst| {
-            try f.genInst(body_inst);
-        }
+        for (body) |bi| try f.gen_inst(@intFromEnum(bi));
         f.indent -= 1;
-        try f.emit(")");
+        try f.out.appendSlice(")");
     }
 
-    fn airSwitchBr(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
-        const operand = try f.resolveInst(data.pl_op.operand);
-        try f.emitNewline();
-        try f.emitFmt("(match {s}", .{operand});
-        // Switch branches are complex - for now emit a placeholder
-        // Full implementation will extract case values and bodies from extra data
-        try f.emit(" ;; TODO: switch cases)");
+    fn airIntCast(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
+        const val = try f.resolve(data.un_op);
+        const ty = f.map_type(f.type_of_inst(inst));
+        const name = try f.inst_name(inst);
+        try f.nl();
+        try f.w().print("(var {s} {s} (cast (type_base {s}) {s}))", .{ name, ty, ty, val });
     }
 
-    fn airIntCast(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
-        const operand = data.un_op;
-        const val = try f.resolveInst(operand);
-        const dest_ty = f.typeOfInst(inst);
-        const ty_str = try f.mapType(dest_ty);
-        const name = try f.nameForInst(inst);
-        try f.emitNewline();
-        try f.emitFmt("(var {s} {s} (cast (type_base {s}) {s}))", .{ name, ty_str, ty_str, val });
+    fn airBitcast(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
+        const val = try f.resolve(data.un_op);
+        const ty = f.map_type(f.type_of_inst(inst));
+        const name = try f.inst_name(inst);
+        try f.nl();
+        try f.w().print("(var {s} {s} (bitcast (type_base {s}) {s}))", .{ name, ty, ty, val });
     }
 
-    fn airBitcast(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
-        const operand = data.un_op;
-        const val = try f.resolveInst(operand);
-        const dest_ty = f.typeOfInst(inst);
-        const ty_str = try f.mapType(dest_ty);
-        const name = try f.nameForInst(inst);
-        try f.emitNewline();
-        try f.emitFmt("(var {s} {s} (bitcast (type_base {s}) {s}))", .{ name, ty_str, ty_str, val });
-    }
-
-    fn airTrunc(f: *Function, inst: Air.InstIndex) !void {
-        // Truncation is just a cast to a smaller type
-        return f.airIntCast(inst);
-    }
-
-    fn airStructFieldPtr(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
+    fn airStructFieldPtr(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
         const extra = f.air.extraData(Air.StructField, data.ty_pl.payload);
-        const base = try f.resolveInst(extra.data.struct_operand);
-        const name = try f.nameForInst(inst);
-        try f.emitNewline();
-        try f.emitFmt("(var {s} *u8 (field_ptr {s} {d}))", .{ name, base, extra.data.field_index });
+        const base = try f.resolve(extra.data.struct_operand);
+        const name = try f.inst_name(inst);
+        try f.nl();
+        try f.w().print("(var {s} *u8 (field_ptr {s} {d}))", .{ name, base, extra.data.field_index });
     }
 
-    fn airStructFieldVal(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
+    fn airStructFieldVal(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
         const extra = f.air.extraData(Air.StructField, data.ty_pl.payload);
-        const base = try f.resolveInst(extra.data.struct_operand);
-        const name = try f.nameForInst(inst);
-        try f.emitNewline();
-        try f.emitFmt("(var {s} i64 (field {s} {d}))", .{ name, base, extra.data.field_index });
+        const base = try f.resolve(extra.data.struct_operand);
+        const name = try f.inst_name(inst);
+        const ty = f.map_type(f.type_of_inst(inst));
+        try f.nl();
+        try f.w().print("(var {s} {s} (field {s} {d}))", .{ name, ty, base, extra.data.field_index });
     }
 
-    fn airPtrAdd(f: *Function, inst: Air.InstIndex) !void {
-        const data = f.air.instructions.items(.data)[@intFromEnum(inst)];
-        const bin_op = data.bin_op;
-        const ptr = try f.resolveInst(bin_op.lhs);
-        const offset = try f.resolveInst(bin_op.rhs);
-        const name = try f.nameForInst(inst);
-        try f.emitNewline();
-        try f.emitFmt("(var {s} *u8 (+ {s} {s}))", .{ name, ptr, offset });
+    fn airPtrAdd(f: *Function, inst: u32) !void {
+        const data = f.air.instructions.items(.data)[inst];
+        const ptr = try f.resolve(data.bin_op.lhs);
+        const offset = try f.resolve(data.bin_op.rhs);
+        const name = try f.inst_name(inst);
+        try f.nl();
+        try f.w().print("(var {s} *u8 (+ {s} {s}))", .{ name, ptr, offset });
     }
 
-    fn airUnreachable(f: *Function) !void {
-        try f.emitNewline();
-        try f.emit("(call os_exit 1)");
-    }
+    // -- main dispatch --
 
-    fn airDbgStmt(f: *Function) !void {
-        // Debug statements are skipped - no output
-        _ = f;
-    }
-
-    // -----------------------------------------------------------------
-    // Main instruction dispatch
-    // -----------------------------------------------------------------
-
-    fn genInst(f: *Function, inst: Air.InstIndex) !void {
-        const tags = f.air.instructions.items(.tag);
-        const tag = tags[@intFromEnum(inst)];
+    fn gen_inst(f: *Function, inst: u32) !void {
+        const tag = f.air.instructions.items(.tag)[inst];
         switch (tag) {
-            // Priority 1: Core operations
-            .arg => try f.airArg(inst),
-            .ret => try f.airRet(inst),
-            .ret_node => try f.airRet(inst),
-            .ret_safe => try f.airRet(inst),
-            .ret_load => try f.airRet(inst),
-            .@"unreachable" => try f.airUnreachable(),
+            .arg => {}, // handled in generate()
+            .ret, .ret_node, .ret_safe, .ret_load => try f.airRet(inst),
+            .ret_implicit => try f.airRetVoid(),
+            .@"unreachable" => {
+                try f.nl();
+                try f.out.appendSlice("(call os_exit 1)");
+            },
 
-            // Arithmetic
+            // arithmetic
             .add, .add_wrap, .add_sat, .add_optimized => try f.airBinOp(inst, "+"),
             .sub, .sub_wrap, .sub_sat, .sub_optimized => try f.airBinOp(inst, "-"),
             .mul, .mul_wrap, .mul_sat, .mul_optimized => try f.airBinOp(inst, "*"),
             .div_trunc, .div_exact, .div_floor => try f.airBinOp(inst, "/"),
             .rem, .mod => try f.airBinOp(inst, "%"),
 
-            // Bitwise
+            // bitwise
             .bit_and => try f.airBinOp(inst, "&"),
             .bit_or => try f.airBinOp(inst, "|"),
             .xor => try f.airBinOp(inst, "^"),
             .shl, .shl_exact, .shl_sat => try f.airBinOp(inst, "<<"),
             .shr, .shr_exact => try f.airBinOp(inst, ">>"),
 
-            // Comparisons
+            // comparisons
             .cmp_eq => try f.airCmpOp(inst, "=="),
             .cmp_neq => try f.airCmpOp(inst, "!="),
             .cmp_lt, .cmp_lt_optimized => try f.airCmpOp(inst, "<"),
@@ -555,133 +432,96 @@ const Function = struct {
             .cmp_lte, .cmp_lte_optimized => try f.airCmpOp(inst, "<="),
             .cmp_gte, .cmp_gte_optimized => try f.airCmpOp(inst, ">="),
 
-            // Unary
+            // unary
             .not => try f.airNot(inst),
             .negate, .negate_optimized => try f.airUnaryOp(inst, "-"),
 
-            // Memory
+            // memory
             .alloc => try f.airAlloc(inst),
-            .load => try f.airLoad(inst),
-            .store => try f.airStore(inst),
+            .load, .load_safe => try f.airLoad(inst),
+            .store, .store_safe => try f.airStore(inst),
 
-            // Function calls
+            // calls
             .call, .call_always_tail, .call_never_tail, .call_never_inline => try f.airCall(inst),
 
-            // Control flow
+            // control flow
             .cond_br => try f.airCondBr(inst),
             .block => try f.airBlock(inst),
             .br => try f.airBr(inst),
             .loop => try f.airLoop(inst),
-            .switch_br => try f.airSwitchBr(inst),
 
-            // Priority 2: Type conversions
+            // type conversions
             .intcast, .trunc => try f.airIntCast(inst),
             .bitcast => try f.airBitcast(inst),
 
-            // Priority 3: Memory and structs
+            // structs
             .struct_field_ptr, .struct_field_ptr_index_0, .struct_field_ptr_index_1, .struct_field_ptr_index_2, .struct_field_ptr_index_3 => try f.airStructFieldPtr(inst),
             .struct_field_val => try f.airStructFieldVal(inst),
             .ptr_add => try f.airPtrAdd(inst),
 
-            // Debug (skip)
-            .dbg_stmt => try f.airDbgStmt(),
-            .dbg_var_val => {},
-            .dbg_var_ptr => {},
+            // debug (skip)
+            .dbg_stmt, .dbg_var_val, .dbg_var_ptr, .dbg_arg_inline, .dbg_empty_stmt => {},
             .dbg_inline_block => try f.airBlock(inst),
-            .dbg_arg_inline => {},
 
-            // Void return
-            .ret_implicit => try f.airRetVoid(),
-
-            // Unimplemented - emit comment
+            // everything else: comment
             else => {
-                try f.emitNewline();
-                try f.emitFmt(";; TODO: unhandled AIR tag {d}", .{@intFromEnum(tag)});
+                try f.nl();
+                try f.w().print(";; TODO: {s}", .{@tagName(tag)});
             },
         }
     }
 };
 
-// =====================================================================
-// Public entry point - called by Zig's codegen pipeline
-// =====================================================================
-
-pub fn generate(
-    lf: *link.File,
-    pt: Zcu.PerThread,
-    src_loc: Zcu.LazySrcLoc,
+/// Called from the patched c.zig generate() function.
+/// Returns owned S-expression bytes for one function.
+pub fn generateLangAst(
+    gpa: Allocator,
+    zcu: *const Zcu,
     func_index: InternPool.Index,
-    air: Air,
-    liveness: Liveness,
-) CodegenError!Mir {
-    _ = lf;
-    _ = src_loc;
-    _ = liveness;
-
-    const zcu = pt.zcu;
-    const gpa = zcu.gpa;
+    air: *const Air,
+) ![]u8 {
     const ip = &zcu.intern_pool;
-
-    var f = Function.init(gpa, air, zcu);
+    var f = Function.init(gpa, air, ip);
     defer f.deinit();
 
-    // Get function name
-    const func_name = ip.getNav(ip.funcDeclInfo(func_index).owner_nav).name.toSlice(ip);
+    // function name
+    const func = zcu.funcInfo(func_index);
+    const name = ip.getNav(func.owner_nav).name.toSlice(ip);
 
-    // Get function type info
-    const func_ty = ip.indexToKey(ip.typeOf(func_index)).func_type;
-    const ret_ty_idx = func_ty.return_type;
-    const ret_ty = Type.fromInterned(ret_ty_idx);
-    const ret_ty_str = try f.mapType(ret_ty);
+    // function type
+    const func_ty = ip.indexToFuncType(func.ty).?;
+    const ret_ty = Type.fromInterned(func_ty.return_type);
+    const ret_str = f.map_type(ret_ty);
 
-    // Emit function header: (func name ((param1 type1) ...) ret_type
-    try f.emit("(func ");
-    try f.emit(func_name);
-    try f.emit(" (");
-
-    // Emit parameters
+    // header
+    try f.w().print("(func {s} (", .{name});
     const param_types = func_ty.param_types.get(ip);
-    for (param_types, 0..) |param_ty_idx, i| {
-        if (i > 0) try f.emit(" ");
-        const param_ty = Type.fromInterned(param_ty_idx);
-        const pty_str = try f.mapType(param_ty);
-        const param_name = try f.allocName("arg{d}", .{i});
-        try f.emitFmt("(param {s} (type_base {s}))", .{ param_name, pty_str });
-
-        // Pre-register arg instructions with their names.
-        // AIR arg instructions appear in order at the start of the body.
-        // We'll map them as we encounter them.
+    for (param_types, 0..) |pty_idx, i| {
+        if (i > 0) try f.out.appendSlice(" ");
+        const pty = Type.fromInterned(pty_idx);
+        const ps = f.map_type(pty);
+        try f.w().print("({s} {s})", .{ try f.alloc_name("arg{d}", .{i}), ps });
     }
-
-    try f.emitFmt(") (type_base {s})", .{ret_ty_str});
+    try f.w().print(") {s}", .{ret_str});
     f.indent += 1;
 
-    // Map arg instructions to parameter names
+    // pre-register arg instructions
     var arg_idx: usize = 0;
     const tags = air.instructions.items(.tag);
     for (tags, 0..) |tag, i| {
         if (tag == .arg) {
-            const arg_name = try f.allocName("arg{d}", .{arg_idx});
-            try f.value_map.put(@enumFromInt(i), arg_name);
+            const arg_name = try f.alloc_name("arg{d}", .{arg_idx});
+            try f.value_map.put(@intCast(i), arg_name);
             arg_idx += 1;
         }
     }
 
-    // Generate body
+    // body
     const main_body = air.getMainBody();
-    for (main_body) |inst| {
-        try f.genInst(inst);
-    }
+    for (main_body) |inst| try f.gen_inst(@intFromEnum(inst));
 
     f.indent -= 1;
-    try f.emit(")");
-    try f.emitByte('\n');
+    try f.out.appendSlice(")\n");
 
-    // Transfer ownership of the output buffer
-    const code = try f.output.toOwnedSlice();
-    return Mir{ .code = code };
+    return f.out.toOwnedSlice();
 }
-
-pub const CodegenError = Allocator.Error || error{
-    CodegenFail,
-};

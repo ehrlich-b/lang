@@ -4,8 +4,8 @@ description: Zig compiler patched to emit lang AST
 
 upstream:
   repo: https://codeberg.org/ziglang/zig.git
-  commit: 94cda37  # 0.15.0 release
-  version: 0.15.0
+  commit: 0.15.2  # tag-based checkout
+  version: 0.15.2
 
 # Patches to apply (in order)
 patches:
