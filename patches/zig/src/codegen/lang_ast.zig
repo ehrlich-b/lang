@@ -3,8 +3,8 @@
 // Piggybacks on the C backend: c.zig calls generateLangAst() when LANG_AST
 // env var is set, and wraps our []u8 output in its Mir struct.
 //
-// Output format matches lang's S-expression AST:
-//   (func name ((param1 type1) (param2 type2)) ret_type body...)
+// Output format matches lang kernel's S-expression AST:
+//   (func name ((param p1 (type_base i64))) (type_base i64) (block ...))
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -131,6 +131,7 @@ const Function = struct {
 
     // -- operand resolution --
 
+    /// Resolve a ref to a bare name (for bindings, aliasing)
     fn resolve(f: *Function, ref: Inst.Ref) Error![]const u8 {
         if (ref.toIndex()) |idx| {
             return f.inst_name(@intFromEnum(idx));
@@ -139,6 +140,18 @@ const Function = struct {
             return f.resolve_const(ip_idx);
         }
         return "0";
+    }
+
+    /// Resolve a ref to an expression: (ident name) or (number N)
+    fn resolve_expr(f: *Function, ref: Inst.Ref) Error![]const u8 {
+        if (ref.toIndex()) |idx| {
+            const name = try f.inst_name(@intFromEnum(idx));
+            return f.alloc_name("(ident {s})", .{name});
+        }
+        if (ref.toInterned()) |ip_idx| {
+            return f.resolve_const_expr(ip_idx);
+        }
+        return "(number 0)";
     }
 
     fn resolve_const(f: *Function, idx: InternPool.Index) Error![]const u8 {
@@ -159,10 +172,55 @@ const Function = struct {
                     else => return "0.0",
                 }
             },
+            .func => |func_val| {
+                const nav = f.ip.getNav(func_val.owner_nav);
+                return nav.name.toSlice(f.ip);
+            },
+            .@"extern" => |ext_val| {
+                const nav = f.ip.getNav(ext_val.owner_nav);
+                return nav.name.toSlice(f.ip);
+            },
             .undef => return "0",
             .ptr => return "nil",
             else => return "0",
         }
+    }
+
+    fn resolve_const_expr(f: *Function, idx: InternPool.Index) Error![]const u8 {
+        const key = f.ip.indexToKey(idx);
+        switch (key) {
+            .int => |int_val| {
+                switch (int_val.storage) {
+                    .u64 => |v| return f.alloc_name("(number {d})", .{v}),
+                    .i64 => |v| return f.alloc_name("(number {d})", .{v}),
+                    .big_int => return "(number 0)",
+                    .lazy_align, .lazy_size => return "(number 0)",
+                }
+            },
+            .float => |float_val| {
+                switch (float_val.storage) {
+                    .f32 => |v| return f.alloc_name("(number {d:.6})", .{v}),
+                    .f64 => |v| return f.alloc_name("(number {d:.6})", .{v}),
+                    else => return "(number 0)",
+                }
+            },
+            .func => |func_val| {
+                const nav = f.ip.getNav(func_val.owner_nav);
+                return nav.name.toSlice(f.ip);
+            },
+            .@"extern" => |ext_val| {
+                const nav = f.ip.getNav(ext_val.owner_nav);
+                return nav.name.toSlice(f.ip);
+            },
+            .undef => return "(number 0)",
+            .ptr => return "nil",
+            else => return "(number 0)",
+        }
+    }
+
+    fn type_expr(f: *Function, ty: Type) Error![]const u8 {
+        const base = f.map_type(ty);
+        return f.alloc_name("(type_base {s})", .{base});
     }
 
     fn type_of_ref(f: *Function, ref: Inst.Ref) Type {
@@ -182,7 +240,7 @@ const Function = struct {
         if (operand == .none) {
             try f.append("(return)");
         } else {
-            const val = try f.resolve(operand);
+            const val = try f.resolve_expr(operand);
             try f.print("(return {s})", .{val});
         }
     }
@@ -194,23 +252,23 @@ const Function = struct {
 
     fn airBinOp(f: *Function, inst: u32, op: []const u8) Error!void {
         const data = f.air.instructions.items(.data)[inst];
-        const lhs = try f.resolve(data.bin_op.lhs);
-        const rhs = try f.resolve(data.bin_op.rhs);
+        const lhs = try f.resolve_expr(data.bin_op.lhs);
+        const rhs = try f.resolve_expr(data.bin_op.rhs);
         const name = try f.inst_name(inst);
-        const ty = f.map_type(f.type_of_inst(inst));
+        const ty = try f.type_expr(f.type_of_inst(inst));
         try f.nl();
-        try f.print("(var {s} {s} ({s} {s} {s}))", .{ name, ty, op, lhs, rhs });
+        try f.print("(var {s} {s} (binop {s} {s} {s}))", .{ name, ty, op, lhs, rhs });
     }
 
     fn airCmpOp(f: *Function, inst: u32, op: []const u8) Error!void {
         const data = f.air.instructions.items(.data)[inst];
-        const lhs = try f.resolve(data.bin_op.lhs);
-        const rhs = try f.resolve(data.bin_op.rhs);
+        const lhs = try f.resolve_expr(data.bin_op.lhs);
+        const rhs = try f.resolve_expr(data.bin_op.rhs);
         const name = try f.inst_name(inst);
         const lhs_ty = f.type_of_ref(data.bin_op.lhs);
         const actual_op = if (f.is_unsigned(lhs_ty)) unsigned_cmp(op) else op;
         try f.nl();
-        try f.print("(var {s} bool ({s} {s} {s}))", .{ name, actual_op, lhs, rhs });
+        try f.print("(var {s} (type_base bool) (binop {s} {s} {s}))", .{ name, actual_op, lhs, rhs });
     }
 
     fn unsigned_cmp(op: []const u8) []const u8 {
@@ -223,26 +281,26 @@ const Function = struct {
 
     fn airNot(f: *Function, inst: u32) Error!void {
         const data = f.air.instructions.items(.data)[inst];
-        const val = try f.resolve(data.ty_op.operand);
+        const val = try f.resolve_expr(data.ty_op.operand);
         const name = try f.inst_name(inst);
         try f.nl();
-        try f.print("(var {s} bool (! {s}))", .{ name, val });
+        try f.print("(var {s} (type_base bool) (unop ! {s}))", .{ name, val });
     }
 
     fn airUnaryOp(f: *Function, inst: u32, op: []const u8) Error!void {
         const data = f.air.instructions.items(.data)[inst];
-        const val = try f.resolve(data.un_op);
+        const val = try f.resolve_expr(data.un_op);
         const name = try f.inst_name(inst);
-        const ty = f.map_type(f.type_of_inst(inst));
+        const ty = try f.type_expr(f.type_of_inst(inst));
         try f.nl();
-        try f.print("(var {s} {s} ({s} {s}))", .{ name, ty, op, val });
+        try f.print("(var {s} {s} (unop {s} {s}))", .{ name, ty, op, val });
     }
 
     fn airAlloc(f: *Function, inst: u32) Error!void {
-        const ty = f.map_type(f.type_of_inst(inst));
+        const ty = try f.type_expr(f.type_of_inst(inst));
         const name = try f.inst_name(inst);
         try f.nl();
-        try f.print("(var {s} {s})", .{ name, ty });
+        try f.print("(var {s} {s} (number 0))", .{ name, ty });
     }
 
     fn airLoad(f: *Function, inst: u32) Error!void {
@@ -255,9 +313,9 @@ const Function = struct {
     fn airStore(f: *Function, inst: u32) Error!void {
         const data = f.air.instructions.items(.data)[inst];
         const ptr = try f.resolve(data.bin_op.lhs);
-        const val = try f.resolve(data.bin_op.rhs);
+        const val = try f.resolve_expr(data.bin_op.rhs);
         try f.nl();
-        try f.print("(assign {s} {s})", .{ ptr, val });
+        try f.print("(assign (ident {s}) {s})", .{ ptr, val });
     }
 
     fn airCall(f: *Function, inst: u32) Error!void {
@@ -269,11 +327,11 @@ const Function = struct {
         );
         const callee = try f.resolve(pl_op.operand);
         const name = try f.inst_name(inst);
-        const ty = f.map_type(f.type_of_inst(inst));
+        const ty = try f.type_expr(f.type_of_inst(inst));
         try f.nl();
-        try f.print("(var {s} {s} (call {s}", .{ name, ty, callee });
+        try f.print("(var {s} {s} (call (ident {s})", .{ name, ty, callee });
         for (args) |arg_ref| {
-            const arg = try f.resolve(arg_ref);
+            const arg = try f.resolve_expr(arg_ref);
             try f.print(" {s}", .{arg});
         }
         try f.append("))");
@@ -283,7 +341,7 @@ const Function = struct {
         const data = f.air.instructions.items(.data)[inst];
         const pl_op = data.pl_op;
         const extra = f.air.extraData(Air.CondBr, pl_op.payload);
-        const cond = try f.resolve(pl_op.operand);
+        const cond = try f.resolve_expr(pl_op.operand);
         const then_body: []const Inst.Index = @ptrCast(
             f.air.extra.items[extra.end..][0..extra.data.then_body_len],
         );
@@ -299,12 +357,14 @@ const Function = struct {
         for (then_body) |bi| try f.gen_inst(@intFromEnum(bi));
         f.indent -= 1;
         try f.append(")");
-        try f.nl();
-        try f.append("(block");
-        f.indent += 1;
-        for (else_body) |bi| try f.gen_inst(@intFromEnum(bi));
-        f.indent -= 1;
-        try f.append(")");
+        if (else_body.len > 0) {
+            try f.nl();
+            try f.append("(block");
+            f.indent += 1;
+            for (else_body) |bi| try f.gen_inst(@intFromEnum(bi));
+            f.indent -= 1;
+            try f.append(")");
+        }
         f.indent -= 1;
         try f.append(")");
     }
@@ -327,7 +387,7 @@ const Function = struct {
         const data = f.air.instructions.items(.data)[inst];
         const operand = data.br.operand;
         if (operand != .none) {
-            const val = try f.resolve(operand);
+            const val = try f.resolve_expr(operand);
             try f.nl();
             try f.print("(break {s})", .{val});
         }
@@ -349,45 +409,45 @@ const Function = struct {
 
     fn airIntCast(f: *Function, inst: u32) Error!void {
         const data = f.air.instructions.items(.data)[inst];
-        const val = try f.resolve(data.ty_op.operand);
-        const ty = f.map_type(f.type_of_inst(inst));
+        const val = try f.resolve_expr(data.ty_op.operand);
+        const ty = try f.type_expr(f.type_of_inst(inst));
         const name = try f.inst_name(inst);
         try f.nl();
-        try f.print("(var {s} {s} (cast (type_base {s}) {s}))", .{ name, ty, ty, val });
+        try f.print("(var {s} {s} (cast {s} {s}))", .{ name, ty, ty, val });
     }
 
     fn airBitcast(f: *Function, inst: u32) Error!void {
         const data = f.air.instructions.items(.data)[inst];
-        const val = try f.resolve(data.ty_op.operand);
-        const ty = f.map_type(f.type_of_inst(inst));
+        const val = try f.resolve_expr(data.ty_op.operand);
+        const ty = try f.type_expr(f.type_of_inst(inst));
         const name = try f.inst_name(inst);
         try f.nl();
-        try f.print("(var {s} {s} (bitcast (type_base {s}) {s}))", .{ name, ty, ty, val });
+        try f.print("(var {s} {s} (bitcast {s} {s}))", .{ name, ty, ty, val });
     }
 
     fn airStructFieldPtr(f: *Function, inst: u32) Error!void {
         const data = f.air.instructions.items(.data)[inst];
         const extra = f.air.extraData(Air.StructField, data.ty_pl.payload).data;
-        const base = try f.resolve(extra.struct_operand);
+        const base = try f.resolve_expr(extra.struct_operand);
         const name = try f.inst_name(inst);
         try f.nl();
-        try f.print("(var {s} *u8 (field_ptr {s} {d}))", .{ name, base, extra.field_index });
+        try f.print("(var {s} (type_base *u8) (field_ptr {s} {d}))", .{ name, base, extra.field_index });
     }
 
     fn airStructFieldPtrIndex(f: *Function, inst: u32, index: u8) Error!void {
         const data = f.air.instructions.items(.data)[inst];
-        const base = try f.resolve(data.ty_op.operand);
+        const base = try f.resolve_expr(data.ty_op.operand);
         const name = try f.inst_name(inst);
         try f.nl();
-        try f.print("(var {s} *u8 (field_ptr {s} {d}))", .{ name, base, index });
+        try f.print("(var {s} (type_base *u8) (field_ptr {s} {d}))", .{ name, base, index });
     }
 
     fn airStructFieldVal(f: *Function, inst: u32) Error!void {
         const data = f.air.instructions.items(.data)[inst];
         const extra = f.air.extraData(Air.StructField, data.ty_pl.payload).data;
-        const base = try f.resolve(extra.struct_operand);
+        const base = try f.resolve_expr(extra.struct_operand);
         const name = try f.inst_name(inst);
-        const ty = f.map_type(f.type_of_inst(inst));
+        const ty = try f.type_expr(f.type_of_inst(inst));
         try f.nl();
         try f.print("(var {s} {s} (field {s} {d}))", .{ name, ty, base, extra.field_index });
     }
@@ -395,11 +455,11 @@ const Function = struct {
     fn airPtrAdd(f: *Function, inst: u32) Error!void {
         const data = f.air.instructions.items(.data)[inst];
         const bin_op = f.air.extraData(Air.Bin, data.ty_pl.payload).data;
-        const ptr = try f.resolve(bin_op.lhs);
-        const offset = try f.resolve(bin_op.rhs);
+        const ptr = try f.resolve_expr(bin_op.lhs);
+        const offset = try f.resolve_expr(bin_op.rhs);
         const name = try f.inst_name(inst);
         try f.nl();
-        try f.print("(var {s} *u8 (+ {s} {s}))", .{ name, ptr, offset });
+        try f.print("(var {s} (type_base *u8) (binop + {s} {s}))", .{ name, ptr, offset });
     }
 
     fn airDbgInlineBlock(f: *Function, inst: u32) Error!void {
@@ -509,16 +569,17 @@ pub fn generateLangAst(
     // function type
     const func_ty = ip.indexToFuncType(func.ty).?;
     const ret_ty = Type.fromInterned(func_ty.return_type);
-    const ret_str = f.map_type(ret_ty);
+    const ret_str = try f.type_expr(ret_ty);
 
-    // header
+    // header: (func name ((param arg0 (type_base i64)) ...) (type_base i64)
     try f.print("(func {s} (", .{name});
     const param_types = func_ty.param_types.get(ip);
     for (param_types, 0..) |pty_idx, i| {
         if (i > 0) try f.append(" ");
         const pty = Type.fromInterned(pty_idx);
-        const ps = f.map_type(pty);
-        try f.print("({s} {s})", .{ try f.alloc_name("arg{d}", .{i}), ps });
+        const ps = try f.type_expr(pty);
+        const pname = try f.alloc_name("arg{d}", .{i});
+        try f.print("(param {s} {s})", .{ pname, ps });
     }
     try f.print(") {s}", .{ret_str});
     f.indent += 1;
@@ -534,9 +595,14 @@ pub fn generateLangAst(
         }
     }
 
-    // body
+    // body: wrap in (block ...)
+    try f.nl();
+    try f.append("(block");
+    f.indent += 1;
     const main_body = air.getMainBody();
     for (main_body) |inst| try f.gen_inst(@intFromEnum(inst));
+    f.indent -= 1;
+    try f.append(")");
 
     f.indent -= 1;
     try f.append(")\n");
