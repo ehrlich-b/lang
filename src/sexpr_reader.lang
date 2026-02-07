@@ -837,8 +837,13 @@ func sexpr_to_node(node *PNode) *u8 {
         var n *u8 = break_stmt_alloc();
         if sexpr_len(node) > 1 {
             var label_node *PNode = sexpr_get(node, 1);
-            break_stmt_set_label(n, sexpr_strdup(label_node.text));
-            break_stmt_set_label_len(n, strlen(label_node.text));
+            if label_node.kind == PNODE_SYMBOL {
+                break_stmt_set_label(n, sexpr_strdup(label_node.text));
+                break_stmt_set_label_len(n, strlen(label_node.text));
+            } else {
+                break_stmt_set_label(n, nil);
+                break_stmt_set_label_len(n, 0);
+            }
         } else {
             break_stmt_set_label(n, nil);
             break_stmt_set_label_len(n, 0);
@@ -851,8 +856,13 @@ func sexpr_to_node(node *PNode) *u8 {
         var n *u8 = continue_stmt_alloc();
         if sexpr_len(node) > 1 {
             var label_node *PNode = sexpr_get(node, 1);
-            continue_stmt_set_label(n, sexpr_strdup(label_node.text));
-            continue_stmt_set_label_len(n, strlen(label_node.text));
+            if label_node.kind == PNODE_SYMBOL {
+                continue_stmt_set_label(n, sexpr_strdup(label_node.text));
+                continue_stmt_set_label_len(n, strlen(label_node.text));
+            } else {
+                continue_stmt_set_label(n, nil);
+                continue_stmt_set_label_len(n, 0);
+            }
         } else {
             continue_stmt_set_label(n, nil);
             continue_stmt_set_label_len(n, 0);

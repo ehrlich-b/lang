@@ -297,7 +297,13 @@ const Function = struct {
     }
 
     fn airAlloc(f: *Function, inst: u32) Error!void {
-        const ty = try f.type_expr(f.type_of_inst(inst));
+        // alloc returns a pointer; we want the pointee type for the var declaration
+        const ptr_ty = f.type_of_inst(inst);
+        const key = f.ip.indexToKey(ptr_ty.toIntern());
+        const ty = switch (key) {
+            .ptr_type => |pt| try f.type_expr(Type.fromInterned(pt.child)),
+            else => try f.type_expr(ptr_ty),
+        };
         const name = try f.inst_name(inst);
         try f.nl();
         try f.print("(var {s} {s} (number 0))", .{ name, ty });
@@ -535,6 +541,9 @@ const Function = struct {
             .struct_field_ptr_index_3 => try f.airStructFieldPtrIndex(inst, 3),
             .struct_field_val => try f.airStructFieldVal(inst),
             .ptr_add => try f.airPtrAdd(inst),
+
+            // loop control
+            .repeat => {}, // implicit in lang's while loops
 
             // debug (skip)
             .dbg_stmt, .dbg_var_val, .dbg_var_ptr, .dbg_arg_inline, .dbg_empty_stmt => {},

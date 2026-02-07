@@ -5657,6 +5657,12 @@ func llvm_emit_stmt(stmt *u8) void {
         return;
     }
 
+    // Nested block - just emit its contents inline
+    if k == NODE_BLOCK_STMT {
+        llvm_emit_block(stmt);
+        return;
+    }
+
     // Unknown statement - skip
 }
 
