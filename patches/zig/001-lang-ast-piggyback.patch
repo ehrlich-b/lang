@@ -1,5 +1,5 @@
 diff --git a/src/codegen/c.zig b/src/codegen/c.zig
-index b6717183..a1b2c3d4 100644
+index b6717183..861acd1a 100644
 --- a/src/codegen/c.zig
 +++ b/src/codegen/c.zig
 @@ -1,6 +1,7 @@
@@ -10,7 +10,7 @@ index b6717183..a1b2c3d4 100644
  const mem = std.mem;
  const log = std.log.scoped(.c);
  const Allocator = mem.Allocator;
-@@ -3047,13 +3048,24 @@ pub fn generate(
+@@ -3022,10 +3023,26 @@ pub fn generate(
      const gpa = zcu.gpa;
 
      _ = src_loc;
@@ -26,8 +26,8 @@ index b6717183..a1b2c3d4 100644
 +        return .{
 +            .uavs = .empty,
 +            .code = code,
-+            .code_header = &.{},
-+            .fwd_decl = &.{},
++            .code_header = try gpa.alloc(u8, 0),
++            .fwd_decl = try gpa.alloc(u8, 0),
 +            .ctype_pool = .empty,
 +            .lazy_fns = .empty,
 +        };
