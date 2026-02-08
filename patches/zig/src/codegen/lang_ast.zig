@@ -24,6 +24,9 @@ const Function = struct {
     out: std.ArrayListUnmanaged(u8),
     indent: u32,
     value_map: std.AutoHashMapUnmanaged(u32, []const u8),
+    aggregate_elements: std.AutoHashMapUnmanaged(u32, []const Inst.Ref),
+    extern_decls: std.ArrayListUnmanaged(u8),
+    extern_seen: std.StringHashMapUnmanaged(void),
     names: std.ArrayListUnmanaged([]const u8),
     next_temp: u32,
     current_loop_inst: ?u32 = null,
@@ -36,6 +39,9 @@ const Function = struct {
             .out = .empty,
             .indent = 0,
             .value_map = .empty,
+            .aggregate_elements = .empty,
+            .extern_decls = .empty,
+            .extern_seen = .empty,
             .names = .empty,
             .next_temp = 0,
         };
@@ -44,6 +50,11 @@ const Function = struct {
     fn deinit(f: *Function) void {
         for (f.names.items) |n| f.gpa.free(n);
         f.names.deinit(f.gpa);
+        var it = f.aggregate_elements.valueIterator();
+        while (it.next()) |v| f.gpa.free(v.*);
+        f.aggregate_elements.deinit(f.gpa);
+        f.extern_decls.deinit(f.gpa);
+        f.extern_seen.deinit(f.gpa);
         f.value_map.deinit(f.gpa);
         // don't free f.out — caller takes ownership via toOwnedSlice
     }
@@ -181,8 +192,9 @@ const Function = struct {
                 const nav = f.ip.getNav(ext_val.owner_nav);
                 return nav.name.toSlice(f.ip);
             },
+            .enum_tag => |et| return f.resolve_const(et.int),
             .undef => return "0",
-            .ptr => return "nil",
+            .ptr => |ptr| return f.resolve_ptr_const(ptr, false),
             else => return "0",
         }
     }
@@ -213,10 +225,67 @@ const Function = struct {
                 const nav = f.ip.getNav(ext_val.owner_nav);
                 return nav.name.toSlice(f.ip);
             },
+            .enum_tag => |et| return f.resolve_const_expr(et.int),
             .undef => return "(number 0)",
-            .ptr => return "nil",
+            .ptr => |ptr| return f.resolve_ptr_const(ptr, true),
             else => return "(number 0)",
         }
+    }
+
+    /// Resolve a pointer constant. For string literals (uav -> aggregate -> bytes),
+    /// emit (string "content"). For everything else, emit nil/0.
+    fn resolve_ptr_const(f: *Function, ptr: InternPool.Key.Ptr, as_expr: bool) Error![]const u8 {
+        switch (ptr.base_addr) {
+            .uav => |uav| {
+                const uav_key = f.ip.indexToKey(uav.val);
+                switch (uav_key) {
+                    .aggregate => |agg| {
+                        const arr_key = f.ip.indexToKey(agg.ty);
+                        switch (arr_key) {
+                            .array_type => |at| {
+                                switch (agg.storage) {
+                                    .bytes => |str| {
+                                        const bytes = str.toSlice(at.len, f.ip);
+                                        return f.emit_string_literal(bytes);
+                                    },
+                                    else => {},
+                                }
+                            },
+                            else => {},
+                        }
+                    },
+                    else => {},
+                }
+            },
+            else => {},
+        }
+        return if (as_expr) "(number 0)" else "nil";
+    }
+
+    /// Emit a (string "...") expression with proper escaping
+    fn emit_string_literal(f: *Function, bytes: []const u8) Error![]const u8 {
+        // Build escaped string for the AST
+        var buf = std.ArrayListUnmanaged(u8).empty;
+        try buf.appendSlice(f.gpa, "(string \"");
+        for (bytes) |c| {
+            switch (c) {
+                '\n' => try buf.appendSlice(f.gpa, "\\n"),
+                '\r' => try buf.appendSlice(f.gpa, "\\r"),
+                '\t' => try buf.appendSlice(f.gpa, "\\t"),
+                '\\' => try buf.appendSlice(f.gpa, "\\\\"),
+                '"' => try buf.appendSlice(f.gpa, "\\\""),
+                0 => try buf.appendSlice(f.gpa, "\\0"),
+                else => if (c >= 32 and c < 127) {
+                    try buf.append(f.gpa, c);
+                } else {
+                    try buf.writer(f.gpa).print("\\x{x:0>2}", .{c});
+                },
+            }
+        }
+        try buf.appendSlice(f.gpa, "\")");
+        const result = try buf.toOwnedSlice(f.gpa);
+        try f.names.append(f.gpa, result);
+        return result;
     }
 
     fn type_expr(f: *Function, ty: Type) Error![]const u8 {
@@ -332,6 +401,13 @@ const Function = struct {
         const args: []const Inst.Ref = @ptrCast(
             f.air.extra.items[extra.end..][0..extra.data.args_len],
         );
+        // Check if callee is extern and record declaration
+        if (pl_op.operand.toInterned()) |ip_idx| {
+            const callee_key = f.ip.indexToKey(ip_idx);
+            if (callee_key == .@"extern") {
+                try f.recordExtern(callee_key.@"extern");
+            }
+        }
         const callee = try f.resolve(pl_op.operand);
         const name = try f.inst_name(inst);
         const ty = try f.type_expr(f.type_of_inst(inst));
@@ -342,6 +418,29 @@ const Function = struct {
             try f.print(" {s}", .{arg});
         }
         try f.append("))");
+    }
+
+    fn recordExtern(f: *Function, ext: InternPool.Key.Extern) Error!void {
+        const nav = f.ip.getNav(ext.owner_nav);
+        const name = nav.name.toSlice(f.ip);
+        if (f.extern_seen.contains(name)) return;
+        try f.extern_seen.put(f.gpa, name, {});
+
+        const w = f.extern_decls.writer(f.gpa);
+        // Get function type from the extern's type
+        if (f.ip.indexToFuncType(ext.ty)) |func_ty| {
+            try w.print("(extern_func {s} (", .{name});
+            const param_types = func_ty.param_types.get(f.ip);
+            for (param_types, 0..) |pty_idx, i| {
+                if (i > 0) try w.writeAll(" ");
+                const pty = Type.fromInterned(pty_idx);
+                const ps = f.map_type(pty);
+                try w.print("(param p{d} (type_base {s}))", .{ i, ps });
+            }
+            const ret_ty = Type.fromInterned(func_ty.return_type);
+            const ret_str = f.map_type(ret_ty);
+            try w.print(") (type_base {s}))\n", .{ret_str});
+        }
     }
 
     fn airCondBr(f: *Function, inst: u32) Error!void {
@@ -382,17 +481,55 @@ const Function = struct {
         const body: []const Inst.Index = @ptrCast(
             f.air.extra.items[extra.end..][0..extra.data.body_len],
         );
-        try f.nl();
-        try f.append("(block");
-        f.indent += 1;
-        for (body) |bi| try f.gen_inst(@intFromEnum(bi));
-        f.indent -= 1;
-        try f.append(")");
+        // If block produces a non-void value, pre-declare a result variable
+        const block_ty = f.type_of_inst(inst);
+        const is_void = blk: {
+            const key = f.ip.indexToKey(block_ty.toIntern());
+            break :blk switch (key) {
+                .simple_type => |st| st == .void or st == .noreturn,
+                else => false,
+            };
+        };
+        if (is_void) {
+            try f.nl();
+            try f.append("(block");
+            f.indent += 1;
+            for (body) |bi| try f.gen_inst(@intFromEnum(bi));
+            f.indent -= 1;
+            try f.append(")");
+        } else {
+            const name = try f.inst_name(inst);
+            const ty = try f.type_expr(block_ty);
+            try f.nl();
+            try f.print("(var {s} {s} (number 0))", .{ name, ty });
+            try f.nl();
+            try f.append("(block");
+            f.indent += 1;
+            for (body) |bi| try f.gen_inst(@intFromEnum(bi));
+            f.indent -= 1;
+            try f.append(")");
+        }
     }
 
     fn airBr(f: *Function, inst: u32) Error!void {
         const data = f.air.instructions.items(.data)[inst];
         const target = @intFromEnum(data.br.block_inst);
+        const operand = data.br.operand;
+        // If br carries a value to a non-void block, assign it
+        if (operand != .none) {
+            const target_ty = f.type_of_inst(target);
+            const target_key = f.ip.indexToKey(target_ty.toIntern());
+            const target_is_void = switch (target_key) {
+                .simple_type => |st| st == .void or st == .noreturn,
+                else => false,
+            };
+            if (!target_is_void) {
+                const block_name = try f.inst_name(target);
+                const val = try f.resolve_expr(operand);
+                try f.nl();
+                try f.print("(assign (ident {s}) {s})", .{ block_name, val });
+            }
+        }
         // Inside a loop: br to a block inside the loop body = continue (omit),
         // br to the loop itself or an outer block = break
         if (f.current_loop_inst) |loop_inst| {
@@ -463,6 +600,16 @@ const Function = struct {
     fn airStructFieldVal(f: *Function, inst: u32) Error!void {
         const data = f.air.instructions.items(.data)[inst];
         const extra = f.air.extraData(Air.StructField, data.ty_pl.payload).data;
+        // If base was aggregate_init, resolve directly to the element
+        if (extra.struct_operand.toIndex()) |base_idx| {
+            if (f.aggregate_elements.get(@intFromEnum(base_idx))) |elements| {
+                if (extra.field_index < elements.len) {
+                    const val = try f.resolve(elements[extra.field_index]);
+                    try f.value_map.put(f.gpa, inst, val);
+                    return;
+                }
+            }
+        }
         const base = try f.resolve_expr(extra.struct_operand);
         const name = try f.inst_name(inst);
         const ty = try f.type_expr(f.type_of_inst(inst));
@@ -478,6 +625,71 @@ const Function = struct {
         const name = try f.inst_name(inst);
         try f.nl();
         try f.print("(var {s} (type_base *u8) (binop + {s} {s}))", .{ name, ptr, offset });
+    }
+
+    fn airSwitchBr(f: *Function, inst: u32) Error!void {
+        const sw = f.air.unwrapSwitch(@enumFromInt(inst));
+        const cond = try f.resolve_expr(sw.operand);
+        var it = sw.iterateCases();
+        var depth: u32 = 0;
+        while (it.next()) |case| {
+            // Build condition: (binop == cond item0) or chain with ||
+            // For simplicity, handle single-item cases (most common for enums)
+            if (case.items.len == 1 and case.ranges.len == 0) {
+                const item_val = try f.resolve_expr(case.items[0]);
+                try f.nl();
+                try f.print("(if (binop == {s} {s})", .{ cond, item_val });
+                f.indent += 1;
+                try f.nl();
+                try f.append("(block");
+                f.indent += 1;
+                for (case.body) |bi| try f.gen_inst(@intFromEnum(bi));
+                f.indent -= 1;
+                try f.append(")");
+                f.indent -= 1;
+                depth += 1;
+            } else {
+                // Multi-item or range case: emit first item for now
+                if (case.items.len > 0) {
+                    const item_val = try f.resolve_expr(case.items[0]);
+                    try f.nl();
+                    try f.print("(if (binop == {s} {s})", .{ cond, item_val });
+                    f.indent += 1;
+                    try f.nl();
+                    try f.append("(block");
+                    f.indent += 1;
+                    for (case.body) |bi| try f.gen_inst(@intFromEnum(bi));
+                    f.indent -= 1;
+                    try f.append(")");
+                    f.indent -= 1;
+                    depth += 1;
+                }
+            }
+        }
+        // Else branch
+        const else_body = it.elseBody();
+        if (else_body.len > 0) {
+            try f.nl();
+            try f.append("(block");
+            f.indent += 1;
+            for (else_body) |bi| try f.gen_inst(@intFromEnum(bi));
+            f.indent -= 1;
+            try f.append(")");
+        }
+        // Close all the if-else chains
+        for (0..depth) |_| try f.append(")");
+    }
+
+    fn airAggregateInit(f: *Function, inst: u32) Error!void {
+        const data = f.air.instructions.items(.data)[inst];
+        const inst_ty = f.type_of_inst(inst);
+        const len: usize = @intCast(f.ip.aggregateTypeLen(inst_ty.toIntern()));
+        const elements: []const Inst.Ref = @ptrCast(
+            f.air.extra.items[data.ty_pl.payload..][0..len],
+        );
+        // Store elements so struct_field_val can resolve directly
+        const copy = try f.gpa.dupe(Inst.Ref, elements);
+        try f.aggregate_elements.put(f.gpa, inst, copy);
     }
 
     fn airDbgInlineBlock(f: *Function, inst: u32) Error!void {
@@ -540,6 +752,7 @@ const Function = struct {
             .block => try f.airBlock(inst),
             .br => try f.airBr(inst),
             .loop => try f.airLoop(inst),
+            .switch_br, .loop_switch_br => try f.airSwitchBr(inst),
 
             // type conversions
             .intcast, .trunc => try f.airIntCast(inst),
@@ -552,6 +765,7 @@ const Function = struct {
             .struct_field_ptr_index_2 => try f.airStructFieldPtrIndex(inst, 2),
             .struct_field_ptr_index_3 => try f.airStructFieldPtrIndex(inst, 3),
             .struct_field_val => try f.airStructFieldVal(inst),
+            .aggregate_init => try f.airAggregateInit(inst),
             .ptr_add => try f.airPtrAdd(inst),
 
             // loop control
@@ -627,6 +841,16 @@ pub fn generateLangAst(
 
     f.indent -= 1;
     try f.append(")\n");
+
+    // Prepend extern declarations if any
+    if (f.extern_decls.items.len > 0) {
+        var result = std.ArrayListUnmanaged(u8).empty;
+        try result.appendSlice(f.gpa, f.extern_decls.items);
+        try result.appendSlice(f.gpa, "\n");
+        try result.appendSlice(f.gpa, f.out.items);
+        f.out.deinit(f.gpa);
+        f.out = result;
+    }
 
     return f.out.toOwnedSlice(f.gpa);
 }
