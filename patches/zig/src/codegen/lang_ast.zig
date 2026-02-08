@@ -26,6 +26,7 @@ const Function = struct {
     value_map: std.AutoHashMapUnmanaged(u32, []const u8),
     names: std.ArrayListUnmanaged([]const u8),
     next_temp: u32,
+    current_loop_inst: ?u32 = null,
 
     fn init(air: *const Air, ip: *const InternPool) Function {
         return .{
@@ -391,12 +392,20 @@ const Function = struct {
 
     fn airBr(f: *Function, inst: u32) Error!void {
         const data = f.air.instructions.items(.data)[inst];
-        const operand = data.br.operand;
-        if (operand != .none) {
-            const val = try f.resolve_expr(operand);
+        const target = @intFromEnum(data.br.block_inst);
+        // Inside a loop: br to a block inside the loop body = continue (omit),
+        // br to the loop itself or an outer block = break
+        if (f.current_loop_inst) |loop_inst| {
+            if (target > loop_inst) {
+                // Target block is inside the loop → block-local break, loop continues
+                return;
+            }
+            // Target is the loop or outside → exit the loop
             try f.nl();
-            try f.print("(break {s})", .{val});
+            try f.append("(break)");
+            return;
         }
+        // Not inside a loop — block-local break, omit
     }
 
     fn airLoop(f: *Function, inst: u32) Error!void {
@@ -405,8 +414,11 @@ const Function = struct {
         const body: []const Inst.Index = @ptrCast(
             f.air.extra.items[extra.end..][0..extra.data.body_len],
         );
+        const saved_loop = f.current_loop_inst;
+        f.current_loop_inst = inst;
+        defer f.current_loop_inst = saved_loop;
         try f.nl();
-        try f.append("(while (bool true)");
+        try f.append("(while (number 1)");
         f.indent += 1;
         for (body) |bi| try f.gen_inst(@intFromEnum(bi));
         f.indent -= 1;

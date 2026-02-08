@@ -15,6 +15,18 @@
 // the main compiler with --emit-expanded-ast and -r flags instead.
 
 
+// Required by codegen_llvm.lang (not used in kernel mode)
+var add_reader_mode i64 = 0;
+
+// Stub - kernel has no builtin modules
+func find_kernel_builtin(name *u8, name_len i64) *u8 {
+    return nil;
+}
+
+func has_kernel_module(path *u8, path_len i64) i64 {
+    return 0;
+}
+
 // Get argv[i]
 func get_arg(argv **u8, i i64) *u8 {
     var base *u8 = argv;
@@ -198,7 +210,12 @@ func main(argc i64, argv **u8) i64 {
         combined = combine_programs(combined, compiler_prog);
 
         // Generate
-        generate(combined, output_file);
+        var langbe *u8 = getenv("LANGBE");
+        if langbe != nil && streq(langbe, "llvm") {
+            generate_llvm(combined, output_file);
+        } else {
+            generate(combined, output_file);
+        }
 
         print("Wrote ");
         println(output_file);
@@ -225,7 +242,12 @@ func main(argc i64, argv **u8) i64 {
         return 1;
     }
 
-    generate(prog, output_file);
+    var langbe *u8 = getenv("LANGBE");
+    if langbe != nil && streq(langbe, "llvm") {
+        generate_llvm(prog, output_file);
+    } else {
+        generate(prog, output_file);
+    }
 
     print("Wrote ");
     println(output_file);
