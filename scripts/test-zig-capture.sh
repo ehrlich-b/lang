@@ -164,6 +164,39 @@ export fn main() i64 {
 EOF
 run_test "hello_world" "$TMPDIR/hello.zig" 0 "Hello, World!"
 
+# 6. FizzBuzz (multi-function, strings, control flow)
+cat > "$TMPDIR/fizzbuzz.zig" << 'ZIGEOF'
+extern fn write(fd: c_int, buf: [*]const u8, count: usize) isize;
+
+fn fizzbuzz_type(n: i64) i64 {
+    const div3 = @rem(n, 3) == 0;
+    const div5 = @rem(n, 5) == 0;
+    if (div3 and div5) return 0;
+    if (div3) return 1;
+    if (div5) return 2;
+    return 3;
+}
+
+export fn main() i64 {
+    var count: i64 = 0;
+    var i: i64 = 1;
+    while (i <= 30) {
+        const t = fizzbuzz_type(i);
+        if (t == 0) {
+            _ = write(1, "FizzBuzz\n".ptr, 9);
+            count +%= 1;
+        } else if (t == 1) {
+            _ = write(1, "Fizz\n".ptr, 5);
+        } else if (t == 2) {
+            _ = write(1, "Buzz\n".ptr, 5);
+        }
+        i +%= 1;
+    }
+    return count;
+}
+ZIGEOF
+run_test "fizzbuzz" "$TMPDIR/fizzbuzz.zig" 2
+
 # --- Summary ---
 rm -rf "$TMPDIR"
 echo ""

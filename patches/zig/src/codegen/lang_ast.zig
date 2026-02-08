@@ -680,6 +680,17 @@ const Function = struct {
         for (0..depth) |_| try f.append(")");
     }
 
+    fn airPtrElemVal(f: *Function, inst: u32) Error!void {
+        const data = f.air.instructions.items(.data)[inst];
+        const ptr = try f.resolve_expr(data.bin_op.lhs);
+        const idx = try f.resolve_expr(data.bin_op.rhs);
+        const name = try f.inst_name(inst);
+        const ty = try f.type_expr(f.type_of_inst(inst));
+        try f.nl();
+        // Emit as deref(ptr + idx) — works for u8 element size
+        try f.print("(var {s} {s} (deref (binop + {s} {s})))", .{ name, ty, ptr, idx });
+    }
+
     fn airAggregateInit(f: *Function, inst: u32) Error!void {
         const data = f.air.instructions.items(.data)[inst];
         const inst_ty = f.type_of_inst(inst);
@@ -767,6 +778,7 @@ const Function = struct {
             .struct_field_val => try f.airStructFieldVal(inst),
             .aggregate_init => try f.airAggregateInit(inst),
             .ptr_add => try f.airPtrAdd(inst),
+            .ptr_elem_val, .slice_elem_val, .array_elem_val => try f.airPtrElemVal(inst),
 
             // loop control
             .repeat => {}, // implicit in lang's while loops
