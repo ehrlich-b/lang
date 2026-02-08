@@ -57,10 +57,10 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 
 ### Path B: Captured Zig Reader (see [designs/path_b_zig_reader.md](designs/path_b_zig_reader.md))
 
-- [ ] **Camp 1: aggregate_init** - Struct construction in emitter. Needed for any struct-using Zig code
-- [ ] **Camp 2: switch_br** - Switch dispatch in emitter → lower to if-else chain. Critical for tokenizer
-- [ ] **Camp 3: String literals** - Emitter: resolve `.ptr` on string constants. Kernel: global constant data in LLVM IR
-- [ ] **Camp 4: Extraction script** - Strip C boilerplate from `-ofmt=c` output, wrap in `(program ...)`
+- [x] **Camp 1: aggregate_init** - Struct construction transparently lowered (field access resolves to element)
+- [x] **Camp 2: switch_br** - Switch → if-else chain, enum_tag resolution, block result variables
+- [x] **Camp 3: String literals** - Emitter: resolve `.ptr` → `(string "...")`, extern function declarations
+- [x] **Camp 4: Extraction script** - `scripts/extract-zig-ast.sh` + `scripts/test-zig-capture.sh` (5/5 tests)
 - [ ] **Camp 5: Capture non-trivial Zig** - Self-contained Zig program with structs+switch+strings, no std imports
 - [ ] **Camp 6: Zig reader (MVP)** - `zig_reader.zig` tokenizes+parses Zig subset, emits lang AST. Captured and used as reader
 - [ ] **Camp 7: Capture std.zig.Tokenizer** - Import real Zig tokenizer, handle allocators/MultiArrayList/etc
