@@ -43,6 +43,7 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 - [x] **AIR emitter designed** - See [designs/air_emitter.md](designs/air_emitter.md)
 - [x] **AIR emitter built** - `lang_ast.zig` piggybacks on Zig's C backend, emits lang kernel AST
 - [x] **End-to-end pipeline proven** - Zig → patched Zig → lang AST → kernel → LLVM IR → binary (wrapping add, exit 42)
+- [x] **Control flow working** - `factorial(5)` with while loops → exit 120. Kernel handles nested blocks, break-with-value; emitter resolves Zig AIR loop break targets
 
 ### Next Steps
 
@@ -54,7 +55,7 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 - [x] **Simple function through pipeline** - `add(30,12)` → lang AST → kernel → LLVM IR → clang → exit code 42
 - [ ] **Extraction script** - Strip C boilerplate from `-ofmt=c` output, wrap in `(program ...)`
 - [ ] **Safe arithmetic** - Zig `+` generates `add_with_overflow` + branch; need to handle or lower
-- [ ] **Control flow** - Test if/while/loops through the pipeline
+- [x] **Control flow** - `factorial(5)` with while loop through full pipeline → exit 120. Emitter tracks `current_loop_inst` for correct break semantics
 - [ ] **Reader composition** - `./out/lang -r zig compiler.ast -o lang_zig`
 - [ ] **Hello world** - `./lang_zig hello.zig` compiles and runs
 
