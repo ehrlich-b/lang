@@ -53,11 +53,19 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 - [x] **Match kernel AST format** - `(type_base ...)`, `(param ...)`, `(binop ...)`, `(ident ...)`, `(number ...)`, `(block ...)`
 - [x] **Resolve function names** - InternPool `.func`/`.@"extern"` key handling for call targets
 - [x] **Simple function through pipeline** - `add(30,12)` → lang AST → kernel → LLVM IR → clang → exit code 42
-- [ ] **Extraction script** - Strip C boilerplate from `-ofmt=c` output, wrap in `(program ...)`
-- [ ] **Safe arithmetic** - Zig `+` generates `add_with_overflow` + branch; need to handle or lower
 - [x] **Control flow** - `factorial(5)` with while loop through full pipeline → exit 120. Emitter tracks `current_loop_inst` for correct break semantics
-- [ ] **Reader composition** - `./out/lang -r zig compiler.ast -o lang_zig`
-- [ ] **Hello world** - `./lang_zig hello.zig` compiles and runs
+
+### Path B: Captured Zig Reader (see [designs/path_b_zig_reader.md](designs/path_b_zig_reader.md))
+
+- [ ] **Camp 1: aggregate_init** - Struct construction in emitter. Needed for any struct-using Zig code
+- [ ] **Camp 2: switch_br** - Switch dispatch in emitter → lower to if-else chain. Critical for tokenizer
+- [ ] **Camp 3: String literals** - Emitter: resolve `.ptr` on string constants. Kernel: global constant data in LLVM IR
+- [ ] **Camp 4: Extraction script** - Strip C boilerplate from `-ofmt=c` output, wrap in `(program ...)`
+- [ ] **Camp 5: Capture non-trivial Zig** - Self-contained Zig program with structs+switch+strings, no std imports
+- [ ] **Camp 6: Zig reader (MVP)** - `zig_reader.zig` tokenizes+parses Zig subset, emits lang AST. Captured and used as reader
+- [ ] **Camp 7: Capture std.zig.Tokenizer** - Import real Zig tokenizer, handle allocators/MultiArrayList/etc
+
+**Fallback:** Write reader in lang directly (`zig_reader.lang`). Always available, doesn't prove capture thesis.
 
 ### What Doesn't Need Lang Changes
 
