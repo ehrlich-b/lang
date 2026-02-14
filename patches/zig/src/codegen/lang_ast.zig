@@ -27,9 +27,12 @@ const Function = struct {
     aggregate_elements: std.AutoHashMapUnmanaged(u32, []const Inst.Ref),
     extern_decls: std.ArrayListUnmanaged(u8),
     extern_seen: std.StringHashMapUnmanaged(void),
+    global_decls: std.ArrayListUnmanaged(u8),
+    global_seen: std.StringHashMapUnmanaged(void),
     names: std.ArrayListUnmanaged([]const u8),
     next_temp: u32,
     current_loop_inst: ?u32 = null,
+    is_void_func: bool = false,
 
     fn init(air: *const Air, ip: *const InternPool) Function {
         return .{
@@ -42,6 +45,8 @@ const Function = struct {
             .aggregate_elements = .empty,
             .extern_decls = .empty,
             .extern_seen = .empty,
+            .global_decls = .empty,
+            .global_seen = .empty,
             .names = .empty,
             .next_temp = 0,
         };
@@ -55,6 +60,8 @@ const Function = struct {
         f.aggregate_elements.deinit(f.gpa);
         f.extern_decls.deinit(f.gpa);
         f.extern_seen.deinit(f.gpa);
+        f.global_decls.deinit(f.gpa);
+        f.global_seen.deinit(f.gpa);
         f.value_map.deinit(f.gpa);
         // don't free f.out — caller takes ownership via toOwnedSlice
     }
@@ -257,6 +264,12 @@ const Function = struct {
                     else => {},
                 }
             },
+            .nav => |nav_idx| {
+                const nav = f.ip.getNav(nav_idx);
+                const name = nav.name.toSlice(f.ip);
+                try f.recordGlobal(nav_idx);
+                return if (as_expr) f.alloc_name("(ident {s})", .{name}) else name;
+            },
             else => {},
         }
         return if (as_expr) "(number 0)" else "nil";
@@ -289,8 +302,18 @@ const Function = struct {
     }
 
     fn type_expr(f: *Function, ty: Type) Error![]const u8 {
-        const base = f.map_type(ty);
-        return f.alloc_name("(type_base {s})", .{base});
+        const key = f.ip.indexToKey(ty.toIntern());
+        switch (key) {
+            .ptr_type => |ptr_info| {
+                const elem_ty = Type.fromInterned(ptr_info.child);
+                const elem = f.map_type(elem_ty);
+                return f.alloc_name("(type_ptr (type_base {s}))", .{elem});
+            },
+            else => {
+                const base = f.map_type(ty);
+                return f.alloc_name("(type_base {s})", .{base});
+            },
+        }
     }
 
     fn type_of_ref(f: *Function, ref: Inst.Ref) Type {
@@ -307,12 +330,12 @@ const Function = struct {
         const data = f.air.instructions.items(.data)[inst];
         const operand = data.un_op;
         try f.nl();
-        if (operand == .none) {
+        if (operand == .none or f.is_void_func) {
             try f.append("(return)");
-        } else {
-            const val = try f.resolve_expr(operand);
-            try f.print("(return {s})", .{val});
+            return;
         }
+        const val = try f.resolve_expr(operand);
+        try f.print("(return {s})", .{val});
     }
 
     fn airRetVoid(f: *Function) Error!void {
@@ -357,6 +380,15 @@ const Function = struct {
         try f.print("(var {s} (type_base bool) (unop ! {s}))", .{ name, val });
     }
 
+    fn airIsNonNull(f: *Function, inst: u32) Error!void {
+        // is_non_null / is_non_null_ptr: value != 0
+        const data = f.air.instructions.items(.data)[inst];
+        const val = try f.resolve_expr(data.un_op);
+        const name = try f.inst_name(inst);
+        try f.nl();
+        try f.print("(var {s} (type_base bool) (binop != {s} (number 0)))", .{ name, val });
+    }
+
     fn airUnaryOp(f: *Function, inst: u32, op: []const u8) Error!void {
         const data = f.air.instructions.items(.data)[inst];
         const val = try f.resolve_expr(data.un_op);
@@ -390,8 +422,21 @@ const Function = struct {
         const data = f.air.instructions.items(.data)[inst];
         const ptr = try f.resolve(data.bin_op.lhs);
         const val = try f.resolve_expr(data.bin_op.rhs);
+        // Check if store target is a computed pointer (write through pointer)
+        // vs an alloca (variable assignment)
+        const is_ptr_store = if (data.bin_op.lhs.toIndex()) |idx| blk: {
+            const tag = f.air.instructions.items(.tag)[@intFromEnum(idx)];
+            break :blk switch (tag) {
+                .alloc => false,
+                else => true,
+            };
+        } else false;
         try f.nl();
-        try f.print("(assign (ident {s}) {s})", .{ ptr, val });
+        if (is_ptr_store) {
+            try f.print("(assign (unop * (ident {s})) {s})", .{ ptr, val });
+        } else {
+            try f.print("(assign (ident {s}) {s})", .{ ptr, val });
+        }
     }
 
     fn airCall(f: *Function, inst: u32) Error!void {
@@ -409,15 +454,31 @@ const Function = struct {
             }
         }
         const callee = try f.resolve(pl_op.operand);
-        const name = try f.inst_name(inst);
-        const ty = try f.type_expr(f.type_of_inst(inst));
+        const ret_ty = f.type_of_inst(inst);
+        const ret_key = f.ip.indexToKey(ret_ty.toIntern());
+        const is_void = switch (ret_key) {
+            .simple_type => |st| st == .void or st == .noreturn,
+            else => false,
+        };
         try f.nl();
-        try f.print("(var {s} {s} (call (ident {s})", .{ name, ty, callee });
-        for (args) |arg_ref| {
-            const arg = try f.resolve_expr(arg_ref);
-            try f.print(" {s}", .{arg});
+        if (is_void) {
+            // Void call: emit as bare statement, no var wrapper
+            try f.print("(call (ident {s})", .{callee});
+            for (args) |arg_ref| {
+                const arg = try f.resolve_expr(arg_ref);
+                try f.print(" {s}", .{arg});
+            }
+            try f.append(")");
+        } else {
+            const name = try f.inst_name(inst);
+            const ty = try f.type_expr(ret_ty);
+            try f.print("(var {s} {s} (call (ident {s})", .{ name, ty, callee });
+            for (args) |arg_ref| {
+                const arg = try f.resolve_expr(arg_ref);
+                try f.print(" {s}", .{arg});
+            }
+            try f.append("))");
         }
-        try f.append("))");
     }
 
     fn recordExtern(f: *Function, ext: InternPool.Key.Extern) Error!void {
@@ -441,6 +502,77 @@ const Function = struct {
             const ret_str = f.map_type(ret_ty);
             try w.print(") (type_base {s}))\n", .{ret_str});
         }
+    }
+
+    fn recordGlobal(f: *Function, nav_idx: InternPool.Nav.Index) Error!void {
+        const nav = f.ip.getNav(nav_idx);
+        const name = nav.name.toSlice(f.ip);
+        if (f.global_seen.contains(name)) return;
+        try f.global_seen.put(f.gpa, name, {});
+
+        const w = f.global_decls.writer(f.gpa);
+        // Determine type from the nav's type
+        const nav_ty = Type.fromInterned(nav.typeOf(f.ip));
+        const ty_key = f.ip.indexToKey(nav_ty.toIntern());
+        switch (ty_key) {
+            .array_type => |at| {
+                // Array global: emit as static array (kernel uses zeroinitializer + GEP)
+                const elem_ty = Type.fromInterned(at.child);
+                const elem = f.map_type(elem_ty);
+                try w.print("(var {s} (type_array {d} (type_base {s})))\n", .{ name, at.len, elem });
+            },
+            .ptr_type => {
+                try w.print("(var {s} (type_ptr (type_base u8)) (number 0))\n", .{name});
+            },
+            else => {
+                const ty_str = f.map_type(nav_ty);
+                try w.print("(var {s} (type_base {s}) (number 0))\n", .{ name, ty_str });
+            },
+        }
+    }
+
+    fn airSlice(f: *Function, inst: u32) Error!void {
+        // slice constructs {ptr, len} from a pointer and length
+        // Store as transparent aggregate
+        const data = f.air.instructions.items(.data)[inst];
+        const extra = f.air.extraData(Air.Bin, data.ty_pl.payload).data;
+        const elements = try f.gpa.alloc(Inst.Ref, 2);
+        elements[0] = extra.lhs; // ptr
+        elements[1] = extra.rhs; // len
+        try f.aggregate_elements.put(f.gpa, inst, elements);
+    }
+
+    fn airSlicePtr(f: *Function, inst: u32) Error!void {
+        // Extract pointer (element 0) from a slice aggregate
+        const data = f.air.instructions.items(.data)[inst];
+        if (data.ty_op.operand.toIndex()) |base_idx| {
+            if (f.aggregate_elements.get(@intFromEnum(base_idx))) |elements| {
+                if (elements.len > 0) {
+                    const val = try f.resolve(elements[0]);
+                    try f.value_map.put(f.gpa, inst, val);
+                    return;
+                }
+            }
+        }
+        // Fallback: just alias the operand
+        const val = try f.resolve(data.ty_op.operand);
+        try f.value_map.put(f.gpa, inst, val);
+    }
+
+    fn airPtrElemPtr(f: *Function, inst: u32) Error!void {
+        // Pointer arithmetic: ptr + idx → pointer to element
+        const data = f.air.instructions.items(.data)[inst];
+        const extra = f.air.extraData(Air.Bin, data.ty_pl.payload).data;
+        const ptr = try f.resolve(extra.lhs);
+        const idx = try f.resolve(extra.rhs);
+        const name = try f.inst_name(inst);
+        // Emit as binop + ptr idx and alias
+        const val = try f.alloc_name("(binop + (ident {s}) (ident {s}))", .{ ptr, idx });
+        // Actually: store as expr that can be used directly, but also need a var decl
+        // For simplicity, just compute ptr+idx as a new local
+        try f.nl();
+        try f.print("(var {s} (type_ptr (type_base u8)) (binop + (ident {s}) (ident {s})))", .{ name, ptr, idx });
+        _ = val;
     }
 
     fn airCondBr(f: *Function, inst: u32) Error!void {
@@ -563,21 +695,17 @@ const Function = struct {
     }
 
     fn airIntCast(f: *Function, inst: u32) Error!void {
+        // Kernel stores all values as i64; all int casts are no-ops
         const data = f.air.instructions.items(.data)[inst];
-        const val = try f.resolve_expr(data.ty_op.operand);
-        const ty = try f.type_expr(f.type_of_inst(inst));
-        const name = try f.inst_name(inst);
-        try f.nl();
-        try f.print("(var {s} {s} (cast {s} {s}))", .{ name, ty, ty, val });
+        const raw = try f.resolve(data.ty_op.operand);
+        try f.value_map.put(f.gpa, inst, raw);
     }
 
     fn airBitcast(f: *Function, inst: u32) Error!void {
+        // Kernel stores everything as i64; bitcasts are no-ops
         const data = f.air.instructions.items(.data)[inst];
-        const val = try f.resolve_expr(data.ty_op.operand);
-        const ty = try f.type_expr(f.type_of_inst(inst));
-        const name = try f.inst_name(inst);
-        try f.nl();
-        try f.print("(var {s} {s} (bitcast {s} {s}))", .{ name, ty, ty, val });
+        const raw = try f.resolve(data.ty_op.operand);
+        try f.value_map.put(f.gpa, inst, raw);
     }
 
     fn airStructFieldPtr(f: *Function, inst: u32) Error!void {
@@ -681,14 +809,17 @@ const Function = struct {
     }
 
     fn airPtrElemVal(f: *Function, inst: u32) Error!void {
+        // Split into typed pointer var + dereference so kernel gets type info
         const data = f.air.instructions.items(.data)[inst];
         const ptr = try f.resolve_expr(data.bin_op.lhs);
         const idx = try f.resolve_expr(data.bin_op.rhs);
         const name = try f.inst_name(inst);
         const ty = try f.type_expr(f.type_of_inst(inst));
+        const ptr_name = try f.alloc_name("__ptr_{s}", .{name});
         try f.nl();
-        // Emit as deref(ptr + idx) — works for u8 element size
-        try f.print("(var {s} {s} (deref (binop + {s} {s})))", .{ name, ty, ptr, idx });
+        try f.print("(var {s} (type_ptr {s}) (binop + {s} {s}))", .{ ptr_name, ty, ptr, idx });
+        try f.nl();
+        try f.print("(var {s} {s} (unop * (ident {s})))", .{ name, ty, ptr_name });
     }
 
     fn airAggregateInit(f: *Function, inst: u32) Error!void {
@@ -749,6 +880,7 @@ const Function = struct {
             // unary
             .not => try f.airNot(inst),
             .neg, .neg_optimized => try f.airUnaryOp(inst, "-"),
+            .is_non_null, .is_non_null_ptr => try f.airIsNonNull(inst),
 
             // memory
             .alloc => try f.airAlloc(inst),
@@ -779,6 +911,9 @@ const Function = struct {
             .aggregate_init => try f.airAggregateInit(inst),
             .ptr_add => try f.airPtrAdd(inst),
             .ptr_elem_val, .slice_elem_val, .array_elem_val => try f.airPtrElemVal(inst),
+            .ptr_elem_ptr => try f.airPtrElemPtr(inst),
+            .slice => try f.airSlice(inst),
+            .slice_ptr => try f.airSlicePtr(inst),
 
             // loop control
             .repeat => {}, // implicit in lang's while loops
@@ -817,6 +952,12 @@ pub fn generateLangAst(
     const func_ty = ip.indexToFuncType(func.ty).?;
     const ret_ty = Type.fromInterned(func_ty.return_type);
     const ret_str = try f.type_expr(ret_ty);
+    // Track void functions for return handling
+    const ret_key = ip.indexToKey(ret_ty.toIntern());
+    f.is_void_func = switch (ret_key) {
+        .simple_type => |st| st == .void or st == .noreturn,
+        else => false,
+    };
 
     // header: (func name ((param arg0 (type_base i64)) ...) (type_base i64)
     try f.print("(func {s} (", .{name});
@@ -854,10 +995,15 @@ pub fn generateLangAst(
     f.indent -= 1;
     try f.append(")\n");
 
-    // Prepend extern declarations if any
-    if (f.extern_decls.items.len > 0) {
+    // Prepend extern + global declarations if any
+    if (f.extern_decls.items.len > 0 or f.global_decls.items.len > 0) {
         var result = std.ArrayListUnmanaged(u8).empty;
-        try result.appendSlice(f.gpa, f.extern_decls.items);
+        if (f.global_decls.items.len > 0) {
+            try result.appendSlice(f.gpa, f.global_decls.items);
+        }
+        if (f.extern_decls.items.len > 0) {
+            try result.appendSlice(f.gpa, f.extern_decls.items);
+        }
         try result.appendSlice(f.gpa, "\n");
         try result.appendSlice(f.gpa, f.out.items);
         f.out.deinit(f.gpa);

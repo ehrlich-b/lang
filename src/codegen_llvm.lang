@@ -1207,28 +1207,52 @@ func llvm_emit_expr(expr *u8) void {
                 llvm_set_result_temp(temp);
             }
         } else if llvm_is_global(name, len) {
-            // Global variable: emit load from @name
+            // Global variable
             var global_idx i64 = find_global(name, len);
             var global_type *u8 = nil;
             if global_idx >= 0 {
                 global_type = global_get_type(global_idx);
             }
-            var temp i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(temp);
-            llvm_emit_str(" = load ");
-            if global_type != nil && llvm_is_float_type(global_type) {
-                llvm_expr_is_float = 1;
+            if global_type != nil && type_kind(global_type) == TYPE_ARRAY {
+                // Array global: GEP to first element, then ptrtoint to i64
+                var gep_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(gep_temp);
+                llvm_emit_str(" = getelementptr ");
                 llvm_emit_type(global_type);
                 llvm_emit_str(", ");
                 llvm_emit_type(global_type);
                 llvm_emit_str("* @");
+                llvm_emit_n(name, len);
+                llvm_emit_line(", i64 0, i64 0");
+                var ptr_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(ptr_temp);
+                llvm_emit_str(" = ptrtoint ");
+                llvm_emit_type(array_type_elem(global_type));
+                llvm_emit_str("* %t");
+                llvm_emit_int(gep_temp);
+                llvm_emit_line(" to i64");
+                llvm_set_result_temp(ptr_temp);
             } else {
-                llvm_emit_str("i64, i64* @");
+                // Scalar global: emit load from @name
+                var temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(temp);
+                llvm_emit_str(" = load ");
+                if global_type != nil && llvm_is_float_type(global_type) {
+                    llvm_expr_is_float = 1;
+                    llvm_emit_type(global_type);
+                    llvm_emit_str(", ");
+                    llvm_emit_type(global_type);
+                    llvm_emit_str("* @");
+                } else {
+                    llvm_emit_str("i64, i64* @");
+                }
+                llvm_emit_n(name, len);
+                llvm_emit_char(10);
+                llvm_set_result_temp(temp);
             }
-            llvm_emit_n(name, len);
-            llvm_emit_char(10);
-            llvm_set_result_temp(temp);
         } else {
             // Parameter: use directly
             *(llvm_expr_result) = 37;  // '%'

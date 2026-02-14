@@ -19,7 +19,9 @@ if [ ! -f "$input" ]; then
 fi
 
 echo "(program"
-# Strip "static " prefix from non-exported functions, then extract S-expressions
+# Extract global var declarations (deduplicated)
+awk '/^\(var /{if (!seen[$0]++) print}' "$input"
+# Strip "static " prefix from non-exported functions, then extract func/extern_func
 sed 's/^static (func /(func /' "$input" | \
     awk '/^\(func |^\(extern_func /{found=1} found{print} /^$/ && found{found=0}'
 echo ")"
