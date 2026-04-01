@@ -462,13 +462,13 @@ const Function = struct {
         };
         try f.nl();
         if (is_void) {
-            // Void call: emit as bare statement, no var wrapper
-            try f.print("(call (ident {s})", .{callee});
+            // Void call: wrap in expr_stmt for kernel compatibility
+            try f.print("(expr_stmt (call (ident {s})", .{callee});
             for (args) |arg_ref| {
                 const arg = try f.resolve_expr(arg_ref);
                 try f.print(" {s}", .{arg});
             }
-            try f.append(")");
+            try f.append("))");
         } else {
             const name = try f.inst_name(inst);
             const ty = try f.type_expr(ret_ty);
@@ -914,6 +914,9 @@ const Function = struct {
             .ptr_elem_ptr => try f.airPtrElemPtr(inst),
             .slice => try f.airSlice(inst),
             .slice_ptr => try f.airSlicePtr(inst),
+
+            // optionals
+            .optional_payload, .optional_payload_ptr => try f.airBitcast(inst),
 
             // loop control
             .repeat => {}, // implicit in lang's while loops

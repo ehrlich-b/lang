@@ -285,6 +285,11 @@ func sexpr_op_to_token(op *u8) i64 {
     if streq(op, "||") { return TOKEN_PIPEPIPE; }
     if streq(op, "!") { return TOKEN_BANG; }
     if streq(op, "=") { return TOKEN_EQ; }
+    // Unsigned comparisons (from captured Zig AIR)
+    if streq(op, "ult") { return TOKEN_LT; }
+    if streq(op, "ugt") { return TOKEN_GT; }
+    if streq(op, "ule") { return TOKEN_LTEQ; }
+    if streq(op, "uge") { return TOKEN_GTEQ; }
     // Unknown operator
     return 0;
 }
