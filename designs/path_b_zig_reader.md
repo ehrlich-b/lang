@@ -6,7 +6,17 @@
 
 Where `zig_reader` is a captured Zig program — compiled by the patched Zig, through our emitter, through the lang kernel, into a native binary. A Zig program running on the lang runtime that reads Zig source and emits lang AST.
 
-## Base Camp (Current State — Feb 2025)
+## Status (Apr 2026 — Camp 6 MVP landed)
+
+**Camps 1-6 all green.** `zig_reader/zig_reader.zig` (~900 lines) is a self-contained Zig reader that tokenizes and parses a Zig subset and emits lang AST. It is captured through the patched-Zig AIR→lang-AST emitter, built by the lang kernel, and runs as a native binary. Proven end-to-end:
+- `fn main() i64 { return 10 +% 32; }` → exit 42
+- fibonacci(10) via the captured reader → exit 55
+- factorial(5) via the captured reader → exit 120
+- `zig_reader` reads its own source end-to-end (594 lines of AST out, no crash) — though the parser isn't yet rich enough for the output to round-trip through the kernel (that's Camp 7).
+
+See the "Emitter gaps discovered in Camp 6" section below for the list of bugs that had to be fixed to get here, and the remaining blockers for Camp 7.
+
+## Base Camp (original notes — Feb 2026)
 
 **What works end-to-end:**
 ```
@@ -147,6 +157,29 @@ Zig aggressively folds comptime-known expressions. Simple string indexing disapp
 5. Is itself captured through the pipeline and runs on the lang kernel
 
 This requires camps 1-5 to be complete. It does NOT require camp 7 (std.zig).
+
+## Emitter gaps discovered in Camp 6
+
+While landing Camp 6, three silent-wrong-answer bugs were found and fixed in `patches/zig/src/codegen/lang_ast.zig`, and one bigger gap was identified and documented (not yet fixed).
+
+### Fixed
+
+1. **`bool_true` / `bool_false` constants.** `resolve_const` / `resolve_const_expr` called `indexToKey(idx)` and fell through to `else => "(number 0)"` for boolean literals — because `indexToKey(.bool_true)` returns `.simple_value = .true`, not `.int`. Intercepted `idx == .bool_true` / `.bool_false` before calling `indexToKey`. Prior symptom: every `a or b` short-circuit emitted `assign result (number 0)` in the true branch, so boolean expressions silently collapsed to the right operand.
+
+2. **`airLoad` materialization.** The emitter used to record a load as `value_map.put(inst, ptr_name)` — i.e., subsequent uses re-read the current value of the underlying pointer, not the value at load time. Anything like `const ns = ts; expect(...); emit(src+ns, ...)` broke because `expect` mutates `ts` in place and `ns` ended up re-reading the new value. Fix: emit every load as a fresh `(var t<inst> ty (ident ptr))`. Fatter IR but correct.
+
+3. **`.repeated_elem` / `.elems` aggregate storage.** `resolve_ptr_const` only handled `.bytes` storage for string literals, but Zig interns strings like `"    "` and `"))"` as `.repeated_elem` (single byte repeated) and element arrays as `.elems`. Added both cases with an `internAsByte` helper. Prior symptom: `emits("    ")` / `emits("))")` emitted `(number 0)` as the argument — string indentation and close-paren emission both silently dropped.
+
+### Open (blocks Camp 7)
+
+**Every pointer is `*u8`. No element-size scaling. No typed stores.** `map_type` has no `.array_type` case (defaults to `i64`), `recordGlobal` doesn't recurse into element types, and `airPtrAdd` / `airPtrElemPtr` / `airPtrElemVal` all emit `(binop + ptr idx)` with no stride. The kernel lowers store-through-pointer as an `i8` store regardless of the pointed-to type.
+
+Observable consequences:
+- `var save_pos: [32]usize` + `save_pos[sd] = x` writes only the low byte of x.
+- `var scratch: [32][8192]u8` globals collapse to `[32]i64` with the wrong stride.
+- Any nested array global is broken.
+
+Pragmatic workaround used in `zig_reader.zig`: flatten all non-`u8` arrays to `[N]u8` and encode wider integers as byte sequences (see `put4`/`get4` at the top of `zig_reader/zig_reader.zig`). The proper fix in the emitter is (1) a recursive `recordGlobal` that produces real nested `(type_array N (type_array M (type_base u8)))` shapes, (2) per-pointer element-type tracking so `airPtrAdd` multiplies by element size, and (3) `airStore` choosing the store width from the pointee type. This is the next significant Path B investment.
 
 ## What Could Kill Us
 

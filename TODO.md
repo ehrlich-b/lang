@@ -60,10 +60,21 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 - [x] **Camp 1: aggregate_init** - Struct construction transparently lowered (field access resolves to element)
 - [x] **Camp 2: switch_br** - Switch → if-else chain, enum_tag resolution, block result variables
 - [x] **Camp 3: String literals** - Emitter: resolve `.ptr` → `(string "...")`, extern function declarations
-- [x] **Camp 4: Extraction script** - `scripts/extract-zig-ast.sh` + `scripts/test-zig-capture.sh` (5/5 tests)
-- [ ] **Camp 5: Capture non-trivial Zig** - Self-contained Zig program with structs+switch+strings, no std imports
-- [ ] **Camp 6: Zig reader (MVP)** - `zig_reader.zig` tokenizes+parses Zig subset, emits lang AST. Captured and used as reader
-- [ ] **Camp 7: Capture std.zig.Tokenizer** - Import real Zig tokenizer, handle allocators/MultiArrayList/etc
+- [x] **Camp 4: Extraction script** - `scripts/extract-zig-ast.sh` + `scripts/test-zig-capture.sh` (6/6 tests)
+- [x] **Camp 5: Capture non-trivial Zig** - FizzBuzz w/ structs, switch, strings, multi-function works end-to-end
+- [x] **Camp 6: Zig reader (MVP)** - `zig_reader/zig_reader.zig` (~900 lines) tokenizes+parses a Zig subset, emits lang AST. Captured through patched-Zig → kernel → binary; reads factorial/fib/arith Zig programs and emits compilable lang AST. Runs cleanly against its own source (594 lines out, no crash) though the parser itself can't yet self-compile.
+- [ ] **Camp 7: Full self-capture** - Extend zig_reader to parse enough of its own source to roundtrip. Blocked on emitter gaps (see "Known Emitter Gaps" below) and on reader gaps (`[*]u8` type syntax, `@truncate`/`@bitCast`, global init expressions, array-of-array indexing).
+
+### Known Emitter Gaps (discovered during Camp 6)
+
+| Gap | Severity | Workaround |
+|-----|----------|------------|
+| All pointers emitted as `*u8` (no element-size scaling on ptr arithmetic) | High | In user code, stick to `u8` arrays; encode wider values as byte sequences |
+| Nested array types in globals (`[32][8192]u8` → flattened to `[32]i64`) | High | Flatten to 1D and compute stride manually |
+| Stores through typed pointers always truncate to `i8` | High | Same as above |
+| `.repeated_elem` / `.elems` string storage | FIXED in lang_ast.zig |
+| `bool_true` / `bool_false` constants → `(number 0)` | FIXED |
+| `airLoad` aliased to underlying var (stale after mutation) | FIXED — now captures each load |
 
 **Fallback:** Write reader in lang directly (`zig_reader.lang`). Always available, doesn't prove capture thesis.
 

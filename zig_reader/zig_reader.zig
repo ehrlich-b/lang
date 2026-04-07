@@ -64,35 +64,64 @@ fn flush() void {
 // When parsing binary expressions, we need to wrap left operand:
 //   parse left → see op → emit "(binop + " left " " right ")"
 // We capture left's output, then re-emit it wrapped.
+//
+// IMPORTANT: the lang emitter collapses every pointer to *u8 and does not
+// scale GEP offsets or match store widths to element type. So only u8 arrays
+// work correctly. save_pos and scratch_len hold usize values, which we encode
+// as 4-byte little-endian in a flat u8 buffer.
 
 const SCRATCH_SIZE: usize = 8192;
-const MAX_SCRATCH: usize = 32;
+const MAX_SCRATCH: usize = 64; // recursive descent with nested @builtins can stack deep
+const SCRATCH_TOTAL: usize = MAX_SCRATCH * SCRATCH_SIZE;
 
-var scratch: [MAX_SCRATCH][SCRATCH_SIZE]u8 = undefined;
-var scratch_len: [MAX_SCRATCH]usize = undefined;
-var save_pos: [MAX_SCRATCH]usize = undefined;
+var scratch: [SCRATCH_TOTAL]u8 = undefined;
+var scratch_len_buf: [MAX_SCRATCH * 4]u8 = undefined;
+var save_pos_buf: [MAX_SCRATCH * 4]u8 = undefined;
 var sd: usize = 0; // scratch depth
 
+fn put4(buf: [*]u8, idx: usize, v: usize) void {
+    const base = idx *% 4;
+    buf[base] = @as(u8, @truncate(v));
+    buf[base +% 1] = @as(u8, @truncate(v >> 8));
+    buf[base +% 2] = @as(u8, @truncate(v >> 16));
+    buf[base +% 3] = @as(u8, @truncate(v >> 24));
+}
+
+fn get4(buf: [*]const u8, idx: usize) usize {
+    const base = idx *% 4;
+    const b0: usize = buf[base];
+    const b1: usize = buf[base +% 1];
+    const b2: usize = buf[base +% 2];
+    const b3: usize = buf[base +% 3];
+    return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+}
+
 fn cap_begin() void {
-    save_pos[sd] = out_pos;
+    put4(&save_pos_buf, sd, out_pos);
     sd +%= 1;
 }
 
 fn cap_end() usize {
     sd -%= 1;
-    const sp = save_pos[sd];
+    const sp = get4(&save_pos_buf, sd);
     const len = out_pos -% sp;
+    const base = sd *% SCRATCH_SIZE;
     var i: usize = 0;
     while (i < len and i < SCRATCH_SIZE) : (i +%= 1) {
-        scratch[sd][i] = out_buf[sp +% i];
+        scratch[base +% i] = out_buf[sp +% i];
     }
-    scratch_len[sd] = len;
+    put4(&scratch_len_buf, sd, len);
     out_pos = sp; // rewind
     return sd;
 }
 
 fn cap_emit(idx: usize) void {
-    emit(&scratch[idx], scratch_len[idx]);
+    const base = idx *% SCRATCH_SIZE;
+    const len = get4(&scratch_len_buf, idx);
+    var i: usize = 0;
+    while (i < len) : (i +%= 1) {
+        emit1(scratch[base +% i]);
+    }
 }
 
 // ========== Input ==========

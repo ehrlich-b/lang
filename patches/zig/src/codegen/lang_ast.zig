@@ -174,6 +174,10 @@ const Function = struct {
     }
 
     fn resolve_const(f: *Function, idx: InternPool.Index) Error![]const u8 {
+        // Boolean true/false intern indices — AIR emits these as br operands
+        // for short-circuit `and`/`or`, as well as direct bool literals.
+        if (idx == .bool_true) return "1";
+        if (idx == .bool_false) return "0";
         const key = f.ip.indexToKey(idx);
         switch (key) {
             .int => |int_val| {
@@ -207,6 +211,8 @@ const Function = struct {
     }
 
     fn resolve_const_expr(f: *Function, idx: InternPool.Index) Error![]const u8 {
+        if (idx == .bool_true) return "(number 1)";
+        if (idx == .bool_false) return "(number 0)";
         const key = f.ip.indexToKey(idx);
         switch (key) {
             .int => |int_val| {
@@ -250,12 +256,30 @@ const Function = struct {
                         const arr_key = f.ip.indexToKey(agg.ty);
                         switch (arr_key) {
                             .array_type => |at| {
+                                const total_len: usize = @intCast(at.len);
                                 switch (agg.storage) {
                                     .bytes => |str| {
                                         const bytes = str.toSlice(at.len, f.ip);
                                         return f.emit_string_literal(bytes);
                                     },
-                                    else => {},
+                                    .repeated_elem => |elem_idx| {
+                                        // Strings like "    " or "))" get stored as a single
+                                        // repeated char. Materialize N copies of that byte.
+                                        const byte = f.internAsByte(elem_idx) orelse 0;
+                                        const buf = try f.gpa.alloc(u8, total_len);
+                                        defer f.gpa.free(buf);
+                                        @memset(buf, byte);
+                                        return f.emit_string_literal(buf);
+                                    },
+                                    .elems => |refs| {
+                                        // Element array: each element is an intern index to a byte.
+                                        const buf = try f.gpa.alloc(u8, refs.len);
+                                        defer f.gpa.free(buf);
+                                        for (refs, 0..) |r, i| {
+                                            buf[i] = f.internAsByte(r) orelse 0;
+                                        }
+                                        return f.emit_string_literal(buf);
+                                    },
                                 }
                             },
                             else => {},
@@ -273,6 +297,24 @@ const Function = struct {
             else => {},
         }
         return if (as_expr) "(number 0)" else "nil";
+    }
+
+    /// Extract a single byte value from an intern pool index that holds an
+    /// integer (used for .repeated_elem / .elems aggregate storage on u8 arrays).
+    fn internAsByte(f: *Function, idx: InternPool.Index) ?u8 {
+        if (idx == .bool_true) return 1;
+        if (idx == .bool_false) return 0;
+        const key = f.ip.indexToKey(idx);
+        switch (key) {
+            .int => |int_val| {
+                switch (int_val.storage) {
+                    .u64 => |v| return @truncate(v),
+                    .i64 => |v| return @truncate(@as(u64, @bitCast(v))),
+                    else => return null,
+                }
+            },
+            else => return null,
+        }
     }
 
     /// Emit a (string "...") expression with proper escaping
@@ -413,9 +455,16 @@ const Function = struct {
 
     fn airLoad(f: *Function, inst: u32) Error!void {
         const data = f.air.instructions.items(.data)[inst];
+        // If loading from an alloca whose value hasn't been mutated through
+        // pointers/calls yet, aliasing would be fine — but we have no way
+        // to prove that, and globals definitely can be modified by any call.
+        // Always capture the current value into a fresh var so later uses
+        // see the value at load time, not the latest store.
         const ptr = try f.resolve(data.ty_op.operand);
-        // Alias: loading from a var is just using the var name
-        try f.value_map.put(f.gpa, inst, ptr);
+        const name = try f.inst_name(inst);
+        const ty = try f.type_expr(f.type_of_inst(inst));
+        try f.nl();
+        try f.print("(var {s} {s} (ident {s}))", .{ name, ty, ptr });
     }
 
     fn airStore(f: *Function, inst: u32) Error!void {
