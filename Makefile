@@ -52,6 +52,11 @@ BOOTSTRAP_X86 := $(shell if [ -f bootstrap/current/compiler.s ]; then echo boots
 LANG := out/lang
 LANG_NEXT := out/lang_next
 
+# gh CLI for the bootstrap archive step: strip any env GITHUB_TOKEN/GH_TOKEN so
+# gh uses the keyring token, which has the repo scope needed to create releases.
+# A fine-grained PAT exported in the shell can lack Contents:write and 403s here.
+GH := env -u GITHUB_TOKEN -u GH_TOKEN gh
+
 # Default target
 all: build
 
@@ -249,10 +254,10 @@ bootstrap: generate-os-layer
 	if [ -n "$$OLD_COMMIT" ] && [ "$$OLD_COMMIT" != "$(GIT_COMMIT)" ]; then \
 		echo "Archiving old bootstrap $$OLD_COMMIT..."; \
 		tar -czf /tmp/bootstrap-$$OLD_COMMIT.tar.gz -C bootstrap current/; \
-		if gh release view bootstrap-$$OLD_COMMIT >/dev/null 2>&1; then \
+		if $(GH) release view bootstrap-$$OLD_COMMIT >/dev/null 2>&1; then \
 			echo "  GitHub release already exists"; \
 		else \
-			gh release create bootstrap-$$OLD_COMMIT /tmp/bootstrap-$$OLD_COMMIT.tar.gz \
+			$(GH) release create bootstrap-$$OLD_COMMIT /tmp/bootstrap-$$OLD_COMMIT.tar.gz \
 				--title "Bootstrap $$OLD_COMMIT" \
 				--notes "Bootstrap from commit $$OLD_COMMIT" \
 				--latest=false || { echo "ERROR: Failed to create GitHub release. Bootstrap aborted."; exit 1; }; \

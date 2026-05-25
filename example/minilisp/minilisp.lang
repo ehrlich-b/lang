@@ -71,6 +71,44 @@ func fix_op(name *u8) *u8 {
 // Emit S-expr AST from parse tree
 // ============================================================
 
+// Emit operands 1..hi of a list as a left-folded binop chain:
+// (op a b c) with hi=3 → (binop op (binop op a b) c)
+func emit_binop_chain(sb *StringBuilder, op *u8, node *PNode, hi i64) void {
+    if hi == 1 {
+        emit(sb, list_get(node, 1));
+        return;
+    }
+    sb_str(sb, "(binop ");
+    sb_str(sb, op);
+    sb_str(sb, " ");
+    emit_binop_chain(sb, op, node, hi - 1);
+    sb_str(sb, " ");
+    emit(sb, list_get(node, hi));
+    sb_str(sb, ")");
+}
+
+// Emit a body in return position. A bare (if c t e) becomes real control
+// flow with returns in each branch, so recursive base cases actually stop
+// (the branchless (c*t)+(!c*e) form in emit() evaluates BOTH branches).
+func emit_return(sb *StringBuilder, node *PNode) void {
+    if node != nil && node.kind == 4 {
+        var first *PNode = list_get(node, 0);
+        if is_sym(first, "if") {
+            sb_str(sb, "(if ");
+            emit(sb, list_get(node, 1));         // condition
+            sb_str(sb, " (block ");
+            emit_return(sb, list_get(node, 2));  // then branch
+            sb_str(sb, ") (block ");
+            emit_return(sb, list_get(node, 3));  // else branch
+            sb_str(sb, "))");
+            return;
+        }
+    }
+    sb_str(sb, "(return ");
+    emit(sb, node);
+    sb_str(sb, ")");
+}
+
 func emit(sb *StringBuilder, node *PNode) void {
     if node == nil { sb_str(sb, "(number 0)"); return; }
 
@@ -124,9 +162,9 @@ func emit(sb *StringBuilder, node *PNode) void {
             pi = pi + 1;
         }
 
-        sb_str(sb, ") (type_base i64) (block (return ");
-        emit(sb, body);
-        sb_str(sb, "))))");
+        sb_str(sb, ") (type_base i64) (block ");
+        emit_return(sb, body);
+        sb_str(sb, ")))");
         return;
     }
 
@@ -190,20 +228,7 @@ func emit(sb *StringBuilder, node *PNode) void {
         }
 
         // Binary+: left-fold (+ a b c) → (binop + (binop + a b) c)
-        emit(sb, list_get(node, 1));
-        var i i64 = 2;
-        while i < count {
-            var tmp *u8 = sb_finish(sb);
-            sb = sb_new();
-            sb_str(sb, "(binop ");
-            sb_str(sb, op);
-            sb_str(sb, " ");
-            sb_str(sb, tmp);
-            sb_str(sb, " ");
-            emit(sb, list_get(node, i));
-            sb_str(sb, ")");
-            i = i + 1;
-        }
+        emit_binop_chain(sb, op, node, count - 1);
         return;
     }
 

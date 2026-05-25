@@ -830,7 +830,8 @@ func llvm_set_result_temp(n i64) void {
 // Set llvm_expr_result to an integer literal
 func llvm_set_result_int(n i64) void {
     var buf *u8 = llvm_expr_result;
-    itoa(n, buf);
+    var len i64 = itoa(n, buf);
+    *(buf + len) = 0;  // itoa returns length but does not null-terminate
 }
 
 func llvm_set_result_str(s *u8) void {

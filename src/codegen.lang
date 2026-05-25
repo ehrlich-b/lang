@@ -1225,9 +1225,27 @@ func compile_reader_to_executable(decl *u8) void {
                 var rout *u8 = alloc(131072);
                 var rn i64 = exec_capture(rexe_path, rcontent, rcontent_len, rout, 131072);
                 if rn > 0 {
-                    // Append reader output directly (it's lang source code)
-                    ast_str_append(rout, rn);
-                    ast_str_append_char(10);
+                    // Reader output is AST S-expressions, not lang source.
+                    // Parse it and unparse each decl back to lang source so the
+                    // regenerated reader wrapper is valid lang syntax (the lang
+                    // reader can't parse raw "(program ...)" S-exprs).
+                    var rprog *u8 = parse_ast_from_string(rout);
+                    if rprog != nil {
+                        var rdecls *u8 = program_decls(rprog);
+                        var rcount i64 = program_decl_count(rprog);
+                        var ri i64 = 0;
+                        while ri < rcount {
+                            var rd *u8 = get_decl(rdecls, ri);
+                            var rk i64 = node_kind(rd);
+                            if rk == NODE_STRUCT_DECL {
+                                ast_to_string_struct_decl(rd);
+                            }
+                            if rk == NODE_FUNC_DECL {
+                                ast_to_string_func_decl(rd);
+                            }
+                            ri = ri + 1;
+                        }
+                    }
                 }
             }
             i = i + 1;
@@ -2675,6 +2693,20 @@ func get_expr_type(expr *u8) *u8 {
 
     if k == NODE_GROUP_EXPR {
         return get_expr_type(group_expr_expr(expr));
+    }
+
+    if k == NODE_CALL_EXPR {
+        // Resolve the called function's return type (for f(x).field, etc.)
+        var fn_expr *u8 = call_expr_func(expr);
+        if node_kind(fn_expr) == NODE_IDENT_EXPR {
+            var fname *u8 = ident_expr_name(fn_expr);
+            var fname_len i64 = ident_expr_name_len(fn_expr);
+            var fdecl *u8 = find_func(fname, fname_len);
+            if fdecl != nil {
+                return func_decl_ret_type(fdecl);
+            }
+        }
+        return nil;
     }
 
     if k == NODE_FIELD_EXPR {
