@@ -281,17 +281,40 @@ func emit_primary_str(p *PNode) *u8 {
         sb_str(sb, ")");
         return sb_finish(sb);
     }
-    if p.kind == 3 {               // string literal; text keeps its quotes
+    if p.kind == 3 {               // TOK_STRING: "..." string OR '...' char literal
         var sb *StringBuilder = sb_new();
-        sb_str(sb, "(string ");
-        sb_str(sb, p.text);
-        sb_str(sb, ")");
+        if *(p.text) == 39 {       // leading ' → C char literal, an integer value
+            sb_str(sb, "(number ");
+            sb_int(sb, char_literal_value(p.text));
+            sb_str(sb, ")");
+        } else {                   // "..." string; text keeps its quotes for the kernel
+            sb_str(sb, "(string ");
+            sb_str(sb, p.text);
+            sb_str(sb, ")");
+        }
         return sb_finish(sb);
     }
     if p.kind == 4 {               // parenexpr = ['(', expr, ')']
         return emit_expr_str(vec_get(p.children, 1));
     }
     return "(number 0)";
+}
+
+// Value of a C char literal token (text includes the single quotes, e.g. 'a' or
+// '\n'). Handles the common backslash escapes.
+func char_literal_value(text *u8) i64 {
+    var c i64 = *(text + 1);       // first char after the opening quote
+    if c == 92 {                   // backslash escape
+        var e i64 = *(text + 2);
+        if e == 110 { return 10; }     // \n
+        if e == 116 { return 9; }      // \t
+        if e == 114 { return 13; }     // \r
+        if e == 48 { return 0; }       // \0
+        if e == 92 { return 92; }      // \\
+        if e == 39 { return 39; }      // \'
+        return e;                      // \<other> → literal char
+    }
+    return c;
 }
 
 // ============================================================

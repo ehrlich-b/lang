@@ -119,6 +119,14 @@ include "example/c/c.lang"
         return i;
     }
 
+    // round 4: char literals + char arithmetic
+    int upcase(int c) {
+        if (c >= 'a' && c <= 'z') {
+            return c - 'a' + 'A';
+        }
+        return c;
+    }
+
     // round 4: array decl + indexing (read + write)
     int arrsum(int n) {
         int a[16];
@@ -153,6 +161,7 @@ func main() i64 {
     print("bits(12,10)   = "); print_int(bits(12, 10));   print("\n");
     print("first_factor  = "); print_int(first_factor(15)); print("\n");
     print("arrsum(5)     = "); print_int(arrsum(5));      print("\n");
+    print("upcase('a')   = "); print_int(upcase('a'));    print("\n");
 
     if factorial(5) != 120 { return 1; }
     if fib(10) != 55 { return 1; }
@@ -176,6 +185,8 @@ func main() i64 {
     if first_factor(15) != 3 { return 1; }
     if first_factor(7) != 7 { return 1; }
     if arrsum(5) != 15 { return 1; }
+    if upcase('a') != 65 { return 1; }
+    if upcase('Z') != 90 { return 1; }
 
     print("PASS\n");
     return 0;
