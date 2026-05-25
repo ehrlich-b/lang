@@ -21,88 +21,70 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 5. ✓ Kernel/reader split (lang as a reader, bootstrap verified)
 6. ✓ Cross-platform + LLVM backend (170/170 tests, Linux + macOS)
 7. ✓ Kernel/reader composition (bare kernel + -r reader = compiler)
-8. → **Language forge: Zig capture** ← current
+8. → **Reader authorship: ship many readers** ← current
 9. → WASM backend
 10. → Capture more languages (Rust? OCaml?)
 
 ---
 
-## Current: Zig Capture (Language Forge Proof)
+## Current: Ship Readers (Reader-Authorship Proof)
 
-**The thesis:** Lang AST can capture any compiled language. Zig is the proof.
-
-**Design doc:** **[designs/zig_ast_compatibility.md](designs/zig_ast_compatibility.md)** - full analysis and checklist.
+**The thesis:** lang is the easiest possible reader-maker. A reader is a syntax
+plugin that emits lang AST; the kernel compiles any reader's output to native
+code. Proving this means **building readers**, not improving lang-the-language —
+lang is a throwaway bootstrap substrate (see Decision Log), and the endgame is a
+polyglot stdlib written in reader-authored *better* languages.
 
 ### Status
 
-- [x] **Reconnaissance complete** - Built debug zig, captured 20K lines of AIR from zig self-compile
-- [x] **Mapping complete** - 88 AIR instructions analyzed, most map directly to lang AST
-- [x] **Floats done** - f32/f64 support added, 170/170 tests passing
-- [x] **Cast nodes done** - `cast(type, expr)` and `bitcast(type, expr)` syntax, 172/172 tests
-- [x] **i128/u128 done** - Types recognized (full allocation requires integer type system work)
-- [x] **AIR emitter designed** - See [designs/air_emitter.md](designs/air_emitter.md)
-- [x] **AIR emitter built** - `lang_ast.zig` piggybacks on Zig's C backend, emits lang kernel AST
-- [x] **End-to-end pipeline proven** - Zig → patched Zig → lang AST → kernel → LLVM IR → binary (wrapping add, exit 42)
-- [x] **Control flow working** - `factorial(5)` with while loops → exit 120. Kernel handles nested blocks, break-with-value; emitter resolves Zig AIR loop break targets
+- [x] **minilisp end-to-end** - `example/minilisp/` reads s-expr syntax, emits AST,
+      compiles to native via LLVM. Arithmetic + recursive `defun` both run. The
+      `#parser{}`-generated parser path works end to end (it had silently rotted —
+      reader-build dumped AST as source; now parses + unparses).
+- [ ] **Guard the `#parser{}` path** - add a build-and-run reader test to the LLVM
+      suite so the crown-jewel parser generator can't break unnoticed again.
+- [ ] **Fix host-program `#parser{}`-struct field access** - see Known Bugs.
+- [ ] **Pick the next real reader** - selection criterion (Decision Log): a language
+      we'd actually want to rewrite stdlib components in, not a toy demo.
 
-### Next Steps
+### Reader toolkit (the thing to invest in)
 
-- [x] **Unsigned comparisons in lang** - Fixed! `codegen_llvm.lang` emits `ult`/`ugt`/`ule`/`uge` for unsigned types
-- [x] **Patches infrastructure** - `patches/` dir, `scripts/apply-patches.sh`, `manifest.yaml` pinned to Zig 0.15.2
-- [x] **Write AIR→AST emitter** - `patches/zig/src/codegen/lang_ast.zig` (~600 lines), piggyback on c.zig via `LANG_AST` env var
-- [x] **Match kernel AST format** - `(type_base ...)`, `(param ...)`, `(binop ...)`, `(ident ...)`, `(number ...)`, `(block ...)`
-- [x] **Resolve function names** - InternPool `.func`/`.@"extern"` key handling for call targets
-- [x] **Simple function through pipeline** - `add(30,12)` → lang AST → kernel → LLVM IR → clang → exit code 42
-- [x] **Control flow** - `factorial(5)` with while loop through full pipeline → exit 120. Emitter tracks `current_loop_inst` for correct break semantics
+Effort that would otherwise go into lang ergonomics goes here instead — making
+readers easier to write is the product.
 
-### Path B: Captured Zig Reader (see [designs/path_b_zig_reader.md](designs/path_b_zig_reader.md))
+| Layer | What | File |
+|-------|------|------|
+| Parser generator | `#parser{ grammar }` → recursive descent parser | `std/parser_reader.lang` |
+| AST constructors | `ast_binop`, `ast_func`, ... + `ast_emit` | `std/ast.lang` |
+| Parser combinators | `p_seq`, `p_token`, ... | `std/parse.lang` |
 
-- [x] **Camp 1: aggregate_init** - Struct construction transparently lowered (field access resolves to element)
-- [x] **Camp 2: switch_br** - Switch → if-else chain, enum_tag resolution, block result variables
-- [x] **Camp 3: String literals** - Emitter: resolve `.ptr` → `(string "...")`, extern function declarations
-- [x] **Camp 4: Extraction script** - `scripts/extract-zig-ast.sh` + `scripts/test-zig-capture.sh` (6/6 tests)
-- [x] **Camp 5: Capture non-trivial Zig** - FizzBuzz w/ structs, switch, strings, multi-function works end-to-end
-- [x] **Camp 6: Zig reader (MVP)** - `zig_reader/zig_reader.zig` (~900 lines) tokenizes+parses a Zig subset, emits lang AST. Captured through patched-Zig → kernel → binary; reads factorial/fib/arith Zig programs and emits compilable lang AST. Runs cleanly against its own source (594 lines out, no crash) though the parser itself can't yet self-compile.
-- [ ] **Camp 7: Full self-capture** - Extend zig_reader to parse enough of its own source to roundtrip. Blocked on emitter gaps (see "Known Emitter Gaps" below) and on reader gaps (`[*]u8` type syntax, `@truncate`/`@bitCast`, global init expressions, array-of-array indexing).
+See [designs/ast_as_language.md](designs/ast_as_language.md) for the full layer cake
+(Level 0 raw S-exprs → Level 5 lang variants).
 
-### Known Emitter Gaps (discovered during Camp 6)
+### Known Bugs
 
-| Gap | Severity | Workaround |
-|-----|----------|------------|
-| All pointers emitted as `*u8` (no element-size scaling on ptr arithmetic) | High | In user code, stick to `u8` arrays; encode wider values as byte sequences |
-| Nested array types in globals (`[32][8192]u8` → flattened to `[32]i64`) | High | Flatten to 1D and compute stride manually |
-| Stores through typed pointers always truncate to `i8` | High | Same as above |
-| `.repeated_elem` / `.elems` string storage | FIXED in lang_ast.zig |
-| `bool_true` / `bool_false` constants → `(number 0)` | FIXED |
-| `airLoad` aliased to underlying var (stale after mutation) | FIXED — now captures each load |
+- **Host-program `#parser{}`-struct field access bails to `(number 0)`.** A struct
+  defined by `#parser{}` *expansion* in the including program (not in the reader
+  exe) isn't found by `find_struct` during LLVM codegen, because it's registered
+  via `process_decl_first_pass`. Plain `struct` decls and the unparsed reader-exe
+  copy work. Currently dead code in minilisp's host binary, so it links and runs.
 
-**Fallback:** Write reader in lang directly (`zig_reader.lang`). Always available, doesn't prove capture thesis.
+### Abandoned: Zig-via-AIR
 
-### What Doesn't Need Lang Changes
+Capturing Zig by patching its compiler to emit lang AST from AIR is abandoned. AIR
+is monomorphized, comptime-lowered, fully-typed Zig — "capturing" it means
+reproducing Zig's entire memory model (slices, optionals, error unions, alignment,
+calling conventions) in lang's AST. Infinite long tail, and the captured subset was
+near-circular (a hand-written Zig subset hobbled to `u8` arrays).
 
-| Feature | Workaround |
-|---------|------------|
-| Slices | Emit as structs |
-| clz/ctz/memset | Extern calls to compiler-rt |
-| Optionals | Emit as enums |
-| Error unions | Emit as enums |
-| Calling conventions | Ignore initially |
+The IR-reuse *method* was the dead end, not the idea of reading Zig syntax: a
+**reader** for a Zig *subset* is still an easy target — low-level runtime semantics
+(pointers, manual memory, value structs, fixed-width ints) map directly onto lang's
+C-like AST. High-level dynamic languages are the *hard* targets (they need a shipped
+runtime), so "I can only capture scripting languages" is backwards.
 
-### Known Gaps
-
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| Floating point | ✅ Done | f32/f64 types, literals, arithmetic, comparisons |
-| Unsigned comparisons | ✅ Done | `ult`/`ugt`/`ule`/`uge` for u8/u16/u32/u64 and pointers |
-| Inline ASM | ✅ Mitigated | Use `-lc` flag - routes syscalls through libc |
-| compiler_rt ASM | ✅ Mitigated | Pure Zig fallbacks exist; link system libcompiler_rt |
-| SIMD vectors | Low | Skip initially |
-| Packed structs | Low | Skip initially |
-| Atomics | Low | Skip initially |
-
-**Minimum viable capture:** Integer/string Zig programs compile through lang.
-
-**Full capture (future):** Zig compiler self-hosts through lang.
+History preserved in `git log` and `designs/path_b_zig_reader.md` /
+`designs/air_emitter.md`.
 
 ---
 
@@ -122,7 +104,7 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 - Kept as emergency bootstrap fallback only
 - LLVM is the sole target for Language Forge development
 
-**Spartan (not blocking Zig capture):**
+**Spartan (not blocking reader work):**
 - Platform auto-detection (need `LANGOS=macos LANGBE=llvm` manually)
 - Error messages (some errors leak to codegen)
 - No negative test suite
@@ -206,10 +188,10 @@ Explain readers in detail:
 
 | Document | Topic |
 |----------|-------|
-| [designs/zig_ast_compatibility.md](designs/zig_ast_compatibility.md) | **Yoink & Bootstrap**: capturing Zig (analysis) |
-| [designs/air_emitter.md](designs/air_emitter.md) | **AIR Emitter**: patches approach, implementation plan |
+| [designs/ast_as_language.md](designs/ast_as_language.md) | **The vision**: AST as root language, syntax as plugin |
+| [designs/zig_ast_compatibility.md](designs/zig_ast_compatibility.md) | _(historical)_ capturing Zig via AIR — abandoned |
+| [designs/air_emitter.md](designs/air_emitter.md) | _(historical)_ AIR emitter patches — abandoned |
 | [designs/abi.md](designs/abi.md) | Calling conventions, language capture analysis |
-| [designs/ast_as_language.md](designs/ast_as_language.md) | AST format, kernel/reader architecture |
 | [designs/multi_backend.md](designs/multi_backend.md) | x86 and LLVM backend design |
 | [designs/cli_commands.md](designs/cli_commands.md) | CLI subcommands design |
 
@@ -219,7 +201,7 @@ Explain readers in detail:
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Forge proof | Zig | Modern, self-hosted, heavy comptime, good test case |
-| Capture method | Patch backend | Reuse their frontend, just emit our AST |
+| Forge proof | Zig-via-AIR (abandoned) | IR-reuse tar pit; reader-authorship is the real proof |
+| Capture method | Write a reader | Patch-the-backend (AIR reuse) abandoned; readers emit AST from surface syntax |
 | Interop ABI | C (System V) | Lingua franca, Zig/Rust/everyone uses it |
 | Float support | ✅ Done | f32/f64 via LLVM backend |

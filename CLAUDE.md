@@ -90,7 +90,7 @@ grep "FAIL" /tmp/suite.txt  # Query cached results
 5. ✓ Kernel/reader split (lang as a reader, bootstrap verified)
 6. ✓ **Cross-platform + LLVM backend** (169/169 tests, Linux + macOS)
 7. ✓ Kernel/reader composition (bare kernel + -r reader = compiler)
-8. → **Language forge: Zig capture** ← current (needs floats first)
+8. → **Reader authorship: ship many readers** ← current
 9. → WASM backend (via LLVM)
 10. → Capture more languages
 
