@@ -134,6 +134,17 @@ include "example/c/c.lang"
         return i;
     }
 
+    // round 4: global variables (scalar with init, and an array)
+    int g_base = 100;
+    int g_arr[3];
+    int with_base(int x) { return x + g_base; }
+    int store_sum(int a, int b, int c) {
+        g_arr[0] = a;
+        g_arr[1] = b;
+        g_arr[2] = c;
+        return g_arr[0] + g_arr[1] + g_arr[2];
+    }
+
     // round 4: compound assignment + ++/--
     int accumulate(int n) {
         int s = 0;
@@ -199,6 +210,8 @@ func main() i64 {
     print("via_arrow(3,4)= "); print_int(via_arrow(3, 4)); print("\n");
     print("accumulate(5) = "); print_int(accumulate(5)); print("\n");
     print("countdown(7)  = "); print_int(countdown(7));  print("\n");
+    print("with_base(5)  = "); print_int(with_base(5));  print("\n");
+    print("store_sum     = "); print_int(store_sum(1, 2, 3)); print("\n");
 
     if factorial(5) != 120 { return 1; }
     if fib(10) != 55 { return 1; }
@@ -227,6 +240,8 @@ func main() i64 {
     if via_arrow(3, 4) != 8 { return 1; }
     if accumulate(5) != 20 { return 1; }
     if countdown(7) != 7 { return 1; }
+    if with_base(5) != 105 { return 1; }
+    if store_sum(1, 2, 3) != 6 { return 1; }
 
     print("PASS\n");
     return 0;

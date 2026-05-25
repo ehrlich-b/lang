@@ -33,11 +33,14 @@ include "std/parser_reader.lang"
 // parser functions (pulled in transitively via lang_reader).
 #parser{
     c_program    = c_topdecl+
-    c_topdecl    = c_structdef | c_func
+    c_topdecl    = c_structdef | c_topvar
+    c_topvar     = c_rettype symbol c_topvartail
+    c_topvartail = c_functail | c_globaltail
+    c_functail   = '(' c_params ')' c_block
+    c_globaltail = c_arrdim c_initopt ';'
     c_structdef  = 'struct' symbol '{' c_fields '}' ';'
     c_fields     = c_field*
     c_field      = c_ptype symbol ';'
-    c_func       = c_rettype symbol '(' c_params ')' c_block
     c_rettype    = c_basetype c_stars
     c_ptype      = c_anytype c_stars
     c_anytype    = c_basetype | c_structtype
@@ -516,16 +519,11 @@ func emit_for(sb *StringBuilder, s *PNode) void {
     sb_str(sb, ")))");
 }
 
-// c_decl = ptype symbol arrdim initopt ';'  →  children [ptype, name, arrdim, initopt, ';']
-// arrdim is a star: zero dims = scalar; one c_dim = ['[', number, ']'] = a 1-D
-// array `T name[N]` → (var name (type_array N ELEM)) (no initializer; array
-// initializers aren't in this subset). initopt is the stable-slot optional init
-// for scalars (uninitialized → kernel alloca with no store, like C).
-func emit_decl(sb *StringBuilder, d *PNode) void {
-    var kids *u8 = d.children;
-    var name *PNode = vec_get(kids, 1);
-    var arrdim *PNode = vec_get(kids, 2);
-    var initopt *PNode = vec_get(kids, 3);
+// Emit (var NAME TYPE INIT?). arrdim is a c_dim* (zero = scalar; one c_dim =
+// ['[', number, ']'] = 1-D array `T[N]` → (type_array N ELEM), no initializer).
+// initopt is the stable-slot optional init for scalars (absent → no store, as in
+// C / a top-level zero). Shared by local decls and globals.
+func emit_var(sb *StringBuilder, name *PNode, typenode *PNode, arrdim *PNode, initopt *PNode) void {
     sb_str(sb, "(var ");
     sb_str(sb, name.text);
     sb_str(sb, " ");
@@ -535,10 +533,10 @@ func emit_decl(sb *StringBuilder, d *PNode) void {
         sb_str(sb, "(type_array ");
         sb_str(sb, sizenode.text);
         sb_str(sb, " ");
-        emit_type(sb, vec_get(kids, 0));
+        emit_type(sb, typenode);
         sb_str(sb, ")");
     } else {
-        emit_type(sb, vec_get(kids, 0));
+        emit_type(sb, typenode);
         if vec_len(initopt.children) > 0 {
             var initval *PNode = vec_get(initopt.children, 0);   // ['=', expr]
             sb_str(sb, " ");
@@ -546,6 +544,12 @@ func emit_decl(sb *StringBuilder, d *PNode) void {
         }
     }
     sb_str(sb, ")");
+}
+
+// c_decl = ptype symbol arrdim initopt ';'  →  children [ptype, name, arrdim, initopt, ';']
+func emit_decl(sb *StringBuilder, d *PNode) void {
+    var kids *u8 = d.children;
+    emit_var(sb, vec_get(kids, 1), vec_get(kids, 0), vec_get(kids, 2), vec_get(kids, 3));
 }
 
 // A control-flow body must be a block; wrap a single statement if needed.
@@ -606,13 +610,14 @@ func emit_type(sb *StringBuilder, t *PNode) void {
     while i < n { sb_str(sb, ")"); i = i + 1; }
 }
 
-// func = type symbol '(' params ')' block
-func emit_func(sb *StringBuilder, f *PNode) void {
-    var kids *u8 = f.children;
-    var rettype *PNode = vec_get(kids, 0);
-    var name *PNode = vec_get(kids, 1);
-    var params *PNode = vec_get(kids, 3);
-    var body *PNode = vec_get(kids, 5);
+// topvar = c_rettype symbol c_topvartail  →  children [rettype, name, tail].
+// For a function the tail is c_functail = '(' c_params ')' c_block.
+func emit_func(sb *StringBuilder, tv *PNode) void {
+    var rettype *PNode = vec_get(tv.children, 0);
+    var name *PNode = vec_get(tv.children, 1);
+    var tail *PNode = vec_get(tv.children, 2);     // c_functail = ['(', params, ')', block]
+    var params *PNode = vec_get(tail.children, 1);
+    var body *PNode = vec_get(tail.children, 3);
 
     sb_str(sb, "(func ");
     sb_str(sb, name.text);
@@ -623,6 +628,14 @@ func emit_func(sb *StringBuilder, f *PNode) void {
     sb_str(sb, " ");
     emit_block(sb, body);
     sb_str(sb, ")");
+}
+
+// topvar whose tail is c_globaltail = c_arrdim c_initopt ';'  →  a global (var ...).
+func emit_global(sb *StringBuilder, tv *PNode) void {
+    var rettype *PNode = vec_get(tv.children, 0);
+    var name *PNode = vec_get(tv.children, 1);
+    var tail *PNode = vec_get(tv.children, 2);     // c_globaltail = [arrdim, initopt, ';']
+    emit_var(sb, name, rettype, vec_get(tail.children, 0), vec_get(tail.children, 1));
 }
 
 // params = paramitem* ; paramitem = param | ',' ; param = type symbol
@@ -675,8 +688,10 @@ func emit_structdef(sb *StringBuilder, sd *PNode) void {
     sb_str(sb, "))");
 }
 
-// program = topdecl+ ; topdecl = structdef | func. A structdef leads with the
-// 'struct' keyword (kind-2 atom); a func leads with its c_rettype (kind-4 list).
+// program = topdecl+ ; topdecl = structdef | topvar. A structdef leads with the
+// 'struct' keyword (kind-2 atom); a topvar leads with its c_rettype (kind-4 list).
+// A topvar's tail picks func vs global: c_functail leads with a '(' marker
+// (kind 0), c_globaltail leads with c_arrdim (a kind-4 star list).
 func emit_program(sb *StringBuilder, prog *PNode) void {
     sb_str(sb, "(program ");
     if prog != nil {
@@ -689,7 +704,13 @@ func emit_program(sb *StringBuilder, prog *PNode) void {
             if head.kind == 2 && streq(head.text, "struct") {
                 emit_structdef(sb, d);
             } else {
-                emit_func(sb, d);
+                var tail *PNode = vec_get(d.children, 2);   // c_topvartail
+                var t0 *PNode = vec_get(tail.children, 0);
+                if t0.kind == 0 {                           // '(' marker → function
+                    emit_func(sb, d);
+                } else {                                    // c_arrdim → global var
+                    emit_global(sb, d);
+                }
             }
             sb_str(sb, " ");
             i = i + 1;
