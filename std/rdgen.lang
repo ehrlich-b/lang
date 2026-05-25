@@ -192,6 +192,22 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
                 sb_str(rd.sb, " = pnode_new(0); tok_next(t); }");
                 rdgen_newline(rd);
             }
+            else {
+                // Multi-char literal = keyword: match a TOK_IDENT with this exact text.
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if tok_kind(t) == TOK_IDENT && str_eq_n(tok_text_ptr(t), tok_text_len(t), \"");
+                var ki i64 = 0;
+                while ki < len {
+                    sb_char(rd.sb, *(lit + ki));
+                    ki = ki + 1;
+                }
+                sb_str(rd.sb, "\", ");
+                sb_int(rd.sb, len);
+                sb_str(rd.sb, ") { ");
+                sb_str(rd.sb, result_var);
+                sb_str(rd.sb, " = pnode_new(0); tok_next(t); }");
+                rdgen_newline(rd);
+            }
         }
 
         // TOKTYPE: number, symbol, string
