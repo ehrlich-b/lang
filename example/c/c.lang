@@ -36,10 +36,13 @@ include "std/parser_reader.lang"
     c_paramitem = c_param | ','
     c_param     = c_type symbol
     c_block     = '{' c_stmt* '}'
-    c_stmt      = c_retstmt | c_ifstmt | c_whilestmt | c_block | c_exprstmt
+    c_stmt      = c_retstmt | c_ifstmt | c_whilestmt | c_decl | c_block | c_exprstmt
     c_retstmt   = 'return' c_expr ';'
-    c_ifstmt    = 'if' '(' c_expr ')' c_stmt
+    c_ifstmt    = 'if' '(' c_expr ')' c_stmt c_elses
+    c_elses     = c_elsepart*
+    c_elsepart  = 'else' c_stmt
     c_whilestmt = 'while' '(' c_expr ')' c_stmt
+    c_decl      = c_type symbol '=' c_expr ';'
     c_exprstmt  = c_expr ';'
     c_expr      = c_postfix c_oprest*
     c_oprest    = operator c_postfix
@@ -70,9 +73,9 @@ func prec(op *u8) i64 {
 
 // expr = postfix oprest*  →  children = [postfix0, oprest_star]
 // Flatten to operands[] and ops[], then climb.
-func emit_expr_str(e *PNode) *u8 {
-    var operands *u8 = vec_new(8);
-    var ops *u8 = vec_new(8);
+// Split expr (= postfix oprest*) into parallel operand/op vecs (operands[i] is
+// followed by ops[i]). Shared by expression emission and assignment detection.
+func flatten_expr(e *PNode, operands *u8, ops *u8) void {
     vec_push(operands, vec_get(e.children, 0));
     var star *PNode = vec_get(e.children, 1);
     var m i64 = vec_len(star.children);
@@ -83,6 +86,12 @@ func emit_expr_str(e *PNode) *u8 {
         vec_push(operands, vec_get(orn.children, 1));
         i = i + 1;
     }
+}
+
+func emit_expr_str(e *PNode) *u8 {
+    var operands *u8 = vec_new(8);
+    var ops *u8 = vec_new(8);
+    flatten_expr(e, operands, ops);
     var pos i64 = 0;
     return climb(operands, ops, &pos, 0);
 }
@@ -178,11 +187,17 @@ func emit_stmt(sb *StringBuilder, s *PNode) void {
             sb_str(sb, ")");
             return;
         }
-        if streq(first.text, "if") {           // ['if', '(', expr, ')', stmt]
+        if streq(first.text, "if") {           // ['if', '(', expr, ')', stmt, elses]
             sb_str(sb, "(if ");
             sb_str(sb, emit_expr_str(vec_get(s.children, 2)));
             sb_str(sb, " ");
             emit_stmt_as_block(sb, vec_get(s.children, 4));
+            var elses *PNode = vec_get(s.children, 5);   // c_elses = c_elsepart*
+            if vec_len(elses.children) > 0 {
+                var elsepart *PNode = vec_get(elses.children, 0);  // ['else', stmt]
+                sb_str(sb, " ");
+                emit_stmt_as_block(sb, vec_get(elsepart.children, 1));
+            }
             sb_str(sb, ")");
             return;
         }
@@ -194,11 +209,46 @@ func emit_stmt(sb *StringBuilder, s *PNode) void {
             sb_str(sb, ")");
             return;
         }
+        if streq(first.text, "int") || streq(first.text, "char") || streq(first.text, "void") {
+            emit_decl(sb, s);
+            return;
+        }
     }
 
-    // exprstmt = [expr, ';'] → first child is the expr
-    sb_str(sb, "(expr-stmt ");
-    sb_str(sb, emit_expr_str(first));
+    // exprstmt = [expr, ';'] → first child is the expr.
+    // A leading '=' operator makes it an assignment statement.
+    var operands *u8 = vec_new(8);
+    var ops *u8 = vec_new(8);
+    flatten_expr(first, operands, ops);
+    if vec_len(ops) > 0 {
+        var op0 *PNode = vec_get(ops, 0);
+        if streq(op0.text, "=") {
+            var lv *PNode = vec_get(operands, 0);
+            sb_str(sb, "(assign ");
+            sb_str(sb, emit_operand_str(lv));                  // lvalue (ident)
+            sb_str(sb, " ");
+            var rpos i64 = 1;
+            sb_str(sb, climb(operands, ops, &rpos, 1));        // value (stops before another '=')
+            sb_str(sb, ")");
+            return;
+        }
+    }
+    var epos i64 = 0;
+    sb_str(sb, "(expr_stmt ");
+    sb_str(sb, climb(operands, ops, &epos, 0));
+    sb_str(sb, ")");
+}
+
+// c_decl = type symbol '=' expr ';'  →  children [type, name, '=', expr, ';']
+func emit_decl(sb *StringBuilder, d *PNode) void {
+    var kids *u8 = d.children;
+    var name *PNode = vec_get(kids, 1);
+    sb_str(sb, "(var ");
+    sb_str(sb, name.text);
+    sb_str(sb, " ");
+    emit_type(sb, vec_get(kids, 0));
+    sb_str(sb, " ");
+    sb_str(sb, emit_expr_str(vec_get(kids, 3)));
     sb_str(sb, ")");
 }
 
