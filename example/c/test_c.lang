@@ -65,6 +65,14 @@ include "example/c/c.lang"
         else m = b;
         return m;
     }
+
+    // round 3: pointer decl, address-of, deref (rvalue + lvalue)
+    int through_ptr(int x) {
+        int *p;
+        p = &x;
+        *p = *p + 1;
+        return *p;
+    }
 }
 
 func main() i64 {
@@ -79,6 +87,7 @@ func main() i64 {
     print("triangle(5)  = "); print_int(triangle(5));   print("\n");
     print("negate(8)    = "); print_int(negate(8));     print("\n");
     print("maxof(3, 9)  = "); print_int(maxof(3, 9));   print("\n");
+    print("through_ptr  = "); print_int(through_ptr(41)); print("\n");
 
     if factorial(5) != 120 { return 1; }
     if fib(10) != 55 { return 1; }
@@ -93,6 +102,7 @@ func main() i64 {
     if negate(8) != 0 - 8 { return 1; }
     if maxof(3, 9) != 9 { return 1; }
     if maxof(9, 3) != 9 { return 1; }
+    if through_ptr(41) != 42 { return 1; }
 
     print("PASS\n");
     return 0;

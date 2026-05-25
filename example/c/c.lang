@@ -31,11 +31,14 @@ include "std/parser_reader.lang"
 // parser functions (pulled in transitively via lang_reader).
 #parser{
     c_program   = c_func+
-    c_func      = c_type symbol '(' c_params ')' c_block
+    c_func      = c_ptype symbol '(' c_params ')' c_block
+    c_ptype     = c_type c_stars
     c_type      = 'int' | 'char' | 'void'
+    c_stars     = c_star*
+    c_star      = '*'
     c_params    = c_paramitem*
     c_paramitem = c_param | ','
-    c_param     = c_type symbol
+    c_param     = c_ptype symbol
     c_block     = '{' c_stmt* '}'
     c_stmt      = c_retstmt | c_ifstmt | c_whilestmt | c_forstmt | c_decl | c_block | c_exprstmt
     c_retstmt   = 'return' c_expr ';'
@@ -45,7 +48,7 @@ include "std/parser_reader.lang"
     c_whilestmt = 'while' '(' c_expr ')' c_stmt
     c_forstmt   = 'for' '(' c_forinit c_expr ';' c_expr ')' c_stmt
     c_forinit   = c_decl | c_exprstmt
-    c_decl      = c_type symbol c_initopt ';'
+    c_decl      = c_ptype symbol c_initopt ';'
     c_initopt   = c_initval*
     c_initval   = '=' c_expr
     c_exprstmt  = c_expr ';'
@@ -244,13 +247,18 @@ func emit_stmt(sb *StringBuilder, s *PNode) void {
             emit_for(sb, s);
             return;
         }
-        if streq(first.text, "int") || streq(first.text, "char") || streq(first.text, "void") {
+    }
+
+    // first is a kind-4 list: a c_decl leads with a c_ptype (whose first child is
+    // a type keyword); a c_exprstmt leads with a c_expr (whose first child is a
+    // c_unary list). Distinguish by that leading child's kind/text.
+    var f0 *PNode = vec_get(first.children, 0);
+    if f0.kind == 2 {
+        if streq(f0.text, "int") || streq(f0.text, "char") || streq(f0.text, "void") {
             emit_decl(sb, s);
             return;
         }
     }
-
-    // exprstmt = [expr, ';'] → first child is the expr (a c_expr list).
     emit_exprstmt_from_expr(sb, first);
 }
 
@@ -351,12 +359,25 @@ func emit_block(sb *StringBuilder, block *PNode) void {
 // Declarations
 // ============================================================
 
+// c_ptype = c_type c_stars  →  children [type_atom, stars_star]. Each star wraps
+// the base in a (type_ptr ...). char → u8 so `char*` is `*u8` (lang's string
+// type); int → i64; void → void.
 func emit_type(sb *StringBuilder, t *PNode) void {
-    if t != nil && streq(t.text, "void") {
+    if t == nil { sb_str(sb, "(type_base i64)"); return; }
+    var typeatom *PNode = vec_get(t.children, 0);
+    var stars *PNode = vec_get(t.children, 1);
+    var n i64 = vec_len(stars.children);
+    var i i64 = 0;
+    while i < n { sb_str(sb, "(type_ptr "); i = i + 1; }
+    if streq(typeatom.text, "void") {
         sb_str(sb, "(type_base void)");
-        return;
+    } else if streq(typeatom.text, "char") {
+        sb_str(sb, "(type_base u8)");
+    } else {
+        sb_str(sb, "(type_base i64)");
     }
-    sb_str(sb, "(type_base i64)");   // int, char → i64 for now
+    i = 0;
+    while i < n { sb_str(sb, ")"); i = i + 1; }
 }
 
 // func = type symbol '(' params ')' block
