@@ -60,10 +60,17 @@ include "std/parser_reader.lang"
 // Operator precedence (higher binds tighter)
 // ============================================================
 
+// C precedence ladder (low binds loosest). The tokenizer already lexes the
+// 2-char operators (==, !=, <=, >=, &&, ||) and carries their text, so they just
+// need a precedence here. '=' is prec 0: it's peeled off as an assignment
+// statement, never climbed as a binop.
 func prec(op *u8) i64 {
-    if streq(op, "<") || streq(op, ">") { return 1; }
-    if streq(op, "+") || streq(op, "-") { return 2; }
-    if streq(op, "*") || streq(op, "/") || streq(op, "%") { return 3; }
+    if streq(op, "||") { return 1; }
+    if streq(op, "&&") { return 2; }
+    if streq(op, "==") || streq(op, "!=") { return 3; }
+    if streq(op, "<") || streq(op, ">") || streq(op, "<=") || streq(op, ">=") { return 4; }
+    if streq(op, "+") || streq(op, "-") { return 5; }
+    if streq(op, "*") || streq(op, "/") || streq(op, "%") { return 6; }
     return 0;
 }
 
