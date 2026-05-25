@@ -12,8 +12,9 @@
 //
 // SUBSET (deliberately bounded - no typedef/preprocessor/declarators/structs):
 //   types:      int, char, void   (all widened to i64 for now)
-//   statements: return, if [no else yet], while, blocks, expression statements
-//   operators:  + - * / %  < >   and function calls f(a, b)
+//   statements: return, if/else, while, for, local decls (init optional),
+//               assignment, blocks, expression statements
+//   operators:  + - * / %  < > <= >= == != && ||, unary - (and !), calls f(a,b)
 //
 // rdgen's generated parser is weak (no backtracking; a sequence only requires
 // its first element). So every grammar choice is driven by a distinct first
@@ -36,16 +37,22 @@ include "std/parser_reader.lang"
     c_paramitem = c_param | ','
     c_param     = c_type symbol
     c_block     = '{' c_stmt* '}'
-    c_stmt      = c_retstmt | c_ifstmt | c_whilestmt | c_decl | c_block | c_exprstmt
+    c_stmt      = c_retstmt | c_ifstmt | c_whilestmt | c_forstmt | c_decl | c_block | c_exprstmt
     c_retstmt   = 'return' c_expr ';'
     c_ifstmt    = 'if' '(' c_expr ')' c_stmt c_elses
     c_elses     = c_elsepart*
     c_elsepart  = 'else' c_stmt
     c_whilestmt = 'while' '(' c_expr ')' c_stmt
-    c_decl      = c_type symbol '=' c_expr ';'
+    c_forstmt   = 'for' '(' c_forinit c_expr ';' c_expr ')' c_stmt
+    c_forinit   = c_decl | c_exprstmt
+    c_decl      = c_type symbol c_initopt ';'
+    c_initopt   = c_initval*
+    c_initval   = '=' c_expr
     c_exprstmt  = c_expr ';'
-    c_expr      = c_postfix c_oprest*
-    c_oprest    = operator c_postfix
+    c_expr      = c_unary c_oprest*
+    c_oprest    = operator c_unary
+    c_unary     = c_neg | c_postfix
+    c_neg       = operator c_postfix
     c_postfix   = c_primary c_callargs*
     c_callargs  = '(' c_args ')'
     c_args      = c_argitem*
@@ -126,8 +133,25 @@ func climb(operands *u8, ops *u8, posptr *i64, minprec i64) *u8 {
     return left;
 }
 
+// An operand is a c_unary = c_neg | c_postfix. The CHOICE returns the chosen
+// node directly, so we tell them apart by their first child: c_neg leads with an
+// operator atom (kind 5), c_postfix leads with a primary (kind 1/2/4).
+func emit_operand_str(node *PNode) *u8 {
+    var f *PNode = vec_get(node.children, 0);
+    if f.kind == 5 {                          // c_neg = [op_atom, postfix]
+        var sb *StringBuilder = sb_new();
+        sb_str(sb, "(unop ");
+        sb_str(sb, f.text);                   // '-' (or '!') passes straight through
+        sb_str(sb, " ");
+        sb_str(sb, emit_postfix_str(vec_get(node.children, 1)));
+        sb_str(sb, ")");
+        return sb_finish(sb);
+    }
+    return emit_postfix_str(node);            // c_postfix
+}
+
 // postfix = primary callargs*  →  bare primary, or a call if callargs present
-func emit_operand_str(pf *PNode) *u8 {
+func emit_postfix_str(pf *PNode) *u8 {
     var primary *PNode = vec_get(pf.children, 0);
     var calls *PNode = vec_get(pf.children, 1);   // star list of callargs
     var base *u8 = emit_primary_str(primary);
@@ -216,17 +240,27 @@ func emit_stmt(sb *StringBuilder, s *PNode) void {
             sb_str(sb, ")");
             return;
         }
+        if streq(first.text, "for") {
+            emit_for(sb, s);
+            return;
+        }
         if streq(first.text, "int") || streq(first.text, "char") || streq(first.text, "void") {
             emit_decl(sb, s);
             return;
         }
     }
 
-    // exprstmt = [expr, ';'] → first child is the expr.
-    // A leading '=' operator makes it an assignment statement.
+    // exprstmt = [expr, ';'] → first child is the expr (a c_expr list).
+    emit_exprstmt_from_expr(sb, first);
+}
+
+// Emit a bare c_expr as a statement: a leading '=' makes it an assignment,
+// otherwise an expression statement. Shared by exprstmt and the for-loop step
+// (which is a bare expr with no trailing ';').
+func emit_exprstmt_from_expr(sb *StringBuilder, expr *PNode) void {
     var operands *u8 = vec_new(8);
     var ops *u8 = vec_new(8);
-    flatten_expr(first, operands, ops);
+    flatten_expr(expr, operands, ops);
     if vec_len(ops) > 0 {
         var op0 *PNode = vec_get(ops, 0);
         if streq(op0.text, "=") {
@@ -246,7 +280,30 @@ func emit_stmt(sb *StringBuilder, s *PNode) void {
     sb_str(sb, ")");
 }
 
-// c_decl = type symbol '=' expr ';'  →  children [type, name, '=', expr, ';']
+// c_forstmt = 'for' '(' c_forinit c_expr ';' c_expr ')' c_stmt
+//   children: [for, (, init, cond, ;, step, ), body]   (init consumes its ';')
+// Desugar to a block: { init; while (cond) { body; step; } }.  (continue inside
+// the body skips step — an accepted limitation of this bounded subset.)
+func emit_for(sb *StringBuilder, s *PNode) void {
+    var init *PNode = vec_get(s.children, 2);
+    var cond *PNode = vec_get(s.children, 3);
+    var step *PNode = vec_get(s.children, 5);
+    var body *PNode = vec_get(s.children, 7);
+    sb_str(sb, "(block ");
+    emit_stmt(sb, init);                       // decl or assignment (handles both)
+    sb_str(sb, " (while ");
+    sb_str(sb, emit_expr_str(cond));
+    sb_str(sb, " (block ");
+    emit_stmt(sb, body);
+    sb_str(sb, " ");
+    emit_exprstmt_from_expr(sb, step);
+    sb_str(sb, ")))");
+}
+
+// c_decl = type symbol initopt ';'  →  children [type, name, initopt_star, ';']
+// initopt is a star (stable slot): zero c_initval = uninitialized `int x;`, one
+// c_initval = ['=', expr] = `int x = expr;`. The kernel's (var ...) makes the
+// init operand optional (uninitialized → alloca with no store, like C).
 func emit_decl(sb *StringBuilder, d *PNode) void {
     var kids *u8 = d.children;
     var name *PNode = vec_get(kids, 1);
@@ -254,8 +311,12 @@ func emit_decl(sb *StringBuilder, d *PNode) void {
     sb_str(sb, name.text);
     sb_str(sb, " ");
     emit_type(sb, vec_get(kids, 0));
-    sb_str(sb, " ");
-    sb_str(sb, emit_expr_str(vec_get(kids, 3)));
+    var initopt *PNode = vec_get(kids, 2);
+    if vec_len(initopt.children) > 0 {
+        var initval *PNode = vec_get(initopt.children, 0);   // ['=', expr]
+        sb_str(sb, " ");
+        sb_str(sb, emit_expr_str(vec_get(initval.children, 1)));
+    }
     sb_str(sb, ")");
 }
 
