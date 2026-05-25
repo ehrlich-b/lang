@@ -78,6 +78,29 @@ include "example/c/c.lang"
     int strhead(char *s) {
         return *s;
     }
+
+    // round 3: struct def, struct local, member access, struct-pointer param
+    struct Vec2 { int x; int y; };
+
+    int norm_sq(int a, int b) {
+        struct Vec2 v;
+        v.x = a;
+        v.y = b;
+        return v.x * v.x + v.y * v.y;
+    }
+
+    void scale2(struct Vec2 *vp, int k) {
+        (*vp).x = (*vp).x * k;
+        (*vp).y = (*vp).y * k;
+    }
+
+    int scaled_sum(int a, int b, int k) {
+        struct Vec2 v;
+        v.x = a;
+        v.y = b;
+        scale2(&v, k);
+        return v.x + v.y;
+    }
 }
 
 func main() i64 {
@@ -94,6 +117,8 @@ func main() i64 {
     print("maxof(3, 9)  = "); print_int(maxof(3, 9));   print("\n");
     print("through_ptr  = "); print_int(through_ptr(41)); print("\n");
     print("strhead(\"A\") = "); print_int(strhead("A"));   print("\n");
+    print("norm_sq(3,4)  = "); print_int(norm_sq(3, 4));  print("\n");
+    print("scaled_sum    = "); print_int(scaled_sum(2, 3, 10)); print("\n");
 
     if factorial(5) != 120 { return 1; }
     if fib(10) != 55 { return 1; }
@@ -111,6 +136,8 @@ func main() i64 {
     if through_ptr(41) != 42 { return 1; }
     if strhead("A") != 65 { return 1; }
     if strhead("z") != 122 { return 1; }
+    if norm_sq(3, 4) != 25 { return 1; }
+    if scaled_sum(2, 3, 10) != 50 { return 1; }
 
     print("PASS\n");
     return 0;
