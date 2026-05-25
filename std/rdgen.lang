@@ -77,42 +77,6 @@ func rdgen_newline(rd *RDGen) void {
 }
 
 // ============================================================
-// Generate PNode Struct and Helpers
-// ============================================================
-
-func rdgen_emit_pnode_struct(rd *RDGen) void {
-    rdgen_line(rd, "struct PNode {");
-    rdgen_line(rd, "    kind i64;");
-    rdgen_line(rd, "    text *u8;");
-    rdgen_line(rd, "    children *u8;");
-    rdgen_line(rd, "}");
-    rdgen_newline(rd);
-
-    rdgen_line(rd, "func pnode_new(kind i64) *PNode {");
-    rdgen_line(rd, "    var n *PNode = alloc(24);");
-    rdgen_line(rd, "    n.kind = kind;");
-    rdgen_line(rd, "    n.text = nil;");
-    rdgen_line(rd, "    n.children = nil;");
-    rdgen_line(rd, "    return n;");
-    rdgen_line(rd, "}");
-    rdgen_newline(rd);
-
-    rdgen_line(rd, "func pnode_atom(kind i64, text *u8) *PNode {");
-    rdgen_line(rd, "    var n *PNode = pnode_new(kind);");
-    rdgen_line(rd, "    n.text = text;");
-    rdgen_line(rd, "    return n;");
-    rdgen_line(rd, "}");
-    rdgen_newline(rd);
-
-    rdgen_line(rd, "func pnode_list(children *u8) *PNode {");
-    rdgen_line(rd, "    var n *PNode = pnode_new(4);");  // PNODE_LIST = 4
-    rdgen_line(rd, "    n.children = children;");
-    rdgen_line(rd, "    return n;");
-    rdgen_line(rd, "}");
-    rdgen_newline(rd);
-}
-
-// ============================================================
 // Stack-based Expression Generator (avoids mutual recursion)
 // ============================================================
 //
@@ -500,8 +464,9 @@ func rdgen_gen_rule(rd *RDGen, rule *GNode) void {
 func rdgen_generate(g *Grammar) *u8 {
     var rd *RDGen = rdgen_new(g);
 
-    // Emit PNode struct and helpers
-    rdgen_emit_pnode_struct(rd);
+    // PNode struct + pnode_* helpers are static in parser_reader.lang, not
+    // generated per-grammar, so a program with multiple #parser{} grammars
+    // doesn't redefine them (duplicate-symbol collision).
 
     // Emit parser functions
     var rules *u8 = g.rules;

@@ -78,6 +78,14 @@ polyglot stdlib written in reader-authored *better* languages.
       converter can tell `(` from `[`. Sieve-of-Eratosthenes capstone in
       `algorithms.lang`. `++`/`--` are statement/step-only (value-position is a
       no-op, defensively).
+- [x] **Polyglot: many readers, one binary** - the headline forge vision. Two
+      `#parser{}`-based readers (C + minilisp) in one program collided on the
+      generated PNode constructors (`pnode_new/atom/list`), which rdgen emitted
+      fresh per grammar. Fixed by defining them once as static funcs in
+      `std/parser_reader.lang` (included once per host, deduped) instead of
+      generating per-grammar. `example/polyglot.lang` runs C + minilisp + lang in
+      one native binary (`c_square(ml_double(3))`); guarded by
+      `reader_polyglot_e2e`. Reader-toolkit only - NO bootstrap.
 - [ ] **C long tail (needs kernel or rdgen work)** - ternary `?:` (no kernel
       conditional-expr AST; needs `?` token), `~` (no `~` in `sexpr_op_to_token`),
       `switch`, `enum`, `typedef`, multiple declarators `int a, b;`, multi-dim
