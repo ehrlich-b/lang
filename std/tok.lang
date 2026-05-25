@@ -163,10 +163,36 @@ func tok_next(t *Tokenizer) void {
     if c == 93 { t.tok_kind = TOK_RBRACKET; t.tok_len = 1; tok_advance_char(t); return; }
     if c == 123 { t.tok_kind = TOK_LBRACE; t.tok_len = 1; tok_advance_char(t); return; }
     if c == 125 { t.tok_kind = TOK_RBRACE; t.tok_len = 1; tok_advance_char(t); return; }
-    if c == 43 { t.tok_kind = TOK_PLUS; t.tok_len = 1; tok_advance_char(t); return; }
-    if c == 42 { t.tok_kind = TOK_STAR; t.tok_len = 1; tok_advance_char(t); return; }
-    if c == 47 { t.tok_kind = TOK_SLASH; t.tok_len = 1; tok_advance_char(t); return; }
-    if c == 37 { t.tok_kind = TOK_PERCENT; t.tok_len = 1; tok_advance_char(t); return; }
+    // + ++ +=  (2-char forms share the kind, with tok_len=2 + 2-char text, like <<)
+    if c == 43 {
+        tok_advance_char(t);
+        var pn i64 = tok_peek_char(t);
+        if pn == 43 || pn == 61 { tok_advance_char(t); t.tok_len = 2; }  // ++ or +=
+        else { t.tok_len = 1; }
+        t.tok_kind = TOK_PLUS;
+        return;
+    }
+    if c == 42 {  // * or *=
+        tok_advance_char(t);
+        if tok_peek_char(t) == 61 { tok_advance_char(t); t.tok_len = 2; }
+        else { t.tok_len = 1; }
+        t.tok_kind = TOK_STAR;
+        return;
+    }
+    if c == 47 {  // / or /=
+        tok_advance_char(t);
+        if tok_peek_char(t) == 61 { tok_advance_char(t); t.tok_len = 2; }
+        else { t.tok_len = 1; }
+        t.tok_kind = TOK_SLASH;
+        return;
+    }
+    if c == 37 {  // % or %=
+        tok_advance_char(t);
+        if tok_peek_char(t) == 61 { tok_advance_char(t); t.tok_len = 2; }
+        else { t.tok_len = 1; }
+        t.tok_kind = TOK_PERCENT;
+        return;
+    }
     if c == 94 { t.tok_kind = TOK_CARET; t.tok_len = 1; tok_advance_char(t); return; }  // ^
     if c == 44 { t.tok_kind = TOK_COMMA; t.tok_len = 1; tok_advance_char(t); return; }
     if c == 58 { t.tok_kind = TOK_COLON; t.tok_len = 1; tok_advance_char(t); return; }
@@ -226,6 +252,14 @@ func tok_next(t *Tokenizer) void {
             tok_advance_char(t);           // and p.x are equivalent for a reader)
             t.tok_len = 2;
             t.tok_kind = TOK_DOT;
+            return;
+        }
+        var mn i64 = tok_peek_char_at(t, 1);
+        if mn == 45 || mn == 61 {          // -- or -= (TOK_MINUS, tok_len=2, text)
+            tok_advance_char(t);
+            tok_advance_char(t);
+            t.tok_len = 2;
+            t.tok_kind = TOK_MINUS;
             return;
         }
         if tok_is_digit(tok_peek_char_at(t, 1)) {

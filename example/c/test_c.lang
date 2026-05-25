@@ -134,6 +134,25 @@ include "example/c/c.lang"
         return i;
     }
 
+    // round 4: compound assignment + ++/--
+    int accumulate(int n) {
+        int s = 0;
+        int i;
+        for (i = 0; i < n; i++) {
+            s += i;
+        }
+        s *= 2;
+        return s;
+    }
+    int countdown(int n) {
+        int c = 0;
+        while (n > 0) {
+            n--;
+            c += 1;
+        }
+        return c;
+    }
+
     // round 4: char literals + char arithmetic
     int upcase(int c) {
         if (c >= 'a' && c <= 'z') {
@@ -178,6 +197,8 @@ func main() i64 {
     print("arrsum(5)     = "); print_int(arrsum(5));      print("\n");
     print("upcase('a')   = "); print_int(upcase('a'));    print("\n");
     print("via_arrow(3,4)= "); print_int(via_arrow(3, 4)); print("\n");
+    print("accumulate(5) = "); print_int(accumulate(5)); print("\n");
+    print("countdown(7)  = "); print_int(countdown(7));  print("\n");
 
     if factorial(5) != 120 { return 1; }
     if fib(10) != 55 { return 1; }
@@ -204,6 +225,8 @@ func main() i64 {
     if upcase('a') != 65 { return 1; }
     if upcase('Z') != 90 { return 1; }
     if via_arrow(3, 4) != 8 { return 1; }
+    if accumulate(5) != 20 { return 1; }
+    if countdown(7) != 7 { return 1; }
 
     print("PASS\n");
     return 0;

@@ -120,7 +120,11 @@ func flatten_expr(e *PNode, operands *u8, ops *u8) void {
     while i < m {
         var orn *PNode = vec_get(star.children, i);  // oprest = [op_atom, postfix]
         vec_push(ops, vec_get(orn.children, 0));
-        vec_push(operands, vec_get(orn.children, 1));
+        // A trailing postfix ++/-- has no right operand (the c_unary failed to
+        // match), so the oprest is just [op]; leave operands one shorter than ops.
+        if vec_len(orn.children) > 1 {
+            vec_push(operands, vec_get(orn.children, 1));
+        }
         i = i + 1;
     }
 }
@@ -135,23 +139,30 @@ func emit_expr_str(e *PNode) *u8 {
 
 // Standard precedence climbing. operands[pos] aligns with ops[pos].
 func climb(operands *u8, ops *u8, posptr *i64, minprec i64) *u8 {
+    if *posptr >= vec_len(operands) { return "(number 0)"; }   // defensive (dangling postfix op)
     var left *u8 = emit_operand_str(vec_get(operands, *posptr));
     var nops i64 = vec_len(ops);
     while *posptr < nops {
         var opnode *PNode = vec_get(ops, *posptr);
-        var p i64 = prec(opnode.text);
-        if p < minprec { return left; }
-        *posptr = *posptr + 1;                        // consume operator
-        var right *u8 = climb(operands, ops, posptr, p + 1);  // left-associative
-        var sb *StringBuilder = sb_new();
-        sb_str(sb, "(binop ");
-        sb_str(sb, opnode.text);
-        sb_str(sb, " ");
-        sb_str(sb, left);
-        sb_str(sb, " ");
-        sb_str(sb, right);
-        sb_str(sb, ")");
-        left = sb_finish(sb);
+        // A postfix ++/-- in value position (not a statement) has no right operand
+        // and is unsupported: skip it (side effect honored only at statement level).
+        if streq(opnode.text, "++") || streq(opnode.text, "--") {
+            *posptr = *posptr + 1;
+        } else {
+            var p i64 = prec(opnode.text);
+            if p < minprec { return left; }
+            *posptr = *posptr + 1;                        // consume operator
+            var right *u8 = climb(operands, ops, posptr, p + 1);  // left-associative
+            var sb *StringBuilder = sb_new();
+            sb_str(sb, "(binop ");
+            sb_str(sb, opnode.text);
+            sb_str(sb, " ");
+            sb_str(sb, left);
+            sb_str(sb, " ");
+            sb_str(sb, right);
+            sb_str(sb, ")");
+            left = sb_finish(sb);
+        }
     }
     return left;
 }
@@ -387,10 +398,66 @@ func emit_stmt(sb *StringBuilder, s *PNode) void {
     emit_exprstmt_from_expr(sb, first);
 }
 
-// Emit a bare c_expr as a statement: a leading '=' makes it an assignment,
-// otherwise an expression statement. Shared by exprstmt and the for-loop step
-// (which is a bare expr with no trailing ';').
+// Base operator for a compound-assignment op ("+=" → "+", ...); nil otherwise.
+func compound_base(op *u8) *u8 {
+    if streq(op, "+=") { return "+"; }
+    if streq(op, "-=") { return "-"; }
+    if streq(op, "*=") { return "*"; }
+    if streq(op, "/=") { return "/"; }
+    if streq(op, "%=") { return "%"; }
+    return nil;
+}
+
+// Base operator for an increment/decrement op ("++" → "+", "--" → "-"); nil otherwise.
+func incdec_base(op *u8) *u8 {
+    if streq(op, "++") { return "+"; }
+    if streq(op, "--") { return "-"; }
+    return nil;
+}
+
+// Emit `lv = lv <base> 1` for a ++/-- statement (lvnode is a c_unary/c_postfix).
+func emit_incdec(sb *StringBuilder, lvnode *PNode, base *u8) void {
+    var lv *u8 = emit_operand_str(lvnode);
+    sb_str(sb, "(assign ");
+    sb_str(sb, lv);
+    sb_str(sb, " (binop ");
+    sb_str(sb, base);
+    sb_str(sb, " ");
+    sb_str(sb, lv);
+    sb_str(sb, " (number 1)))");
+}
+
+// Handle ++/-- used as a whole statement (or for-step): postfix `i++` / `i--`
+// (one oprest that is a bare op) or prefix `++i` / `--i` (a c_neg with op ++/--).
+// Returns 1 if handled. ++/-- in value position is NOT handled here (see climb).
+func try_incdec(sb *StringBuilder, expr *PNode) i64 {
+    var u *PNode = vec_get(expr.children, 0);        // c_unary
+    var star *PNode = vec_get(expr.children, 1);     // c_oprest*
+    var ns i64 = vec_len(star.children);
+    if ns == 1 {                                     // postfix: lvalue ++ / --
+        var orn *PNode = vec_get(star.children, 0);
+        if vec_len(orn.children) == 1 {              // bare op, no right operand
+            var opn *PNode = vec_get(orn.children, 0);
+            var base *u8 = incdec_base(opn.text);
+            if base != nil { emit_incdec(sb, u, base); return 1; }
+        }
+    }
+    if ns == 0 {                                     // prefix: ++ / -- lvalue
+        var u0 *PNode = vec_get(u.children, 0);
+        if u0.kind == 5 {
+            var base *u8 = incdec_base(u0.text);
+            if base != nil { emit_incdec(sb, vec_get(u.children, 1), base); return 1; }
+        }
+    }
+    return 0;
+}
+
+// Emit a bare c_expr as a statement: ++/-- desugar to an assignment, a leading
+// '=' is a plain assignment, a leading compound op (+=, ...) desugars to
+// `lv = lv op rhs`, otherwise an expression statement. Shared by exprstmt and the
+// for-loop step (a bare expr with no trailing ';').
 func emit_exprstmt_from_expr(sb *StringBuilder, expr *PNode) void {
+    if try_incdec(sb, expr) == 1 { return; }
     var operands *u8 = vec_new(8);
     var ops *u8 = vec_new(8);
     flatten_expr(expr, operands, ops);
@@ -404,6 +471,22 @@ func emit_exprstmt_from_expr(sb *StringBuilder, expr *PNode) void {
             var rpos i64 = 1;
             sb_str(sb, climb(operands, ops, &rpos, 1));        // value (stops before another '=')
             sb_str(sb, ")");
+            return;
+        }
+        var cbase *u8 = compound_base(op0.text);               // x op= rhs → x = x op (rhs)
+        if cbase != nil {
+            var lv *PNode = vec_get(operands, 0);
+            var lvs *u8 = emit_operand_str(lv);
+            sb_str(sb, "(assign ");
+            sb_str(sb, lvs);
+            sb_str(sb, " (binop ");
+            sb_str(sb, cbase);
+            sb_str(sb, " ");
+            sb_str(sb, lvs);
+            sb_str(sb, " ");
+            var cpos i64 = 1;
+            sb_str(sb, climb(operands, ops, &cpos, 1));
+            sb_str(sb, "))");
             return;
         }
     }
