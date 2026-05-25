@@ -176,6 +176,14 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
                 else if c == 44 { sb_str(rd.sb, "TOK_COMMA"); }
                 else if c == 46 { sb_str(rd.sb, "TOK_DOT"); }
                 else if c == 61 { sb_str(rd.sb, "TOK_EQ"); }
+                else if c == 59 { sb_str(rd.sb, "TOK_SEMI"); }
+                else if c == 58 { sb_str(rd.sb, "TOK_COLON"); }
+                else if c == 60 { sb_str(rd.sb, "TOK_LT"); }
+                else if c == 62 { sb_str(rd.sb, "TOK_GT"); }
+                else if c == 33 { sb_str(rd.sb, "TOK_BANG"); }
+                else if c == 37 { sb_str(rd.sb, "TOK_PERCENT"); }
+                else if c == 38 { sb_str(rd.sb, "TOK_AMP"); }
+                else if c == 124 { sb_str(rd.sb, "TOK_PIPE"); }
                 else {
                     sb_int(rd.sb, c);
                 }
