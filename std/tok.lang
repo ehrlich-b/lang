@@ -221,6 +221,13 @@ func tok_next(t *Tokenizer) void {
 
     // Minus or negative number
     if c == 45 {
+        if tok_peek_char_at(t, 1) == 62 {  // -> : lex as '.' (the kernel's field
+            tok_advance_char(t);           // access auto-derefs pointers, so p->x
+            tok_advance_char(t);           // and p.x are equivalent for a reader)
+            t.tok_len = 2;
+            t.tok_kind = TOK_DOT;
+            return;
+        }
         if tok_is_digit(tok_peek_char_at(t, 1)) {
             // Negative number
             tok_advance_char(t);

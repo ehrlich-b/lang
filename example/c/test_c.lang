@@ -102,6 +102,21 @@ include "example/c/c.lang"
         return v.x + v.y;
     }
 
+    // round 4: -> pointer member access (read + write)
+    int vsum(struct Vec2 *vp) {
+        return vp->x + vp->y;
+    }
+    int via_arrow(int a, int b) {
+        struct Vec2 v;
+        v.x = a;
+        v.y = b;
+        vp_bump(&v);
+        return vsum(&v);
+    }
+    void vp_bump(struct Vec2 *vp) {
+        vp->x = vp->x + 1;
+    }
+
     // round 4: bitwise + shift operators
     int bits(int a, int b) {
         return (a & b) + (a | b) + (a ^ b) + (a << 1) + (a >> 1);
@@ -162,6 +177,7 @@ func main() i64 {
     print("first_factor  = "); print_int(first_factor(15)); print("\n");
     print("arrsum(5)     = "); print_int(arrsum(5));      print("\n");
     print("upcase('a')   = "); print_int(upcase('a'));    print("\n");
+    print("via_arrow(3,4)= "); print_int(via_arrow(3, 4)); print("\n");
 
     if factorial(5) != 120 { return 1; }
     if fib(10) != 55 { return 1; }
@@ -187,6 +203,7 @@ func main() i64 {
     if arrsum(5) != 15 { return 1; }
     if upcase('a') != 65 { return 1; }
     if upcase('Z') != 90 { return 1; }
+    if via_arrow(3, 4) != 8 { return 1; }
 
     print("PASS\n");
     return 0;

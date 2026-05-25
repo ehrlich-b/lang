@@ -60344,38 +60344,192 @@ define void @tok_skip_whitespace(i64 %t.arg) {
 L.entry:
     %t.0 = alloca i64
     store i64 %t.arg, i64* %t.0
+    %again.1 = alloca i64
+    store i64 1, i64* %again.1
     br label %L0
 L0:
-    %t0 = alloca i64
-    store i64 0, i64* %t0
-    %t1 = load i64, i64* %t.0
-    %t2 = add i64 %t1, 8
-    %t3 = inttoptr i64 %t2 to i64*
-    %t4 = load i64, i64* %t3
+    %t0 = load i64, i64* %again.1
+    %t2 = icmp eq i64 %t0, 1
+    %t1 = zext i1 %t2 to i64
+    %t3 = icmp ne i64 %t1, 0
+    br i1 %t3, label %L1, label %L2
+L1:
+    store i64 0, i64* %again.1
+    br label %L3
+L3:
+    %t4 = alloca i64
+    store i64 0, i64* %t4
     %t5 = load i64, i64* %t.0
-    %t6 = add i64 %t5, 16
+    %t6 = add i64 %t5, 8
     %t7 = inttoptr i64 %t6 to i64*
     %t8 = load i64, i64* %t7
-    %t10 = icmp slt i64 %t4, %t8
-    %t9 = zext i1 %t10 to i64
-    %t11 = icmp ne i64 %t9, 0
-    br i1 %t11, label %L3, label %L4
-L3:
-    %t12 = load i64, i64* %t.0
-    %t13 = call i64 @tok_peek_char(i64 %t12)
-    %t14 = call i1 @tok_is_space(i64 %t13)
-    %t15 = zext i1 %t14 to i64
-    %t16 = icmp ne i64 %t15, 0
-    %t17 = zext i1 %t16 to i64
-    store i64 %t17, i64* %t0
-    br label %L4
+    %t9 = load i64, i64* %t.0
+    %t10 = add i64 %t9, 16
+    %t11 = inttoptr i64 %t10 to i64*
+    %t12 = load i64, i64* %t11
+    %t14 = icmp slt i64 %t8, %t12
+    %t13 = zext i1 %t14 to i64
+    %t15 = icmp ne i64 %t13, 0
+    br i1 %t15, label %L6, label %L7
+L6:
+    %t16 = load i64, i64* %t.0
+    %t17 = call i64 @tok_peek_char(i64 %t16)
+    %t18 = call i1 @tok_is_space(i64 %t17)
+    %t19 = zext i1 %t18 to i64
+    %t20 = icmp ne i64 %t19, 0
+    %t21 = zext i1 %t20 to i64
+    store i64 %t21, i64* %t4
+    br label %L7
+L7:
+    %t22 = load i64, i64* %t4
+    %t23 = icmp ne i64 %t22, 0
+    br i1 %t23, label %L4, label %L5
 L4:
-    %t18 = load i64, i64* %t0
-    %t19 = icmp ne i64 %t18, 0
-    br i1 %t19, label %L1, label %L2
-L1:
-    %t20 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t20)
+    %t24 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t24)
+    br label %L3
+L5:
+    %t25 = alloca i64
+    store i64 0, i64* %t25
+    %t26 = load i64, i64* %t.0
+    %t27 = call i64 @tok_peek_char(i64 %t26)
+    %t29 = icmp eq i64 %t27, 47
+    %t28 = zext i1 %t29 to i64
+    %t30 = icmp ne i64 %t28, 0
+    br i1 %t30, label %L11, label %L12
+L11:
+    %t31 = load i64, i64* %t.0
+    %t32 = call i64 @tok_peek_char_at(i64 %t31, i64 1)
+    %t34 = icmp eq i64 %t32, 47
+    %t33 = zext i1 %t34 to i64
+    %t35 = icmp ne i64 %t33, 0
+    %t36 = zext i1 %t35 to i64
+    store i64 %t36, i64* %t25
+    br label %L12
+L12:
+    %t37 = load i64, i64* %t25
+    %t38 = icmp ne i64 %t37, 0
+    br i1 %t38, label %L8, label %L10
+L8:
+    br label %L13
+L13:
+    %t39 = alloca i64
+    store i64 0, i64* %t39
+    %t40 = load i64, i64* %t.0
+    %t41 = add i64 %t40, 8
+    %t42 = inttoptr i64 %t41 to i64*
+    %t43 = load i64, i64* %t42
+    %t44 = load i64, i64* %t.0
+    %t45 = add i64 %t44, 16
+    %t46 = inttoptr i64 %t45 to i64*
+    %t47 = load i64, i64* %t46
+    %t49 = icmp slt i64 %t43, %t47
+    %t48 = zext i1 %t49 to i64
+    %t50 = icmp ne i64 %t48, 0
+    br i1 %t50, label %L16, label %L17
+L16:
+    %t51 = load i64, i64* %t.0
+    %t52 = call i64 @tok_peek_char(i64 %t51)
+    %t54 = icmp ne i64 %t52, 10
+    %t53 = zext i1 %t54 to i64
+    %t55 = icmp ne i64 %t53, 0
+    %t56 = zext i1 %t55 to i64
+    store i64 %t56, i64* %t39
+    br label %L17
+L17:
+    %t57 = load i64, i64* %t39
+    %t58 = icmp ne i64 %t57, 0
+    br i1 %t58, label %L14, label %L15
+L14:
+    %t59 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t59)
+    br label %L13
+L15:
+    store i64 1, i64* %again.1
+    br label %L10
+L10:
+    %t60 = alloca i64
+    store i64 0, i64* %t60
+    %t61 = load i64, i64* %t.0
+    %t62 = call i64 @tok_peek_char(i64 %t61)
+    %t64 = icmp eq i64 %t62, 47
+    %t63 = zext i1 %t64 to i64
+    %t65 = icmp ne i64 %t63, 0
+    br i1 %t65, label %L21, label %L22
+L21:
+    %t66 = load i64, i64* %t.0
+    %t67 = call i64 @tok_peek_char_at(i64 %t66, i64 1)
+    %t69 = icmp eq i64 %t67, 42
+    %t68 = zext i1 %t69 to i64
+    %t70 = icmp ne i64 %t68, 0
+    %t71 = zext i1 %t70 to i64
+    store i64 %t71, i64* %t60
+    br label %L22
+L22:
+    %t72 = load i64, i64* %t60
+    %t73 = icmp ne i64 %t72, 0
+    br i1 %t73, label %L18, label %L20
+L18:
+    %t74 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t74)
+    %t75 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t75)
+    br label %L23
+L23:
+    %t76 = alloca i64
+    store i64 0, i64* %t76
+    %t77 = load i64, i64* %t.0
+    %t78 = add i64 %t77, 8
+    %t79 = inttoptr i64 %t78 to i64*
+    %t80 = load i64, i64* %t79
+    %t81 = load i64, i64* %t.0
+    %t82 = add i64 %t81, 16
+    %t83 = inttoptr i64 %t82 to i64*
+    %t84 = load i64, i64* %t83
+    %t86 = icmp slt i64 %t80, %t84
+    %t85 = zext i1 %t86 to i64
+    %t87 = icmp ne i64 %t85, 0
+    br i1 %t87, label %L26, label %L27
+L26:
+    %t88 = alloca i64
+    store i64 1, i64* %t88
+    %t89 = load i64, i64* %t.0
+    %t90 = call i64 @tok_peek_char(i64 %t89)
+    %t92 = icmp ne i64 %t90, 42
+    %t91 = zext i1 %t92 to i64
+    %t93 = icmp eq i64 %t91, 0
+    br i1 %t93, label %L28, label %L29
+L28:
+    %t94 = load i64, i64* %t.0
+    %t95 = call i64 @tok_peek_char_at(i64 %t94, i64 1)
+    %t97 = icmp ne i64 %t95, 47
+    %t96 = zext i1 %t97 to i64
+    %t98 = icmp ne i64 %t96, 0
+    %t99 = zext i1 %t98 to i64
+    store i64 %t99, i64* %t88
+    br label %L29
+L29:
+    %t100 = load i64, i64* %t88
+    %t101 = icmp ne i64 %t100, 0
+    %t102 = zext i1 %t101 to i64
+    store i64 %t102, i64* %t76
+    br label %L27
+L27:
+    %t103 = load i64, i64* %t76
+    %t104 = icmp ne i64 %t103, 0
+    br i1 %t104, label %L24, label %L25
+L24:
+    %t105 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t105)
+    br label %L23
+L25:
+    %t106 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t106)
+    %t107 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t107)
+    store i64 1, i64* %again.1
+    br label %L20
+L20:
     br label %L0
 L2:
     ret void
@@ -60966,304 +61120,326 @@ L84:
 L88:
     %t356 = load i64, i64* %t.0
     %t357 = call i64 @tok_peek_char_at(i64 %t356, i64 1)
-    %t358 = call i1 @tok_is_digit(i64 %t357)
-    %t359 = zext i1 %t358 to i64
-    %t360 = icmp ne i64 %t359, 0
+    %t359 = icmp eq i64 %t357, 62
+    %t358 = zext i1 %t359 to i64
+    %t360 = icmp ne i64 %t358, 0
     br i1 %t360, label %L91, label %L93
 L91:
     %t361 = load i64, i64* %t.0
     call void @tok_advance_char(i64 %t361)
-    br label %L94
-L94:
     %t362 = load i64, i64* %t.0
-    %t363 = call i64 @tok_peek_char(i64 %t362)
-    %t364 = call i1 @tok_is_digit(i64 %t363)
-    %t365 = zext i1 %t364 to i64
-    %t366 = icmp ne i64 %t365, 0
-    br i1 %t366, label %L95, label %L96
-L95:
+    call void @tok_advance_char(i64 %t362)
+    %t363 = load i64, i64* %t.0
+    %t364 = add i64 %t363, 32
+    %t365 = inttoptr i64 %t364 to i64*
+    store i64 2, i64* %t365
+    %t366 = load i64, i64* @TOK_DOT
     %t367 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t367)
-    br label %L94
-L96:
-    %t368 = load i64, i64* %t.0
-    %t369 = add i64 %t368, 8
-    %t370 = inttoptr i64 %t369 to i64*
-    %t371 = load i64, i64* %t370
-    %t372 = load i64, i64* %t.0
-    %t373 = add i64 %t372, 24
-    %t374 = inttoptr i64 %t373 to i64*
-    %t375 = load i64, i64* %t374
-    %t376 = sub i64 %t371, %t375
-    %t377 = load i64, i64* %t.0
-    %t378 = add i64 %t377, 32
-    %t379 = inttoptr i64 %t378 to i64*
-    store i64 %t376, i64* %t379
-    %t380 = load i64, i64* @TOK_NUMBER
-    %t381 = load i64, i64* %t.0
-    %t382 = add i64 %t381, 40
-    %t383 = inttoptr i64 %t382 to i64*
-    store i64 %t380, i64* %t383
+    %t368 = add i64 %t367, 40
+    %t369 = inttoptr i64 %t368 to i64*
+    store i64 %t366, i64* %t369
     ret void
 L93:
-    %t384 = load i64, i64* @TOK_MINUS
-    %t385 = load i64, i64* %t.0
-    %t386 = add i64 %t385, 40
-    %t387 = inttoptr i64 %t386 to i64*
-    store i64 %t384, i64* %t387
-    %t388 = load i64, i64* %t.0
-    %t389 = add i64 %t388, 32
-    %t390 = inttoptr i64 %t389 to i64*
-    store i64 1, i64* %t390
+    %t370 = load i64, i64* %t.0
+    %t371 = call i64 @tok_peek_char_at(i64 %t370, i64 1)
+    %t372 = call i1 @tok_is_digit(i64 %t371)
+    %t373 = zext i1 %t372 to i64
+    %t374 = icmp ne i64 %t373, 0
+    br i1 %t374, label %L94, label %L96
+L94:
+    %t375 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t375)
+    br label %L97
+L97:
+    %t376 = load i64, i64* %t.0
+    %t377 = call i64 @tok_peek_char(i64 %t376)
+    %t378 = call i1 @tok_is_digit(i64 %t377)
+    %t379 = zext i1 %t378 to i64
+    %t380 = icmp ne i64 %t379, 0
+    br i1 %t380, label %L98, label %L99
+L98:
+    %t381 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t381)
+    br label %L97
+L99:
+    %t382 = load i64, i64* %t.0
+    %t383 = add i64 %t382, 8
+    %t384 = inttoptr i64 %t383 to i64*
+    %t385 = load i64, i64* %t384
+    %t386 = load i64, i64* %t.0
+    %t387 = add i64 %t386, 24
+    %t388 = inttoptr i64 %t387 to i64*
+    %t389 = load i64, i64* %t388
+    %t390 = sub i64 %t385, %t389
     %t391 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t391)
+    %t392 = add i64 %t391, 32
+    %t393 = inttoptr i64 %t392 to i64*
+    store i64 %t390, i64* %t393
+    %t394 = load i64, i64* @TOK_NUMBER
+    %t395 = load i64, i64* %t.0
+    %t396 = add i64 %t395, 40
+    %t397 = inttoptr i64 %t396 to i64*
+    store i64 %t394, i64* %t397
+    ret void
+L96:
+    %t398 = load i64, i64* @TOK_MINUS
+    %t399 = load i64, i64* %t.0
+    %t400 = add i64 %t399, 40
+    %t401 = inttoptr i64 %t400 to i64*
+    store i64 %t398, i64* %t401
+    %t402 = load i64, i64* %t.0
+    %t403 = add i64 %t402, 32
+    %t404 = inttoptr i64 %t403 to i64*
+    store i64 1, i64* %t404
+    %t405 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t405)
     ret void
 L90:
-    %t392 = load i64, i64* %c.1
-    %t393 = call i1 @tok_is_digit(i64 %t392)
-    %t394 = zext i1 %t393 to i64
-    %t395 = icmp ne i64 %t394, 0
-    br i1 %t395, label %L97, label %L99
-L97:
-    br label %L100
+    %t406 = load i64, i64* %c.1
+    %t407 = call i1 @tok_is_digit(i64 %t406)
+    %t408 = zext i1 %t407 to i64
+    %t409 = icmp ne i64 %t408, 0
+    br i1 %t409, label %L100, label %L102
 L100:
-    %t396 = load i64, i64* %t.0
-    %t397 = call i64 @tok_peek_char(i64 %t396)
-    %t398 = call i1 @tok_is_digit(i64 %t397)
-    %t399 = zext i1 %t398 to i64
-    %t400 = icmp ne i64 %t399, 0
-    br i1 %t400, label %L101, label %L102
-L101:
-    %t401 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t401)
-    br label %L100
-L102:
-    %t402 = load i64, i64* %t.0
-    %t403 = add i64 %t402, 8
-    %t404 = inttoptr i64 %t403 to i64*
-    %t405 = load i64, i64* %t404
-    %t406 = load i64, i64* %t.0
-    %t407 = add i64 %t406, 24
-    %t408 = inttoptr i64 %t407 to i64*
-    %t409 = load i64, i64* %t408
-    %t410 = sub i64 %t405, %t409
-    %t411 = load i64, i64* %t.0
-    %t412 = add i64 %t411, 32
-    %t413 = inttoptr i64 %t412 to i64*
-    store i64 %t410, i64* %t413
-    %t414 = load i64, i64* @TOK_NUMBER
-    %t415 = load i64, i64* %t.0
-    %t416 = add i64 %t415, 40
-    %t417 = inttoptr i64 %t416 to i64*
-    store i64 %t414, i64* %t417
-    ret void
-L99:
-    %t418 = load i64, i64* %c.1
-    %t419 = call i1 @tok_is_alpha(i64 %t418)
-    %t420 = zext i1 %t419 to i64
-    %t421 = icmp ne i64 %t420, 0
-    br i1 %t421, label %L103, label %L105
+    br label %L103
 L103:
-    br label %L106
-L106:
-    %t422 = load i64, i64* %t.0
-    %t423 = call i64 @tok_peek_char(i64 %t422)
-    %t424 = call i1 @tok_is_alnum(i64 %t423)
-    %t425 = zext i1 %t424 to i64
-    %t426 = icmp ne i64 %t425, 0
-    br i1 %t426, label %L107, label %L108
-L107:
-    %t427 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t427)
-    br label %L106
-L108:
-    %t428 = load i64, i64* %t.0
-    %t429 = add i64 %t428, 8
-    %t430 = inttoptr i64 %t429 to i64*
-    %t431 = load i64, i64* %t430
-    %t432 = load i64, i64* %t.0
-    %t433 = add i64 %t432, 24
-    %t434 = inttoptr i64 %t433 to i64*
-    %t435 = load i64, i64* %t434
-    %t436 = sub i64 %t431, %t435
-    %t437 = load i64, i64* %t.0
-    %t438 = add i64 %t437, 32
-    %t439 = inttoptr i64 %t438 to i64*
-    store i64 %t436, i64* %t439
-    %t440 = load i64, i64* @TOK_IDENT
-    %t441 = load i64, i64* %t.0
-    %t442 = add i64 %t441, 40
-    %t443 = inttoptr i64 %t442 to i64*
-    store i64 %t440, i64* %t443
-    ret void
+    %t410 = load i64, i64* %t.0
+    %t411 = call i64 @tok_peek_char(i64 %t410)
+    %t412 = call i1 @tok_is_digit(i64 %t411)
+    %t413 = zext i1 %t412 to i64
+    %t414 = icmp ne i64 %t413, 0
+    br i1 %t414, label %L104, label %L105
+L104:
+    %t415 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t415)
+    br label %L103
 L105:
-    %t444 = load i64, i64* %c.1
-    %t446 = icmp eq i64 %t444, 34
-    %t445 = zext i1 %t446 to i64
-    %t447 = icmp ne i64 %t445, 0
-    br i1 %t447, label %L109, label %L111
+    %t416 = load i64, i64* %t.0
+    %t417 = add i64 %t416, 8
+    %t418 = inttoptr i64 %t417 to i64*
+    %t419 = load i64, i64* %t418
+    %t420 = load i64, i64* %t.0
+    %t421 = add i64 %t420, 24
+    %t422 = inttoptr i64 %t421 to i64*
+    %t423 = load i64, i64* %t422
+    %t424 = sub i64 %t419, %t423
+    %t425 = load i64, i64* %t.0
+    %t426 = add i64 %t425, 32
+    %t427 = inttoptr i64 %t426 to i64*
+    store i64 %t424, i64* %t427
+    %t428 = load i64, i64* @TOK_NUMBER
+    %t429 = load i64, i64* %t.0
+    %t430 = add i64 %t429, 40
+    %t431 = inttoptr i64 %t430 to i64*
+    store i64 %t428, i64* %t431
+    ret void
+L102:
+    %t432 = load i64, i64* %c.1
+    %t433 = call i1 @tok_is_alpha(i64 %t432)
+    %t434 = zext i1 %t433 to i64
+    %t435 = icmp ne i64 %t434, 0
+    br i1 %t435, label %L106, label %L108
+L106:
+    br label %L109
 L109:
-    %t448 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t448)
-    br label %L112
-L112:
-    %t449 = alloca i64
-    store i64 0, i64* %t449
-    %t450 = load i64, i64* %t.0
-    %t451 = call i64 @tok_peek_char(i64 %t450)
-    %t453 = icmp ne i64 %t451, 0
-    %t452 = zext i1 %t453 to i64
-    %t454 = icmp ne i64 %t452, 0
-    br i1 %t454, label %L115, label %L116
-L115:
+    %t436 = load i64, i64* %t.0
+    %t437 = call i64 @tok_peek_char(i64 %t436)
+    %t438 = call i1 @tok_is_alnum(i64 %t437)
+    %t439 = zext i1 %t438 to i64
+    %t440 = icmp ne i64 %t439, 0
+    br i1 %t440, label %L110, label %L111
+L110:
+    %t441 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t441)
+    br label %L109
+L111:
+    %t442 = load i64, i64* %t.0
+    %t443 = add i64 %t442, 8
+    %t444 = inttoptr i64 %t443 to i64*
+    %t445 = load i64, i64* %t444
+    %t446 = load i64, i64* %t.0
+    %t447 = add i64 %t446, 24
+    %t448 = inttoptr i64 %t447 to i64*
+    %t449 = load i64, i64* %t448
+    %t450 = sub i64 %t445, %t449
+    %t451 = load i64, i64* %t.0
+    %t452 = add i64 %t451, 32
+    %t453 = inttoptr i64 %t452 to i64*
+    store i64 %t450, i64* %t453
+    %t454 = load i64, i64* @TOK_IDENT
     %t455 = load i64, i64* %t.0
-    %t456 = call i64 @tok_peek_char(i64 %t455)
-    %t458 = icmp ne i64 %t456, 34
-    %t457 = zext i1 %t458 to i64
-    %t459 = icmp ne i64 %t457, 0
-    %t460 = zext i1 %t459 to i64
-    store i64 %t460, i64* %t449
-    br label %L116
-L116:
-    %t461 = load i64, i64* %t449
-    %t462 = icmp ne i64 %t461, 0
-    br i1 %t462, label %L113, label %L114
-L113:
-    %t463 = load i64, i64* %t.0
-    %t464 = call i64 @tok_peek_char(i64 %t463)
-    %t466 = icmp eq i64 %t464, 92
-    %t465 = zext i1 %t466 to i64
+    %t456 = add i64 %t455, 40
+    %t457 = inttoptr i64 %t456 to i64*
+    store i64 %t454, i64* %t457
+    ret void
+L108:
+    %t458 = load i64, i64* %c.1
+    %t460 = icmp eq i64 %t458, 34
+    %t459 = zext i1 %t460 to i64
+    %t461 = icmp ne i64 %t459, 0
+    br i1 %t461, label %L112, label %L114
+L112:
+    %t462 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t462)
+    br label %L115
+L115:
+    %t463 = alloca i64
+    store i64 0, i64* %t463
+    %t464 = load i64, i64* %t.0
+    %t465 = call i64 @tok_peek_char(i64 %t464)
     %t467 = icmp ne i64 %t465, 0
-    br i1 %t467, label %L117, label %L119
-L117:
-    %t468 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t468)
+    %t466 = zext i1 %t467 to i64
+    %t468 = icmp ne i64 %t466, 0
+    br i1 %t468, label %L118, label %L119
+L118:
+    %t469 = load i64, i64* %t.0
+    %t470 = call i64 @tok_peek_char(i64 %t469)
+    %t472 = icmp ne i64 %t470, 34
+    %t471 = zext i1 %t472 to i64
+    %t473 = icmp ne i64 %t471, 0
+    %t474 = zext i1 %t473 to i64
+    store i64 %t474, i64* %t463
     br label %L119
 L119:
-    %t469 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t469)
-    br label %L112
-L114:
-    %t470 = load i64, i64* %t.0
-    %t471 = call i64 @tok_peek_char(i64 %t470)
-    %t473 = icmp eq i64 %t471, 34
-    %t472 = zext i1 %t473 to i64
-    %t474 = icmp ne i64 %t472, 0
-    br i1 %t474, label %L120, label %L122
+    %t475 = load i64, i64* %t463
+    %t476 = icmp ne i64 %t475, 0
+    br i1 %t476, label %L116, label %L117
+L116:
+    %t477 = load i64, i64* %t.0
+    %t478 = call i64 @tok_peek_char(i64 %t477)
+    %t480 = icmp eq i64 %t478, 92
+    %t479 = zext i1 %t480 to i64
+    %t481 = icmp ne i64 %t479, 0
+    br i1 %t481, label %L120, label %L122
 L120:
-    %t475 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t475)
+    %t482 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t482)
     br label %L122
 L122:
-    %t476 = load i64, i64* %t.0
-    %t477 = add i64 %t476, 8
-    %t478 = inttoptr i64 %t477 to i64*
-    %t479 = load i64, i64* %t478
-    %t480 = load i64, i64* %t.0
-    %t481 = add i64 %t480, 24
-    %t482 = inttoptr i64 %t481 to i64*
-    %t483 = load i64, i64* %t482
-    %t484 = sub i64 %t479, %t483
-    %t485 = load i64, i64* %t.0
-    %t486 = add i64 %t485, 32
-    %t487 = inttoptr i64 %t486 to i64*
-    store i64 %t484, i64* %t487
-    %t488 = load i64, i64* @TOK_STRING
-    %t489 = load i64, i64* %t.0
-    %t490 = add i64 %t489, 40
-    %t491 = inttoptr i64 %t490 to i64*
-    store i64 %t488, i64* %t491
-    ret void
-L111:
-    %t492 = load i64, i64* %c.1
-    %t494 = icmp eq i64 %t492, 39
-    %t493 = zext i1 %t494 to i64
-    %t495 = icmp ne i64 %t493, 0
-    br i1 %t495, label %L123, label %L125
+    %t483 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t483)
+    br label %L115
+L117:
+    %t484 = load i64, i64* %t.0
+    %t485 = call i64 @tok_peek_char(i64 %t484)
+    %t487 = icmp eq i64 %t485, 34
+    %t486 = zext i1 %t487 to i64
+    %t488 = icmp ne i64 %t486, 0
+    br i1 %t488, label %L123, label %L125
 L123:
-    %t496 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t496)
-    br label %L126
-L126:
-    %t497 = alloca i64
-    store i64 0, i64* %t497
-    %t498 = load i64, i64* %t.0
-    %t499 = call i64 @tok_peek_char(i64 %t498)
-    %t501 = icmp ne i64 %t499, 0
-    %t500 = zext i1 %t501 to i64
-    %t502 = icmp ne i64 %t500, 0
-    br i1 %t502, label %L129, label %L130
-L129:
+    %t489 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t489)
+    br label %L125
+L125:
+    %t490 = load i64, i64* %t.0
+    %t491 = add i64 %t490, 8
+    %t492 = inttoptr i64 %t491 to i64*
+    %t493 = load i64, i64* %t492
+    %t494 = load i64, i64* %t.0
+    %t495 = add i64 %t494, 24
+    %t496 = inttoptr i64 %t495 to i64*
+    %t497 = load i64, i64* %t496
+    %t498 = sub i64 %t493, %t497
+    %t499 = load i64, i64* %t.0
+    %t500 = add i64 %t499, 32
+    %t501 = inttoptr i64 %t500 to i64*
+    store i64 %t498, i64* %t501
+    %t502 = load i64, i64* @TOK_STRING
     %t503 = load i64, i64* %t.0
-    %t504 = call i64 @tok_peek_char(i64 %t503)
-    %t506 = icmp ne i64 %t504, 39
-    %t505 = zext i1 %t506 to i64
-    %t507 = icmp ne i64 %t505, 0
-    %t508 = zext i1 %t507 to i64
-    store i64 %t508, i64* %t497
-    br label %L130
-L130:
-    %t509 = load i64, i64* %t497
-    %t510 = icmp ne i64 %t509, 0
-    br i1 %t510, label %L127, label %L128
-L127:
-    %t511 = load i64, i64* %t.0
-    %t512 = call i64 @tok_peek_char(i64 %t511)
-    %t514 = icmp eq i64 %t512, 92
-    %t513 = zext i1 %t514 to i64
+    %t504 = add i64 %t503, 40
+    %t505 = inttoptr i64 %t504 to i64*
+    store i64 %t502, i64* %t505
+    ret void
+L114:
+    %t506 = load i64, i64* %c.1
+    %t508 = icmp eq i64 %t506, 39
+    %t507 = zext i1 %t508 to i64
+    %t509 = icmp ne i64 %t507, 0
+    br i1 %t509, label %L126, label %L128
+L126:
+    %t510 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t510)
+    br label %L129
+L129:
+    %t511 = alloca i64
+    store i64 0, i64* %t511
+    %t512 = load i64, i64* %t.0
+    %t513 = call i64 @tok_peek_char(i64 %t512)
     %t515 = icmp ne i64 %t513, 0
-    br i1 %t515, label %L131, label %L133
-L131:
-    %t516 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t516)
+    %t514 = zext i1 %t515 to i64
+    %t516 = icmp ne i64 %t514, 0
+    br i1 %t516, label %L132, label %L133
+L132:
+    %t517 = load i64, i64* %t.0
+    %t518 = call i64 @tok_peek_char(i64 %t517)
+    %t520 = icmp ne i64 %t518, 39
+    %t519 = zext i1 %t520 to i64
+    %t521 = icmp ne i64 %t519, 0
+    %t522 = zext i1 %t521 to i64
+    store i64 %t522, i64* %t511
     br label %L133
 L133:
-    %t517 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t517)
-    br label %L126
-L128:
-    %t518 = load i64, i64* %t.0
-    %t519 = call i64 @tok_peek_char(i64 %t518)
-    %t521 = icmp eq i64 %t519, 39
-    %t520 = zext i1 %t521 to i64
-    %t522 = icmp ne i64 %t520, 0
-    br i1 %t522, label %L134, label %L136
+    %t523 = load i64, i64* %t511
+    %t524 = icmp ne i64 %t523, 0
+    br i1 %t524, label %L130, label %L131
+L130:
+    %t525 = load i64, i64* %t.0
+    %t526 = call i64 @tok_peek_char(i64 %t525)
+    %t528 = icmp eq i64 %t526, 92
+    %t527 = zext i1 %t528 to i64
+    %t529 = icmp ne i64 %t527, 0
+    br i1 %t529, label %L134, label %L136
 L134:
-    %t523 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t523)
+    %t530 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t530)
     br label %L136
 L136:
-    %t524 = load i64, i64* %t.0
-    %t525 = add i64 %t524, 8
-    %t526 = inttoptr i64 %t525 to i64*
-    %t527 = load i64, i64* %t526
-    %t528 = load i64, i64* %t.0
-    %t529 = add i64 %t528, 24
-    %t530 = inttoptr i64 %t529 to i64*
-    %t531 = load i64, i64* %t530
-    %t532 = sub i64 %t527, %t531
-    %t533 = load i64, i64* %t.0
-    %t534 = add i64 %t533, 32
-    %t535 = inttoptr i64 %t534 to i64*
-    store i64 %t532, i64* %t535
-    %t536 = load i64, i64* @TOK_STRING
+    %t531 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t531)
+    br label %L129
+L131:
+    %t532 = load i64, i64* %t.0
+    %t533 = call i64 @tok_peek_char(i64 %t532)
+    %t535 = icmp eq i64 %t533, 39
+    %t534 = zext i1 %t535 to i64
+    %t536 = icmp ne i64 %t534, 0
+    br i1 %t536, label %L137, label %L139
+L137:
     %t537 = load i64, i64* %t.0
-    %t538 = add i64 %t537, 40
-    %t539 = inttoptr i64 %t538 to i64*
-    store i64 %t536, i64* %t539
-    ret void
-L125:
-    %t540 = load i64, i64* @TOK_UNKNOWN
-    %t541 = load i64, i64* %t.0
-    %t542 = add i64 %t541, 40
-    %t543 = inttoptr i64 %t542 to i64*
-    store i64 %t540, i64* %t543
-    %t544 = load i64, i64* %t.0
-    %t545 = add i64 %t544, 32
-    %t546 = inttoptr i64 %t545 to i64*
-    store i64 1, i64* %t546
+    call void @tok_advance_char(i64 %t537)
+    br label %L139
+L139:
+    %t538 = load i64, i64* %t.0
+    %t539 = add i64 %t538, 8
+    %t540 = inttoptr i64 %t539 to i64*
+    %t541 = load i64, i64* %t540
+    %t542 = load i64, i64* %t.0
+    %t543 = add i64 %t542, 24
+    %t544 = inttoptr i64 %t543 to i64*
+    %t545 = load i64, i64* %t544
+    %t546 = sub i64 %t541, %t545
     %t547 = load i64, i64* %t.0
-    call void @tok_advance_char(i64 %t547)
+    %t548 = add i64 %t547, 32
+    %t549 = inttoptr i64 %t548 to i64*
+    store i64 %t546, i64* %t549
+    %t550 = load i64, i64* @TOK_STRING
+    %t551 = load i64, i64* %t.0
+    %t552 = add i64 %t551, 40
+    %t553 = inttoptr i64 %t552 to i64*
+    store i64 %t550, i64* %t553
+    ret void
+L128:
+    %t554 = load i64, i64* @TOK_UNKNOWN
+    %t555 = load i64, i64* %t.0
+    %t556 = add i64 %t555, 40
+    %t557 = inttoptr i64 %t556 to i64*
+    store i64 %t554, i64* %t557
+    %t558 = load i64, i64* %t.0
+    %t559 = add i64 %t558, 32
+    %t560 = inttoptr i64 %t559 to i64*
+    store i64 1, i64* %t560
+    %t561 = load i64, i64* %t.0
+    call void @tok_advance_char(i64 %t561)
     ret void
 }
 
@@ -71729,12 +71905,12 @@ L400:
 @.str13 = private constant [2 x i8] c"0\00"
 @.str14 = private constant [4 x i8] c"%f\0A\00"
 @.str15 = private constant [6 x i8] c"0.1.0\00"
-@.str16 = private constant [8 x i8] c"d220c42\00"
+@.str16 = private constant [8 x i8] c"af179c6\00"
 @.str17 = private constant [5 x i8] c"llvm\00"
 @.str18 = private constant [6 x i8] c"macos\00"
 @.str19 = private constant [6 x i8] c"arm64\00"
 @.str20 = private constant [7 x i8] c"system\00"
-@.str21 = private constant [8 x i8] c"ff8813d\00"
+@.str21 = private constant [8 x i8] c"d220c42\00"
 @.str22 = private constant [5 x i8] c"func\00"
 @.str23 = private constant [4 x i8] c"var\00"
 @.str24 = private constant [7 x i8] c"struct\00"
