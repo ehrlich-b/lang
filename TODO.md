@@ -62,11 +62,18 @@ polyglot stdlib written in reader-authored *better* languages.
       loops (decl- or expr-init; desugared to `{init; while(cond){body; step;}}`).
       Pure reader changes (no compiler source → no bootstrap); guarded by the
       extended `test_c.lang` (triangle/negate/maxof).
-- [ ] **Fuller C (round 3)** - pointers, `char*`, structs. This is the first batch
-      that may need kernel work (string literals as `char*`, `&`/`*`, member access).
-      Or move on to the next language reader.
+- [x] **Fuller C (round 3)** - pointers (`T*`, `&`, `*`), `char*` + string
+      literals, structs (`struct N { ... };`), and `.`/`(*p).` member access.
+      All reader-only (the kernel already had pointers/structs/field access +
+      auto-deref) - NO bootstrap. `(*p).f` is peeled to lang's auto-deref `p.f`
+      because the kernel crashes on `(field (unop * p) f)` (loads a struct value);
+      that latent kernel sharp-edge is unfixed but no well-behaved reader hits it.
+- [ ] **C round 4 (if continuing C)** - `->` (needs a 2-char token in tok.lang, or
+      grammar `'-' '>'`), arrays/indexing, struct-by-value params/returns. Lower
+      value than breadth; consider stopping C here - it captures real programs.
 - [ ] **Pick the next reader** - criterion (Decision Log): a language we'd actually
-      want to rewrite stdlib components in.
+      want to rewrite stdlib components in. A non-C syntax (Pascal/Lua-like) would
+      best prove the toolkit generalizes beyond brace languages.
 
 ### Reader toolkit (the thing to invest in)
 
