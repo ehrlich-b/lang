@@ -189,7 +189,9 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
                 }
                 sb_str(rd.sb, " { ");
                 sb_str(rd.sb, result_var);
-                sb_str(rd.sb, " = pnode_new(0); tok_next(t); }");
+                // Marker keeps its matched text (kind stays 0, so `kind != 0`
+                // skip-checks are unaffected) so converters can tell '(' from '['.
+                sb_str(rd.sb, " = pnode_atom(0, tok_text(t)); tok_next(t); }");
                 rdgen_newline(rd);
             }
             else {
