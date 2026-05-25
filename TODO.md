@@ -58,8 +58,13 @@ polyglot stdlib written in reader-authored *better* languages.
       lexed them as 2-char tokens; only needed a precedence ladder in the converter).
 - [x] **A non-trivial C program** - `example/c/algorithms.lang` (gcd, primality,
       prime counting; nested calls + loops + `%`) runs end to end.
-- [ ] **Fuller C (round 2)** - unary minus, uninitialized `int x;`, `for` loops,
-      then pointers/`char*`/structs. Or move on to the next language reader.
+- [x] **Fuller C (round 2)** - unary minus, uninitialized `int x;`, and `for`
+      loops (decl- or expr-init; desugared to `{init; while(cond){body; step;}}`).
+      Pure reader changes (no compiler source → no bootstrap); guarded by the
+      extended `test_c.lang` (triangle/negate/maxof).
+- [ ] **Fuller C (round 3)** - pointers, `char*`, structs. This is the first batch
+      that may need kernel work (string literals as `char*`, `&`/`*`, member access).
+      Or move on to the next language reader.
 - [ ] **Pick the next reader** - criterion (Decision Log): a language we'd actually
       want to rewrite stdlib components in.
 
