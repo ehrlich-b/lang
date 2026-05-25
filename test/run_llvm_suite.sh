@@ -129,18 +129,23 @@ else
     done > "$results_file" 2>&1
 fi
 
-# Reader e2e guard (the crown jewel): build AND run a reader whose body uses
+# Reader e2e guards (the crown jewel): build AND run readers whose bodies use
 # #parser{}. This nested path (compile_reader_to_executable embedding #parser{}
 # output) silently rotted once, and no test/suite/ test covers it -- the others
 # build readers via lang()/ast_*, never #parser{} inside a reader.
-reader_e2e_tmp=$(mktemp -d)
-if LANG_CACHE="$reader_e2e_tmp/.lang-cache" LANGBE=llvm $COMPILER example/minilisp/test_defun.lang -o "$reader_e2e_tmp/r.ll" 2>/dev/null \
-   && do_timeout 30 lli $LLI_JIT_FLAG "$reader_e2e_tmp/r.ll" >/dev/null 2>&1; then
-    echo "PASS reader_minilisp_e2e" >> "$results_file"
-else
-    echo "FAIL reader_minilisp_e2e" >> "$results_file"
-fi
-rm -rf "$reader_e2e_tmp"
+reader_e2e() {
+    local name=$1; local file=$2
+    local tmp=$(mktemp -d)
+    if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$file" -o "$tmp/r.ll" 2>/dev/null \
+       && do_timeout 30 lli $LLI_JIT_FLAG "$tmp/r.ll" >/dev/null 2>&1; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_e2e reader_minilisp_e2e example/minilisp/test_defun.lang
+reader_e2e reader_c_e2e         example/c/test_c.lang
 
 # Count results (grep -c returns 1 if no matches, so handle that)
 passed=$(grep -c '^PASS' "$results_file" 2>/dev/null) || passed=0

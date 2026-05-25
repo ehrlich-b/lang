@@ -1,0 +1,308 @@
+// ============================================================
+// c - A C-subset reader (capture real C, compile to native)
+// ============================================================
+//
+// Proves the reader-authorship thesis on a REAL language: a subset of C
+// maps almost 1:1 onto lang's C-like AST. Built with #parser{} (the crown
+// jewel) plus a converter that does operator precedence-climbing.
+//
+//   #c{ int factorial(int n) { if (n < 2) return 1; return n * factorial(n - 1); } }
+//
+// Then factorial() is a normal native function, callable from lang.
+//
+// SUBSET (deliberately bounded - no typedef/preprocessor/declarators/structs):
+//   types:      int, char, void   (all widened to i64 for now)
+//   statements: return, if [no else yet], while, blocks, expression statements
+//   operators:  + - * / %  < >   and function calls f(a, b)
+//
+// rdgen's generated parser is weak (no backtracking; a sequence only requires
+// its first element). So every grammar choice is driven by a distinct first
+// token: keyword-literals lead statements, and each statement alternative is a
+// NAMED rule (a choice of inline sequences would short-circuit on the first
+// mismatch). Operator precedence is flat in the grammar and resolved here.
+
+include "std/core.lang"
+include "std/tok.lang"
+include "std/parser_reader.lang"
+
+// All rules are c_-prefixed: bare names like program/type/block/primary would
+// generate parse_program/parse_type/... which COLLIDE with the compiler's own
+// parser functions (pulled in transitively via lang_reader).
+#parser{
+    c_program   = c_func+
+    c_func      = c_type symbol '(' c_params ')' c_block
+    c_type      = 'int' | 'char' | 'void'
+    c_params    = c_paramitem*
+    c_paramitem = c_param | ','
+    c_param     = c_type symbol
+    c_block     = '{' c_stmt* '}'
+    c_stmt      = c_retstmt | c_ifstmt | c_whilestmt | c_block | c_exprstmt
+    c_retstmt   = 'return' c_expr ';'
+    c_ifstmt    = 'if' '(' c_expr ')' c_stmt
+    c_whilestmt = 'while' '(' c_expr ')' c_stmt
+    c_exprstmt  = c_expr ';'
+    c_expr      = c_postfix c_oprest*
+    c_oprest    = operator c_postfix
+    c_postfix   = c_primary c_callargs*
+    c_callargs  = '(' c_args ')'
+    c_args      = c_argitem*
+    c_argitem   = c_expr | ','
+    c_primary   = number | symbol | c_parenexpr
+    c_parenexpr = '(' c_expr ')'
+}
+
+// PNode kinds: 1=number, 2=symbol, 3=string, 4=list/sequence, 5=operator, 0=literal marker
+
+// ============================================================
+// Operator precedence (higher binds tighter)
+// ============================================================
+
+func prec(op *u8) i64 {
+    if streq(op, "<") || streq(op, ">") { return 1; }
+    if streq(op, "+") || streq(op, "-") { return 2; }
+    if streq(op, "*") || streq(op, "/") || streq(op, "%") { return 3; }
+    return 0;
+}
+
+// ============================================================
+// Expression emission (precedence climbing over a flat operand/op list)
+// ============================================================
+
+// expr = postfix oprest*  →  children = [postfix0, oprest_star]
+// Flatten to operands[] and ops[], then climb.
+func emit_expr_str(e *PNode) *u8 {
+    var operands *u8 = vec_new(8);
+    var ops *u8 = vec_new(8);
+    vec_push(operands, vec_get(e.children, 0));
+    var star *PNode = vec_get(e.children, 1);
+    var m i64 = vec_len(star.children);
+    var i i64 = 0;
+    while i < m {
+        var orn *PNode = vec_get(star.children, i);  // oprest = [op_atom, postfix]
+        vec_push(ops, vec_get(orn.children, 0));
+        vec_push(operands, vec_get(orn.children, 1));
+        i = i + 1;
+    }
+    var pos i64 = 0;
+    return climb(operands, ops, &pos, 0);
+}
+
+// Standard precedence climbing. operands[pos] aligns with ops[pos].
+func climb(operands *u8, ops *u8, posptr *i64, minprec i64) *u8 {
+    var left *u8 = emit_operand_str(vec_get(operands, *posptr));
+    var nops i64 = vec_len(ops);
+    while *posptr < nops {
+        var opnode *PNode = vec_get(ops, *posptr);
+        var p i64 = prec(opnode.text);
+        if p < minprec { return left; }
+        *posptr = *posptr + 1;                        // consume operator
+        var right *u8 = climb(operands, ops, posptr, p + 1);  // left-associative
+        var sb *StringBuilder = sb_new();
+        sb_str(sb, "(binop ");
+        sb_str(sb, opnode.text);
+        sb_str(sb, " ");
+        sb_str(sb, left);
+        sb_str(sb, " ");
+        sb_str(sb, right);
+        sb_str(sb, ")");
+        left = sb_finish(sb);
+    }
+    return left;
+}
+
+// postfix = primary callargs*  →  bare primary, or a call if callargs present
+func emit_operand_str(pf *PNode) *u8 {
+    var primary *PNode = vec_get(pf.children, 0);
+    var calls *PNode = vec_get(pf.children, 1);   // star list of callargs
+    var base *u8 = emit_primary_str(primary);
+    if vec_len(calls.children) == 0 { return base; }
+
+    // Function call: base is the callee. callargs = ['(', args_star, ')']
+    var callargs *PNode = vec_get(calls.children, 0);
+    var args *PNode = vec_get(callargs.children, 1);
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, "(call ");
+    sb_str(sb, base);
+    var items *u8 = args.children;
+    var n i64 = vec_len(items);
+    var i i64 = 0;
+    while i < n {
+        var it *PNode = vec_get(items, i);
+        if it.kind != 0 {            // skip ',' markers; args are expr nodes
+            sb_str(sb, " ");
+            sb_str(sb, emit_expr_str(it));
+        }
+        i = i + 1;
+    }
+    sb_str(sb, ")");
+    return sb_finish(sb);
+}
+
+func emit_primary_str(p *PNode) *u8 {
+    if p.kind == 1 {               // number
+        var sb *StringBuilder = sb_new();
+        sb_str(sb, "(number ");
+        sb_str(sb, p.text);
+        sb_str(sb, ")");
+        return sb_finish(sb);
+    }
+    if p.kind == 2 {               // symbol → ident
+        var sb *StringBuilder = sb_new();
+        sb_str(sb, "(ident ");
+        sb_str(sb, p.text);
+        sb_str(sb, ")");
+        return sb_finish(sb);
+    }
+    if p.kind == 4 {               // parenexpr = ['(', expr, ')']
+        return emit_expr_str(vec_get(p.children, 1));
+    }
+    return "(number 0)";
+}
+
+// ============================================================
+// Statement emission
+// ============================================================
+
+func emit_stmt(sb *StringBuilder, s *PNode) void {
+    var first *PNode = vec_get(s.children, 0);
+
+    if first.kind == 0 {           // block: leading '{' marker
+        emit_block(sb, s);
+        return;
+    }
+
+    if first.kind == 2 {
+        if streq(first.text, "return") {       // ['return', expr, ';']
+            sb_str(sb, "(return ");
+            sb_str(sb, emit_expr_str(vec_get(s.children, 1)));
+            sb_str(sb, ")");
+            return;
+        }
+        if streq(first.text, "if") {           // ['if', '(', expr, ')', stmt]
+            sb_str(sb, "(if ");
+            sb_str(sb, emit_expr_str(vec_get(s.children, 2)));
+            sb_str(sb, " ");
+            emit_stmt_as_block(sb, vec_get(s.children, 4));
+            sb_str(sb, ")");
+            return;
+        }
+        if streq(first.text, "while") {        // ['while', '(', expr, ')', stmt]
+            sb_str(sb, "(while ");
+            sb_str(sb, emit_expr_str(vec_get(s.children, 2)));
+            sb_str(sb, " ");
+            emit_stmt_as_block(sb, vec_get(s.children, 4));
+            sb_str(sb, ")");
+            return;
+        }
+    }
+
+    // exprstmt = [expr, ';'] → first child is the expr
+    sb_str(sb, "(expr-stmt ");
+    sb_str(sb, emit_expr_str(first));
+    sb_str(sb, ")");
+}
+
+// A control-flow body must be a block; wrap a single statement if needed.
+func emit_stmt_as_block(sb *StringBuilder, s *PNode) void {
+    var first *PNode = vec_get(s.children, 0);
+    if first.kind == 0 {           // already a block
+        emit_block(sb, s);
+        return;
+    }
+    sb_str(sb, "(block ");
+    emit_stmt(sb, s);
+    sb_str(sb, ")");
+}
+
+func emit_block(sb *StringBuilder, block *PNode) void {
+    sb_str(sb, "(block ");
+    if block != nil {
+        var stmts *PNode = vec_get(block.children, 1);  // ['{', stmt_star, '}']
+        var n i64 = vec_len(stmts.children);
+        var i i64 = 0;
+        while i < n {
+            emit_stmt(sb, vec_get(stmts.children, i));
+            sb_str(sb, " ");
+            i = i + 1;
+        }
+    }
+    sb_str(sb, ")");
+}
+
+// ============================================================
+// Declarations
+// ============================================================
+
+func emit_type(sb *StringBuilder, t *PNode) void {
+    if t != nil && streq(t.text, "void") {
+        sb_str(sb, "(type_base void)");
+        return;
+    }
+    sb_str(sb, "(type_base i64)");   // int, char → i64 for now
+}
+
+// func = type symbol '(' params ')' block
+func emit_func(sb *StringBuilder, f *PNode) void {
+    var kids *u8 = f.children;
+    var rettype *PNode = vec_get(kids, 0);
+    var name *PNode = vec_get(kids, 1);
+    var params *PNode = vec_get(kids, 3);
+    var body *PNode = vec_get(kids, 5);
+
+    sb_str(sb, "(func ");
+    sb_str(sb, name.text);
+    sb_str(sb, " (");
+    emit_params(sb, params);
+    sb_str(sb, ") ");
+    emit_type(sb, rettype);
+    sb_str(sb, " ");
+    emit_block(sb, body);
+    sb_str(sb, ")");
+}
+
+// params = paramitem* ; paramitem = param | ',' ; param = type symbol
+func emit_params(sb *StringBuilder, params *PNode) void {
+    if params == nil { return; }
+    var items *u8 = params.children;
+    var n i64 = vec_len(items);
+    var first i64 = 1;
+    var i i64 = 0;
+    while i < n {
+        var it *PNode = vec_get(items, i);
+        if it.kind == 4 {                  // a param (kind-0 = ',' marker)
+            if first == 0 { sb_str(sb, " "); }
+            first = 0;
+            var pkids *u8 = it.children;
+            var pname *PNode = vec_get(pkids, 1);
+            sb_str(sb, "(param ");
+            sb_str(sb, pname.text);
+            sb_str(sb, " ");
+            emit_type(sb, vec_get(pkids, 0));
+            sb_str(sb, ")");
+        }
+        i = i + 1;
+    }
+}
+
+func emit_program(sb *StringBuilder, prog *PNode) void {
+    sb_str(sb, "(program ");
+    if prog != nil {
+        var funcs *u8 = prog.children;
+        var n i64 = vec_len(funcs);
+        var i i64 = 0;
+        while i < n {
+            emit_func(sb, vec_get(funcs, i));
+            sb_str(sb, " ");
+            i = i + 1;
+        }
+    }
+    sb_str(sb, ")");
+}
+
+reader c(text *u8) *u8 {
+    var t *Tokenizer = tok_new(text);
+    var prog *PNode = parse_c_program(t);
+    var sb *StringBuilder = sb_new();
+    emit_program(sb, prog);
+    return sb_finish(sb);
+}
