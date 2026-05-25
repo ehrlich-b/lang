@@ -46,8 +46,17 @@ polyglot stdlib written in reader-authored *better* languages.
 - [x] **Fix host-program `#parser{}`-struct field access** - the LLVM first pass now
       expands decl-level reader macros and registers their structs, so `find_struct`
       resolves them during codegen.
-- [ ] **Pick the next real reader** - selection criterion (Decision Log): a language
-      we'd actually want to rewrite stdlib components in, not a toy demo.
+- [x] **C-subset reader** - `example/c/c.lang` captures recursive C funcs
+      (factorial/fib/add) callable from lang; `#parser{}`-based, guarded by
+      `reader_c_e2e`. Required growing `#parser{}` (keyword literals; more
+      operator/`;`/`<`/`>` literals). Bounded subset: no typedef/preprocessor/
+      structs/assignment/local decls yet.
+- [ ] **Expand the C subset** - assignment + local var decls (unlocks real `while`
+      loops), `else`, and multi-char operators `== != <= >= && ||` (the shared
+      tokenizer is single-char only — needs lexing work). Then a non-trivial C
+      program end to end.
+- [ ] **Pick the next reader** - criterion (Decision Log): a language we'd actually
+      want to rewrite stdlib components in.
 
 ### Reader toolkit (the thing to invest in)
 
