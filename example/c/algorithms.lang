@@ -1,0 +1,57 @@
+// A non-trivial C program captured end to end: real algorithms written in C
+// syntax, compiled to native through the lang kernel, called from lang.
+include "std/core.lang"
+include "example/c/c.lang"
+
+#c{
+    // Euclid's algorithm
+    int gcd(int a, int b) {
+        while (b != 0) {
+            int t = b;
+            b = a % b;
+            a = t;
+        }
+        return a;
+    }
+
+    // Trial-division primality test
+    int is_prime(int n) {
+        if (n < 2) return 0;
+        int i = 2;
+        while (i * i <= n) {
+            if (n % i == 0) return 0;
+            i = i + 1;
+        }
+        return 1;
+    }
+
+    // Count primes <= limit (calls is_prime in a loop)
+    int count_primes(int limit) {
+        int count = 0;
+        int n = 2;
+        while (n <= limit) {
+            if (is_prime(n)) {
+                count = count + 1;
+            }
+            n = n + 1;
+        }
+        return count;
+    }
+}
+
+func main() i64 {
+    print("gcd(48, 36)      = "); print_int(gcd(48, 36));        print("\n"); // 12
+    print("is_prime(7)      = "); print_int(is_prime(7));        print("\n"); // 1
+    print("is_prime(9)      = "); print_int(is_prime(9));        print("\n"); // 0
+    print("count_primes(30) = "); print_int(count_primes(30));   print("\n"); // 10
+
+    if gcd(48, 36) != 12 { return 1; }
+    if gcd(17, 5) != 1 { return 1; }
+    if is_prime(7) != 1 { return 1; }
+    if is_prime(9) != 0 { return 1; }
+    if is_prime(2) != 1 { return 1; }
+    if count_primes(30) != 10 { return 1; }
+
+    print("PASS\n");
+    return 0;
+}
