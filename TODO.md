@@ -41,9 +41,11 @@ polyglot stdlib written in reader-authored *better* languages.
       compiles to native via LLVM. Arithmetic + recursive `defun` both run. The
       `#parser{}`-generated parser path works end to end (it had silently rotted —
       reader-build dumped AST as source; now parses + unparses).
-- [ ] **Guard the `#parser{}` path** - add a build-and-run reader test to the LLVM
-      suite so the crown-jewel parser generator can't break unnoticed again.
-- [ ] **Fix host-program `#parser{}`-struct field access** - see Known Bugs.
+- [x] **Guard the `#parser{}` path** - `reader_minilisp_e2e` in `test/run_llvm_suite.sh`
+      builds AND runs minilisp's `#parser{}` reader so the crown jewel can't rot again.
+- [x] **Fix host-program `#parser{}`-struct field access** - the LLVM first pass now
+      expands decl-level reader macros and registers their structs, so `find_struct`
+      resolves them during codegen.
 - [ ] **Pick the next real reader** - selection criterion (Decision Log): a language
       we'd actually want to rewrite stdlib components in, not a toy demo.
 
@@ -60,14 +62,6 @@ readers easier to write is the product.
 
 See [designs/ast_as_language.md](designs/ast_as_language.md) for the full layer cake
 (Level 0 raw S-exprs → Level 5 lang variants).
-
-### Known Bugs
-
-- **Host-program `#parser{}`-struct field access bails to `(number 0)`.** A struct
-  defined by `#parser{}` *expansion* in the including program (not in the reader
-  exe) isn't found by `find_struct` during LLVM codegen, because it's registered
-  via `process_decl_first_pass`. Plain `struct` decls and the unparsed reader-exe
-  copy work. Currently dead code in minilisp's host binary, so it links and runs.
 
 ### Abandoned: Zig-via-AIR
 
