@@ -60,7 +60,7 @@ include "std/parser_reader.lang"
     c_callargs  = '(' c_args ')'
     c_args      = c_argitem*
     c_argitem   = c_expr | ','
-    c_primary   = number | symbol | c_parenexpr
+    c_primary   = number | string | symbol | c_parenexpr
     c_parenexpr = '(' c_expr ')'
 }
 
@@ -192,6 +192,13 @@ func emit_primary_str(p *PNode) *u8 {
     if p.kind == 2 {               // symbol → ident
         var sb *StringBuilder = sb_new();
         sb_str(sb, "(ident ");
+        sb_str(sb, p.text);
+        sb_str(sb, ")");
+        return sb_finish(sb);
+    }
+    if p.kind == 3 {               // string literal; text keeps its quotes
+        var sb *StringBuilder = sb_new();
+        sb_str(sb, "(string ");
         sb_str(sb, p.text);
         sb_str(sb, ")");
         return sb_finish(sb);

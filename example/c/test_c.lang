@@ -73,6 +73,11 @@ include "example/c/c.lang"
         *p = *p + 1;
         return *p;
     }
+
+    // round 3: char* param + string literal, deref to first byte
+    int strhead(char *s) {
+        return *s;
+    }
 }
 
 func main() i64 {
@@ -88,6 +93,7 @@ func main() i64 {
     print("negate(8)    = "); print_int(negate(8));     print("\n");
     print("maxof(3, 9)  = "); print_int(maxof(3, 9));   print("\n");
     print("through_ptr  = "); print_int(through_ptr(41)); print("\n");
+    print("strhead(\"A\") = "); print_int(strhead("A"));   print("\n");
 
     if factorial(5) != 120 { return 1; }
     if fib(10) != 55 { return 1; }
@@ -103,6 +109,8 @@ func main() i64 {
     if maxof(3, 9) != 9 { return 1; }
     if maxof(9, 3) != 9 { return 1; }
     if through_ptr(41) != 42 { return 1; }
+    if strhead("A") != 65 { return 1; }
+    if strhead("z") != 122 { return 1; }
 
     print("PASS\n");
     return 0;
