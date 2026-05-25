@@ -51,10 +51,13 @@ polyglot stdlib written in reader-authored *better* languages.
       `reader_c_e2e`. Required growing `#parser{}` (keyword literals; more
       operator/`;`/`<`/`>` literals). Bounded subset: no typedef/preprocessor/
       structs/assignment/local decls yet.
-- [ ] **Expand the C subset** - assignment + local var decls (unlocks real `while`
-      loops), `else`, and multi-char operators `== != <= >= && ||` (the shared
-      tokenizer is single-char only — needs lexing work). Then a non-trivial C
-      program end to end.
+- [x] **Expand the C subset (round 1)** - local var decls, assignment, `while`
+      loops, `if`/`else`, and `//` + `/* */` comments (comments fixed in the shared
+      `std/tok.lang`, so every reader benefits). Iterative `factorial` now captured.
+- [ ] **Multi-char operators** - `== != <= >= && ||` need real lexing; the shared
+      `std/tok.lang` is single-char only (each lexes as two tokens). Unblocks
+      idiomatic C conditions. Also: unary minus, uninitialized `int x;`.
+- [ ] **A non-trivial C program** end to end once operators land.
 - [ ] **Pick the next reader** - criterion (Decision Log): a language we'd actually
       want to rewrite stdlib components in.
 
