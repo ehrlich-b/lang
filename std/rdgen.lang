@@ -205,7 +205,7 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
                 sb_int(rd.sb, len);
                 sb_str(rd.sb, ") { ");
                 sb_str(rd.sb, result_var);
-                sb_str(rd.sb, " = pnode_new(0); tok_next(t); }");
+                sb_str(rd.sb, " = pnode_atom(2, tok_text(t)); tok_next(t); }");
                 rdgen_newline(rd);
             }
         }
