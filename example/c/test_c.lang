@@ -101,6 +101,37 @@ include "example/c/c.lang"
         scale2(&v, k);
         return v.x + v.y;
     }
+
+    // round 4: bitwise + shift operators
+    int bits(int a, int b) {
+        return (a & b) + (a | b) + (a ^ b) + (a << 1) + (a >> 1);
+    }
+
+    // round 4: break + continue
+    int first_factor(int n) {
+        int i = 2;
+        while (i < n) {
+            if (n % i == 0) {
+                break;
+            }
+            i = i + 1;
+        }
+        return i;
+    }
+
+    // round 4: array decl + indexing (read + write)
+    int arrsum(int n) {
+        int a[16];
+        int i = 0;
+        for (i = 0; i < n; i = i + 1) {
+            a[i] = i + 1;
+        }
+        int s = 0;
+        for (i = 0; i < n; i = i + 1) {
+            s = s + a[i];
+        }
+        return s;
+    }
 }
 
 func main() i64 {
@@ -119,6 +150,9 @@ func main() i64 {
     print("strhead(\"A\") = "); print_int(strhead("A"));   print("\n");
     print("norm_sq(3,4)  = "); print_int(norm_sq(3, 4));  print("\n");
     print("scaled_sum    = "); print_int(scaled_sum(2, 3, 10)); print("\n");
+    print("bits(12,10)   = "); print_int(bits(12, 10));   print("\n");
+    print("first_factor  = "); print_int(first_factor(15)); print("\n");
+    print("arrsum(5)     = "); print_int(arrsum(5));      print("\n");
 
     if factorial(5) != 120 { return 1; }
     if fib(10) != 55 { return 1; }
@@ -138,6 +172,10 @@ func main() i64 {
     if strhead("z") != 122 { return 1; }
     if norm_sq(3, 4) != 25 { return 1; }
     if scaled_sum(2, 3, 10) != 50 { return 1; }
+    if bits(12, 10) != 58 { return 1; }
+    if first_factor(15) != 3 { return 1; }
+    if first_factor(7) != 7 { return 1; }
+    if arrsum(5) != 15 { return 1; }
 
     print("PASS\n");
     return 0;

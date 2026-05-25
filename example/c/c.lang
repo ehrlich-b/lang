@@ -49,7 +49,9 @@ include "std/parser_reader.lang"
     c_paramitem  = c_param | ','
     c_param      = c_ptype symbol
     c_block     = '{' c_stmt* '}'
-    c_stmt      = c_retstmt | c_ifstmt | c_whilestmt | c_forstmt | c_decl | c_block | c_exprstmt
+    c_stmt      = c_retstmt | c_ifstmt | c_whilestmt | c_forstmt | c_breakstmt | c_continuestmt | c_decl | c_block | c_exprstmt
+    c_breakstmt = 'break' ';'
+    c_continuestmt = 'continue' ';'
     c_retstmt   = 'return' c_expr ';'
     c_ifstmt    = 'if' '(' c_expr ')' c_stmt c_elses
     c_elses     = c_elsepart*
@@ -57,7 +59,9 @@ include "std/parser_reader.lang"
     c_whilestmt = 'while' '(' c_expr ')' c_stmt
     c_forstmt   = 'for' '(' c_forinit c_expr ';' c_expr ')' c_stmt
     c_forinit   = c_decl | c_exprstmt
-    c_decl      = c_ptype symbol c_initopt ';'
+    c_decl      = c_ptype symbol c_arrdim c_initopt ';'
+    c_arrdim    = c_dim*
+    c_dim       = '[' number ']'
     c_initopt   = c_initval*
     c_initval   = '=' c_expr
     c_exprstmt  = c_expr ';'
@@ -66,9 +70,10 @@ include "std/parser_reader.lang"
     c_unary     = c_neg | c_postfix
     c_neg       = operator c_postfix
     c_postfix   = c_primary c_postfixop*
-    c_postfixop = c_callargs | c_member
+    c_postfixop = c_callargs | c_member | c_index
     c_callargs  = '(' c_args ')'
     c_member    = '.' symbol
+    c_index     = '[' c_expr ']'
     c_args      = c_argitem*
     c_argitem   = c_expr | ','
     c_primary   = number | string | symbol | c_parenexpr
@@ -88,10 +93,14 @@ include "std/parser_reader.lang"
 func prec(op *u8) i64 {
     if streq(op, "||") { return 1; }
     if streq(op, "&&") { return 2; }
-    if streq(op, "==") || streq(op, "!=") { return 3; }
-    if streq(op, "<") || streq(op, ">") || streq(op, "<=") || streq(op, ">=") { return 4; }
-    if streq(op, "+") || streq(op, "-") { return 5; }
-    if streq(op, "*") || streq(op, "/") || streq(op, "%") { return 6; }
+    if streq(op, "|") { return 3; }                                  // bitwise or
+    if streq(op, "^") { return 4; }                                  // bitwise xor
+    if streq(op, "&") { return 5; }                                  // bitwise and
+    if streq(op, "==") || streq(op, "!=") { return 6; }
+    if streq(op, "<") || streq(op, ">") || streq(op, "<=") || streq(op, ">=") { return 7; }
+    if streq(op, "<<") || streq(op, ">>") { return 8; }              // shifts
+    if streq(op, "+") || streq(op, "-") { return 9; }
+    if streq(op, "*") || streq(op, "/") || streq(op, "%") { return 10; }
     return 0;
 }
 
@@ -221,24 +230,36 @@ func emit_postfix_str(pf *PNode) *u8 {
             sb_str(sb, second.text);
             sb_str(sb, ")");
             base = sb_finish(sb);
-        } else {                                  // c_callargs → (call base args...)
-            var args *PNode = second;
-            var sb *StringBuilder = sb_new();
-            sb_str(sb, "(call ");
-            sb_str(sb, base);
-            var items *u8 = args.children;
-            var n i64 = vec_len(items);
-            var i i64 = 0;
-            while i < n {
-                var it *PNode = vec_get(items, i);
-                if it.kind != 0 {            // skip ',' markers; args are expr nodes
-                    sb_str(sb, " ");
-                    sb_str(sb, emit_expr_str(it));
+        } else {
+            // call and index both have a kind-4 second child; distinguish by the
+            // leading marker's text ('(' vs '[' — markers now carry their text).
+            var marker *PNode = vec_get(op.children, 0);
+            if streq(marker.text, "[") {          // c_index = ['[', expr, ']'] → (index base idx)
+                var sb *StringBuilder = sb_new();
+                sb_str(sb, "(index ");
+                sb_str(sb, base);
+                sb_str(sb, " ");
+                sb_str(sb, emit_expr_str(second));
+                sb_str(sb, ")");
+                base = sb_finish(sb);
+            } else {                              // c_callargs → (call base args...)
+                var sb *StringBuilder = sb_new();
+                sb_str(sb, "(call ");
+                sb_str(sb, base);
+                var items *u8 = second.children;
+                var n i64 = vec_len(items);
+                var i i64 = 0;
+                while i < n {
+                    var it *PNode = vec_get(items, i);
+                    if it.kind != 0 {            // skip ',' markers; args are expr nodes
+                        sb_str(sb, " ");
+                        sb_str(sb, emit_expr_str(it));
+                    }
+                    i = i + 1;
                 }
-                i = i + 1;
+                sb_str(sb, ")");
+                base = sb_finish(sb);
             }
-            sb_str(sb, ")");
-            base = sb_finish(sb);
         }
         oi = oi + 1;
     }
@@ -286,6 +307,8 @@ func emit_stmt(sb *StringBuilder, s *PNode) void {
     }
 
     if first.kind == 2 {
+        if streq(first.text, "break") { sb_str(sb, "(break)"); return; }
+        if streq(first.text, "continue") { sb_str(sb, "(continue)"); return; }
         if streq(first.text, "return") {       // ['return', expr, ';']
             sb_str(sb, "(return ");
             sb_str(sb, emit_expr_str(vec_get(s.children, 1)));
@@ -387,22 +410,34 @@ func emit_for(sb *StringBuilder, s *PNode) void {
     sb_str(sb, ")))");
 }
 
-// c_decl = type symbol initopt ';'  →  children [type, name, initopt_star, ';']
-// initopt is a star (stable slot): zero c_initval = uninitialized `int x;`, one
-// c_initval = ['=', expr] = `int x = expr;`. The kernel's (var ...) makes the
-// init operand optional (uninitialized → alloca with no store, like C).
+// c_decl = ptype symbol arrdim initopt ';'  →  children [ptype, name, arrdim, initopt, ';']
+// arrdim is a star: zero dims = scalar; one c_dim = ['[', number, ']'] = a 1-D
+// array `T name[N]` → (var name (type_array N ELEM)) (no initializer; array
+// initializers aren't in this subset). initopt is the stable-slot optional init
+// for scalars (uninitialized → kernel alloca with no store, like C).
 func emit_decl(sb *StringBuilder, d *PNode) void {
     var kids *u8 = d.children;
     var name *PNode = vec_get(kids, 1);
+    var arrdim *PNode = vec_get(kids, 2);
+    var initopt *PNode = vec_get(kids, 3);
     sb_str(sb, "(var ");
     sb_str(sb, name.text);
     sb_str(sb, " ");
-    emit_type(sb, vec_get(kids, 0));
-    var initopt *PNode = vec_get(kids, 2);
-    if vec_len(initopt.children) > 0 {
-        var initval *PNode = vec_get(initopt.children, 0);   // ['=', expr]
+    if vec_len(arrdim.children) > 0 {
+        var dim0 *PNode = vec_get(arrdim.children, 0);   // c_dim = ['[', number, ']']
+        var sizenode *PNode = vec_get(dim0.children, 1);
+        sb_str(sb, "(type_array ");
+        sb_str(sb, sizenode.text);
         sb_str(sb, " ");
-        sb_str(sb, emit_expr_str(vec_get(initval.children, 1)));
+        emit_type(sb, vec_get(kids, 0));
+        sb_str(sb, ")");
+    } else {
+        emit_type(sb, vec_get(kids, 0));
+        if vec_len(initopt.children) > 0 {
+            var initval *PNode = vec_get(initopt.children, 0);   // ['=', expr]
+            sb_str(sb, " ");
+            sb_str(sb, emit_expr_str(vec_get(initval.children, 1)));
+        }
     }
     sb_str(sb, ")");
 }
