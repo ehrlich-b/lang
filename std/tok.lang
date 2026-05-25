@@ -116,8 +116,30 @@ func tok_advance_char(t *Tokenizer) void {
 }
 
 func tok_skip_whitespace(t *Tokenizer) void {
-    while t.pos < t.len && tok_is_space(tok_peek_char(t)) {
-        tok_advance_char(t);
+    var again i64 = 1;
+    while again == 1 {
+        again = 0;
+        while t.pos < t.len && tok_is_space(tok_peek_char(t)) {
+            tok_advance_char(t);
+        }
+        // Line comment: // ... to end of line
+        if tok_peek_char(t) == 47 && tok_peek_char_at(t, 1) == 47 {
+            while t.pos < t.len && tok_peek_char(t) != 10 {
+                tok_advance_char(t);
+            }
+            again = 1;
+        }
+        // Block comment: /* ... */
+        if tok_peek_char(t) == 47 && tok_peek_char_at(t, 1) == 42 {
+            tok_advance_char(t);
+            tok_advance_char(t);
+            while t.pos < t.len && (tok_peek_char(t) != 42 || tok_peek_char_at(t, 1) != 47) {
+                tok_advance_char(t);
+            }
+            tok_advance_char(t);
+            tok_advance_char(t);
+            again = 1;
+        }
     }
 }
 
