@@ -68,9 +68,20 @@ polyglot stdlib written in reader-authored *better* languages.
       auto-deref) - NO bootstrap. `(*p).f` is peeled to lang's auto-deref `p.f`
       because the kernel crashes on `(field (unop * p) f)` (loads a struct value);
       that latent kernel sharp-edge is unfixed but no well-behaved reader hits it.
-- [ ] **C round 4 (if continuing C)** - `->` (needs a 2-char token in tok.lang, or
-      grammar `'-' '>'`), arrays/indexing, struct-by-value params/returns. Lower
-      value than breadth; consider stopping C here - it captures real programs.
+- [x] **Fuller C (round 4)** - bitwise/shift (`& | ^ << >>`), `break`/`continue`,
+      arrays + `a[i]` indexing, char literals `'a'`, `->` (lexed as `.`; kernel
+      auto-derefs), compound assignment (`+= -= *= /= %=`), `++`/`--` (statement
+      and for-step), and global variables (scalar/array/init). `->`, `+=`-family,
+      and `++`/`--` are tokenizer changes (`std/tok.lang` is compiler source), so
+      they took two `make bootstrap` runs (releases bootstrap-d220c42, -af179c6);
+      the rest are reader-only. rdgen literal markers now carry their text so the
+      converter can tell `(` from `[`. Sieve-of-Eratosthenes capstone in
+      `algorithms.lang`. `++`/`--` are statement/step-only (value-position is a
+      no-op, defensively).
+- [ ] **C long tail (needs kernel or rdgen work)** - ternary `?:` (no kernel
+      conditional-expr AST; needs `?` token), `~` (no `~` in `sexpr_op_to_token`),
+      `switch`, `enum`, `typedef`, multiple declarators `int a, b;`, multi-dim
+      arrays. Diminishing returns; C already captures real programs.
 - [ ] **Pick the next reader** - criterion (Decision Log): a language we'd actually
       want to rewrite stdlib components in. A non-C syntax (Pascal/Lua-like) would
       best prove the toolkit generalizes beyond brace languages.
