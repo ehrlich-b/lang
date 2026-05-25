@@ -6485,6 +6485,13 @@ func llvm_register_decl(decl *u8) void {
         var is_pub i64 = var_decl_is_pub(decl);
         llvm_add_global(name, name_len);
         add_global(name, name_len, var_type, var_init, is_extern, is_pub);  // Register type for get_expr_type
+    } else if k == NODE_READER_EXPR {
+        // Decl-level reader macro (e.g. #parser{}): expand now and register the
+        // structs/funcs it generates, so find_struct sees reader-defined structs
+        // (like #parser{}'s PNode) during codegen. Without this, field access on
+        // such a struct in the host program bails to (number 0). Reuses the
+        // shared first-pass expander, which recurses through the generated decls.
+        process_decl_first_pass(decl);
     } else if k == NODE_INCLUDE_DECL {
         // Recursively process included file
         var path *u8 = include_decl_path(decl);
