@@ -12,6 +12,16 @@ include "example/minilisp/minilisp.lang"
 #minilisp{ (defun len (xs) (if (eq xs nil) 0 (+ 1 (len (cdr xs))))) }
 #minilisp{ (defun sumlist (xs) (if (eq xs nil) 0 (+ (car xs) (sumlist (cdr xs))))) }
 
+// Higher-order: map a closure over a list (funcall calls a value-position fn).
+#minilisp{
+    (defun map (f xs)
+        (if (eq xs nil) nil (cons (funcall f (car xs)) (map f (cdr xs)))))
+}
+// Returns a closure that captured its argument.
+#minilisp{ (defun make_adder (n) (lambda (x) (+ x n))) }
+// let binding (sequential) over quoted-list literals.
+#minilisp{ (defun let_demo () (let ((a 6) (b (+ a 1))) (* a b))) }
+
 func main() i64 {
     print("add(3, 4)      = "); print_int(lisp_to_int(add(lisp_int(3), lisp_int(4)))); print("\n");
     print("square(5)      = "); print_int(lisp_to_int(square(lisp_int(5)))); print("\n");
@@ -22,12 +32,26 @@ func main() i64 {
     print("len (10 20 30) = "); print_int(lisp_to_int(len(xs))); print("\n");
     print("sum (10 20 30) = "); print_int(lisp_to_int(sumlist(xs))); print("\n");
 
+    // First-class lambdas: map squares over a quoted list, then a captured closure.
+    print("map sq '(1 2 3) = "); lisp_print(map(lisp_closure_of_square(), #minilisp{ (quote (1 2 3)) })); print("\n");
+    print("make_adder(10)5 = "); print_int(lisp_to_int(#minilisp{ (funcall (make_adder 10) 5) })); print("\n");
+    print("let_demo()     = "); print_int(lisp_to_int(let_demo())); print("\n");
+
     if lisp_to_int(add(lisp_int(3), lisp_int(4))) != 7 { return 1; }
     if lisp_to_int(square(lisp_int(5))) != 25 { return 1; }
     if lisp_to_int(factorial(lisp_int(5))) != 120 { return 1; }
     if lisp_to_int(len(xs)) != 3 { return 1; }
     if lisp_to_int(sumlist(xs)) != 60 { return 1; }
+    if lisp_to_int(#minilisp{ (funcall (make_adder 10) 5) }) != 15 { return 1; }
+    if lisp_to_int(let_demo()) != 42 { return 1; }
+    // map sq '(1 2 3) -> (1 4 9); sum it to 14
+    if lisp_to_int(sumlist(map(lisp_closure_of_square(), #minilisp{ (quote (1 2 3)) }))) != 14 { return 1; }
 
     print("\nPASS\n");
     return 0;
+}
+
+// A boxed closure wrapping square, so we can pass it to map from lang.
+func lisp_closure_of_square() i64 {
+    return #minilisp{ (lambda (x) (* x x)) };
 }

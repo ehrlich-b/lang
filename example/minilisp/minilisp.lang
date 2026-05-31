@@ -13,9 +13,15 @@
 // EXPRESSIONS:
 //   (+ 1 2)  (* 2 (+ 3 4))  (< x 0)  (if c t e)  (and a b) (or a b) (not x)
 //   (cons 1 (cons 2 nil))  (car xs)  (cdr xs)  (list 1 2 3)  (eq a b)
+//   (quote (a b c))  (let ((x 1) (y 2)) body)
+//   (lambda (x) (+ x 1))  (funcall f a b)  (apply f arglist)  ((lambda (x) x) 5)
 // DEFINITIONS:
 //   (defun add (a b) (+ a b))
 //   (defun len (xs) (if (eq xs nil) 0 (+ 1 (len (cdr xs)))))
+//   (defun map (f xs) (if (eq xs nil) nil (cons (funcall f (car xs)) (map f (cdr xs)))))
+//
+// Lisp-2: (f x) calls the function NAMED f (a defun); to call a value (a lambda
+// in a variable/param) use (funcall f x) or (apply f args), as in Common Lisp.
 
 include "std/core.lang"
 include "std/tok.lang"
@@ -103,12 +109,90 @@ func lisp_fold(opfn *u8, node *PNode, hi i64) *u8 {
     return ast_call_named2(opfn, lisp_fold(opfn, node, hi - 1), lisp_expr(list_get(node, hi)));
 }
 
+// (let ((n1 v1) (n2 v2) ...) body) -> nested kernel lets. Sequential (let*-style):
+// a later binding sees the earlier ones.
+func lisp_let(bindings *PNode, i i64, count i64, body *PNode) *u8 {
+    if i >= count {
+        return lisp_expr(body);
+    }
+    var binding *PNode = list_get(bindings, i);
+    var name *PNode = list_get(binding, 0);
+    var valexpr *PNode = list_get(binding, 1);
+    return ast_let(name.text, ast_type_i64(), lisp_expr(valexpr),
+                   lisp_let(bindings, i + 1, count, body));
+}
+
+// The kernel closure type every Lisp lambda lowers to: closure(i64) i64
+// (takes one arg - the Lisp argument list - and returns a Lisp value).
+func lisp_closure_type() *u8 {
+    var ptypes *u8 = ast_vec();
+    ast_push(ptypes, ast_type_i64());
+    return ast_type_closure(ptypes, ast_type_i64());
+}
+
+// Bind each Lisp param to an element of the kernel lambda's single __args list:
+// param[0] = (car __args), param[1] = (car (cdr __args)), ... then run the body.
+func lisp_lambda_binds(params *PNode, i i64, count i64, argexpr *u8, body *u8) *u8 {
+    if i >= count { return body; }
+    var pnode *PNode = list_get(params, i);
+    return ast_let(pnode.text, ast_type_i64(),
+                   ast_call_named1("lisp_car", argexpr),
+                   lisp_lambda_binds(params, i + 1, count,
+                                     ast_call_named1("lisp_cdr", argexpr), body));
+}
+
+// (lambda (params) body) -> a boxed closure VALUE. Every Lisp lambda becomes a
+// kernel closure of uniform type closure(i64) i64: it takes the argument list,
+// destructures it into the named params, and runs the body. Routing it through
+// a closure-typed `var` forces the [tag][fn_ptr][captures] heap layout (the
+// kernel auto-wraps a non-capturing lambda to tag=0 there), then lisp_closure
+// boxes the pointer so the lambda is first-class. The holding var is uniquely
+// named per node (block_expr vars leak to the enclosing scope, like `if` temps).
+func lisp_lambda(params *PNode, bodynode *PNode) *u8 {
+    var cvar *u8 = lisp_tmp(bodynode);
+    var pvec *u8 = ast_vec();
+    ast_push(pvec, ast_param("__args", ast_type_i64()));
+    var inner *u8 = lisp_lambda_binds(params, 0, list_len(params),
+                                      ast_ident("__args"), lisp_expr(bodynode));
+    var lam *u8 = ast_lambda(pvec, ast_type_i64(), ast_block1(ast_return(inner)));
+    var stmts *u8 = ast_vec();
+    ast_push(stmts, ast_var(cvar, lisp_closure_type(), lam));
+    return ast_block_expr(stmts, ast_call_named1("lisp_closure", ast_ident(cvar)));
+}
+
 // (list a b c) -> (cons a (cons b (cons c (nil))))
 func lisp_list_from(node *PNode, i i64, count i64) *u8 {
     if i >= count {
         return ast_call_named0("lisp_nil");
     }
     return ast_call_named2("lisp_cons", lisp_expr(list_get(node, i)), lisp_list_from(node, i + 1, count));
+}
+
+// Quote: build a Lisp VALUE from the parse tree without evaluating. Numbers
+// become boxed ints, symbols/operators become interned symbols, lists become
+// cons chains. (quote (a (b 2))) -> (cons sym-a (cons (cons sym-b (cons 2 nil)) nil))
+func lisp_quote(node *PNode) *u8 {
+    if node == nil { return ast_call_named0("lisp_nil"); }
+    if node.kind == 1 {                                       // number -> boxed int
+        return ast_call_named1("lisp_int", ast_number(node.text));
+    }
+    if node.kind == 2 {                                       // symbol
+        if streq(node.text, "nil") { return ast_call_named0("lisp_nil"); }
+        return ast_call_named1("lisp_sym", ast_string(node.text));
+    }
+    if node.kind == 5 {                                       // operator symbol, e.g. '+
+        return ast_call_named1("lisp_sym", ast_string(node.text));
+    }
+    if node.kind == 4 {                                       // list -> cons chain
+        return lisp_quote_list(node, 0, list_len(node));
+    }
+    return ast_call_named0("lisp_nil");
+}
+
+func lisp_quote_list(node *PNode, i i64, count i64) *u8 {
+    if i >= count { return ast_call_named0("lisp_nil"); }
+    return ast_call_named2("lisp_cons", lisp_quote(list_get(node, i)),
+                           lisp_quote_list(node, i + 1, count));
 }
 
 // Emit a call to runtime function `fnname` with the node's args 1..count-1.
@@ -202,6 +286,35 @@ func lisp_expr(node *PNode) *u8 {
         return ast_block_expr(stmts, ast_ident(t));
     }
 
+    // (quote expr) -> the literal value (no evaluation)
+    if is_sym(first, "quote") {
+        return lisp_quote(list_get(node, 1));
+    }
+
+    // (let ((n v)...) body)
+    if is_sym(first, "let") {
+        var bindings *PNode = list_get(node, 1);
+        var body *PNode = list_get(node, 2);
+        return lisp_let(bindings, 0, list_len(bindings), body);
+    }
+
+    // (lambda (params) body) -> a first-class closure value
+    if is_sym(first, "lambda") {
+        return lisp_lambda(list_get(node, 1), list_get(node, 2));
+    }
+
+    // (funcall fexpr a b ...) -> apply a value-position function (Lisp-2 style)
+    if is_sym(first, "funcall") {
+        return ast_call_named2("lisp_apply", lisp_expr(list_get(node, 1)),
+                               lisp_list_from(node, 2, count));
+    }
+
+    // (apply fexpr arglist) -> apply to an already-built argument list
+    if is_sym(first, "apply") {
+        return ast_call_named2("lisp_apply", lisp_expr(list_get(node, 1)),
+                               lisp_expr(list_get(node, 2)));
+    }
+
     // Logical + list builtins -> runtime calls.
     if is_sym(first, "not")  { return lisp_runtime_call("lisp_not", node, count); }
     if is_sym(first, "and")  { return lisp_runtime_call("lisp_and", node, count); }
@@ -211,6 +324,11 @@ func lisp_expr(node *PNode) *u8 {
     if is_sym(first, "cdr")  { return lisp_runtime_call("lisp_cdr", node, count); }
     if is_sym(first, "eq")   { return lisp_runtime_call("lisp_eq", node, count); }
     if is_sym(first, "list") { return lisp_list_from(node, 1, count); }
+
+    // Head is itself an expression, e.g. ((lambda (x) ...) 5) -> apply its value.
+    if first.kind == 4 {
+        return ast_call_named2("lisp_apply", lisp_expr(first), lisp_list_from(node, 1, count));
+    }
 
     // Function call: (f a b) -> (call (ident f) a b)
     if first.kind == 2 {

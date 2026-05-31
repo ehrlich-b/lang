@@ -18,10 +18,21 @@ func main() i64 {
     print("(car (list 7 8 9))  = "); print_int(lisp_to_int(#minilisp{ (car (list 7 8 9)) })); print("\n");
     print("(cdr (list 7 8 9))  = "); lisp_print(#minilisp{ (cdr (list 7 8 9)) }); print("\n");
 
+    // quote: data, not evaluated (symbols are interned)
+    print("(quote (a (b c) 3)) = "); lisp_print(#minilisp{ (quote (a (b c) 3)) }); print("\n");
+
+    // let bindings (sequential)
+    print("(let ((x 3)(y 4)) ..) = "); print_int(lisp_to_int(#minilisp{ (let ((x 3) (y 4)) (+ (* x x) (* y y))) })); print("\n");
+
+    // lambda + funcall: first-class closures
+    print("(funcall (lambda(a b)(* a b)) 6 7) = "); print_int(lisp_to_int(#minilisp{ (funcall (lambda (a b) (* a b)) 6 7) })); print("\n");
+
     if lisp_to_int(#minilisp{ (+ 10 32) }) != 42 { return 1; }
     if lisp_to_int(#minilisp{ (* (+ 3 3) (+ 3 4)) }) != 42 { return 1; }
     if lisp_to_int(#minilisp{ (+ 1 2 3 4 5) }) != 15 { return 1; }
     if lisp_to_int(#minilisp{ (car (list 7 8 9)) }) != 7 { return 1; }
+    if lisp_to_int(#minilisp{ (let ((x 3) (y 4)) (+ (* x x) (* y y))) }) != 25 { return 1; }
+    if lisp_to_int(#minilisp{ (funcall (lambda (a b) (* a b)) 6 7) }) != 42 { return 1; }
 
     print("\nPASS\n");
     return 0;

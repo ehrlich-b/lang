@@ -10,6 +10,8 @@
 //   tag 0 = int    a = value
 //   tag 1 = nil
 //   tag 2 = cons   a = car, b = cdr
+//   tag 3 = symbol a = char* name (interned: one object per distinct name)
+//   tag 4 = closure a = kernel closure ptr ([tag][fn_ptr][captures])
 
 include "std/core.lang"
 
@@ -44,6 +46,38 @@ func lisp_cons(car i64, cdr i64) i64 {
     return o;
 }
 
+// Interned symbols: a Lisp list of every symbol made so far (0 = not yet inited).
+// Interning means same name -> same object, so symbols compare by identity (eq).
+var lisp_symtab i64 = 0;
+
+func lisp_sym(name *u8) i64 {
+    if lisp_symtab == 0 { lisp_symtab = lisp_nil(); }
+    var cur i64 = lisp_symtab;
+    while lisp_tag(cur) == 2 {
+        var s i64 = lisp_car(cur);
+        var so *LispObj = s;
+        var sname *u8 = so.a;
+        if streq(sname, name) { return s; }
+        cur = lisp_cdr(cur);
+    }
+    var o *LispObj = alloc(24);
+    o.tag = 3; o.a = name; o.b = 0;
+    var sym i64 = o;
+    lisp_symtab = lisp_cons(sym, lisp_symtab);
+    return sym;
+}
+
+func lisp_is_sym(x i64) i64 {
+    var o *LispObj = x;
+    if o.tag == 3 { return 1; }
+    return 0;
+}
+
+func lisp_sym_name(x i64) *u8 {
+    var o *LispObj = x;
+    return o.a;
+}
+
 func lisp_tag(x i64) i64 {
     var o *LispObj = x;
     return o.tag;
@@ -53,6 +87,30 @@ func lisp_is_nil(x i64) i64 {
     var o *LispObj = x;
     if o.tag == 1 { return 1; }
     return 0;
+}
+
+// Box a kernel closure pointer as a first-class Lisp value (so lambdas can be
+// stored in lists, returned, passed around). The reader wraps the lambda in a
+// closure-typed binding first, so `c` is always a [tag][fn_ptr][captures] struct.
+func lisp_closure(c i64) i64 {
+    var o *LispObj = alloc(24);
+    o.tag = 4; o.a = c; o.b = 0;
+    return o;
+}
+
+func lisp_is_closure(x i64) i64 {
+    var o *LispObj = x;
+    if o.tag == 4 { return 1; }
+    return 0;
+}
+
+// Apply a boxed closure to an already-built Lisp argument list. Routing the
+// kernel closure pointer through a closure-typed local hands the call to the
+// kernel's tag-aware closure-call path (works for tag=0 and tag=1).
+func lisp_apply(f i64, args i64) i64 {
+    var o *LispObj = f;
+    var c closure(i64) i64 = o.a;
+    return c(args);
 }
 
 // Lisp truthiness: only nil is false (Common-Lisp style; 0 is truthy).
@@ -123,6 +181,8 @@ func lisp_print(x i64) void {
     var o *LispObj = x;
     if o.tag == 0 { print_int(o.a); return; }
     if o.tag == 1 { print("nil"); return; }
+    if o.tag == 3 { var nm *u8 = o.a; print(nm); return; }
+    if o.tag == 4 { print("<closure>"); return; }
     if o.tag == 2 {
         print("(");
         var cur i64 = x;
