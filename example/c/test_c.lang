@@ -185,6 +185,15 @@ include "example/c/c.lang"
         }
         return s;
     }
+
+    // round 5: ternary ?: (incl. nested/right-assoc and as a decl initializer)
+    int tmax(int a, int b) { return a > b ? a : b; }
+    int tsign(int x) { return x > 0 ? 1 : x < 0 ? 0 - 1 : 0; }
+    int tpick(int a, int b) { int m = a > b ? a : b; return m; }
+
+    // round 5: bitwise-not ~ (~x + 1 == -x in two's complement)
+    int bnot(int x) { return ~x; }
+    int negn(int x) { return ~x + 1; }
 }
 
 func main() i64 {
@@ -212,6 +221,11 @@ func main() i64 {
     print("countdown(7)  = "); print_int(countdown(7));  print("\n");
     print("with_base(5)  = "); print_int(with_base(5));  print("\n");
     print("store_sum     = "); print_int(store_sum(1, 2, 3)); print("\n");
+    print("tmax(3,7)     = "); print_int(tmax(3, 7));    print("\n");
+    print("tsign(-4)     = "); print_int(tsign(0 - 4));  print("\n");
+    print("tpick(9,2)    = "); print_int(tpick(9, 2));   print("\n");
+    print("bnot(5)       = "); print_int(bnot(5));       print("\n");
+    print("negn(7)       = "); print_int(negn(7));       print("\n");
 
     if factorial(5) != 120 { return 1; }
     if fib(10) != 55 { return 1; }
@@ -242,6 +256,15 @@ func main() i64 {
     if countdown(7) != 7 { return 1; }
     if with_base(5) != 105 { return 1; }
     if store_sum(1, 2, 3) != 6 { return 1; }
+    if tmax(3, 7) != 7 { return 1; }
+    if tmax(7, 3) != 7 { return 1; }
+    if tsign(0 - 4) != 0 - 1 { return 1; }
+    if tsign(0) != 0 { return 1; }
+    if tsign(6) != 1 { return 1; }
+    if tpick(9, 2) != 9 { return 1; }
+    if bnot(5) != 0 - 6 { return 1; }
+    if bnot(0) != 0 - 1 { return 1; }
+    if negn(7) != 0 - 7 { return 1; }
 
     print("PASS\n");
     return 0;

@@ -16,8 +16,8 @@
 //   types:      int, char, void (int/char->i64/u8), pointers (T*), struct Name
 //   decls:      structs (struct N { ... };), funcs, local decls (init optional)
 //   statements: return, if/else, while, for, assignment, blocks, expr statements
-//   operators:  + - * / %  < > <= >= == != && ||, unary - ! * &, calls f(a,b),
-//               member access p.f and (*p).f  (-> is lexed as ., kernel derefs)
+//   operators:  + - * / %  < > <= >= == != && ||, unary - ! ~ * &, ternary ?:,
+//               calls f(a,b), member access p.f and (*p).f  (-> lexed as .)
 //   strings:    "..." literals (char*); funcs may return non-struct types only
 //
 // rdgen's generated parser is weak (no backtracking; a sequence only requires
@@ -71,7 +71,9 @@ include "std/ast.lang"
     c_initopt   = c_initval*
     c_initval   = '=' c_expr
     c_exprstmt  = c_expr ';'
-    c_expr      = c_unary c_oprest*
+    c_expr      = c_binexpr c_terntail*
+    c_terntail  = '?' c_expr ':' c_expr
+    c_binexpr   = c_unary c_oprest*
     c_oprest    = operator c_unary
     c_unary     = c_neg | c_postfix
     c_neg       = operator c_postfix
@@ -114,8 +116,9 @@ func prec(op *u8) i64 {
 // Expression emission (precedence climbing over a flat operand/op list)
 // ============================================================
 
-// Split expr (= c_unary c_oprest*) into parallel operand/op vecs (operands[i] is
-// followed by ops[i]). Shared by expression emission and assignment detection.
+// Split a c_binexpr (= c_unary c_oprest*) into parallel operand/op vecs
+// (operands[i] is followed by ops[i]). Shared by expression emission and
+// assignment detection. (The ternary tail, if any, is handled by the caller.)
 func flatten_expr(e *PNode, operands *u8, ops *u8) void {
     vec_push(operands, vec_get(e.children, 0));
     var star *PNode = vec_get(e.children, 1);
@@ -133,12 +136,46 @@ func flatten_expr(e *PNode, operands *u8, ops *u8) void {
     }
 }
 
+// A c_expr is `c_binexpr c_terntail*`: emit the binexpr value, then fold any
+// ternary tail around it. (A flat binexpr is children[0]; the star is children[1].)
 func emit_expr_str(e *PNode) *u8 {
+    var binexpr *PNode = vec_get(e.children, 0);
+    var terntail *PNode = vec_get(e.children, 1);
     var operands *u8 = vec_new(8);
     var ops *u8 = vec_new(8);
-    flatten_expr(e, operands, ops);
+    flatten_expr(binexpr, operands, ops);
     var pos i64 = 0;
-    return climb(operands, ops, &pos, 0);
+    var base *u8 = climb(operands, ops, &pos, 0);
+    if vec_len(terntail.children) > 0 {
+        return emit_ternary(base, vec_get(terntail.children, 0));
+    }
+    return base;
+}
+
+// Per-node-unique temp name for a ternary (block_expr vars leak to the enclosing
+// scope, so each ?: needs its own; derive it from the terntail node's address).
+func ternary_tmp(node *PNode) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, "__ct");
+    var addr i64 = node;
+    sb_int(sb, addr);
+    return sb_finish(sb);
+}
+
+// `cond ? a : b` -> a value-returning block_expr (only the taken branch runs):
+//   { var t = 0; if (cond) { t = a; } else { t = b; }  t }
+// tt is a c_terntail = ['?', then_expr, ':', else_expr]. The temp is i64, which
+// covers the bounded subset's int and pointer values.
+func emit_ternary(cond *u8, tt *PNode) *u8 {
+    var t *u8 = ternary_tmp(tt);
+    var thenexpr *u8 = emit_expr_str(vec_get(tt.children, 1));
+    var elseexpr *u8 = emit_expr_str(vec_get(tt.children, 3));
+    var stmts *u8 = ast_vec();
+    ast_push(stmts, ast_var(t, ast_type_i64(), ast_int(0)));
+    ast_push(stmts, ast_if(cond,
+                           ast_block1(ast_assign(ast_ident(t), thenexpr)),
+                           ast_block1(ast_assign(ast_ident(t), elseexpr))));
+    return ast_block_expr(stmts, ast_ident(t));
 }
 
 // Standard precedence climbing. operands[pos] aligns with ops[pos].
@@ -169,7 +206,11 @@ func climb(operands *u8, ops *u8, posptr *i64, minprec i64) *u8 {
 func emit_operand_str(node *PNode) *u8 {
     var f *PNode = vec_get(node.children, 0);
     if f.kind == 5 {                          // c_neg = [op_atom, postfix]
-        return ast_unop(f.text, emit_postfix_str(vec_get(node.children, 1)));
+        var operand *u8 = emit_postfix_str(vec_get(node.children, 1));
+        if streq(f.text, "~") {               // ~x == x ^ -1 (kernel has no unary ~)
+            return ast_binop("^", operand, ast_unop("-", ast_int(1)));
+        }
+        return ast_unop(f.text, operand);
     }
     return emit_postfix_str(node);            // c_postfix
 }
@@ -181,10 +222,13 @@ func deref_paren_inner(primary *PNode) *PNode {
     if primary.kind != 4 { return nil; }              // parenexpr is a list node
     var c0 *PNode = vec_get(primary.children, 0);
     if c0.kind != 0 { return nil; }                   // ...leading with a '(' marker
-    var inner *PNode = vec_get(primary.children, 1);  // the c_expr
-    var orest *PNode = vec_get(inner.children, 1);    // c_oprest*
+    var inner *PNode = vec_get(primary.children, 1);  // the c_expr = [c_binexpr, terntail*]
+    var terntail *PNode = vec_get(inner.children, 1);
+    if vec_len(terntail.children) != 0 { return nil; } // a ternary is not a lone deref
+    var binexpr *PNode = vec_get(inner.children, 0);  // c_binexpr = [c_unary, c_oprest*]
+    var orest *PNode = vec_get(binexpr.children, 1);  // c_oprest*
     if vec_len(orest.children) != 0 { return nil; }   // must be a lone unary
-    var u *PNode = vec_get(inner.children, 0);        // c_unary
+    var u *PNode = vec_get(binexpr.children, 0);      // c_unary
     var u0 *PNode = vec_get(u.children, 0);
     if u0.kind == 5 && streq(u0.text, "*") {          // c_neg with '*'
         return vec_get(u.children, 1);                // the c_postfix being deref'd
@@ -397,29 +441,39 @@ func try_incdec(expr *PNode) *u8 {
 // `lv = lv op rhs`, otherwise an expression statement. Shared by exprstmt and the
 // for-loop step (a bare expr with no trailing ';').
 func emit_exprstmt_from_expr(expr *PNode) *u8 {
-    var inc *u8 = try_incdec(expr);
-    if inc != nil { return inc; }
+    var binexpr *PNode = vec_get(expr.children, 0);   // c_expr = [c_binexpr, terntail*]
+    var terntail *PNode = vec_get(expr.children, 1);
+    var ntt i64 = vec_len(terntail.children);
+    if ntt == 0 {                                     // ++/-- only on a bare lvalue
+        var inc *u8 = try_incdec(binexpr);
+        if inc != nil { return inc; }
+    }
     var operands *u8 = vec_new(8);
     var ops *u8 = vec_new(8);
-    flatten_expr(expr, operands, ops);
+    flatten_expr(binexpr, operands, ops);
     if vec_len(ops) > 0 {
         var op0 *PNode = vec_get(ops, 0);
         if streq(op0.text, "=") {
             var lv *PNode = vec_get(operands, 0);
             var rpos i64 = 1;
-            return ast_assign(emit_operand_str(lv),               // lvalue (ident)
-                              climb(operands, ops, &rpos, 1));    // value (stops before another '=')
+            var rhs *u8 = climb(operands, ops, &rpos, 1);         // value right of '=' ...
+            if ntt > 0 { rhs = emit_ternary(rhs, vec_get(terntail.children, 0)); }  // ... incl. ?:
+            return ast_assign(emit_operand_str(lv), rhs);
         }
         var cbase *u8 = compound_base(op0.text);                  // x op= rhs -> x = x op (rhs)
         if cbase != nil {
             var lv *PNode = vec_get(operands, 0);
             var lvs *u8 = emit_operand_str(lv);
             var cpos i64 = 1;
-            return ast_assign(lvs, ast_binop(cbase, lvs, climb(operands, ops, &cpos, 1)));
+            var rhs *u8 = climb(operands, ops, &cpos, 1);
+            if ntt > 0 { rhs = emit_ternary(rhs, vec_get(terntail.children, 0)); }
+            return ast_assign(lvs, ast_binop(cbase, lvs, rhs));
         }
     }
     var epos i64 = 0;
-    return ast_expr_stmt(climb(operands, ops, &epos, 0));
+    var base *u8 = climb(operands, ops, &epos, 0);
+    if ntt > 0 { base = emit_ternary(base, vec_get(terntail.children, 0)); }
+    return ast_expr_stmt(base);
 }
 
 // c_forstmt = 'for' '(' c_forinit c_expr ';' c_expr ')' c_stmt
