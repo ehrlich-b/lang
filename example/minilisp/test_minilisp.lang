@@ -1,27 +1,27 @@
-// minilisp demo - a tiny DSL compiling to x86
+// minilisp demo - a small but real Lisp compiling to a native binary.
+// Values are boxed; lisp_to_int unwraps for printing/comparison, lisp_print
+// shows lists.
 include "std/core.lang"
+include "example/minilisp/lisp_runtime.lang"
 include "example/minilisp/minilisp.lang"
 
 func main() i64 {
     print("=== minilisp Demo ===\n\n");
 
     // Arithmetic
-    print("(+ 10 32)           = ");
-    print_int(#minilisp{ (+ 10 32) });
-    print("\n");
+    print("(+ 10 32)           = "); print_int(lisp_to_int(#minilisp{ (+ 10 32) })); print("\n");
+    print("(* (+ 3 3) (+ 3 4)) = "); print_int(lisp_to_int(#minilisp{ (* (+ 3 3) (+ 3 4)) })); print("\n");
+    print("(+ 1 2 3 4 5)       = "); print_int(lisp_to_int(#minilisp{ (+ 1 2 3 4 5) })); print("\n");
 
-    print("(* (+ 3 3) (+ 3 4)) = ");
-    print_int(#minilisp{ (* (+ 3 3) (+ 3 4)) });
-    print("\n");
+    // Real lists
+    print("(list 1 2 3)        = "); lisp_print(#minilisp{ (list 1 2 3) }); print("\n");
+    print("(car (list 7 8 9))  = "); print_int(lisp_to_int(#minilisp{ (car (list 7 8 9)) })); print("\n");
+    print("(cdr (list 7 8 9))  = "); lisp_print(#minilisp{ (cdr (list 7 8 9)) }); print("\n");
 
-    print("(+ 1 2 3 4 5)       = ");
-    print_int(#minilisp{ (+ 1 2 3 4 5) });
-    print("\n");
-
-    // Verify
-    if #minilisp{ (+ 10 32) } != 42 { return 1; }
-    if #minilisp{ (* (+ 3 3) (+ 3 4)) } != 42 { return 1; }
-    if #minilisp{ (+ 1 2 3 4 5) } != 15 { return 1; }
+    if lisp_to_int(#minilisp{ (+ 10 32) }) != 42 { return 1; }
+    if lisp_to_int(#minilisp{ (* (+ 3 3) (+ 3 4)) }) != 42 { return 1; }
+    if lisp_to_int(#minilisp{ (+ 1 2 3 4 5) }) != 15 { return 1; }
+    if lisp_to_int(#minilisp{ (car (list 7 8 9)) }) != 7 { return 1; }
 
     print("\nPASS\n");
     return 0;

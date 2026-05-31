@@ -423,16 +423,18 @@ func ast_call_named(name *u8, args *u8) *u8 {
     return ast_call(ast_ident(name), args);
 }
 
+// ast_call0/1/2 already wrap the name in (ident name), so pass the bare name -
+// wrapping it in ast_ident() first would double-wrap to (call (ident (ident f))).
 func ast_call_named0(name *u8) *u8 {
-    return ast_call0(ast_ident(name));
+    return ast_call0(name);
 }
 
 func ast_call_named1(name *u8, a *u8) *u8 {
-    return ast_call1(ast_ident(name), a);
+    return ast_call1(name, a);
 }
 
 func ast_call_named2(name *u8, a *u8, b *u8) *u8 {
-    return ast_call2(ast_ident(name), a, b);
+    return ast_call2(name, a, b);
 }
 
 // ============================================================

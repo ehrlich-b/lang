@@ -1,12 +1,13 @@
 // Polyglot: three syntaxes compiled into ONE native binary.
-//   - C        (#c{...})        -> example/c/c.lang
-//   - minilisp (#minilisp{...}) -> example/minilisp/minilisp.lang
+//   - C        (#c{...})        -> example/c/c.lang        (raw i64 values)
+//   - minilisp (#minilisp{...}) -> example/minilisp/minilisp.lang  (boxed *LispObj)
 //   - lang                      -> main()
 //
-// This is the forge thesis made concrete: many readers in one program, linked
-// and calling each other. Two #parser{}-based readers used to collide on the
-// generated PNode constructors (pnode_new/atom/list); this program guards that.
+// The forge thesis made concrete: many readers in one program, linked and
+// calling each other at the ABI level. Lisp values are boxed, so crossing the
+// C<->Lisp boundary marshals with lisp_int(...) / lisp_to_int(...).
 include "std/core.lang"
+include "example/minilisp/lisp_runtime.lang"
 include "example/c/c.lang"
 include "example/minilisp/minilisp.lang"
 
@@ -24,17 +25,18 @@ include "example/minilisp/minilisp.lang"
 #minilisp{ (defun ml_inc (n) (+ n 1)) }
 
 func main() i64 {
-    // lang composes functions authored in two different syntaxes.
-    print("c_square(7)            = "); print_int(c_square(7));                print("\n"); // 49
-    print("ml_double(7)           = "); print_int(ml_double(7));               print("\n"); // 14
-    print("c_square(ml_double(3)) = "); print_int(c_square(ml_double(3)));     print("\n"); // 36
-    print("ml_inc(c_sum_to(5))    = "); print_int(ml_inc(c_sum_to(5)));        print("\n"); // 16
+    // lang composes functions authored in two different syntaxes, marshalling
+    // raw C ints <-> boxed Lisp values at the boundary.
+    print("c_square(7)            = "); print_int(c_square(7));                                       print("\n"); // 49
+    print("ml_double(7)           = "); print_int(lisp_to_int(ml_double(lisp_int(7))));               print("\n"); // 14
+    print("c_square(ml_double(3)) = "); print_int(c_square(lisp_to_int(ml_double(lisp_int(3)))));     print("\n"); // 36
+    print("ml_inc(c_sum_to(5))    = "); print_int(lisp_to_int(ml_inc(lisp_int(c_sum_to(5)))));        print("\n"); // 16
 
     if c_square(7) != 49 { return 1; }
-    if ml_double(7) != 14 { return 1; }
-    if c_square(ml_double(3)) != 36 { return 1; }
+    if lisp_to_int(ml_double(lisp_int(7))) != 14 { return 1; }
+    if c_square(lisp_to_int(ml_double(lisp_int(3)))) != 36 { return 1; }
     if c_sum_to(5) != 15 { return 1; }
-    if ml_inc(c_sum_to(5)) != 16 { return 1; }
+    if lisp_to_int(ml_inc(lisp_int(c_sum_to(5)))) != 16 { return 1; }
 
     print("POLYGLOT PASS\n");
     return 0;

@@ -1,0 +1,144 @@
+// ============================================================
+// lisp_runtime - boxed-value runtime for the minilisp reader
+// ============================================================
+//
+// Every Lisp value is an i64 that is really a *LispObj pointer. The kernel
+// treats pointers as i64, so the code the #minilisp{} reader emits stays
+// uniformly i64 and just calls these helpers. Include this ONCE in any program
+// that uses #minilisp{} (include-dedup gives a single shared copy).
+//
+//   tag 0 = int    a = value
+//   tag 1 = nil
+//   tag 2 = cons   a = car, b = cdr
+
+include "std/core.lang"
+
+struct LispObj {
+    tag i64;
+    a i64;
+    b i64;
+}
+
+// Canonical nil, lazily allocated. A global in this INCLUDED file is fine - the
+// reader-build path only drops globals declared in the reader's OWN source file.
+var lisp_nil_obj i64 = 0;
+
+func lisp_nil() i64 {
+    if lisp_nil_obj == 0 {
+        var o *LispObj = alloc(24);
+        o.tag = 1; o.a = 0; o.b = 0;
+        lisp_nil_obj = o;
+    }
+    return lisp_nil_obj;
+}
+
+func lisp_int(n i64) i64 {
+    var o *LispObj = alloc(24);
+    o.tag = 0; o.a = n; o.b = 0;
+    return o;
+}
+
+func lisp_cons(car i64, cdr i64) i64 {
+    var o *LispObj = alloc(24);
+    o.tag = 2; o.a = car; o.b = cdr;
+    return o;
+}
+
+func lisp_tag(x i64) i64 {
+    var o *LispObj = x;
+    return o.tag;
+}
+
+func lisp_is_nil(x i64) i64 {
+    var o *LispObj = x;
+    if o.tag == 1 { return 1; }
+    return 0;
+}
+
+// Lisp truthiness: only nil is false (Common-Lisp style; 0 is truthy).
+func lisp_truthy(x i64) i64 {
+    var o *LispObj = x;
+    if o.tag == 1 { return 0; }
+    return 1;
+}
+
+func lisp_car(x i64) i64 {
+    var o *LispObj = x;
+    if o.tag == 2 { return o.a; }
+    return lisp_nil();
+}
+
+func lisp_cdr(x i64) i64 {
+    var o *LispObj = x;
+    if o.tag == 2 { return o.b; }
+    return lisp_nil();
+}
+
+func lisp_int_val(x i64) i64 {
+    var o *LispObj = x;
+    return o.a;
+}
+
+// Interop: extract a raw integer to call lang/C functions across syntaxes.
+func lisp_to_int(x i64) i64 {
+    var o *LispObj = x;
+    return o.a;
+}
+
+func lisp_add(x i64, y i64) i64 { return lisp_int(lisp_int_val(x) + lisp_int_val(y)); }
+func lisp_sub(x i64, y i64) i64 { return lisp_int(lisp_int_val(x) - lisp_int_val(y)); }
+func lisp_mul(x i64, y i64) i64 { return lisp_int(lisp_int_val(x) * lisp_int_val(y)); }
+func lisp_div(x i64, y i64) i64 { return lisp_int(lisp_int_val(x) / lisp_int_val(y)); }
+func lisp_mod(x i64, y i64) i64 { return lisp_int(lisp_int_val(x) % lisp_int_val(y)); }
+
+// Comparisons return canonical true (int 1) or nil.
+func lisp_bool(b i64) i64 {
+    if b != 0 { return lisp_int(1); }
+    return lisp_nil();
+}
+func lisp_lt(x i64, y i64) i64 { return lisp_bool(lisp_int_val(x) < lisp_int_val(y)); }
+func lisp_gt(x i64, y i64) i64 { return lisp_bool(lisp_int_val(x) > lisp_int_val(y)); }
+func lisp_le(x i64, y i64) i64 { return lisp_bool(lisp_int_val(x) <= lisp_int_val(y)); }
+func lisp_ge(x i64, y i64) i64 { return lisp_bool(lisp_int_val(x) >= lisp_int_val(y)); }
+func lisp_num_eq(x i64, y i64) i64 { return lisp_bool(lisp_int_val(x) == lisp_int_val(y)); }
+func lisp_ne(x i64, y i64) i64 { return lisp_bool(lisp_int_val(x) != lisp_int_val(y)); }
+
+// Logical ops. Eager (args already evaluated) - fine for pure code; short-circuit
+// would need a block_expr desugar (a refinement for when side effects land).
+func lisp_not(x i64) i64 { return lisp_bool(lisp_truthy(x) == 0); }
+func lisp_and(x i64, y i64) i64 { if lisp_truthy(x) != 0 { return y; } return x; }
+func lisp_or(x i64, y i64) i64 { if lisp_truthy(x) != 0 { return x; } return y; }
+
+// eq: ints compare by value, everything else by identity.
+func lisp_eq(x i64, y i64) i64 {
+    var ox *LispObj = x;
+    var oy *LispObj = y;
+    if ox.tag != oy.tag { return lisp_nil(); }
+    if ox.tag == 0 { return lisp_bool(ox.a == oy.a); }
+    return lisp_bool(x == y);
+}
+
+// Print a value: int, nil, or (a b c ...).
+func lisp_print(x i64) void {
+    var o *LispObj = x;
+    if o.tag == 0 { print_int(o.a); return; }
+    if o.tag == 1 { print("nil"); return; }
+    if o.tag == 2 {
+        print("(");
+        var cur i64 = x;
+        var first i64 = 1;
+        while lisp_tag(cur) == 2 {
+            if first == 0 { print(" "); }
+            first = 0;
+            lisp_print(lisp_car(cur));
+            cur = lisp_cdr(cur);
+        }
+        if lisp_is_nil(cur) == 0 {     // improper tail
+            print(" . ");
+            lisp_print(cur);
+        }
+        print(")");
+        return;
+    }
+    print("?");
+}

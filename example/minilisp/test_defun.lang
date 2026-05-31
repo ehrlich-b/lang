@@ -1,29 +1,32 @@
-// minilisp defun - define functions in s-expression syntax
+// minilisp defun - define functions in s-expression syntax, call them from lang.
+// Lisp values are boxed (*LispObj as i64), so cross-language calls marshal with
+// lisp_int(...) / lisp_to_int(...).
 include "std/core.lang"
+include "example/minilisp/lisp_runtime.lang"
 include "example/minilisp/minilisp.lang"
 
-// Functions defined in minilisp, callable from lang
 #minilisp{ (defun add (a b) (+ a b)) }
 #minilisp{ (defun square (x) (* x x)) }
 #minilisp{ (defun factorial (n) (if (< n 2) 1 (* n (factorial (- n 1))))) }
+// Recursion over a real list: this is the "mini" finally being a Lisp.
+#minilisp{ (defun len (xs) (if (eq xs nil) 0 (+ 1 (len (cdr xs))))) }
+#minilisp{ (defun sumlist (xs) (if (eq xs nil) 0 (+ (car xs) (sumlist (cdr xs))))) }
 
 func main() i64 {
-    print("add(3, 4) = ");
-    print_int(add(3, 4));
-    print("\n");
+    print("add(3, 4)      = "); print_int(lisp_to_int(add(lisp_int(3), lisp_int(4)))); print("\n");
+    print("square(5)      = "); print_int(lisp_to_int(square(lisp_int(5)))); print("\n");
+    print("factorial(5)   = "); print_int(lisp_to_int(factorial(lisp_int(5)))); print("\n");
 
-    print("square(5) = ");
-    print_int(square(5));
-    print("\n");
+    // Build the list (10 20 30) and run Lisp recursion over it.
+    var xs i64 = lisp_cons(lisp_int(10), lisp_cons(lisp_int(20), lisp_cons(lisp_int(30), lisp_nil())));
+    print("len (10 20 30) = "); print_int(lisp_to_int(len(xs))); print("\n");
+    print("sum (10 20 30) = "); print_int(lisp_to_int(sumlist(xs))); print("\n");
 
-    print("factorial(5) = ");
-    print_int(factorial(5));
-    print("\n");
-
-    // Verify
-    if add(3, 4) != 7 { return 1; }
-    if square(5) != 25 { return 1; }
-    if factorial(5) != 120 { return 1; }
+    if lisp_to_int(add(lisp_int(3), lisp_int(4))) != 7 { return 1; }
+    if lisp_to_int(square(lisp_int(5))) != 25 { return 1; }
+    if lisp_to_int(factorial(lisp_int(5))) != 120 { return 1; }
+    if lisp_to_int(len(xs)) != 3 { return 1; }
+    if lisp_to_int(sumlist(xs)) != 60 { return 1; }
 
     print("\nPASS\n");
     return 0;

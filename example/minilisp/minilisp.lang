@@ -1,19 +1,21 @@
 // ============================================================
-// minilisp - a small Lisp that compiles to a native binary
+// minilisp - a small but real Lisp that compiles to a native binary
 // ============================================================
 //
-// Reads s-expression syntax via #parser{} and lowers it to lang AST with the
-// std/ast.lang builder API (ast_binop, ast_if, ...) - NO hand-written S-expr
-// strings. All values are i64. That's the "mini" part.
+// Reads s-expression syntax via #parser{} (Level 3) and lowers it to lang AST
+// with the std/ast.lang builder API (Level 1) - NO hand-written S-expr strings.
+//
+// Values are BOXED: every Lisp value is an i64 that is really a *LispObj pointer
+// (see example/minilisp/lisp_runtime.lang). So lists are first-class. Programs
+// using #minilisp{} must `include "example/minilisp/lisp_runtime.lang"`, and
+// cross-language calls marshal with lisp_int(...) / lisp_to_int(...).
 //
 // EXPRESSIONS:
-//   #minilisp{ (+ 1 2) }         => 3
-//   #minilisp{ (* 2 (+ 3 4)) }   => 14
-//   #minilisp{ (if (< x 0) 0 x) }
-//   #minilisp{ (add 1 2) }
-//
+//   (+ 1 2)  (* 2 (+ 3 4))  (< x 0)  (if c t e)  (and a b) (or a b) (not x)
+//   (cons 1 (cons 2 nil))  (car xs)  (cdr xs)  (list 1 2 3)  (eq a b)
 // DEFINITIONS:
-//   #minilisp{ (defun add (a b) (+ a b)) }
+//   (defun add (a b) (+ a b))
+//   (defun len (xs) (if (eq xs nil) 0 (+ 1 (len (cdr xs)))))
 
 include "std/core.lang"
 include "std/tok.lang"
@@ -50,20 +52,26 @@ func is_sym(node *PNode, name *u8) bool {
     return streq(node.text, name);
 }
 
-func is_cmp(name *u8) bool {
-    return streq(name, "<") || streq(name, ">") ||
-           streq(name, "<=") || streq(name, ">=") ||
-           streq(name, "=") || streq(name, "!=");
+// Runtime function for an n-ary arithmetic operator (foldable); nil otherwise.
+func arith_fn(op *u8) *u8 {
+    if streq(op, "+") { return "lisp_add"; }
+    if streq(op, "-") { return "lisp_sub"; }
+    if streq(op, "*") { return "lisp_mul"; }
+    if streq(op, "/") { return "lisp_div"; }
+    if streq(op, "%") { return "lisp_mod"; }
+    return nil;
 }
 
-func is_arith(name *u8) bool {
-    return streq(name, "+") || streq(name, "-") ||
-           streq(name, "*") || streq(name, "/") || streq(name, "%");
-}
-
-func fix_op(name *u8) *u8 {
-    if streq(name, "=") { return "=="; }
-    return name;
+// Runtime function for a binary comparison operator; nil otherwise.
+func cmp_fn(op *u8) *u8 {
+    if streq(op, "<") { return "lisp_lt"; }
+    if streq(op, ">") { return "lisp_gt"; }
+    if streq(op, "<=") { return "lisp_le"; }
+    if streq(op, ">=") { return "lisp_ge"; }
+    if streq(op, "=") { return "lisp_num_eq"; }
+    if streq(op, "==") { return "lisp_num_eq"; }
+    if streq(op, "!=") { return "lisp_ne"; }
+    return nil;
 }
 
 // Per-node-unique temp name, derived from the node's address (each `if` node is
@@ -77,17 +85,41 @@ func lisp_tmp(node *PNode) *u8 {
     return sb_finish(sb);
 }
 
+// A boxed integer literal: (call lisp_int (number n))
+func lisp_num_lit(n i64) *u8 {
+    return ast_call_named1("lisp_int", ast_int(n));
+}
+
 // ============================================================
-// Lowering: parse tree (PNode) -> lang AST (via std/ast.lang)
+// Lowering: parse tree (PNode) -> lang AST calling the Lisp runtime
 // ============================================================
 
-// Left-fold operands 1..hi of a list into a binop chain:
-// (op a b c) with hi=3 -> ast_binop(op, ast_binop(op, a, b), c)
-func lisp_binop_chain(op *u8, node *PNode, hi i64) *u8 {
+// Left-fold a foldable runtime op over operands 1..hi:
+// (+ a b c) with hi=3 -> lisp_add(lisp_add(a, b), c)
+func lisp_fold(opfn *u8, node *PNode, hi i64) *u8 {
     if hi == 1 {
         return lisp_expr(list_get(node, 1));
     }
-    return ast_binop(op, lisp_binop_chain(op, node, hi - 1), lisp_expr(list_get(node, hi)));
+    return ast_call_named2(opfn, lisp_fold(opfn, node, hi - 1), lisp_expr(list_get(node, hi)));
+}
+
+// (list a b c) -> (cons a (cons b (cons c (nil))))
+func lisp_list_from(node *PNode, i i64, count i64) *u8 {
+    if i >= count {
+        return ast_call_named0("lisp_nil");
+    }
+    return ast_call_named2("lisp_cons", lisp_expr(list_get(node, i)), lisp_list_from(node, i + 1, count));
+}
+
+// Emit a call to runtime function `fnname` with the node's args 1..count-1.
+func lisp_runtime_call(fnname *u8, node *PNode, count i64) *u8 {
+    var args *u8 = ast_vec();
+    var i i64 = 1;
+    while i < count {
+        ast_push(args, lisp_expr(list_get(node, i)));
+        i = i + 1;
+    }
+    return ast_call_named(fnname, args);
 }
 
 // Emit a body in return (tail) position. A tail `if` becomes real control flow
@@ -96,7 +128,7 @@ func lisp_return(node *PNode) *u8 {
     if node != nil && node.kind == 4 {
         var first *PNode = list_get(node, 0);
         if is_sym(first, "if") {
-            return ast_if(lisp_expr(list_get(node, 1)),
+            return ast_if(ast_call_named1("lisp_truthy", lisp_expr(list_get(node, 1))),
                           ast_block1(lisp_return(list_get(node, 2))),
                           ast_block1(lisp_return(list_get(node, 3))));
         }
@@ -105,18 +137,41 @@ func lisp_return(node *PNode) *u8 {
 }
 
 // Lower one minilisp node to lang AST. A top-level (defun ...) becomes a
-// (program (func ...)); everything else lowers to an expression.
+// (program (func ...)); everything else lowers to an expression (an i64 that is
+// really a *LispObj).
 func lisp_expr(node *PNode) *u8 {
-    if node == nil { return ast_int(0); }
+    if node == nil { return ast_call_named0("lisp_nil"); }
 
-    if node.kind == 1 { return ast_number(node.text); }   // number literal
-    if node.kind == 2 { return ast_ident(node.text); }    // symbol -> ident
-    if node.kind == 5 { return ast_int(0); }              // bare operator (n/a)
-    if node.kind != 4 { return ast_int(0); }              // only lists remain
+    if node.kind == 1 {                              // number literal -> boxed int
+        return ast_call_named1("lisp_int", ast_number(node.text));
+    }
+    if node.kind == 2 {                              // symbol
+        if streq(node.text, "nil") { return ast_call_named0("lisp_nil"); }
+        return ast_ident(node.text);
+    }
+    if node.kind == 5 { return ast_call_named0("lisp_nil"); }   // bare operator (n/a)
+    if node.kind != 4 { return ast_call_named0("lisp_nil"); }   // only lists remain
 
     var count i64 = list_len(node);
-    if count == 0 { return ast_int(0); }
+    if count == 0 { return ast_call_named0("lisp_nil"); }
     var first *PNode = list_get(node, 0);
+
+    // Operator-headed: arithmetic (foldable) or comparison (binary).
+    if first.kind == 5 {
+        var op *u8 = first.text;
+        var af *u8 = arith_fn(op);
+        if af != nil {
+            if count == 2 {                          // unary, e.g. (- x) -> lisp_sub(0, x)
+                return ast_call_named2(af, lisp_num_lit(0), lisp_expr(list_get(node, 1)));
+            }
+            return lisp_fold(af, node, count - 1);
+        }
+        var cf *u8 = cmp_fn(op);
+        if cf != nil {
+            return ast_call_named2(cf, lisp_expr(list_get(node, 1)), lisp_expr(list_get(node, 2)));
+        }
+        return ast_call_named0("lisp_nil");
+    }
 
     // (defun name (params) body) -> (program (func name (params) i64 (block ...)))
     if is_sym(first, "defun") {
@@ -127,44 +182,35 @@ func lisp_expr(node *PNode) *u8 {
         var pc i64 = list_len(params);
         var pi i64 = 0;
         while pi < pc {
-            ast_push(pvec, ast_param(list_get(params, pi).text, ast_type_i64()));
+            var pnode *PNode = vec_get(list_inner(params).children, pi);
+            ast_push(pvec, ast_param(pnode.text, ast_type_i64()));
             pi = pi + 1;
         }
         return ast_program1(ast_func(name.text, pvec, ast_type_i64(),
                                      ast_block1(lisp_return(body))));
     }
 
-    // (if cond then else) -> value-returning block_expr:
-    //   { var t = 0; if (cond) { t = then; } else { t = else; } t }
-    // Only the taken branch is evaluated. The old branchless (c*t)+(!c*e) form
-    // ran BOTH arms - breaking side effects and looping forever on any recursion
-    // whose recursive call sat in a non-tail branch.
+    // (if cond then else) -> value-returning block_expr; only the taken branch
+    // runs. Condition goes through lisp_truthy (only nil is false).
     if is_sym(first, "if") {
         var t *u8 = lisp_tmp(node);
         var stmts *u8 = ast_vec();
         ast_push(stmts, ast_var(t, ast_type_i64(), ast_int(0)));
-        ast_push(stmts, ast_if(lisp_expr(list_get(node, 1)),
+        ast_push(stmts, ast_if(ast_call_named1("lisp_truthy", lisp_expr(list_get(node, 1))),
                                ast_block1(ast_assign(ast_ident(t), lisp_expr(list_get(node, 2)))),
                                ast_block1(ast_assign(ast_ident(t), lisp_expr(list_get(node, 3))))));
         return ast_block_expr(stmts, ast_ident(t));
     }
 
-    if is_sym(first, "and") { return ast_and(lisp_expr(list_get(node, 1)), lisp_expr(list_get(node, 2))); }
-    if is_sym(first, "or")  { return ast_or(lisp_expr(list_get(node, 1)), lisp_expr(list_get(node, 2))); }
-    if is_sym(first, "not") { return ast_not(lisp_expr(list_get(node, 1))); }
-
-    // Operator form: (+ a b c), (- x), (< a b), ...
-    var op *u8 = nil;
-    if first.kind == 5 || (first.kind == 2 && (is_arith(first.text) || is_cmp(first.text))) {
-        op = fix_op(first.text);
-    }
-    if op != nil {
-        if count == 2 {
-            // Unary: (- x) -> (binop - 0 x)
-            return ast_binop(op, ast_int(0), lisp_expr(list_get(node, 1)));
-        }
-        return lisp_binop_chain(op, node, count - 1);
-    }
+    // Logical + list builtins -> runtime calls.
+    if is_sym(first, "not")  { return lisp_runtime_call("lisp_not", node, count); }
+    if is_sym(first, "and")  { return lisp_runtime_call("lisp_and", node, count); }
+    if is_sym(first, "or")   { return lisp_runtime_call("lisp_or", node, count); }
+    if is_sym(first, "cons") { return lisp_runtime_call("lisp_cons", node, count); }
+    if is_sym(first, "car")  { return lisp_runtime_call("lisp_car", node, count); }
+    if is_sym(first, "cdr")  { return lisp_runtime_call("lisp_cdr", node, count); }
+    if is_sym(first, "eq")   { return lisp_runtime_call("lisp_eq", node, count); }
+    if is_sym(first, "list") { return lisp_list_from(node, 1, count); }
 
     // Function call: (f a b) -> (call (ident f) a b)
     if first.kind == 2 {
@@ -177,7 +223,7 @@ func lisp_expr(node *PNode) *u8 {
         return ast_call_named(first.text, args);
     }
 
-    return ast_int(0);
+    return ast_call_named0("lisp_nil");
 }
 
 reader minilisp(text *u8) *u8 {
