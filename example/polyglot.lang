@@ -1,17 +1,25 @@
-// THREE real languages, composed into ONE native binary, calling each other at
-// the ABI level - no FFI, no VM. The forge thesis made concrete:
+// ============================================================
+// polyglot - a prime-sieve pipeline across THREE real languages, one binary
+// ============================================================
 //
-//   - C        (#c{...})        -> imperative: loops, ints           (raw i64)
-//   - minilisp (#minilisp{...}) -> functional: lists, closures       (boxed *LispObj)
-//   - flow     (#flow{...})     -> coroutines: generators over effects (raw i64)
-//   - lang                      -> main(), the glue
+// Not a toy arithmetic chain: a real little program in which each language does
+// the job it is best at, and they call each other directly at the i64 ABI -
+// no FFI, no VM, no glue layer beyond lang itself.
 //
-// Each language says something the others can't: flow's `gen` SUSPENDS and
-// RESUMES mid-loop (algebraic effects - C and Lisp can't); Lisp has first-class
-// lists/closures; C is plain imperative. They meet at the i64 ABI, marshalling
-// boxed Lisp values with lisp_int(...) / lisp_to_int(...).
+//   C        (#c{...})        c_is_prime(x)   - tight imperative trial division
+//   flow     (#flow{...})     gen primes(n)   - a COROUTINE streaming the primes,
+//                                               suspending/resuming across the loop;
+//                                               its driver folds them into a Lisp list
+//   minilisp (#minilisp{...}) ml_sum/ml_len   - functional recursion over a
+//                                               first-class cons list
+//   lang                      main()          - orchestration + I/O
 //
-// Uses effects (via flow), so compile with clang, not the lli JIT:
+// The data path: flow's `primes` generator asks C whether each candidate is
+// prime and `yield`s the ones that are; flow's `collect` driver conses each
+// (boxed) prime onto a real Lisp list; Lisp folds that list. Three paradigms -
+// imperative, coroutine/effectful, functional - meeting in one native binary.
+//
+// Effects are used (flow), so compile with clang, not the lli JIT:
 //   LANGBE=llvm out/lang example/polyglot.lang -o p.ll && clang -O0 p.ll -o p && ./p
 include "std/core.lang"
 include "example/minilisp/lisp_runtime.lang"
@@ -20,64 +28,77 @@ include "example/c/c.lang"
 include "example/minilisp/minilisp.lang"
 include "example/flow/flow.lang"
 
+// --- C: primality by trial division (what C is good at: tight integer loops) ---
 #c{
-    int c_square(int x) { return x * x; }
-    int c_sum_to(int n) {
-        int s = 0;
-        for (int i = 1; i <= n; i++) { s += i; }
-        return s;
+    int c_is_prime(int x) {
+        if (x < 2) return 0;
+        int d = 2;
+        while (d * d <= x) {
+            if (x % d == 0) { return 0; }
+            d = d + 1;
+        }
+        return 1;
     }
 }
 
-#minilisp{ (defun ml_double (n) (+ n n)) }
-#minilisp{ (defun ml_inc (n) (+ n 1)) }
+// --- minilisp: fold a first-class list (what Lisp is good at: recursion over data) ---
+#minilisp{ (defun ml_sum (xs) (if (eq xs nil) 0 (+ (car xs) (ml_sum (cdr xs))))) }
+#minilisp{ (defun ml_len (xs) (if (eq xs nil) 0 (+ 1 (ml_len (cdr xs))))) }
 
+// --- flow: a coroutine that STREAMS primes (calling C), and a driver that
+//     collects them into a Lisp list (calling the Lisp runtime). The generator
+//     suspends after each prime and resumes to find the next - the thing C and
+//     Lisp can't say. ---
 #flow{
-    // a stateful coroutine: carries a, b across each yield
-    gen fib(n) {
-        var a = 0;
-        var b = 1;
-        var i = 0;
-        while i < n {
-            yield a;
-            var t = a + b;
-            a = b;
-            b = t;
-            i = i + 1;
+    gen primes(n) {
+        var x = 2;
+        while x <= n {
+            if c_is_prime(x) {
+                yield x;
+            }
+            x = x + 1;
         }
     }
-    // a driver: runs the generator and sums what it yields
-    func sum_fib(n) {
-        var total = 0;
-        for x in fib(n) {
-            total = total + x;
+    // build a Lisp list of the yielded primes (boxed via lisp_int; cons via the
+    // Lisp runtime) - so the list is reverse-collected (largest first).
+    func collect_primes(n) {
+        var lst = lisp_nil();
+        for p in primes(n) {
+            lst = lisp_cons(lisp_int(p), lst);
         }
-        return total;
+        return lst;
+    }
+    // flow can also just count, staying in raw i64.
+    func count_primes(n) {
+        var c = 0;
+        for p in primes(n) {
+            c = c + 1;
+        }
+        return c;
     }
 }
 
 func main() i64 {
-    // A single value flows through all THREE languages in turn:
-    //   flow sums the first 7 Fibonacci numbers, C squares it, Lisp increments it.
-    var a i64 = sum_fib(7);                              // flow:  0+1+1+2+3+5+8 = 20
-    var b i64 = c_square(a);                             // C:     20 * 20       = 400
-    var c i64 = lisp_to_int(ml_inc(lisp_int(b)));        // Lisp:  400 + 1       = 401
+    print("=== prime pipeline: flow -> C -> Lisp ===\n\n");
 
-    print("flow  sum_fib(7)           = "); print_int(a); print("\n");
-    print("C     c_square(20)         = "); print_int(b); print("\n");
-    print("Lisp  ml_inc(400)          = "); print_int(c); print("\n");
+    // flow streams primes (asking C), collecting them into a Lisp list:
+    var plist i64 = collect_primes(30);
+    print("primes <= 30 (Lisp list) = "); lisp_print(plist); print("\n");
 
-    // And the other direction: C feeds Lisp feeds nothing, flow stands alone.
-    print("C->Lisp ml_double(c_sum_to(4)) = ");
-    print_int(lisp_to_int(ml_double(lisp_int(c_sum_to(4)))));         // (1+2+3+4)*2 = 20
-    print("\n");
+    // Lisp folds the list:
+    print("count (Lisp ml_len)      = "); print_int(lisp_to_int(ml_len(plist)));  print("\n");
+    print("sum   (Lisp ml_sum)      = "); print_int(lisp_to_int(ml_sum(plist)));  print("\n");
 
-    if a != 20 { return 1; }
-    if b != 400 { return 2; }
-    if c != 401 { return 3; }
-    if lisp_to_int(ml_double(lisp_int(c_sum_to(4)))) != 20 { return 4; }
-    if sum_fib(10) != 88 { return 5; }
+    // flow can count directly too (raw i64, no Lisp):
+    print("count (flow count_primes)= "); print_int(count_primes(30));            print("\n");
 
-    print("POLYGLOT PASS\n");
+    // 10 primes <= 30: 2 3 5 7 11 13 17 19 23 29; sum = 129
+    if lisp_to_int(ml_len(plist)) != 10 { return 1; }
+    if lisp_to_int(ml_sum(plist)) != 129 { return 2; }
+    if count_primes(30) != 10 { return 3; }
+    if count_primes(100) != 25 { return 4; }                 // 25 primes <= 100
+    if lisp_to_int(ml_sum(collect_primes(10))) != 17 { return 5; }  // 2+3+5+7
+
+    print("\nPOLYGLOT PASS\n");
     return 0;
 }
