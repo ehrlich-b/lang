@@ -58,16 +58,46 @@ include "example/flow/flow.lang"
         }
         return c;
     }
+
+    // BIDIRECTIONAL: `yield e` is an expression whose value is what the driver
+    // sends back via `send`. Here each yield hands out the running total and
+    // receives the next addend - a true coroutine channel, not just a generator.
+    gen running_sum(n) {
+        var i = 0;
+        var acc = 0;
+        while i < n {
+            var add = yield acc;     // emit acc, receive the next number to add
+            acc = acc + add;
+            i = i + 1;
+        }
+    }
+
+    // The yielded values depend on what we sent earlier: sending 1,2,3,... makes
+    // running_sum emit partial sums 0,1,3,6,... (send 0 instead and it stays 0).
+    func drive_sum(n) {
+        var k = 1;
+        var last = 0;
+        for v in running_sum(n) {
+            last = v;
+            send k;
+            k = k + 1;
+        }
+        return last;
+    }
 }
 
 func main() i64 {
     print("sum_count(5)   = "); print_int(sum_count(5));   print("\n");  // 0+1+2+3+4 = 10
     print("sum_fib(10)    = "); print_int(sum_fib(10));    print("\n");  // 88
     print("count_evens(10)= "); print_int(count_evens(10)); print("\n"); // 5
+    print("drive_sum(4)   = "); print_int(drive_sum(4));   print("\n");  // 0,1,3,6 -> 6
+    print("drive_sum(5)   = "); print_int(drive_sum(5));   print("\n");  // ...,10 -> 10
 
     if sum_count(5) != 10 { return 1; }
     if sum_fib(10) != 88 { return 2; }
     if count_evens(10) != 5 { return 3; }
+    if drive_sum(4) != 6 { return 4; }    // bidirectional: depends on what we sent
+    if drive_sum(5) != 10 { return 5; }
 
     print("FLOW PASS\n");
     return 0;
