@@ -150,6 +150,17 @@ func ast_type_ptr(elem *u8) *u8 {
     return ast_finish(sb);
 }
 
+// (type_array size elem) - e.g. int[8] -> (type_array 8 (type_base i64))
+func ast_type_array(size *u8, elem *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(type_array ");
+    sb_str(sb, size);
+    sb_str(sb, " ");
+    sb_str(sb, elem);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
 // (type_func (param_types...) ret)
 func ast_type_func(param_types *u8, ret *u8) *u8 {
     var sb *StringBuilder = ast_sb();
@@ -233,6 +244,17 @@ func ast_string(val *u8) *u8 {
     var sb *StringBuilder = ast_sb();
     sb_str(sb, "(string ");
     ast_quote_string(sb, val);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
+// (string TEXT) where TEXT is an already-quoted/escaped string token (e.g. the
+// raw "..." text a tokenizer produced). Pass-through - does NOT re-quote, so it
+// is version-agnostic. Use when your reader already has the source-quoted form.
+func ast_string_raw(quoted_text *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(string ");
+    sb_str(sb, quoted_text);
     sb_str(sb, ")");
     return ast_finish(sb);
 }
