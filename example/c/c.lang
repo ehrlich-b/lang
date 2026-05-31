@@ -36,7 +36,7 @@ include "std/ast.lang"
 // parser functions (pulled in transitively via lang_reader).
 #parser{
     c_program    = c_topdecl+
-    c_topdecl    = c_structdef | c_topvar
+    c_topdecl    = c_structdef | c_enumdef | c_topvar
     c_topvar     = c_rettype symbol c_topvartail
     c_topvartail = c_functail | c_globaltail
     c_functail   = '(' c_params ')' c_block
@@ -44,11 +44,20 @@ include "std/ast.lang"
     c_structdef  = 'struct' symbol '{' c_fields '}' ';'
     c_fields     = c_field*
     c_field      = c_ptype symbol ';'
+    c_enumdef    = 'enum' c_enumtag '{' c_enumitems '}' ';'
+    c_enumtag    = c_tagname*
+    c_tagname    = symbol
+    c_enumitems  = c_enumitem*
+    c_enumitem   = c_enummember | ','
+    c_enummember = symbol c_enumvalopt
+    c_enumvalopt = c_enumval*
+    c_enumval    = '=' number
     c_rettype    = c_basetype c_stars
     c_ptype      = c_anytype c_stars
-    c_anytype    = c_basetype | c_structtype
+    c_anytype    = c_basetype | c_structtype | c_enumtype
     c_basetype   = 'int' | 'char' | 'void'
     c_structtype = 'struct' symbol
+    c_enumtype   = 'enum' symbol
     c_stars      = c_star*
     c_star       = '*'
     c_params     = c_paramitem*
@@ -380,8 +389,9 @@ func emit_stmt(s *PNode) *u8 {
     }
     if f0.kind == 4 {
         var g0 *PNode = vec_get(f0.children, 0);
-        if g0.kind == 2 && streq(g0.text, "struct") {     // struct-typed local decl
-            return emit_decl(s);
+        if g0.kind == 2 {
+            if streq(g0.text, "struct") { return emit_decl(s); }   // struct-typed local
+            if streq(g0.text, "enum") { return emit_decl(s); }     // enum-typed local
         }
     }
     return emit_exprstmt_from_expr(first);
@@ -554,9 +564,14 @@ func emit_type(t *PNode) *u8 {
     var stars *PNode = vec_get(t.children, 1);
     var n i64 = vec_len(stars.children);
     var base *u8 = nil;
-    if anytype.kind == 4 {                        // c_structtype = ['struct', Name]
-        var nm *PNode = vec_get(anytype.children, 1);
-        base = ast_type(nm.text);
+    if anytype.kind == 4 {                        // c_structtype or c_enumtype = [kw, Name]
+        var head *PNode = vec_get(anytype.children, 0);
+        if streq(head.text, "enum") {
+            base = ast_type("i64");               // `enum Name` is just an int
+        } else {                                  // c_structtype = ['struct', Name]
+            var nm *PNode = vec_get(anytype.children, 1);
+            base = ast_type(nm.text);
+        }
     } else if streq(anytype.text, "void") {
         base = ast_type("void");
     } else if streq(anytype.text, "char") {
@@ -609,6 +624,48 @@ func emit_params(params *PNode) *u8 {
     return pv;
 }
 
+// Parse a non-negative decimal integer from text (enum value literals).
+func c_atoi(s *u8) i64 {
+    var n i64 = 0;
+    var i i64 = 0;
+    while *(s + i) != 0 {
+        var c i64 = *(s + i);
+        if c >= 48 {
+            if c <= 57 { n = n * 10 + (c - 48); }
+        }
+        i = i + 1;
+    }
+    return n;
+}
+
+// c_enumdef = 'enum' tag '{' c_enumitems '}' ';'  ->  children [enum, tag, '{',
+// items, '}', ';'].  Each member becomes a global int constant (var NAME i64 V);
+// implicit values count up from 0 (or from the last explicit value + 1), so
+// `enum { A, B, C }` is 0/1/2 and `enum { X = 10, Y }` is 10/11. The tag name is
+// cosmetic (the kernel has no enum type; `enum Tag` lowers to i64 in emit_type).
+func emit_enumdef(d *PNode, decls *u8) void {
+    var items *PNode = vec_get(d.children, 3);     // c_enumitems = c_enumitem*
+    var n i64 = vec_len(items.children);
+    var counter i64 = 0;
+    var i i64 = 0;
+    while i < n {
+        var it *PNode = vec_get(items.children, i);   // c_enumitem = member | ','
+        if it.kind == 4 {                              // a member (',' is a kind-0 marker)
+            var namep *PNode = vec_get(it.children, 0);    // bind before .text: vec_get is *u8
+            var valopt *PNode = vec_get(it.children, 1);   // c_enumvalopt = c_enumval*
+            var value i64 = counter;
+            if vec_len(valopt.children) > 0 {
+                var ev *PNode = vec_get(valopt.children, 0);   // c_enumval = ['=', number]
+                var numn *PNode = vec_get(ev.children, 1);
+                value = c_atoi(numn.text);
+            }
+            ast_push(decls, ast_var(namep.text, ast_type_i64(), ast_int(value)));
+            counter = value + 1;
+        }
+        i = i + 1;
+    }
+}
+
 // c_structdef = 'struct' Name '{' c_fields '}' ';'  ->  children [struct, Name,
 // '{', fields, '}', ';'].  Each c_field = c_ptype symbol ';'.
 func emit_structdef(sd *PNode) *u8 {
@@ -642,6 +699,8 @@ func emit_program(prog *PNode) *u8 {
             var head *PNode = vec_get(d.children, 0);
             if head.kind == 2 && streq(head.text, "struct") {
                 ast_push(decls, emit_structdef(d));
+            } else if head.kind == 2 && streq(head.text, "enum") {
+                emit_enumdef(d, decls);                     // pushes one global per member
             } else {
                 var tail *PNode = vec_get(d.children, 2);   // c_topvartail
                 var t0 *PNode = vec_get(tail.children, 0);

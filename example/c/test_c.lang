@@ -194,6 +194,13 @@ include "example/c/c.lang"
     // round 5: bitwise-not ~ (~x + 1 == -x in two's complement)
     int bnot(int x) { return ~x; }
     int negn(int x) { return ~x + 1; }
+
+    // round 5: enum (implicit + explicit values, anonymous, enum-typed param)
+    enum Suit { CLUBS, DIAMONDS, HEARTS, SPADES };       // 0..3
+    enum Http { GET = 1, POST, PUT = 10, PATCH };        // 1,2,10,11
+    int suit_rank(enum Suit s) { return s + 1; }
+    int http_post() { return POST; }
+    int http_patch() { return PATCH; }
 }
 
 func main() i64 {
@@ -226,6 +233,9 @@ func main() i64 {
     print("tpick(9,2)    = "); print_int(tpick(9, 2));   print("\n");
     print("bnot(5)       = "); print_int(bnot(5));       print("\n");
     print("negn(7)       = "); print_int(negn(7));       print("\n");
+    print("SPADES        = "); print_int(SPADES);        print("\n");
+    print("suit_rank(H)  = "); print_int(suit_rank(HEARTS)); print("\n");
+    print("http PUT/PATCH= "); print_int(PUT); print(" "); print_int(http_patch()); print("\n");
 
     if factorial(5) != 120 { return 1; }
     if fib(10) != 55 { return 1; }
@@ -265,6 +275,14 @@ func main() i64 {
     if bnot(5) != 0 - 6 { return 1; }
     if bnot(0) != 0 - 1 { return 1; }
     if negn(7) != 0 - 7 { return 1; }
+    if CLUBS != 0 { return 1; }
+    if SPADES != 3 { return 1; }
+    if suit_rank(HEARTS) != 3 { return 1; }
+    if GET != 1 { return 1; }
+    if POST != 2 { return 1; }
+    if PUT != 10 { return 1; }
+    if PATCH != 11 { return 1; }
+    if http_post() != 2 { return 1; }
 
     print("PASS\n");
     return 0;
