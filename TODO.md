@@ -86,13 +86,28 @@ polyglot stdlib written in reader-authored *better* languages.
       generating per-grammar. `example/polyglot.lang` runs C + minilisp + lang in
       one native binary (`c_square(ml_double(3))`); guarded by
       `reader_polyglot_e2e`. Reader-toolkit only - NO bootstrap.
-- [ ] **C long tail (needs kernel or rdgen work)** - ternary `?:` (no kernel
-      conditional-expr AST; needs `?` token), `~` (no `~` in `sexpr_op_to_token`),
-      `switch`, `enum`, `typedef`, multiple declarators `int a, b;`, multi-dim
-      arrays. Diminishing returns; C already captures real programs.
-- [ ] **Pick the next reader** - criterion (Decision Log): a language we'd actually
-      want to rewrite stdlib components in. A non-C syntax (Pascal/Lua-like) would
-      best prove the toolkit generalizes beyond brace languages.
+- [x] **C long tail (round 5)** - ternary `?:` and `~` (value-returning
+      `block_expr` desugar / `x ^ -1`), `enum` (int-const globals), and `switch`
+      (bounded if/else-if desugar, no fall-through) all landed. Needed one
+      tokenizer bootstrap (`?`/`~` tokens); the rest reader-only. Remaining C tail:
+      typedef (needs a lexer-hack token pre-pass), preprocessor (huge), multiple
+      declarators `int a, b;`. C already captures real programs.
+- [x] **minilisp -> a real Lisp** - first-class closures (capture), `let`, `quote`
+      with interned symbols, cons lists, higher-order `map`. Built on a boxed-value
+      runtime (every value is an i64-that's-a-pointer; an all-i64 ABI marshals
+      across languages). Reader + runtime only, zero kernel changes.
+- [x] **flow - a third language (the effects DSL)** - a generator/coroutine syntax
+      (`gen`/`yield`/`for x in g(...)`) lowering to algebraic effects. `yield` is
+      bidirectional: its value is what the driver sends back via `send`, so a
+      generator's output can depend on its input (a real coroutine, not just a
+      generator). Built on the existing effect machinery; zero kernel changes.
+- [x] **Polyglot showpiece** - `example/polyglot.lang` is a prime-sieve pipeline:
+      flow streams primes (asking C), collects them into a Lisp list, Lisp folds it.
+      Three paradigms in one native binary, calling each other at the i64 ABI.
+      See devlog 0023.
+- [ ] **Pick the next direction** - more flow (a 2nd effect, piped generators),
+      finish C typedef, or a non-brace reader (Pascal/Lua-like) to prove the
+      toolkit generalizes beyond brace languages.
 
 ### Reader toolkit (the thing to invest in)
 
@@ -129,7 +144,7 @@ History preserved in `git log` and `designs/path_b_zig_reader.md` /
 
 ## Foundation Status
 
-**Solid (170/170 tests passing):**
+**Solid (177/177 tests passing):**
 - Self-hosting with fixed-point verification
 - LLVM backend (primary, all features)
 - Cross-platform (Linux x86-64, macOS ARM64)
