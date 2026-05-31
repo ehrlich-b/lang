@@ -1,0 +1,74 @@
+// flow demo - a generator/coroutine DSL that lowers to algebraic effects.
+// `gen` yields values; `for x in g(...) {}` drives the generator, resuming it
+// after each value. The stateful fib generator (carrying a, b across yields) is
+// the thing C and our Lisp structurally can't express.
+//
+// Uses effects, so it must be compiled with clang (not the lli JIT): the
+// continuation mechanism relies on inline-asm stack save/restore. See the
+// reader_flow_e2e guard in test/run_llvm_suite.sh.
+include "std/core.lang"
+include "example/flow/flow_runtime.lang"
+include "example/flow/flow.lang"
+
+#flow{
+    gen count(n) {
+        var i = 0;
+        while i < n {
+            yield i;
+            i = i + 1;
+        }
+    }
+
+    // stateful generator: remembers a, b across each yield (a true coroutine)
+    gen fib(n) {
+        var a = 0;
+        var b = 1;
+        var i = 0;
+        while i < n {
+            yield a;
+            var t = a + b;
+            a = b;
+            b = t;
+            i = i + 1;
+        }
+    }
+
+    func sum_count(n) {
+        var total = 0;
+        for x in count(n) {
+            total = total + x;
+        }
+        return total;
+    }
+
+    func sum_fib(n) {
+        var total = 0;
+        for x in fib(n) {
+            total = total + x;
+        }
+        return total;
+    }
+
+    func count_evens(n) {
+        var c = 0;
+        for x in count(n) {
+            if x % 2 == 0 {
+                c = c + 1;
+            }
+        }
+        return c;
+    }
+}
+
+func main() i64 {
+    print("sum_count(5)   = "); print_int(sum_count(5));   print("\n");  // 0+1+2+3+4 = 10
+    print("sum_fib(10)    = "); print_int(sum_fib(10));    print("\n");  // 88
+    print("count_evens(10)= "); print_int(count_evens(10)); print("\n"); // 5
+
+    if sum_count(5) != 10 { return 1; }
+    if sum_fib(10) != 88 { return 2; }
+    if count_evens(10) != 5 { return 3; }
+
+    print("FLOW PASS\n");
+    return 0;
+}

@@ -1,0 +1,18 @@
+// ============================================================
+// flow_runtime - shared runtime for the #flow{} effects DSL
+// ============================================================
+//
+// flow is a tiny generator/coroutine language: a `gen` yields values via the
+// Yield algebraic effect; a `func` drives a generator with `for x in g(...) {}`,
+// which lowers to a `handle` that resumes the generator after each value. This
+// is the thing C and Lisp structurally can't say - a generator that SUSPENDS
+// mid-loop and RESUMES, carrying its locals across the yield.
+//
+// The Yield effect is declared ONCE here (an included stdlib, like
+// lisp_runtime.lang) so multiple #flow{} blocks in one program share it rather
+// than each re-declaring it. Yield(i64) i64: takes the yielded value, the
+// resume hands back an i64 (the flow driver ignores it).
+
+include "std/core.lang"
+
+effect Yield(i64) i64

@@ -1,0 +1,357 @@
+// ============================================================
+// flow - a tiny generator/coroutine language (the effects DSL)
+// ============================================================
+//
+// The third polyglot language. Where C is imperative and minilisp is functional,
+// flow is about CONTROL: generators that suspend and resume. It lowers to lang's
+// algebraic effects (perform/handle/resume) - something neither C nor our Lisp
+// can express. Built with #parser{} (Level 3) + the std/ast.lang builder (L1).
+//
+//   #flow{
+//     gen fib(n) {                 // a stateful generator
+//       var a = 0; var b = 1; var i = 0;
+//       while i < n { yield a; var t = a + b; a = b; b = t; i = i + 1; }
+//     }
+//     func sum_fib(n) {            // a driver: runs the generator, sums the values
+//       var total = 0;
+//       for x in fib(n) { total = total + x; }
+//       return total;
+//     }
+//   }
+//
+// `yield e` performs Yield(e); `for x in g(...) {body}` lowers to a handle that
+// binds each yielded value to x, runs body, and resumes the generator. Both
+// `gen` and `func` become ordinary i64 functions, callable from lang and C.
+//
+// Conditions are unparenthesized (`if c {}`, `while c {}`) - flow is its own
+// little language, not C. Everything is i64. Requires:
+//   include "example/flow/flow_runtime.lang"   (declares `effect Yield`)
+//
+// Converter helpers are fl_-prefixed so flow composes with the C and minilisp
+// readers in one binary (no symbol collisions).
+
+include "std/core.lang"
+include "std/tok.lang"
+include "std/parser_reader.lang"
+include "std/ast.lang"
+
+#parser{
+    flow_program  = flow_decl+
+    flow_decl     = flow_gendecl | flow_funcdecl
+    flow_gendecl  = 'gen' symbol '(' flow_params ')' flow_block
+    flow_funcdecl = 'func' symbol '(' flow_params ')' flow_block
+    flow_params   = flow_paramitem*
+    flow_paramitem = symbol | ','
+    flow_block    = '{' flow_stmt* '}'
+    flow_stmt     = flow_var | flow_yield | flow_return | flow_if | flow_while | flow_forin | flow_exprstmt
+    flow_var      = 'var' symbol '=' flow_expr ';'
+    flow_yield    = 'yield' flow_expr ';'
+    flow_return   = 'return' flow_expr ';'
+    flow_if       = 'if' flow_expr flow_block flow_elses
+    flow_elses    = flow_elsepart*
+    flow_elsepart = 'else' flow_block
+    flow_while    = 'while' flow_expr flow_block
+    flow_forin    = 'for' symbol 'in' flow_call flow_block
+    flow_call     = symbol '(' flow_args ')'
+    flow_exprstmt = flow_expr ';'
+    flow_expr     = flow_unary flow_oprest*
+    flow_oprest   = operator flow_unary
+    flow_unary    = flow_neg | flow_postfix
+    flow_neg      = operator flow_postfix
+    flow_postfix  = flow_primary flow_callopt*
+    flow_callopt  = '(' flow_args ')'
+    flow_args     = flow_argitem*
+    flow_argitem  = flow_expr | ','
+    flow_primary  = number | symbol | flow_paren
+    flow_paren    = '(' flow_expr ')'
+}
+
+// PNode kinds: 1=number, 2=symbol, 4=list/seq, 5=operator, 0=literal marker
+
+// ============================================================
+// Expressions (flat operand/op list resolved by precedence climbing)
+// ============================================================
+
+func fl_prec(op *u8) i64 {
+    if streq(op, "||") { return 1; }
+    if streq(op, "&&") { return 2; }
+    if streq(op, "==") { return 3; }
+    if streq(op, "!=") { return 3; }
+    if streq(op, "<") { return 4; }
+    if streq(op, ">") { return 4; }
+    if streq(op, "<=") { return 4; }
+    if streq(op, ">=") { return 4; }
+    if streq(op, "+") { return 5; }
+    if streq(op, "-") { return 5; }
+    if streq(op, "*") { return 6; }
+    if streq(op, "/") { return 6; }
+    if streq(op, "%") { return 6; }
+    return 0;
+}
+
+// flow_expr = flow_unary flow_oprest* -> parallel operand/op vecs.
+func fl_flatten(e *PNode, operands *u8, ops *u8) void {
+    vec_push(operands, vec_get(e.children, 0));
+    var star *PNode = vec_get(e.children, 1);
+    var m i64 = vec_len(star.children);
+    var i i64 = 0;
+    while i < m {
+        var orn *PNode = vec_get(star.children, i);   // flow_oprest = [op, unary]
+        vec_push(ops, vec_get(orn.children, 0));
+        vec_push(operands, vec_get(orn.children, 1));
+        i = i + 1;
+    }
+}
+
+func fl_emit_expr(e *PNode) *u8 {
+    var operands *u8 = vec_new(8);
+    var ops *u8 = vec_new(8);
+    fl_flatten(e, operands, ops);
+    var pos i64 = 0;
+    return fl_climb(operands, ops, &pos, 0);
+}
+
+func fl_climb(operands *u8, ops *u8, posptr *i64, minprec i64) *u8 {
+    var left *u8 = fl_emit_operand(vec_get(operands, *posptr));
+    var nops i64 = vec_len(ops);
+    while *posptr < nops {
+        var opnode *PNode = vec_get(ops, *posptr);
+        var p i64 = fl_prec(opnode.text);
+        if p < minprec { return left; }
+        *posptr = *posptr + 1;
+        var right *u8 = fl_climb(operands, ops, posptr, p + 1);   // left-associative
+        left = ast_binop(opnode.text, left, right);
+    }
+    return left;
+}
+
+// flow_unary = flow_neg | flow_postfix. flow_neg leads with an operator atom.
+func fl_emit_operand(node *PNode) *u8 {
+    var f *PNode = vec_get(node.children, 0);
+    if f.kind == 5 {
+        return ast_unop(f.text, fl_emit_postfix(vec_get(node.children, 1)));
+    }
+    return fl_emit_postfix(node);
+}
+
+// flow_postfix = flow_primary flow_callopt*  ->  fold calls left-to-right.
+func fl_emit_postfix(pf *PNode) *u8 {
+    var primary *PNode = vec_get(pf.children, 0);
+    var ops *PNode = vec_get(pf.children, 1);
+    var base *u8 = fl_emit_primary(primary);
+    var n i64 = vec_len(ops.children);
+    var i i64 = 0;
+    while i < n {
+        var op *PNode = vec_get(ops.children, i);     // flow_callopt = ['(', args, ')']
+        base = ast_call(base, fl_emit_args(vec_get(op.children, 1)));
+        i = i + 1;
+    }
+    return base;
+}
+
+func fl_emit_primary(p *PNode) *u8 {
+    if p.kind == 1 { return ast_number(p.text); }
+    if p.kind == 2 { return ast_ident(p.text); }
+    if p.kind == 4 { return fl_emit_expr(vec_get(p.children, 1)); }   // flow_paren = ['(', expr, ')']
+    return ast_int(0);
+}
+
+// flow_args = flow_argitem* ; argitem = flow_expr | ','. Build an arg vec.
+func fl_emit_args(args *PNode) *u8 {
+    var av *u8 = ast_vec();
+    var items *u8 = args.children;
+    var n i64 = vec_len(items);
+    var i i64 = 0;
+    while i < n {
+        var it *PNode = vec_get(items, i);
+        if it.kind != 0 { ast_push(av, fl_emit_expr(it)); }   // skip ',' markers
+        i = i + 1;
+    }
+    return av;
+}
+
+// ============================================================
+// Statements
+// ============================================================
+
+// Per-node-unique name (handler bindings + block vars; derive from node address).
+func fl_gensym(prefix *u8, node *PNode) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, prefix);
+    var addr i64 = node;
+    sb_int(sb, addr);
+    return sb_finish(sb);
+}
+
+func fl_emit_block(block *PNode) *u8 {
+    var stmts *u8 = ast_vec();
+    var sl *PNode = vec_get(block.children, 1);    // ['{', stmt*, '}']
+    var n i64 = vec_len(sl.children);
+    var i i64 = 0;
+    while i < n {
+        ast_push(stmts, fl_emit_stmt(vec_get(sl.children, i)));
+        i = i + 1;
+    }
+    return ast_block(stmts);
+}
+
+func fl_emit_stmt(s *PNode) *u8 {
+    var first *PNode = vec_get(s.children, 0);
+    if first.kind == 2 {
+        if streq(first.text, "var") {        // ['var', name, '=', expr, ';']
+            var name *PNode = vec_get(s.children, 1);
+            return ast_var(name.text, ast_type_i64(), fl_emit_expr(vec_get(s.children, 3)));
+        }
+        if streq(first.text, "yield") {      // ['yield', expr, ';'] -> perform Yield(expr)
+            return ast_expr_stmt(ast_perform1("Yield", fl_emit_expr(vec_get(s.children, 1))));
+        }
+        if streq(first.text, "return") {     // ['return', expr, ';']
+            return ast_return(fl_emit_expr(vec_get(s.children, 1)));
+        }
+        if streq(first.text, "if") {         // ['if', cond, block, elses]
+            var cond *u8 = fl_emit_expr(vec_get(s.children, 1));
+            var then_b *u8 = fl_emit_block(vec_get(s.children, 2));
+            var elses *PNode = vec_get(s.children, 3);
+            var else_b *u8 = nil;
+            if vec_len(elses.children) > 0 {
+                var ep *PNode = vec_get(elses.children, 0);   // ['else', block]
+                else_b = fl_emit_block(vec_get(ep.children, 1));
+            }
+            return ast_if(cond, then_b, else_b);
+        }
+        if streq(first.text, "while") {      // ['while', cond, block]
+            return ast_while(fl_emit_expr(vec_get(s.children, 1)),
+                             fl_emit_block(vec_get(s.children, 2)));
+        }
+        if streq(first.text, "for") {
+            return fl_emit_forin(s);
+        }
+    }
+    return fl_emit_exprstmt(first);          // flow_exprstmt: first is the flow_expr
+}
+
+// Bare expression statement: peel a leading '=' as an assignment, else expr_stmt.
+func fl_emit_exprstmt(expr *PNode) *u8 {
+    var operands *u8 = vec_new(8);
+    var ops *u8 = vec_new(8);
+    fl_flatten(expr, operands, ops);
+    if vec_len(ops) > 0 {
+        var op0 *PNode = vec_get(ops, 0);
+        if streq(op0.text, "=") {
+            var lv *PNode = vec_get(operands, 0);
+            var rpos i64 = 1;
+            return ast_assign(fl_emit_operand(lv), fl_climb(operands, ops, &rpos, 1));
+        }
+    }
+    var epos i64 = 0;
+    return ast_expr_stmt(fl_climb(operands, ops, &epos, 0));
+}
+
+// for X in GEN(args) { body }  ->  drive the generator with a handle:
+//   handle { GEN(args); } with {
+//     return(__rv) => 0,
+//     Yield(X, __k) => { body; resume __k(0); }   // run body per value, then resume
+//   }
+// The handler binds the yielded value to X and the continuation to __k; resuming
+// runs the generator on to its next yield (carrying its locals across the gap).
+//   flow_forin = ['for', X, 'in', flow_call, block]
+func fl_emit_forin(s *PNode) *u8 {
+    var xvar *PNode = vec_get(s.children, 1);
+    var call *PNode = vec_get(s.children, 3);    // flow_call = [name, '(', args, ')']
+    var block *PNode = vec_get(s.children, 4);
+
+    var gname *PNode = vec_get(call.children, 0);
+    var gcall *u8 = ast_call_named(gname.text, fl_emit_args(vec_get(call.children, 2)));
+
+    var kname *u8 = fl_gensym("__k", s);
+    var rvname *u8 = fl_gensym("__rv", s);
+
+    // handler body = the for-body statements, then resume the generator
+    var hstmts *u8 = ast_vec();
+    var sl *PNode = vec_get(block.children, 1);
+    var n i64 = vec_len(sl.children);
+    var i i64 = 0;
+    while i < n {
+        ast_push(hstmts, fl_emit_stmt(vec_get(sl.children, i)));
+        i = i + 1;
+    }
+    ast_push(hstmts, ast_expr_stmt(ast_resume(ast_ident(kname), ast_int(0))));
+
+    var eh *u8 = ast_effect_handler("Yield", xvar.text, kname, ast_block(hstmts));
+    var ehs *u8 = ast_vec();
+    ast_push(ehs, eh);
+    var body *u8 = ast_block1(ast_expr_stmt(gcall));
+    return ast_expr_stmt(ast_handle(body, ast_return_handler(rvname, ast_int(0)), ehs));
+}
+
+// ============================================================
+// Declarations
+// ============================================================
+
+// flow_params = paramitem* ; paramitem = symbol | ','. All params are i64.
+func fl_emit_params(params *PNode) *u8 {
+    var pv *u8 = ast_vec();
+    var items *u8 = params.children;
+    var n i64 = vec_len(items);
+    var i i64 = 0;
+    while i < n {
+        var it *PNode = vec_get(items, i);
+        if it.kind == 2 { ast_push(pv, ast_param(it.text, ast_type_i64())); }
+        i = i + 1;
+    }
+    return pv;
+}
+
+// Does the statement list end in a `return`? (If not, the function needs an
+// implicit one - generators fall off the end and an i64 fn must terminate.)
+func fl_ends_in_return(sl *PNode) i64 {
+    var n i64 = vec_len(sl.children);
+    if n == 0 { return 0; }
+    var last *PNode = vec_get(sl.children, n - 1);
+    var h *PNode = vec_get(last.children, 0);
+    if h.kind == 2 {
+        if streq(h.text, "return") { return 1; }
+    }
+    return 0;
+}
+
+// gen/func decl = [KW, name, '(', params, ')', block]. Both become (func name
+// (params) i64 block) - the only difference is that a `gen` body uses `yield`
+// and a `func` body uses `for-in`, but the lowering is identical. A trailing
+// `return 0` is appended when the body doesn't end in a return (a generator just
+// yields and falls off the end; its return value is the handle's ignored result).
+func fl_emit_func(d *PNode) *u8 {
+    var name *PNode = vec_get(d.children, 1);
+    var params *PNode = vec_get(d.children, 3);
+    var block *PNode = vec_get(d.children, 5);
+    var sl *PNode = vec_get(block.children, 1);
+    var stmts *u8 = ast_vec();
+    var n i64 = vec_len(sl.children);
+    var i i64 = 0;
+    while i < n {
+        ast_push(stmts, fl_emit_stmt(vec_get(sl.children, i)));
+        i = i + 1;
+    }
+    if fl_ends_in_return(sl) == 0 {
+        ast_push(stmts, ast_return(ast_int(0)));
+    }
+    return ast_func(name.text, fl_emit_params(params), ast_type_i64(), ast_block(stmts));
+}
+
+func fl_emit_program(prog *PNode) *u8 {
+    var decls *u8 = ast_vec();
+    var dl *u8 = prog.children;
+    var n i64 = vec_len(dl);
+    var i i64 = 0;
+    while i < n {
+        ast_push(decls, fl_emit_func(vec_get(dl, i)));
+        i = i + 1;
+    }
+    return ast_program(decls);
+}
+
+reader flow(text *u8) *u8 {
+    var t *Tokenizer = tok_new(text);
+    var prog *PNode = parse_flow_program(t);
+    return fl_emit_program(prog);
+}

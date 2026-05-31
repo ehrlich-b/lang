@@ -148,6 +148,24 @@ reader_e2e reader_minilisp_e2e example/minilisp/test_defun.lang
 reader_e2e reader_c_e2e         example/c/test_c.lang
 reader_e2e reader_polyglot_e2e  example/polyglot.lang
 
+# Like reader_e2e but compiles with clang and runs the native binary, for readers
+# whose output uses algebraic effects (perform/handle/resume) - the inline-asm
+# continuation mechanism does not work under the lli JIT, only clang (matching
+# the //clang suite tests). The flow DSL is built on effects.
+reader_e2e_clang() {
+    local name=$1; local file=$2
+    local tmp=$(mktemp -d)
+    if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$file" -o "$tmp/r.ll" 2>/dev/null \
+       && clang -O0 "$tmp/r.ll" -o "$tmp/r" 2>/dev/null \
+       && do_timeout 10 "$tmp/r" >/dev/null 2>&1; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_e2e_clang reader_flow_e2e example/flow/test_flow.lang
+
 # Count results (grep -c returns 1 if no matches, so handle that)
 passed=$(grep -c '^PASS' "$results_file" 2>/dev/null) || passed=0
 failed=$(grep -c '^FAIL' "$results_file" 2>/dev/null) || failed=0
