@@ -64,7 +64,12 @@ include "std/ast.lang"
     c_paramitem  = c_param | ','
     c_param      = c_ptype symbol
     c_block     = '{' c_stmt* '}'
-    c_stmt      = c_retstmt | c_ifstmt | c_whilestmt | c_forstmt | c_breakstmt | c_continuestmt | c_decl | c_block | c_exprstmt
+    c_stmt      = c_retstmt | c_ifstmt | c_whilestmt | c_forstmt | c_switchstmt | c_breakstmt | c_continuestmt | c_decl | c_block | c_exprstmt
+    c_switchstmt = 'switch' '(' c_expr ')' '{' c_switchitems '}'
+    c_switchitems = c_switchitem*
+    c_switchitem = c_caseval | c_defaultlabel | c_stmt
+    c_caseval    = 'case' c_expr ':'
+    c_defaultlabel = 'default' ':'
     c_breakstmt = 'break' ';'
     c_continuestmt = 'continue' ';'
     c_retstmt   = 'return' c_expr ';'
@@ -161,14 +166,19 @@ func emit_expr_str(e *PNode) *u8 {
     return base;
 }
 
-// Per-node-unique temp name for a ternary (block_expr vars leak to the enclosing
-// scope, so each ?: needs its own; derive it from the terntail node's address).
-func ternary_tmp(node *PNode) *u8 {
+// Per-node-unique temp name (block/block_expr vars leak to the enclosing scope,
+// so ternary temps and switch scrutinees each need their own; derive it from the
+// node's address). Distinct prefixes + distinct node pointers => no collisions.
+func c_gensym(prefix *u8, node *PNode) *u8 {
     var sb *StringBuilder = sb_new();
-    sb_str(sb, "__ct");
+    sb_str(sb, prefix);
     var addr i64 = node;
     sb_int(sb, addr);
     return sb_finish(sb);
+}
+
+func ternary_tmp(node *PNode) *u8 {
+    return c_gensym("__ct", node);
 }
 
 // `cond ? a : b` -> a value-returning block_expr (only the taken branch runs):
@@ -375,6 +385,9 @@ func emit_stmt(s *PNode) *u8 {
         if streq(first.text, "for") {
             return emit_for(s);
         }
+        if streq(first.text, "switch") {
+            return emit_switch(s);
+        }
     }
 
     // first is a kind-4 list: a c_decl leads with a c_ptype, whose first child
@@ -502,6 +515,109 @@ func emit_for(s *PNode) *u8 {
     ast_push(outer, emit_stmt(init));                       // decl or assignment (handles both)
     ast_push(outer, ast_while(emit_expr_str(cond), ast_block(inner)));
     return ast_block(outer);
+}
+
+// A c_switchitem is a 'case' label, a 'default' label, or a statement. Return
+// 1=case, 2=default, 0=statement (by the item's leading atom).
+func switch_label_kind(it *PNode) i64 {
+    var h *PNode = vec_get(it.children, 0);
+    if h.kind == 2 {
+        if streq(h.text, "case") { return 1; }
+        if streq(h.text, "default") { return 2; }
+    }
+    return 0;
+}
+
+func switch_is_break(it *PNode) i64 {
+    var h *PNode = vec_get(it.children, 0);
+    if h.kind == 2 {
+        if streq(h.text, "break") { return 1; }
+    }
+    return 0;
+}
+
+// Finalize one case group: build its condition (svname == v1 || svname == v2 ...,
+// or nil for `default`) and body block, appending both to the parallel conds/bodies.
+func switch_finalize(conds *u8, bodies *u8, svname *u8, vals *u8, is_default i64, body *u8) void {
+    var cond *u8 = nil;
+    if is_default == 0 {
+        var nv i64 = vec_len(vals);
+        var j i64 = 0;
+        while j < nv {
+            var eq *u8 = ast_binop("==", ast_ident(svname), vec_get(vals, j));
+            if cond == nil { cond = eq; }
+            else { cond = ast_binop("||", cond, eq); }
+            j = j + 1;
+        }
+    }
+    vec_push(conds, cond);          // nil marks the default group
+    vec_push(bodies, ast_block(body));
+}
+
+// switch (E) { case V: ... } -> evaluate E once into a temp, then an if/else-if
+// chain (one arm per case group; `default` is the final else). BOUNDED: each
+// case is independent - there is NO fall-through (a case body without break does
+// not flow into the next). Stacked empty labels (case 2: case 3:) share one body.
+// A top-level break just terminates its case (it is the idiomatic terminator).
+//   c_switchstmt = ['switch','(',expr,')','{', items, '}']  -> children[2]=expr, [5]=items
+func emit_switch(s *PNode) *u8 {
+    var svname *u8 = c_gensym("__sw", s);
+    var scrut *u8 = emit_expr_str(vec_get(s.children, 2));
+    var items *PNode = vec_get(s.children, 5);
+    var n i64 = vec_len(items.children);
+
+    var conds *u8 = vec_new(8);     // per group: condition string (nil = default)
+    var bodies *u8 = vec_new(8);    // per group: body block string
+
+    var pend_vals *u8 = ast_vec();  // case-value expr strings for the current stacked labels
+    var pend_default i64 = 0;
+    var pend_body *u8 = ast_vec();
+    var have_body i64 = 0;          // current group has started collecting body statements?
+    var have_group i64 = 0;         // any label seen for the current group?
+
+    var i i64 = 0;
+    while i < n {
+        var it *PNode = vec_get(items.children, i);
+        var lab i64 = switch_label_kind(it);
+        if lab != 0 {
+            if have_body != 0 {     // a label after a body => finalize the previous group
+                switch_finalize(conds, bodies, svname, pend_vals, pend_default, pend_body);
+                pend_vals = ast_vec(); pend_default = 0; pend_body = ast_vec(); have_body = 0;
+            }
+            have_group = 1;
+            if lab == 2 { pend_default = 1; }
+            else { ast_push(pend_vals, emit_expr_str(vec_get(it.children, 1))); }  // case VALUE
+        } else {
+            if switch_is_break(it) == 0 {       // drop the case-terminating break
+                ast_push(pend_body, emit_stmt(it));
+            }
+            have_body = 1;
+        }
+        i = i + 1;
+    }
+    if have_group != 0 {
+        switch_finalize(conds, bodies, svname, pend_vals, pend_default, pend_body);
+    }
+
+    // Assemble: default body is the innermost else; case arms wrap it (reverse order).
+    var else_branch *u8 = nil;
+    var ng i64 = vec_len(conds);
+    var k i64 = 0;
+    while k < ng {
+        if vec_get(conds, k) == nil { else_branch = vec_get(bodies, k); }
+        k = k + 1;
+    }
+    var idx i64 = ng - 1;
+    while idx >= 0 {
+        var c *u8 = vec_get(conds, idx);
+        if c != nil { else_branch = ast_if(c, vec_get(bodies, idx), else_branch); }
+        idx = idx - 1;
+    }
+
+    var stmts *u8 = ast_vec();
+    ast_push(stmts, ast_var(svname, ast_type_i64(), scrut));
+    if else_branch != nil { ast_push(stmts, else_branch); }
+    return ast_block(stmts);
 }
 
 // (var NAME TYPE INIT?). arrdim is a c_dim* (zero = scalar; one c_dim =

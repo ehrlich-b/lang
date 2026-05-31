@@ -201,6 +201,24 @@ include "example/c/c.lang"
     int suit_rank(enum Suit s) { return s + 1; }
     int http_post() { return POST; }
     int http_patch() { return PATCH; }
+
+    // round 5: switch (stacked labels, default, break, enum/char case values)
+    int grade(int n) {
+        int g;
+        switch (n) {
+            case 0: case 1: case 2: g = 1; break;
+            case 3: g = 2; break;
+            default: g = 9;
+        }
+        return g;
+    }
+    int suit_color(enum Suit s) {        // 0=black, 1=red; case values are enums
+        switch (s) {
+            case CLUBS: case SPADES: return 0;
+            case DIAMONDS: case HEARTS: return 1;
+        }
+        return -1;
+    }
 }
 
 func main() i64 {
@@ -236,6 +254,8 @@ func main() i64 {
     print("SPADES        = "); print_int(SPADES);        print("\n");
     print("suit_rank(H)  = "); print_int(suit_rank(HEARTS)); print("\n");
     print("http PUT/PATCH= "); print_int(PUT); print(" "); print_int(http_patch()); print("\n");
+    print("grade 1/3/7   = "); print_int(grade(1)); print(" "); print_int(grade(3)); print(" "); print_int(grade(7)); print("\n");
+    print("suit_color C/H= "); print_int(suit_color(CLUBS)); print(" "); print_int(suit_color(HEARTS)); print("\n");
 
     if factorial(5) != 120 { return 1; }
     if fib(10) != 55 { return 1; }
@@ -283,6 +303,13 @@ func main() i64 {
     if PUT != 10 { return 1; }
     if PATCH != 11 { return 1; }
     if http_post() != 2 { return 1; }
+    if grade(0) != 1 { return 1; }
+    if grade(2) != 1 { return 1; }
+    if grade(3) != 2 { return 1; }
+    if grade(7) != 9 { return 1; }
+    if suit_color(CLUBS) != 0 { return 1; }
+    if suit_color(SPADES) != 0 { return 1; }
+    if suit_color(HEARTS) != 1 { return 1; }
 
     print("PASS\n");
     return 0;
