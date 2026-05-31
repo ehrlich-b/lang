@@ -44,6 +44,8 @@ var TOK_BANG i64 = 22;
 var TOK_AMP i64 = 23;
 var TOK_PIPE i64 = 24;
 var TOK_CARET i64 = 25;
+var TOK_QUESTION i64 = 26;  // ? (ternary)
+var TOK_TILDE i64 = 27;     // ~ (bitwise not)
 var TOK_UNKNOWN i64 = 99;
 
 // ============================================================
@@ -194,6 +196,8 @@ func tok_next(t *Tokenizer) void {
         return;
     }
     if c == 94 { t.tok_kind = TOK_CARET; t.tok_len = 1; tok_advance_char(t); return; }  // ^
+    if c == 63 { t.tok_kind = TOK_QUESTION; t.tok_len = 1; tok_advance_char(t); return; }  // ?
+    if c == 126 { t.tok_kind = TOK_TILDE; t.tok_len = 1; tok_advance_char(t); return; }  // ~
     if c == 44 { t.tok_kind = TOK_COMMA; t.tok_len = 1; tok_advance_char(t); return; }
     if c == 58 { t.tok_kind = TOK_COLON; t.tok_len = 1; tok_advance_char(t); return; }
     if c == 59 { t.tok_kind = TOK_SEMI; t.tok_len = 1; tok_advance_char(t); return; }
