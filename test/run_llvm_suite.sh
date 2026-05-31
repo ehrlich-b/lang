@@ -146,7 +146,6 @@ reader_e2e() {
 }
 reader_e2e reader_minilisp_e2e example/minilisp/test_defun.lang
 reader_e2e reader_c_e2e         example/c/test_c.lang
-reader_e2e reader_polyglot_e2e  example/polyglot.lang
 
 # Like reader_e2e but compiles with clang and runs the native binary, for readers
 # whose output uses algebraic effects (perform/handle/resume) - the inline-asm
@@ -164,7 +163,8 @@ reader_e2e_clang() {
     fi
     rm -rf "$tmp"
 }
-reader_e2e_clang reader_flow_e2e example/flow/test_flow.lang
+reader_e2e_clang reader_flow_e2e     example/flow/test_flow.lang
+reader_e2e_clang reader_polyglot_e2e example/polyglot.lang
 
 # Count results (grep -c returns 1 if no matches, so handle that)
 passed=$(grep -c '^PASS' "$results_file" 2>/dev/null) || passed=0
