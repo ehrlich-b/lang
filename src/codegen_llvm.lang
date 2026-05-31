@@ -186,6 +186,18 @@ func llvm_next_label() i64 {
     return n;
 }
 
+// Effect handler/resume sites emit GLOBAL assembler labels (.Lhandler<N>,
+// .Lresume<N>) inside inline asm, so their numbers must be unique across the
+// WHOLE module. llvm_label_counter resets per function, which made the first
+// handle in every function collide on .Lhandler0; this counter never resets.
+var llvm_eff_counter i64 = 0;
+
+func llvm_next_eff() i64 {
+    var n i64 = llvm_eff_counter;
+    llvm_eff_counter = llvm_eff_counter + 1;
+    return n;
+}
+
 // Temp register counter
 var llvm_temp_counter i64 = 0;
 
@@ -3877,8 +3889,10 @@ func llvm_emit_expr(expr *u8) void {
         var ret_bind_len i64 = handle_expr_ret_bind_len(expr);
         var ret_body *u8 = handle_expr_ret_body(expr);
 
-        // Generate labels
-        var handler_label i64 = llvm_next_label();
+        // Generate labels. handler_label is emitted as a global asm label
+        // (.Lhandler<N>), so it uses the module-global effect counter; done_label
+        // is an ordinary function-local LLVM label.
+        var handler_label i64 = llvm_next_eff();
         var done_label i64 = llvm_next_label();
 
         // Save current frame pointer/stack pointer using inline asm
@@ -4222,7 +4236,7 @@ func llvm_emit_expr(expr *u8) void {
         var eff_name_len i64 = perform_expr_name_len(expr);
 
         // Generate resume label
-        var resume_label i64 = llvm_next_label();
+        var resume_label i64 = llvm_next_eff();  // global asm label .Lresume<N>
 
         // Allocate continuation struct: [rbp:8][rsp:8][return_addr:8] = 24 bytes
         var cont_temp i64 = llvm_next_temp();

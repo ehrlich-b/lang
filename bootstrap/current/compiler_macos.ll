@@ -39141,6 +39141,19 @@ L.entry:
     ret i64 %t3
 }
 
+@llvm_eff_counter = global i64 0
+define i64 @llvm_next_eff() {
+L.entry:
+    %n.0 = alloca i64
+    %t0 = load i64, i64* @llvm_eff_counter
+    store i64 %t0, i64* %n.0
+    %t1 = load i64, i64* @llvm_eff_counter
+    %t2 = add i64 %t1, 1
+    store i64 %t2, i64* @llvm_eff_counter
+    %t3 = load i64, i64* %n.0
+    ret i64 %t3
+}
+
 @llvm_temp_counter = global i64 0
 define i64 @llvm_next_temp() {
 L.entry:
@@ -49645,7 +49658,7 @@ L869:
     %t3886 = ptrtoint i8* %t3885 to i64
     store i64 %t3886, i64* %ret_body.433
     %handler_label.434 = alloca i64
-    %t3887 = call i64 @llvm_next_label()
+    %t3887 = call i64 @llvm_next_eff()
     store i64 %t3887, i64* %handler_label.434
     %done_label.435 = alloca i64
     %t3888 = call i64 @llvm_next_label()
@@ -50418,7 +50431,7 @@ L924:
     %t4298 = call i64 @perform_expr_name_len(i64 %t4297)
     store i64 %t4298, i64* %eff_name_len.479
     %resume_label.480 = alloca i64
-    %t4299 = call i64 @llvm_next_label()
+    %t4299 = call i64 @llvm_next_eff()
     store i64 %t4299, i64* %resume_label.480
     %cont_temp.481 = alloca i64
     %t4300 = call i64 @llvm_next_temp()
@@ -72069,12 +72082,12 @@ L400:
 @.str13 = private constant [2 x i8] c"0\00"
 @.str14 = private constant [4 x i8] c"%f\0A\00"
 @.str15 = private constant [6 x i8] c"0.1.0\00"
-@.str16 = private constant [8 x i8] c"ad8db42\00"
+@.str16 = private constant [8 x i8] c"4714b82\00"
 @.str17 = private constant [5 x i8] c"llvm\00"
 @.str18 = private constant [6 x i8] c"macos\00"
 @.str19 = private constant [6 x i8] c"arm64\00"
 @.str20 = private constant [7 x i8] c"system\00"
-@.str21 = private constant [8 x i8] c"8b05e99\00"
+@.str21 = private constant [8 x i8] c"ad8db42\00"
 @.str22 = private constant [5 x i8] c"func\00"
 @.str23 = private constant [4 x i8] c"var\00"
 @.str24 = private constant [7 x i8] c"struct\00"
