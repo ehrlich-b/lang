@@ -1,0 +1,680 @@
+// ============================================================
+// forth - a stack language whose stack vanishes at compile time
+// ============================================================
+//
+// The fourth polyglot language, and the one furthest from the other three. C,
+// minilisp and flow all have an expression grammar; Forth has none. A Forth
+// program is a flat stream of whitespace-separated words that push and pop a
+// data stack, and control flow is just more words:
+//
+//   #forth{
+//       : square ( n -- n2 ) dup * ;
+//       : fact   ( n -- f )  dup 2 < if drop 1 else dup 1 - recurse * then ;
+//   }
+//
+// There is NO data stack in the generated code. The reader keeps a stack of AST
+// NODES while it walks the word stream: `dup` duplicates a node, `*` pops two
+// and pushes `(binop * a b)`. By `;` the stack holds the word's result and every
+// trace of the stack is gone - `square` compiles to exactly the same native code
+// as `func square(n i64) i64 { return n * n; }`. This mirrors how a real Forth
+// compiles `if`/`then` with a compile-time control stack, except we erase the
+// data stack too.
+//
+// The stack effect comment is LOAD-BEARING here (in real Forth it is a comment):
+// `( a b -- s )` names the parameters and counts the results, which is what lets
+// a word become an ordinary i64 lang function callable from C, Lisp, flow and
+// lang - and lets them be called back from Forth.
+//
+// Words:
+//   : n ( ... ) ... ;   define        extern n ( ... ) ;   import a host function
+//   + - * / mod         arithmetic    = <> < > <= >=       comparison (flag 0/1)
+//   and or xor invert   bitwise       negate               unary minus
+//   dup drop swap over nip rot        stack shuffling
+//   if ... else ... then              conditional
+//   recurse             self-call     .  cr                output (see runtime)
+//
+// Deliberate bounds (round 1): no loops (`begin`/`do`) and no `variable`/`!`/`@`,
+// so a word body stays a pure expression tree and recursion is the only
+// repetition. Word names must be lang identifiers plus an optional trailing `?`
+// (`prime?` mangles to `prime_p`) - the shared tokenizer lexes `-` as an
+// operator, so `is-prime` can't be a name. Negative literals must be written
+// `0 5 -` or `5 negate`; the tokenizer splits `-5` into two words. Comments are
+// `( ... )` (or lang's `//`), not `\`.
+//
+// Evaluation order is preserved exactly: before any word that duplicates,
+// reorders, discards or emits a statement, every impure node still sitting on
+// the compile-time stack is materialized into a temp (see fo_flush). Otherwise
+// deferring an unevaluated call past a `.` would silently reorder side effects.
+//
+// Converter helpers are fo_-prefixed so forth composes with the C, minilisp and
+// flow readers in one binary (no symbol collisions).
+
+include "std/core.lang"
+include "std/tok.lang"
+include "std/parser_reader.lang"
+include "std/ast.lang"
+
+// The grammar is almost nothing - which is the point. A body is a FLAT word
+// list; `if`/`else`/`then` are ordinary words that the converter gives meaning
+// to, exactly as Forth does with immediate words. That also dodges the weak
+// no-backtrack parser: there is no nesting for it to get wrong.
+#parser{
+    fo_program   = fo_def+
+    fo_def       = fo_worddef | fo_externdef | fo_effect
+    fo_worddef   = ':' fo_name fo_effect fo_body ';'
+    fo_externdef = 'extern' fo_name fo_effect ';'
+    fo_name      = symbol fo_qmark*
+    fo_qmark     = '?'
+    fo_effect    = '(' fo_eitem* ')'
+    fo_eitem     = symbol | operator | number
+    fo_body      = fo_word*
+    fo_word      = fo_name | number | operator | fo_effect | '.'
+}
+
+// PNode kinds: 0=literal marker (carries its text), 1=number, 2=symbol,
+// 4=list/seq, 5=operator.
+
+// ============================================================
+// Comments
+// ============================================================
+
+func fo_word_char(c i64) i64 {
+    if c >= 48 && c <= 57 { return 1; }         // 0-9
+    if c >= 65 && c <= 90 { return 1; }         // A-Z
+    if c >= 97 && c <= 122 { return 1; }        // a-z
+    if c == 95 { return 1; }                    // _
+    if c == 45 { return 1; }                    // -  (keeps the `--` separator)
+    return 0;
+}
+
+// A Forth comment is `( ... )` and, being a comment, may contain anything at
+// all - but the shared tokenizer would choke on a `:` or a quote inside one and
+// silently derail the parse. Real Forth never tokenizes a comment's contents;
+// we can't skip them entirely (the stack effect wears the same parentheses and
+// IS parsed), so instead sanitize every parenthesized interior down to word
+// characters. A comment can then say what it likes, while a stack effect - just
+// names plus the `--` separator - still reads exactly as before.
+//
+// `//` line comments are passed through untouched (the tokenizer strips them),
+// so a `(` inside one can't be mistaken for the start of a Forth comment.
+func fo_sanitize_comments(text *u8) *u8 {
+    var sb *StringBuilder = sb_new();
+    var p *u8 = text;
+    var depth i64 = 0;
+    while *p != 0 {
+        var c i64 = *p;
+        if depth == 1 {
+            if c == 41 {                        // )
+                depth = 0;
+                sb_char(sb, c);
+            } else if fo_word_char(c) == 1 {
+                sb_char(sb, c);
+            } else {
+                sb_char(sb, 32);
+            }
+        } else if c == 40 {                     // (
+            depth = 1;
+            sb_char(sb, c);
+        } else if c == 47 && *(p + 1) == 47 {   // //
+            while *p != 0 && *p != 10 {
+                sb_char(sb, *p);
+                p = p + 1;
+            }
+            if *p == 0 { return sb_finish(sb); }
+            sb_char(sb, *p);
+        } else {
+            sb_char(sb, c);
+        }
+        p = p + 1;
+    }
+    return sb_finish(sb);
+}
+
+// ============================================================
+// Names and stack effects
+// ============================================================
+
+// fo_name = symbol fo_qmark*. Forth loves `?` in names (`prime?`); lang has no
+// such identifier, so each trailing `?` becomes `_p`.
+func fo_name_text(n *PNode) *u8 {
+    var sym *PNode = vec_get(n.children, 0);
+    var qs *PNode = vec_get(n.children, 1);
+    var nq i64 = vec_len(qs.children);
+    if nq == 0 { return sym.text; }
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, sym.text);
+    var i i64 = 0;
+    while i < nq {
+        sb_str(sb, "_p");
+        i = i + 1;
+    }
+    return sb_finish(sb);
+}
+
+// The word at index i, if it is a name word (else nil) - for peeking at the
+// `else`/`then` terminators without consuming them.
+func fo_word_at(items *u8, i i64) *u8 {
+    if i >= vec_len(items) { return nil; }
+    var it *PNode = vec_get(items, i);
+    if it.kind != 4 { return nil; }
+    var head *PNode = vec_get(it.children, 0);
+    if head.kind != 2 { return nil; }
+    return fo_name_text(it);
+}
+
+// `( a b -- s )` -> push "a","b" onto pnames, return the result count. The `--`
+// arrives as a single 2-char operator atom (the tokenizer lexes it for C's `--`).
+func fo_effect_split(eff *PNode, pnames *u8) i64 {
+    var star *PNode = vec_get(eff.children, 1);
+    var items *u8 = star.children;
+    var n i64 = vec_len(items);
+    var past i64 = 0;
+    var nres i64 = 0;
+    var i i64 = 0;
+    while i < n {
+        var it *PNode = vec_get(items, i);
+        if it.kind == 5 {
+            if streq(it.text, "--") { past = 1; }
+        } else if it.kind == 2 {
+            if past == 1 {
+                nres = nres + 1;
+            } else {
+                vec_push(pnames, it.text);
+            }
+        }
+        i = i + 1;
+    }
+    if past == 0 {
+        eprint("forth: stack effect is missing '--'; treating every name as a parameter\n");
+    }
+    return nres;
+}
+
+// A top-level item is a `:` definition (1), an `extern` declaration (2), or a
+// bare ( ... ) comment between definitions (0).
+func fo_def_kind(d *PNode) i64 {
+    var head *PNode = vec_get(d.children, 0);
+    if head.kind == 2 { return 2; }             // the 'extern' keyword
+    if streq(head.text, ":") == 1 { return 1; }
+    return 0;
+}
+
+// Signatures are a flat vec of (name, nparams, nresults) triples, collected in a
+// pre-pass and threaded as a parameter - a module-level global declared in a
+// reader's own file is silently dropped by the reader-build path.
+func fo_collect_sigs(prog *PNode) *u8 {
+    var sigs *u8 = vec_new(24);
+    var defs *u8 = prog.children;
+    var n i64 = vec_len(defs);
+    var i i64 = 0;
+    while i < n {
+        var d *PNode = vec_get(defs, i);
+        if fo_def_kind(d) == 0 {
+            i = i + 1;
+            continue;
+        }
+        var namen *PNode = vec_get(d.children, 1);
+        var eff *PNode = vec_get(d.children, 2);
+        var pnames *u8 = vec_new(8);
+        var nres i64 = fo_effect_split(eff, pnames);
+        vec_push(sigs, fo_name_text(namen));
+        vec_push(sigs, vec_len(pnames));
+        vec_push(sigs, nres);
+        i = i + 1;
+    }
+    return sigs;
+}
+
+func fo_sig_find(sigs *u8, name *u8) i64 {
+    var n i64 = vec_len(sigs);
+    var i i64 = 0;
+    while i < n {
+        var nm *u8 = vec_get(sigs, i);
+        if streq(nm, name) { return i; }
+        i = i + 3;
+    }
+    return 0 - 1;
+}
+
+// ============================================================
+// The compile-time stack (of AST nodes)
+// ============================================================
+
+func fo_pop(stack *u8) *u8 {
+    if vec_len(stack) == 0 {
+        eprint("forth: stack underflow\n");
+        return ast_int(0);
+    }
+    return vec_pop(stack);
+}
+
+func fo_stack_copy(src *u8) *u8 {
+    var d *u8 = vec_new(16);
+    var n i64 = vec_len(src);
+    var i i64 = 0;
+    while i < n {
+        vec_push(d, vec_get(src, i));
+        i = i + 1;
+    }
+    return d;
+}
+
+func fo_stack_load(dst *u8, src *u8) void {
+    while vec_len(dst) > 0 { vec_pop(dst); }
+    var n i64 = vec_len(src);
+    var i i64 = 0;
+    while i < n {
+        vec_push(dst, vec_get(src, i));
+        i = i + 1;
+    }
+}
+
+// Per-node-unique temp name (reader globals are dropped, so derive uniqueness
+// from the node address plus a slot tag).
+func fo_gensym(prefix *u8, node *PNode, tag i64) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, prefix);
+    var addr i64 = node;
+    sb_int(sb, addr);
+    sb_str(sb, "_");
+    sb_int(sb, tag);
+    return sb_finish(sb);
+}
+
+func fo_starts(s *u8, p *u8) i64 {
+    while *p != 0 {
+        if *s == 0 { return 0; }
+        if *s != *p { return 0; }
+        s = s + 1;
+        p = p + 1;
+    }
+    return 1;
+}
+
+// A node is "simple" when re-evaluating it or deferring it past a statement is
+// free of consequence: a literal or a bare variable reference.
+func fo_is_simple(e *u8) i64 {
+    if fo_starts(e, "(number ") == 1 { return 1; }
+    if fo_starts(e, "(ident ") == 1 { return 1; }
+    return 0;
+}
+
+// Force every pending computation on the stack into a temp, bottom-up, so it
+// happens HERE. Called before any word that duplicates, reorders, discards or
+// emits a statement - without it, `f g 42 . *` would emit the print before f and
+// g ran, quietly reordering side effects relative to real Forth.
+func fo_flush_upto(stack *u8, stmts *u8, node *PNode, limit i64) void {
+    var n i64 = limit;
+    var i i64 = 0;
+    while i < n {
+        var e *u8 = vec_get(stack, i);
+        if fo_is_simple(e) == 0 {
+            var t *u8 = fo_gensym("__fs", node, i);
+            ast_push(stmts, ast_var(t, ast_type_i64(), e));
+            vec_set(stack, i, ast_ident(t));
+        }
+        i = i + 1;
+    }
+}
+
+func fo_flush(stack *u8, stmts *u8, node *PNode) void {
+    fo_flush_upto(stack, stmts, node, vec_len(stack));
+}
+
+// ============================================================
+// Words
+// ============================================================
+
+func fo_binop_for(op *u8) *u8 {
+    if streq(op, "=")  { return "=="; }     // Forth's `=` is a comparison
+    if streq(op, "+")  { return "+"; }
+    if streq(op, "-")  { return "-"; }
+    if streq(op, "*")  { return "*"; }
+    if streq(op, "/")  { return "/"; }
+    if streq(op, "%")  { return "%"; }
+    if streq(op, "<")  { return "<"; }
+    if streq(op, ">")  { return ">"; }
+    if streq(op, "<=") { return "<="; }
+    if streq(op, ">=") { return ">="; }
+    return nil;
+}
+
+// ( a b -- a OP b ). No flush: operands are popped in Forth's own order, and
+// lang evaluates a binop left-to-right, so the order already matches.
+func fo_binary(stack *u8, op *u8) void {
+    var b *u8 = fo_pop(stack);
+    var a *u8 = fo_pop(stack);
+    vec_push(stack, ast_binop(op, a, b));
+}
+
+func fo_emit_operator(items *u8, ip *i64, stack *u8) void {
+    var op *PNode = vec_get(items, *ip);
+    var text *u8 = op.text;
+    *ip = *ip + 1;
+    // Forth's not-equal is `<>`; the tokenizer hands us two separate operators.
+    if streq(text, "<") {
+        var nxt *PNode = nil;
+        if *ip < vec_len(items) { nxt = vec_get(items, *ip); }
+        if nxt != nil {
+            if nxt.kind == 5 {
+                if streq(nxt.text, ">") {
+                    *ip = *ip + 1;
+                    fo_binary(stack, "!=");
+                    return;
+                }
+            }
+        }
+    }
+    var lop *u8 = fo_binop_for(text);
+    if lop == nil {
+        eprint("forth: unknown operator word '");
+        eprint(text);
+        eprint("'\n");
+        return;
+    }
+    fo_binary(stack, lop);
+}
+
+// dup/over duplicate a node, so what they duplicate must already be a value.
+func fo_shuffle(w *u8, stack *u8, stmts *u8, node *PNode) i64 {
+    fo_flush(stack, stmts, node);
+    var n i64 = vec_len(stack);
+    if streq(w, "dup") {
+        if n < 1 { eprint("forth: dup on an empty stack\n"); return 1; }
+        vec_push(stack, vec_get(stack, n - 1));
+        return 1;
+    }
+    if streq(w, "drop") {
+        if n < 1 { eprint("forth: drop on an empty stack\n"); return 1; }
+        vec_pop(stack);
+        return 1;
+    }
+    if streq(w, "swap") {
+        if n < 2 { eprint("forth: swap needs two values\n"); return 1; }
+        var a *u8 = vec_get(stack, n - 2);
+        var b *u8 = vec_get(stack, n - 1);
+        vec_set(stack, n - 2, b);
+        vec_set(stack, n - 1, a);
+        return 1;
+    }
+    if streq(w, "over") {
+        if n < 2 { eprint("forth: over needs two values\n"); return 1; }
+        vec_push(stack, vec_get(stack, n - 2));
+        return 1;
+    }
+    if streq(w, "nip") {
+        if n < 2 { eprint("forth: nip needs two values\n"); return 1; }
+        var top *u8 = vec_get(stack, n - 1);
+        vec_pop(stack);
+        vec_set(stack, n - 2, top);
+        return 1;
+    }
+    if streq(w, "rot") {
+        if n < 3 { eprint("forth: rot needs three values\n"); return 1; }
+        var x *u8 = vec_get(stack, n - 3);
+        var y *u8 = vec_get(stack, n - 2);
+        var z *u8 = vec_get(stack, n - 1);
+        vec_set(stack, n - 3, y);
+        vec_set(stack, n - 2, z);
+        vec_set(stack, n - 1, x);
+        return 1;
+    }
+    return 0;
+}
+
+// A call to a defined word, an extern host function, or `recurse`.
+func fo_emit_call(name *u8, stack *u8, stmts *u8, sigs *u8, node *PNode) void {
+    var si i64 = fo_sig_find(sigs, name);
+    if si < 0 {
+        eprint("forth: undefined word '");
+        eprint(name);
+        eprint("' (declare host functions with `extern name ( a -- r ) ;`)\n");
+        vec_push(stack, ast_int(0));
+        return;
+    }
+    var np i64 = vec_get(sigs, si + 1);
+    var nr i64 = vec_get(sigs, si + 2);
+    // A word that returns nothing becomes a statement, so pending work on the
+    // stack has to happen first.
+    if nr == 0 { fo_flush(stack, stmts, node); }
+
+    var popped *u8 = vec_new(8);
+    var k i64 = 0;
+    while k < np {
+        vec_push(popped, fo_pop(stack));
+        k = k + 1;
+    }
+    var args *u8 = ast_vec();
+    k = np - 1;
+    while k >= 0 {
+        ast_push(args, vec_get(popped, k));
+        k = k - 1;
+    }
+    var call *u8 = ast_call_named(name, args);
+    if nr == 0 {
+        ast_push(stmts, ast_expr_stmt(call));
+    } else {
+        if nr > 1 {
+            eprint("forth: word '");
+            eprint(name);
+            eprint("' declares more than one result; only the first is kept\n");
+        }
+        vec_push(stack, call);
+    }
+}
+
+// ============================================================
+// if / else / then
+// ============================================================
+
+// The flag is popped, then BOTH branches run on a copy of the same stack. Any
+// slot they disagree about becomes a temp assigned in each branch - which is how
+// a value-producing conditional falls out of a language that has no conditional
+// expression. The condition is evaluated exactly once.
+//
+// *ip points just past `if` on entry, and just past `then` on exit.
+func fo_emit_if(node *PNode, items *u8, ip *i64, stack *u8, stmts *u8, sigs *u8, selfname *u8) void {
+    var cond *u8 = fo_pop(stack);
+    fo_flush(stack, stmts, node);
+    var saved *u8 = fo_stack_copy(stack);
+
+    var then_stmts *u8 = ast_vec();
+    fo_emit_seq(items, ip, stack, then_stmts, sigs, selfname);
+    var then_stack *u8 = fo_stack_copy(stack);
+
+    var has_else i64 = 0;
+    var w *u8 = fo_word_at(items, *ip);
+    if w != nil {
+        if streq(w, "else") == 1 { has_else = 1; }
+    }
+    var else_stmts *u8 = ast_vec();
+    var else_stack *u8 = saved;
+    if has_else == 1 {
+        *ip = *ip + 1;
+        fo_stack_load(stack, saved);
+        fo_emit_seq(items, ip, stack, else_stmts, sigs, selfname);
+        else_stack = fo_stack_copy(stack);
+    }
+
+    var w2 *u8 = fo_word_at(items, *ip);
+    if w2 == nil {
+        eprint("forth: `if` without a closing `then`\n");
+    } else {
+        if streq(w2, "then") {
+            *ip = *ip + 1;
+        } else {
+            eprint("forth: `if` without a closing `then`\n");
+        }
+    }
+
+    var dt i64 = vec_len(then_stack);
+    var de i64 = vec_len(else_stack);
+    if dt != de {
+        eprint("forth: if/else leave different stack depths; using the shallower one\n");
+    }
+    var d i64 = dt;
+    if de < d { d = de; }
+
+    var result *u8 = vec_new(16);
+    var j i64 = 0;
+    while j < d {
+        var a *u8 = vec_get(then_stack, j);
+        var b *u8 = vec_get(else_stack, j);
+        if streq(a, b) == 1 {
+            vec_push(result, a);
+        } else {
+            var t *u8 = fo_gensym("__fi", node, j);
+            ast_push(stmts, ast_var(t, ast_type_i64(), ast_int(0)));
+            ast_push(then_stmts, ast_assign(ast_ident(t), a));
+            ast_push(else_stmts, ast_assign(ast_ident(t), b));
+            vec_push(result, ast_ident(t));
+        }
+        j = j + 1;
+    }
+
+    var else_block *u8 = nil;
+    if ast_vec_len(else_stmts) > 0 { else_block = ast_block(else_stmts); }
+    ast_push(stmts, ast_if(cond, ast_block(then_stmts), else_block));
+    fo_stack_load(stack, result);
+}
+
+// ============================================================
+// The word stream
+// ============================================================
+
+// Walk words from *ip, stopping AT `else`/`then` (the caller consumes them).
+func fo_emit_seq(items *u8, ip *i64, stack *u8, stmts *u8, sigs *u8, selfname *u8) void {
+    var n i64 = vec_len(items);
+    while *ip < n {
+        var it *PNode = vec_get(items, *ip);
+        if it.kind == 1 {
+            vec_push(stack, ast_number(it.text));
+            *ip = *ip + 1;
+        } else if it.kind == 5 {
+            fo_emit_operator(items, ip, stack);
+        } else if it.kind == 0 {
+            // `.` - print the top of stack (with Forth's trailing space)
+            fo_flush(stack, stmts, it);
+            ast_push(stmts, ast_expr_stmt(ast_call_named1("forth_dot", fo_pop(stack))));
+            *ip = *ip + 1;
+        } else {
+            var head *PNode = vec_get(it.children, 0);
+            if head.kind == 0 {
+                *ip = *ip + 1;                      // an inline ( ... ) comment
+            } else {
+                var w *u8 = fo_name_text(it);
+                if streq(w, "else") == 1 { return; }
+                if streq(w, "then") == 1 { return; }
+                *ip = *ip + 1;
+                fo_emit_word(w, it, items, ip, stack, stmts, sigs, selfname);
+            }
+        }
+    }
+}
+
+// One name word. *ip already points past it.
+func fo_emit_word(w *u8, node *PNode, items *u8, ip *i64, stack *u8, stmts *u8, sigs *u8, selfname *u8) void {
+    if streq(w, "if") == 1 {
+        fo_emit_if(node, items, ip, stack, stmts, sigs, selfname);
+        return;
+    }
+    if fo_shuffle(w, stack, stmts, node) == 1 { return; }
+    if streq(w, "mod") == 1 { fo_binary(stack, "%"); return; }
+    if streq(w, "and") == 1 { fo_binary(stack, "&"); return; }
+    if streq(w, "or") == 1  { fo_binary(stack, "|"); return; }
+    if streq(w, "xor") == 1 { fo_binary(stack, "^"); return; }
+    if streq(w, "negate") == 1 {
+        vec_push(stack, ast_neg(fo_pop(stack)));
+        return;
+    }
+    if streq(w, "invert") == 1 {                    // lang has no unary `~`
+        vec_push(stack, ast_binop("^", fo_pop(stack), ast_neg(ast_int(1))));
+        return;
+    }
+    if streq(w, "cr") == 1 {
+        fo_flush(stack, stmts, node);
+        ast_push(stmts, ast_expr_stmt(ast_call_named0("forth_cr")));
+        return;
+    }
+    var target *u8 = w;
+    if streq(w, "recurse") == 1 { target = selfname; }
+    fo_emit_call(target, stack, stmts, sigs, node);
+}
+
+// ============================================================
+// Definitions
+// ============================================================
+
+// `: name ( a b -- s ) words ;` -> func name(a i64, b i64) i64 { ... }
+// The stack starts holding the parameters; whatever is on top at `;` is the
+// result. Every word is i64, which is the ABI the other polyglot languages
+// speak, so a Forth word is directly callable from C, Lisp, flow and lang.
+func fo_emit_worddef(d *PNode, sigs *u8) *u8 {
+    var namen *PNode = vec_get(d.children, 1);
+    var wname *u8 = fo_name_text(namen);
+    var eff *PNode = vec_get(d.children, 2);
+    var body *PNode = vec_get(d.children, 3);
+
+    var pnames *u8 = vec_new(8);
+    var nres i64 = fo_effect_split(eff, pnames);
+
+    var params *u8 = ast_vec();
+    var stack *u8 = vec_new(16);
+    var np i64 = vec_len(pnames);
+    var i i64 = 0;
+    while i < np {
+        var pn *u8 = vec_get(pnames, i);
+        ast_push(params, ast_param(pn, ast_type_i64()));
+        vec_push(stack, ast_ident(pn));
+        i = i + 1;
+    }
+
+    var stmts *u8 = ast_vec();
+    var ip i64 = 0;
+    fo_emit_seq(body.children, &ip, stack, stmts, sigs, wname);
+
+    // Anything left BELOW the result is a discarded value whose side effects
+    // still have to happen, and happen first. The result itself needs no temp -
+    // the return is its evaluation point.
+    var depth i64 = vec_len(stack);
+    var keep i64 = 0;
+    if nres > 0 { keep = 1; }
+    fo_flush_upto(stack, stmts, d, depth - keep);
+    if nres > 0 {
+        if depth > 0 {
+            ast_push(stmts, ast_return(vec_get(stack, depth - 1)));
+        } else {
+            eprint("forth: '");
+            eprint(wname);
+            eprint("' promises a result but leaves an empty stack\n");
+            ast_push(stmts, ast_return(ast_int(0)));
+        }
+    } else {
+        ast_push(stmts, ast_return(ast_int(0)));
+    }
+    return ast_func(wname, params, ast_type_i64(), ast_block(stmts));
+}
+
+// `extern` contributes only a signature (so calls get the right arity); the
+// function itself comes from C, Lisp, flow or lang.
+func fo_emit_program(prog *PNode) *u8 {
+    var sigs *u8 = fo_collect_sigs(prog);
+    var decls *u8 = ast_vec();
+    var defs *u8 = prog.children;
+    var n i64 = vec_len(defs);
+    var i i64 = 0;
+    while i < n {
+        var d *PNode = vec_get(defs, i);
+        if fo_def_kind(d) == 1 {
+            ast_push(decls, fo_emit_worddef(d, sigs));
+        }
+        i = i + 1;
+    }
+    return ast_program(decls);
+}
+
+reader forth(text *u8) *u8 {
+    var t *Tokenizer = tok_new(fo_sanitize_comments(text));
+    var prog *PNode = parse_fo_program(t);
+    return fo_emit_program(prog);
+}

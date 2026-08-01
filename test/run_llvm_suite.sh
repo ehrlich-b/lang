@@ -146,6 +146,7 @@ reader_e2e() {
 }
 reader_e2e reader_minilisp_e2e example/minilisp/test_defun.lang
 reader_e2e reader_c_e2e         example/c/test_c.lang
+reader_e2e reader_forth_e2e     example/forth/test_forth.lang
 
 # Like reader_e2e but compiles with clang and runs the native binary, for readers
 # whose output uses algebraic effects (perform/handle/resume) - the inline-asm

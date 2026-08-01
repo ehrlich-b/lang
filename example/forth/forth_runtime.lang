@@ -1,0 +1,26 @@
+// ============================================================
+// forth_runtime - shared runtime for the #forth{} stack language
+// ============================================================
+//
+// Almost nothing in forth needs a runtime: the data stack is erased at read
+// time, so `dup * ;` becomes a plain `(binop * n n)` and the generated code has
+// no stack at all. The exception is Forth's two output words, which carry real
+// behaviour worth keeping honest:
+//
+//   .    print the top of stack followed by a SPACE (that trailing space is
+//        what makes `1 2 3 . . .` read as "3 2 1 ")
+//   cr   newline
+//
+// Declared once here (an included stdlib, like flow_runtime.lang and
+// lisp_runtime.lang) so several #forth{} blocks in one program share them.
+
+include "std/core.lang"
+
+func forth_dot(n i64) void {
+    print_int(n);
+    print(" ");
+}
+
+func forth_cr() void {
+    print("\n");
+}

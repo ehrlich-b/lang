@@ -1,0 +1,101 @@
+// forth demo - a postfix stack language with no expression grammar at all.
+//
+// Every word below compiles to an ordinary i64 lang function with no data stack
+// anywhere in the output: the reader keeps the stack at READ time, so `dup *`
+// becomes `n * n` and `square` optimizes to a single `mul` instruction.
+//
+// The stack effect comment is load-bearing - `( a b -- s )` is what names the
+// parameters and counts the results.
+include "std/core.lang"
+include "example/forth/forth_runtime.lang"
+include "example/forth/forth.lang"
+
+// A host function, called from Forth via `extern` (and defined in lang).
+func host_triple(n i64) i64 { return n * 3; }
+
+// Prints a marker when it runs, so the evaluation-order words below can SEE
+// both the order and the number of times each computation happened.
+func noisy(n i64) i64 {
+    print("<");
+    print_int(n);
+    print(">");
+    return n;
+}
+
+#forth{
+    extern host_triple ( n -- t ) ;
+    extern noisy       ( n -- v ) ;
+
+    ( --- arithmetic and stack shuffling --- )
+    : square ( n -- n2 )  dup * ;
+    : sumsq  ( a b -- s ) square swap square + ;
+    : neq    ( a b -- f ) <> ;
+    : even?  ( n -- f )   2 mod 0 = ;             ( `?` in a name mangles to _p )
+    : triple ( n -- t )   host_triple ;
+    : rot3   ( a b c -- s ) rot drop swap - ;
+
+    ( --- recursion is the only repetition: no loops in this subset --- )
+    : fact ( n -- f ) dup 2 <  if drop 1 else dup 1 - recurse * then ;
+    : fib  ( n -- f ) dup 2 <  if      else dup 1 - recurse swap 2 - recurse + then ;
+    : gcd  ( a b -- g ) dup 0 = if drop else swap over mod recurse then ;
+
+    ( --- if/else/then, including nested --- )
+    : maxof ( a b -- m ) over over < if swap then drop ;
+    : sign  ( n -- s ) dup 0 < if drop 0 1 -
+                               else dup 0 > if drop 1 else drop 0 then
+                               then ;
+
+    ( --- output words: `.` prints with a trailing space, `cr` a newline --- )
+    : show ( n -- ) . cr ;
+
+    ( --- a stack of unevaluated nodes is only a legal model of Forth if
+          pending work is forced at the right moments; these catch it if not --- )
+    : ord ( -- s ) 1 noisy 42 . ;          ( <1> must print BEFORE 42 )
+    : dbl ( -- s ) 3 noisy dup * ;         ( dup copies a value: <3> runs once )
+    : swp ( -- s ) 1 noisy 2 noisy swap - ;  ( swap reorders the stack, not the runs )
+    : drp ( -- s ) 7 noisy drop 5 ;        ( a dropped value still had to run )
+}
+
+func main() i64 {
+    print("square(7)    = "); print_int(square(7));     print("\n");
+    print("sumsq(3,4)   = "); print_int(sumsq(3, 4));   print("\n");
+    print("fact(10)     = "); print_int(fact(10));      print("\n");
+    print("fib(10)      = "); print_int(fib(10));       print("\n");
+    print("gcd(48,18)   = "); print_int(gcd(48, 18));   print("\n");
+    print("maxof(3,9)   = "); print_int(maxof(3, 9));   print("\n");
+    print("sign(-5)     = "); print_int(sign(0 - 5));   print("\n");
+    print("even_p(4)    = "); print_int(even_p(4));     print("\n");
+    print("triple(5)    = "); print_int(triple(5));     print("\n");
+    print("rot3(1,2,3)  = "); print_int(rot3(1, 2, 3)); print("\n");
+    print("show(42):      "); show(42);
+
+    print("ord: "); var o i64 = ord(); print(" => "); print_int(o); print("\n");
+    print("dbl: "); var d i64 = dbl(); print(" => "); print_int(d); print("\n");
+    print("swp: "); var s i64 = swp(); print(" => "); print_int(s); print("\n");
+    print("drp: "); var r i64 = drp(); print(" => "); print_int(r); print("\n");
+
+    if square(7) != 49 { return 1; }
+    if sumsq(3, 4) != 25 { return 2; }
+    if fact(10) != 3628800 { return 3; }
+    if fib(10) != 55 { return 4; }
+    if gcd(48, 18) != 6 { return 5; }
+    if maxof(3, 9) != 9 { return 6; }
+    if maxof(9, 3) != 9 { return 7; }
+    if sign(0 - 5) != 0 - 1 { return 8; }
+    if sign(5) != 1 { return 9; }
+    if sign(0) != 0 { return 10; }
+    if neq(1, 2) != 1 { return 11; }
+    if neq(2, 2) != 0 { return 12; }
+    if even_p(4) != 1 { return 13; }
+    if even_p(5) != 0 { return 14; }
+    if triple(5) != 15 { return 15; }
+    if rot3(1, 2, 3) != 1 { return 16; }
+
+    if o != 1 { return 17; }
+    if d != 9 { return 18; }    // noisy(3) squared, not noisy(3)*noisy(3)
+    if s != 1 { return 19; }    // [1,2] -> swap -> [2,1] -> `-` = 2-1
+    if r != 5 { return 20; }
+
+    print("FORTH PASS\n");
+    return 0;
+}
