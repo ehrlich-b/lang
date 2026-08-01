@@ -192,6 +192,15 @@ Explain readers in detail:
 - How they work (recursive expansion, S-expression output)
 - How to write one (the lang_reader as reference)
 
+### Reader cache goes stale on reader-source edits
+
+`should_recompile_reader` (`src/codegen.lang:1087`) invalidates the cached reader
+executable on the mtime of `out/lang`, `out/lang_next`, and `std/core.lang` — but
+**not** on the reader's own source file. Edit `example/c/c.lang` alone and recompile
+without rebuilding the compiler, and you silently run the OLD reader. Masked in
+normal development because `make build` bumps `out/lang_next`. Workaround: delete
+`.lang-cache/readers/<name>`. Fix: hash or mtime-check the defining source file.
+
 ---
 
 ## Backlog
