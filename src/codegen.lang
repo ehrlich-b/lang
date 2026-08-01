@@ -6399,6 +6399,11 @@ func ast_to_string_stmt(stmt *u8) void {
     }
 
     if kind == NODE_WHILE_STMT {
+        var wlabel *u8 = while_stmt_label(stmt);
+        if wlabel != nil {
+            ast_str_append(wlabel, while_stmt_label_len(stmt));
+            ast_str_append_cstr(":\n");
+        }
         ast_str_append_cstr("while ");
         ast_to_string_expr(while_stmt_cond(stmt));
         ast_str_append_char(32);
@@ -6406,6 +6411,34 @@ func ast_to_string_stmt(stmt *u8) void {
         return;
     }
 
+    if kind == NODE_BREAK_STMT {
+        ast_str_append_cstr("break");
+        var blabel *u8 = break_stmt_label(stmt);
+        if blabel != nil {
+            ast_str_append_char(32);
+            ast_str_append(blabel, break_stmt_label_len(stmt));
+        }
+        ast_str_append_cstr(";\n");
+        return;
+    }
+
+    if kind == NODE_CONTINUE_STMT {
+        ast_str_append_cstr("continue");
+        var clabel *u8 = continue_stmt_label(stmt);
+        if clabel != nil {
+            ast_str_append_char(32);
+            ast_str_append(clabel, continue_stmt_label_len(stmt));
+        }
+        ast_str_append_cstr(";\n");
+        return;
+    }
+
+    // A statement this unparser can't render would be silently DELETED from the
+    // regenerated source (this is how reader sources are rebuilt), which is a
+    // miscompile with no error. Say so instead of dropping it quietly.
+    eprint("error: cannot unparse statement kind ");
+    eprint_i64(kind);
+    eprint(" (it would be silently dropped from the regenerated source)\n");
     ast_str_append_cstr("/* unknown stmt */\n");
 }
 
