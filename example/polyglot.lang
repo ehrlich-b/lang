@@ -1,11 +1,13 @@
 // ============================================================
-// polyglot - a prime-sieve pipeline across THREE real languages, one binary
+// polyglot - a prime-sieve pipeline across FOUR real languages, one binary
 // ============================================================
 //
 // Not a toy arithmetic chain: a real little program in which each language does
 // the job it is best at, and they call each other directly at the i64 ABI -
 // no FFI, no VM, no glue layer beyond lang itself.
 //
+//   forth    (#forth{...})    divides?/digit_sum - postfix stack language; its
+//                                               data stack is erased at read time
 //   C        (#c{...})        c_is_prime(x)   - tight imperative trial division
 //   flow     (#flow{...})     gen primes(n)   - a COROUTINE streaming the primes,
 //                                               suspending/resuming across the loop;
@@ -15,26 +17,41 @@
 //   lang                      main()          - orchestration + I/O
 //
 // The data path: flow's `primes` generator asks C whether each candidate is
-// prime and `yield`s the ones that are; flow's `collect` driver conses each
-// (boxed) prime onto a real Lisp list; Lisp folds that list. Three paradigms -
-// imperative, coroutine/effectful, functional - meeting in one native binary.
+// prime; C's trial-division loop asks Forth whether each divisor divides it;
+// flow `yield`s the primes and its driver conses each (boxed) prime onto a real
+// Lisp list; Lisp folds that list; Forth folds the digits of the result. Four
+// paradigms - stack, imperative, coroutine/effectful, functional - meeting in
+// one native binary, and the call chain crosses all four in a single direction
+// of travel (flow -> C -> forth) before coming back out through Lisp.
 //
 // Effects are used (flow), so compile with clang, not the lli JIT:
 //   LANGBE=llvm out/lang example/polyglot.lang -o p.ll && clang -O0 p.ll -o p && ./p
 include "std/core.lang"
 include "example/minilisp/lisp_runtime.lang"
 include "example/flow/flow_runtime.lang"
+include "example/forth/forth_runtime.lang"
 include "example/c/c.lang"
 include "example/minilisp/minilisp.lang"
 include "example/flow/flow.lang"
+include "example/forth/forth.lang"
 
-// --- C: primality by trial division (what C is good at: tight integer loops) ---
+// --- forth: the arithmetic kernel, in postfix with no expression grammar at
+//     all. `divides?` is the innermost step of the sieve and C's loop calls it;
+//     `digit_sum` recurses over what Lisp computes at the other end. The data
+//     stack exists only at read time - these compile to plain i64 functions. ---
+#forth{
+    : divides? ( d x -- f ) swap mod 0 = ;
+    : digit_sum ( n -- s ) dup 10 < if else dup 10 mod swap 10 / recurse + then ;
+}
+
+// --- C: primality by trial division (what C is good at: tight integer loops),
+//     asking Forth about each divisor ---
 #c{
     int c_is_prime(int x) {
         if (x < 2) return 0;
         int d = 2;
         while (d * d <= x) {
-            if (x % d == 0) { return 0; }
+            if (divides_p(d, x)) { return 0; }
             d = d + 1;
         }
         return 1;
@@ -92,12 +109,19 @@ func main() i64 {
     // flow can count directly too (raw i64, no Lisp):
     print("count (flow count_primes)= "); print_int(count_primes(30));            print("\n");
 
+    // and Forth folds the digits of the Lisp-computed sum (129 -> 1+2+9 = 12):
+    var psum i64 = lisp_to_int(ml_sum(plist));
+    print("digits(sum) (forth)      = "); print_int(digit_sum(psum));             print("\n");
+
     // 10 primes <= 30: 2 3 5 7 11 13 17 19 23 29; sum = 129
     if lisp_to_int(ml_len(plist)) != 10 { return 1; }
     if lisp_to_int(ml_sum(plist)) != 129 { return 2; }
     if count_primes(30) != 10 { return 3; }
     if count_primes(100) != 25 { return 4; }                 // 25 primes <= 100
     if lisp_to_int(ml_sum(collect_primes(10))) != 17 { return 5; }  // 2+3+5+7
+    if digit_sum(129) != 12 { return 6; }                    // forth recursion
+    if divides_p(3, 12) != 1 { return 7; }                   // forth, called directly
+    if divides_p(5, 12) != 0 { return 8; }
 
     print("\nPOLYGLOT PASS\n");
     return 0;
