@@ -57,14 +57,18 @@ Now `lang_lisp` is a native compiler that understands both `.lang` and `.lisp` f
 
 Same AST means same calling convention. Functions call each other directly at the machine level, no wrappers or runtime glue.
 
-## Three languages, one binary
+## Four languages, one binary
 
 A reader parses its own surface syntax and emits lang AST. The kernel compiles whatever any reader emits, so several readers can share one program — and because they all lower to the same AST, they share one calling convention. They call each other directly at the machine level. No FFI, no interpreter, no glue.
 
-[`example/polyglot.lang`](./example/polyglot.lang) puts three real languages in one native binary:
+[`example/polyglot.lang`](./example/polyglot.lang) puts four real languages in one native binary:
 
 ```lang
-#c{ int c_is_prime(int x) { ... } }                          // imperative C
+#forth{ : divides? ( d x -- f ) swap mod 0 = ; }             // postfix, no grammar
+
+#c{ int c_is_prime(int x) {                                  // imperative C,
+        ... if (divides_p(d, x)) { return 0; } ...           //   calling Forth
+} }
 
 #minilisp{ (defun ml_sum (xs)                                // a real Lisp:
     (if (eq xs nil) 0 (+ (car xs) (ml_sum (cdr xs))))) }     // closures, quote, lists
@@ -79,11 +83,12 @@ A reader parses its own surface syntax and emits lang AST. The kernel compiles w
 }
 ```
 
-flow's `primes` coroutine streams primes — asking C about each candidate and suspending between hits; its driver conses each one onto a Lisp list; Lisp folds the list. Three paradigms — imperative, coroutine-effectful, functional — each doing its idiomatic job, meeting at the i64 ABI.
+flow's `primes` coroutine streams primes — asking C about each candidate and suspending between hits; C's trial-division loop asks Forth about each divisor; flow's driver conses each prime onto a Lisp list; Lisp folds the list. Four paradigms — stack, imperative, coroutine-effectful, functional — each doing its idiomatic job, meeting at the i64 ABI.
 
 - **C** ([example/c/](./example/c/)) captures a large subset: all control flow, every operator, structs, pointers, arrays, enums, switch, ternary.
 - **minilisp** ([example/minilisp/](./example/minilisp/)) is a real (small) Lisp: first-class closures, `let`, `quote`, cons lists. Every value is an i64 that's secretly a pointer, so it marshals across the language boundary.
 - **flow** ([example/flow/](./example/flow/)) is a generator/coroutine language built on algebraic effects. `yield` is bidirectional — a generator's output can depend on what the driver sends back.
+- **forth** ([example/forth/](./example/forth/)) has no expression grammar at all — just a flat stream of words over a data stack. The stack is the reader's, not the program's: it holds AST nodes at read time and is gone before codegen, so `: square ( n -- n2 ) dup * ;` compiles to a single `mul`.
 
 None of this extended the kernel; readers are syntax plugins, not compiler patches. The honest claim isn't "capture any language" — it's *compose any syntax at the ABI level in one native binary*.
 

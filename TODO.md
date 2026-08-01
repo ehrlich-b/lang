@@ -102,12 +102,27 @@ polyglot stdlib written in reader-authored *better* languages.
       generator's output can depend on its input (a real coroutine, not just a
       generator). Built on the existing effect machinery; zero kernel changes.
 - [x] **Polyglot showpiece** - `example/polyglot.lang` is a prime-sieve pipeline:
-      flow streams primes (asking C), collects them into a Lisp list, Lisp folds it.
-      Three paradigms in one native binary, calling each other at the i64 ABI.
-      See devlog 0023.
-- [ ] **Pick the next direction** - more flow (a 2nd effect, piped generators),
-      finish C typedef, or a non-brace reader (Pascal/Lua-like) to prove the
-      toolkit generalizes beyond brace languages.
+      flow streams primes (asking C, which asks forth about each divisor),
+      collects them into a Lisp list, Lisp folds it, forth folds the digits of
+      the result. Four paradigms in one native binary, calling each other at the
+      i64 ABI. See devlog 0023, 0024.
+- [x] **forth - a fourth language, and the first non-brace one** - postfix, with
+      no expression grammar at all: a flat stream of words over a data stack. The
+      stack is the READER's, holding AST nodes at read time, so it is erased
+      before codegen (`: square ( n -- n2 ) dup * ;` optimizes to one `mul`).
+      The stack effect comment is load-bearing - it names the params and counts
+      the results, which is what makes a word an ordinary i64 function. Body
+      words are flat and `if`/`else`/`then` are given meaning by the converter,
+      exactly as Forth's immediate words do, which also dodges the weak
+      no-backtrack parser entirely. Reader-only. Guarded by `reader_forth_e2e`.
+      Bounds: recursion but no loops/`variable` yet, names are lang identifiers
+      plus an optional `?`, negative literals must be `0 5 -` (the tokenizer
+      splits `-5`). In the polyglot, C's trial-division loop calls Forth's
+      `divides?` and Forth folds the digits of what Lisp computes.
+- [ ] **Pick the next direction** - loops + `variable`/`!`/`@` for forth (which
+      needs the stack model to survive mutation), more flow (a 2nd effect, piped
+      generators), finish C typedef, or milestone 9 (WASM - but flow's effects
+      use inline-asm stack switching that WASM can't express).
 
 ### Reader toolkit (the thing to invest in)
 
