@@ -1,5 +1,9 @@
 # Yoink & Bootstrap: Capturing Languages Through Their Own Compilers
 
+> **HISTORICAL — abandoned 2026-05-24.** "Capture" now means writing a *reader* for
+> a language's surface syntax, not reusing its compiler's IR. See the
+> "Abandoned: Zig-via-AIR" section of `TODO.md`.
+
 ## Progress Checklist
 
 ### Phase 1: Reconnaissance ✅ COMPLETE

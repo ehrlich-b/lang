@@ -1,7 +1,6 @@
 .PHONY: all init bootstrap build release test test-suite test-run clean distclean \
         build-kernel build-lang-reader emit-kernel-ast emit-lang-reader-ast emit-compiler-ast \
-        seed-bootstrap test-composition generate-os-layer llvm-verify \
-        patch-zig clean-patches
+        seed-bootstrap test-composition generate-os-layer llvm-verify
 
 # Get git info
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -713,15 +712,3 @@ test-bootstrap: test-composition
 
 # OLD TARGETS REMOVED - use unified 'make verify' and 'make promote' instead
 # The unified verify does both kernel and reader fixed point checks in one command
-
-# ============================================================
-# LANGUAGE CAPTURE: Patched compilers
-# ============================================================
-
-# Build patched Zig compiler with lang-ast backend
-patch-zig:
-	@./scripts/apply-patches.sh zig
-
-# Clean all patch work directories
-clean-patches:
-	rm -rf /tmp/lang-patches-*

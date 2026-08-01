@@ -1,5 +1,10 @@
 # AIR Emitter Design: Capturing Zig Through Its Own Compiler
 
+> **HISTORICAL — abandoned 2026-05-24.** The emitter described here
+> (`patches/zig/src/codegen/lang_ast.zig`) has been deleted; last commit containing
+> it is `ff8813d`. See `designs/path_b_zig_reader.md` for the gap analysis and the
+> "Abandoned: Zig-via-AIR" section of `TODO.md` for why.
+
 ## Overview
 
 The AIR emitter is a new Zig codegen backend that emits lang AST (S-expressions) instead of machine code. This allows us to compile Zig programs through lang's LLVM backend, and ultimately bootstrap the Zig compiler itself on lang.

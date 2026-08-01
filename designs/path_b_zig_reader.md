@@ -1,5 +1,13 @@
 # Path B: Capturing a Zig Reader
 
+> **HISTORICAL — abandoned 2026-05-24.** Kept for the gap analysis, not as a plan.
+> The code this describes (`patches/zig/`, `zig_reader/`, `scripts/apply-patches.sh`,
+> `scripts/extract-zig-ast.sh`, `scripts/test-zig-capture.sh`) has been deleted; the
+> last commit containing it is `ff8813d`. Why it was abandoned: consuming AIR makes
+> you responsible for 100% of Zig's memory model with no partial credit, and the
+> Camp 6 "proof" was circular — a hand-written Zig subset hobbled to `u8` arrays to
+> fit the emitter. See the "Abandoned: Zig-via-AIR" section of `TODO.md`.
+
 ## The Goal
 
 `./out/lang -r zig_reader hello.zig -o hello && ./hello` prints "Hello, World!"

@@ -137,8 +137,9 @@ The IR-reuse *method* was the dead end, not the idea of reading Zig syntax: a
 C-like AST. High-level dynamic languages are the *hard* targets (they need a shipped
 runtime), so "I can only capture scripting languages" is backwards.
 
-History preserved in `git log` and `designs/path_b_zig_reader.md` /
-`designs/air_emitter.md`.
+The code is gone (`patches/`, `zig_reader/`, the capture scripts). Analysis is kept
+in `designs/path_b_zig_reader.md` / `designs/air_emitter.md`; the last commit that
+still contained the emitter is `ff8813d`.
 
 ---
 
