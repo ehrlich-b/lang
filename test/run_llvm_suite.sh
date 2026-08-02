@@ -149,6 +149,31 @@ reader_e2e reader_c_e2e         example/c/test_c.lang
 reader_e2e reader_forth_e2e     example/forth/test_forth.lang
 reader_e2e reader_minipy_e2e    example/minipy/test_minipy.lang
 
+# A build that reports an error must FAIL. It used not to: cg_had_error was set
+# in fifteen places and read in none, so the compiler printed the diagnostic,
+# wrote its output and exited 0. The reader path is the one that made this
+# visible, so that is what this guards.
+compile_must_fail() {
+    local name=$1
+    local tmp=$(mktemp -d)
+    cat > "$tmp/bad.lang" <<'BADEOF'
+include "std/core.lang"
+include "example/minipy/minipy.lang"
+#minipy{
+def missing_colon(n)
+    return n
+}
+func main() i64 { return 0; }
+BADEOF
+    if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$tmp/bad.lang" -o "$tmp/bad.ll" >/dev/null 2>&1; then
+        echo "FAIL $name" >> "$results_file"
+    else
+        echo "PASS $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+compile_must_fail compile_error_is_fatal
+
 # Like reader_e2e but compiles with clang and runs the native binary, for readers
 # whose output uses algebraic effects (perform/handle/resume) - the inline-asm
 # continuation mechanism does not work under the lli JIT, only clang (matching

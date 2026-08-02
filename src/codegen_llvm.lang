@@ -3421,6 +3421,7 @@ func llvm_emit_expr(expr *u8) void {
             eprint("error: reader '");
             eprint_buf(name, name_len);
             eprintln("' returned no output");
+            cg_had_error = 1;
             return;
         }
 
@@ -7179,6 +7180,16 @@ func generate_llvm(prog *u8, output_file *u8) void {
 
     // Emit string constants at end of module
     llvm_emit_all_strings();
+
+    // Every site that sets cg_had_error has already printed why, and every one
+    // of them means the code below it is wrong (an unresolved reader, an unknown
+    // field, a bad match pattern). Writing the module anyway and exiting 0 turns
+    // all of them into silent failures - which is exactly what used to happen,
+    // since the flag was set in fifteen places and read in none.
+    if cg_had_error != 0 {
+        eprintln("error: compilation failed");
+        exit(1);
+    }
 
     llvm_flush();
 }

@@ -7231,6 +7231,13 @@ func generate(prog *u8, out_path *u8) void {
     out_line("    syscall");
     out_char(10);
 
+    // See the matching check in generate_llvm: an error that was reported but
+    // not acted on is a silent failure.
+    if cg_had_error != 0 {
+        eprintln("error: compilation failed");
+        exit(1);
+    }
+
     // Write code buffer
     file_write(cg_out_fd, cg_code_buf, cg_code_len);
 

@@ -193,7 +193,7 @@ still contained the emitter is `ff8813d`.
 
 ## Foundation Status
 
-**Solid (184/184 tests passing):**
+**Solid (185/185 tests passing):**
 - Self-hosting with fixed-point verification
 - LLVM backend (primary, all features)
 - Cross-platform (Linux x86-64, macOS ARM64)
@@ -217,7 +217,19 @@ still contained the emitter is `ff8813d`.
 
 ## Broken windows
 
-### Fixed 2026-08-01
+### Fixed 2026-08-02
+
+- **A compile that reported an error still wrote its output and exited 0.**
+  `cg_had_error` was set in fifteen places — reader not found / returned nil /
+  returned no output / returned invalid AST, unknown struct field, unknown enum
+  variant in a `match` pattern, non-public access, closure/fn type mismatch —
+  and **read in none**. Every one of those diagnostics scrolled past and the
+  build succeeded with wrong code. Both backends now check it before writing and
+  exit 1. The LLVM backend's reader-no-output site wasn't even setting the flag;
+  it does now. Found while making minipy refuse to emit a program after a syntax
+  error, which surfaced as `error: reader 'minipy' returned no output` followed
+  by a successful build. Guarded by `compile_error_is_fatal` in
+  `test/run_llvm_suite.sh` — the suite's first negative test.
 
 Three silent-miscompile bugs found while testing the reader unparser (none were
 unparser bugs — each reproduced in a plain lang program). All three now have
