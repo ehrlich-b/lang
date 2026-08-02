@@ -1,0 +1,11 @@
+// Runtime support for the minipy reader.
+//
+// Only `print` needs any: Python's print is variadic and polymorphic, which no
+// single lang function can be, so the reader lowers one `print(a, "b", c)` call
+// into a sequence of monomorphic calls chosen at READ time from the syntax of
+// each argument. Everything else in minipy is plain i64 and needs no runtime.
+
+func py_int(n i64) void { print_int(n); }
+func py_str(s *u8) void { print(s); }
+func py_space() void { print(" "); }
+func py_nl() void { print("\n"); }

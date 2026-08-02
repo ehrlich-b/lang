@@ -119,10 +119,26 @@ polyglot stdlib written in reader-authored *better* languages.
       plus an optional `?`, negative literals must be `0 5 -` (the tokenizer
       splits `-5`). In the polyglot, C's trial-division loop calls Forth's
       `divides?` and Forth folds the digits of what Lisp computes.
+- [x] **minipy - a fifth language, and the first layout-delimited one** - a
+      Python subset whose block structure lives in the whitespace to the LEFT of
+      each line, which is the part every other reader throws away. Layout needed
+      NO change to the shared tokenizer: a token carries its byte offset, so the
+      two facts the offside rule needs ("first token on this line?" and "at what
+      column?") are recoverable in the reader, which then synthesizes the
+      NEWLINE/INDENT/DEDENT stream itself. Reader-only - no bootstrap. Bracket
+      depth makes newlines inside `( )` continuations, and a comment-only line
+      contributes no tokens so it can't affect indentation. Python's
+      function-scoped names are reconciled with lang's block-scoped `var` by
+      hoisting every assigned name to the top of the function; `for`'s step goes
+      at the TOP of the loop body so `continue` still advances it. `print` is
+      variadic and polymorphic, lowered per-argument at read time. Guarded by
+      `reader_minipy_e2e`; in the polyglot it is the reporting layer, which is
+      the job a scripting language actually has. See devlog 0025.
 - [ ] **Pick the next direction** - loops + `variable`/`!`/`@` for forth (which
       needs the stack model to survive mutation), more flow (a 2nd effect, piped
-      generators), finish C typedef, or milestone 9 (WASM - but flow's effects
-      use inline-asm stack switching that WASM can't express).
+      generators), finish C typedef, minipy round 2 (lists, on minilisp's boxed
+      runtime), or milestone 9 (WASM - but flow's effects use inline-asm stack
+      switching that WASM can't express).
 
 ### Reader toolkit (the thing to invest in)
 
@@ -177,7 +193,7 @@ still contained the emitter is `ff8813d`.
 
 ## Foundation Status
 
-**Solid (183/183 tests passing):**
+**Solid (184/184 tests passing):**
 - Self-hosting with fixed-point verification
 - LLVM backend (primary, all features)
 - Cross-platform (Linux x86-64, macOS ARM64)

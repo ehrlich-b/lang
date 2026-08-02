@@ -24,7 +24,7 @@ A self-hosted compiler where syntax is a plugin.
 
 The compiler has two parts: a kernel (AST to native code) and readers (syntax to AST). The lang reader - the one that parses `func`, `if`, `while` - is just one reader. You can swap it for anything.
 
-**Cross-platform**: Linux x86-64 and macOS ARM64 via LLVM. 183 tests pass on both.
+**Cross-platform**: Linux x86-64 and macOS ARM64 via LLVM. 184 tests pass on both.
 
 ## It's a language
 
@@ -57,11 +57,11 @@ Now `lang_lisp` is a native compiler that understands both `.lang` and `.lisp` f
 
 Same AST means same calling convention. Functions call each other directly at the machine level, no wrappers or runtime glue.
 
-## Four languages, one binary
+## Five languages, one binary
 
 A reader parses its own surface syntax and emits lang AST. The kernel compiles whatever any reader emits, so several readers can share one program — and because they all lower to the same AST, they share one calling convention. They call each other directly at the machine level. No FFI, no interpreter, no glue.
 
-[`example/polyglot.lang`](./example/polyglot.lang) puts four real languages in one native binary:
+[`example/polyglot.lang`](./example/polyglot.lang) puts five real languages in one native binary:
 
 ```lang
 #forth{ : divides? ( d x -- f ) swap mod 0 = ; }             // postfix, no grammar
@@ -81,14 +81,25 @@ A reader parses its own surface syntax and emits lang AST. The kernel compiles w
         return lst;
     }
 }
+
+#minipy{                                    // layout: no block delimiters at all
+def report(n):
+    lst = collect_primes(n)                 # flow's coroutine -> C -> forth
+    total = lisp_to_int(ml_sum(lst))        # minilisp, folding a cons list
+    print("primes <=", n, "sum", total, "digitsum", digit_sum(total))
+    return total                            #                       ^ forth
+}
 ```
 
-flow's `primes` coroutine streams primes — asking C about each candidate and suspending between hits; C's trial-division loop asks Forth about each divisor; flow's driver conses each prime onto a Lisp list; Lisp folds the list. Four paradigms — stack, imperative, coroutine-effectful, functional — each doing its idiomatic job, meeting at the i64 ABI.
+flow's `primes` coroutine streams primes — asking C about each candidate and suspending between hits; C's trial-division loop asks Forth about each divisor; flow's driver conses each prime onto a Lisp list; Lisp folds the list; minipy loops over the whole pipeline and formats the answer. Five paradigms — stack, imperative, coroutine-effectful, functional, scripting — each doing its idiomatic job, meeting at the i64 ABI.
+
+No two of the five agree on so much as where a block ends: parens, braces, `;`, `then`, and — in minipy — nothing but the column the line starts in.
 
 - **C** ([example/c/](./example/c/)) captures a large subset: all control flow, every operator, structs, pointers, arrays, enums, switch, ternary.
 - **minilisp** ([example/minilisp/](./example/minilisp/)) is a real (small) Lisp: first-class closures, `let`, `quote`, cons lists. Every value is an i64 that's secretly a pointer, so it marshals across the language boundary.
 - **flow** ([example/flow/](./example/flow/)) is a generator/coroutine language built on algebraic effects. `yield` is bidirectional — a generator's output can depend on what the driver sends back.
 - **forth** ([example/forth/](./example/forth/)) has no expression grammar at all — just a flat stream of words over a data stack. The stack is the reader's, not the program's: it holds AST nodes at read time and is gone before codegen, so `: square ( n -- n2 ) dup * ;` compiles to a single `mul`.
+- **minipy** ([example/minipy/](./example/minipy/)) is layout-delimited: block structure lives in the whitespace every other reader discards. It needed no change to the shared tokenizer — a token carries its byte offset, so the reader recovers the columns and synthesizes INDENT/DEDENT itself. Layout is reader-local.
 
 None of this extended the kernel; readers are syntax plugins, not compiler patches. The honest claim isn't "capture any language" — it's *compose any syntax at the ABI level in one native binary*.
 

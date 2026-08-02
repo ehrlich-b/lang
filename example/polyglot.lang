@@ -1,5 +1,5 @@
 // ============================================================
-// polyglot - a prime-sieve pipeline across FOUR real languages, one binary
+// polyglot - a prime-sieve pipeline across FIVE real languages, one binary
 // ============================================================
 //
 // Not a toy arithmetic chain: a real little program in which each language does
@@ -14,15 +14,22 @@
 //                                               its driver folds them into a Lisp list
 //   minilisp (#minilisp{...}) ml_sum/ml_len   - functional recursion over a
 //                                               first-class cons list
-//   lang                      main()          - orchestration + I/O
+//   minipy   (#minipy{...})   report/survey   - the reporting layer, in a
+//                                               layout-delimited language
+//   lang                      main()          - assertions + I/O
 //
 // The data path: flow's `primes` generator asks C whether each candidate is
 // prime; C's trial-division loop asks Forth whether each divisor divides it;
 // flow `yield`s the primes and its driver conses each (boxed) prime onto a real
-// Lisp list; Lisp folds that list; Forth folds the digits of the result. Four
-// paradigms - stack, imperative, coroutine/effectful, functional - meeting in
-// one native binary, and the call chain crosses all four in a single direction
-// of travel (flow -> C -> forth) before coming back out through Lisp.
+// Lisp list; Lisp folds that list; Forth folds the digits of the result; and
+// minipy loops over the whole pipeline and formats the answer, which is the job
+// a scripting language actually has in a system like this. Five paradigms -
+// stack, imperative, coroutine/effectful, functional, scripting - meeting in one
+// native binary, and a single minipy statement can cross all of them.
+//
+// Five surface syntaxes, and no two agree on so much as where a block ends:
+// parens, braces, `;`, `then`, and - in minipy - nothing but the column the line
+// starts in.
 //
 // Effects are used (flow), so compile with clang, not the lli JIT:
 //   LANGBE=llvm out/lang example/polyglot.lang -o p.ll && clang -O0 p.ll -o p && ./p
@@ -30,10 +37,12 @@ include "std/core.lang"
 include "example/minilisp/lisp_runtime.lang"
 include "example/flow/flow_runtime.lang"
 include "example/forth/forth_runtime.lang"
+include "example/minipy/minipy_runtime.lang"
 include "example/c/c.lang"
 include "example/minilisp/minilisp.lang"
 include "example/flow/flow.lang"
 include "example/forth/forth.lang"
+include "example/minipy/minipy.lang"
 
 // --- forth: the arithmetic kernel, in postfix with no expression grammar at
 //     all. `divides?` is the innermost step of the sieve and C's loop calls it;
@@ -95,6 +104,27 @@ include "example/forth/forth.lang"
     }
 }
 
+// --- minipy: the reporting layer. Python's actual job in a system like this is
+//     to drive the fast code and format the answer, so that is the job it has
+//     here - and every single call in `report` leaves the language it is written
+//     in. Nothing marks the block structure below but the left margin. ---
+#minipy{
+def report(n):
+    lst = collect_primes(n)                    # flow's coroutine -> C -> forth
+    count = lisp_to_int(ml_len(lst))           # minilisp, folding a cons list
+    total = lisp_to_int(ml_sum(lst))
+    print("primes <=", n, ": count", count, "sum", total, "digitsum", digit_sum(total))
+    return total                               #                       ^ forth
+
+def survey(limit):
+    best = 0
+    for n in range(10, limit + 1, 10):
+        s = report(n)
+        if s > best:
+            best = s
+    return best
+}
+
 func main() i64 {
     print("=== prime pipeline: flow -> C -> Lisp ===\n\n");
 
@@ -113,6 +143,11 @@ func main() i64 {
     var psum i64 = lisp_to_int(ml_sum(plist));
     print("digits(sum) (forth)      = "); print_int(digit_sum(psum));             print("\n");
 
+    // and minipy drives the whole pipeline in a loop and reports:
+    print("\n--- minipy report ---\n");
+    var best i64 = survey(30);
+    print("largest sum (minipy survey) = "); print_int(best);                   print("\n");
+
     // 10 primes <= 30: 2 3 5 7 11 13 17 19 23 29; sum = 129
     if lisp_to_int(ml_len(plist)) != 10 { return 1; }
     if lisp_to_int(ml_sum(plist)) != 129 { return 2; }
@@ -122,6 +157,8 @@ func main() i64 {
     if digit_sum(129) != 12 { return 6; }                    // forth recursion
     if divides_p(3, 12) != 1 { return 7; }                   // forth, called directly
     if divides_p(5, 12) != 0 { return 8; }
+    if report(10) != 17 { return 9; }                        // minipy, five languages deep
+    if best != 129 { return 10; }                            // minipy's loop over the pipeline
 
     print("\nPOLYGLOT PASS\n");
     return 0;
