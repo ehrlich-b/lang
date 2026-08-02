@@ -674,6 +674,32 @@ func llvm_is_float_type(t *u8) i64 {
     return llvm_is_f32_type(t) || llvm_is_f64_type(t);
 }
 
+// The i64 type node, built once. Used where an expression has no inferable
+// type but lang's semantics say i64 (integer literals, most call results).
+var llvm_i64_type_cache *u8 = nil;
+func llvm_i64_type() *u8 {
+    if llvm_i64_type_cache == nil {
+        llvm_i64_type_cache = base_type_alloc();
+        base_type_set_name(llvm_i64_type_cache, "i64");
+        base_type_set_name_len(llvm_i64_type_cache, 3);
+    }
+    return llvm_i64_type_cache;
+}
+
+// Byte size of a struct/enum type, or 0 if the type isn't an aggregate.
+// Aggregates live in memory and are passed around as addresses.
+func llvm_aggregate_type_size(t *u8) i64 {
+    if t == nil { return 0; }
+    if type_kind(t) != TYPE_BASE { return 0; }
+    var tname *u8 = base_type_name(t);
+    var tname_len i64 = base_type_name_len(t);
+    var sd *u8 = find_struct(tname, tname_len);
+    if sd != nil { return get_struct_size(sd); }
+    var ed *u8 = find_enum(tname, tname_len);
+    if ed != nil { return get_enum_size(ed); }
+    return 0;
+}
+
 // Check if a value string contains a decimal point (is a float literal)
 func llvm_is_float_literal(val *u8) i64 {
     if val == nil {
@@ -1045,11 +1071,18 @@ func llvm_emit_expr(expr *u8) void {
     if k == NODE_NUMBER_EXPR {
         // Emit literal number - value is stored as a string
         var ptr *u8 = number_expr_value(expr);
-        // Check if it's a float literal (contains '.')
-        if llvm_is_float_literal(ptr) {
-            llvm_expr_is_float = 1;
-        }
         var len i64 = number_expr_value_len(expr);
+        // Check if it's a float literal (contains '.'). The token text points
+        // into the source buffer and is NOT terminated, so this must respect
+        // len - scanning to the next NUL reaches the end of the file and marks
+        // every integer literal as a float if a '.' appears anywhere later.
+        var dot_i i64 = 0;
+        while dot_i < len {
+            if *(ptr + dot_i) == 46 {  // '.'
+                llvm_expr_is_float = 1;
+            }
+            dot_i = dot_i + 1;
+        }
         var i i64 = 0;
         while i < len {
             *(llvm_expr_result + i) = *(ptr + i);
@@ -1067,6 +1100,15 @@ func llvm_emit_expr(expr *u8) void {
         } else {
             *(llvm_expr_result) = 48;  // '0'
         }
+        *(llvm_expr_result + 1) = 0;
+        return;
+    }
+
+    if k == NODE_NIL_EXPR {
+        // nil is the null pointer, which is 0 in lang's all-i64 world.
+        // This used to fall through to the unsupported-expression fallback,
+        // which happened to emit the same "0" - now the fallback is fatal.
+        *(llvm_expr_result) = 48;  // '0'
         *(llvm_expr_result + 1) = 0;
         return;
     }
@@ -2406,8 +2448,13 @@ func llvm_emit_expr(expr *u8) void {
         var src_val *u8 = str_dup(llvm_expr_result);
         var src_was_float i64 = llvm_expr_is_float;
 
-        // Get type info
+        // Get type info. An integer literal (and anything else we can't infer)
+        // has no type node; without this the operand type printed as "void" and
+        // the module failed LLVM verification.
         var src_type *u8 = llvm_get_expr_type(src_expr);
+        if src_type == nil && src_was_float == 0 {
+            src_type = llvm_i64_type();
+        }
         var src_bits i64 = llvm_type_bits(src_type);
         var dst_bits i64 = llvm_type_bits(target_type);
         var src_is_float i64 = llvm_is_float_type(src_type);
@@ -2506,9 +2553,13 @@ func llvm_emit_expr(expr *u8) void {
         // Emit source expression
         llvm_emit_expr(src_expr);
         var src_val *u8 = str_dup(llvm_expr_result);
+        var bc_src_was_float i64 = llvm_expr_is_float;
 
-        // Get source type
+        // Get source type (same untyped-literal hole as cast above)
         var src_type *u8 = llvm_get_expr_type(src_expr);
+        if src_type == nil && bc_src_was_float == 0 {
+            src_type = llvm_i64_type();
+        }
 
         var temp i64 = llvm_next_temp();
         llvm_emit_str("    %t");
@@ -4500,10 +4551,13 @@ func llvm_emit_expr(expr *u8) void {
         return;
     }
 
-    // For now, unsupported expressions return 0
-    var p *u8 = llvm_expr_result;
-    *p = 48;  // "0"
-    *(p + 1) = 0;
+    // Anything reaching here has no codegen. Emitting "0" and carrying on is
+    // how a whole class of silent wrong answers got in (a local array literal
+    // quietly became 0); fail loudly instead, like the x86 backend does.
+    eprint("error: llvm backend cannot emit expression kind ");
+    eprint_i64(node_kind(expr));
+    eprint(" (it would silently compile to 0)\n");
+    exit(1);
 }
 
 // ============================================================
@@ -4829,6 +4883,106 @@ func llvm_emit_stmt(stmt *u8) void {
             llvm_emit_str(" = alloca [");
             llvm_emit_int(alloc_size);
             llvm_emit_line(" x i8]");
+        }
+
+        // Array literal initializer: store element-wise into the alloca.
+        // The global path builds a constant aggregate; a local has to write
+        // each slot. Without this the literal fell through to the generic
+        // expression path, which stored a single scalar into slot 0.
+        if is_array == 1 && init != nil && node_kind(init) == NODE_ARRAY_LITERAL {
+            var lit_elems *u8 = array_literal_elems(init);
+            var lit_count i64 = array_literal_count(init);
+            var lit_size i64 = array_type_size(var_type);
+            var lit_elem_type *u8 = array_type_elem(var_type);
+
+            // Bitcast the array alloca to elem* once, then GEP per slot -
+            // same shape the index-read path uses.
+            var base_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(base_temp);
+            llvm_emit_str(" = bitcast ");
+            llvm_emit_type(var_type);
+            llvm_emit_str("* %");
+            llvm_emit_n(actual_name, actual_name_len);
+            llvm_emit_str(" to ");
+            llvm_emit_type(lit_elem_type);
+            llvm_emit_line("*");
+
+            var li i64 = 0;
+            while li < lit_size {
+                // Slots past the literal's end are zero-filled, matching the
+                // global path's trailing zeros.
+                var elem_val *u8 = nil;
+                if li < lit_count {
+                    var lit_ptr **u8 = lit_elems + (li * 8);
+                    llvm_emit_expr(*lit_ptr);
+                    elem_val = str_dup(llvm_expr_result);
+                } else {
+                    elem_val = "0";
+                }
+
+                var slot_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(slot_temp);
+                llvm_emit_str(" = getelementptr ");
+                llvm_emit_type(lit_elem_type);
+                llvm_emit_str(", ");
+                llvm_emit_type(lit_elem_type);
+                llvm_emit_str("* %t");
+                llvm_emit_int(base_temp);
+                llvm_emit_str(", i64 ");
+                llvm_emit_int(li);
+                llvm_emit_char(10);
+
+                // Expressions are all i64 here, so narrow back to the element
+                // type on the way in - the mirror of what the index-read path
+                // does with ptrtoint/zext on the way out.
+                var elem_bytes i64 = get_type_size(lit_elem_type);
+                if type_kind(lit_elem_type) == TYPE_PTR {
+                    var cast_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(cast_temp);
+                    llvm_emit_str(" = inttoptr i64 ");
+                    llvm_emit_str(elem_val);
+                    llvm_emit_line(" to i8*");
+                    llvm_emit_str("    store i8* %t");
+                    llvm_emit_int(cast_temp);
+                    llvm_emit_str(", i8** %t");
+                    llvm_emit_int(slot_temp);
+                    llvm_emit_char(10);
+                } else if elem_bytes < 8 {
+                    var trunc_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(trunc_temp);
+                    llvm_emit_str(" = trunc i64 ");
+                    llvm_emit_str(elem_val);
+                    llvm_emit_str(" to ");
+                    llvm_emit_type(lit_elem_type);
+                    llvm_emit_char(10);
+                    llvm_emit_str("    store ");
+                    llvm_emit_type(lit_elem_type);
+                    llvm_emit_str(" %t");
+                    llvm_emit_int(trunc_temp);
+                    llvm_emit_str(", ");
+                    llvm_emit_type(lit_elem_type);
+                    llvm_emit_str("* %t");
+                    llvm_emit_int(slot_temp);
+                    llvm_emit_char(10);
+                } else {
+                    llvm_emit_str("    store ");
+                    llvm_emit_type(lit_elem_type);
+                    llvm_emit_str(" ");
+                    llvm_emit_str(elem_val);
+                    llvm_emit_str(", ");
+                    llvm_emit_type(lit_elem_type);
+                    llvm_emit_str("* %t");
+                    llvm_emit_int(slot_temp);
+                    llvm_emit_char(10);
+                }
+
+                li = li + 1;
+            }
+            return;
         }
 
         // Initialize if there's an init expression
@@ -5908,6 +6062,81 @@ func llvm_emit_func(func_node *u8) void {
 
         // Register let binding: pname -> unique_name
         llvm_push_let_binding(pname, pname_len, unique_name, actual_name_len);
+
+        // Struct/enum params arrive as a pointer to the caller's copy, but every
+        // reader of an aggregate ident takes the ADDRESS of its slot. Give the
+        // param real aggregate storage and copy into it, or `match o` would read
+        // the incoming pointer itself as the enum tag.
+        var param_agg_size i64 = llvm_aggregate_type_size(ptype);
+        if param_agg_size > 0 {
+            llvm_emit_str("    %");
+            llvm_emit_n(unique_name, actual_name_len);
+            llvm_emit_str(" = alloca [");
+            llvm_emit_int(param_agg_size);
+            llvm_emit_line(" x i8]");
+
+            var pdst_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(pdst_temp);
+            llvm_emit_str(" = ptrtoint [");
+            llvm_emit_int(param_agg_size);
+            llvm_emit_str(" x i8]* %");
+            llvm_emit_n(unique_name, actual_name_len);
+            llvm_emit_line(" to i64");
+
+            var pcopy i64 = 0;
+            while pcopy < param_agg_size {
+                var psrc_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(psrc_temp);
+                llvm_emit_str(" = add i64 %");
+                llvm_emit_n(pname, pname_len);
+                llvm_emit_str(".arg, ");
+                llvm_emit_int(pcopy);
+                llvm_emit_char(10);
+
+                var psrc_ptr i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(psrc_ptr);
+                llvm_emit_str(" = inttoptr i64 %t");
+                llvm_emit_int(psrc_temp);
+                llvm_emit_line(" to i64*");
+
+                var pload i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(pload);
+                llvm_emit_str(" = load i64, i64* %t");
+                llvm_emit_int(psrc_ptr);
+                llvm_emit_char(10);
+
+                var pdst_off i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(pdst_off);
+                llvm_emit_str(" = add i64 %t");
+                llvm_emit_int(pdst_temp);
+                llvm_emit_str(", ");
+                llvm_emit_int(pcopy);
+                llvm_emit_char(10);
+
+                var pdst_ptr i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(pdst_ptr);
+                llvm_emit_str(" = inttoptr i64 %t");
+                llvm_emit_int(pdst_off);
+                llvm_emit_line(" to i64*");
+
+                llvm_emit_str("    store i64 %t");
+                llvm_emit_int(pload);
+                llvm_emit_str(", i64* %t");
+                llvm_emit_int(pdst_ptr);
+                llvm_emit_char(10);
+
+                pcopy = pcopy + 8;
+            }
+
+            i = i + 1;
+            continue;
+        }
 
         // Allocate local with unique name - use proper type for floats, i64 otherwise
         var is_float_param i64 = ptype != nil && llvm_is_float_type(ptype);

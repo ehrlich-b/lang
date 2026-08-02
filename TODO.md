@@ -177,7 +177,7 @@ still contained the emitter is `ff8813d`.
 
 ## Foundation Status
 
-**Solid (177/177 tests passing):**
+**Solid (183/183 tests passing):**
 - Self-hosting with fixed-point verification
 - LLVM backend (primary, all features)
 - Cross-platform (Linux x86-64, macOS ARM64)
@@ -199,44 +199,55 @@ still contained the emitter is `ff8813d`.
 
 ---
 
-## Broken windows (found 2026-08-01, all pre-existing)
+## Broken windows
 
-Turned up while testing the reader unparser. **None are unparser bugs** — the
-regenerated reader source is correct in every case; each reproduces identically
-in a plain lang program on the pre-fix compiler. Two are silent wrong answers,
-which is the worst category.
+### Fixed 2026-08-01
 
-### Local array-literal initializers are silently wrong
+Three silent-miscompile bugs found while testing the reader unparser (none were
+unparser bugs — each reproduced in a plain lang program). All three now have
+regression tests that fail on the pre-fix compiler.
 
-```lang
-var g [3]i64 = [7, 8, 9];              // global: works (7, 9)
-func main() i64 {
-    var a [3]i64 = [1, 2, 3];          // local: a[0] == 0, a[2] == garbage
-    return a[0];
-}
-```
-No error, no crash — just the wrong values. The global path is handled at
-`src/codegen_llvm.lang:6354`; the local path apparently allocas and never stores.
+- **Local array-literal initializers were silently wrong.** `var a [3]i64 =
+  [1,2,3]` stored one scalar into slot 0 and left the rest as stack garbage,
+  while the global form built a proper constant aggregate. Locals now store
+  element-wise, zero-filling past the end of the literal and narrowing i64
+  expressions back to the element type (`inttoptr` for pointers, `trunc` for
+  small ints) — the mirror of what the index-read path does.
+  Test `156_local_array_literal` (segfaulted before).
+- **Struct/enum parameters were read as their own incoming pointer.** An
+  aggregate param slot held a pointer to the caller's value, but every reader of
+  an aggregate identifier takes the ADDRESS of its slot, so `match o` read the
+  pointer as the tag and fell off the arm chain into an uninitialized result.
+  Params now get real aggregate storage and are copied into it, which also gives
+  them by-value semantics (writing through a param no longer risks the caller's
+  copy). Test `157_aggregate_params`.
+- **`cast()` of an untyped operand emitted `add void 11, 0`.** Integer literals
+  and call results have no type node; they now default to i64. This hid behind a
+  second bug: `llvm_is_float_literal` scanned the number token to the next NUL
+  instead of respecting its length, so a `.` anywhere later in the file marked
+  every integer literal as a float. Test `158_cast_literal`.
 
-### match on a by-value enum parameter yields garbage
+The root cause of the whole category was `llvm_emit_expr`'s fallback, which
+silently emitted `0` for any expression kind it didn't handle. It is now a hard
+error. Probing every suite file, example, and the compiler's own source found
+only `nil` legitimately reaching it (now an explicit case), so nothing else was
+relying on the silence.
 
-```lang
-enum O { None, Some(i64), }
-func uw(o O, d i64) i64 { return match o { O.None => d, O.Some(x) => x, }; }
-// uw(O.Some(21), 0) returns a pointer-like number, not 21
-```
-The supported form is matching a local through its address (`match &op`), which
-is what every suite test does. Passing an enum by value silently misreads it —
-either make it work or reject it at compile time.
+### Still open
 
-### cast() of an integer literal emits invalid LLVM
-
-```lang
-var c i64 = cast(i64, 11);   // -> "%t0 = add void 11, 0"
-```
-`cast` of a *variable* works (`265_cast_basic` passes); an untyped literal
-operand gets no type, and the emitted module fails LLVM verification. Fails
-loudly at least, but with a message that points nowhere near the cause.
+- **Narrowing integer casts produce a non-i64 value.** `cast(i32, x)` emits a
+  `trunc` and hands back an i32, which then fails LLVM verification at any i64
+  use site. Pre-existing and acknowledged in `265_cast_basic`'s own comment
+  ("integer sizes not yet fully supported"). Fails loudly, so it's not in the
+  silent-wrong-answer category. The fix that fits lang's all-i64 model is to
+  `trunc` then `sext`/`zext` straight back to i64.
+- **Returning a struct by value returns a pointer to the callee's dead frame.**
+  It works today because the caller copies out of it immediately, but the value
+  is only valid until something else uses that stack. Not reachable from any
+  shipped code.
+- **`break`/`continue` outside a loop emit nothing** on the LLVM backend when
+  `llvm_find_loop` returns nil (`src/codegen_llvm.lang`), where the x86 backend
+  errors and exits.
 
 ---
 

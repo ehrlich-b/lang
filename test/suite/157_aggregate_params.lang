@@ -1,0 +1,51 @@
+// expect: 42
+// Struct/enum parameters arrive as a pointer to the caller's value, but every
+// reader of an aggregate identifier takes the ADDRESS of its slot. A param slot
+// held the incoming pointer, so `match o` read that pointer as the enum tag and
+// silently fell off the end of the arm chain into an uninitialized result.
+// Params now get real aggregate storage and are copied into it, which also
+// gives them by-value semantics.
+
+include "std/core.lang"
+
+struct P { x i64; y i64; }
+
+enum O {
+    None,
+    Some(i64),
+}
+
+func unwrap(o O, dflt i64) i64 {
+    return match o {
+        O.None => dflt,
+        O.Some(v) => v,
+    };
+}
+
+func psum(p P) i64 {
+    return p.x + p.y;
+}
+
+// Writing through a by-value param must not touch the caller's copy.
+func clobber(p P) i64 {
+    p.x = 999;
+    return p.x;
+}
+
+func main() i64 {
+    var total i64 = 0;
+
+    total = total + unwrap(O.Some(11), 0);       // 11
+    total = total + unwrap(O.None, 5);           // 16
+
+    var p P;
+    p.x = 10;
+    p.y = 6;
+    total = total + psum(p);                     // 32
+
+    if clobber(p) != 999 { return 1; }
+    if p.x != 10 { return 2; }                   // caller's copy is untouched
+    total = total + p.x;                         // 42
+
+    return total;
+}

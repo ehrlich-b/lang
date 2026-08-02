@@ -433,11 +433,15 @@ See [designs/reader_v2_design.md](./designs/reader_v2_design.md) for the design.
 
 ## What's not implemented yet
 
-- Arrays (use pointer arithmetic instead)
 - Struct literals (`Point{x: 1, y: 2}`)
-- Passing/returning structs by value
+- Returning structs by value (returns a pointer into the callee's dead frame)
+- Narrowing integer casts (`cast(i32, x)` yields an i32 the i64 world rejects)
 - For loops (use while)
 - Switch/case (use if/else)
+
+Arrays work: `var a [3]i64 = [1, 2, 3];`, `a[i]` for read and write, arrays of
+pointers, and array globals. Structs and enums can be passed by value (the
+callee gets a copy).
 
 ## Common Patterns
 

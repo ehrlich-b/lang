@@ -1,0 +1,41 @@
+// expect: 42
+// Local array-literal initializers used to be SILENTLY wrong: the literal fell
+// through to the generic expression path, which stored one scalar into slot 0
+// and left the rest as stack garbage. The global path built a real constant
+// aggregate, so `var g [3]i64 = [...]` worked and the local form did not.
+
+include "std/core.lang"
+
+var g [3]i64 = [7, 8, 9];
+
+func twice(n i64) i64 { return n * 2; }
+
+func main() i64 {
+    var total i64 = 0;
+
+    // The basic case that was broken.
+    var a [3]i64 = [1, 2, 3];
+    total = total + a[0] + a[1] + a[2];              // 6
+
+    // Slots past the end of the literal zero-fill, matching the global path.
+    var short [5]i64 = [4, 5];
+    var i i64 = 0;
+    while i < 5 {
+        total = total + short[i];                    // 15
+        i = i + 1;
+    }
+
+    // Elements are arbitrary expressions, not just constants.
+    var k i64 = 3;
+    var comp [3]i64 = [k, twice(k), k + 1];
+    total = total + comp[0] + comp[1] + comp[2];     // 28
+
+    // Pointer elements need inttoptr on the way in.
+    var strs [2]*u8 = ["ab", "cde"];
+    total = total + strlen(strs[0]) + strlen(strs[1]);   // 33
+
+    // Globals still work.
+    total = total + g[0] + g[2] - 7;                 // 42
+
+    return total;
+}

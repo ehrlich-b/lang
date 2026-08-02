@@ -1,0 +1,31 @@
+// expect: 42
+// Two bugs met here. cast() of an operand with no inferable type (an integer
+// literal, a call result) printed the operand type as "void" - "add void 11, 0"
+// - and the module failed LLVM verification. And llvm_is_float_literal scanned
+// the number token to the next NUL instead of respecting its length, so once a
+// '.' appeared ANYWHERE later in the file, every integer literal was treated as
+// a float. Together they made cast-of-a-literal fail only in files that also
+// happened to contain a float.
+
+include "std/core.lang"
+
+func seven() i64 { return 7; }
+
+func main() i64 {
+    var total i64 = 0;
+
+    var v i64 = 11;
+    total = total + cast(i64, v);            // 11  cast of a typed variable
+    total = total + cast(i64, 9);            // 20  cast of a literal
+    total = total + cast(i64, seven());      // 27  cast of a call result
+    total = total + bitcast(i64, 8);         // 35  bitcast of a literal
+
+    // The float that used to poison every integer literal above it.
+    var d f64 = cast(f64, 3);
+    total = total + cast(i64, d + 1.5);      // 39  (4.5 truncates to 4)
+
+    // An integer literal directly after a float literal is still an integer.
+    total = total + 3;                       // 42
+
+    return total;
+}
