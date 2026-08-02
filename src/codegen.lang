@@ -1262,6 +1262,35 @@ func compile_reader_to_executable(decl *u8) void {
             i = i + 1;
         }
 
+        // Enum and effect declarations before the reader
+        i = 0;
+        while i < reader_pos {
+            var sibling *u8 = get_decl(cg_current_file_decls, i);
+            var k i64 = node_kind(sibling);
+            if k == NODE_ENUM_DECL {
+                ast_to_string_enum_decl(sibling);
+            }
+            if k == NODE_EFFECT_DECL {
+                ast_to_string_effect_decl(sibling);
+            }
+            i = i + 1;
+        }
+
+        // Module-level globals before the reader. Without this a `var x = 0;`
+        // declared in the reader's OWN file is dropped, and codegen emits a
+        // bogus local `%x` with no `@x = global` behind it - the reader then
+        // fails to build with "use of undefined value". Globals from INCLUDED
+        // files were always fine, which is what made this look like a mystery.
+        i = 0;
+        while i < reader_pos {
+            var sibling *u8 = get_decl(cg_current_file_decls, i);
+            var k i64 = node_kind(sibling);
+            if k == NODE_VAR_DECL {
+                ast_to_string_stmt(sibling);
+            }
+            i = i + 1;
+        }
+
         // Emit function declarations before the reader (skip main)
         i = 0;
         while i < reader_pos {
@@ -6301,7 +6330,240 @@ func ast_to_string_expr(expr *u8) void {
         return;
     }
 
+    if kind == NODE_INDEX_EXPR {
+        ast_to_string_expr(index_expr_base(expr));
+        ast_str_append_char(91);  // [
+        ast_to_string_expr(index_expr_index(expr));
+        ast_str_append_char(93);  // ]
+        return;
+    }
+
+    if kind == NODE_ARRAY_LITERAL {
+        ast_str_append_char(91);  // [
+        var elems *u8 = array_literal_elems(expr);
+        var ecount i64 = array_literal_count(expr);
+        var ei i64 = 0;
+        while ei < ecount {
+            if ei > 0 { ast_str_append_cstr(", "); }
+            ast_to_string_expr(get_ptr_at(elems, ei));
+            ei = ei + 1;
+        }
+        ast_str_append_char(93);  // ]
+        return;
+    }
+
+    if kind == NODE_CAST_EXPR {
+        ast_str_append_cstr("cast(");
+        ast_to_string_type(cast_expr_type(expr));
+        ast_str_append_cstr(", ");
+        ast_to_string_expr(cast_expr_expr(expr));
+        ast_str_append_char(41);  // )
+        return;
+    }
+
+    if kind == NODE_BITCAST_EXPR {
+        ast_str_append_cstr("bitcast(");
+        ast_to_string_type(bitcast_expr_type(expr));
+        ast_str_append_cstr(", ");
+        ast_to_string_expr(bitcast_expr_expr(expr));
+        ast_str_append_char(41);  // )
+        return;
+    }
+
+    if kind == NODE_LAMBDA_EXPR {
+        ast_str_append_cstr("fn(");
+        var lparams *u8 = lambda_expr_params(expr);
+        var lcount i64 = lambda_expr_param_count(expr);
+        var li i64 = 0;
+        while li < lcount {
+            if li > 0 { ast_str_append_cstr(", "); }
+            var lp *u8 = lparams + (li * 24);
+            ast_str_append(param_name(lp), param_name_len(lp));
+            ast_str_append_char(32);
+            ast_to_string_type(param_type(lp));
+            li = li + 1;
+        }
+        ast_str_append_cstr(") ");
+        ast_to_string_type(lambda_expr_ret_type(expr));
+        ast_str_append_char(32);
+        ast_to_string_stmt(lambda_expr_body(expr));
+        return;
+    }
+
+    if kind == NODE_BLOCK_EXPR {
+        ast_str_append_cstr("{\n");
+        var bstmts *u8 = block_expr_stmts(expr);
+        var bcount i64 = block_expr_count(expr);
+        var bi i64 = 0;
+        while bi < bcount {
+            ast_to_string_stmt(get_ptr_at(bstmts, bi));
+            bi = bi + 1;
+        }
+        var tail *u8 = block_expr_tail(expr);
+        if tail != nil {
+            ast_to_string_expr(tail);
+            ast_str_append_char(10);
+        }
+        ast_str_append_cstr("}");
+        return;
+    }
+
+    if kind == NODE_LET_EXPR {
+        ast_str_append_cstr("let ");
+        ast_str_append(let_expr_name(expr), let_expr_name_len(expr));
+        var ltype *u8 = let_expr_type(expr);
+        if ltype != nil {
+            ast_str_append_char(32);
+            ast_to_string_type(ltype);
+        }
+        ast_str_append_cstr(" = ");
+        ast_to_string_expr(let_expr_init(expr));
+        ast_str_append_cstr(" in ");
+        ast_to_string_expr(let_expr_body(expr));
+        return;
+    }
+
+    if kind == NODE_MATCH_EXPR {
+        ast_str_append_cstr("match ");
+        ast_to_string_expr(match_expr_scrutinee(expr));
+        ast_str_append_cstr(" {\n");
+        var arms *u8 = match_expr_arms(expr);
+        var acount i64 = match_expr_arm_count(expr);
+        var ai i64 = 0;
+        while ai < acount {
+            var arm *u8 = get_match_arm(arms, ai);
+            ast_to_string_pattern(match_arm_pattern(arm));
+            ast_str_append_cstr(" => ");
+            ast_to_string_arm_body(match_arm_body(arm));
+            ast_str_append_cstr(",\n");
+            ai = ai + 1;
+        }
+        ast_str_append_char(125);  // }
+        return;
+    }
+
+    if kind == NODE_PERFORM_EXPR {
+        ast_str_append_cstr("perform ");
+        ast_str_append(perform_expr_name(expr), perform_expr_name_len(expr));
+        ast_str_append_char(40);  // (
+        var pargs *u8 = perform_expr_args(expr);
+        var pcount i64 = perform_expr_arg_count(expr);
+        var pi i64 = 0;
+        while pi < pcount {
+            if pi > 0 { ast_str_append_cstr(", "); }
+            ast_to_string_expr(get_ptr_at(pargs, pi));
+            pi = pi + 1;
+        }
+        ast_str_append_char(41);  // )
+        return;
+    }
+
+    if kind == NODE_RESUME_EXPR {
+        ast_str_append_cstr("resume ");
+        ast_to_string_expr(resume_expr_k(expr));
+        ast_str_append_char(40);  // (
+        ast_to_string_expr(resume_expr_value(expr));
+        ast_str_append_char(41);  // )
+        return;
+    }
+
+    if kind == NODE_HANDLE_EXPR {
+        ast_str_append_cstr("handle ");
+        ast_to_string_arm_body(handle_expr_body(expr));
+        ast_str_append_cstr(" with {\n");
+        var rbind *u8 = handle_expr_ret_bind(expr);
+        if rbind != nil {
+            ast_str_append_cstr("return(");
+            ast_str_append(rbind, handle_expr_ret_bind_len(expr));
+            ast_str_append_cstr(") => ");
+            ast_to_string_arm_body(handle_expr_ret_body(expr));
+            ast_str_append_cstr(",\n");
+        }
+        var hcases *u8 = handle_expr_cases(expr);
+        var hcount i64 = handle_expr_case_count(expr);
+        var hi i64 = 0;
+        while hi < hcount {
+            var hc *u8 = get_effect_case(hcases, hi);
+            ast_str_append(effect_case_name(hc), effect_case_name_len(hc));
+            ast_str_append_char(40);  // (
+            ast_str_append(effect_case_binding(hc), effect_case_binding_len(hc));
+            ast_str_append_cstr(", ");
+            ast_str_append(effect_case_k(hc), effect_case_k_len(hc));
+            ast_str_append_cstr(") => ");
+            ast_to_string_arm_body(effect_case_body(hc));
+            ast_str_append_cstr(",\n");
+            hi = hi + 1;
+        }
+        ast_str_append_char(125);  // }
+        return;
+    }
+
+    // Falling through here would emit "<expr>", which is a syntax error in the
+    // regenerated source and shows up as an unexplained "reader compilation
+    // failed". Name the kind so the gap is findable.
+    eprint("error: cannot unparse expression kind ");
+    eprint_i64(kind);
+    eprint(" (readers cannot use this construct yet)\n");
     ast_str_append_cstr("<expr>");
+}
+
+// A match arm / handler body is either a block or a bare expression.
+func ast_to_string_arm_body(body *u8) void {
+    if body == nil {
+        ast_str_append_cstr("nil");
+        return;
+    }
+    if node_kind(body) == NODE_BLOCK_STMT {
+        ast_to_string_stmt(body);
+        return;
+    }
+    ast_to_string_expr(body);
+}
+
+func ast_to_string_pattern(pat *u8) void {
+    if pat == nil {
+        ast_str_append_char(95);  // _
+        return;
+    }
+    if node_kind(pat) == NODE_PATTERN_WILDCARD {
+        ast_str_append_char(95);  // _
+        return;
+    }
+    ast_str_append(pattern_variant_enum_name(pat), pattern_variant_enum_len(pat));
+    ast_str_append_char(46);  // .
+    ast_str_append(pattern_variant_name(pat), pattern_variant_name_len(pat));
+    var binding *u8 = pattern_variant_binding(pat);
+    if binding != nil {
+        ast_str_append_char(40);  // (
+        ast_str_append(binding, pattern_variant_binding_len(pat));
+        ast_str_append_char(41);  // )
+    }
+}
+
+func ast_str_append_int(n i64) void {
+    if n < 0 {
+        ast_str_append_char(45);  // -
+        ast_str_append_int(0 - n);
+        return;
+    }
+    if n >= 10 {
+        ast_str_append_int(n / 10);
+    }
+    ast_str_append_char(48 + (n % 10));
+}
+
+// Param-type list for fn/closure types: "(T1, T2)". The parser stores these in
+// a vec (not a raw pointer array, which is how effect decls store theirs), so
+// they must be read with vec_get.
+func ast_to_string_type_list(types *u8, count i64) void {
+    ast_str_append_char(40);  // (
+    var i i64 = 0;
+    while i < count {
+        if i > 0 { ast_str_append_cstr(", "); }
+        ast_to_string_type(vec_get(types, i));
+        i = i + 1;
+    }
+    ast_str_append_char(41);  // )
 }
 
 func ast_to_string_type(type_node *u8) void {
@@ -6313,6 +6575,27 @@ func ast_to_string_type(type_node *u8) void {
     if kind == TYPE_PTR {
         ast_str_append_char(42);  // *
         ast_to_string_type(ptr_type_elem(type_node));
+        return;
+    }
+    if kind == TYPE_ARRAY {
+        ast_str_append_char(91);  // [
+        ast_str_append_int(array_type_size(type_node));
+        ast_str_append_char(93);  // ]
+        ast_to_string_type(array_type_elem(type_node));
+        return;
+    }
+    if kind == TYPE_FUNC {
+        ast_str_append_cstr("fn");
+        ast_to_string_type_list(func_type_params(type_node), func_type_param_count(type_node));
+        ast_str_append_char(32);
+        ast_to_string_type(func_type_ret(type_node));
+        return;
+    }
+    if kind == TYPE_CLOSURE {
+        ast_str_append_cstr("closure");
+        ast_to_string_type_list(closure_type_params(type_node), closure_type_param_count(type_node));
+        ast_str_append_char(32);
+        ast_to_string_type(closure_type_ret(type_node));
         return;
     }
     // Primitive type - get the name
@@ -6503,6 +6786,48 @@ func ast_to_string_struct_decl(decl *u8) void {
     }
 
     ast_str_append_cstr("}\n");
+}
+
+func ast_to_string_enum_decl(decl *u8) void {
+    ast_str_append_cstr("enum ");
+    ast_str_append(enum_decl_name(decl), enum_decl_name_len(decl));
+    ast_str_append_cstr(" {\n");
+    var variants *u8 = enum_decl_variants(decl);
+    var count i64 = enum_decl_variant_count(decl);
+    var i i64 = 0;
+    while i < count {
+        var v *u8 = get_enum_variant(variants, i);
+        ast_str_append_cstr("    ");
+        ast_str_append(enum_variant_name(v), enum_variant_name_len(v));
+        var vtype *u8 = enum_variant_type(v);
+        if vtype != nil {
+            ast_str_append_char(40);  // (
+            ast_to_string_type(vtype);
+            ast_str_append_char(41);  // )
+        }
+        ast_str_append_cstr(",\n");
+        i = i + 1;
+    }
+    ast_str_append_cstr("}\n");
+}
+
+func ast_to_string_effect_decl(decl *u8) void {
+    ast_str_append_cstr("effect ");
+    ast_str_append(effect_decl_name(decl), effect_decl_name_len(decl));
+    // Effect param types are a raw pointer array, unlike fn/closure types.
+    ast_str_append_char(40);  // (
+    var ptypes *u8 = effect_decl_param_types(decl);
+    var pcount i64 = effect_decl_param_type_count(decl);
+    var pi i64 = 0;
+    while pi < pcount {
+        if pi > 0 { ast_str_append_cstr(", "); }
+        ast_to_string_type(get_ptr_at(ptypes, pi));
+        pi = pi + 1;
+    }
+    ast_str_append_char(41);  // )
+    ast_str_append_char(32);
+    ast_to_string_type(effect_decl_return_type(decl));
+    ast_str_append_char(10);
 }
 
 func ast_to_string_include_decl(decl *u8) void {
