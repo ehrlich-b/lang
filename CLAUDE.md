@@ -62,8 +62,11 @@ The x86 backend is frozen - no new features (floats, calling conventions) will b
 
 ### Test suites
 ```bash
-# LLVM backend (169/169 - all features, cross-platform)
+# LLVM backend (all features, cross-platform)
 ./test/run_llvm_suite.sh
+
+# wasm target (163 tests under node; effects tests skip - no stack switching)
+./test/run_wasm_suite.sh
 
 # x86 backend (Linux only, frozen - no new tests)
 ./test/run_lang1_suite.sh

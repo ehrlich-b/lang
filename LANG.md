@@ -431,6 +431,42 @@ Built-in readers:
 
 See [designs/reader_v2_design.md](./designs/reader_v2_design.md) for the design.
 
+## Test convention
+
+Every file in `test/suite/` declares its expected exit code in the first line:
+
+```lang
+// expect: 42
+```
+
+The suite runners compile the file, run it, and compare the process exit code
+against that number. This is the language's testing ABI - a test passes by
+*returning* its expected value from `main`. Optional markers on the first
+three lines: `//ignore` (skip), `//linux` / `//macos` (platform-specific),
+`//clang` (needs a real stack - compiled with clang instead of lli; effects
+tests use this).
+
+## Defined and undefined behavior
+
+Things the language commits to:
+
+- **Pointer arithmetic scales by element size.** `p + 1` on a `*i64` advances
+  8 bytes (both backends agree). Use `*u8` pointers for byte arithmetic.
+- **Aggregates are passed by value.** A struct/enum parameter is copied at the
+  call boundary; writing through it never touches the caller's copy.
+- **Integer literals and untyped call results default to i64.**
+
+Things that are undefined (observed accidents, not semantics):
+
+- **Mutating a string literal.** The LLVM backend emits literals as read-only
+  constants; the x86 backend happened to make them writable. Don't rely on it.
+- **Overlapping `memcpy` with `dst > src`.** `std/core.lang`'s memcpy is a
+  forward byte loop; a backward-overlapping copy corrupts the data.
+- **Out-of-bounds reads/writes.** Native allocators absorb small overruns;
+  other targets (wasm) may not. There is no bounds checking.
+- **Returning a struct by value** returns a pointer into the callee's dead
+  frame (works only because callers copy immediately).
+
 ## What's not implemented yet
 
 - Struct literals (`Point{x: 1, y: 2}`)
@@ -534,9 +570,10 @@ make stdlib-run FILE=myfile.lang
 # Run all tests
 make test-all
 
-# Just compile to assembly
-./out/lang myfile.lang -o out/myfile.s
+# Just compile (defaults to this platform's backend: .ll via LLVM on macOS,
+# .s via x86 on Linux; override with LANGBE/LANGOS)
+./out/lang myfile.lang -o out/myfile.ll
 
 # Debug macro expansions (prints each expansion to stderr)
-./out/lang --expand-macros myfile.lang -o out/myfile.s
+./out/lang --expand-macros myfile.lang -o out/myfile.ll
 ```

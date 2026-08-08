@@ -118,14 +118,38 @@ make build        # Compile from source → out/lang_next
 make run FILE=... # Compile and run a program
 ```
 
-### Building
+Two compilers live in `out/`: **`out/lang`** is the stable compiler, promoted by
+the last successful `make bootstrap` - use this one. **`out/lang_next`** is
+whatever `make build` just compiled from source; it only matters when you are
+testing compiler changes you have not bootstrapped yet.
+
+### Compiling programs
 
 ```bash
-LANGBE=llvm ./out/lang hello.lang -o hello.ll
+./out/lang hello.lang -o hello.ll
 clang -O2 hello.ll -o hello
 ```
 
-The LLVM backend is the primary target - handles closures, algebraic effects, reader macros, and all future features (floats, calling conventions, etc.). On macOS, set `LANGOS=macos`.
+No environment variables needed: the compiler defaults `LANGBE`/`LANGOS` to the
+platform it was built for. Set them only to cross-target (`LANGOS=macos`,
+`LANGOS=wasm`; `LANGBE=x86` for the frozen assembly backend on Linux).
+
+The LLVM backend is the primary target - handles closures, algebraic effects, reader macros, and all future features (floats, calling conventions, etc.).
+
+### WebAssembly
+
+```bash
+LANGOS=wasm LANGBE=llvm ./out/lang hello.lang -o hello.ll
+clang --target=wasm32-unknown-unknown -nostdlib -Wl,--no-entry -Wl,--export-all \
+      -Wl,--allow-undefined -Wl,-z,stack-size=8388608 hello.ll -o hello.wasm
+node test/wasm_host.js hello.wasm
+```
+
+`test/wasm_host.js` is a small node host providing the libc surface
+(write/alloc/exit). 163 of the suite's tests pass on wasm
+(`./test/run_wasm_suite.sh`); the exception is algebraic effects, which need
+stack switching that core wasm cannot express - the compiler rejects them
+cleanly for this target.
 
 ### Bootstrap
 

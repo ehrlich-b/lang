@@ -21,8 +21,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 5. ✓ Kernel/reader split (lang as a reader, bootstrap verified)
 6. ✓ Cross-platform + LLVM backend (170/170 tests, Linux + macOS)
 7. ✓ Kernel/reader composition (bare kernel + -r reader = compiler)
-8. → **Reader authorship: ship many readers** ← current
-9. → WASM backend
+8. ✓ Reader authorship: five languages shipped (C, minilisp, flow, forth, minipy)
+9. → **WASM** ← current (Stage A done: `LANGOS=wasm` + suite; browser compiler next)
 10. → Capture more languages (Rust? OCaml?)
 
 ---
@@ -134,11 +134,37 @@ polyglot stdlib written in reader-authored *better* languages.
       variadic and polymorphic, lowered per-argument at read time. Guarded by
       `reader_minipy_e2e`; in the polyglot it is the reporting layer, which is
       the job a scripting language actually has. See devlog 0025.
-- [ ] **Pick the next direction** - loops + `variable`/`!`/`@` for forth (which
-      needs the stack model to survive mutation), more flow (a 2nd effect, piped
-      generators), finish C typedef, minipy round 2 (lists, on minilisp's boxed
-      runtime), or milestone 9 (WASM - but flow's effects use inline-asm stack
-      switching that WASM can't express).
+- [x] **Direction picked: milestone 9, WASM** - the endgame is a browser
+      playground at lang.ehrlich.dev: the compiler itself compiled to wasm,
+      compiling the polyglot languages client-side. Stage A landed (below);
+      remaining stages tracked under Milestone 9.
+
+### Milestone 9: WASM (in progress)
+
+- [x] **Stage A: wasm as a program target** - `LANGOS=wasm` emits a
+      wasm32-unknown-unknown triple; `test/run_wasm_suite.sh` runs the suite
+      under node via `test/wasm_host.js` (a ~100-line host providing the libc
+      surface): **163 passed, 0 failed, 21 skipped**. Effects are a clean
+      compile error on this target (their lowering is target-specific inline
+      asm; core wasm has no stack switching), and the suite skips on that
+      diagnostic. Landing this surfaced a real ABI bug: closure signatures
+      mismatched at every indirect call (`i8*` env in the definition, `i64` at
+      the call, plus hand-rolled `fn(i64)` callers) - native targets tolerate
+      that, wasm traps. The env param is now uniformly i64. Reader executables
+      are now forced to target the build host (they run at compile time), so
+      cross-targeting cannot produce unrunnable readers.
+- [ ] **Stage B: compiler.wasm** - compile the compiler itself to wasm
+      (wasm32-wasi or a JS virtual-FS shim for file IO/getenv). Reader
+      executables can't fork/exec in a browser: precompile each reader to its
+      own wasm module and shim exec_run to instantiate it.
+- [ ] **Stage C: a direct wasm backend** (`codegen_wasm.lang`) so the browser
+      never needs LLVM: compiler.wasm compiles source → wasm binary →
+      instantiate → run, fully client-side. lang is nearly the easiest possible
+      wasm-backend target: one value type (i64), structured control flow.
+- [ ] **Deploy: lang.ehrlich.dev** - static hosting (everything client-side).
+      Headline: the polyglot compiled in your browser by a compiler that
+      compiled itself. Flow's effects stay native-only until wasm
+      stack-switching/JSPI is worth chasing.
 
 ### Reader toolkit (the thing to invest in)
 
@@ -208,9 +234,8 @@ still contained the emitter is `ff8813d`.
 - LLVM is the sole target for Language Forge development
 
 **Spartan (not blocking reader work):**
-- Platform auto-detection (need `LANGOS=macos LANGBE=llvm` manually)
 - Error messages (some errors leak to codegen)
-- No negative test suite
+- Negative test suite (only `compile_error_is_fatal` so far)
 - No struct literals
 
 ---
@@ -283,12 +308,21 @@ relying on the silence.
 
 These are nice-to-have but don't block the forge vision.
 
-### Platform auto-detection
+### Friction log (from an external user, 2026-08-08)
 
-When the compiler finds itself on macOS:
-- Default to `llvm` backend (no x86 on ARM)
-- Default to `libc` (required on macOS anyway)
-- Default to `macos` OS layer
+Fixed: platform auto-detection (LANGOS/LANGBE now default from the OS layer
+baked into the binary), builds no longer dirty `src/version_info.lang` (now
+generated into `out/`), `out/lang` vs `out/lang_next` documented in README,
+`// expect:` and defined/undefined behavior documented in LANG.md.
+
+Still open:
+- **`lang run file.lang`** - a one-shot compile+link+run subcommand. The
+  compiler already has find_clang + exec machinery from reader builds.
+- **`--dump-tokens`** - print the token stream (also useful for reader
+  debugging). Requested so external tooling can do token-exact transforms.
+- **`--keyword-map`** - retheme keywords without patching the lexer. Niche
+  (requested by a language-mutation experiment); the honest answer may be
+  "keywords are hardcoded in std/tok.lang, patch it".
 
 ### Negative tests
 
