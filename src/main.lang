@@ -380,8 +380,8 @@ func cmd_help_env() i64 {
     println("  lang env LANGBE     Show specific variable");
     println("");
     println("Variables:");
-    println("  LANGBE    Backend: x86 (default), llvm");
-    println("  LANGOS    Target OS: linux (default), macos, wasm");
+    println("  LANGBE    Backend: x86, llvm (default: this platform's backend)");
+    println("  LANGOS    Target OS: linux, macos, wasm (default: this platform)");
     println("  LANGLIBC  Libc mode: none (default), system");
     println("  PATH      Search path for tools");
     return 0;
@@ -484,8 +484,8 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("  lang help compile              Help for compile command");
     println("");
     println("Environment:");
-    println("  LANGBE=llvm         Use LLVM backend (default: x86)");
-    println("  LANGOS=macos        Target macOS (default: linux)");
+    println("  LANGBE=llvm         Use LLVM backend (default: this platform's backend)");
+    println("  LANGOS=macos        Target macOS (default: this platform)");
     println("  LANGOS=wasm         Target WebAssembly (LLVM backend only, no effects)");
     println("");
     println("Run 'lang help <command>' for command-specific help.");
@@ -841,11 +841,7 @@ func main(argc i64, argv **u8) i64 {
         // Add ___main wrapper that calls user's main
         // Skip for: --emit-ast (debug), --emit-expanded-ast (composition), LLVM backend (clang provides entry)
         // Include for: normal x86 compile, --emit-exe-ast (standalone executable AST)
-        var langbe_check *u8 = getenv("LANGBE");
-        var is_llvm i64 = 0;
-        if langbe_check != nil && streq(langbe_check, "llvm") {
-            is_llvm = 1;
-        }
+        var is_llvm i64 = cg_backend_is_llvm();
         // Add ___main if: exe-ast mode OR (normal compile without AST modes and not LLVM)
         if emit_exe_ast_mode != 0 || (emit_ast_mode == 0 && emit_expanded_ast_mode == 0 && is_llvm == 0) {
             // Simple ___main - no environment setup for basic programs
@@ -881,8 +877,7 @@ func main(argc i64, argv **u8) i64 {
         }
 
         // Generate using appropriate backend
-        var langbe *u8 = getenv("LANGBE");
-        if langbe != nil && streq(langbe, "llvm") {
+        if cg_backend_is_llvm() != 0 {
             generate_llvm(prog, output_file);
         } else {
             generate(prog, output_file);
@@ -1094,8 +1089,7 @@ func main(argc i64, argv **u8) i64 {
         }
 
         // Generate using appropriate backend
-        var langbe *u8 = getenv("LANGBE");
-        if langbe != nil && streq(langbe, "llvm") {
+        if cg_backend_is_llvm() != 0 {
             generate_llvm(prog, output_file);
         } else {
             generate(prog, output_file);
@@ -1323,8 +1317,7 @@ func main(argc i64, argv **u8) i64 {
         }
 
         // Generate using appropriate backend
-        var langbe *u8 = getenv("LANGBE");
-        if langbe != nil && streq(langbe, "llvm") {
+        if cg_backend_is_llvm() != 0 {
             generate_llvm(combined_prog, output_file);
         } else {
             generate(combined_prog, output_file);
@@ -1423,13 +1416,12 @@ func main(argc i64, argv **u8) i64 {
         print("Wrote AST to ");
         println(output_file);
     } else {
-        // Check LANGBE environment variable for backend selection
-        var langbe *u8 = getenv("LANGBE");
-        if langbe != nil && streq(langbe, "llvm") {
+        // Backend selection: LANGBE, or the platform default when unset
+        if cg_backend_is_llvm() != 0 {
             // LLVM IR backend
             generate_llvm(prog, output_file);
         } else {
-            // Default: x86 assembly backend
+            // x86 assembly backend
             generate(prog, output_file);
         }
 

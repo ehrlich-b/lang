@@ -339,3 +339,7 @@ pub func getenv(name *u8) *u8 {
     }
     return nil;  // unreachable
 }
+
+// The platform this binary runs on (see libc_macos.lang for why this exists).
+pub func os_platform_name() *u8 { return "linux"; }
+pub func os_default_backend() *u8 { return "x86"; }

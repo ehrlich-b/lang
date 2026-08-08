@@ -15,6 +15,24 @@ var cg_label_num i64 = 0;        // for generating unique labels
 var cg_had_error i64 = 0;        // set to 1 if codegen encounters an error
 var cg_has_llvm_backend i64 = 0; // set to 1 by codegen_llvm.lang if included
 
+// When set, overrides LANGOS for target-triple selection. Reader executables
+// run on the build machine, so their build forces this to the host platform
+// even when the main compile cross-targets (e.g. LANGOS=wasm).
+var cg_langos_override *u8 = nil;
+
+// Effective backend: LANGBE if set, else the default baked into the OS layer
+// this binary was compiled with (macOS defaults to llvm - there is no native
+// x86 path there; Linux keeps its historical x86 default).
+func cg_backend_is_llvm() i64 {
+    var langbe *u8 = getenv("LANGBE");
+    if langbe != nil {
+        if streq(langbe, "llvm") { return 1; }
+        return 0;
+    }
+    if streq(os_default_backend(), "llvm") { return 1; }
+    return 0;
+}
+
 // Function pointer for LLVM backend (avoids linker error in standalone compilers)
 // Set by codegen_llvm.lang, nil if LLVM not available
 var cg_generate_llvm_fn *u8 = nil;
@@ -1131,12 +1149,10 @@ func compile_reader_to_executable(decl *u8) void {
     os_mkdir(cache_base, 493);
     os_mkdir(readers_dir, 493);
 
-    // Check LANGBE for backend selection
-    // Only use LLVM if requested AND the LLVM backend is available
+    // Backend selection: LLVM if requested-or-default AND available
     // (standalone compilers don't include codegen_llvm.lang)
-    var langbe *u8 = getenv("LANGBE");
     var use_llvm i64 = 0;
-    if langbe != nil && streq(langbe, "llvm") && cg_has_llvm_backend != 0 {
+    if cg_backend_is_llvm() != 0 && cg_has_llvm_backend != 0 {
         use_llvm = 1;
     }
 
@@ -1362,7 +1378,10 @@ func compile_reader_to_executable(decl *u8) void {
         return;
     }
     if pid == 0 {
-        // Child: compile wrapper source directly
+        // Child: compile wrapper source directly. The reader executable runs
+        // on THIS machine, so target the host platform even when the main
+        // compile cross-targets (LANGOS=wasm would emit an unrunnable reader).
+        cg_langos_override = os_platform_name();
         parser_tokenize(wrapper);
         var prog *u8 = parse_program();
         if parse_error_count > 0 {
@@ -1579,9 +1598,8 @@ func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
     os_mkdir(readers_dir, 493);
 
     // Check backend
-    var langbe *u8 = getenv("LANGBE");
     var use_llvm i64 = 0;
-    if langbe != nil && streq(langbe, "llvm") && cg_has_llvm_backend != 0 {
+    if cg_backend_is_llvm() != 0 && cg_has_llvm_backend != 0 {
         use_llvm = 1;
     }
 
@@ -1654,7 +1672,8 @@ func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
         return nil;
     }
     if pid == 0 {
-        // Child: compile wrapper source
+        // Child: compile wrapper source (host-targeted - the reader runs here)
+        cg_langos_override = os_platform_name();
         parser_tokenize(wrapper);
         var prog *u8 = parse_program();
         if parse_error_count > 0 {

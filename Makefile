@@ -27,7 +27,7 @@ LANGLIBC ?= none
 # macOS MUST use libc (macos_arm64.lang uses hex literals which lexer doesn't support)
 # Linux can use raw syscalls
 ifeq ($(LANGOS),macos)
-    OS_LAYER := std/os/libc.lang
+    OS_LAYER := std/os/libc_macos.lang
 else ifeq ($(LANGLIBC),libc)
     OS_LAYER := std/os/libc.lang
 else ifeq ($(LANGOS),linux)

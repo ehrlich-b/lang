@@ -207,3 +207,8 @@ pub func alloc(size i64) *u8 {
 pub func init_environ(envp **u8) void {
     // libc handles environ internally
 }
+
+// The platform this binary runs on (see libc_macos.lang for why this exists).
+// The generic libc layer has no native assembler path, so it defaults to llvm.
+pub func os_platform_name() *u8 { return "linux"; }
+pub func os_default_backend() *u8 { return "llvm"; }

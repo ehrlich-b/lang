@@ -51,7 +51,11 @@ run_one_test() {
     local outll="$tmpdir/test.ll"
     local outwasm="$tmpdir/test.wasm"
 
-    if ! LANG_CACHE="$tmpdir/.lang-cache" $COMPILER "$f" -o "$outll" 2>/dev/null; then
+    local cerr="$tmpdir/compile.err"
+    if ! LANG_CACHE="$tmpdir/.lang-cache" $COMPILER "$f" -o "$outll" 2>"$cerr"; then
+        if grep -q 'not supported on the wasm target' "$cerr"; then
+            rm -rf "$tmpdir"; echo "SKIP $name (effects - unsupported on wasm)"; return 0
+        fi
         rm -rf "$tmpdir"; echo "FAIL $name (compile error)"; return 1
     fi
     if ! clang --target=wasm32-unknown-unknown -nostdlib $WASM_LDFLAGS "$outll" -o "$outwasm" 2>/dev/null; then

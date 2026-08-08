@@ -210,8 +210,7 @@ func main(argc i64, argv **u8) i64 {
         combined = combine_programs(combined, compiler_prog);
 
         // Generate
-        var langbe *u8 = getenv("LANGBE");
-        if langbe != nil && streq(langbe, "llvm") {
+        if cg_backend_is_llvm() != 0 {
             generate_llvm(combined, output_file);
         } else {
             generate(combined, output_file);
@@ -242,8 +241,7 @@ func main(argc i64, argv **u8) i64 {
         return 1;
     }
 
-    var langbe *u8 = getenv("LANGBE");
-    if langbe != nil && streq(langbe, "llvm") {
+    if cg_backend_is_llvm() != 0 {
         generate_llvm(prog, output_file);
     } else {
         generate(prog, output_file);

@@ -208,3 +208,9 @@ pub func alloc(size i64) *u8 {
 pub func init_environ(envp **u8) void {
     // libc handles environ internally
 }
+
+// The platform this binary runs on. The OS layer is compiled in, so it IS the
+// runtime platform - used for LANGOS/LANGBE defaults and for reader builds,
+// which must target the build host even when the main compile cross-targets.
+pub func os_platform_name() *u8 { return "macos"; }
+pub func os_default_backend() *u8 { return "llvm"; }

@@ -135,8 +135,7 @@ func main(argc i64, argv **u8) i64 {
         }
 
         // Check backend
-        var langbe *u8 = getenv("LANGBE");
-        if langbe != nil && streq(langbe, "llvm") {
+        if cg_backend_is_llvm() != 0 {
             generate_llvm(prog, output_file);
         } else {
             generate(prog, output_file);
@@ -216,11 +215,7 @@ func main(argc i64, argv **u8) i64 {
 
     // Add ___main wrapper as AST (must match main.lang's version for fixed point)
     // Skip for LLVM backend - clang provides entry point
-    var langbe_check *u8 = getenv("LANGBE");
-    var is_llvm i64 = 0;
-    if langbe_check != nil && streq(langbe_check, "llvm") {
-        is_llvm = 1;
-    }
+    var is_llvm i64 = cg_backend_is_llvm();
     if is_llvm == 0 {
         standalone_append(ast_buf, &ast_len, "(func ___main ((param argc (type_base i64)) (param argv (type_ptr (type_ptr (type_base u8)))) (param envp (type_ptr (type_ptr (type_base u8))))) (type_base i64) (block (return (call (ident main) (ident argc) (ident argv)))))\n");
     }
@@ -246,8 +241,7 @@ func main(argc i64, argv **u8) i64 {
     }
 
     // Check backend
-    var langbe *u8 = getenv("LANGBE");
-    if langbe != nil && streq(langbe, "llvm") {
+    if cg_backend_is_llvm() != 0 {
         generate_llvm(prog, output_file);
     } else {
         generate(prog, output_file);
