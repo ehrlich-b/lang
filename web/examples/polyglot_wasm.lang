@@ -1,0 +1,115 @@
+// ============================================================
+// polyglot_wasm - the prime pipeline across FOUR languages, compiled to
+// WebAssembly and run in a browser
+// ============================================================
+//
+// The wasm cut of example/polyglot.lang. flow sits this one out: its
+// coroutines lower to algebraic effects, whose stack switching core wasm
+// cannot express, so a plain lang loop drives the pipeline instead. The other
+// four languages survive unchanged - readers run at COMPILE time on the build
+// machine, and what reaches the browser is one ordinary wasm module.
+//
+//   forth    (#forth{...})    divides?/digit_sum - postfix; its data stack is
+//                                                  erased at read time
+//   C        (#c{...})        c_is_prime(x)      - tight trial division,
+//                                                  asking forth per divisor
+//   minilisp (#minilisp{...}) ml_sum/ml_len      - recursion over a real
+//                                                  boxed cons list
+//   minipy   (#minipy{...})   report/survey      - the reporting layer, blocks
+//                                                  delimited by nothing but
+//                                                  the left margin
+//   lang                      collect_primes     - drives the pipeline (flow's
+//                                                  seat, effects-free)
+//
+// Build:
+//   LANGOS=wasm LANGBE=llvm out/lang example/polyglot_wasm.lang -o p.ll
+//   clang --target=wasm32-unknown-unknown -nostdlib -Wl,--no-entry \
+//         -Wl,--export-all -Wl,--allow-undefined -Wl,-z,stack-size=8388608 \
+//         p.ll -o p.wasm
+include "std/core.lang"
+include "example/minilisp/lisp_runtime.lang"
+include "example/forth/forth_runtime.lang"
+include "example/minipy/minipy_runtime.lang"
+include "example/c/c.lang"
+include "example/minilisp/minilisp.lang"
+include "example/forth/forth.lang"
+include "example/minipy/minipy.lang"
+
+// --- forth: the arithmetic kernel ---
+#forth{
+    : divides? ( d x -- f ) swap mod 0 = ;
+    : digit_sum ( n -- s ) dup 10 < if else dup 10 mod swap 10 / recurse + then ;
+}
+
+// --- C: primality by trial division, asking forth about each divisor ---
+#c{
+    int c_is_prime(int x) {
+        if (x < 2) return 0;
+        int d = 2;
+        while (d * d <= x) {
+            if (divides_p(d, x)) { return 0; }
+            d = d + 1;
+        }
+        return 1;
+    }
+}
+
+// --- minilisp: fold a first-class list ---
+#minilisp{ (defun ml_sum (xs) (if (eq xs nil) 0 (+ (car xs) (ml_sum (cdr xs))))) }
+#minilisp{ (defun ml_len (xs) (if (eq xs nil) 0 (+ 1 (ml_len (cdr xs))))) }
+
+// --- lang: drive the pipeline (the seat flow holds in the native polyglot) ---
+func collect_primes(n i64) i64 {
+    var lst i64 = lisp_nil();
+    var x i64 = 2;
+    while x <= n {
+        if c_is_prime(x) != 0 {
+            lst = lisp_cons(lisp_int(x), lst);
+        }
+        x = x + 1;
+    }
+    return lst;
+}
+
+// --- minipy: the reporting layer ---
+#minipy{
+def report(n):
+    lst = collect_primes(n)                    # lang -> C -> forth
+    count = lisp_to_int(ml_len(lst))           # minilisp, folding a cons list
+    total = lisp_to_int(ml_sum(lst))
+    print("primes <=", n, ": count", count, "sum", total, "digitsum", digit_sum(total))
+    return total                               #                       ^ forth
+
+def survey(limit):
+    best = 0
+    for n in range(10, limit + 1, 10):
+        s = report(n)
+        if s > best:
+            best = s
+    return best
+}
+
+func main() i64 {
+    print("=== prime pipeline: lang -> C -> forth -> Lisp -> minipy ===\n\n");
+
+    var plist i64 = collect_primes(30);
+    print("primes <= 30 (Lisp list) = "); lisp_print(plist); print("\n");
+    print("count (Lisp ml_len)      = "); print_int(lisp_to_int(ml_len(plist)));  print("\n");
+    print("sum   (Lisp ml_sum)      = "); print_int(lisp_to_int(ml_sum(plist)));  print("\n");
+    var psum i64 = lisp_to_int(ml_sum(plist));
+    print("digits(sum) (forth)      = "); print_int(digit_sum(psum));             print("\n");
+
+    print("\n--- minipy report ---\n");
+    var best i64 = survey(30);
+    print("largest sum (minipy survey) = "); print_int(best);                     print("\n");
+
+    // 10 primes <= 30, sum 129, digit sum 12
+    if lisp_to_int(ml_len(plist)) != 10 { return 1; }
+    if psum != 129 { return 2; }
+    if digit_sum(129) != 12 { return 3; }
+    if report(10) != 17 { return 4; }
+    if best != 129 { return 5; }
+
+    print("\nPOLYGLOT PASS (wasm)\n");
+    return 0;
+}

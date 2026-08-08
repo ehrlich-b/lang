@@ -1,0 +1,61 @@
+// ASCII Mandelbrot - f64 floats, nested loops, and a hand-built row buffer
+include "std/core.lang"
+
+// The escape iteration, recursively: float support tracks types through
+// declarations, parameters, and returns - so z flows through call arguments.
+func mand_iter(zre f64, zim f64, cre f64, cim f64, iter i64) i64 {
+    if iter >= 90 { return iter; }
+    var rr f64 = zre * zre;
+    var ii f64 = zim * zim;
+    var mag f64 = rr + ii;
+    if mag > 4.0 { return iter; }
+    var ri f64 = zre * zim;
+    var nre_a f64 = rr - ii;
+    var nre f64 = nre_a + cre;
+    var nim_a f64 = ri * 2.0;
+    var nim f64 = nim_a + cim;
+    return mand_iter(nre, nim, cre, cim, iter + 1);
+}
+
+func main() i64 {
+    var palette *u8 = " .:-=+*#%@";
+    var row *u8 = alloc(200);
+
+    var height i64 = 30;
+    var width i64 = 78;
+
+    var y i64 = 0;
+    while y < height {
+        var x i64 = 0;
+        while x < width {
+            // Map pixel to the complex plane: re in [-2.2, 0.9], im in [-1.15, 1.15].
+            // One binop per initializer, mutation only var-to-var: the backend
+            // tracks float-ness at declaration but not through reassignment.
+            var fx f64 = cast(f64, x);
+            var fw f64 = cast(f64, width);
+            var fy f64 = cast(f64, y);
+            var fh f64 = cast(f64, height);
+            var cre_a f64 = fx * 3.1;
+            var cre_b f64 = cre_a / fw;
+            var cre f64 = cre_b - 2.2;
+            var cim_a f64 = fy * 2.3;
+            var cim_b f64 = cim_a / fh;
+            var cim f64 = cim_b - 1.15;
+
+            var iter i64 = mand_iter(0.0, 0.0, cre, cim, 0);
+
+            var shade i64 = 0;
+            if iter < 90 {
+                shade = 1 + (iter * 9) / 90;
+                if shade > 9 { shade = 9; }
+            }
+            *(row + x) = *(palette + shade);
+            x = x + 1;
+        }
+        *(row + width) = 0;
+        print(row);
+        print("\n");
+        y = y + 1;
+    }
+    return 0;
+}

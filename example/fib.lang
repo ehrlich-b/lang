@@ -1,0 +1,16 @@
+// Fibonacci - the hello world of compilers
+include "std/core.lang"
+
+func fib(n i64) i64 {
+    if n < 2 { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+
+func main() i64 {
+    var i i64 = 0;
+    while i <= 20 {
+        print("fib("); print_int(i); print(") = "); print_int(fib(i)); print("\n");
+        i = i + 1;
+    }
+    return 0;
+}

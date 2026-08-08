@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lang — a compiler-compiler, running in your browser</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --dim: #8b949e;
+    --accent: #7ee787;
+    --accent2: #79c0ff;
+    --warn: #ffa657;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  h1 { font-size: 2rem; margin: 0; color: var(--accent); }
+  h1 .cursor { animation: blink 1.2s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .tagline { color: var(--dim); margin: .25rem 0 1.5rem; }
+  .intro { max-width: 72ch; color: var(--text); }
+  .intro em { color: var(--accent2); font-style: normal; }
+  .tabs { display: flex; gap: .5rem; margin: 2rem 0 0; flex-wrap: wrap; }
+  .tab {
+    background: var(--panel); border: 1px solid var(--border); color: var(--dim);
+    padding: .4rem .9rem; cursor: pointer; font: inherit;
+    border-radius: 6px 6px 0 0; border-bottom: none;
+  }
+  .tab.active { color: var(--accent); border-color: var(--accent); }
+  .example { display: none; border: 1px solid var(--border); border-radius: 0 6px 6px 6px; background: var(--panel); }
+  .example.visible { display: block; }
+  .desc { padding: .8rem 1rem; color: var(--dim); border-bottom: 1px solid var(--border); }
+  .desc b { color: var(--text); }
+  .panes { display: grid; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 900px) { .panes { grid-template-columns: 1fr; } }
+  .pane { min-width: 0; }
+  .pane + .pane { border-left: 1px solid var(--border); }
+  @media (max-width: 900px) { .pane + .pane { border-left: none; border-top: 1px solid var(--border); } }
+  .pane-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .4rem 1rem; color: var(--dim); font-size: .85rem;
+    border-bottom: 1px solid var(--border);
+  }
+  pre {
+    margin: 0; padding: 1rem; overflow: auto; font-size: .8rem;
+    max-height: 480px; white-space: pre;
+  }
+  .out { color: var(--accent); min-height: 480px; }
+  .out .err { color: var(--warn); }
+  button.run {
+    background: var(--accent); color: #04260f; border: none; font: inherit;
+    font-weight: bold; padding: .2rem .9rem; border-radius: 6px; cursor: pointer;
+  }
+  button.run:disabled { opacity: .5; cursor: wait; }
+  .status { color: var(--dim); }
+  .status .ok { color: var(--accent); }
+  .status .bad { color: var(--warn); }
+  footer { margin-top: 2.5rem; color: var(--dim); max-width: 72ch; }
+  a { color: var(--accent2); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>lang<span class="cursor">▌</span></h1>
+  <p class="tagline">a self-hosted compiler-compiler &mdash; many syntaxes, one binary</p>
+
+  <p class="intro">
+    lang is a compiler that compiles itself, whose real trick is <em>readers</em>:
+    syntax plugins that turn any surface language into one shared AST. Five
+    languages ride it today &mdash; a C subset, a real Lisp, a coroutine DSL, a
+    Forth, and an indentation-delimited Python subset &mdash; composed in a single
+    native binary, calling each other directly at the ABI level. No FFI, no VM.
+  </p>
+  <p class="intro">
+    Everything below was compiled to WebAssembly by lang&rsquo;s LLVM backend and
+    runs <em>entirely in this page</em> &mdash; view source: one small host shim,
+    no libraries.
+  </p>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="examples"></div>
+
+  <footer>
+    <p>
+      The <b>polyglot</b> tab is four languages in one wasm module: Forth answers
+      C&rsquo;s divisibility questions inside C&rsquo;s trial-division loop, lang
+      streams the primes onto a Lisp cons list, Lisp folds it, Forth folds the
+      digits, and a Python subset &mdash; blocks delimited by nothing but the left
+      margin &mdash; drives the whole pipeline and formats the report. (The native
+      build has a fifth language, a coroutine DSL lowering to algebraic effects;
+      core wasm has no stack switching yet, so it sits this page out.)
+    </p>
+    <p>
+      Source and devlogs: <a href="https://github.com/ehrlich-b/lang">github.com/ehrlich-b/lang</a>.
+      Next on the roadmap: the compiler itself, compiled to wasm, compiling these
+      languages in your browser.
+    </p>
+  </footer>
+</div>
+
+<script src="host.js"></script>
+<script>
+const EXAMPLES = [
+  {
+    id: 'fib',
+    title: 'fib.lang',
+    desc: '<b>lang itself</b> — the bootstrap substrate: C-like, all-i64, self-hosted.',
+  },
+  {
+    id: 'mandelbrot',
+    title: 'mandelbrot.lang',
+    desc: '<b>ASCII Mandelbrot</b> — f64 floats and recursion, escape-time rendered to a text buffer.',
+  },
+  {
+    id: 'polyglot_wasm',
+    title: 'polyglot.lang',
+    desc: '<b>Four languages, one wasm module</b> — Forth &rarr; C &rarr; lang &rarr; Lisp &rarr; minipy, a prime-sieve pipeline crossing a language boundary at every call.',
+  },
+];
+
+const tabsEl = document.getElementById('tabs');
+const exEl = document.getElementById('examples');
+
+for (const ex of EXAMPLES) {
+  const tab = document.createElement('button');
+  tab.className = 'tab';
+  tab.textContent = ex.title;
+  tab.onclick = () => select(ex.id);
+  tab.id = 'tab-' + ex.id;
+  tabsEl.appendChild(tab);
+
+  const box = document.createElement('div');
+  box.className = 'example';
+  box.id = 'ex-' + ex.id;
+  box.innerHTML = `
+    <div class="desc">${ex.desc}</div>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-head"><span>${ex.title}</span></div>
+        <pre id="src-${ex.id}">loading…</pre>
+      </div>
+      <div class="pane">
+        <div class="pane-head">
+          <span class="status" id="st-${ex.id}"></span>
+          <button class="run" id="run-${ex.id}">run ▶</button>
+        </div>
+        <pre class="out" id="out-${ex.id}"></pre>
+      </div>
+    </div>`;
+  exEl.appendChild(box);
+
+  fetch('examples/' + ex.id + '.lang')
+    .then(r => r.text())
+    .then(t => { document.getElementById('src-' + ex.id).textContent = t; });
+
+  document.getElementById('run-' + ex.id).onclick = () => run(ex.id);
+}
+
+function select(id) {
+  for (const ex of EXAMPLES) {
+    document.getElementById('tab-' + ex.id).classList.toggle('active', ex.id === id);
+    document.getElementById('ex-' + ex.id).classList.toggle('visible', ex.id === id);
+  }
+}
+
+async function run(id) {
+  const btn = document.getElementById('run-' + id);
+  const out = document.getElementById('out-' + id);
+  const st = document.getElementById('st-' + id);
+  btn.disabled = true;
+  out.textContent = '';
+  st.textContent = 'running…';
+  try {
+    const bytes = await fetch('examples/' + id + '.wasm').then(r => r.arrayBuffer());
+    const t0 = performance.now();
+    const res = await runLangWasm(bytes, (text, isErr) => {
+      const span = document.createElement('span');
+      if (isErr) span.className = 'err';
+      span.textContent = text;
+      out.appendChild(span);
+    });
+    const ms = (performance.now() - t0).toFixed(1);
+    st.innerHTML = res.exit === 0
+      ? `<span class="ok">exit 0</span> · ${ms}ms`
+      : `<span class="bad">exit ${res.exit}${res.trapped ? ' (trap)' : ''}</span> · ${ms}ms`;
+  } catch (e) {
+    st.innerHTML = '<span class="bad">host error</span>';
+    out.textContent = String(e);
+  }
+  btn.disabled = false;
+}
+
+select('fib');
+run('fib');
+</script>
+</body>
+</html>

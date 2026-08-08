@@ -1,0 +1,25 @@
+#!/bin/bash
+# Build the demo site artifacts: compile each example to wasm and copy its
+# source next to it. Run from anywhere; outputs into web/examples/.
+set -e
+cd "$(dirname "$0")/.."
+
+EXAMPLES="fib mandelbrot polyglot_wasm"
+COMPILER=${COMPILER:-./out/lang}
+WASM_LDFLAGS="-Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined -Wl,-z,stack-size=8388608"
+
+# wasm programs build against the generic libc surface (the JS host provides it)
+OS_LANG_ORIG=$(cat std/os.lang)
+restore_os() { echo "$OS_LANG_ORIG" > std/os.lang; }
+trap restore_os EXIT
+echo 'include "std/os/libc.lang"' > std/os.lang
+
+mkdir -p web/examples
+for e in $EXAMPLES; do
+    tmp=$(mktemp -d)
+    LANG_CACHE="$tmp/cache" LANGOS=wasm LANGBE=llvm $COMPILER "example/$e.lang" -o "$tmp/$e.ll" >/dev/null
+    clang --target=wasm32-unknown-unknown -nostdlib $WASM_LDFLAGS "$tmp/$e.ll" -o "web/examples/$e.wasm"
+    cp "example/$e.lang" "web/examples/$e.lang"
+    rm -rf "$tmp"
+    echo "built web/examples/$e.wasm ($(wc -c < web/examples/$e.wasm | tr -d ' ') bytes)"
+done
