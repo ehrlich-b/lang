@@ -57,7 +57,13 @@
   pre {
     margin: 0; padding: 1rem; overflow: auto; font-size: .8rem;
     max-height: 480px; white-space: pre;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
   }
+  pre::-webkit-scrollbar { width: 8px; height: 8px; }
+  pre::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  pre::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+  pre::-webkit-scrollbar-track { background: transparent; }
+  pre::-webkit-scrollbar-corner { background: transparent; }
   .out { color: var(--accent); min-height: 480px; }
   .out .err { color: var(--warn); }
   button.run {
@@ -265,6 +271,47 @@
     thought rather than lines &mdash; Forth and Python were the hardest to
     capture and the most fun, precisely because neither looks anything like the
     AST it lowers to.
+  </p>
+
+  <h2>wrap a reader, get a compiler</h2>
+  <p>
+    So far the languages have lived inside <code>#c{ ... }</code> blocks in a
+    lang file. They don&rsquo;t have to. The compiler is really two parts: a
+    <em>kernel</em> &mdash; AST in, native code out, no surface syntax at all
+    &mdash; and a reader bolted onto the front. lang&rsquo;s own syntax is just
+    the reader that ships by default; every bootstrap rebuilds the compiler as
+    kernel&nbsp;+&nbsp;lang-reader and verifies the composition to a fixed
+    point.
+  </p>
+  <p>
+    The <code>-r</code> flag performs the same bolting for any reader: emit the
+    reader&rsquo;s AST once, compose, and out comes a new native binary that
+    compiles that reader&rsquo;s language directly &mdash; whole files, not
+    blocks. This transcript is real:
+  </p>
+  <pre class="snip"><span class="c">$</span> lang --emit-expanded-ast example/c/c.lang -o c_reader.ast
+<span class="c">$</span> kernel -r c c_reader.ast -o cc.ll   <span class="c"># compose: kernel + C reader</span>
+<span class="c">$</span> clang -O2 cc.ll -o cc
+
+<span class="c">$</span> cat fib.c
+<span class="k">int</span> fib(<span class="k">int</span> n) {
+    <span class="k">if</span> (n &lt; 2) <span class="k">return</span> n;
+    <span class="k">return</span> fib(n - 1) + fib(n - 2);
+}
+<span class="k">int</span> main() { <span class="k">return</span> fib(10); }
+
+<span class="c">$</span> ./cc fib.c -o fib.ll                <span class="c"># a standalone C compiler</span>
+<span class="c">$</span> clang -O2 fib.ll -o fib &amp;&amp; ./fib; echo $?
+55</pre>
+  <p>
+    That <code>cc</code> is a real executable: it dispatches <code>.c</code>
+    files to the C reader by extension, never sees a line of lang, and its 55
+    came through the same kernel that compiled everything else on this page.
+    This is the literal sense in which lang is a
+    <em>compiler-compiler</em>: it compiles readers, and a reader wrapped
+    around the kernel is a compiler. A grammar and a lowering pass are the
+    whole cost of a new compiled language &mdash; the kernel supplies the
+    backend, and <code>-r</code> gives the language a front door of its own.
   </p>
 
   <footer>
