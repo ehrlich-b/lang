@@ -161,10 +161,17 @@ polyglot stdlib written in reader-authored *better* languages.
       never needs LLVM: compiler.wasm compiles source → wasm binary →
       instantiate → run, fully client-side. lang is nearly the easiest possible
       wasm-backend target: one value type (i64), structured control flow.
-- [ ] **Deploy: lang.ehrlich.dev** - static hosting (everything client-side).
-      Headline: the polyglot compiled in your browser by a compiler that
-      compiled itself. Flow's effects stay native-only until wasm
-      stack-switching/JSPI is worth chasing.
+- [x] **Demo site LIVE: https://ehrlich.dev/lang/** - `web/`: fib, ASCII
+      mandelbrot, and the FOUR-language polyglot (`example/polyglot_wasm.lang`,
+      flow sits out) precompiled to wasm, run client-side by `web/host.js`.
+      `web/deploy.sh` deploys (pareto-pattern VPS); the `lang.ehrlich.dev`
+      vhost is staged on the server and lights up once a Cloudflare DNS record
+      for `lang` is added. Stage B/C upgrade this same page from "precompiled
+      examples" to "the compiler itself, in your browser".
+- [ ] **Float codegen bugs found writing mandelbrot** - float-ness is lost in
+      nested binops (sdiv on doubles) and float REASSIGNMENT stores double as
+      i64 (declarations/params/returns work); `a[i] = x` on a local u8 array
+      misses the trunc. All fail loudly at clang, none silent.
 
 ### Reader toolkit (the thing to invest in)
 
