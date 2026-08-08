@@ -354,30 +354,45 @@ func build_expanded_program() *u8 {
 // ============================================================
 
 func cmd_help_compile() i64 {
-    println("lang compile - compile source files to assembly");
+    println("lang compile - compile source files");
     println("");
     println("Usage: lang [compile] <files...> -o <output>");
     println("");
     println("The 'compile' command is implicit when the first argument has a file extension.");
     println("");
     println("Examples:");
-    println("  lang file.lang -o out.s");
-    println("  lang compile file.lang -o out.s");
-    println("  lang std/core.lang main.lang -o program.s");
+    println("  lang file.lang -o out.ll");
+    println("  lang compile file.lang -o out.ll");
+    println("  lang -c tiny example/tiny/tiny.lang -o tinyc.ll");
     println("");
     println("Options:");
-    println("  -o <file>           Output file (required)");
-    println("  -c <reader>         Generate standalone compiler with reader");
-    println("  --emit-ast          Emit AST S-expressions instead of assembly");
+    println("  -o <file>           Output path (default: a.s)");
+    println("  -c <reader>         Generate a compiler using the named reader function");
+    println("  --emit-ast          Emit AST S-expressions instead of target code");
     println("  --emit-expanded-ast Emit fully expanded AST (for composition, no ___main)");
     println("  --emit-exe-ast      Emit executable AST (expanded with ___main)");
     println("  --from-ast          Input is AST, not source");
     println("  --embed-self        Inject AST file into self_kernel variable");
     println("  --expand-macros     Print macro expansions to stderr");
+    println("  --dump-tokens       Print the lexer's tokens and stop");
     println("");
     println("Multi-syntax compilation:");
     println("  Files with .lang extension are parsed by the lang reader.");
     println("  Other extensions invoke reader macros: file.lisp -> #lisp{...}");
+    return 0;
+}
+
+func cmd_help_run() i64 {
+    println("lang run - compile, link, and run a program");
+    println("");
+    println("Usage: lang run <files...>");
+    println("");
+    println("Examples:");
+    println("  lang run example/fib.lang");
+    println("  lang run example/tiny/tiny.lang example/tiny/answer.tiny");
+    println("");
+    println("The program's stdout and exit status are passed through.");
+    println("Temporary compiler output and binaries are removed after the run.");
     return 0;
 }
 
@@ -439,34 +454,13 @@ func cmd_help_help() i64 {
     return 0;
 }
 
-func cmd_help_compose() i64 {
-    println("lang compose - create compiler with embedded reader ASTs");
-    println("");
-    println("Usage: lang compose -r <name> <file> [-r ...] -o <output>");
-    println("");
-    println("Embeds reader ASTs into a new compiler source file.");
-    println("The reader source is compiled to AST, then embedded.");
-    println("The resulting compiler can use those readers without external files.");
-    println("");
-    println("Examples:");
-    println("  lang compose -r lisp reader.lang -o composed.lang");
-    println("");
-    println("Options:");
-    println("  -r <name> <file>    Add reader (name=extension, file=source or .ast)");
-    println("  -o <output>         Output file (.lang source)");
-    println("");
-    println("After generating, compile the output:");
-    println("  LANGBE=llvm ./lang composed.lang -o out.ll && clang out.ll -o compiler");
-    return 0;
-}
-
 func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     // Check for subcommand-specific help
     // arg_offset is used because argv pointer arithmetic is unreliable
     if argc > 0 {
         var subcmd *u8 = get_arg(argv, arg_offset);
         if streq(subcmd, "compile") { return cmd_help_compile(); }
-        if streq(subcmd, "compose") { return cmd_help_compose(); }
+        if streq(subcmd, "run") { return cmd_help_run(); }
         if streq(subcmd, "env") { return cmd_help_env(); }
         if streq(subcmd, "version") { return cmd_help_version(); }
         if streq(subcmd, "tools") { return cmd_help_tools(); }
@@ -484,14 +478,16 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("");
     println("Commands:");
     println("  compile    Compile source files (default)");
-    println("  compose    Create compiler with embedded readers");
+    println("  run        Compile, link, and run a program");
     println("  help       Show this help message");
     println("  version    Show version information");
     println("  env        Show environment variables");
     println("  tools      Show toolchain availability");
     println("");
     println("Examples:");
-    println("  lang file.lang -o out.s        Compile to assembly");
+    println("  lang file.lang -o out.ll       Compile to LLVM IR");
+    println("  lang run file.lang             Compile and run");
+    println("  lang -c tiny example/tiny/tiny.lang -o tinyc.ll");
     println("  lang help compile              Help for compile command");
     println("");
     println("Environment:");
@@ -530,10 +526,10 @@ func cmd_version() i64 {
     return 0;
 }
 
-func cmd_env(argc i64, argv **u8) i64 {
+func cmd_env(argc i64, argv **u8, arg_offset i64) i64 {
     // Show specific variable if provided
     if argc > 0 {
-        var name *u8 = get_arg(argv, 0);
+        var name *u8 = get_arg(argv, arg_offset);
         var val *u8 = getenv(name);
         if val != nil {
             println(val);
@@ -666,13 +662,58 @@ func i64_to_str(n i64) *u8 {
     return buf;
 }
 
-// cmd_compose: TODO - will be reimplemented using kernel -r approach
-// See designs/fix_composition.md for the new architecture
+func run_compiled_output(output_file *u8, run_base *u8, is_llvm i64, remove_output i64) i64 {
+    var result i64 = 1;
+
+    if is_llvm != 0 {
+        var clang_path *u8 = find_clang();
+        if clang_path == nil {
+            eprintln("Error: clang not found");
+        } else {
+            var link_result i64 = exec_run(clang_path, "-O2", output_file, "-o", run_base, nil);
+            if link_result != 0 {
+                eprintln("Error: clang failed");
+                result = link_result;
+            } else {
+                result = exec_run(run_base, nil, nil, nil, nil, nil);
+            }
+        }
+    } else {
+        var as_path *u8 = find_as();
+        var ld_path *u8 = find_ld();
+        var obj_path *u8 = str_concat(run_base, ".o");
+        if as_path == nil || ld_path == nil {
+            eprintln("Error: as/ld not found");
+        } else {
+            var assemble_result i64 = exec_run(as_path, output_file, "-o", obj_path, nil, nil);
+            if assemble_result != 0 {
+                eprintln("Error: assembler failed");
+                result = assemble_result;
+            } else {
+                var link_result i64 = exec_run(ld_path, obj_path, "-o", run_base, nil, nil);
+                if link_result != 0 {
+                    eprintln("Error: linker failed");
+                    result = link_result;
+                } else {
+                    result = exec_run(run_base, nil, nil, nil, nil, nil);
+                }
+            }
+        }
+        os_unlink(obj_path);
+    }
+
+    os_unlink(run_base);
+    if remove_output != 0 { os_unlink(output_file); }
+    return result;
+}
 
 func main(argc i64, argv **u8) i64 {
     if argc < 2 {
         return cmd_help(0, argv, 0);
     }
+
+    var run_mode i64 = 0;
+    var arg_start i64 = 1;
 
     // Get first argument
     var first *u8 = get_arg(argv, 1);
@@ -689,15 +730,16 @@ func main(argc i64, argv **u8) i64 {
             return cmd_version();
         }
         if streq(first, "env") {
-            return cmd_env(argc - 2, argv + 16);
+            return cmd_env(argc - 2, argv, 2);
         }
         if streq(first, "tools") {
             return cmd_tools();
         }
         if streq(first, "compile") {
-            // Skip "compile" and process remaining args
-            argc = argc - 1;
-            argv = argv + 8;
+            arg_start = 2;
+        } else if streq(first, "run") {
+            run_mode = 1;
+            arg_start = 2;
         } else {
             // Unknown command - could be a file without extension
             // Fall through to compile mode
@@ -707,42 +749,48 @@ func main(argc i64, argv **u8) i64 {
     // Parse arguments - first pass collects files
     var output_file *u8 = nil;
     var gen_compiler *u8 = nil;  // For -c flag: generate compiler for this reader
+    var dump_tokens_mode i64 = 0;
     var input_files *u8 = vec_new(16);  // Collect input file paths
 
-    var i i64 = 1;
+    var i i64 = arg_start;
     while i < argc {
         var arg *u8 = get_arg(argv, i);
         var handled i64 = 0;
 
         // Check for --expand-macros flag
         if *arg == 45 && *(arg + 1) == 45 {  // '--'
-            if memcmp(arg + 2, "expand-macros", 13) {
+            if streq(arg, "--expand-macros") {
                 cg_expand_macros = 1;
                 handled = 1;
             }
             // Check for --emit-ast flag
-            if handled == 0 && memcmp(arg + 2, "emit-ast", 8) {
+            if handled == 0 && streq(arg, "--emit-ast") {
                 emit_ast_mode = 1;
                 handled = 1;
             }
             // Check for --emit-expanded-ast flag (fully expand includes, NO ___main)
-            if handled == 0 && memcmp(arg + 2, "emit-expanded-ast", 17) {
+            if handled == 0 && streq(arg, "--emit-expanded-ast") {
                 emit_expanded_ast_mode = 1;
                 handled = 1;
             }
             // Check for --emit-exe-ast flag (expanded includes WITH ___main for standalone)
-            if handled == 0 && memcmp(arg + 2, "emit-exe-ast", 12) {
+            if handled == 0 && streq(arg, "--emit-exe-ast") {
                 emit_exe_ast_mode = 1;
                 handled = 1;
             }
             // Check for --from-ast flag
-            if handled == 0 && memcmp(arg + 2, "from-ast", 8) {
+            if handled == 0 && streq(arg, "--from-ast") {
                 from_ast_mode = 1;
                 handled = 1;
             }
             // Check for --embed-self flag
-            if handled == 0 && memcmp(arg + 2, "embed-self", 10) {
+            if handled == 0 && streq(arg, "--embed-self") {
                 embed_self_mode = 1;
+                handled = 1;
+            }
+            // Check for --dump-tokens flag
+            if handled == 0 && streq(arg, "--dump-tokens") {
+                dump_tokens_mode = 1;
                 handled = 1;
             }
         }
@@ -750,14 +798,14 @@ func main(argc i64, argv **u8) i64 {
         // Check for -r flag (add reader to kernel)
         if handled == 0 && *arg == 45 {  // '-'
             if *(arg + 1) == 'r' && *(arg + 2) == 0 {
-                i = i + 1;
-                if i < argc {
-                    add_reader_name = get_arg(argv, i);
+                if i + 2 >= argc {
+                    eprintln("Error: -r needs a reader name and file");
+                    return 1;
                 }
                 i = i + 1;
-                if i < argc {
-                    add_reader_file = get_arg(argv, i);
-                }
+                add_reader_name = get_arg(argv, i);
+                i = i + 1;
+                add_reader_file = get_arg(argv, i);
                 add_reader_mode = 1;
                 handled = 1;
             }
@@ -766,23 +814,33 @@ func main(argc i64, argv **u8) i64 {
         // Check for -c flag (generate standalone compiler for reader)
         if handled == 0 && *arg == 45 {  // '-'
             if *(arg + 1) == 'c' && *(arg + 2) == 0 {
-                i = i + 1;
-                if i < argc {
-                    gen_compiler = get_arg(argv, i);
+                if i + 1 >= argc {
+                    eprintln("Error: -c needs a reader function name");
+                    return 1;
                 }
+                i = i + 1;
+                gen_compiler = get_arg(argv, i);
                 handled = 1;
             }
         }
 
         // Check for -o flag
         if handled == 0 && *arg == 45 {  // '-'
-            if *(arg + 1) == 111 {  // 'o'
-                i = i + 1;
-                if i < argc {
-                    output_file = get_arg(argv, i);
+            if *(arg + 1) == 'o' && *(arg + 2) == 0 {
+                if i + 1 >= argc {
+                    eprintln("Error: -o needs an output path");
+                    return 1;
                 }
+                i = i + 1;
+                output_file = get_arg(argv, i);
                 handled = 1;
             }
+        }
+
+        if handled == 0 && *arg == 45 {
+            eprint("Error: unknown option: ");
+            eprintln(arg);
+            return 1;
         }
 
         if handled == 0 {
@@ -790,6 +848,44 @@ func main(argc i64, argv **u8) i64 {
             vec_push(input_files, arg);
         }
         i = i + 1;
+    }
+
+    if dump_tokens_mode != 0 {
+        if vec_len(input_files) == 0 {
+            eprintln("Error: --dump-tokens needs at least one input file");
+            return 1;
+        }
+        if output_file != nil || gen_compiler != nil || run_mode != 0 ||
+           emit_ast_mode != 0 || emit_expanded_ast_mode != 0 ||
+           emit_exe_ast_mode != 0 || from_ast_mode != 0 ||
+           embed_self_mode != 0 || add_reader_mode != 0 {
+            eprintln("Error: --dump-tokens cannot be combined with compilation modes");
+            return 1;
+        }
+
+        i = 0;
+        while i < vec_len(input_files) {
+            var path *u8 = vec_get(input_files, i);
+            var content *u8 = read_file(path);
+            if content == nil { return 1; }
+
+            if vec_len(input_files) > 1 {
+                print("== ");
+                print(path);
+                println(" ==");
+            }
+
+            parser_tokenize(content);
+            var token_i i64 = 0;
+            while token_i < parser_token_count() {
+                var token *u8 = get_token(token_i);
+                print_token(token);
+                if tok_type(token) == TOKEN_ERROR { return 1; }
+                token_i = token_i + 1;
+            }
+            i = i + 1;
+        }
+        return 0;
     }
 
     // Build source based on mode
@@ -864,8 +960,30 @@ func main(argc i64, argv **u8) i64 {
     // Null-terminate
     *(source_buf + source_len) = 0;
 
+    if run_mode != 0 && (gen_compiler != nil || emit_ast_mode != 0 ||
+       emit_expanded_ast_mode != 0 || emit_exe_ast_mode != 0 ||
+       from_ast_mode != 0 || embed_self_mode != 0 || add_reader_mode != 0) {
+        eprintln("Error: run cannot be combined with compiler/AST composition modes");
+        return 1;
+    }
+
+    var run_base *u8 = nil;
+    var remove_run_output i64 = 0;
+    if run_mode != 0 {
+        run_base = str_concat("/tmp/lang-run-", i64_to_str(getpid()));
+    }
+
     if output_file == nil {
-        output_file = "a.s";
+        if run_mode != 0 {
+            if cg_backend_is_llvm() != 0 {
+                output_file = str_concat(run_base, ".ll");
+            } else {
+                output_file = str_concat(run_base, ".s");
+            }
+            remove_run_output = 1;
+        } else {
+            output_file = "a.s";
+        }
     }
 
     // --from-ast mode: parse S-expression AST directly
@@ -1428,7 +1546,8 @@ func main(argc i64, argv **u8) i64 {
         println(output_file);
     } else {
         // Backend selection: LANGBE, or the platform default when unset
-        if cg_backend_is_llvm() != 0 {
+        var is_llvm i64 = cg_backend_is_llvm();
+        if is_llvm != 0 {
             // LLVM IR backend
             generate_llvm(prog, output_file);
         } else {
@@ -1436,8 +1555,12 @@ func main(argc i64, argv **u8) i64 {
             generate(prog, output_file);
         }
 
-        print("Wrote ");
-        println(output_file);
+        if run_mode != 0 {
+            return run_compiled_output(output_file, run_base, is_llvm, remove_run_output);
+        } else {
+            print("Wrote ");
+            println(output_file);
+        }
     }
 
     return 0;

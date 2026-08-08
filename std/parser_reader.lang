@@ -125,8 +125,8 @@
 // EXAMPLE: BUILDING A READER WITH #parser{}
 // ============================================================
 //
-// See example/lisp/lisp.lang for a complete example that uses
-// #parser{} to build a Lisp-to-Lang compiler.
+// See example/tiny/tiny.lang for the smallest complete reader, or
+// example/minilisp/minilisp.lang for a real language built with #parser{}.
 //
 // The pattern is:
 //   1. Define grammar with #parser{}

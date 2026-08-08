@@ -860,6 +860,9 @@ func print_token_type(t i64) void {
     if t == TOKEN_CLOSURE { print("closure"); return; }
     if t == TOKEN_EXTERN { print("extern"); return; }
     if t == TOKEN_PUB { print("pub"); return; }
+    if t == TOKEN_F32 { print("f32"); return; }
+    if t == TOKEN_F64 { print("f64"); return; }
+    if t == TOKEN_FLOAT { print("FLOAT"); return; }
     if t == TOKEN_CAST { print("cast"); return; }
     if t == TOKEN_BITCAST { print("bitcast"); return; }
     print("UNKNOWN");

@@ -1,348 +1,132 @@
-# Building Lang
+# Building lang
 
-This guide covers building lang from source.
-
-## Quick Start
-
-### Linux (x86-64)
-
-```bash
-# First time setup
-make init        # Initialize from bootstrap
-make bootstrap   # Verify and build
-
-# After that
-make build       # Quick build without verification
-```
-
-### macOS (ARM64 or x86-64)
-
-```bash
-# First time setup
-clang bootstrap/llvm_libc_macos.ll -o lang
-
-# Verify it works
-make llvm-verify
-```
+Lang builds on Linux x86-64 and macOS ARM64. LLVM is the primary backend; the
+x86 assembly backend is frozen and kept as a recovery path.
 
 ## Prerequisites
 
-### Linux
+- `make`
+- LLVM's `clang`
+- LLVM's `lli` for the fastest test path (optional)
+- GNU `timeout` or `gtimeout` for test timeouts (optional)
 
-Install build essentials:
-```bash
-# Debian/Ubuntu
-sudo apt install build-essential
-
-# Fedora
-sudo dnf install gcc binutils make
-
-# Arch
-sudo pacman -S base-devel
-```
-
-### macOS
-
-Install Xcode Command Line Tools:
-```bash
-xcode-select --install
-```
-
-## Build Commands
-
-### Core Commands
-
-| Command | Description |
-|---------|-------------|
-| `make init` | Initialize from bootstrap (first time only) |
-| `make build` | Compile `src/*.lang` → `out/lang_next` |
-| `make bootstrap` | Full verification + promotion |
-| `make clean` | Remove build artifacts |
-| `make distclean` | Remove everything in `out/` |
-
-### Testing Commands
-
-| Command | Description |
-|---------|-------------|
-| `make test-suite` | Run x86 test suite |
-| `make test-run` | Run sample programs |
-| `make test-all` | Run all tests |
-
-### Development Commands
-
-| Command | Description |
-|---------|-------------|
-| `make run FILE=path.lang` | Compile and run a file |
-| `make dev-run FILE=path.lang` | Run with `lang_next` |
-| `make dev-stdlib-run FILE=path.lang` | Run with stdlib + `lang_next` |
-
-## Environment Variables
-
-### LANGOS - Target Operating System
+Check what the compiler can see:
 
 ```bash
-LANGOS=linux   # (default) Linux x86-64
-LANGOS=macos   # macOS ARM64
+./out/lang tools
 ```
 
-### LANGBE - Backend
+## First build
+
+The repository normally includes a working `out/lang`. If it does not:
 
 ```bash
-LANGBE=x86     # (default) x86-64 assembly output
-LANGBE=llvm    # LLVM IR output
+make init
 ```
 
-### LANGLIBC - C Library
+`make init` compiles the platform-specific preserved LLVM IR in
+`bootstrap/current/` with `clang`.
+
+Build the current sources:
 
 ```bash
-LANGLIBC=none  # (default) Raw syscalls, no libc
-LANGLIBC=libc  # Use system libc (required for LLVM)
+make build
 ```
 
-### Examples
+Two compiler names are intentional:
+
+- `out/lang` is the stable, bootstrapped compiler.
+- `out/lang_next` is the candidate just built from the working tree.
+
+Use `out/lang_next` while developing compiler changes. A successful
+`make bootstrap` promotes the verified compiler to `out/lang`.
+
+## Compile a program
 
 ```bash
-# Build for macOS with LLVM backend
-LANGOS=macos LANGBE=llvm make build
-
-# Run a test with LLVM backend
-LANGBE=llvm make dev-run FILE=test/suite/181_hello.lang
-
-# Build compiler using libc
-LANGLIBC=libc make build
+LANGBE=llvm ./out/lang hello.lang -o hello.ll
+clang -O2 hello.ll -o hello
+./hello
 ```
 
-## Output Files
-
-After building:
-
-```
-out/
-├── lang -> lang_<commit>          # Active compiler symlink
-├── lang_next -> lang_<commit>     # New compiler (pre-promotion)
-├── lang_<commit>                  # Compiler binary
-├── lang_<commit>.s                # Compiler assembly
-├── lang_standalone                # Standalone compiler
-├── llvm_libc_linux                # LLVM-based compiler (Linux)
-└── ast/
-    └── lang_reader_v1.ast         # Expanded reader AST
-```
-
-## Compilation Pipeline
-
-### Default (x86)
-
-```
-.lang → lang → .s → as → .o → ld → binary
-```
-
-1. `lang` compiles `.lang` files to x86-64 assembly (`.s`)
-2. `as` assembles to object file (`.o`)
-3. `ld` links to executable
-
-### LLVM Backend
-
-```
-.lang → lang → .ll → clang → binary
-```
-
-1. `lang` compiles `.lang` files to LLVM IR (`.ll`)
-2. `clang` compiles and links to executable
-
-## Directory Structure
-
-```
-language/
-├── src/                    # Compiler source code
-│   ├── lexer.lang         # Tokenizer
-│   ├── parser.lang        # Parser + AST nodes
-│   ├── codegen.lang       # x86-64 backend
-│   ├── codegen_llvm.lang  # LLVM backend
-│   ├── sexpr_reader.lang  # S-expression AST reader
-│   ├── ast_emit.lang      # AST emitter
-│   └── main.lang          # CLI driver
-├── std/                    # Standard library
-│   ├── core.lang          # Core utilities
-│   ├── tok.lang           # Tokenizer for readers
-│   └── os/                # OS abstraction layer
-│       ├── linux_x86_64.lang
-│       ├── macos_arm64.lang
-│       ├── libc.lang
-│       └── libc_macos.lang
-├── test/                   # Test suite (167 tests)
-│   ├── suite/             # Individual test files
-│   ├── run_lang1_suite.sh # x86 test runner
-│   └── run_llvm_suite.sh  # LLVM test runner
-├── bootstrap/             # Bootstrap artifacts
-│   ├── current/           # Active bootstrap (symlink)
-│   ├── escape_hatch.s     # Emergency recovery
-│   └── llvm_libc_macos.ll # macOS bootstrap
-├── out/                   # Build output
-└── docs/                  # Documentation
-```
-
-## Compiler Flags
-
-```
-lang [options] <files...> -o <output>
-
-Options:
-  -o <file>             Output file (required)
-  -c <reader>           Compose with reader (creates standalone)
-  --emit-ast            Emit AST instead of compiling
-  --emit-expanded-ast   Emit fully expanded AST
-```
-
-### Examples
+For the common case:
 
 ```bash
-# Basic compilation
-./out/lang test.lang -o test.s
-
-# With standard library
-./out/lang std/core.lang test.lang -o test.s
-
-# Emit AST
-./out/lang test.lang --emit-ast -o test.ast
-
-# Create standalone compiler
-./out/lang -c lang src/lang_reader.lang -o standalone.s
+LANGBE=llvm ./out/lang run hello.lang
 ```
 
-## Running Tests
+On macOS, LLVM is already the compiler's default. Setting `LANGBE=llvm` keeps
+commands portable to Linux, where the legacy x86 backend may still be the
+compiled-in default.
 
-### Full Test Suite (x86)
+Useful target variables:
+
+| Variable | Values | Meaning |
+|---|---|---|
+| `LANGBE` | `llvm`, `x86` | Code generator; new work belongs in LLVM |
+| `LANGOS` | `linux`, `macos`, `wasm` | Target platform |
+| `LANGLIBC` | `none`, `system` | Runtime/libc mode |
+| `LANG_CACHE` | path | Reader executable cache (default `.lang-cache`) |
+
+For WebAssembly:
 
 ```bash
-./test/run_lang1_suite.sh
+LANGBE=llvm LANGOS=wasm ./out/lang hello.lang -o hello.ll
+clang --target=wasm32-unknown-unknown -nostdlib -Wl,--no-entry \
+  -Wl,--export-all -Wl,--allow-undefined -Wl,-z,stack-size=8388608 \
+  hello.ll -o hello.wasm
+node test/wasm_host.js hello.wasm
 ```
 
-Runs 167 tests, outputs:
-```
-Test 001_return_0... PASS
-Test 002_return_42... PASS
-...
-167/167 tests passed
+Effects are intentionally rejected for the wasm target because core wasm has
+no stack-switching primitive.
+
+## Write a compiler
+
+A reader is a frontend function: source text in, shared AST out. Compose one
+with the kernel to produce a compiler for its file syntax:
+
+```bash
+LANGBE=llvm ./out/lang -c tiny example/tiny/tiny.lang -o tinyc.ll
+clang -O2 tinyc.ll -o tinyc
+./tinyc example/tiny/answer.tiny -o answer.ll
 ```
 
-### Full Test Suite (LLVM)
+See [READERS.md](./READERS.md) for the copyable 20-line reader and the reader
+contract.
+
+## Tests
 
 ```bash
 ./test/run_llvm_suite.sh
+./test/run_wasm_suite.sh
 ```
 
-### Single Test
+Test a candidate compiler without promoting it:
 
 ```bash
-# With current compiler
-make dev-stdlib-run FILE=test/suite/195_effect_in_loop.lang
-
-# Check exit code
-./out/test; echo "Exit: $?"
+COMPILER=./out/lang_next ./test/run_llvm_suite.sh
 ```
 
-### Using a Specific Compiler
+The LLVM suite includes ordinary language tests, shipped-reader end-to-end
+checks, stale-cache coverage, and a compiler-compiler proof.
+
+## Compiler development
+
+Compiler sources are in `src/`; library code used by readers and programs is in
+`std/`. The usual loop is:
 
 ```bash
-COMPILER=./out/lang_next ./test/run_lang1_suite.sh
+make build
+COMPILER=./out/lang_next ./test/run_llvm_suite.sh
+make bootstrap
 ```
 
-## Troubleshooting
+After any compiler change, `make bootstrap` is required. It rebuilds multiple
+generations, checks LLVM and reader-AST fixed points, validates both platform
+artifacts with `clang`, runs the suite on the final binary, archives the old
+bootstrap as a GitHub release, stages complete root files before promotion, and
+replaces the stable compiler only after every check succeeds. See
+[BOOTSTRAP.md](./BOOTSTRAP.md).
 
-### "lang: command not found"
-
-Run `make init` to initialize from bootstrap.
-
-### "undefined reference to..."
-
-Missing symbol. Make sure you include `std/core.lang` if using stdlib functions:
-```bash
-./out/lang std/core.lang myprogram.lang -o out.s
-```
-
-### Assembler errors
-
-The generated assembly might have issues. Check:
-```bash
-# View generated assembly
-cat out/myprogram.s
-
-# Try assembling manually
-as out/myprogram.s -o out/myprogram.o
-```
-
-### Linker errors
-
-On Linux with raw syscalls, no libraries are needed. With libc:
-```bash
-# Manual linking with libc
-clang out/myprogram.ll -o myprogram
-```
-
-### LLVM backend not working
-
-Ensure you have clang installed:
-```bash
-clang --version
-```
-
-Generate LLVM IR and compile manually:
-```bash
-LANGBE=llvm ./out/lang std/core.lang myprogram.lang -o out/myprogram.ll
-clang out/myprogram.ll -o myprogram
-```
-
-## Advanced: Manual Bootstrap Recovery
-
-If something goes wrong with bootstrap:
-
-### From x86 Assembly (Linux)
-
-```bash
-# Assemble escape hatch
-as bootstrap/escape_hatch.s -o /tmp/emergency.o
-ld /tmp/emergency.o -o /tmp/emergency
-
-# Rebuild compiler
-/tmp/emergency std/core.lang src/*.lang -o /tmp/recovered.s
-as /tmp/recovered.s -o /tmp/recovered.o
-ld /tmp/recovered.o -o /tmp/recovered
-
-# Verify fixed point
-/tmp/recovered std/core.lang src/*.lang -o /tmp/gen2.s
-diff /tmp/recovered.s /tmp/gen2.s  # Should be identical
-```
-
-### From LLVM IR (Any Platform)
-
-```bash
-# Build from LLVM bootstrap
-clang bootstrap/llvm_libc_macos.ll -o /tmp/emergency
-
-# Generate new compiler
-LANGBE=llvm /tmp/emergency std/core.lang src/*.lang -o /tmp/recovered.ll
-clang /tmp/recovered.ll -o /tmp/recovered
-
-# Verify fixed point
-LANGBE=llvm /tmp/recovered std/core.lang src/*.lang -o /tmp/gen2.ll
-diff /tmp/recovered.ll /tmp/gen2.ll  # Should be identical
-```
-
-## Performance
-
-Typical times on modern hardware (with parallel test execution):
-
-| Operation | x86 Backend | LLVM Backend |
-|-----------|-------------|--------------|
-| Full compiler build | ~3s | ~5s + clang |
-| Full bootstrap | ~10s | ~20s |
-| Single file | <1s | <1s + clang |
-| Test suite | ~1s | ~3s |
-
-Test suites use parallel execution (`xargs -P`) and optimized LLVM interpretation (`lli --jit-kind=orc`).
-
-Control parallelism with environment variables:
-- `JOBS=4` - run 4 tests in parallel (default: nproc)
-- `SEQUENTIAL=1` - disable parallelism (for debugging)
-
-LLVM is slower but produces optimized code and works cross-platform.
+Do not copy bootstrap files by hand or promote a partially verified compiler.

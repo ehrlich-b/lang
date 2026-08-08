@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>write a lang reader</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#c9d1d9; --dim:#8b949e; --green:#7ee787; --blue:#79c0ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  main { max-width:860px; margin:0 auto; padding:2.5rem 1.25rem 5rem; }
+  h1 { color:var(--green); margin:.4rem 0; font-size:2rem; }
+  h2 { color:var(--blue); margin:2.2rem 0 .7rem; font-size:1.2rem; }
+  p { max-width:72ch; }
+  a { color:var(--blue); }
+  code { color:var(--green); }
+  pre { background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:1rem; overflow:auto; font-size:.84rem; }
+  .back { color:var(--dim); }
+</style>
+</head>
+<body><main>
+  <a class="back" href="./">&larr; lang</a>
+  <h1>write a reader</h1>
+  <p>
+    A reader is a frontend: source text in, shared AST out. Wrap it around
+    lang&rsquo;s kernel and you get a native compiler for your syntax.
+  </p>
+
+  <h2>the 20-line reader</h2>
+  <pre><code>// tiny.lang: `answer 42` becomes a native program.
+
+include "std/tok.lang"
+include "std/ast.lang"
+
+reader tiny(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    if tok_kind(tokens) != TOK_IDENT || !streq(tok_text(tokens), "answer") {
+        eprintln("tiny: expected `answer NUMBER`");
+        return nil;
+    }
+    tok_next(tokens);
+    if tok_kind(tokens) != TOK_NUMBER {
+        eprintln("tiny: expected a number");
+        return nil;
+    }
+
+    var body *u8 = ast_block1(ast_return(ast_number(tok_text(tokens))));
+    return ast_program1(ast_func("main", ast_vec(), ast_type_i64(), body));
+}</code></pre>
+
+  <p>Put <code>answer 42</code> in <code>answer.tiny</code>, then compile and run it:</p>
+  <pre><code>$ LANGBE=llvm lang tiny.lang answer.tiny -o answer.ll
+$ clang answer.ll -o answer
+$ ./answer; echo $?
+42</code></pre>
+
+  <h2>mint the compiler</h2>
+  <pre><code>$ lang -c tiny tiny.lang -o tinyc.ll
+$ clang -O2 tinyc.ll -o tinyc
+$ ./tinyc answer.tiny -o answer.ll</code></pre>
+  <p>
+    <code>tinyc</code> is the compiler. Your reader supplies syntax and lowering;
+    the kernel supplies the type system, LLVM backend, native and wasm targets,
+    and the ABI shared with every other reader.
+  </p>
+
+  <h2>grow it</h2>
+  <p>
+    Use <code>#parser{}</code> when the syntax needs a grammar. Use
+    <code>std/ast.lang</code> instead of hand-building S-expressions. Keep parse,
+    lower, and emit separate. The shipped C, Lisp, Forth, flow, and minipy
+    readers are examples, not a closed list.
+  </p>
+</main></body>
+</html>

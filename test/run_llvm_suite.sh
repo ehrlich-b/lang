@@ -84,7 +84,7 @@ run_one_test() {
     local outbin="$tmpdir/test"
 
     # Compile to LLVM IR (use per-test cache dir to avoid parallel races)
-    if LANG_CACHE="$tmpdir/.lang-cache" LANGBE=llvm $COMPILER "$f" -o "$outll" 2>/dev/null; then
+    if LANG_CACHE="$tmpdir/.lang-cache" LANGBE=llvm $COMPILER "$f" -o "$outll" >/dev/null 2>&1; then
         # Use clang for tests marked //clang (inline asm), lli for rest
         if head -3 "$f" | grep -q '//clang'; then
             clang -O0 "$outll" -o "$outbin" 2>/dev/null
@@ -135,15 +135,22 @@ fi
 # build readers via lang()/ast_*, never #parser{} inside a reader.
 reader_e2e() {
     local name=$1; local file=$2
+    local expected=${3:-0}
     local tmp=$(mktemp -d)
-    if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$file" -o "$tmp/r.ll" 2>/dev/null \
-       && do_timeout 30 lli $LLI_JIT_FLAG "$tmp/r.ll" >/dev/null 2>&1; then
+    if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$file" -o "$tmp/r.ll" >/dev/null 2>&1; then
+        do_timeout 30 lli $LLI_JIT_FLAG "$tmp/r.ll" >/dev/null 2>&1
+        local result=$?
+    else
+        local result=compile_error
+    fi
+    if [ "$result" = "$expected" ]; then
         echo "PASS $name" >> "$results_file"
     else
-        echo "FAIL $name" >> "$results_file"
+        echo "FAIL $name (expected $expected, got $result)" >> "$results_file"
     fi
     rm -rf "$tmp"
 }
+reader_e2e reader_tiny_e2e     example/tiny/test_tiny.lang 42
 reader_e2e reader_minilisp_e2e example/minilisp/test_defun.lang
 reader_e2e reader_c_e2e         example/c/test_c.lang
 reader_e2e reader_forth_e2e     example/forth/test_forth.lang
@@ -174,6 +181,23 @@ BADEOF
 }
 compile_must_fail compile_error_is_fatal
 
+negative_compile_e2e() {
+    local name=$1; local file=$2
+    local tmp=$(mktemp -d)
+    if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$file" \
+           -o "$tmp/bad.ll" >/dev/null 2>&1; then
+        echo "FAIL $name (compiler accepted invalid source)" >> "$results_file"
+    else
+        echo "PASS $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+negative_compile_e2e negative_undefined_identifier test/negative/undefined_identifier.lang
+negative_compile_e2e negative_missing_return       test/negative/missing_return.lang
+negative_compile_e2e negative_capturing_lambda_fn test/negative/capturing_lambda_as_fn.lang
+negative_compile_e2e negative_break_outside_loop  test/negative/break_outside_loop.lang
+negative_compile_e2e negative_continue_outside_loop test/negative/continue_outside_loop.lang
+
 # Like reader_e2e but compiles with clang and runs the native binary, for readers
 # whose output uses algebraic effects (perform/handle/resume) - the inline-asm
 # continuation mechanism does not work under the lli JIT, only clang (matching
@@ -181,7 +205,7 @@ compile_must_fail compile_error_is_fatal
 reader_e2e_clang() {
     local name=$1; local file=$2
     local tmp=$(mktemp -d)
-    if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$file" -o "$tmp/r.ll" 2>/dev/null \
+    if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$file" -o "$tmp/r.ll" >/dev/null 2>&1 \
        && clang -O0 "$tmp/r.ll" -o "$tmp/r" 2>/dev/null \
        && do_timeout 10 "$tmp/r" >/dev/null 2>&1; then
         echo "PASS $name" >> "$results_file"
@@ -192,6 +216,129 @@ reader_e2e_clang() {
 }
 reader_e2e_clang reader_flow_e2e     example/flow/test_flow.lang
 reader_e2e_clang reader_polyglot_e2e example/polyglot.lang
+
+# Prove the product claim, not just the macro path: lang turns a reader into a
+# compiler, that compiler consumes its own file extension, and its output runs.
+compiler_compiler_e2e() {
+    local name=compiler_compiler_e2e
+    local tmp=$(mktemp -d)
+    if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER -c tiny \
+           example/tiny/tiny.lang -o "$tmp/tinyc.ll" >/dev/null 2>&1 \
+       && clang -O2 "$tmp/tinyc.ll" -o "$tmp/tinyc" >/dev/null 2>&1 \
+       && LANGBE=llvm "$tmp/tinyc" example/tiny/answer.tiny \
+           -o "$tmp/answer.ll" >/dev/null 2>&1; then
+        do_timeout 10 lli $LLI_JIT_FLAG "$tmp/answer.ll" >/dev/null 2>&1
+        local result=$?
+    else
+        local result=compile_error
+    fi
+    if [ "$result" = 42 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name (expected 42, got $result)" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+compiler_compiler_e2e
+
+# Reusing a LANG_CACHE must never mean reusing yesterday's reader body. This
+# rewrites and recompiles within one timestamp tick to guard content freshness,
+# not merely mtime freshness.
+reader_cache_refresh_e2e() {
+    local name=reader_cache_refresh_e2e
+    local tmp=$(mktemp -d)
+    cat > "$tmp/probe.lang" <<'PROBE1'
+include "std/ast.lang"
+reader cache_probe(text *u8) *u8 { return ast_number("41"); }
+func main() i64 { return #cache_probe{ignored}; }
+PROBE1
+    if ! LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$tmp/probe.lang" \
+            -o "$tmp/first.ll" >/dev/null 2>&1; then
+        echo "FAIL $name (first compile error)" >> "$results_file"
+        rm -rf "$tmp"
+        return
+    fi
+    do_timeout 10 lli $LLI_JIT_FLAG "$tmp/first.ll" >/dev/null 2>&1
+    local first=$?
+
+    cat > "$tmp/probe.lang" <<'PROBE2'
+include "std/ast.lang"
+reader cache_probe(text *u8) *u8 { return ast_number("42"); }
+func main() i64 { return #cache_probe{ignored}; }
+PROBE2
+    if ! LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$tmp/probe.lang" \
+            -o "$tmp/second.ll" >/dev/null 2>&1; then
+        echo "FAIL $name (second compile error)" >> "$results_file"
+        rm -rf "$tmp"
+        return
+    fi
+    do_timeout 10 lli $LLI_JIT_FLAG "$tmp/second.ll" >/dev/null 2>&1
+    local second=$?
+
+    if [ "$first" = 41 ] && [ "$second" = 42 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name (expected 41 then 42, got $first then $second)" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_cache_refresh_e2e
+
+cli_run_e2e() {
+    local name=cli_run_e2e
+    local tmp=$(mktemp -d)
+    LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER run \
+        example/tiny/tiny.lang example/tiny/answer.tiny >/dev/null 2>&1
+    local result=$?
+    if [ "$result" = 42 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name (expected 42, got $result)" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+cli_run_e2e
+
+token_dump_e2e() {
+    local name=token_dump_e2e
+    local output
+    if output=$($COMPILER --dump-tokens test/suite/260_float_basic.lang 2>/dev/null) \
+       && printf '%s\n' "$output" | grep -Fq "[4:1] func 'func'" \
+       && printf '%s\n' "$output" | grep -Fq "FLOAT '1.5'" \
+       && printf '%s\n' "$output" | grep -Fq "EOF ''"; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+}
+token_dump_e2e
+
+cli_errors_e2e() {
+    local name=cli_errors_e2e
+    local tmp=$(mktemp -d)
+    local ok=1
+
+    $COMPILER --not-a-real-option test/suite/002_return_42.lang \
+        >"$tmp/unknown.out" 2>&1 && ok=0
+    grep -Fq "unknown option: --not-a-real-option" "$tmp/unknown.out" || ok=0
+
+    $COMPILER test/suite/002_return_42.lang -o >"$tmp/output.out" 2>&1 && ok=0
+    grep -Fq -- "-o needs an output path" "$tmp/output.out" || ok=0
+
+    $COMPILER -c >"$tmp/compiler.out" 2>&1 && ok=0
+    grep -Fq -- "-c needs a reader function name" "$tmp/compiler.out" || ok=0
+
+    $COMPILER -r tiny >"$tmp/reader.out" 2>&1 && ok=0
+    grep -Fq -- "-r needs a reader name and file" "$tmp/reader.out" || ok=0
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+cli_errors_e2e
 
 # Count results (grep -c returns 1 if no matches, so handle that)
 passed=$(grep -c '^PASS' "$results_file" 2>/dev/null) || passed=0

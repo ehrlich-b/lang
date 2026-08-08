@@ -1,6 +1,7 @@
 # LLVM as Primary Bootstrap
 
-**Status**: Implementing
+**Status**: Historical; implemented and superseded by
+[`docs/BOOTSTRAP.md`](../docs/BOOTSTRAP.md)
 **Priority**: #1 (blocks Mac development)
 
 ## Summary

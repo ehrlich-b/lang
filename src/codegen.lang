@@ -1010,6 +1010,14 @@ func find_macro(name *u8, name_len i64) *u8 {
 
 // Execute a program, wait for completion (no stdin/stdout capture)
 // Inherits parent's environment so child can find tools like linker
+func process_status_code(status i64) i64 {
+    var signal i64 = status & 127;
+    if signal != 0 {
+        return 128 + signal;
+    }
+    return (status / 256) % 256;
+}
+
 func exec_run(program *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8) i64 {
     var argv *u8 = alloc(56);  // 7 pointers
     var a0 **u8 = argv;      *a0 = program;
@@ -1031,7 +1039,7 @@ func exec_run(program *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8) i64
 
     var status *i64 = alloc(8);
     os_waitpid(pid, status, 0);
-    return (*status / 256) % 256;  // extract exit code
+    return process_status_code(*status);
 }
 
 // Execute a program with environment, wait for completion
@@ -1053,7 +1061,7 @@ func exec_run_env(program *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8,
 
     var status *i64 = alloc(8);
     os_waitpid(pid, status, 0);
-    return (*status / 256) % 256;  // extract exit code
+    return process_status_code(*status);
 }
 
 // Get cache base directory from LANG_CACHE env var or default
@@ -1126,6 +1134,24 @@ func should_recompile_reader(cached_exe *u8) i64 {
     return 0;  // cache is valid
 }
 
+// The wrapper is a deterministic rendering of the reader plus its preceding
+// sibling declarations. Comparing it catches source edits even when the file
+// and cached executable have the same one-second mtime.
+func reader_wrapper_matches(path *u8, wrapper *u8, wrapper_len i64) i64 {
+    var fd i64 = file_open(path, 0);
+    if fd < 0 {
+        return 0;
+    }
+
+    var cached *u8 = alloc(wrapper_len + 1);
+    var n i64 = file_read(fd, cached, wrapper_len + 1);
+    file_close(fd);
+    if n != wrapper_len {
+        return 0;
+    }
+    return memcmp(cached, wrapper, wrapper_len);
+}
+
 // Generate and compile reader to executable
 func compile_reader_to_executable(decl *u8) void {
     var name *u8 = reader_decl_name(decl);
@@ -1137,11 +1163,6 @@ func compile_reader_to_executable(decl *u8) void {
     // Build cache path: $LANG_CACHE/readers/<name>
     var base_path *u8 = build_reader_cache_path(name, name_len);
     var exe_path *u8 = str_dup(base_path);
-
-    // Check if cache is valid (mtime-based)
-    if should_recompile_reader(exe_path) == 0 {
-        return;  // cache is valid, skip recompilation
-    }
 
     // Create cache directories
     var cache_base *u8 = get_cache_base();
@@ -1169,6 +1190,8 @@ func compile_reader_to_executable(decl *u8) void {
     // Loop variables used throughout function
     var i i64 = 0;
     var j i64 = 0;
+    var dependency_newer i64 = 0;
+    var exe_mtime i64 = file_mtime(exe_path);
 
     // Build wrapper source with sibling declarations from current file
     var wrapper *u8 = alloc(262144);  // 256KB for larger reader files
@@ -1209,6 +1232,8 @@ func compile_reader_to_executable(decl *u8) void {
             var k i64 = node_kind(sibling);
             if k == NODE_INCLUDE_DECL {
                 ast_to_string_include_decl(sibling);
+                var dep_path *u8 = str_dup_n(include_decl_path(sibling), include_decl_path_len(sibling));
+                if file_mtime(dep_path) > exe_mtime { dependency_newer = 1; }
             }
             // For reader caching, treat require like include (inline the code)
             if k == NODE_REQUIRE_DECL {
@@ -1218,6 +1243,9 @@ func compile_reader_to_executable(decl *u8) void {
                 ast_str_append_cstr("include \"");
                 ast_str_append(mod, mod_len);
                 ast_str_append_cstr(".lang\"\n");
+                var dep_base *u8 = str_dup_n(mod, mod_len);
+                var dep_path *u8 = str_concat(dep_base, ".lang");
+                if file_mtime(dep_path) > exe_mtime { dependency_newer = 1; }
             }
             i = i + 1;
         }
@@ -1362,11 +1390,17 @@ func compile_reader_to_executable(decl *u8) void {
     }
     *wp = 0;
 
+    var wlen i64 = strlen(wrapper);
+
+    // Compiler/stdlib mtimes cover toolchain changes. Wrapper content covers
+    // the reader itself; dependency mtimes cover its direct imports.
+    if should_recompile_reader(exe_path) == 0 && dependency_newer == 0 &&
+       reader_wrapper_matches(src_path, wrapper, wlen) != 0 {
+        return;
+    }
+
     // Write wrapper source to file (for debugging)
     var fd i64 = file_open(src_path, O_WRONLY_CREAT_TRUNC);
-    var wlen i64 = 0;
-    var ws *u8 = wrapper;
-    while *ws != 0 { wlen = wlen + 1; ws = ws + 1; }
     file_write(fd, wrapper, wlen);
     file_close(fd);
 
@@ -1399,7 +1433,7 @@ func compile_reader_to_executable(decl *u8) void {
     // Parent: wait for child to finish
     var status *i64 = alloc(8);
     os_waitpid(pid, status, 0);
-    var exit_code i64 = (*status / 256) % 256;
+    var exit_code i64 = process_status_code(*status);
     if exit_code != 0 {
         eprintln("Error: reader compilation failed");
         return;
@@ -1690,7 +1724,7 @@ func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
     // Parent: wait for child
     var status *i64 = alloc(8);
     os_waitpid(pid, status, 0);
-    var exit_code i64 = (*status / 256) % 256;
+    var exit_code i64 = process_status_code(*status);
     if exit_code != 0 {
         eprintln("Error: embedded reader compilation failed");
         return nil;
@@ -3141,9 +3175,18 @@ func gen_expr(expr *u8) void {
         }
 
         // Function reference
-        emit_str("    lea ");
-        emit_n(name, name_len);
-        emit_line("(%rip), %rax");
+        if find_func(name, name_len) != nil {
+            emit_str("    lea ");
+            emit_n(name, name_len);
+            emit_line("(%rip), %rax");
+            return;
+        }
+
+        eprint("error: undefined identifier '");
+        eprint_buf(name, name_len);
+        eprintln("'");
+        cg_had_error = 1;
+        emit_line("    xor %rax, %rax");
         return;
     }
 
@@ -6184,6 +6227,17 @@ func ast_str_init() void {
     ast_str_pos = 0;
 }
 
+// Raw arrays used by AST nodes are not Vecs. Keep these helpers local to
+// codegen: generated standalone compilers include codegen without ast_emit.
+func cg_ast_ptr_at(arr *u8, index i64) *u8 {
+    var p **u8 = arr + (index * 8);
+    return *p;
+}
+
+func cg_ast_effect_case(cases *u8, index i64) *u8 {
+    return cases + (index * 56);
+}
+
 func ast_str_append_char(c u8) void {
     if ast_str_pos < ast_str_cap - 1 {
         *(ast_str_buf + ast_str_pos) = c;
@@ -6364,7 +6418,7 @@ func ast_to_string_expr(expr *u8) void {
         var ei i64 = 0;
         while ei < ecount {
             if ei > 0 { ast_str_append_cstr(", "); }
-            ast_to_string_expr(get_ptr_at(elems, ei));
+            ast_to_string_expr(cg_ast_ptr_at(elems, ei));
             ei = ei + 1;
         }
         ast_str_append_char(93);  // ]
@@ -6415,7 +6469,7 @@ func ast_to_string_expr(expr *u8) void {
         var bcount i64 = block_expr_count(expr);
         var bi i64 = 0;
         while bi < bcount {
-            ast_to_string_stmt(get_ptr_at(bstmts, bi));
+            ast_to_string_stmt(cg_ast_ptr_at(bstmts, bi));
             bi = bi + 1;
         }
         var tail *u8 = block_expr_tail(expr);
@@ -6470,7 +6524,7 @@ func ast_to_string_expr(expr *u8) void {
         var pi i64 = 0;
         while pi < pcount {
             if pi > 0 { ast_str_append_cstr(", "); }
-            ast_to_string_expr(get_ptr_at(pargs, pi));
+            ast_to_string_expr(cg_ast_ptr_at(pargs, pi));
             pi = pi + 1;
         }
         ast_str_append_char(41);  // )
@@ -6502,7 +6556,7 @@ func ast_to_string_expr(expr *u8) void {
         var hcount i64 = handle_expr_case_count(expr);
         var hi i64 = 0;
         while hi < hcount {
-            var hc *u8 = get_effect_case(hcases, hi);
+            var hc *u8 = cg_ast_effect_case(hcases, hi);
             ast_str_append(effect_case_name(hc), effect_case_name_len(hc));
             ast_str_append_char(40);  // (
             ast_str_append(effect_case_binding(hc), effect_case_binding_len(hc));
@@ -6840,7 +6894,7 @@ func ast_to_string_effect_decl(decl *u8) void {
     var pi i64 = 0;
     while pi < pcount {
         if pi > 0 { ast_str_append_cstr(", "); }
-        ast_to_string_type(get_ptr_at(ptypes, pi));
+        ast_to_string_type(cg_ast_ptr_at(ptypes, pi));
         pi = pi + 1;
     }
     ast_str_append_char(41);  // )

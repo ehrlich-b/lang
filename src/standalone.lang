@@ -13,6 +13,17 @@ include "src/codegen.lang"
 include "src/codegen_llvm.lang"
 include "src/sexpr_reader.lang"
 
+// codegen's require handling consults this composition-mode flag. The full
+// compiler owns it in main.lang; a generated standalone compiler never runs
+// `-r`, so its value is always false.
+var add_reader_mode i64 = 0;
+
+// Standalone compilers resolve modules from source; unlike self-aware kernels,
+// they do not carry a table of embedded module ASTs.
+func find_kernel_builtin(name *u8, name_len i64) *u8 {
+    return nil;
+}
+
 // Helper to append string to buffer
 func standalone_append(buf *u8, len *i64, s *u8) void {
     while *s != 0 {

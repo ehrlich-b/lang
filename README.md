@@ -24,7 +24,7 @@ A self-hosted compiler where syntax is a plugin.
 
 The compiler has two parts: a kernel (AST to native code) and readers (syntax to AST). The lang reader - the one that parses `func`, `if`, `while` - is just one reader. You can swap it for anything.
 
-**Cross-platform**: Linux x86-64 and macOS ARM64 via LLVM. 185 tests pass on both.
+**Cross-platform**: Linux x86-64 and macOS ARM64 via LLVM. 198 checks pass on both.
 
 ## It's a language
 
@@ -43,19 +43,25 @@ Functions, structs, pointers, algebraic effects. See [LANG.md](./LANG.md).
 
 ## It outputs compilers
 
-The `-c` flag composes the kernel with a reader to produce a standalone compiler:
+That makes lang a **compiler compiler**: you write one reader function—source
+text in, shared AST out—and lang turns it into a native compiler. The `-c` flag
+composes the kernel with that reader:
 
 ```bash
-./out/lang -c lisp_reader.lang -o lang_lisp
+LANGBE=llvm ./out/lang -c tiny example/tiny/tiny.lang -o tinyc.ll
+clang -O2 tinyc.ll -o tinyc
 ```
 
-Now `lang_lisp` is a native compiler that understands both `.lang` and `.lisp` files:
+Now `tinyc` is a native compiler for `.tiny` files:
 
 ```bash
-./lang_lisp main.lang mathlib.lisp -o program
+./tinyc example/tiny/answer.tiny -o answer.ll
 ```
 
 Same AST means same calling convention. Functions call each other directly at the machine level, no wrappers or runtime glue.
+
+Start with the copyable [reader guide](./docs/READERS.md), then grow into the
+shipped examples below.
 
 ## Five languages, one binary
 
@@ -118,6 +124,15 @@ make build        # Compile from source → out/lang_next
 make run FILE=... # Compile and run a program
 ```
 
+Or use the compiler directly: `./out/lang run hello.lang`.
+
+Reader and tooling authors can inspect the exact lexer stream without parsing
+or compiling:
+
+```bash
+./out/lang --dump-tokens hello.lang
+```
+
 Two compilers live in `out/`: **`out/lang`** is the stable compiler, promoted by
 the last successful `make bootstrap` - use this one. **`out/lang_next`** is
 whatever `make build` just compiled from source; it only matters when you are
@@ -146,7 +161,7 @@ node test/wasm_host.js hello.wasm
 ```
 
 `test/wasm_host.js` is a small node host providing the libc surface
-(write/alloc/exit). 163 of the suite's tests pass on wasm
+(write/alloc/exit). 165 of the suite's tests pass on wasm
 (`./test/run_wasm_suite.sh`); the exception is algebraic effects, which need
 stack switching that core wasm cannot express - the compiler rejects them
 cleanly for this target.
@@ -156,16 +171,19 @@ cleanly for this target.
 The compiler bootstraps from preserved LLVM IR:
 
 ```
-bootstrap/current/llvm/compiler.ll   # LLVM IR (cross-platform)
+bootstrap/current/compiler_linux.ll
+bootstrap/current/compiler_macos.ll
 ```
 
-A legacy x86 assembly bootstrap exists (`bootstrap/current/x86/compiler.s`) but is frozen - no new features will be added. The x86 backend served its purpose (self-hosting proof, educational value) but LLVM is the future for Language Forge.
+The legacy x86 assembly backend is frozen. It served the self-hosting proof and
+remains a historical recovery path, but LLVM is the future for Language Forge.
 
 ## Docs
 
 - [LANG.md](./LANG.md) - Language reference
 - [TODO.md](./TODO.md) - Roadmap
 - [docs/](./docs/) - Technical documentation
+  - [READERS.md](./docs/READERS.md) - Write a syntax reader and mint a compiler
   - [BUILDING.md](./docs/BUILDING.md) - Build instructions and compilation pipeline
   - [BOOTSTRAP.md](./docs/BOOTSTRAP.md) - Bootstrap process and trust chain
   - [AST.md](./docs/AST.md) - AST node reference (41 node types)

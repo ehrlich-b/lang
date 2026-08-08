@@ -1,0 +1,20 @@
+// The smallest useful reader: `answer 42` becomes a complete native program.
+
+include "std/tok.lang"
+include "std/ast.lang"
+
+reader tiny(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    if tok_kind(tokens) != TOK_IDENT || !streq(tok_text(tokens), "answer") {
+        eprintln("tiny: expected `answer NUMBER`");
+        return nil;
+    }
+    tok_next(tokens);
+    if tok_kind(tokens) != TOK_NUMBER {
+        eprintln("tiny: expected a number");
+        return nil;
+    }
+
+    var body *u8 = ast_block1(ast_return(ast_number(tok_text(tokens))));
+    return ast_program1(ast_func("main", ast_vec(), ast_type_i64(), body));
+}

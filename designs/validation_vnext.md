@@ -1,5 +1,8 @@
 # Validation vNext: Rigorous Multi-Generation Verification
 
+> Historical proposal. Its fixed-point design is now implemented by the
+> canonical flow documented in [`docs/BOOTSTRAP.md`](../docs/BOOTSTRAP.md).
+
 ## Executive Summary
 
 The current `make verify` has critical gaps:

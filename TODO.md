@@ -19,7 +19,7 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 3. ✓ Language polish (break/continue, bitwise ops, char literals)
 4. ✓ AST 2.0: closures, algebraic effects, sum types
 5. ✓ Kernel/reader split (lang as a reader, bootstrap verified)
-6. ✓ Cross-platform + LLVM backend (170/170 tests, Linux + macOS)
+6. ✓ Cross-platform + LLVM backend (198/198 checks, Linux + macOS)
 7. ✓ Kernel/reader composition (bare kernel + -r reader = compiler)
 8. ✓ Reader authorship: five languages shipped (C, minilisp, flow, forth, minipy)
 9. → **WASM** ← current (Stage A done: `LANGOS=wasm` + suite; browser compiler next)
@@ -144,7 +144,7 @@ polyglot stdlib written in reader-authored *better* languages.
 - [x] **Stage A: wasm as a program target** - `LANGOS=wasm` emits a
       wasm32-unknown-unknown triple; `test/run_wasm_suite.sh` runs the suite
       under node via `test/wasm_host.js` (a ~100-line host providing the libc
-      surface): **163 passed, 0 failed, 21 skipped**. Effects are a clean
+      surface): **165 passed, 0 failed, 21 skipped**. Effects are a clean
       compile error on this target (their lowering is target-specific inline
       asm; core wasm has no stack switching), and the suite skips on that
       diagnostic. Landing this surfaced a real ABI bug: closure signatures
@@ -168,10 +168,11 @@ polyglot stdlib written in reader-authored *better* languages.
       vhost is staged on the server and lights up once a Cloudflare DNS record
       for `lang` is added. Stage B/C upgrade this same page from "precompiled
       examples" to "the compiler itself, in your browser".
-- [ ] **Float codegen bugs found writing mandelbrot** - float-ness is lost in
-      nested binops (sdiv on doubles) and float REASSIGNMENT stores double as
-      i64 (declarations/params/returns work); `a[i] = x` on a local u8 array
-      misses the trunc. All fail loudly at clang, none silent.
+- [x] **Retire the Mandelbrot workarounds** - LLVM expression typing now follows
+      literals, casts, groups, calls, and both sides of nested binary trees;
+      float reassignment stores through the declared target type; `a[i] = x`
+      narrows i64 values to small array elements. Guarded by
+      `261_float_composed` and `252_array_narrow_assignment` on native and wasm.
 
 ### Reader toolkit (the thing to invest in)
 
@@ -226,7 +227,7 @@ still contained the emitter is `ff8813d`.
 
 ## Foundation Status
 
-**Solid (185/185 tests passing):**
+**Solid (198/198 checks passing):**
 - Self-hosting with fixed-point verification
 - LLVM backend (primary, all features)
 - Cross-platform (Linux x86-64, macOS ARM64)
@@ -242,7 +243,7 @@ still contained the emitter is `ff8813d`.
 
 **Spartan (not blocking reader work):**
 - Error messages (some errors leak to codegen)
-- Negative test suite (only `compile_error_is_fatal` so far)
+- Negative diagnostics beyond the five guarded invalid-source cases
 - No struct literals
 
 ---
@@ -295,19 +296,10 @@ relying on the silence.
 
 ### Still open
 
-- **Narrowing integer casts produce a non-i64 value.** `cast(i32, x)` emits a
-  `trunc` and hands back an i32, which then fails LLVM verification at any i64
-  use site. Pre-existing and acknowledged in `265_cast_basic`'s own comment
-  ("integer sizes not yet fully supported"). Fails loudly, so it's not in the
-  silent-wrong-answer category. The fix that fits lang's all-i64 model is to
-  `trunc` then `sext`/`zext` straight back to i64.
 - **Returning a struct by value returns a pointer to the callee's dead frame.**
   It works today because the caller copies out of it immediately, but the value
   is only valid until something else uses that stack. Not reachable from any
   shipped code.
-- **`break`/`continue` outside a loop emit nothing** on the LLVM backend when
-  `llvm_find_loop` returns nil (`src/codegen_llvm.lang`), where the x86 backend
-  errors and exits.
 
 ---
 
@@ -323,36 +315,43 @@ generated into `out/`), `out/lang` vs `out/lang_next` documented in README,
 `// expect:` and defined/undefined behavior documented in LANG.md.
 
 Still open:
-- **`lang run file.lang`** - a one-shot compile+link+run subcommand. The
-  compiler already has find_clang + exec machinery from reader builds.
-- **`--dump-tokens`** - print the token stream (also useful for reader
-  debugging). Requested so external tooling can do token-exact transforms.
 - **`--keyword-map`** - retheme keywords without patching the lexer. Niche
   (requested by a language-mutation experiment); the honest answer may be
   "keywords are hardcoded in std/tok.lang, patch it".
 
-### Negative tests
+### Fixed 2026-08-08
 
-Suite of "this should fail" tests:
-- Undefined variables
-- Type mismatches
-- Missing returns
-
-### Reader documentation
-
-Explain readers in detail:
-- What they are (syntax plugins that emit AST)
-- How they work (recursive expansion, S-expression output)
-- How to write one (the lang_reader as reference)
-
-### Reader cache goes stale on reader-source edits
-
-`should_recompile_reader` (`src/codegen.lang:1087`) invalidates the cached reader
-executable on the mtime of `out/lang`, `out/lang_next`, and `std/core.lang` — but
-**not** on the reader's own source file. Edit `example/c/c.lang` alone and recompile
-without rebuilding the compiler, and you silently run the OLD reader. Masked in
-normal development because `make build` bumps `out/lang_next`. Workaround: delete
-`.lang-cache/readers/<name>`. Fix: hash or mtime-check the defining source file.
+- **Reader authorship now has a copyable front door.** `docs/READERS.md` explains
+  the source-text-to-AST contract, recursive expansion, inline and whole-file
+  use, and standalone compiler generation. `example/tiny/` is a 20-line reader
+  with one input file; the suite builds it both as a macro and as a compiler.
+- **Reader caches now notice source edits.** Cache validation compares the
+  deterministic generated wrapper by content and checks direct dependency
+  mtimes, in addition to compiler/stdlib mtimes. This also works when an edit
+  lands in the same one-second timestamp tick. `reader_cache_refresh_e2e`
+  compiles, rewrites, and recompiles one reader against the same cache.
+- **LLVM standalone compiler generation works again.** Generated compilers now
+  provide composition/module stubs, and codegen no longer borrows raw-array
+  helpers from `ast_emit`, which is absent from small standalone readers.
+  `compiler_compiler_e2e` proves lang → tiny compiler → tiny source → program.
+- **The first real negative suite now guards five invalid builds.** LLVM
+  codegen diagnoses undefined identifiers and non-void functions that can fall
+  through, and now matches x86's rejection of a capturing lambda stored in a
+  plain `fn` slot (the calling conventions differ). All three return nonzero.
+- **Narrow integer casts are real i64 expressions.** LLVM truncates to the
+  requested width, then sign- or zero-extends back to lang's all-i64 value
+  representation. Chained casts and arithmetic no longer fail verification.
+- **Invalid loop control is a compile error.** LLVM now rejects unlabeled or
+  mislabeled `break`/`continue` when no enclosing loop matches, like x86 does.
+- **`lang run` closes the first-run loop.** It compiles, links, executes, passes
+  through stdout and the program's status, and removes its PID-scoped temporary
+  files. `cli_run_e2e` exercises it through the tiny reader.
+- **`--dump-tokens` exposes the lexer.** It prints locations, token kinds, and
+  lexemes for one or more raw source files without parsing or compiling them;
+  float token names are no longer reported as `UNKNOWN`.
+- **CLI option errors fail at the option.** Long flags require exact matches;
+  unknown options and missing `-o`, `-c`, or `-r` values now explain the
+  invocation error instead of being misread as source filenames.
 
 ---
 
@@ -384,7 +383,7 @@ normal development because `make build` bumps `out/lang_next`. Workaround: delet
 ### Milestone 7: Kernel/reader composition
 - `--emit-expanded-ast` for reader AST capture
 - Bare kernel + `-r` reader = composed compiler
-- 170/170 tests passing (includes float support)
+- 198/198 checks passing (includes negative, reader, run, and compiler-composition coverage)
 
 ### Milestone 6: Cross-platform + LLVM
 - OS abstraction layer (`std/os/*.lang`)

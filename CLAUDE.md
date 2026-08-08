@@ -23,7 +23,7 @@ lang/
 │   ├── codegen.lang      # x86-64 backend (FROZEN - emergency bootstrap only)
 │   └── codegen_llvm.lang # LLVM IR backend (PRIMARY - all new features)
 ├── std/            # Standard library
-├── test/           # Test programs (169 tests)
+├── test/           # Test programs (186 suite files + reader/composition checks)
 ├── bootstrap/      # LLVM IR bootstrap (primary) + x86 assembly (frozen)
 ├── example/        # Example programs
 ├── designs/        # Design documents
@@ -33,12 +33,12 @@ lang/
 
 ## Build Commands
 
-### Default (x86-64)
+### Default
 ```bash
 make build          # Build compiler → out/lang_next
 make bootstrap      # THE ONE COMMAND: verify + promote (see below)
 make run FILE=...   # Compile and run
-make init           # Emergency: assemble from bootstrap .s file
+make init           # Recover from the preserved platform LLVM IR
 ```
 
 ### LLVM Backend
@@ -52,9 +52,9 @@ clang -O2 out.ll -o binary                 # Use clang to compile
 
 ## Bootstrap
 
-**Primary**: `bootstrap/current/llvm/compiler.ll` - LLVM IR (cross-platform)
+**Primary**: `bootstrap/current/compiler_{linux,macos}.ll` - LLVM IR roots
 
-**Frozen**: `bootstrap/current/x86/compiler.s` - x86-64 assembly (emergency fallback only)
+**Frozen**: x86-64 assembly artifacts in history/archives (emergency fallback only)
 
 The x86 backend is frozen - no new features (floats, calling conventions) will be added. LLVM is the sole target for Language Forge development.
 
@@ -65,7 +65,7 @@ The x86 backend is frozen - no new features (floats, calling conventions) will b
 # LLVM backend (all features, cross-platform)
 ./test/run_llvm_suite.sh
 
-# wasm target (163 tests under node; effects tests skip - no stack switching)
+# wasm target (165 tests under node; effects tests skip - no stack switching)
 ./test/run_wasm_suite.sh
 
 # x86 backend (Linux only, frozen - no new tests)
@@ -78,7 +78,7 @@ The x86 backend is frozen - no new features (floats, calling conventions) will b
 make dev-stdlib-run FILE=test/suite/195_effect_in_loop.lang
 
 # Cache full suite results (SLOW - only run once)
-COMPILER=./out/lang_next ./test/run_llvm_suite.sh 2>&1 > /tmp/suite.txt
+COMPILER=./out/lang_next ./test/run_llvm_suite.sh > /tmp/suite.txt 2>&1
 grep "FAIL" /tmp/suite.txt  # Query cached results
 ```
 
@@ -91,7 +91,7 @@ grep "FAIL" /tmp/suite.txt  # Query cached results
 3. ✓ Language polish (break/continue, bitwise ops, char literals)
 4. ✓ AST 2.0: closures, algebraic effects, sum types
 5. ✓ Kernel/reader split (lang as a reader, bootstrap verified)
-6. ✓ **Cross-platform + LLVM backend** (169/169 tests, Linux + macOS)
+6. ✓ **Cross-platform + LLVM backend** (198/198 checks, Linux + macOS)
 7. ✓ Kernel/reader composition (bare kernel + -r reader = compiler)
 8. → **Reader authorship: ship many readers** ← current
 9. → WASM backend (via LLVM)
@@ -148,32 +148,31 @@ The bootstrap chain is the compiler's lifeline. Corruption = days of recovery.
 ### ONE Command: `make bootstrap`
 
 ```bash
-make bootstrap    # Does EVERYTHING: verify + promote in one atomic operation
+make bootstrap    # Does EVERYTHING: verify, archive, stage, and promote
 ```
 
 **That's it.** One command. Can't fuck it up.
 
-### What `make bootstrap` Does (6 stages)
+### What `make bootstrap` Does (7 stages)
 
-1. **Stage 1**: Root of trust - assemble `bootstrap/current/compiler.s` → ctrusted
-2. **Stage 2**: Generation 1 - ctrusted builds kernel1 + reader_ast1 + lang1
-3. **Stage 3**: Generation 2 + fixed point checks
-   - lang1 builds kernel2 + reader_ast2
-   - VERIFY: kernel1.s === kernel2.s (kernel fixed point)
-   - VERIFY: reader_ast1 === reader_ast2 (AST fixed point)
-4. **Stage 4**: Standalone fixed point
-   - lang2 → standalone1 → standalone2 → standalone3
-   - VERIFY: standalone2.s === standalone3.s (self-hosting proof)
-5. **Stage 5**: Validation - x86 test suite + LLVM test suite
-6. **Stage 6**: Promote - save standalone2 to bootstrap/
+1. **Root of trust**: compile the platform's preserved LLVM IR with clang
+2. **Generation 1**: trusted compiler builds kernel1 and reader_ast1
+3. **Generations 2 + 3**: verify kernel2.ll === kernel3.ll
+4. **Reader fixed point**: verify reader_ast1 === reader_ast2
+5. **Cross-platform roots**: generate and clang-check Linux + macOS LLVM IR
+6. **Validation**: run the LLVM suite on the final platform binary
+7. **Archive + promote**: release/archive the old root, update
+   `bootstrap/current/`, then install the tested binary as `out/lang`
 
-If ANY stage fails, nothing is promoted. Fix before proceeding.
+Validation and archival finish before promotion begins. Root files are staged
+as complete files, the identity marker moves last, and `out/lang` is replaced
+only after the root promotion succeeds.
 
 ### NEVER Do These Things
 
 1. **NEVER bypass tests** - If tests hang or are slow, WAIT or diagnose
-2. **NEVER manually copy compiler.s** - Only `make bootstrap` touches bootstrap/
-3. **NEVER modify escape_hatch.s directly** - It's auto-updated by bootstrap
+2. **NEVER manually copy generated IR into `bootstrap/current/`**
+3. **NEVER edit preserved bootstrap IR directly**
 4. **NEVER run partial verification** - Always full `make bootstrap`
 
 ### Incremental Development (CRITICAL)
@@ -215,14 +214,14 @@ RIGHT:
 
 ### Recovery: LLVM Bootstrap Path
 
-If x86 bootstrap is corrupted but LLVM bootstrap exists:
+If `out/lang` is missing or corrupted:
 ```bash
-clang bootstrap/VERSION/llvm/compiler.ll -o /tmp/llvm_compiler
-/tmp/llvm_compiler [sources] -o /tmp/stage1.s
-# Then staged rebuild (see FORENSIC_ANALYSIS.md)
+make init
+make build
 ```
 
-The LLVM backend can rescue a corrupted x86 bootstrap.
+`make init` chooses `bootstrap/current/compiler_linux.ll` or
+`compiler_macos.ll` and rebuilds the root with clang.
 
 ## Key Decisions
 

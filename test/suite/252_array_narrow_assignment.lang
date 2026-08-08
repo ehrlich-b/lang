@@ -1,0 +1,9 @@
+// expect: 42
+// Assignment through array indexing narrows i64 expressions to the element.
+
+func main() i64 {
+    var bytes [3]u8 = [0, 0, 0];
+    var wide i64 = 298;
+    bytes[1] = wide;
+    return bytes[1];
+}

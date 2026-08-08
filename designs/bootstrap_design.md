@@ -1,5 +1,8 @@
 # Bootstrap System Design
 
+> Historical design. The assembly-era commands below are superseded by
+> [`docs/BOOTSTRAP.md`](../docs/BOOTSTRAP.md) and the canonical `make bootstrap`.
+
 ## Problem
 
 The current `lang1/lang2/lang3` naming scheme has issues:

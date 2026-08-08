@@ -1,0 +1,25 @@
+// expect: 100
+// Float types survive nested expressions and reassignment.
+
+func main() i64 {
+    var result i64 = 0;
+    var width i64 = 4;
+
+    // Both operands of the outer division are computed values whose float
+    // origin is a cast, so SSA names alone cannot reveal their type.
+    var scaled f64 = (cast(f64, width) * 3.0) / (cast(f64, width) + 2.0);
+    if scaled > 1.9 {
+        if scaled < 2.1 {
+            result = result + 50;
+        }
+    }
+
+    scaled = scaled + 0.5;
+    if scaled > 2.4 {
+        if scaled < 2.6 {
+            result = result + 50;
+        }
+    }
+
+    return result;
+}

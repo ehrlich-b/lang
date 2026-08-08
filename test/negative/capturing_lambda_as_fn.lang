@@ -1,0 +1,7 @@
+include "std/core.lang"
+
+func main() i64 {
+    var captured i64 = 42;
+    var callback fn() i64 = fn() i64 { return captured; };
+    return callback();
+}

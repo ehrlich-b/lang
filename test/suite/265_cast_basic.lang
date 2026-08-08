@@ -1,5 +1,5 @@
-// expect: 100
-// Cast: float conversions, bitcast (integer sizes not yet fully supported)
+// expect: 180
+// Cast: float conversions, integer narrowing, and bitcast
 
 func main() i64 {
     var result i64 = 0;
@@ -29,6 +29,31 @@ func main() i64 {
         result = result + 30;
     }
 
-    // All pass: 30+40+30 = 100
+    // Narrow signed values are truncated, then sign-extended into lang's
+    // all-i64 expression representation.
+    var signed_byte i64 = cast(i8, 255);
+    if signed_byte == -1 {
+        result = result + 20;
+    }
+
+    // Unsigned narrowing zero-extends back to i64.
+    var unsigned_byte i64 = cast(u8, 258);
+    if unsigned_byte == 2 {
+        result = result + 20;
+    }
+
+    // A narrowed cast can feed another cast without an LLVM width mismatch.
+    var chained i64 = cast(i64, cast(u8, 258));
+    if chained == 2 {
+        result = result + 20;
+    }
+
+    // Float-to-narrow-int results are normalized the same way.
+    var float_byte i64 = cast(i8, 5.7);
+    if float_byte == 5 {
+        result = result + 20;
+    }
+
+    // All pass: 30+40+30+20+20+20+20 = 180
     return result;
 }

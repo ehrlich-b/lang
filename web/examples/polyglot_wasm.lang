@@ -1,31 +1,20 @@
-// ============================================================
-// polyglot_wasm - the prime pipeline across FOUR languages, compiled to
-// WebAssembly and run in a browser
-// ============================================================
+// polyglot_wasm - the prime pipeline across FOUR languages,
+// compiled to WebAssembly and run in a browser.
 //
-// The wasm cut of example/polyglot.lang. flow sits this one out: its
-// coroutines lower to algebraic effects, whose stack switching core wasm
-// cannot express, so a plain lang loop drives the pipeline instead. The other
-// four languages survive unchanged - readers run at COMPILE time on the build
-// machine, and what reaches the browser is one ordinary wasm module.
+// The wasm cut of example/polyglot.lang. flow sits this one
+// out (its coroutines lower to algebraic effects; core wasm
+// has no stack switching), so a plain lang loop drives the
+// pipeline instead. Readers run at COMPILE time on the build
+// machine - what reaches the browser is one ordinary wasm
+// module with no trace of the five syntaxes in it.
 //
-//   forth    (#forth{...})    divides?/digit_sum - postfix; its data stack is
-//                                                  erased at read time
-//   C        (#c{...})        c_is_prime(x)      - tight trial division,
-//                                                  asking forth per divisor
-//   minilisp (#minilisp{...}) ml_sum/ml_len      - recursion over a real
-//                                                  boxed cons list
-//   minipy   (#minipy{...})   report/survey      - the reporting layer, blocks
-//                                                  delimited by nothing but
-//                                                  the left margin
-//   lang                      collect_primes     - drives the pipeline (flow's
-//                                                  seat, effects-free)
+//   forth     divides? digit_sum   the arithmetic words
+//   C         c_is_prime           trial division
+//   minilisp  ml_sum ml_len        folds a boxed cons list
+//   minipy    report survey        drives + formats
+//   lang      collect_primes       flow's stand-in
 //
-// Build:
-//   LANGOS=wasm LANGBE=llvm out/lang example/polyglot_wasm.lang -o p.ll
-//   clang --target=wasm32-unknown-unknown -nostdlib -Wl,--no-entry \
-//         -Wl,--export-all -Wl,--allow-undefined -Wl,-z,stack-size=8388608 \
-//         p.ll -o p.wasm
+// Build recipe: web/build.sh
 include "std/core.lang"
 include "example/minilisp/lisp_runtime.lang"
 include "example/forth/forth_runtime.lang"

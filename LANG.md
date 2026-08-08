@@ -251,7 +251,7 @@ os_exit(code);
 
 ## Standard Library (std/core.lang)
 
-Include with: `./out/lang std/core.lang yourfile.lang -o out.s`
+Include with: `LANGBE=llvm ./out/lang std/core.lang yourfile.lang -o out.ll`
 
 ### Memory
 ```lang
@@ -405,7 +405,7 @@ func main() i64 {
 
 **Debug:**
 ```bash
-./out/lang --expand-macros file.lang -o out.s  # shows expansions
+LANGBE=llvm ./out/lang --expand-macros file.lang -o out.ll  # shows expansions
 ```
 
 ## Reader macros
@@ -471,7 +471,6 @@ Things that are undefined (observed accidents, not semantics):
 
 - Struct literals (`Point{x: 1, y: 2}`)
 - Returning structs by value (returns a pointer into the callee's dead frame)
-- Narrowing integer casts (`cast(i32, x)` yields an i32 the i64 world rejects)
 - For loops (use while)
 - Switch/case (use if/else)
 
@@ -552,14 +551,14 @@ func read_file(path *u8) *u8 {
 ## Build Commands
 
 ```bash
-# Bootstrap from preserved assembly
+# Verify and promote from the preserved platform LLVM root
 make bootstrap
 
 # Build compiler from source
 make build
 
-# Verify fixed point
-make verify
+# Diagnostic fixed-point check without promotion
+make bootstrap-verify
 
 # Compile and run a file
 make run FILE=test/hello.lang

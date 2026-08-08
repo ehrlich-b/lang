@@ -688,6 +688,19 @@ func llvm_i64_type() *u8 {
     return llvm_i64_type_cache;
 }
 
+// Decimal literals are emitted as LLVM doubles unless a surrounding typed
+// operation says otherwise. Give casts of a bare literal (for example
+// `cast(i8, 5.7)`) the concrete source type their SSA operand already has.
+var llvm_f64_type_cache *u8 = nil;
+func llvm_f64_type() *u8 {
+    if llvm_f64_type_cache == nil {
+        llvm_f64_type_cache = base_type_alloc();
+        base_type_set_name(llvm_f64_type_cache, "f64");
+        base_type_set_name_len(llvm_f64_type_cache, 3);
+    }
+    return llvm_f64_type_cache;
+}
+
 // Byte size of a struct/enum type, or 0 if the type isn't an aggregate.
 // Aggregates live in memory and are passed around as addresses.
 func llvm_aggregate_type_size(t *u8) i64 {
@@ -892,6 +905,21 @@ func llvm_get_expr_type(expr *u8) *u8 {
 
     var k i64 = node_kind(expr);
 
+    if k == NODE_NUMBER_EXPR {
+        var text *u8 = number_expr_value(expr);
+        var text_len i64 = number_expr_value_len(expr);
+        var i i64 = 0;
+        while i < text_len {
+            if *(text + i) == 46 { return llvm_f64_type(); }  // '.'
+            i = i + 1;
+        }
+        return llvm_i64_type();
+    }
+
+    if k == NODE_BOOL_EXPR || k == NODE_NIL_EXPR {
+        return llvm_i64_type();
+    }
+
     if k == NODE_IDENT_EXPR {
         var name *u8 = ident_expr_name(expr);
         var name_len i64 = ident_expr_name_len(expr);
@@ -948,7 +976,36 @@ func llvm_get_expr_type(expr *u8) *u8 {
     }
 
     if k == NODE_BINARY_EXPR {
-        return llvm_get_expr_type(binary_expr_left(expr));
+        var op i64 = binary_expr_op(expr);
+        // Comparisons and short-circuit logic always produce lang booleans,
+        // represented as i64 zero or one after LLVM's i1 result is extended.
+        if (op >= 33 && op <= 38) || op == 39 || op == 40 {
+            return llvm_i64_type();
+        }
+        var left_type *u8 = llvm_get_expr_type(binary_expr_left(expr));
+        var right_type *u8 = llvm_get_expr_type(binary_expr_right(expr));
+        if (left_type != nil && llvm_is_float_type(left_type)) ||
+           (right_type != nil && llvm_is_float_type(right_type)) {
+            // Float arithmetic currently lowers through LLVM double values.
+            return llvm_f64_type();
+        }
+        if left_type != nil { return left_type; }
+        return right_type;
+    }
+
+    if k == NODE_GROUP_EXPR {
+        return llvm_get_expr_type(group_expr_expr(expr));
+    }
+
+    if k == NODE_CALL_EXPR {
+        var fn_expr *u8 = call_expr_func(expr);
+        if node_kind(fn_expr) == NODE_IDENT_EXPR {
+            var fname *u8 = ident_expr_name(fn_expr);
+            var fname_len i64 = ident_expr_name_len(fn_expr);
+            var fdecl *u8 = find_func(fname, fname_len);
+            if fdecl != nil { return func_decl_ret_type(fdecl); }
+        }
+        return nil;
     }
 
     return nil;
@@ -1311,14 +1368,12 @@ func llvm_emit_expr(expr *u8) void {
                 llvm_set_result_temp(temp);
             }
         } else {
-            // Parameter: use directly
-            *(llvm_expr_result) = 37;  // '%'
-            var i i64 = 0;
-            while i < len {
-                *(llvm_expr_result + 1 + i) = *(name + i);
-                i = i + 1;
-            }
-            *(llvm_expr_result + 1 + len) = 0;
+            eprint("error: undefined identifier '");
+            eprint_buf(name, len);
+            eprintln("'");
+            cg_had_error = 1;
+            *(llvm_expr_result) = 48;  // keep buffered IR well-formed until abort
+            *(llvm_expr_result + 1) = 0;
         }
         return;
     }
@@ -2273,8 +2328,8 @@ func llvm_emit_expr(expr *u8) void {
         var right_val *u8 = str_dup(llvm_expr_result);
 
         // Check operand types for float (using get_expr_type, not global tracking)
-        var left_type *u8 = get_expr_type(left);
-        var right_type *u8 = get_expr_type(right);
+        var left_type *u8 = llvm_get_expr_type(left);
+        var right_type *u8 = llvm_get_expr_type(right);
         var left_is_float i64 = left_type != nil && llvm_is_float_type(left_type);
         var right_is_float i64 = right_type != nil && llvm_is_float_type(right_type);
 
@@ -2457,6 +2512,16 @@ func llvm_emit_expr(expr *u8) void {
         var src_type *u8 = llvm_get_expr_type(src_expr);
         if src_type == nil && src_was_float == 0 {
             src_type = llvm_i64_type();
+        } else if src_type == nil {
+            src_type = llvm_f64_type();
+        }
+        // Non-float scalar expressions live in lang's i64 value model even
+        // when their declared or cast type is narrower. Loads, params, and
+        // prior narrowing casts have already widened them to i64, so describe
+        // the SSA value we actually emitted rather than its source spelling.
+        if src_type != nil && src_was_float == 0 &&
+           llvm_is_float_type(src_type) == 0 && llvm_type_bits(src_type) < 64 {
+            src_type = llvm_i64_type();
         }
         var src_bits i64 = llvm_type_bits(src_type);
         var dst_bits i64 = llvm_type_bits(target_type);
@@ -2541,7 +2606,28 @@ func llvm_emit_expr(expr *u8) void {
         }
 
         llvm_emit_char(10);
-        llvm_set_result_temp(temp);
+
+        // Integer expressions use i64 between operations. Preserve the
+        // narrowing semantics, then immediately widen the result back into
+        // that representation so `cast(u8, 258) + 1` remains valid LLVM IR.
+        if dst_is_float == 0 && dst_bits < 64 {
+            var wide_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(wide_temp);
+            llvm_emit_str(" = ");
+            if dst_is_signed {
+                llvm_emit_str("sext ");
+            } else {
+                llvm_emit_str("zext ");
+            }
+            llvm_emit_type(target_type);
+            llvm_emit_str(" %t");
+            llvm_emit_int(temp);
+            llvm_emit_line(" to i64");
+            llvm_set_result_temp(wide_temp);
+        } else {
+            llvm_set_result_temp(temp);
+        }
         if dst_is_float {
             llvm_expr_is_float = 1;
         }
@@ -4796,7 +4882,18 @@ func llvm_emit_stmt(stmt *u8) void {
         var label *u8 = break_stmt_label(stmt);
         var label_len i64 = break_stmt_label_len(stmt);
         var entry *u8 = llvm_find_loop(label, label_len);
-        if entry != nil {
+        if entry == nil {
+            if label != nil {
+                eprint("error: break target '");
+                eprint_buf(label, label_len);
+                eprintln("' is not an enclosing loop");
+            } else {
+                eprintln("error: break outside of loop");
+            }
+            cg_had_error = 1;
+            llvm_emit_line("    unreachable");
+            llvm_emitted_terminator = 1;
+        } else {
             var target i64 = llvm_loop_break_label(entry);
             llvm_emit_str("    br label %L");
             llvm_emit_int(target);
@@ -4810,7 +4907,18 @@ func llvm_emit_stmt(stmt *u8) void {
         var label *u8 = continue_stmt_label(stmt);
         var label_len i64 = continue_stmt_label_len(stmt);
         var entry *u8 = llvm_find_loop(label, label_len);
-        if entry != nil {
+        if entry == nil {
+            if label != nil {
+                eprint("error: continue target '");
+                eprint_buf(label, label_len);
+                eprintln("' is not an enclosing loop");
+            } else {
+                eprintln("error: continue outside of loop");
+            }
+            cg_had_error = 1;
+            llvm_emit_line("    unreachable");
+            llvm_emitted_terminator = 1;
+        } else {
             var target i64 = llvm_loop_continue_label(entry);
             llvm_emit_str("    br label %L");
             llvm_emit_int(target);
@@ -5003,6 +5111,19 @@ func llvm_emit_stmt(stmt *u8) void {
 
         // Initialize if there's an init expression
         if init != nil {
+            // A capturing closure has an environment argument; a plain fn type
+            // does not. Calling one through fn would pass the wrong ABI.
+            if var_type != nil && type_kind(var_type) == TYPE_FUNC {
+                if node_kind(init) == NODE_LAMBDA_EXPR && lambda_has_captures(init) == 1 {
+                    eprint("error: cannot assign capturing lambda to 'fn' type variable '");
+                    eprint_buf(var_decl_name(stmt), var_decl_name_len(stmt));
+                    eprintln("'");
+                    eprintln("  hint: use a closure type for capturing lambdas");
+                    cg_had_error = 1;
+                    return;
+                }
+            }
+
             llvm_emit_expr(init);
             var init_val *u8 = str_dup(llvm_expr_result);
 
@@ -5320,6 +5441,36 @@ func llvm_emit_stmt(stmt *u8) void {
                 llvm_emit_str("    store i8* %t");
                 llvm_emit_int(inttoptr_temp);
                 llvm_emit_str(", i8** %t");
+                llvm_emit_int(gep_temp);
+                llvm_emit_line("");
+            } else if elem_type != nil && llvm_is_float_type(elem_type) {
+                llvm_emit_str("    store ");
+                llvm_emit_type(elem_type);
+                llvm_emit_str(" ");
+                llvm_emit_str(val);
+                llvm_emit_str(", ");
+                llvm_emit_type(elem_type);
+                llvm_emit_str("* %t");
+                llvm_emit_int(gep_temp);
+                llvm_emit_line("");
+            } else if elem_type != nil && get_type_size(elem_type) < 8 {
+                // Array values use lang's i64 expression representation;
+                // narrow at the typed memory boundary just like *p = value.
+                var trunc_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(trunc_temp);
+                llvm_emit_str(" = trunc i64 ");
+                llvm_emit_str(val);
+                llvm_emit_str(" to ");
+                llvm_emit_type(elem_type);
+                llvm_emit_char(10);
+                llvm_emit_str("    store ");
+                llvm_emit_type(elem_type);
+                llvm_emit_str(" %t");
+                llvm_emit_int(trunc_temp);
+                llvm_emit_str(", ");
+                llvm_emit_type(elem_type);
+                llvm_emit_str("* %t");
                 llvm_emit_int(gep_temp);
                 llvm_emit_line("");
             } else {
@@ -5759,13 +5910,14 @@ func llvm_emit_stmt(stmt *u8) void {
 
             // Check if target is an aggregate type (enum/struct)
             var local_idx i64 = find_local(name, len);
+            var assignment_type *u8 = nil;
             var is_aggregate i64 = 0;
             var aggregate_size i64 = 0;
             if local_idx >= 0 {
-                var local_type *u8 = local_get_type(local_idx);
-                if local_type != nil && type_kind(local_type) == TYPE_BASE {
-                    var type_name *u8 = base_type_name(local_type);
-                    var type_name_len i64 = base_type_name_len(local_type);
+                assignment_type = local_get_type(local_idx);
+                if assignment_type != nil && type_kind(assignment_type) == TYPE_BASE {
+                    var type_name *u8 = base_type_name(assignment_type);
+                    var type_name_len i64 = base_type_name_len(assignment_type);
                     var struct_decl *u8 = find_struct(type_name, type_name_len);
                     if struct_decl != nil {
                         is_aggregate = 1;
@@ -5778,6 +5930,9 @@ func llvm_emit_stmt(stmt *u8) void {
                         }
                     }
                 }
+            } else {
+                var global_idx i64 = find_global(name, len);
+                if global_idx >= 0 { assignment_type = global_get_type(global_idx); }
             }
 
             if is_aggregate != 0 {
@@ -5847,17 +6002,41 @@ func llvm_emit_stmt(stmt *u8) void {
                 }
             } else {
                 // Primitive assignment
-                llvm_emit_str("    store i64 ");
+                llvm_emit_str("    store ");
+                if assignment_type != nil && llvm_is_float_type(assignment_type) {
+                    llvm_emit_type(assignment_type);
+                } else {
+                    llvm_emit_str("i64");
+                }
+                llvm_emit_str(" ");
                 llvm_emit_str(val);
                 if llvm_is_local(name, len) {
-                    llvm_emit_str(", i64* %");
+                    llvm_emit_str(", ");
+                    if assignment_type != nil && llvm_is_float_type(assignment_type) {
+                        llvm_emit_type(assignment_type);
+                    } else {
+                        llvm_emit_str("i64");
+                    }
+                    llvm_emit_str("* %");
                     llvm_emit_n(actual_name, actual_name_len);
                 } else if llvm_is_global(name, len) {
-                    llvm_emit_str(", i64* @");
+                    llvm_emit_str(", ");
+                    if assignment_type != nil && llvm_is_float_type(assignment_type) {
+                        llvm_emit_type(assignment_type);
+                    } else {
+                        llvm_emit_str("i64");
+                    }
+                    llvm_emit_str("* @");
                     llvm_emit_n(name, len);  // Globals don't use let bindings
                 } else {
                     // Assume local (parameter)
-                    llvm_emit_str(", i64* %");
+                    llvm_emit_str(", ");
+                    if assignment_type != nil && llvm_is_float_type(assignment_type) {
+                        llvm_emit_type(assignment_type);
+                    } else {
+                        llvm_emit_str("i64");
+                    }
+                    llvm_emit_str("* %");
                     llvm_emit_n(actual_name, actual_name_len);
                 }
                 llvm_emit_char(10);
@@ -6200,6 +6379,12 @@ func llvm_emit_func(func_node *u8) void {
         if llvm_emitted_terminator == 0 {
             llvm_emit_line("    ret void");
         }
+    } else if llvm_emitted_terminator == 0 {
+        eprint("error: non-void function '");
+        eprint_buf(name, name_len);
+        eprintln("' can reach the end without returning a value");
+        cg_had_error = 1;
+        llvm_emit_line("    unreachable");
     }
 
     llvm_emit_line("}");
