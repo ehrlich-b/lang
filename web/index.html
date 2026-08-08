@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lang — a compiler-compiler, running in your browser</title>
+<title>lang — many syntaxes, one binary</title>
 <style>
   :root {
     --bg: #0d1117;
@@ -27,9 +27,12 @@
   h1 { font-size: 2rem; margin: 0; color: var(--accent); }
   h1 .cursor { animation: blink 1.2s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
+  h2 { color: var(--accent2); font-size: 1.1rem; margin: 3rem 0 .5rem; }
+  h2::before { content: "## "; color: var(--dim); }
   .tagline { color: var(--dim); margin: .25rem 0 1.5rem; }
-  .intro { max-width: 72ch; color: var(--text); }
-  .intro em { color: var(--accent2); font-style: normal; }
+  p { max-width: 78ch; }
+  p em { color: var(--accent2); font-style: normal; }
+  code { color: var(--accent); }
   .tabs { display: flex; gap: .5rem; margin: 2rem 0 0; flex-wrap: wrap; }
   .tab {
     background: var(--panel); border: 1px solid var(--border); color: var(--dim);
@@ -65,7 +68,21 @@
   .status { color: var(--dim); }
   .status .ok { color: var(--accent); }
   .status .bad { color: var(--warn); }
-  footer { margin-top: 2.5rem; color: var(--dim); max-width: 72ch; }
+  pre.snip {
+    border: 1px solid var(--border); border-radius: 6px; background: var(--panel);
+    max-height: none; margin: 1rem 0; max-width: 80ch;
+  }
+  pre.snip .c { color: var(--dim); }
+  pre.snip .k { color: var(--accent2); }
+  .langs { display: grid; gap: 1rem; margin: 1rem 0; }
+  .lang-card {
+    border: 1px solid var(--border); border-radius: 6px; background: var(--panel);
+    padding: .8rem 1rem; max-width: 80ch;
+  }
+  .lang-card h3 { margin: 0 0 .3rem; font-size: 1rem; color: var(--accent); }
+  .lang-card h3 .meta { color: var(--dim); font-weight: normal; font-size: .85rem; }
+  .lang-card p { margin: .3rem 0; color: var(--text); }
+  footer { margin-top: 3rem; color: var(--dim); max-width: 78ch; }
   a { color: var(--accent2); }
 </style>
 </head>
@@ -74,36 +91,187 @@
   <h1>lang<span class="cursor">▌</span></h1>
   <p class="tagline">a self-hosted compiler-compiler &mdash; many syntaxes, one binary</p>
 
-  <p class="intro">
-    lang is a compiler that compiles itself, whose real trick is <em>readers</em>:
-    syntax plugins that turn any surface language into one shared AST. Five
-    languages ride it today &mdash; a C subset, a real Lisp, a coroutine DSL, a
-    Forth, and an indentation-delimited Python subset &mdash; composed in a single
-    native binary, calling each other directly at the ABI level. No FFI, no VM.
+  <p>
+    lang is a compiler whose real product is <em>readers</em>: syntax plugins,
+    written in lang itself, that each turn a different surface language into one
+    shared AST. Five languages ride it today &mdash; a C subset, a real Lisp, a
+    coroutine DSL, a Forth, and an indentation-delimited Python subset &mdash;
+    and because they all lower to the same AST, the same type system, and the
+    same backend, they compose in <em>a single native binary</em>, calling each
+    other directly. No FFI, no embedding API, no VM: a call from the Python
+    subset into Forth is a <code>call</code> instruction.
   </p>
-  <p class="intro">
-    Everything below was compiled to WebAssembly by lang&rsquo;s LLVM backend and
-    runs <em>entirely in this page</em> &mdash; view source: one small host shim,
-    no libraries.
+  <p>
+    Everything below was compiled to WebAssembly by lang&rsquo;s LLVM backend
+    and runs entirely in this page (view source: one small host shim, no
+    libraries). Start with the <b>polyglot</b> tab &mdash; it is the whole
+    point.
   </p>
 
   <div class="tabs" id="tabs"></div>
   <div id="examples"></div>
 
+  <h2>what a reader is</h2>
+  <p>
+    A reader is an ordinary lang function: source text in, AST out. This is the
+    complete interface &mdash; the last four lines of the C reader:
+  </p>
+  <pre class="snip"><span class="k">reader</span> c(text *u8) *u8 {
+    <span class="k">var</span> t *Tokenizer = tok_new(text);
+    <span class="k">var</span> prog *PNode = parse_c_program(t);
+    <span class="k">return</span> emit_program(prog);
+}</pre>
+  <p>
+    When the compiler meets a <code>#c{ ... }</code> block it builds the reader
+    (once, cached), runs it <em>at compile time</em> on the block&rsquo;s text,
+    and splices the returned AST into the program as if you had written it in
+    lang. By code generation there is no trace of which syntax anything arrived
+    in &mdash; which is why cross-language calls are just calls, and why the
+    whole five-language program can ship as one wasm module.
+  </p>
+  <p>
+    Readers are built from two tools. For parsing, <code>#parser{ ... }</code>
+    takes a grammar and generates a recursive-descent parser (the parser
+    generator is itself a reader &mdash; the mechanism is self-applicable).
+    For output, <code>std/ast.lang</code> is a library of typed AST
+    constructors (<code>ast_func</code>, <code>ast_if</code>,
+    <code>ast_binop</code>, &hellip;). Here is the heart of the C
+    reader&rsquo;s grammar, verbatim:
+  </p>
+  <pre class="snip"><span class="c">#parser{</span>
+    c_program  = c_topdecl+
+    c_topdecl  = c_structdef | c_enumdef | c_topvar
+    c_stmt     = c_retstmt | c_ifstmt | c_whilestmt | c_forstmt
+               | c_switchstmt | c_breakstmt | c_continuestmt
+               | c_decl | c_block | c_exprstmt
+    c_ifstmt   = 'if' '(' c_expr ')' c_stmt c_elses
+    c_expr     = c_binexpr c_terntail*
+    c_terntail = '?' c_expr ':' c_expr
+    c_binexpr  = c_unary c_oprest*
+    c_oprest   = operator c_unary
+    c_postfix  = c_primary c_postfixop*
+    c_primary  = number | string | symbol | c_parenexpr
+    <span class="c">... (~65 rules total)</span>
+<span class="c">}</span></pre>
+  <p>
+    Note what the grammar does <em>not</em> do: operators are flat
+    (<code>c_oprest*</code>), and precedence lives in the reader as ~40 lines of
+    precedence climbing. That split is deliberate &mdash; the generated parser
+    is a weak no-backtracking machine, so grammars are designed around a single
+    rule (every alternative distinguishable by its first token) and the reader
+    does the thinking. Crucially, readers live in <code>example/</code>, not in
+    the compiler. The compiler has no idea C or Python exist.
+  </p>
+
+  <h2>five languages, five paradigms</h2>
+
+  <div class="langs">
+    <div class="lang-card">
+      <h3>#c{} <span class="meta">&mdash; imperative &middot; 840 lines</span></h3>
+      <p>
+        A genuine C subset: functions, structs, enums, pointers, arrays,
+        strings, the full operator set including ternary, <code>switch</code>,
+        <code>for</code>, compound assignment, <code>++</code>. What the kernel
+        lacks, the reader desugars: <code>c?a:b</code> becomes a value-returning
+        block, <code>~x</code> becomes <code>x^-1</code>, <code>switch</code>
+        becomes an if/else chain, <code>p-&gt;f</code> is lexed as
+        <code>p.f</code> and the kernel&rsquo;s auto-deref does the rest.
+        Deliberately bounded: no typedef, no preprocessor.
+      </p>
+    </div>
+    <div class="lang-card">
+      <h3>#minilisp{} <span class="meta">&mdash; functional &middot; 350 lines + a 200-line runtime</span></h3>
+      <p>
+        A real Lisp, not arithmetic-in-parentheses: boxed values, first-class
+        cons lists, <code>quote</code>, <code>let</code>, <code>lambda</code>
+        with closures, <code>funcall</code>/<code>apply</code>. It proved the
+        pattern for languages that need a runtime: the runtime is just an
+        included lang file, and boxing is an ABI &mdash; every Lisp value is an
+        i64 that is really a pointer, so Lisp lists pass through C and Forth
+        untouched.
+      </p>
+    </div>
+    <div class="lang-card">
+      <h3>#flow{} <span class="meta">&mdash; coroutines &middot; 380 lines</span></h3>
+      <p>
+        Generators: <code>gen primes(n) { ... yield p; ... }</code> and drivers
+        with <code>for x in g(n)</code>, lowering to lang&rsquo;s algebraic
+        effects. It is bidirectional &mdash; <code>yield</code> is an expression
+        and the driver can <code>send</code> a value back into the suspended
+        generator. flow proved a reader can surface kernel powers that no
+        C-like syntax exposes. (It is the one absentee here: effects need stack
+        switching, which core wasm doesn&rsquo;t have, so flow is native-only
+        and a plain lang loop holds its seat in the demo above.)
+      </p>
+    </div>
+    <div class="lang-card">
+      <h3>#forth{} <span class="meta">&mdash; stack &middot; 680 lines</span></h3>
+      <p>
+        The language furthest from the others: no expressions, no blocks, just
+        words. The reader&rsquo;s trick is that <em>the data stack exists only
+        at compile time</em>, as a stack of AST nodes: <code>dup *</code> pops
+        and pushes trees, and by <code>;</code> the stack has vanished &mdash;
+        <code>: square dup * ;</code> compiles to exactly the code of
+        <code>return n * n</code>. The stack-effect comment
+        <code>( n -- n2 )</code>, decoration in real Forth, is load-bearing
+        here: it names the parameters, which is what turns a word into an
+        ordinary function that C and Lisp can call.
+      </p>
+    </div>
+    <div class="lang-card">
+      <h3>#minipy{} <span class="meta">&mdash; layout &middot; 950 lines</span></h3>
+      <p>
+        Blocks delimited by nothing but the left margin. The shared tokenizer
+        is whitespace-blind and was not touched: tokens carry their byte
+        offsets, so the reader reconstructs line starts and columns and
+        synthesizes the NEWLINE/INDENT/DEDENT stream CPython&rsquo;s own
+        tokenizer feeds its parser. The offside rule &mdash; the thing that
+        makes Python famously hard to bolt onto other grammars &mdash; turned
+        out to be a plugin too.
+      </p>
+    </div>
+  </div>
+
+  <p>
+    In the polyglot demo they form one pipeline: minipy drives the survey and
+    calls a lang loop, which asks C&rsquo;s <code>c_is_prime</code>, which asks
+    Forth&rsquo;s <code>divides?</code> about every candidate divisor; each
+    prime is consed onto a Lisp list; Lisp folds it; Forth digit-sums the
+    result; minipy formats the report. Five paradigms, and no two of them agree
+    on where a block ends &mdash; parens, braces, semicolons,
+    <code>then</code>, and the left margin.
+  </p>
+
+  <h2>so how hard is it to add a language?</h2>
+  <p>
+    Each language above is one file (plus, at most, a small runtime file):
+    350&ndash;950 lines of lang against a ~2,400-line shared toolkit
+    (tokenizer, grammar compiler, parser generator, AST builders). None of them
+    required changing the compiler. Across all five, the shared tokenizer
+    gained two token kinds (<code>?</code> <code>~</code>), a few two-character
+    operators, and comment skipping &mdash; everything else, including
+    Python&rsquo;s indentation, was reader-side.
+  </p>
+  <p>
+    The recurring surprise was how rarely a &ldquo;new language feature&rdquo;
+    needed anything new underneath. The kernel keeps being richer than any one
+    syntax: ternary needed no conditional-expression node, enum members are
+    just globals, Lisp lambdas ride the kernel&rsquo;s closures, and flow
+    &mdash; the most exotic of the five &mdash; needed zero new kernel
+    features. The honest costs are elsewhere: languages with real semantics
+    need a small runtime built (Lisp&rsquo;s boxing, cons cells and closures
+    came to 200 lines); C&rsquo;s <code>typedef</code> needs the classic lexer
+    hack and the preprocessor is its own project; and paradigm distance costs
+    thought rather than lines &mdash; Forth and Python were the hardest to
+    capture and the most fun, precisely because neither looks anything like the
+    AST it lowers to.
+  </p>
+
   <footer>
     <p>
-      The <b>polyglot</b> tab is four languages in one wasm module: Forth answers
-      C&rsquo;s divisibility questions inside C&rsquo;s trial-division loop, lang
-      streams the primes onto a Lisp cons list, Lisp folds it, Forth folds the
-      digits, and a Python subset &mdash; blocks delimited by nothing but the left
-      margin &mdash; drives the whole pipeline and formats the report. (The native
-      build has a fifth language, a coroutine DSL lowering to algebraic effects;
-      core wasm has no stack switching yet, so it sits this page out.)
-    </p>
-    <p>
-      Source and devlogs: <a href="https://github.com/ehrlich-b/lang">github.com/ehrlich-b/lang</a>.
-      Next on the roadmap: the compiler itself, compiled to wasm, compiling these
-      languages in your browser.
+      Source, readers, and devlogs: <a href="https://github.com/ehrlich-b/lang">github.com/ehrlich-b/lang</a>.
+      Next on the roadmap: the compiler itself, compiled to wasm, compiling
+      these languages in your browser.
     </p>
   </footer>
 </div>
@@ -112,19 +280,19 @@
 <script>
 const EXAMPLES = [
   {
+    id: 'polyglot_wasm',
+    title: 'polyglot.lang',
+    desc: '<b>Four languages, one wasm module</b> — minipy &rarr; lang &rarr; C &rarr; Forth &rarr; Lisp, a prime-sieve pipeline crossing a language boundary at every call.',
+  },
+  {
     id: 'fib',
     title: 'fib.lang',
-    desc: '<b>lang itself</b> — the bootstrap substrate: C-like, all-i64, self-hosted.',
+    desc: '<b>lang itself</b> — the bootstrap substrate the readers are written in: C-like, all-i64, self-hosted.',
   },
   {
     id: 'mandelbrot',
     title: 'mandelbrot.lang',
     desc: '<b>ASCII Mandelbrot</b> — f64 floats and recursion, escape-time rendered to a text buffer.',
-  },
-  {
-    id: 'polyglot_wasm',
-    title: 'polyglot.lang',
-    desc: '<b>Four languages, one wasm module</b> — Forth &rarr; C &rarr; lang &rarr; Lisp &rarr; minipy, a prime-sieve pipeline crossing a language boundary at every call.',
   },
 ];
 
@@ -200,8 +368,8 @@ async function run(id) {
   btn.disabled = false;
 }
 
-select('fib');
-run('fib');
+select('polyglot_wasm');
+run('polyglot_wasm');
 </script>
 </body>
 </html>
