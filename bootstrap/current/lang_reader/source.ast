@@ -1,5 +1,5 @@
 (program
-  (modules "src/lang_reader.lang" "src/lang_reader.lang")
+  (modules "src/lang_reader.lang" "src/lang_reader.lang" "std/core.lang" "src/parser.lang" "src/lexer.lang" "src/limits.lang" "src/ast_emit.lang")
   (require "std/core")
   (require "src/limits")
   (require "src/lexer")

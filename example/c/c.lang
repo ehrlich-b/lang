@@ -26,8 +26,11 @@
 // NAMED rule (a choice of inline sequences would short-circuit on the first
 // mismatch). Operator precedence is flat in the grammar and resolved here.
 
-include "std/core.lang"
-include "std/tok.lang"
+// require (not include) so the -r composition path can filter them: the kernel
+// already carries std/core and std/tok, and this lets `kernel -r c c.ast`
+// build a standalone C compiler without duplicating their declarations.
+require "std/core"
+require "std/tok"
 include "std/parser_reader.lang"
 include "std/ast.lang"
 

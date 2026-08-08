@@ -12,21 +12,10 @@
 include "std/tok.lang"
 
 // ============================================================
-// PNode structure for parse tree
+// PNode structure for parse tree (shared with the reader toolkit)
 // ============================================================
 
-struct PNode {
-    kind i64;
-    text *u8;
-    children *u8;  // Vec of *PNode
-}
-
-// PNODE kinds (matching what #parser{} would have generated)
-var PNODE_NUMBER i64 = 1;
-var PNODE_SYMBOL i64 = 2;
-var PNODE_STRING i64 = 3;
-var PNODE_LIST i64 = 4;
-var PNODE_OPERATOR i64 = 5;
+include "std/pnode.lang"
 
 // ============================================================
 // AST Version
@@ -74,30 +63,6 @@ func sexpr_atoi(s *u8) i64 {
         s = s + 1;
     }
     return result;
-}
-
-// ============================================================
-// PNode constructors
-// ============================================================
-
-func pnode_new(kind i64) *PNode {
-    var n *PNode = alloc(24);
-    n.kind = kind;
-    n.text = nil;
-    n.children = nil;
-    return n;
-}
-
-func pnode_atom(kind i64, text *u8) *PNode {
-    var n *PNode = pnode_new(kind);
-    n.text = text;
-    return n;
-}
-
-func pnode_list(children *u8) *PNode {
-    var n *PNode = pnode_new(PNODE_LIST);
-    n.children = children;
-    return n;
 }
 
 // ============================================================

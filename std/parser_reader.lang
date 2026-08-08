@@ -171,33 +171,10 @@ include "std/rdgen.lang"
 include "src/lang_reader.lang"
 
 // PNode struct + constructors: the parse tree that generated parsers build.
-// Defined ONCE here (static, not generated per-grammar by rdgen) so a program
-// can include multiple #parser{} grammars without duplicate-symbol collisions.
-struct PNode {
-    kind i64;       // PNODE_* constant
-    text *u8;       // token text (for atoms)
-    children *u8;   // vec of *PNode (for lists/sequences)
-}
-
-func pnode_new(kind i64) *PNode {
-    var n *PNode = alloc(24);
-    n.kind = kind;
-    n.text = nil;
-    n.children = nil;
-    return n;
-}
-
-func pnode_atom(kind i64, text *u8) *PNode {
-    var n *PNode = pnode_new(kind);
-    n.text = text;
-    return n;
-}
-
-func pnode_list(children *u8) *PNode {
-    var n *PNode = pnode_new(4);  // PNODE_LIST
-    n.children = children;
-    return n;
-}
+// Lives in std/pnode.lang, shared with the kernel's sexpr_reader (defined once,
+// not generated per-grammar, so multiple #parser{} grammars in one program - or
+// a reader composed into the kernel via -r - never collide on these symbols).
+require "std/pnode"
 
 reader parser(text *u8) *u8 {
     var g *Grammar = grammar_parse(text);

@@ -61,7 +61,7 @@ struct Tokenizer {
     tok_kind i64;   // kind of current token
 }
 
-func tok_new(input *u8) *Tokenizer {
+pub func tok_new(input *u8) *Tokenizer {
     var t *Tokenizer = alloc(48);  // 6 fields * 8 bytes
     t.input = input;
     t.pos = 0;
@@ -77,19 +77,19 @@ func tok_new(input *u8) *Tokenizer {
 // Character Helpers
 // ============================================================
 
-func tok_is_digit(c i64) bool {
+pub func tok_is_digit(c i64) bool {
     return c >= 48 && c <= 57;
 }
 
-func tok_is_alpha(c i64) bool {
+pub func tok_is_alpha(c i64) bool {
     return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95;
 }
 
-func tok_is_alnum(c i64) bool {
+pub func tok_is_alnum(c i64) bool {
     return tok_is_digit(c) || tok_is_alpha(c);
 }
 
-func tok_is_space(c i64) bool {
+pub func tok_is_space(c i64) bool {
     return c == 32 || c == 9 || c == 10 || c == 13;
 }
 
@@ -97,27 +97,27 @@ func tok_is_space(c i64) bool {
 // Tokenizer Methods
 // ============================================================
 
-func tok_peek_char(t *Tokenizer) i64 {
+pub func tok_peek_char(t *Tokenizer) i64 {
     if t.pos >= t.len {
         return 0;
     }
     return *(t.input + t.pos);
 }
 
-func tok_peek_char_at(t *Tokenizer, offset i64) i64 {
+pub func tok_peek_char_at(t *Tokenizer, offset i64) i64 {
     if t.pos + offset >= t.len {
         return 0;
     }
     return *(t.input + t.pos + offset);
 }
 
-func tok_advance_char(t *Tokenizer) void {
+pub func tok_advance_char(t *Tokenizer) void {
     if t.pos < t.len {
         t.pos = t.pos + 1;
     }
 }
 
-func tok_skip_whitespace(t *Tokenizer) void {
+pub func tok_skip_whitespace(t *Tokenizer) void {
     var again i64 = 1;
     while again == 1 {
         again = 0;
@@ -145,7 +145,7 @@ func tok_skip_whitespace(t *Tokenizer) void {
     }
 }
 
-func tok_next(t *Tokenizer) void {
+pub func tok_next(t *Tokenizer) void {
     tok_skip_whitespace(t);
 
     t.tok_start = t.pos;
@@ -342,25 +342,25 @@ func tok_next(t *Tokenizer) void {
     tok_advance_char(t);
 }
 
-func tok_kind(t *Tokenizer) i64 {
+pub func tok_kind(t *Tokenizer) i64 {
     return t.tok_kind;
 }
 
-func tok_eof(t *Tokenizer) bool {
+pub func tok_eof(t *Tokenizer) bool {
     return t.tok_kind == TOK_EOF;
 }
 
 // Returns the raw text of the current token (not null-terminated!)
-func tok_text_ptr(t *Tokenizer) *u8 {
+pub func tok_text_ptr(t *Tokenizer) *u8 {
     return t.input + t.tok_start;
 }
 
-func tok_text_len(t *Tokenizer) i64 {
+pub func tok_text_len(t *Tokenizer) i64 {
     return t.tok_len;
 }
 
 // Returns a null-terminated copy of the token text
-func tok_text(t *Tokenizer) *u8 {
+pub func tok_text(t *Tokenizer) *u8 {
     var buf *u8 = alloc(t.tok_len + 1);
     var i i64 = 0;
     while i < t.tok_len {
@@ -372,7 +372,7 @@ func tok_text(t *Tokenizer) *u8 {
 }
 
 // Parse the current number token as i64
-func tok_number(t *Tokenizer) i64 {
+pub func tok_number(t *Tokenizer) i64 {
     var ptr *u8 = t.input + t.tok_start;
     var len i64 = t.tok_len;
     var neg i64 = 0;
@@ -396,7 +396,7 @@ func tok_number(t *Tokenizer) i64 {
 }
 
 // Get the string value (without quotes, with escapes processed)
-func tok_string_value(t *Tokenizer) *u8 {
+pub func tok_string_value(t *Tokenizer) *u8 {
     var start *u8 = t.input + t.tok_start + 1;  // skip opening quote
     var len i64 = t.tok_len - 2;  // exclude both quotes
     var buf *u8 = alloc(len + 1);
@@ -424,12 +424,12 @@ func tok_string_value(t *Tokenizer) *u8 {
 }
 
 // Check if current token matches a specific kind
-func tok_check(t *Tokenizer, kind i64) bool {
+pub func tok_check(t *Tokenizer, kind i64) bool {
     return t.tok_kind == kind;
 }
 
 // Match and consume a token of the given kind
-func tok_match(t *Tokenizer, kind i64) bool {
+pub func tok_match(t *Tokenizer, kind i64) bool {
     if t.tok_kind == kind {
         tok_next(t);
         return true;
@@ -438,7 +438,7 @@ func tok_match(t *Tokenizer, kind i64) bool {
 }
 
 // Expect a token of the given kind (error if not found)
-func tok_expect(t *Tokenizer, kind i64) bool {
+pub func tok_expect(t *Tokenizer, kind i64) bool {
     if t.tok_kind != kind {
         return false;
     }

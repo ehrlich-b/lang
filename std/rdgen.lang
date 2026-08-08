@@ -14,15 +14,9 @@
 include "std/emit.lang"
 include "std/grammar.lang"
 
-// ============================================================
-// PNode Kinds (for generated parsers)
-// ============================================================
-
-var PNODE_NUMBER i64 = 1;
-var PNODE_SYMBOL i64 = 2;
-var PNODE_STRING i64 = 3;
-var PNODE_LIST i64 = 4;
-var PNODE_NIL i64 = 5;
+// PNode kinds and constructors come from std/pnode.lang (shared with the
+// kernel's sexpr_reader; see the note there).
+require "std/pnode"
 
 // ============================================================
 // Code Generator State

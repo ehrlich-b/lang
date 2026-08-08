@@ -1,0 +1,42 @@
+// ============================================================
+// PNode - the parse tree shared by generated parsers and the kernel
+// ============================================================
+//
+// Both #parser{}-generated parsers (via std/rdgen.lang) and the kernel's
+// S-expression loader (src/sexpr_reader.lang) build this tree. It is defined
+// ONCE here so a composed compiler - `kernel -r <name> <reader.ast>`, which
+// links a reader's toolkit into the kernel - carries a single copy instead of
+// colliding on duplicate symbols. The kernel includes this file; the reader
+// toolkit requires it (so -r composition filters it as kernel-supplied).
+
+struct PNode {
+    kind i64;       // PNODE_* constant
+    text *u8;       // token text (for atoms)
+    children *u8;   // vec of *PNode (for lists/sequences)
+}
+
+var PNODE_NUMBER i64 = 1;
+var PNODE_SYMBOL i64 = 2;
+var PNODE_STRING i64 = 3;
+var PNODE_LIST i64 = 4;
+var PNODE_OPERATOR i64 = 5;
+
+pub func pnode_new(kind i64) *PNode {
+    var n *PNode = alloc(24);
+    n.kind = kind;
+    n.text = nil;
+    n.children = nil;
+    return n;
+}
+
+pub func pnode_atom(kind i64, text *u8) *PNode {
+    var n *PNode = pnode_new(kind);
+    n.text = text;
+    return n;
+}
+
+pub func pnode_list(children *u8) *PNode {
+    var n *PNode = pnode_new(PNODE_LIST);
+    n.children = children;
+    return n;
+}

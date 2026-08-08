@@ -269,7 +269,18 @@ func expand_collect_decl(decl *u8) void {
                 j = j + 1;
             }
         } else {
-            // Keep require as-is for reader AST (will be filtered by -r)
+            // Keep require as-is for reader AST (will be filtered by -r), but
+            // mark the module as present so a transitive include of the same
+            // file (e.g. std/ast.lang including std/core.lang after the reader
+            // required std/core) doesn't splice a second copy of the kernel's
+            // declarations into the reader AST.
+            var rmod *u8 = require_decl_module(decl);
+            var rmod_len i64 = require_decl_module_len(decl);
+            var rpath *u8 = alloc(rmod_len + 6);
+            memcpy(rpath, rmod, rmod_len);
+            memcpy(rpath + rmod_len, ".lang", 5);
+            *(rpath + rmod_len + 5) = 0;
+            map_set(expand_included_map, rpath, 1);
             vec_push(expand_collected_decls, decl);
         }
     } else {
