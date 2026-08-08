@@ -1717,13 +1717,14 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_int(closure_label);
             llvm_emit_line(":");
 
-            // Cast to closure function pointer (takes i8* as first arg)
+            // Cast to closure function pointer (env is i64 like everything else,
+            // so the indirect-call signature matches exactly - wasm requires it)
             var clos_fn_ptr i64 = llvm_next_temp();
             llvm_emit_str("    %t");
             llvm_emit_int(clos_fn_ptr);
             llvm_emit_str(" = inttoptr i64 %t");
             llvm_emit_int(fn_ptr_val);
-            llvm_emit_str(" to i64 (i8*");
+            llvm_emit_str(" to i64 (i64");
             j = 0;
             while j < arg_count {
                 llvm_emit_str(", i64");
@@ -1737,8 +1738,8 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_int(clos_result);
             llvm_emit_str(" = call i64 %t");
             llvm_emit_int(clos_fn_ptr);
-            llvm_emit_str("(i8* %t");
-            llvm_emit_int(closure_i8ptr);
+            llvm_emit_str("(i64 %t");
+            llvm_emit_int(closure_ptr);
             j = 0;
             while j < arg_count {
                 llvm_emit_str(", i64 ");
@@ -3527,7 +3528,7 @@ func llvm_emit_expr(expr *u8) void {
             var fn_ptr_temp i64 = llvm_next_temp();
             llvm_emit_str("    %t");
             llvm_emit_int(fn_ptr_temp);
-            llvm_emit_str(" = ptrtoint i64 (i8*");
+            llvm_emit_str(" = ptrtoint i64 (i64");
             var j i64 = 0;
             while j < param_count {
                 llvm_emit_str(", i64");
@@ -6934,9 +6935,11 @@ func llvm_gen_lambda(lambda_node *u8, lambda_id i64, captures *u8, capture_count
     llvm_emit_int(lambda_id);
     llvm_emit_str("(");
 
-    // Add closure pointer as first param if has captures
+    // Add closure env as first param if has captures. It is i64 (not i8*) so
+    // the signature matches the all-i64 call site exactly - wasm indirect
+    // calls trap on any mismatch that native targets happen to tolerate.
     if capture_count > 0 {
-        llvm_emit_str("i8* %closure");
+        llvm_emit_str("i64 %closure.env");
         if param_count > 0 {
             llvm_emit_str(", ");
         }
@@ -6962,6 +6965,8 @@ func llvm_gen_lambda(lambda_node *u8, lambda_id i64, captures *u8, capture_count
 
     // Load captures from closure into local variables
     if capture_count > 0 {
+        // Recover the i8* view of the env for the capture-loading GEPs below
+        llvm_emit_line("    %closure = inttoptr i64 %closure.env to i8*");
         i = 0;
         while i < capture_count {
             var cap_entry *u8 = captures + (i * 32);
