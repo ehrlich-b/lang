@@ -22,6 +22,8 @@ var llvm_buf_size i64 = 0;
 
 // Architecture flag: 1 = ARM64 (macOS), 0 = x86-64
 var llvm_is_arm64 i64 = 0;
+// Target flag: 1 = WebAssembly - no inline asm, so effects are a hard error
+var llvm_is_wasm i64 = 0;
 
 func llvm_init_output(output_file *u8) void {
     llvm_buf_size = 8 * 1024 * 1024;  // 8MB buffer
@@ -3934,6 +3936,10 @@ func llvm_emit_expr(expr *u8) void {
 
     // Handle expression: handle { body } with { return(v) => ..., Effect(e, k) => ... }
     if k == NODE_HANDLE_EXPR {
+        if llvm_is_wasm {
+            eprintln("error: algebraic effects (handle) are not supported on the wasm target - wasm has no stack switching");
+            exit(1);
+        }
         var body *u8 = handle_expr_body(expr);
         var cases *u8 = handle_expr_cases(expr);
         var case_count i64 = handle_expr_case_count(expr);
@@ -4282,6 +4288,10 @@ func llvm_emit_expr(expr *u8) void {
 
     // Perform expression: perform Effect(args)
     if k == NODE_PERFORM_EXPR {
+        if llvm_is_wasm {
+            eprintln("error: algebraic effects (perform) are not supported on the wasm target - wasm has no stack switching");
+            exit(1);
+        }
         var args *u8 = perform_expr_args(expr);
         var arg_count i64 = perform_expr_arg_count(expr);
         var eff_name *u8 = perform_expr_name(expr);
@@ -4436,6 +4446,10 @@ func llvm_emit_expr(expr *u8) void {
 
     // Resume expression: resume k(value)
     if k == NODE_RESUME_EXPR {
+        if llvm_is_wasm {
+            eprintln("error: algebraic effects (resume) are not supported on the wasm target - wasm has no stack switching");
+            exit(1);
+        }
         var k_expr *u8 = resume_expr_k(expr);
         var value *u8 = resume_expr_value(expr);
 
@@ -7128,13 +7142,22 @@ func generate_llvm(prog *u8, output_file *u8) void {
     // Emit target triple based on LANGOS environment variable
     var langos *u8 = getenv("LANGOS");
     var is_macos i64 = 0;
+    var is_wasm i64 = 0;
     if langos != nil {
         // Check if langos == "macos" (5 chars + null)
         if *langos == 'm' && *(langos+1) == 'a' && *(langos+2) == 'c' && *(langos+3) == 'o' && *(langos+4) == 's' && *(langos+5) == 0 {
             is_macos = 1;
         }
+        // Check if langos == "wasm" (4 chars + null)
+        if *langos == 'w' && *(langos+1) == 'a' && *(langos+2) == 's' && *(langos+3) == 'm' && *(langos+4) == 0 {
+            is_wasm = 1;
+        }
     }
-    if is_macos {
+    if is_wasm {
+        llvm_emit_line("target triple = \"wasm32-unknown-unknown\"");
+        llvm_is_arm64 = 0;
+        llvm_is_wasm = 1;
+    } else if is_macos {
         llvm_emit_line("target triple = \"arm64-apple-macosx\"");
         llvm_is_arm64 = 1;
     } else {

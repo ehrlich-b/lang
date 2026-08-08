@@ -381,7 +381,7 @@ func cmd_help_env() i64 {
     println("");
     println("Variables:");
     println("  LANGBE    Backend: x86 (default), llvm");
-    println("  LANGOS    Target OS: linux (default), macos");
+    println("  LANGOS    Target OS: linux (default), macos, wasm");
     println("  LANGLIBC  Libc mode: none (default), system");
     println("  PATH      Search path for tools");
     return 0;
@@ -486,6 +486,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("Environment:");
     println("  LANGBE=llvm         Use LLVM backend (default: x86)");
     println("  LANGOS=macos        Target macOS (default: linux)");
+    println("  LANGOS=wasm         Target WebAssembly (LLVM backend only, no effects)");
     println("");
     println("Run 'lang help <command>' for command-specific help.");
     return 0;
