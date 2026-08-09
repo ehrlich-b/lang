@@ -383,6 +383,215 @@ func grammar_validate_node(g *Grammar, gp *GrammarParser, node *GNode) i64 {
     return 1;
 }
 
+func grammar_capture_index(captures *u8, capture *GNode) i64 {
+    var count i64 = vec_len(captures);
+    var i i64 = 0;
+    while i < count {
+        var prior *GNode = vec_get(captures, i);
+        if str_eq_n(prior.name, prior.name_len,
+                    capture.name, capture.name_len) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+func grammar_capture_add(captures *u8, capture *GNode) void {
+    if grammar_capture_index(captures, capture) < 0 {
+        vec_push(captures, capture);
+    }
+}
+
+// Reject a label that could occur twice in one successful rule path. A choice
+// validates each branch against the same incoming labels, then merges the
+// labels it may produce. That keeps `left:x | left:y` useful while rejecting a
+// later second `left:` that would be ambiguous for at least one branch.
+func grammar_validate_captures(gp *GrammarParser, node *GNode,
+                               captures *u8) i64 {
+    if node == nil { return 1; }
+
+    if node.kind == GNODE_CAPTURE {
+        if grammar_capture_index(captures, node) >= 0 {
+            tok_reset(gp.t, node.start);
+            gp_fail(gp, "capture name used once per branch");
+            return 0;
+        }
+        vec_push(captures, node);
+        return grammar_validate_captures(gp, node.child, captures);
+    }
+
+    if node.kind == GNODE_CHOICE {
+        var base i64 = vec_len(captures);
+        var merged *u8 = vec_new(4);
+        var count i64 = vec_len(node.children);
+        var i i64 = 0;
+        while i < count {
+            while vec_len(captures) > base { vec_pop(captures); }
+            if grammar_validate_captures(
+                   gp, vec_get(node.children, i), captures) == 0 {
+                return 0;
+            }
+            var j i64 = base;
+            while j < vec_len(captures) {
+                grammar_capture_add(merged, vec_get(captures, j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        while vec_len(captures) > base { vec_pop(captures); }
+        i = 0;
+        while i < vec_len(merged) {
+            vec_push(captures, vec_get(merged, i));
+            i = i + 1;
+        }
+        return 1;
+    }
+
+    if node.children != nil {
+        var count i64 = vec_len(node.children);
+        var i i64 = 0;
+        while i < count {
+            if grammar_validate_captures(
+                   gp, vec_get(node.children, i), captures) == 0 {
+                return 0;
+            }
+            i = i + 1;
+        }
+    }
+    if node.child != nil {
+        return grammar_validate_captures(gp, node.child, captures);
+    }
+    return 1;
+}
+
+func grammar_node_nullable(g *Grammar, node *GNode, nullable *u8) i64 {
+    if node == nil { return 0; }
+    if node.kind == GNODE_OPT || node.kind == GNODE_STAR { return 1; }
+    if node.kind == GNODE_CAPTURE || node.kind == GNODE_PLUS ||
+       node.kind == GNODE_RULE {
+        return grammar_node_nullable(g, node.child, nullable);
+    }
+    if node.kind == GNODE_REF {
+        if map_get_n(nullable, node.name, node.name_len) != 0 { return 1; }
+        return 0;
+    }
+    if node.kind == GNODE_CHOICE {
+        var count i64 = vec_len(node.children);
+        var i i64 = 0;
+        while i < count {
+            if grammar_node_nullable(
+                   g, vec_get(node.children, i), nullable) != 0 {
+                return 1;
+            }
+            i = i + 1;
+        }
+        return 0;
+    }
+    if node.kind == GNODE_SEQ {
+        var count i64 = vec_len(node.children);
+        var i i64 = 0;
+        while i < count {
+            if grammar_node_nullable(
+                   g, vec_get(node.children, i), nullable) == 0 {
+                return 0;
+            }
+            i = i + 1;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+func grammar_nullable_rules(g *Grammar) *u8 {
+    var nullable *u8 = map_new();
+    var changed i64 = 1;
+    while changed != 0 {
+        changed = 0;
+        var count i64 = vec_len(g.rules);
+        var i i64 = 0;
+        while i < count {
+            var rule *GNode = vec_get(g.rules, i);
+            if map_get_n(nullable, rule.name, rule.name_len) == 0 &&
+               grammar_node_nullable(g, rule.child, nullable) != 0 {
+                map_set_n(nullable, rule.name, rule.name_len, 1);
+                changed = 1;
+            }
+            i = i + 1;
+        }
+    }
+    return nullable;
+}
+
+// Find a reference to target that can be reached before consuming a token.
+// Following nullable sequence prefixes makes this catch both ordinary cycles
+// and traps such as `expr = prefix? expr | number`.
+func grammar_left_reference(g *Grammar, node *GNode,
+                            target *GNode, nullable *u8,
+                            visited *u8) *GNode {
+    if node == nil { return nil; }
+    if node.kind == GNODE_REF {
+        if str_eq_n(node.name, node.name_len, target.name, target.name_len) {
+            return node;
+        }
+        if map_get_n(visited, node.name, node.name_len) != 0 { return nil; }
+        map_set_n(visited, node.name, node.name_len, 1);
+        var referenced *GNode = grammar_get_rule(g, node.name, node.name_len);
+        if referenced == nil { return nil; }
+        return grammar_left_reference(
+            g, referenced.child, target, nullable, visited);
+    }
+    if node.kind == GNODE_CHOICE {
+        var count i64 = vec_len(node.children);
+        var i i64 = 0;
+        while i < count {
+            var found *GNode = grammar_left_reference(
+                g, vec_get(node.children, i), target, nullable, visited);
+            if found != nil { return found; }
+            i = i + 1;
+        }
+        return nil;
+    }
+    if node.kind == GNODE_SEQ {
+        var count i64 = vec_len(node.children);
+        var i i64 = 0;
+        while i < count {
+            var child *GNode = vec_get(node.children, i);
+            var found *GNode = grammar_left_reference(
+                g, child, target, nullable, visited);
+            if found != nil { return found; }
+            if grammar_node_nullable(g, child, nullable) == 0 { return nil; }
+            i = i + 1;
+        }
+        return nil;
+    }
+    if node.kind == GNODE_CAPTURE || node.kind == GNODE_OPT ||
+       node.kind == GNODE_STAR || node.kind == GNODE_PLUS {
+        return grammar_left_reference(g, node.child, target, nullable, visited);
+    }
+    return nil;
+}
+
+func grammar_validate_left_recursion(g *Grammar,
+                                     gp *GrammarParser) i64 {
+    var nullable *u8 = grammar_nullable_rules(g);
+    var count i64 = vec_len(g.rules);
+    var i i64 = 0;
+    while i < count {
+        var rule *GNode = vec_get(g.rules, i);
+        var visited *u8 = map_new();
+        var found *GNode = grammar_left_reference(
+            g, rule.child, rule, nullable, visited);
+        if found != nil {
+            tok_reset(gp.t, found.start);
+            gp_fail(gp, "non-left-recursive rule");
+            return 0;
+        }
+        i = i + 1;
+    }
+    return 1;
+}
+
 // Parse a complete grammar
 func grammar_parse(text *u8) *Grammar {
     var gp *GrammarParser = gp_new(text);
@@ -416,8 +625,12 @@ func grammar_parse(text *u8) *Grammar {
     while i < count {
         var rule *GNode = vec_get(g.rules, i);
         if grammar_validate_node(g, gp, rule.child) == 0 { return nil; }
+        if grammar_validate_captures(
+               gp, rule.child, vec_new(4)) == 0 { return nil; }
         i = i + 1;
     }
+
+    if grammar_validate_left_recursion(g, gp) == 0 { return nil; }
 
     return g;
 }

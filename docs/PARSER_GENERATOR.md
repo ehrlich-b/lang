@@ -94,7 +94,8 @@ The modifier belongs to the capture, so `args:expr*` returns the whole
 repetition list. `pnode_get` returns `nil` for an absent optional capture.
 `pnode_require` also returns `nil`, but first prints the exact missing name as a
 reader-lowering error. Captures may use the same names in different choice
-branches.
+branches. A name may occur only once on any one branch; otherwise `pnode_get`
+would have no honest answer.
 
 Capture wrappers are an internal `PNode` kind and do not change the tree of a
 grammar that has no captures. `pnode_child` transparently unwraps them, so a
@@ -133,14 +134,16 @@ Use the query functions when you want different wording or structured output.
 one-based. Expectations from alternatives failing at the same furthest token
 are combined (`number or string`).
 
-Choice remains ordered—the first successful branch wins—and left recursion is
-unsupported. Use a hand-written parser when the grammar needs precedence,
-semantic lookahead, or error recovery.
+Choice remains ordered—the first successful branch wins. Direct, indirect, and
+nullable-prefix left recursion are rejected at the reference that closes the
+cycle; right recursion works. Use a hand-written parser when the grammar needs
+precedence, semantic lookahead, or error recovery.
 
 The grammar itself is checked before code generation. Missing `=`, groups or
-capture elements, trailing `|`, duplicate rules, and references to undefined
-rules report `#parser:line:column` at the offending grammar token. They do not
-fall through to a missing `parse_*` function or reader-wrapper link failure.
+capture elements, trailing `|`, duplicate rules or captures, undefined rules,
+and left recursion report `#parser:line:column` at the offending grammar token.
+They do not fall through to a missing function, a broken reader wrapper, or a
+parser that recurses forever.
 
 `#parser{}` generates recognition and failure context. The reader still owns
 semantic validation, the wording around that context, lowering, and the final

@@ -8,6 +8,7 @@ include "std/parser_reader.lang"
     action = command:('answer' | 'bad') value:(number | symbol)
     maybe = required:number optional:symbol?
     values = items:number+
+    chain = head:number tail:chain?
 }
 
 func main() i64 {
@@ -44,5 +45,15 @@ func main() i64 {
     if values == nil || !tok_eof(values_tokens) { return 11; }
     var items *PNode = pnode_require(values, "items");
     if items == nil || vec_len(items.children) != 3 { return 12; }
+
+    // Recursion after a token is safe and remains supported.
+    var chain_tokens *Tokenizer = tok_new("1 2 3");
+    var chain *PNode = parse_chain(chain_tokens);
+    if chain == nil || !tok_eof(chain_tokens) { return 13; }
+    if !streq(pnode_require(chain, "head").text, "1") { return 14; }
+    var tail *PNode = pnode_get(chain, "tail");
+    if tail == nil || !streq(pnode_require(tail, "head").text, "2") {
+        return 15;
+    }
     return 0;
 }

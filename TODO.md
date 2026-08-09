@@ -38,7 +38,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 21. ✓ Make reader ASTs readable and diffable
 22. ✓ Make grammar captures nameable
 23. ✓ Make grammar mistakes local
-24. → **Capture more languages only when it improves the reader toolkit** ← current
+24. ✓ Reject grammar traps before parser generation
+25. → **Capture more languages only when it improves the reader toolkit** ← current
 
 ---
 
@@ -237,6 +238,20 @@ authoring now fails at the grammar boundary:
       parser code.
 - [x] Guard every diagnostic as a fatal build in the native suite; the browser
       compiler packages the same checked generator.
+
+---
+
+## Completed: Reject grammar traps before parser generation
+
+Two valid-looking grammars still failed late or behaved ambiguously. They now
+stop at the authoring boundary:
+
+- [x] Reject a duplicate capture name on any one branch while allowing the
+      same lowering vocabulary across alternatives.
+- [x] Reject direct, indirect, and nullable-prefix left recursion at the
+      reference that closes the cycle.
+- [x] Keep right recursion valid and guard both checks in native and browser
+      compiler paths.
 
 ---
 

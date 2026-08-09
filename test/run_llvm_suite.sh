@@ -563,6 +563,38 @@ include "std/parser_reader.lang"
     thing = value:
 }
 BAD_GRAMMAR
+    cat >"$tmp/duplicate_capture.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    thing = value:number value:symbol
+}
+BAD_GRAMMAR
+    cat >"$tmp/branch_duplicate_capture.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    thing = (value:number | symbol) value:number
+}
+BAD_GRAMMAR
+    cat >"$tmp/direct_left_recursion.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    thing = thing number | number
+}
+BAD_GRAMMAR
+    cat >"$tmp/indirect_left_recursion.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    thing = other
+    other = thing
+}
+BAD_GRAMMAR
+    cat >"$tmp/nullable_left_recursion.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    prefix = number?
+    thing = prefix thing | number
+}
+BAD_GRAMMAR
 
     local cases=(
         "missing_equals|expected '=', found number"
@@ -570,6 +602,11 @@ BAD_GRAMMAR
         "unknown_rule|expected defined rule, found missing"
         "duplicate_rule|expected unique rule name, found thing"
         "dangling_capture|expected grammar element after capture, found end of input"
+        "duplicate_capture|expected capture name used once per branch, found value"
+        "branch_duplicate_capture|expected capture name used once per branch, found value"
+        "direct_left_recursion|expected non-left-recursive rule, found thing"
+        "indirect_left_recursion|expected non-left-recursive rule, found thing"
+        "nullable_left_recursion|expected non-left-recursive rule, found thing"
     )
     local spec case_name expected
     for spec in "${cases[@]}"; do

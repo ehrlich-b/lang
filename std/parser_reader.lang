@@ -43,6 +43,7 @@
 //   value:number          Capture one number for lowering
 //   args:expr*            Capture the whole repetition list
 //   fallback:expr?        Optional capture (pnode_get returns nil)
+//   One name per branch; alternatives may reuse the same names.
 //
 // LITERALS (single characters):
 //   '('       Matches left paren
@@ -68,7 +69,8 @@
 //
 // RULE REFERENCES:
 //   list = '(' expr ')   // references the 'expr' rule
-//   Undefined and duplicate rules are grammar errors at the offending token.
+//   Undefined/duplicate rules and left recursion fail at the offending token.
+//   Right recursion works: list = number list?
 //
 // GROUPING:
 //   item = (number | symbol)+   // parentheses for grouping
