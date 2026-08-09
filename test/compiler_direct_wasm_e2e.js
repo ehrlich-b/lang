@@ -237,6 +237,10 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   }
   const labSource = labHtml.match(/<textarea[^>]*\bid="reader"[^>]*>([\s\S]*?)<\/textarea>/);
   if (!labSource) throw new Error('could not find the reader source in web/lab.html');
+  const starterLines = labSource[1].trimEnd().split('\n').length;
+  if (starterLines > 15) {
+    throw new Error(`lab starter no longer fits without scrolling: ${starterLines} lines`);
+  }
   const read = await compileReaderSource(labSource[1], 'read', 'answer 42');
   if (Number(read.ran.value) !== 42 || !read.ast.startsWith('(program ')) {
     throw new Error(`lab read pipeline mismatch: value=${read.ran.value} ast=${read.ast}`);

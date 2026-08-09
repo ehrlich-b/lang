@@ -30,8 +30,9 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 13. ✓ Turn the browser proof into a reader workbench
 14. ✓ Make reader failures fast to fix
 15. ✓ Reuse the compiler the reader just made
-16. → **Fit the first reader on one screen** ← current
-17. → Capture more languages only when it improves the reader toolkit
+16. ✓ Fit the first reader on one screen
+17. → **Make the textareas behave like code editors** ← current
+18. → Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -118,16 +119,29 @@ Make the generated artifact real and make the common edit/run loop faster:
 
 ---
 
-## Current: Fit the first reader on one screen
+## Completed: Fit the first reader on one screen
 
 The generated-grammar starter is honest but still makes a one-rule language
 spell out parse-tree indexing and a complete `main` declaration. Remove that
 incidental work without hiding the reader/AST boundary:
 
-- [ ] Add small, general helpers for a parse-tree child and an i64 `main`.
-- [ ] Use them in the lab starter and Tiny where they improve readability.
-- [ ] Keep the entire starter visible without scrolling its editor at the
+- [x] Add small, general helpers for a parse-tree child and an i64 `main`.
+- [x] Use them in the lab starter and Tiny where they improve readability.
+- [x] Keep the entire starter visible without scrolling its editor at the
       default desktop height; guard the helper path end to end.
+
+---
+
+## Current: Make the textareas behave like code editors
+
+The workbench deliberately stays dependency-free, but reader authors should not
+lose basic editor mechanics:
+
+- [ ] Insert/indent with Tab and outdent with Shift-Tab instead of moving focus.
+- [ ] Preserve current indentation on Enter, with one extra level after `{` or
+      `:` for Lang and layout-language source.
+- [ ] Apply the behavior to reader, custom source, and runtime while preserving
+      Cmd/Ctrl-Enter build-and-run.
 
 ---
 

@@ -64,3 +64,8 @@ pub func pnode_list(children *u8) *PNode {
     }
     return n;
 }
+
+pub func pnode_child(node *PNode, index i64) *PNode {
+    if node == nil || node.children == nil { return nil; }
+    return vec_get(node.children, index);
+}

@@ -60,29 +60,17 @@
       </span></div>
       <textarea id="reader" aria-label="Reader source" spellcheck="false">include "std/parser_runtime.lang"
 include "std/ast.lang"
-
 #parser{
     answer_program = 'answer' number
 }
-
 reader read(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
     var tree *PNode = parse_answer_program(tokens);
     if tree == nil || !tok_eof(tokens) {
-        eprintln("reader: expected `answer NUMBER`");
-        return nil;
+        eprintln("reader: expected `answer NUMBER`"); return nil;
     }
-
-    var value *PNode = vec_get(tree.children, 1);
-    var result *u8 = ast_span(
-        ast_number(value.text), value.start, value.end
-    );
-    var body *u8 = ast_block1(
-        ast_return(result)
-    );
-    return ast_program1(
-        ast_func("main", ast_vec(), ast_type_i64(), body)
-    );
+    var value *PNode = pnode_child(tree, 1);
+    return ast_main_i64(ast_span(ast_number(value.text), value.start, value.end));
 }
 </textarea>
       <details class="runtime">

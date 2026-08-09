@@ -11,8 +11,7 @@ include "std/ast.lang"
 
 reader demo(text *u8) *u8 {
     var value *u8 = ast_add(ast_number("20"), ast_number("22"));
-    var body *u8 = ast_block1(ast_return(value));
-    return ast_program1(ast_func("main", ast_vec(), ast_type_i64(), body));
+    return ast_main_i64(value);
 }
 ```
 
@@ -97,6 +96,7 @@ ast_effect(name, param_types, ret)
 ast_include(path)
 
 ast_program(declarations)         ast_program1(declaration)
+ast_main_i64(expression)          // complete `func main() i64`
 ```
 
 For algebraic effects and pattern matching, see the `ast_perform`, `ast_handle`,

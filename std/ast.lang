@@ -971,3 +971,11 @@ func ast_program1(decl *u8) *u8 {
     sb_str(sb, ")");
     return ast_finish(sb);
 }
+
+// Complete program for the common first-reader case: one i64 main expression.
+func ast_main_i64(expr *u8) *u8 {
+    return ast_program1(
+        ast_func("main", ast_vec(), ast_type_i64(),
+                 ast_block1(ast_return(expr)))
+    );
+}

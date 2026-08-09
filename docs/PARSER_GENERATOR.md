@@ -26,6 +26,7 @@ func main() i64 {
 Each rule creates `parse_<rule>(tokens)`. A parser returns `nil` when it does
 not match. Always check both the result and `tok_eof(tokens)` at the reader
 boundary; a successful prefix is not necessarily a complete program.
+Use `pnode_child(node, index)` for a generated sequence child.
 
 The browser lab uses `include "std/parser_runtime.lang"` to make the artifact
 boundary visible: compiler.wasm owns the build-time generator, while the reader
