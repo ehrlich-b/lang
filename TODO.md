@@ -33,8 +33,9 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 16. ✓ Fit the first reader on one screen
 17. ✓ Make the textareas behave like code editors
 18. ✓ Scaffold a reader outside the browser
-19. → **Inspect a reader before codegen** ← current
-20. → Capture more languages only when it improves the reader toolkit
+19. ✓ Inspect a reader before codegen
+20. → **Make the scaffold fail well** ← current
+21. → Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -163,17 +164,31 @@ the same clean starting point without copying from documentation:
 
 ---
 
-## Current: Inspect a reader before codegen
+## Completed: Inspect a reader before codegen
 
 The browser exposes the AST a reader returned. Native reader authors should not
 need a complete target compile just to inspect that frontend boundary:
 
-- [ ] Add a concise `lang read` command that runs reader source on custom source
+- [x] Add a concise `lang read` command that runs reader source on custom source
       and writes the returned shared AST to stdout or `-o`.
-- [ ] Preserve reader and custom-source diagnostics without also reporting a
+- [x] Preserve reader and custom-source diagnostics without also reporting a
       misleading codegen failure.
-- [ ] Feed a scaffold's saved AST back through `--from-ast` and run it in an
+- [x] Feed a scaffold's saved AST back through `--from-ast` and run it in an
       end-to-end gate, proving the inspection path is lossless.
+
+---
+
+## Current: Make the scaffold fail well
+
+The generated parser already tracks its furthest failed token. The native and
+browser starters currently discard that context for a generic message:
+
+- [ ] Use `tok_print_error` in both starters so the first typo reports line,
+      column, expected grammar forms, and the token actually found.
+- [ ] Keep `lang read` failures to the reader diagnostic plus one source-path
+      status line; no duplicate parser or codegen noise.
+- [ ] Guard the same malformed scaffold input in native and browser reader
+      loops before considering another shipped language.
 
 ---
 

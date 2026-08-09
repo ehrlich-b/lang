@@ -49,6 +49,7 @@ text in, shared AST out—and lang turns it into a native compiler:
 ```bash
 ./out/lang new reader tiny
 ./out/lang run tiny.lang answer.tiny
+./out/lang read tiny.lang answer.tiny -o answer.ast
 ./out/lang compiler tiny tiny.lang -o tinyc
 ```
 

@@ -16,6 +16,17 @@ echo $?    # 42
 The command creates only `tiny.lang` and `answer.tiny`. It refuses to overwrite
 either one and removes the first if it cannot finish the pair.
 
+Inspect the frontend boundary without running codegen:
+
+```bash
+./out/lang read tiny.lang answer.tiny -o answer.ast
+./out/lang --from-ast answer.ast --ast-source answer.tiny -o answer.ll
+```
+
+With no `-o`, `read` writes only the reader's shared AST to stdout, so it can be
+piped into other tools. `--ast-source` binds relative `(span START END ...)`
+nodes back to the custom source when the saved AST is compiled later.
+
 The smallest complete example is [`example/tiny/tiny.lang`](../example/tiny/tiny.lang):
 
 ```lang

@@ -380,6 +380,57 @@ reader_scaffold_e2e() {
 }
 reader_scaffold_e2e
 
+# Native authors can stop at the reader boundary, inspect/save its AST, and
+# feed that exact artifact back into the kernel without changing semantics.
+reader_read_e2e() {
+    local name=reader_read_e2e
+    local tmp=$(mktemp -d)
+    local compiler_path=$COMPILER
+    case "$compiler_path" in
+        /*) ;;
+        ./*) compiler_path="$REPO_ROOT/${compiler_path#./}" ;;
+        *) compiler_path="$REPO_ROOT/$compiler_path" ;;
+    esac
+    local ok=1
+
+    (cd "$tmp" && LANG_ROOT="$REPO_ROOT" \
+        "$compiler_path" new reader demo >/dev/null 2>&1) || ok=0
+    (cd "$tmp" && LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        "$compiler_path" read demo.lang answer.demo -o answer.ast >read.out 2>read.err) || ok=0
+    grep -Fq 'Wrote answer.ast' "$tmp/read.out" || ok=0
+    grep -Fq '(span 7 9 (number 42))' "$tmp/answer.ast" || ok=0
+    (cd "$tmp" && LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        "$compiler_path" read demo.lang answer.demo >answer.stdout.ast 2>stdout.err) || ok=0
+    cmp -s "$tmp/answer.ast" "$tmp/answer.stdout.ast" || ok=0
+
+    printf 'keep me\n' >"$tmp/bad.ast"
+    printf 'nope 42\n' >"$tmp/bad.demo"
+    (cd "$tmp" && ! LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        "$compiler_path" read demo.lang bad.demo -o bad.ast >bad.out 2>bad.err) || ok=0
+    grep -Fq "bad.demo:1:1: error: reader 'demo' exited with status 1" "$tmp/bad.err" || ok=0
+    ! grep -Fq 'compilation failed' "$tmp/bad.err" || ok=0
+    grep -Fxq 'keep me' "$tmp/bad.ast" || ok=0
+    "$compiler_path" help read >"$tmp/help.out" 2>&1 || ok=0
+    grep -Fq 'lang read <reader.lang...> <source.ext>' "$tmp/help.out" || ok=0
+
+    if [ "$ok" = 1 ] \
+       && (cd "$tmp" && LANG_ROOT="$REPO_ROOT" LANGBE=llvm \
+           "$compiler_path" --from-ast answer.ast --ast-source answer.demo \
+           -o answer.ll >/dev/null 2>&1); then
+        do_timeout 10 lli $LLI_JIT_FLAG "$tmp/answer.ll" >/dev/null 2>&1
+        local result=$?
+    else
+        local result=compile_error
+    fi
+    if [ "$result" = 42 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name (expected 42, got $result)" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_read_e2e
+
 # Prove the product claim, not just the macro path: lang turns a reader into a
 # compiler, that compiler consumes its own file extension, and its output runs.
 compiler_compiler_e2e() {
