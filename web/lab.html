@@ -51,8 +51,11 @@ reader read(text *u8) *u8 {
     }
 
     var value *PNode = vec_get(tree.children, 1);
+    var result *u8 = ast_span(
+        ast_number(value.text), value.start, value.end
+    );
     var body *u8 = ast_block1(
-        ast_return(ast_number(value.text))
+        ast_return(result)
     );
     return ast_program1(
         ast_func("main", ast_vec(), ast_type_i64(), body)
@@ -69,8 +72,8 @@ reader read(text *u8) *u8 {
   </div>
   <p class="note">reader → shared AST → direct wasm. Both compilers and both programs run locally.</p>
 </main>
-<script src="compiler_host.js?v=reader5"></script>
-<script src="program_host.js?v=reader5"></script>
+<script src="compiler_host.js?v=reader6"></script>
+<script src="program_host.js?v=reader6"></script>
 <script>
 let compilerBytes;
 let stdlibFiles;
@@ -81,11 +84,11 @@ const output = document.getElementById('output');
 const status = document.getElementById('status');
 
 Promise.all([
-  fetch('compiler.wasm?v=reader5').then(r => {
+  fetch('compiler.wasm?v=reader6').then(r => {
     if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
     return r.arrayBuffer();
   }),
-  fetch('stdlib.json?v=reader5').then(r => {
+  fetch('stdlib.json?v=reader6').then(r => {
     if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
     return r.json();
   }),
@@ -150,8 +153,8 @@ button.onclick = async () => {
 
     status.textContent = 'compiling AST…';
     const programBuild = await compile(
-      ['program.ast', '--from-ast', '-o', 'program.wasm'],
-      { 'program.ast': ast },
+      ['program.ast', '--from-ast', '--ast-source', 'source.read', '-o', 'program.wasm'],
+      { 'program.ast': ast, 'source.read': customSource.value },
     );
     const program = programBuild.files.get('program.wasm');
     if (!program) throw new Error('kernel wrote no module');

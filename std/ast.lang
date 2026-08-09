@@ -58,6 +58,20 @@ func ast_finish(sb *StringBuilder) *u8 {
     return sb_finish(sb);
 }
 
+// Attach a zero-based, half-open byte range in the reader's input. The
+// compiler binds it to the custom source file when it consumes reader output.
+func ast_span(node *u8, start i64, end i64) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(span ");
+    sb_int(sb, start);
+    sb_str(sb, " ");
+    sb_int(sb, end);
+    sb_str(sb, " ");
+    sb_str(sb, node);
+    sb_str(sb, ")");
+    return ast_finish(sb);
+}
+
 // Quote a string value for S-expr output (v1 format).
 // Parser convention: string values include quotes (e.g., "hello" = 7 chars).
 // So ast_string("hello") must produce S-expr that parses back to "hello" with quotes.

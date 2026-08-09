@@ -78,6 +78,8 @@
 //       kind i64;       // PNODE_* constant
 //       text *u8;       // Token text (for atoms)
 //       children *u8;   // Vec of *PNode (for lists/sequences)
+//       start i64;      // zero-based byte start in reader input
+//       end i64;        // exclusive byte end
 //   }
 //
 // HELPER FUNCTIONS:

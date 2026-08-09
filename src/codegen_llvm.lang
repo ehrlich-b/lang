@@ -1384,7 +1384,7 @@ func llvm_emit_expr(expr *u8) void {
                 llvm_set_result_temp(temp);
             }
         } else {
-            cg_error_prefix();
+            cg_error_prefix_at(expr);
             eprint("undefined identifier '");
             eprint_buf(name, len);
             eprintln("'");
@@ -3521,7 +3521,9 @@ func llvm_emit_expr(expr *u8) void {
             // Call embedded reader function directly
             var output *u8 = reader_func(content, content_len);
             if output != nil {
-                var expanded *u8 = parse_ast_expression_from_string(output);
+                var expanded *u8 = parse_ast_expression_from_reader_string(
+                    output, node_origin_source(expr), content
+                );
                 if expanded != nil {
                     llvm_emit_expr(expanded);
                 }
@@ -3566,7 +3568,9 @@ func llvm_emit_expr(expr *u8) void {
         }
 
         // Parse the output as S-expr AST expression (readers MUST output AST)
-        var expanded *u8 = parse_ast_expression_from_string(output);
+        var expanded *u8 = parse_ast_expression_from_reader_string(
+            output, node_origin_source(expr), content
+        );
         if expanded != nil {
             llvm_emit_expr(expanded);
         }
@@ -6939,7 +6943,9 @@ func llvm_emit_decl(decl *u8) void {
             var output *u8 = reader_fn(content);
             if output != nil {
                 // Parse output as S-expr AST (readers MUST output AST)
-                var prog *u8 = parse_ast_from_string(output);
+                var prog *u8 = parse_ast_from_reader_string(
+                    output, node_origin_source(decl), content
+                );
                 if prog != nil {
                     var inc_decls *u8 = program_decls(prog);
                     var inc_count i64 = program_decl_count(prog);
@@ -6973,7 +6979,9 @@ func llvm_emit_decl(decl *u8) void {
         }
 
         // Parse output as S-expr AST (readers MUST output AST)
-        var prog *u8 = parse_ast_from_string(output);
+        var prog *u8 = parse_ast_from_reader_string(
+            output, node_origin_source(decl), content
+        );
         if prog != nil {
             var inc_decls *u8 = program_decls(prog);
             var inc_count i64 = program_decl_count(prog);

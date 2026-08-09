@@ -2459,21 +2459,23 @@ var parse_max_errors i64 = 10;   // Stop after this many errors
 // Source provenance stays out of the stable AST layout. This side table lets
 // parsed and reader-generated declarations carry useful diagnostic context
 // without changing the S-expression ABI or every AST node allocation.
-// Entry: [node:8][source_name:8][line:8][column:8]
+// Entry: [node:8][source_name:8][line:8][column:8][start:8][end:8]
+// start/end are byte offsets into reader source, or -1 for ordinary Lang nodes.
 var node_origins *u8 = nil;
 var node_origin_count i64 = 0;
 
-pub func node_set_origin(node *u8, source_name *u8, line i64, column i64) void {
+func node_set_origin_full(node *u8, source_name *u8, line i64, column i64,
+                          start i64, end i64) void {
     if node == nil || source_name == nil || *source_name == 0 {
         return;
     }
     if node_origins == nil {
-        node_origins = alloc(LIMIT_NODE_ORIGINS * 32);
+        node_origins = alloc(LIMIT_NODE_ORIGINS * 48);
     }
     if node_origin_count >= LIMIT_NODE_ORIGINS {
         return;
     }
-    var entry *u8 = node_origins + (node_origin_count * 32);
+    var entry *u8 = node_origins + (node_origin_count * 48);
     var node_slot **u8 = entry;
     *node_slot = node;
     var source_slot **u8 = entry + 8;
@@ -2482,13 +2484,42 @@ pub func node_set_origin(node *u8, source_name *u8, line i64, column i64) void {
     *line_slot = line;
     var column_slot *i64 = entry + 24;
     *column_slot = column;
+    var start_slot *i64 = entry + 32;
+    *start_slot = start;
+    var end_slot *i64 = entry + 40;
+    *end_slot = end;
     node_origin_count = node_origin_count + 1;
+}
+
+pub func node_set_origin(node *u8, source_name *u8, line i64, column i64) void {
+    node_set_origin_full(node, source_name, line, column, -1, -1);
+}
+
+// Attach a reader-relative byte span and derive its one-based line/column.
+pub func node_set_span(node *u8, source_name *u8, source *u8,
+                       start i64, end i64) void {
+    if source == nil { return; }
+    if start < 0 { start = 0; }
+    var source_len i64 = strlen(source);
+    if start > source_len { start = source_len; }
+    if end < start { end = start; }
+    if end > source_len { end = source_len; }
+
+    var line i64 = 1;
+    var column i64 = 1;
+    var i i64 = 0;
+    while i < start {
+        if *(source + i) == 10 { line = line + 1; column = 1; }
+        else { column = column + 1; }
+        i = i + 1;
+    }
+    node_set_origin_full(node, source_name, line, column, start, end);
 }
 
 func node_origin_entry(node *u8) *u8 {
     var i i64 = node_origin_count - 1;
     while i >= 0 {
-        var entry *u8 = node_origins + (i * 32);
+        var entry *u8 = node_origins + (i * 48);
         var node_slot **u8 = entry;
         if *node_slot == node {
             return entry;
@@ -2519,10 +2550,27 @@ pub func node_origin_column(node *u8) i64 {
     return *column_slot;
 }
 
+pub func node_origin_start(node *u8) i64 {
+    var entry *u8 = node_origin_entry(node);
+    if entry == nil { return -1; }
+    var start_slot *i64 = entry + 32;
+    return *start_slot;
+}
+
+pub func node_origin_end(node *u8) i64 {
+    var entry *u8 = node_origin_entry(node);
+    if entry == nil { return -1; }
+    var end_slot *i64 = entry + 40;
+    return *end_slot;
+}
+
 pub func node_copy_origin(node *u8, source_node *u8) void {
+    if node_origin_source(node) != nil { return; }
     var source *u8 = node_origin_source(source_node);
     if source != nil {
-        node_set_origin(node, source, node_origin_line(source_node), node_origin_column(source_node));
+        node_set_origin_full(node, source, node_origin_line(source_node),
+                             node_origin_column(source_node),
+                             node_origin_start(source_node), node_origin_end(source_node));
     }
 }
 

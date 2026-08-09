@@ -55,6 +55,8 @@ struct PNode {
     kind i64;       // 0 marker, 1 number, 2 symbol, 3 string, 4 list, 5 operator
     text *u8;       // atom or literal text
     children *u8;   // Vec of *PNode for sequences/repetitions
+    start i64;      // zero-based byte start in reader input
+    end i64;        // exclusive byte end
 }
 ```
 
@@ -62,7 +64,9 @@ Sequences, `*`, and `+` introduce list nodes. Literal markers remain in the
 tree with `kind == 0`; their `text` distinguishes `(` from `[` and similar
 syntax. Inspect [`example/minilisp/minilisp.lang`](../example/minilisp/minilisp.lang)
 for helpers that unwrap this shape, then lower it with the
-[AST builders](./AST_BUILDERS.md).
+[AST builders](./AST_BUILDERS.md). Terminal nodes carry their token range;
+composite nodes inherit the first and last child range. Pass either range to
+`ast_span(...)` when the emitted node should retain an exact semantic location.
 
 ## Alternatives and errors
 

@@ -26,6 +26,12 @@ include "std/pnode.lang"
 
 var ast_version i64 = 1;
 
+// Optional context for `(span START END NODE)` wrappers emitted by readers.
+// The wrapper stays path-independent; the compiler consuming reader output
+// supplies the custom source name and text.
+var sexpr_reader_source_name *u8 = nil;
+var sexpr_reader_source_text *u8 = nil;
+
 func ast_get_version() i64 {
     return ast_version;
 }
@@ -418,6 +424,30 @@ func sexpr_to_node(node *PNode) *u8 {
     if head == nil {
         eprintln("Error: empty S-expression");
         return nil;
+    }
+
+    // Optional reader-source metadata. Old AST remains unchanged; readers may
+    // wrap only the nodes whose exact custom-syntax range matters.
+    if streq(head, "span") {
+        if sexpr_len(node) != 4 {
+            eprintln("Error: span expects start, end, and one AST node");
+            return nil;
+        }
+        var start_node *PNode = sexpr_get(node, 1);
+        var end_node *PNode = sexpr_get(node, 2);
+        if start_node.kind != PNODE_NUMBER || end_node.kind != PNODE_NUMBER {
+            eprintln("Error: span start and end must be byte offsets");
+            return nil;
+        }
+        var start i64 = sexpr_atoi(start_node.text);
+        var end i64 = sexpr_atoi(end_node.text);
+        var inner *u8 = sexpr_to_node(sexpr_get(node, 3));
+        if inner != nil && sexpr_reader_source_name != nil &&
+           sexpr_reader_source_text != nil {
+            node_set_span(inner, sexpr_reader_source_name,
+                          sexpr_reader_source_text, start, end);
+        }
+        return inner;
     }
 
     // ============================================================
@@ -1268,6 +1298,20 @@ func parse_ast_from_string(source *u8) *u8 {
     return sexpr_to_program(node);
 }
 
+// Parse AST produced by a reader and bind its optional relative spans to the
+// source file that reader consumed.
+func parse_ast_from_reader_string(source *u8, source_name *u8,
+                                  reader_source *u8) *u8 {
+    var saved_name *u8 = sexpr_reader_source_name;
+    var saved_text *u8 = sexpr_reader_source_text;
+    sexpr_reader_source_name = source_name;
+    sexpr_reader_source_text = reader_source;
+    var prog *u8 = parse_ast_from_string(source);
+    sexpr_reader_source_name = saved_name;
+    sexpr_reader_source_text = saved_text;
+    return prog;
+}
+
 // Parse a single expression from S-expr AST text (for inline readers)
 func parse_ast_expression_from_string(source *u8) *u8 {
     var t *Tokenizer = tok_new(source);
@@ -1279,4 +1323,16 @@ func parse_ast_expression_from_string(source *u8) *u8 {
     }
 
     return sexpr_to_node(node);
+}
+
+func parse_ast_expression_from_reader_string(source *u8, source_name *u8,
+                                             reader_source *u8) *u8 {
+    var saved_name *u8 = sexpr_reader_source_name;
+    var saved_text *u8 = sexpr_reader_source_text;
+    sexpr_reader_source_name = source_name;
+    sexpr_reader_source_text = reader_source;
+    var expr *u8 = parse_ast_expression_from_string(source);
+    sexpr_reader_source_name = saved_name;
+    sexpr_reader_source_text = saved_text;
+    return expr;
 }

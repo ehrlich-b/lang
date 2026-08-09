@@ -24,15 +24,6 @@ func find_kernel_builtin(name *u8, name_len i64) *u8 {
     return nil;
 }
 
-// Helper to append string to buffer
-func standalone_append(buf *u8, len *i64, s *u8) void {
-    while *s != 0 {
-        *(buf + *len) = *s;
-        *len = *len + 1;
-        s = s + 1;
-    }
-}
-
 func standalone_read_file(path *u8) *u8 {
     var fd i64 = file_open(path, 0);
     if fd < 0 {
@@ -57,47 +48,37 @@ func standalone_get_arg(argv **u8, i i64) *u8 {
     return *p;
 }
 
-// Append the declarations inside an AST `(program ...)` wrapper. Reader output
-// may also be a single expression, so non-program AST is retained as-is.
-func standalone_append_ast(ast_buf *u8, ast_len *i64, ast *u8) void {
-    var p *u8 = ast;
-    while *p == 32 || *p == 10 || *p == 13 || *p == 9 { p = p + 1; }
-    if *p == 40 {
-        p = p + 1;
-        while *p == 32 || *p == 10 { p = p + 1; }
-        if *p == 112 && *(p+1) == 114 && *(p+2) == 111 && *(p+3) == 103 &&
-           *(p+4) == 114 && *(p+5) == 97 && *(p+6) == 109 {
-            p = p + 7;
-            var end *u8 = p;
-            var depth i64 = 1;
-            while *end != 0 && depth > 0 {
-                if *end == 34 {
-                    end = end + 1;
-                    while *end != 0 && *end != 34 {
-                        if *end == 92 { end = end + 1; }
-                        if *end != 0 { end = end + 1; }
-                    }
-                    if *end == 34 { end = end + 1; }
-                } else {
-                    if *end == 40 { depth = depth + 1; }
-                    if *end == 41 { depth = depth - 1; }
-                    end = end + 1;
-                }
-            }
-            if depth == 0 { end = end - 1; }
-            while p < end {
-                *(ast_buf + *ast_len) = *p;
-                *ast_len = *ast_len + 1;
-                p = p + 1;
-            }
-        } else {
-            standalone_append(ast_buf, ast_len, ast);
-        }
-    } else {
-        standalone_append(ast_buf, ast_len, ast);
+func standalone_combine_programs(programs *u8) *u8 {
+    var total i64 = 0;
+    var i i64 = 0;
+    while i < vec_len(programs) {
+        var prog *u8 = vec_get(programs, i);
+        total = total + program_decl_count(prog);
+        i = i + 1;
     }
-    *(ast_buf + *ast_len) = 10;
-    *ast_len = *ast_len + 1;
+
+    var decls *u8 = alloc(total * 8);
+    var out_i i64 = 0;
+    i = 0;
+    while i < vec_len(programs) {
+        var prog *u8 = vec_get(programs, i);
+        var source_decls *u8 = program_decls(prog);
+        var j i64 = 0;
+        while j < program_decl_count(prog) {
+            var slot **u8 = decls + out_i * 8;
+            *slot = get_decl(source_decls, j);
+            out_i = out_i + 1;
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    var combined *u8 = alloc(16);
+    var decls_slot **u8 = combined;
+    *decls_slot = decls;
+    var count_slot *i64 = combined + 8;
+    *count_slot = total;
+    return combined;
 }
 
 // reader_transform is defined by the generated glue code
@@ -150,16 +131,22 @@ func main(argc i64, argv **u8) i64 {
         i = i + 1;
     }
 
-    var ast_buf *u8 = alloc(4194304);
-    var ast_len i64 = 0;
+    if vec_len(input_files) == 0 {
+        eprintln("Error: no input files");
+        return 1;
+    }
 
-    // Start with "(program " wrapper - we'll collect all declarations
-    standalone_append(ast_buf, &ast_len, "(program\n");
+    var programs *u8 = vec_new(vec_len(input_files) + 2);
 
     // Runtime declarations are Lang AST embedded when this compiler is minted;
     // they bypass the custom source reader.
     if reader_runtime_ast != nil && *reader_runtime_ast != 0 {
-        standalone_append_ast(ast_buf, &ast_len, reader_runtime_ast);
+        var runtime_prog *u8 = parse_ast_from_string(reader_runtime_ast);
+        if runtime_prog == nil {
+            eprintln("Error: failed to parse embedded runtime AST");
+            return 1;
+        }
+        vec_push(programs, runtime_prog);
     }
 
     // Normal mode: compile input files
@@ -178,7 +165,13 @@ func main(argc i64, argv **u8) i64 {
             return 1;
         }
 
-        standalone_append_ast(ast_buf, &ast_len, ast);
+        var reader_prog *u8 = parse_ast_from_reader_string(ast, arg, content);
+        if reader_prog == nil {
+            eprint("Error: failed to parse reader output for ");
+            eprintln(arg);
+            return 1;
+        }
+        vec_push(programs, reader_prog);
         i = i + 1;
     }
 
@@ -186,28 +179,17 @@ func main(argc i64, argv **u8) i64 {
     // Skip for LLVM backend - clang provides entry point
     var is_llvm i64 = cg_backend_is_llvm();
     if is_llvm == 0 {
-        standalone_append(ast_buf, &ast_len, "(func ___main ((param argc (type_base i64)) (param argv (type_ptr (type_ptr (type_base u8)))) (param envp (type_ptr (type_ptr (type_base u8))))) (type_base i64) (block (return (call (ident main) (ident argc) (ident argv)))))\n");
+        var wrapper_ast *u8 = "(program (func ___main ((param argc (type_base i64)) (param argv (type_ptr (type_ptr (type_base u8)))) (param envp (type_ptr (type_ptr (type_base u8))))) (type_base i64) (block (return (call (ident main) (ident argc) (ident argv))))))";
+        var wrapper_prog *u8 = parse_ast_from_string(wrapper_ast);
+        if wrapper_prog == nil { return 1; }
+        vec_push(programs, wrapper_prog);
     }
 
-    // Close the program wrapper
-    standalone_append(ast_buf, &ast_len, ")\n");
-    *(ast_buf + ast_len) = 0;
-
-    if ast_len <= 12 {  // "(program\n)\n" is 11 chars
-        eprintln("Error: no input files");
-        return 1;
-    }
+    var prog *u8 = standalone_combine_programs(programs);
 
     if output_file == nil {
         if cg_backend_is_llvm() != 0 { output_file = "a.ll"; }
         else { output_file = "a.s"; }
-    }
-
-    // Parse AST from reader output (S-expression format)
-    var prog *u8 = parse_ast_from_string(ast_buf);
-    if prog == nil {
-        eprintln("Error: failed to parse reader output");
-        return 1;
     }
 
     // Check backend

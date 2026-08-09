@@ -19,6 +19,20 @@ reader demo(text *u8) *u8 {
 Whole-file readers return `ast_program(...)`. Expression readers return one
 expression node. Builders compose from the inside out.
 
+## Source ranges
+
+Wrap a node with its zero-based, half-open byte range in the custom source:
+
+```lang
+var emitted *u8 = ast_ident(parsed_name.text);
+emitted = ast_span(emitted, parsed_name.start, parsed_name.end);
+```
+
+`#parser{}` supplies `start` and `end` on every `PNode`; composite nodes inherit
+the first and last child range. Spans are optional and do not change old reader
+output. The compiler binds them to the source path when it consumes the AST, so
+semantic errors can report the custom syntax rather than the reader or wrapper.
+
 ## Lists and types
 
 ```lang

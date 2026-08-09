@@ -113,7 +113,9 @@ func wasm_name_eq(a *u8, a_len i64, b *u8, b_len i64) i64 {
 
 func wasm_error(message *u8) void {
     if wasm_had_error == 0 {
-        cg_diagnostic_node = wasm_current_decl;
+        if node_origin_source(cg_diagnostic_node) == nil {
+            cg_diagnostic_node = wasm_current_decl;
+        }
         cg_error_prefix();
         eprintln(message);
     }
@@ -705,6 +707,7 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
             ident_expr_name(callee), ident_expr_name_len(callee), call_expr_arg_count(expr)
         );
         if index < 0 {
+            if node_origin_source(expr) != nil { cg_diagnostic_node = expr; }
             if wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee)) >= 0 {
                 wasm_error("wrong argument count in direct wasm call");
             } else {
@@ -860,6 +863,7 @@ func wasm_reader_function(decl *u8) *u8 {
 
 func wasm_collect_decl(decl *u8) void {
     wasm_current_decl = decl;
+    cg_diagnostic_node = decl;
     var kind i64 = node_kind(decl);
     if kind == NODE_FUNC_DECL {
         if func_decl_is_extern(decl) != 0 {
@@ -950,7 +954,9 @@ func wasm_collect_decl(decl *u8) void {
             wasm_error("reader macro is not available to the direct wasm compiler");
             return;
         }
-        var generated *u8 = parse_ast_from_string(output);
+        var generated *u8 = parse_ast_from_reader_string(
+            output, node_origin_source(decl), reader_expr_content(decl)
+        );
         if generated == nil {
             wasm_error("embedded reader did not return valid AST");
             return;

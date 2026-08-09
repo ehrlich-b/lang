@@ -61,6 +61,18 @@ The `(ast-version N)` declaration controls how the AST is interpreted:
 
 **Version detection:** If a program starts with `(ast-version N)`, the sexpr_reader sets the version before processing. This affects how string literals are parsed and stored.
 
+### Optional source span
+
+Any ordinary AST node may be wrapped with a zero-based, half-open byte range:
+
+```lisp
+(span 10 17 (ident missing))
+```
+
+The consumer binds that relative range to the custom source file and text. The
+wrapper is optional, disappears when parsed, and is accepted in old unversioned
+AST as well as v2. Reader code should normally emit it through `ast_span(...)`.
+
 ### Naming Convention
 
 Node names use underscores in S-expressions:

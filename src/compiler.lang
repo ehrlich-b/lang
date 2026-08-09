@@ -272,7 +272,7 @@ func main(argc i64, argv **u8) i64 {
         }
 
         // Parse AST text to internal AST (parse_ast_from_string from kernel)
-        var prog *u8 = parse_ast_from_string(ast_text);
+        var prog *u8 = parse_ast_from_reader_string(ast_text, path, content);
         if prog == nil {
             eprint("Error: failed to parse AST from ");
             eprintln(path);

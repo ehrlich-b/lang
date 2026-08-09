@@ -107,11 +107,13 @@ debugging.
 
 Syntax errors in `.lang` files report `path:line:column`. If a reader fails to
 compile, Lang points to its declaration and also names the generated wrapper in
-the cache. Semantic errors in reader-emitted AST retain the invoking source
-file, even though the shared AST does not yet carry exact per-node spans.
+the cache. Reader-emitted AST may retain an exact custom-source range with
+`ast_span(node, start, end)`; old unspanned AST still falls back to the invoking
+file.
 
 Your reader still has the best information about its own syntax. Manual readers
 can track tokens directly; generated parsers retain the furthest failure. Use
 `tok_print_error(tokens, "mylang")` before returning `nil` for a one-line parse
 diagnostic with the custom source's line, column, expected forms, and found
-token.
+token. Generated `PNode`s expose `start` and `end` byte offsets for semantic
+locations.

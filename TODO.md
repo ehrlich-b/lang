@@ -41,9 +41,10 @@ shared AST, then compile and run that AST—all in the tab.
 - [x] Embed `#parser{}` expansion in `compiler.wasm`; no subprocess or server hop.
 - [x] Make the lab starter a generated grammar, not a hand-written recognizer.
 - [x] Guard grammar → reader wasm → AST → program wasm → `main()` end to end.
-- [ ] Add an optional source span to shared AST nodes without breaking old readers.
-- [ ] Carry reader token spans through `PNode` and the AST builders.
-- [ ] Report semantic errors at the exact location in custom-language source.
+- [x] Add an optional source span to shared AST nodes without breaking old readers.
+- [x] Carry reader token spans through `PNode` and the AST builders.
+- [x] Report semantic errors at the exact location in custom-language source,
+      in minted native compilers and the browser pipeline.
 - [ ] Grow direct wasm from reader failures, not a feature checklist: capture the
       smallest missing construct from a useful reader, implement it, and add that
       reader to the browser gate.

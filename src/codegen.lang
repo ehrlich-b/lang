@@ -34,6 +34,11 @@ func cg_error_prefix() void {
     }
 }
 
+func cg_error_prefix_at(node *u8) void {
+    if node_origin_source(node) != nil { cg_diagnostic_node = node; }
+    cg_error_prefix();
+}
+
 // When set, overrides LANGOS for target-triple selection. Reader executables
 // run on the build machine, so their build forces this to the host platform
 // even when the main compile cross-targets (e.g. LANGOS=wasm).
@@ -2213,7 +2218,9 @@ func process_decl_first_pass(decl *u8) void {
         }
 
         // Parse the output as S-expr AST (readers MUST output AST)
-        var prog *u8 = parse_ast_from_string(output);
+        var prog *u8 = parse_ast_from_reader_string(
+            output, node_origin_source(decl), content
+        );
         if prog == nil {
             cg_error_prefix();
             eprint("reader '");
@@ -3404,7 +3411,7 @@ func gen_expr(expr *u8) void {
             return;
         }
 
-        cg_error_prefix();
+        cg_error_prefix_at(expr);
         eprint("undefined identifier '");
         eprint_buf(name, name_len);
         eprintln("'");
@@ -4295,7 +4302,9 @@ func gen_expr(expr *u8) void {
         }
 
         // Parse the output as S-expr AST expression (readers MUST output AST)
-        var expanded *u8 = parse_ast_expression_from_string(output);
+        var expanded *u8 = parse_ast_expression_from_reader_string(
+            output, node_origin_source(expr), content
+        );
         if expanded != nil {
             gen_expr(expanded);
         }
@@ -6034,7 +6043,9 @@ func gen_decl(decl *u8) void {
         }
 
         // Parse the output as S-expr AST (readers MUST output AST)
-        var prog *u8 = parse_ast_from_string(output);
+        var prog *u8 = parse_ast_from_reader_string(
+            output, node_origin_source(decl), content
+        );
         if prog == nil {
             // Error already reported in first pass
             return;

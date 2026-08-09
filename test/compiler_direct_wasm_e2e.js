@@ -35,7 +35,7 @@ async function compileReaderPipeline(readerPath, readerName, source) {
   return compileReaderSource(fs.readFileSync(readerPath, 'utf8'), readerName, source);
 }
 
-async function compileReaderSource(sourceText, readerName, source) {
+async function runReaderSource(sourceText, readerName, source) {
   const readerSource = `${sourceText}
 func main() *u8 { return ${readerName}(${JSON.stringify(source)}); }
 `;
@@ -52,16 +52,23 @@ func main() *u8 { return ${readerName}(${JSON.stringify(source)}); }
   const readerProgram = readerCompile.files.get('reader.wasm');
   if (!readerProgram) throw new Error('compiler did not write reader.wasm');
   const readerRun = await runLangProgram(readerProgram);
-  if (readerRun.value === 0n) return { ast: null, readerRun, ran: null };
+  if (readerRun.value === 0n) return { ast: null, readerRun };
   const memory = new Uint8Array(readerRun.instance.exports.memory.buffer);
   let end = Number(readerRun.value);
   while (memory[end] !== 0) end++;
   const ast = Buffer.from(memory.subarray(Number(readerRun.value), end)).toString('utf8');
+  return { ast, readerRun };
+}
+
+async function compileReaderSource(sourceText, readerName, source) {
+  const read = await runReaderSource(sourceText, readerName, source);
+  if (read.ast === null) return { ...read, ran: null };
+  const sourceName = `${readerName}.source`;
 
   const programCompile = await runLangCompiler(
     fs.readFileSync(compilerPath),
-    ['program.ast', '--from-ast', '-o', 'program.wasm'],
-    { 'program.ast': ast },
+    ['program.ast', '--from-ast', '--ast-source', sourceName, '-o', 'program.wasm'],
+    { 'program.ast': read.ast, [sourceName]: source },
     undefined,
     { LANGBE: 'wasm' },
   );
@@ -70,7 +77,7 @@ func main() *u8 { return ${readerName}(${JSON.stringify(source)}); }
   }
   const program = programCompile.files.get('program.wasm');
   if (!program) throw new Error('compiler did not write program.wasm');
-  return { ast, ran: await runLangProgram(program) };
+  return { ...read, ran: await runLangProgram(program) };
 }
 
 (async () => {
@@ -104,6 +111,21 @@ func main() *u8 { return ${readerName}(${JSON.stringify(source)}); }
   );
   if (Number(generated.ran.value) !== 42 || !generated.ast.startsWith('(program ')) {
     throw new Error(`generated reader mismatch: value=${generated.ran.value} ast=${generated.ast}`);
+  }
+  const generatedSource = fs.readFileSync('test/direct_wasm_parser_reader.lang', 'utf8');
+  const generatedBad = await runReaderSource(
+    generatedSource, 'parser_tiny', 'bad\nmissing',
+  );
+  const generatedBadCompile = await runLangCompiler(
+    fs.readFileSync(compilerPath),
+    ['program.ast', '--from-ast', '--ast-source', 'bad.ptiny', '-o', 'bad.wasm'],
+    { 'program.ast': generatedBad.ast, 'bad.ptiny': 'bad\nmissing' },
+    undefined,
+    { LANGBE: 'wasm' },
+  );
+  if (generatedBadCompile.exit === 0 ||
+      !generatedBadCompile.stderr.includes('bad.ptiny:2:1: error: unknown function')) {
+    throw new Error(`generated reader span mismatch: ${generatedBadCompile.stderr}`);
   }
 
   const labHtml = fs.readFileSync('web/lab.html', 'utf8');

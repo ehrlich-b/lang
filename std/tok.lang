@@ -367,6 +367,14 @@ pub func tok_text_len(t *Tokenizer) i64 {
     return t.tok_len;
 }
 
+pub func tok_start_offset(t *Tokenizer) i64 {
+    return t.tok_start;
+}
+
+pub func tok_end_offset(t *Tokenizer) i64 {
+    return t.tok_start + t.tok_len;
+}
+
 // Returns a null-terminated copy of the token text
 pub func tok_text(t *Tokenizer) *u8 {
     var buf *u8 = alloc(t.tok_len + 1);

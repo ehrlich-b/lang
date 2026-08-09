@@ -13,6 +13,8 @@ struct PNode {
     kind i64;       // PNODE_* constant
     text *u8;       // token text (for atoms)
     children *u8;   // vec of *PNode (for lists/sequences)
+    start i64;      // zero-based byte start in reader input, or -1
+    end i64;        // exclusive byte end in reader input, or -1
 }
 
 var PNODE_NUMBER i64 = 1;
@@ -22,10 +24,12 @@ var PNODE_LIST i64 = 4;
 var PNODE_OPERATOR i64 = 5;
 
 pub func pnode_new(kind i64) *PNode {
-    var n *PNode = alloc(24);
+    var n *PNode = alloc(40);
     n.kind = kind;
     n.text = nil;
     n.children = nil;
+    n.start = -1;
+    n.end = -1;
     return n;
 }
 
@@ -35,8 +39,28 @@ pub func pnode_atom(kind i64, text *u8) *PNode {
     return n;
 }
 
+pub func pnode_atom_span(kind i64, text *u8, start i64, end i64) *PNode {
+    var n *PNode = pnode_atom(kind, text);
+    n.start = start;
+    n.end = end;
+    return n;
+}
+
 pub func pnode_list(children *u8) *PNode {
     var n *PNode = pnode_new(PNODE_LIST);
     n.children = children;
+    var count i64 = vec_len(children);
+    var i i64 = 0;
+    while i < count && n.start < 0 {
+        var child *PNode = vec_get(children, i);
+        if child != nil && child.start >= 0 { n.start = child.start; }
+        i = i + 1;
+    }
+    i = count - 1;
+    while i >= 0 && n.end < 0 {
+        var child *PNode = vec_get(children, i);
+        if child != nil && child.end >= 0 { n.end = child.end; }
+        i = i - 1;
+    }
     return n;
 }

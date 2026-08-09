@@ -137,6 +137,8 @@ pruning. That is enough for the browser E2E to run `std/tok.lang` and
 build also embeds the `#parser{}` generator, while generated reader modules carry
 only `std/parser_runtime.lang`; the browser gate exercises grammar → reader wasm
 → AST → program wasm. Unsupported features still fail with compiler diagnostics.
+The lab compiles returned AST with `--ast-source source.read`, binding optional
+`(span START END NODE)` metadata back to the editable custom source.
 
 Test a candidate compiler without promoting it:
 
