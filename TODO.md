@@ -31,8 +31,9 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 14. ✓ Make reader failures fast to fix
 15. ✓ Reuse the compiler the reader just made
 16. ✓ Fit the first reader on one screen
-17. → **Make the textareas behave like code editors** ← current
-18. → Capture more languages only when it improves the reader toolkit
+17. ✓ Make the textareas behave like code editors
+18. → **Scaffold a reader outside the browser** ← current
+19. → Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -132,16 +133,27 @@ incidental work without hiding the reader/AST boundary:
 
 ---
 
-## Current: Make the textareas behave like code editors
+## Completed: Make the textareas behave like code editors
 
 The workbench deliberately stays dependency-free, but reader authors should not
 lose basic editor mechanics:
 
-- [ ] Insert/indent with Tab and outdent with Shift-Tab instead of moving focus.
-- [ ] Preserve current indentation on Enter, with one extra level after `{` or
+- [x] Insert/indent with Tab and outdent with Shift-Tab instead of moving focus.
+- [x] Preserve current indentation on Enter, with one extra level after `{` or
       `:` for Lang and layout-language source.
-- [ ] Apply the behavior to reader, custom source, and runtime while preserving
+- [x] Apply the behavior to reader, custom source, and runtime while preserving
       Cmd/Ctrl-Enter build-and-run.
+
+---
+
+## Current: Scaffold a reader outside the browser
+
+The workbench now gives browser authors a tight loop. Native authors should get
+the same clean starting point without copying from documentation:
+
+- [ ] Add one discoverable command that creates a named reader and sample input.
+- [ ] Refuse to overwrite either file and leave no partial scaffold on failure.
+- [ ] Compile and run the fresh scaffold in an end-to-end CLI gate.
 
 ---
 

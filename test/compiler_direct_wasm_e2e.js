@@ -232,6 +232,7 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
     'lang-reader-workspace', 'lang.lab.active', 'readerName(reader.value)',
     'focusDiagnostic(message)', "target.closest('details').open = true", "phase = 'AST compile'",
     'cachedReaderSource !== reader.value', 'customSource.value)',
+    'editor.js?v=workbench3', 'installCodeEditor(reader, queueSave)',
   ]) {
     if (!labHtml.includes(marker)) throw new Error(`lab workbench marker missing: ${marker}`);
   }
