@@ -199,8 +199,10 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   const inlineScripts = [...labHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   new Function(inlineScripts.at(-1)[1]);
   for (const marker of [
-    'id="preset"', 'id="download-reader"', 'id="download-program"',
-    'lang.lab.active', 'readerName(reader.value)',
+    'id="preset"', 'id="download-reader"', 'id="download-ast"', 'id="download-program"',
+    'id="save-workspace"', 'id="open-workspace"',
+    'lang-reader-workspace', 'lang.lab.active', 'readerName(reader.value)',
+    'focusDiagnostic(message)', "target.closest('details').open = true", "phase = 'AST compile'",
   ]) {
     if (!labHtml.includes(marker)) throw new Error(`lab workbench marker missing: ${marker}`);
   }

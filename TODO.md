@@ -27,8 +27,10 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 10. ✓ Browser compiler and editable reader lab
 11. ✓ Real readers produce real compilers
 12. ✓ Exact source spans and reader-driven wasm breadth
-13. → **Turn the browser proof into a reader workbench** ← current
-14. → Capture more languages only when it improves the reader toolkit
+13. ✓ Turn the browser proof into a reader workbench
+14. ✓ Make reader failures fast to fix
+15. → **Reuse the compiler the reader just made** ← current
+16. → Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -68,7 +70,7 @@ debug, compile, and share than the five already shipped.
 
 ---
 
-## Current: Turn the browser proof into a reader workbench
+## Completed: Turn the browser proof into a reader workbench
 
 The lab proves the complete compiler-compiler loop, but it still behaves like a
 single demo. Make it useful for studying and iterating on readers without making
@@ -79,10 +81,39 @@ the runner taller:
 - [x] Keep reader, source, and optional target runtime together when switching
       presets; preserve in-progress edits locally.
 - [x] Make the generated reader Wasm and final program Wasm downloadable.
-- [ ] Add a copy/share path once state size and failure behavior are honest.
+- [x] Add a size-safe share path: versioned JSON workspace files keep reader,
+      source, and runtime together, validate on open, and reject files over
+      1 MiB instead of stuffing large shipped readers into fragile URLs.
 
 The primary action remains **write a language**. Presets are scaffolding for
 reader authors, not a return to marketing a fixed list of syntaxes.
+
+---
+
+## Completed: Make reader failures fast to fix
+
+The compiler now reports exact custom-source spans. Close the browser feedback
+loop so those diagnostics take authors directly back to the failing input:
+
+- [x] Focus and select `reader.lang`, `source.read`, or `runtime.lang` from a
+      location-bearing diagnostic; open the collapsed runtime only on demand.
+- [x] Keep phase context (reader build, reader run, AST compile, program run)
+      visible in failures without adding permanent UI.
+- [x] Offer the complete emitted AST for inspection without making the result
+      pane taller by default.
+
+---
+
+## Current: Reuse the compiler the reader just made
+
+The lab currently recompiles a reader when only custom-language source changed.
+Make the generated artifact real and make the common edit/run loop faster:
+
+- [ ] Give reader Wasm source over stdin instead of embedding one source string.
+- [ ] Reuse that module until reader code changes; source-only runs skip the
+      reader-build phase.
+- [ ] Prove one downloaded reader module can read two different inputs and
+      document its tiny host contract.
 
 ---
 

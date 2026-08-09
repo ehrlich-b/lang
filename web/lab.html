@@ -29,6 +29,7 @@
   button { border:0; border-radius:5px; padding:.3rem .8rem; color:#04260f; background:var(--green); font:inherit; font-weight:bold; cursor:pointer; }
   button:disabled { opacity:.5; cursor:wait; }
   .download { font-size:.78rem; text-decoration:none; }
+  .file-action { color:var(--blue); cursor:pointer; text-decoration:underline; }
   .ok { color:var(--green); } .bad { color:var(--warn); }
   .note { font-size:.85rem; margin-top:.8rem; }
   @media (max-width:760px) { .lab { grid-template-columns:1fr; } .pane + .pane { border-left:0; border-top:1px solid var(--border); } #reader { height:264px; } }
@@ -43,8 +44,9 @@
     <section class="pane">
       <div class="head"><span>reader.lang</span><span class="tools">
         <select id="preset" aria-label="Reader workspace">
-          <option value="starter">starter</option>
+          <option value="workspace">my reader</option>
           <optgroup label="examples">
+            <option value="starter">starter grammar</option>
             <option value="tiny">tiny</option>
             <option value="calc">calculator</option>
             <option value="c">C subset</option>
@@ -93,22 +95,25 @@ reader read(text *u8) *u8 {
       <textarea id="custom-source" aria-label="Source in your language" spellcheck="false">answer 42</textarea>
       <div class="head"><span>result</span><span class="downloads">
         <a class="download" id="download-reader" hidden>reader ↓</a>
+        <a class="download" id="download-ast" hidden>AST ↓</a>
         <a class="download" id="download-program" hidden>program ↓</a>
       </span></div>
       <pre id="output">Define a reader, then build + run.</pre>
     </section>
   </div>
-  <p class="note">reader → shared AST → direct wasm. Both compilers and both programs run locally.</p>
+  <p class="note">local: reader → AST → wasm · <a id="save-workspace">save workspace</a> · <label class="file-action">open workspace<input id="open-workspace" type="file" accept=".json,application/json" hidden></label></p>
 </main>
 <script src="compiler_host.js?v=workbench1"></script>
 <script src="program_host.js?v=workbench1"></script>
 <script>
 let compilerBytes;
 let stdlibFiles;
-let activePreset = 'starter';
+let activePreset = 'workspace';
 let saveTimer;
 let readerDownloadUrl;
+let astDownloadUrl;
 let programDownloadUrl;
+let workspaceDownloadUrl;
 const button = document.getElementById('compile');
 const preset = document.getElementById('preset');
 const reader = document.getElementById('reader');
@@ -118,10 +123,14 @@ const customSource = document.getElementById('custom-source');
 const output = document.getElementById('output');
 const status = document.getElementById('status');
 const downloadReader = document.getElementById('download-reader');
+const downloadAst = document.getElementById('download-ast');
 const downloadProgram = document.getElementById('download-program');
+const saveWorkspace = document.getElementById('save-workspace');
+const openWorkspace = document.getElementById('open-workspace');
 const starterReader = reader.value;
 
 const presets = {
+  workspace: { source: 'answer 42' },
   starter: { source: 'answer 42' },
   tiny: { reader: 'example/tiny/tiny.lang', source: 'answer 42' },
   calc: { reader: 'example/calc/calc.lang', source: 'answer 1 + 2 * 3' },
@@ -149,7 +158,7 @@ Promise.all([
   compilerBytes = compiler;
   stdlibFiles = stdlib;
   const savedPreset = storageGet('lang.lab.active');
-  loadPreset(savedPreset && presets[savedPreset] ? savedPreset : 'starter');
+  loadPreset(savedPreset && presets[savedPreset] ? savedPreset : 'workspace');
   button.disabled = false;
   status.innerHTML = '<span class="ok">ready</span>';
 }).catch(error => {
@@ -212,6 +221,52 @@ runtime.addEventListener('input', () => {
   queueSave();
 });
 
+saveWorkspace.onclick = () => {
+  if (workspaceDownloadUrl) URL.revokeObjectURL(workspaceDownloadUrl);
+  const data = JSON.stringify({
+    format: 'lang-reader-workspace',
+    version: 1,
+    reader: reader.value,
+    source: customSource.value,
+    runtime: runtime.value,
+  }, null, 2);
+  workspaceDownloadUrl = URL.createObjectURL(
+    new Blob([`${data}\n`], { type: 'application/json' }),
+  );
+  saveWorkspace.href = workspaceDownloadUrl;
+  saveWorkspace.download = 'reader.lang-workspace.json';
+};
+
+openWorkspace.onchange = async () => {
+  const file = openWorkspace.files[0];
+  if (!file) return;
+  try {
+    if (file.size > 1024 * 1024) throw new Error('workspace is larger than 1 MiB');
+    const data = JSON.parse(await file.text());
+    if (data.format !== 'lang-reader-workspace' || data.version !== 1 ||
+        typeof data.reader !== 'string' || typeof data.source !== 'string' ||
+        typeof data.runtime !== 'string') {
+      throw new Error('not a Lang reader workspace');
+    }
+    activePreset = 'workspace';
+    preset.value = activePreset;
+    reader.value = data.reader;
+    customSource.value = data.source;
+    runtime.value = data.runtime;
+    runtimeLabel.textContent = runtime.value.trim()
+      ? 'target runtime (included)'
+      : 'target runtime (optional)';
+    saveDraft();
+    clearDownloads();
+    output.textContent = 'Workspace loaded. Build + run when ready.';
+    status.innerHTML = '<span class="ok">loaded</span>';
+  } catch (error) {
+    output.textContent = String(error).replace(/^Error: /, '');
+    status.innerHTML = '<span class="bad">open failed</span>';
+  }
+  openWorkspace.value = '';
+};
+
 function langString(text) {
   return `"${text
     .replaceAll('\\', '\\\\')
@@ -235,17 +290,43 @@ function readerName(source) {
   return matches[matches.length - 1][1];
 }
 
+function focusDiagnostic(message) {
+  const match = message.match(
+    /(?:^|\n)(reader\.lang|source\.read|runtime\.lang):(\d+):(\d+):\s*(?:error|warning)/,
+  );
+  if (!match) return;
+  const target = match[1] === 'reader.lang'
+    ? reader
+    : match[1] === 'source.read' ? customSource : runtime;
+  if (target === runtime) target.closest('details').open = true;
+  const line = Number(match[2]);
+  const column = Number(match[3]);
+  const lines = target.value.split('\n');
+  let start = 0;
+  for (let i = 1; i < line && i <= lines.length; i++) start += lines[i - 1].length + 1;
+  start += Math.max(0, column - 1);
+  start = Math.min(start, target.value.length);
+  let end = start;
+  while (end < target.value.length && /[A-Za-z0-9_]/.test(target.value[end])) end++;
+  if (end === start) end = Math.min(start + 1, target.value.length);
+  target.focus();
+  target.setSelectionRange(start, end);
+}
+
 function clearDownloads() {
   if (readerDownloadUrl) URL.revokeObjectURL(readerDownloadUrl);
+  if (astDownloadUrl) URL.revokeObjectURL(astDownloadUrl);
   if (programDownloadUrl) URL.revokeObjectURL(programDownloadUrl);
   readerDownloadUrl = undefined;
+  astDownloadUrl = undefined;
   programDownloadUrl = undefined;
   downloadReader.hidden = true;
+  downloadAst.hidden = true;
   downloadProgram.hidden = true;
 }
 
-function offerDownload(anchor, bytes, name) {
-  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/wasm' }));
+function offerDownload(anchor, bytes, name, type = 'application/wasm') {
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
   anchor.href = url;
   anchor.download = name;
   anchor.hidden = false;
@@ -269,6 +350,7 @@ button.onclick = async () => {
   output.textContent = '';
   clearDownloads();
   const started = performance.now();
+  let phase = 'reader build';
   try {
     const name = readerName(reader.value);
     const harness = `${reader.value}\nfunc main() *u8 { return ${name}(${langString(customSource.value)}); }\n`;
@@ -280,14 +362,17 @@ button.onclick = async () => {
     if (!readerProgram) throw new Error('reader compiler wrote no module');
     readerDownloadUrl = offerDownload(downloadReader, readerProgram, `${name}-reader.wasm`);
 
-    status.textContent = 'running reader…';
+    phase = 'reader run';
+    status.textContent = `${phase}…`;
     const readerRun = await runLangProgram(readerProgram);
     if (readerRun.value === 0n) {
       throw new Error(readerRun.stderr || readerRun.stdout || 'reader returned nil');
     }
     const ast = readCString(readerRun.instance, readerRun.value);
+    astDownloadUrl = offerDownload(downloadAst, `${ast}\n`, `${name}.ast`, 'text/plain');
 
-    status.textContent = 'compiling AST…';
+    phase = 'AST compile';
+    status.textContent = `${phase}…`;
     const programArgs = ['program.ast', '--from-ast', '--ast-source', 'source.read'];
     const programFiles = {
       ...stdlibFiles,
@@ -306,6 +391,8 @@ button.onclick = async () => {
     const program = programBuild.files.get('program.wasm');
     if (!program) throw new Error('kernel wrote no module');
     programDownloadUrl = offerDownload(downloadProgram, program, `${name}-program.wasm`);
+    phase = 'program run';
+    status.textContent = `${phase}…`;
     const ran = await runLangProgram(program);
     const elapsed = Math.round(performance.now() - started);
     const astPreview = ast.length > 320 ? `${ast.slice(0, 320)}…` : ast;
@@ -313,8 +400,10 @@ button.onclick = async () => {
     output.textContent = `${printed ? printed + '\n' : ''}main() → ${ran.value}\n\nAST\n${astPreview}`;
     status.innerHTML = `<span class="ok">ran · ${elapsed}ms</span>`;
   } catch (error) {
-    output.textContent = String(error).replace(/^Error: /, '');
-    status.innerHTML = '<span class="bad">failed</span>';
+    const message = String(error).replace(/^Error: /, '');
+    output.textContent = message;
+    focusDiagnostic(message);
+    status.innerHTML = `<span class="bad">${phase} failed</span>`;
   }
   button.disabled = false;
 };
