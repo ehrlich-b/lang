@@ -47,13 +47,15 @@ That makes lang a **compiler compiler**: you write one reader function—source
 text in, shared AST out—and lang turns it into a native compiler:
 
 ```bash
-./out/lang compiler tiny example/tiny/tiny.lang -o tinyc
+./out/lang new reader tiny
+./out/lang run tiny.lang answer.tiny
+./out/lang compiler tiny tiny.lang -o tinyc
 ```
 
 Now `tinyc` is a native compiler for `.tiny` files:
 
 ```bash
-./tinyc example/tiny/answer.tiny -o answer.ll
+./tinyc answer.tiny -o answer.ll
 ```
 
 Same AST means same calling convention. Functions call each other directly at the machine level, no wrappers or runtime glue.

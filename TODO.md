@@ -32,8 +32,9 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 15. ✓ Reuse the compiler the reader just made
 16. ✓ Fit the first reader on one screen
 17. ✓ Make the textareas behave like code editors
-18. → **Scaffold a reader outside the browser** ← current
-19. → Capture more languages only when it improves the reader toolkit
+18. ✓ Scaffold a reader outside the browser
+19. → **Inspect a reader before codegen** ← current
+20. → Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -146,14 +147,33 @@ lose basic editor mechanics:
 
 ---
 
-## Current: Scaffold a reader outside the browser
+## Completed: Scaffold a reader outside the browser
 
 The workbench now gives browser authors a tight loop. Native authors should get
 the same clean starting point without copying from documentation:
 
-- [ ] Add one discoverable command that creates a named reader and sample input.
-- [ ] Refuse to overwrite either file and leave no partial scaffold on failure.
-- [ ] Compile and run the fresh scaffold in an end-to-end CLI gate.
+- [x] Add one discoverable command that creates a named reader and sample input.
+- [x] Refuse to overwrite either file and leave no partial scaffold on failure.
+- [x] Find the checkout's `std/` beside `out/lang`, so the printed commands work
+      from a clean directory; expose and override that root with `lang tools`
+      and `LANG_ROOT` when the binary moves.
+- [x] Compile and run the fresh scaffold from another directory in an end-to-end
+      CLI gate; the same gate covers reruns, both pre-existing-file directions,
+      invalid names, missing toolkit files, and help discovery.
+
+---
+
+## Current: Inspect a reader before codegen
+
+The browser exposes the AST a reader returned. Native reader authors should not
+need a complete target compile just to inspect that frontend boundary:
+
+- [ ] Add a concise `lang read` command that runs reader source on custom source
+      and writes the returned shared AST to stdout or `-o`.
+- [ ] Preserve reader and custom-source diagnostics without also reporting a
+      misleading codegen failure.
+- [ ] Feed a scaffold's saved AST back through `--from-ast` and run it in an
+      end-to-end gate, proving the inspection path is lossless.
 
 ---
 

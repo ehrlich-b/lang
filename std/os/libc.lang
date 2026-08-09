@@ -49,12 +49,14 @@
 
 // File open flags for Linux
 // O_RDONLY = 0, O_WRONLY = 1, O_RDWR = 2
-// O_CREAT = 64, O_TRUNC = 512, O_APPEND = 1024
+// O_CREAT = 64, O_EXCL = 128, O_TRUNC = 512, O_APPEND = 1024
 pub var O_RDONLY i64 = 0;
 pub var O_WRONLY i64 = 1;
 pub var O_CREAT i64 = 64;
+pub var O_EXCL i64 = 128;
 pub var O_TRUNC i64 = 512;
 pub var O_APPEND i64 = 1024;
+pub var O_WRONLY_CREAT_EXCL i64 = 193;  // O_WRONLY | O_CREAT | O_EXCL
 pub var O_WRONLY_CREAT_TRUNC i64 = 577;  // O_WRONLY | O_CREAT | O_TRUNC
 
 // ============================================================

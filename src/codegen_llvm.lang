@@ -6770,7 +6770,7 @@ func llvm_emit_decl(decl *u8) void {
         map_set(llvm_included_files, path_str, 1);
 
         // Check if local file exists (file_mtime returns 0 if not found)
-        var local_exists i64 = file_mtime(full_path);
+        var local_exists i64 = resource_file_mtime(full_path);
 
         if local_exists != 0 {
             // Local file found - read and parse it
@@ -7059,7 +7059,7 @@ func llvm_register_decl(decl *u8) void {
         // Read and parse include file
         var buf *u8 = alloc(1024 * 1024);  // 1MB buffer
         var buf_cap i64 = 1024 * 1024;
-        var fd i64 = file_open(path_str, 0);
+        var fd i64 = resource_open_read(path_str);
         if fd < 0 {
             eprint("error: cannot open include file: ");
             eprintln(path_str);
@@ -7122,12 +7122,12 @@ func llvm_register_decl(decl *u8) void {
         }
         map_set(llvm_first_pass_included, path_str, 1);
 
-        var local_exists i64 = file_mtime(full_path);
+        var local_exists i64 = resource_file_mtime(full_path);
         var req_prog *u8 = nil;
 
         if local_exists != 0 {
             var buf *u8 = alloc(1024 * 1024);
-            var fd i64 = file_open(str_dup_n(full_path, full_len), 0);
+            var fd i64 = resource_open_read(str_dup_n(full_path, full_len));
             if fd < 0 {
                 eprint("error: cannot open require file: ");
                 eprint_buf(path, path_len);

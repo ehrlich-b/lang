@@ -46,12 +46,14 @@
 
 // File open flags for macOS
 // O_RDONLY = 0, O_WRONLY = 1, O_RDWR = 2
-// O_CREAT = 512, O_TRUNC = 1024, O_APPEND = 8
+// O_CREAT = 512, O_EXCL = 2048, O_TRUNC = 1024, O_APPEND = 8
 pub var O_RDONLY i64 = 0;
 pub var O_WRONLY i64 = 1;
 pub var O_CREAT i64 = 512;
+pub var O_EXCL i64 = 2048;
 pub var O_TRUNC i64 = 1024;
 pub var O_APPEND i64 = 8;
+pub var O_WRONLY_CREAT_EXCL i64 = 2561;  // O_WRONLY | O_CREAT | O_EXCL
 pub var O_WRONLY_CREAT_TRUNC i64 = 1537;  // O_WRONLY | O_CREAT | O_TRUNC
 
 // Core syscalls - these match the abstract interface in std/core.lang

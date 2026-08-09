@@ -313,6 +313,67 @@ reader_e2e_clang() {
 reader_e2e_clang reader_flow_e2e     example/flow/test_flow.lang
 reader_e2e_clang reader_polyglot_e2e example/polyglot.lang
 
+# A new reader should begin with one discoverable, safe command. Prove that its
+# two files compile and run, and that every refusal preserves the old files
+# without leaving the other half of a scaffold behind.
+reader_scaffold_e2e() {
+    local name=reader_scaffold_e2e
+    local tmp=$(mktemp -d)
+    local compiler_path=$COMPILER
+    case "$compiler_path" in
+        /*) ;;
+        ./*) compiler_path="$REPO_ROOT/${compiler_path#./}" ;;
+        *) compiler_path="$REPO_ROOT/$compiler_path" ;;
+    esac
+    local ok=1
+
+    (cd "$tmp" && "$compiler_path" new reader demo >created.out 2>&1) || ok=0
+    test -f "$tmp/demo.lang" && test -f "$tmp/answer.demo" || ok=0
+    grep -Fq 'Run: lang run demo.lang answer.demo' "$tmp/created.out" || ok=0
+    cp "$tmp/demo.lang" "$tmp/demo.before"
+    cp "$tmp/answer.demo" "$tmp/answer.before"
+
+    (cd "$tmp" && ! "$compiler_path" new reader demo >again.out 2>&1) || ok=0
+    grep -Fq 'refusing to overwrite demo.lang' "$tmp/again.out" || ok=0
+    cmp -s "$tmp/demo.before" "$tmp/demo.lang" || ok=0
+    cmp -s "$tmp/answer.before" "$tmp/answer.demo" || ok=0
+
+    printf 'keep me\n' >"$tmp/answer.blocked"
+    (cd "$tmp" && ! "$compiler_path" new reader blocked >blocked.out 2>&1) || ok=0
+    test ! -e "$tmp/blocked.lang" || ok=0
+    grep -Fxq 'keep me' "$tmp/answer.blocked" || ok=0
+
+    printf 'keep me too\n' >"$tmp/taken.lang"
+    (cd "$tmp" && ! "$compiler_path" new reader taken >taken.out 2>&1) || ok=0
+    test ! -e "$tmp/answer.taken" || ok=0
+    grep -Fxq 'keep me too' "$tmp/taken.lang" || ok=0
+
+    (cd "$tmp" && ! "$compiler_path" new reader bad-name >invalid.out 2>&1) || ok=0
+    (cd "$tmp" && ! "$compiler_path" new reader reader >keyword.out 2>&1) || ok=0
+    test ! -e "$tmp/bad-name.lang" && test ! -e "$tmp/reader.lang" || ok=0
+    (cd "$tmp" && ! LANG_ROOT="$tmp/missing" \
+        "$compiler_path" new reader orphan >toolkit.out 2>&1) || ok=0
+    grep -Fq 'reader toolkit not found' "$tmp/toolkit.out" || ok=0
+    test ! -e "$tmp/orphan.lang" && test ! -e "$tmp/answer.orphan" || ok=0
+    "$compiler_path" help new >"$tmp/help.out" 2>&1 || ok=0
+    grep -Fq 'lang new reader <name>' "$tmp/help.out" || ok=0
+
+    if [ "$ok" = 1 ]; then
+        (cd "$tmp" && LANG_CACHE="$tmp/cache" LANGBE=llvm \
+            "$compiler_path" run demo.lang answer.demo >/dev/null 2>&1)
+        local result=$?
+    else
+        local result=compile_error
+    fi
+    if [ "$result" = 42 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name (expected 42, got $result)" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_scaffold_e2e
+
 # Prove the product claim, not just the macro path: lang turns a reader into a
 # compiler, that compiler consumes its own file extension, and its output runs.
 compiler_compiler_e2e() {

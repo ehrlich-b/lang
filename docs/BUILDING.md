@@ -55,6 +55,11 @@ For the common case:
 LANGBE=llvm ./out/lang run hello.lang
 ```
 
+An `out/lang` binary invoked by path also finds the checkout's `std/` from
+another working directory. Set `LANG_ROOT=/path/to/lang` only when the compiler
+has been moved away from its checkout; `lang tools` shows the resolved resource
+root and whether `std/core.lang` is present.
+
 On macOS, LLVM is already the compiler's default. Setting `LANGBE=llvm` keeps
 commands portable to Linux, where the legacy x86 backend may still be the
 compiled-in default.

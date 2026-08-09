@@ -5,6 +5,17 @@ into Lang AST, and you have taught it a new language. That function is a
 **reader**. The kernel supplies type checking, LLVM generation, native code,
 WebAssembly, and interop with every other reader.
 
+Start a generated-grammar reader and run its sample:
+
+```bash
+./out/lang new reader tiny
+./out/lang run tiny.lang answer.tiny
+echo $?    # 42
+```
+
+The command creates only `tiny.lang` and `answer.tiny`. It refuses to overwrite
+either one and removes the first if it cannot finish the pair.
+
 The smallest complete example is [`example/tiny/tiny.lang`](../example/tiny/tiny.lang):
 
 ```lang

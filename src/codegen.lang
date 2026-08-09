@@ -17,6 +17,32 @@ var cg_has_llvm_backend i64 = 0; // set to 1 by codegen_llvm.lang if included
 var cg_has_wasm_backend i64 = 0; // set to 1 by codegen_wasm.lang if included
 var cg_diagnostic_node *u8 = nil;
 
+// Source checkouts keep std/ beside out/. Main discovers that root from
+// argv[0], allowing an absolute `out/lang` to compile from any working
+// directory. The current directory still wins for project-local overrides.
+var cg_resource_root *u8 = nil;
+
+func resource_path(path *u8) *u8 {
+    if cg_resource_root == nil || *path == '/' { return nil; }
+    return str_concat(str_concat(cg_resource_root, "/"), path);
+}
+
+func resource_open_read(path *u8) i64 {
+    var fd i64 = file_open(path, O_RDONLY);
+    if fd >= 0 { return fd; }
+    var fallback *u8 = resource_path(path);
+    if fallback == nil { return -1; }
+    return file_open(fallback, O_RDONLY);
+}
+
+func resource_file_mtime(path *u8) i64 {
+    var modified i64 = file_mtime(path);
+    if modified != 0 { return modified; }
+    var fallback *u8 = resource_path(path);
+    if fallback == nil { return 0; }
+    return file_mtime(fallback);
+}
+
 // Prefix a diagnostic with the closest declaration provenance available.
 // Readers can provide exact errors for their own syntax; the kernel at least
 // preserves the invoking file for errors in the AST they emit.
@@ -1155,17 +1181,17 @@ func should_recompile_reader(cached_exe *u8) i64 {
     }
 
     // Check if stable compiler is newer than cached reader
-    if file_mtime("./out/lang") > exe_mtime {
+    if resource_file_mtime("./out/lang") > exe_mtime {
         return 1;
     }
 
     // Check if dev compiler is newer (for make verify)
-    if file_mtime("./out/lang_next") > exe_mtime {
+    if resource_file_mtime("./out/lang_next") > exe_mtime {
         return 1;
     }
 
     // Check if stdlib is newer than cached reader
-    if file_mtime("std/core.lang") > exe_mtime {
+    if resource_file_mtime("std/core.lang") > exe_mtime {
         return 1;
     }
 
@@ -1383,7 +1409,7 @@ func compile_reader_to_executable(decl *u8) void {
             if k == NODE_INCLUDE_DECL {
                 ast_to_string_include_decl(sibling);
                 var dep_path *u8 = str_dup_n(include_decl_path(sibling), include_decl_path_len(sibling));
-                if file_mtime(dep_path) > exe_mtime { dependency_newer = 1; }
+                if resource_file_mtime(dep_path) > exe_mtime { dependency_newer = 1; }
             }
             // For reader caching, treat require like include (inline the code)
             if k == NODE_REQUIRE_DECL {
@@ -1395,7 +1421,7 @@ func compile_reader_to_executable(decl *u8) void {
                 ast_str_append_cstr(".lang\"\n");
                 var dep_base *u8 = str_dup_n(mod, mod_len);
                 var dep_path *u8 = str_concat(dep_base, ".lang");
-                if file_mtime(dep_path) > exe_mtime { dependency_newer = 1; }
+                if resource_file_mtime(dep_path) > exe_mtime { dependency_newer = 1; }
             }
             i = i + 1;
         }
@@ -2111,7 +2137,7 @@ func read_file_contents(path *u8, path_len i64, buf *u8, buf_cap i64) i64 {
     *(path_z + path_len) = 0;
 
     // Open file using OS layer (O_RDONLY = 0)
-    var fd i64 = os_open(path_z, 0, 0);
+    var fd i64 = resource_open_read(path_z);
     if fd < 0 {
         return -1;
     }
@@ -2350,7 +2376,7 @@ func process_decl_first_pass(decl *u8) void {
         map_set(cg_included_files, path_str, 1);
 
         // Check if local file exists (file_mtime returns 0 if not found)
-        var local_exists i64 = file_mtime(full_path);
+        var local_exists i64 = resource_file_mtime(full_path);
 
         if local_exists != 0 {
             // Local file found - check for circular require
@@ -5936,7 +5962,7 @@ func gen_decl(decl *u8) void {
         }
         map_set(cg_included_files, path_str, 1);
 
-        var local_exists i64 = file_mtime(full_path);
+        var local_exists i64 = resource_file_mtime(full_path);
 
         if local_exists != 0 {
             if include_stack_contains(full_path, full_len) {
