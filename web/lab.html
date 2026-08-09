@@ -103,11 +103,13 @@ reader read(text *u8) *u8 {
   </div>
   <p class="note">local: reader → AST → wasm · <a id="save-workspace">save workspace</a> · <label class="file-action">open workspace<input id="open-workspace" type="file" accept=".json,application/json" hidden></label></p>
 </main>
-<script src="compiler_host.js?v=workbench1"></script>
-<script src="program_host.js?v=workbench1"></script>
+<script src="compiler_host.js?v=workbench2"></script>
+<script src="program_host.js?v=workbench2"></script>
 <script>
 let compilerBytes;
 let stdlibFiles;
+let cachedReaderSource;
+let cachedReaderProgram;
 let activePreset = 'workspace';
 let saveTimer;
 let readerDownloadUrl;
@@ -146,11 +148,11 @@ const presets = {
 };
 
 Promise.all([
-  fetch('compiler.wasm?v=workbench1').then(r => {
+  fetch('compiler.wasm?v=workbench2').then(r => {
     if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
     return r.arrayBuffer();
   }),
-  fetch('stdlib.json?v=workbench1').then(r => {
+  fetch('stdlib.json?v=workbench2').then(r => {
     if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
     return r.json();
   }),
@@ -267,15 +269,6 @@ openWorkspace.onchange = async () => {
   openWorkspace.value = '';
 };
 
-function langString(text) {
-  return `"${text
-    .replaceAll('\\', '\\\\')
-    .replaceAll('"', '\\"')
-    .replaceAll('\n', '\\n')
-    .replaceAll('\r', '\\r')
-    .replaceAll('\t', '\\t')}"`;
-}
-
 function readCString(instance, pointer) {
   const memory = new Uint8Array(instance.exports.memory.buffer);
   const start = Number(pointer);
@@ -353,18 +346,38 @@ button.onclick = async () => {
   let phase = 'reader build';
   try {
     const name = readerName(reader.value);
-    const harness = `${reader.value}\nfunc main() *u8 { return ${name}(${langString(customSource.value)}); }\n`;
-    const readerBuild = await compile(
-      ['reader.lang', '-o', 'reader.wasm'],
-      { ...stdlibFiles, 'reader.lang': harness },
-    );
-    const readerProgram = readerBuild.files.get('reader.wasm');
-    if (!readerProgram) throw new Error('reader compiler wrote no module');
+    let readerProgram = cachedReaderProgram;
+    if (!readerProgram || cachedReaderSource !== reader.value) {
+      const harness = `include "std/core.lang"
+${reader.value}
+func main() *u8 {
+    var text *u8 = alloc(4194304);
+    var length i64 = 0;
+    var chunk i64 = file_read(0, text, 4194303);
+    while chunk > 0 {
+        length = length + chunk;
+        if length >= 4194303 { chunk = 0; }
+        else { chunk = file_read(0, text + length, 4194303 - length); }
+    }
+    if chunk < 0 { return nil; }
+    *(text + length) = 0;
+    return ${name}(text);
+}
+`;
+      const readerBuild = await compile(
+        ['reader.lang', '-o', 'reader.wasm'],
+        { ...stdlibFiles, 'reader.lang': harness },
+      );
+      readerProgram = readerBuild.files.get('reader.wasm');
+      if (!readerProgram) throw new Error('reader compiler wrote no module');
+      cachedReaderSource = reader.value;
+      cachedReaderProgram = readerProgram;
+    }
     readerDownloadUrl = offerDownload(downloadReader, readerProgram, `${name}-reader.wasm`);
 
     phase = 'reader run';
     status.textContent = `${phase}…`;
-    const readerRun = await runLangProgram(readerProgram);
+    const readerRun = await runLangProgram(readerProgram, undefined, customSource.value);
     if (readerRun.value === 0n) {
       throw new Error(readerRun.stderr || readerRun.stdout || 'reader returned nil');
     }

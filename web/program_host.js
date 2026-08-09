@@ -1,13 +1,18 @@
 // Runtime for modules emitted by codegen_wasm.lang. Direct-wasm imports use a
-// canonical i64 ABI in the "lang" namespace, including pointer values.
+// canonical i64 ABI in the "lang" namespace, including pointer values. The
+// optional third argument supplies UTF-8 stdin, used by reusable reader Wasm.
 'use strict';
 
-async function runLangProgram(wasmBytes, onWrite) {
+async function runLangProgram(wasmBytes, onWrite, inputText) {
   let instance = null;
   let heapTop = 0;
+  let inputPos = 0;
   let stdout = '';
   let stderr = '';
   const decoder = new TextDecoder();
+  const input = typeof inputText === 'string'
+    ? new TextEncoder().encode(inputText)
+    : inputText || new Uint8Array();
 
   const memory = () => instance.exports.memory;
   const bytes = () => new Uint8Array(memory().buffer);
@@ -38,7 +43,14 @@ async function runLangProgram(wasmBytes, onWrite) {
   };
 
   const lang = {
-    read: () => 0n,
+    read: (fdValue, ptrValue, countValue) => {
+      if (number(fdValue) !== 0) return 0n;
+      const count = Math.min(number(countValue), input.length - inputPos);
+      if (count <= 0) return 0n;
+      bytes().set(input.subarray(inputPos, inputPos + count), number(ptrValue));
+      inputPos += count;
+      return BigInt(count);
+    },
     write: (fdValue, ptrValue, countValue) => {
       const data = bytes().subarray(number(ptrValue), number(ptrValue) + number(countValue));
       emit(decoder.decode(data), number(fdValue) === 2);

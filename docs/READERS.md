@@ -108,6 +108,12 @@ and a successful run exposes both reader and program Wasm downloads. Save/open
 uses a versioned workspace file, so even the larger readers can be shared
 without oversized URLs.
 
+Downloaded reader Wasm is reusable: its `main` reads custom-language source
+from UTF-8 stdin and returns a pointer to the emitted, null-terminated AST.
+`runLangProgram(readerBytes, undefined, sourceText)` in `web/program_host.js`
+is the reference host contract. The lab retains that module until reader code
+changes, so editing only custom source skips the reader-build phase.
+
 Keep the reader in three layers—parse, lower, emit—and test the smallest source
 that exercises each new construct. Imports, `#parser{}` grammars, types, globals,
 and helper functions may appear before or after the `reader` declaration. Lang

@@ -29,8 +29,9 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 12. ✓ Exact source spans and reader-driven wasm breadth
 13. ✓ Turn the browser proof into a reader workbench
 14. ✓ Make reader failures fast to fix
-15. → **Reuse the compiler the reader just made** ← current
-16. → Capture more languages only when it improves the reader toolkit
+15. ✓ Reuse the compiler the reader just made
+16. → **Fit the first reader on one screen** ← current
+17. → Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -104,16 +105,29 @@ loop so those diagnostics take authors directly back to the failing input:
 
 ---
 
-## Current: Reuse the compiler the reader just made
+## Completed: Reuse the compiler the reader just made
 
 The lab currently recompiles a reader when only custom-language source changed.
 Make the generated artifact real and make the common edit/run loop faster:
 
-- [ ] Give reader Wasm source over stdin instead of embedding one source string.
-- [ ] Reuse that module until reader code changes; source-only runs skip the
+- [x] Give reader Wasm source over stdin instead of embedding one source string.
+- [x] Reuse that module until reader code changes; source-only runs skip the
       reader-build phase.
-- [ ] Prove one downloaded reader module can read two different inputs and
+- [x] Prove one downloaded reader module can read two different inputs and
       document its tiny host contract.
+
+---
+
+## Current: Fit the first reader on one screen
+
+The generated-grammar starter is honest but still makes a one-rule language
+spell out parse-tree indexing and a complete `main` declaration. Remove that
+incidental work without hiding the reader/AST boundary:
+
+- [ ] Add small, general helpers for a parse-tree child and an i64 `main`.
+- [ ] Use them in the lab starter and Tiny where they improve readability.
+- [ ] Keep the entire starter visible without scrolling its editor at the
+      default desktop height; guard the helper path end to end.
 
 ---
 

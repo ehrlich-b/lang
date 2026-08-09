@@ -37,9 +37,21 @@ async function compileReaderPipeline(readerPath, readerName, source, runtimePath
   );
 }
 
-async function runReaderSource(sourceText, readerName, source) {
+async function compileReaderModule(sourceText, readerName) {
   const readerSource = `${sourceText}
-func main() *u8 { return ${readerName}(${JSON.stringify(source)}); }
+func main() *u8 {
+    var text *u8 = alloc(4194304);
+    var length i64 = 0;
+    var chunk i64 = file_read(0, text, 4194303);
+    while chunk > 0 {
+        length = length + chunk;
+        if length >= 4194303 { chunk = 0; }
+        else { chunk = file_read(0, text + length, 4194303 - length); }
+    }
+    if chunk < 0 { return nil; }
+    *(text + length) = 0;
+    return ${readerName}(text);
+}
 `;
   const readerCompile = await runLangCompiler(
     fs.readFileSync(compilerPath),
@@ -53,13 +65,21 @@ func main() *u8 { return ${readerName}(${JSON.stringify(source)}); }
   }
   const readerProgram = readerCompile.files.get('reader.wasm');
   if (!readerProgram) throw new Error('compiler did not write reader.wasm');
-  const readerRun = await runLangProgram(readerProgram);
+  return readerProgram;
+}
+
+async function runReaderModule(readerProgram, source) {
+  const readerRun = await runLangProgram(readerProgram, undefined, source);
   if (readerRun.value === 0n) return { ast: null, readerRun };
   const memory = new Uint8Array(readerRun.instance.exports.memory.buffer);
   let end = Number(readerRun.value);
   while (memory[end] !== 0) end++;
   const ast = Buffer.from(memory.subarray(Number(readerRun.value), end)).toString('utf8');
   return { ast, readerRun };
+}
+
+async function runReaderSource(sourceText, readerName, source) {
+  return runReaderModule(await compileReaderModule(sourceText, readerName), source);
 }
 
 async function compileReaderSource(sourceText, readerName, source, runtimePaths = []) {
@@ -114,6 +134,14 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   const reader = await compileReaderPipeline('example/tiny/tiny.lang', 'tiny', 'answer 42');
   if (Number(reader.ran.value) !== 42 || !reader.ast.startsWith('(program ')) {
     throw new Error(`tiny reader pipeline mismatch: value=${reader.ran.value} ast=${reader.ast}`);
+  }
+  const reusableTiny = await compileReaderModule(
+    fs.readFileSync('example/tiny/tiny.lang', 'utf8'), 'tiny',
+  );
+  const reused41 = await runReaderModule(reusableTiny, 'answer 41');
+  const reused42 = await runReaderModule(reusableTiny, 'answer 42');
+  if (!reused41.ast.includes('(number 41)') || !reused42.ast.includes('(number 42)')) {
+    throw new Error('one reader module did not accept two different stdin inputs');
   }
   const calc = await compileReaderPipeline('example/calc/calc.lang', 'calc', 'answer 1 + 2 * 3');
   if (Number(calc.ran.value) !== 7 || !calc.ast.includes('(binop + ')) {
@@ -203,6 +231,7 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
     'id="save-workspace"', 'id="open-workspace"',
     'lang-reader-workspace', 'lang.lab.active', 'readerName(reader.value)',
     'focusDiagnostic(message)', "target.closest('details').open = true", "phase = 'AST compile'",
+    'cachedReaderSource !== reader.value', 'customSource.value)',
   ]) {
     if (!labHtml.includes(marker)) throw new Error(`lab workbench marker missing: ${marker}`);
   }
