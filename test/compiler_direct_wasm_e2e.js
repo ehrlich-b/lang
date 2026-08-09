@@ -32,7 +32,11 @@ async function compileAndRun(sourcePath) {
 }
 
 async function compileReaderPipeline(readerPath, readerName, source) {
-  const readerSource = `${fs.readFileSync(readerPath, 'utf8')}
+  return compileReaderSource(fs.readFileSync(readerPath, 'utf8'), readerName, source);
+}
+
+async function compileReaderSource(sourceText, readerName, source) {
+  const readerSource = `${sourceText}
 func main() *u8 { return ${readerName}(${JSON.stringify(source)}); }
 `;
   const readerCompile = await runLangCompiler(
@@ -96,5 +100,13 @@ func main() *u8 { return ${readerName}(${JSON.stringify(source)}); }
     throw new Error(`reader failure mismatch: ast=${invalid.ast} stderr=${invalid.readerRun.stderr}`);
   }
 
-  console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}; readers → ${reader.ran.value}/${calc.ran.value})`);
+  const labHtml = fs.readFileSync('web/lab.html', 'utf8');
+  const labSource = labHtml.match(/<textarea[^>]*\bid="reader"[^>]*>([\s\S]*?)<\/textarea>/);
+  if (!labSource) throw new Error('could not find the reader source in web/lab.html');
+  const read = await compileReaderSource(labSource[1], 'read', 'answer 42');
+  if (Number(read.ran.value) !== 42 || !read.ast.startsWith('(program ')) {
+    throw new Error(`lab read pipeline mismatch: value=${read.ran.value} ast=${read.ast}`);
+  }
+
+  console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}; readers → ${reader.ran.value}/${calc.ran.value}/${read.ran.value})`);
 })().catch((error) => { console.error(error); process.exit(1); });

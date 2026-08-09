@@ -254,6 +254,43 @@ func wasm_find_func(name *u8, name_len i64) i64 {
     return 0 - 1;
 }
 
+func wasm_find_func_arity(name *u8, name_len i64, arity i64) i64 {
+    // Readers and host imports may legitimately share a name. For example, a
+    // one-argument reader named `read` coexists with libc's three-argument
+    // `read`. Resolve the complete call shape, preferring a local definition.
+    var i i64 = 0;
+    while i < wasm_func_count {
+        var decl *u8 = wasm_func_get(i);
+        if wasm_name_eq(func_decl_name(decl), func_decl_name_len(decl), name, name_len) != 0 &&
+           func_decl_param_count(decl) == arity {
+            return wasm_import_count + i;
+        }
+        i = i + 1;
+    }
+    i = 0;
+    while i < wasm_import_count {
+        var imported *u8 = wasm_import_get(i);
+        if wasm_name_eq(func_decl_name(imported), func_decl_name_len(imported), name, name_len) != 0 &&
+           func_decl_param_count(imported) == arity {
+            return i;
+        }
+        i = i + 1;
+    }
+    return 0 - 1;
+}
+
+func wasm_find_defined_func(name *u8, name_len i64) i64 {
+    var i i64 = 0;
+    while i < wasm_func_count {
+        var decl *u8 = wasm_func_get(i);
+        if wasm_name_eq(func_decl_name(decl), func_decl_name_len(decl), name, name_len) != 0 {
+            return wasm_import_count + i;
+        }
+        i = i + 1;
+    }
+    return 0 - 1;
+}
+
 func wasm_local_add(name *u8, name_len i64, local_type *u8, decl *u8) i64 {
     var index i64 = wasm_local_count;
     var entry *u8 = wasm_locals + index * 40;
@@ -434,7 +471,9 @@ func wasm_expr_type(expr *u8) *u8 {
     if kind == NODE_CALL_EXPR {
         var callee *u8 = call_expr_func(expr);
         if callee != nil && node_kind(callee) == NODE_IDENT_EXPR {
-            var index i64 = wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee));
+            var index i64 = wasm_find_func_arity(
+                ident_expr_name(callee), ident_expr_name_len(callee), call_expr_arg_count(expr)
+            );
             if index >= 0 { return func_decl_ret_type(wasm_func_decl_by_index(index)); }
         }
     }
@@ -662,14 +701,15 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
             wasm_put(out, 66); wasm_put_sleb(out, 0);
             return;
         }
-        var index i64 = wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee));
+        var index i64 = wasm_find_func_arity(
+            ident_expr_name(callee), ident_expr_name_len(callee), call_expr_arg_count(expr)
+        );
         if index < 0 {
-            wasm_error("unknown function in direct wasm call");
-            wasm_put(out, 66); wasm_put_sleb(out, 0);
-            return;
-        }
-        if call_expr_arg_count(expr) != func_decl_param_count(wasm_func_decl_by_index(index)) {
-            wasm_error("wrong argument count in direct wasm call");
+            if wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee)) >= 0 {
+                wasm_error("wrong argument count in direct wasm call");
+            } else {
+                wasm_error("unknown function in direct wasm call");
+            }
             wasm_put(out, 66); wasm_put_sleb(out, 0);
             return;
         }
@@ -694,7 +734,9 @@ func wasm_expr_has_value(expr *u8) i64 {
     if node_kind(expr) == NODE_CALL_EXPR {
         var callee *u8 = call_expr_func(expr);
         if callee != nil && node_kind(callee) == NODE_IDENT_EXPR {
-            var index i64 = wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee));
+            var index i64 = wasm_find_func_arity(
+                ident_expr_name(callee), ident_expr_name_len(callee), call_expr_arg_count(expr)
+            );
             if index >= 0 { return 1 - wasm_type_is_void(func_decl_ret_type(wasm_func_decl_by_index(index))); }
         }
     }
@@ -932,7 +974,9 @@ func wasm_mark_expr(expr *u8) void {
     if kind == NODE_CALL_EXPR {
         var callee *u8 = call_expr_func(expr);
         if callee != nil && node_kind(callee) == NODE_IDENT_EXPR {
-            var index i64 = wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee));
+            var index i64 = wasm_find_func_arity(
+                ident_expr_name(callee), ident_expr_name_len(callee), call_expr_arg_count(expr)
+            );
             if index >= 0 { wasm_mark_function(index); }
         }
         var args *u8 = call_expr_args(expr);
@@ -1020,7 +1064,7 @@ func wasm_mark_function(index i64) void {
 func wasm_prune_unreachable() void {
     wasm_func_marks = alloc(wasm_func_count);
     wasm_import_marks = alloc(wasm_import_count);
-    var main_index i64 = wasm_find_func("main", 4);
+    var main_index i64 = wasm_find_defined_func("main", 4);
     if main_index < 0 { wasm_error("direct wasm output requires a main function"); return; }
     wasm_mark_function(main_index);
 
@@ -1160,7 +1204,7 @@ func wasm_emit_global_section() void {
 }
 
 func wasm_emit_export_section() void {
-    var main_index i64 = wasm_find_func("main", 4);
+    var main_index i64 = wasm_find_defined_func("main", 4);
     if main_index < 0 {
         wasm_error("direct wasm output requires a main function");
         return;
