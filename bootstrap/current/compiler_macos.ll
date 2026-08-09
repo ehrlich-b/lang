@@ -62953,6 +62953,174 @@ L8:
     ret i64 %t46
 }
 
+define i64 @wasm_find_func_arity(i64 %name.arg, i64 %name_len.arg, i64 %arity.arg) {
+L.entry:
+    %name.0 = alloca i64
+    store i64 %name.arg, i64* %name.0
+    %name_len.1 = alloca i64
+    store i64 %name_len.arg, i64* %name_len.1
+    %arity.2 = alloca i64
+    store i64 %arity.arg, i64* %arity.2
+    %i.3 = alloca i64
+    store i64 0, i64* %i.3
+    br label %L0
+L0:
+    %t0 = load i64, i64* %i.3
+    %t1 = load i64, i64* @wasm_func_count
+    %t3 = icmp slt i64 %t0, %t1
+    %t2 = zext i1 %t3 to i64
+    %t4 = icmp ne i64 %t2, 0
+    br i1 %t4, label %L1, label %L2
+L1:
+    %decl.4 = alloca i64
+    %t5 = load i64, i64* %i.3
+    %t6 = call i8* @wasm_func_get(i64 %t5)
+    %t7 = ptrtoint i8* %t6 to i64
+    store i64 %t7, i64* %decl.4
+    %t8 = alloca i64
+    store i64 0, i64* %t8
+    %t9 = load i64, i64* %decl.4
+    %t10 = call i8* @func_decl_name(i64 %t9)
+    %t11 = ptrtoint i8* %t10 to i64
+    %t12 = load i64, i64* %decl.4
+    %t13 = call i64 @func_decl_name_len(i64 %t12)
+    %t14 = load i64, i64* %name.0
+    %t15 = load i64, i64* %name_len.1
+    %t16 = call i64 @wasm_name_eq(i64 %t11, i64 %t13, i64 %t14, i64 %t15)
+    %t18 = icmp ne i64 %t16, 0
+    %t17 = zext i1 %t18 to i64
+    %t19 = icmp ne i64 %t17, 0
+    br i1 %t19, label %L6, label %L7
+L6:
+    %t20 = load i64, i64* %decl.4
+    %t21 = call i64 @func_decl_param_count(i64 %t20)
+    %t22 = load i64, i64* %arity.2
+    %t24 = icmp eq i64 %t21, %t22
+    %t23 = zext i1 %t24 to i64
+    %t25 = icmp ne i64 %t23, 0
+    %t26 = zext i1 %t25 to i64
+    store i64 %t26, i64* %t8
+    br label %L7
+L7:
+    %t27 = load i64, i64* %t8
+    %t28 = icmp ne i64 %t27, 0
+    br i1 %t28, label %L3, label %L5
+L3:
+    %t29 = load i64, i64* @wasm_import_count
+    %t30 = load i64, i64* %i.3
+    %t31 = add i64 %t29, %t30
+    ret i64 %t31
+L5:
+    %t32 = load i64, i64* %i.3
+    %t33 = add i64 %t32, 1
+    store i64 %t33, i64* %i.3
+    br label %L0
+L2:
+    store i64 0, i64* %i.3
+    br label %L8
+L8:
+    %t34 = load i64, i64* %i.3
+    %t35 = load i64, i64* @wasm_import_count
+    %t37 = icmp slt i64 %t34, %t35
+    %t36 = zext i1 %t37 to i64
+    %t38 = icmp ne i64 %t36, 0
+    br i1 %t38, label %L9, label %L10
+L9:
+    %imported.5 = alloca i64
+    %t39 = load i64, i64* %i.3
+    %t40 = call i8* @wasm_import_get(i64 %t39)
+    %t41 = ptrtoint i8* %t40 to i64
+    store i64 %t41, i64* %imported.5
+    %t42 = alloca i64
+    store i64 0, i64* %t42
+    %t43 = load i64, i64* %imported.5
+    %t44 = call i8* @func_decl_name(i64 %t43)
+    %t45 = ptrtoint i8* %t44 to i64
+    %t46 = load i64, i64* %imported.5
+    %t47 = call i64 @func_decl_name_len(i64 %t46)
+    %t48 = load i64, i64* %name.0
+    %t49 = load i64, i64* %name_len.1
+    %t50 = call i64 @wasm_name_eq(i64 %t45, i64 %t47, i64 %t48, i64 %t49)
+    %t52 = icmp ne i64 %t50, 0
+    %t51 = zext i1 %t52 to i64
+    %t53 = icmp ne i64 %t51, 0
+    br i1 %t53, label %L14, label %L15
+L14:
+    %t54 = load i64, i64* %imported.5
+    %t55 = call i64 @func_decl_param_count(i64 %t54)
+    %t56 = load i64, i64* %arity.2
+    %t58 = icmp eq i64 %t55, %t56
+    %t57 = zext i1 %t58 to i64
+    %t59 = icmp ne i64 %t57, 0
+    %t60 = zext i1 %t59 to i64
+    store i64 %t60, i64* %t42
+    br label %L15
+L15:
+    %t61 = load i64, i64* %t42
+    %t62 = icmp ne i64 %t61, 0
+    br i1 %t62, label %L11, label %L13
+L11:
+    %t63 = load i64, i64* %i.3
+    ret i64 %t63
+L13:
+    %t64 = load i64, i64* %i.3
+    %t65 = add i64 %t64, 1
+    store i64 %t65, i64* %i.3
+    br label %L8
+L10:
+    %t66 = sub i64 0, 1
+    ret i64 %t66
+}
+
+define i64 @wasm_find_defined_func(i64 %name.arg, i64 %name_len.arg) {
+L.entry:
+    %name.0 = alloca i64
+    store i64 %name.arg, i64* %name.0
+    %name_len.1 = alloca i64
+    store i64 %name_len.arg, i64* %name_len.1
+    %i.2 = alloca i64
+    store i64 0, i64* %i.2
+    br label %L0
+L0:
+    %t0 = load i64, i64* %i.2
+    %t1 = load i64, i64* @wasm_func_count
+    %t3 = icmp slt i64 %t0, %t1
+    %t2 = zext i1 %t3 to i64
+    %t4 = icmp ne i64 %t2, 0
+    br i1 %t4, label %L1, label %L2
+L1:
+    %decl.3 = alloca i64
+    %t5 = load i64, i64* %i.2
+    %t6 = call i8* @wasm_func_get(i64 %t5)
+    %t7 = ptrtoint i8* %t6 to i64
+    store i64 %t7, i64* %decl.3
+    %t8 = load i64, i64* %decl.3
+    %t9 = call i8* @func_decl_name(i64 %t8)
+    %t10 = ptrtoint i8* %t9 to i64
+    %t11 = load i64, i64* %decl.3
+    %t12 = call i64 @func_decl_name_len(i64 %t11)
+    %t13 = load i64, i64* %name.0
+    %t14 = load i64, i64* %name_len.1
+    %t15 = call i64 @wasm_name_eq(i64 %t10, i64 %t12, i64 %t13, i64 %t14)
+    %t17 = icmp ne i64 %t15, 0
+    %t16 = zext i1 %t17 to i64
+    %t18 = icmp ne i64 %t16, 0
+    br i1 %t18, label %L3, label %L5
+L3:
+    %t19 = load i64, i64* @wasm_import_count
+    %t20 = load i64, i64* %i.2
+    %t21 = add i64 %t19, %t20
+    ret i64 %t21
+L5:
+    %t22 = load i64, i64* %i.2
+    %t23 = add i64 %t22, 1
+    store i64 %t23, i64* %i.2
+    br label %L0
+L2:
+    %t24 = sub i64 0, 1
+    ret i64 %t24
+}
+
 define i64 @wasm_local_add(i64 %name.arg, i64 %name_len.arg, i64 %local_type.arg, i64 %decl.arg) {
 L.entry:
     %name.0 = alloca i64
@@ -63964,28 +64132,30 @@ L68:
     %t264 = ptrtoint i8* %t263 to i64
     %t265 = load i64, i64* %callee.8
     %t266 = call i64 @ident_expr_name_len(i64 %t265)
-    %t267 = call i64 @wasm_find_func(i64 %t264, i64 %t266)
-    store i64 %t267, i64* %index.9
-    %t268 = load i64, i64* %index.9
-    %t270 = icmp sge i64 %t268, 0
-    %t269 = zext i1 %t270 to i64
-    %t271 = icmp ne i64 %t269, 0
-    br i1 %t271, label %L73, label %L75
+    %t267 = load i64, i64* %expr.0
+    %t268 = call i64 @call_expr_arg_count(i64 %t267)
+    %t269 = call i64 @wasm_find_func_arity(i64 %t264, i64 %t266, i64 %t268)
+    store i64 %t269, i64* %index.9
+    %t270 = load i64, i64* %index.9
+    %t272 = icmp sge i64 %t270, 0
+    %t271 = zext i1 %t272 to i64
+    %t273 = icmp ne i64 %t271, 0
+    br i1 %t273, label %L73, label %L75
 L73:
-    %t272 = load i64, i64* %index.9
-    %t273 = call i8* @wasm_func_decl_by_index(i64 %t272)
-    %t274 = ptrtoint i8* %t273 to i64
-    %t275 = call i8* @func_decl_ret_type(i64 %t274)
+    %t274 = load i64, i64* %index.9
+    %t275 = call i8* @wasm_func_decl_by_index(i64 %t274)
     %t276 = ptrtoint i8* %t275 to i64
-    %t277 = inttoptr i64 %t276 to i8*
-    ret i8* %t277
+    %t277 = call i8* @func_decl_ret_type(i64 %t276)
+    %t278 = ptrtoint i8* %t277 to i64
+    %t279 = inttoptr i64 %t278 to i8*
+    ret i8* %t279
 L75:
     br label %L70
 L70:
     br label %L67
 L67:
-    %t278 = inttoptr i64 0 to i8*
-    ret i8* %t278
+    %t280 = inttoptr i64 0 to i8*
+    ret i8* %t280
 }
 
 define i8* @wasm_emit_address(i64 %expr.arg, i64 %out.arg) {
@@ -65234,41 +65404,41 @@ L132:
     %t415 = ptrtoint i8* %t414 to i64
     %t416 = load i64, i64* %callee.14
     %t417 = call i64 @ident_expr_name_len(i64 %t416)
-    %t418 = call i64 @wasm_find_func(i64 %t415, i64 %t417)
-    store i64 %t418, i64* %index.15
-    %t419 = load i64, i64* %index.15
-    %t421 = icmp slt i64 %t419, 0
-    %t420 = zext i1 %t421 to i64
-    %t422 = icmp ne i64 %t420, 0
-    br i1 %t422, label %L133, label %L135
+    %t418 = load i64, i64* %expr.0
+    %t419 = call i64 @call_expr_arg_count(i64 %t418)
+    %t420 = call i64 @wasm_find_func_arity(i64 %t415, i64 %t417, i64 %t419)
+    store i64 %t420, i64* %index.15
+    %t421 = load i64, i64* %index.15
+    %t423 = icmp slt i64 %t421, 0
+    %t422 = zext i1 %t423 to i64
+    %t424 = icmp ne i64 %t422, 0
+    br i1 %t424, label %L133, label %L135
 L133:
-    %t423 = ptrtoint i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str875, i64 0, i64 0) to i64
-    call void @wasm_error(i64 %t423)
-    %t424 = load i64, i64* %out.1
-    call void @wasm_put(i64 %t424, i64 66)
-    %t425 = load i64, i64* %out.1
-    call void @wasm_put_sleb(i64 %t425, i64 0)
-    ret void
-L135:
-    %t426 = load i64, i64* %expr.0
-    %t427 = call i64 @call_expr_arg_count(i64 %t426)
-    %t428 = load i64, i64* %index.15
-    %t429 = call i8* @wasm_func_decl_by_index(i64 %t428)
-    %t430 = ptrtoint i8* %t429 to i64
-    %t431 = call i64 @func_decl_param_count(i64 %t430)
-    %t433 = icmp ne i64 %t427, %t431
-    %t432 = zext i1 %t433 to i64
-    %t434 = icmp ne i64 %t432, 0
-    br i1 %t434, label %L136, label %L138
+    %t425 = load i64, i64* %callee.14
+    %t426 = call i8* @ident_expr_name(i64 %t425)
+    %t427 = ptrtoint i8* %t426 to i64
+    %t428 = load i64, i64* %callee.14
+    %t429 = call i64 @ident_expr_name_len(i64 %t428)
+    %t430 = call i64 @wasm_find_func(i64 %t427, i64 %t429)
+    %t432 = icmp sge i64 %t430, 0
+    %t431 = zext i1 %t432 to i64
+    %t433 = icmp ne i64 %t431, 0
+    br i1 %t433, label %L136, label %L137
 L136:
-    %t435 = ptrtoint i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str876, i64 0, i64 0) to i64
+    %t434 = ptrtoint i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str875, i64 0, i64 0) to i64
+    call void @wasm_error(i64 %t434)
+    br label %L138
+L137:
+    %t435 = ptrtoint i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str876, i64 0, i64 0) to i64
     call void @wasm_error(i64 %t435)
+    br label %L138
+L138:
     %t436 = load i64, i64* %out.1
     call void @wasm_put(i64 %t436, i64 66)
     %t437 = load i64, i64* %out.1
     call void @wasm_put_sleb(i64 %t437, i64 0)
     ret void
-L138:
+L135:
     %args.16 = alloca i64
     %t438 = load i64, i64* %expr.0
     %t439 = call i8* @call_expr_args(i64 %t438)
@@ -65371,22 +65541,24 @@ L6:
     %t29 = ptrtoint i8* %t28 to i64
     %t30 = load i64, i64* %callee.1
     %t31 = call i64 @ident_expr_name_len(i64 %t30)
-    %t32 = call i64 @wasm_find_func(i64 %t29, i64 %t31)
-    store i64 %t32, i64* %index.2
-    %t33 = load i64, i64* %index.2
-    %t35 = icmp sge i64 %t33, 0
-    %t34 = zext i1 %t35 to i64
-    %t36 = icmp ne i64 %t34, 0
-    br i1 %t36, label %L11, label %L13
+    %t32 = load i64, i64* %expr.0
+    %t33 = call i64 @call_expr_arg_count(i64 %t32)
+    %t34 = call i64 @wasm_find_func_arity(i64 %t29, i64 %t31, i64 %t33)
+    store i64 %t34, i64* %index.2
+    %t35 = load i64, i64* %index.2
+    %t37 = icmp sge i64 %t35, 0
+    %t36 = zext i1 %t37 to i64
+    %t38 = icmp ne i64 %t36, 0
+    br i1 %t38, label %L11, label %L13
 L11:
-    %t37 = load i64, i64* %index.2
-    %t38 = call i8* @wasm_func_decl_by_index(i64 %t37)
-    %t39 = ptrtoint i8* %t38 to i64
-    %t40 = call i8* @func_decl_ret_type(i64 %t39)
+    %t39 = load i64, i64* %index.2
+    %t40 = call i8* @wasm_func_decl_by_index(i64 %t39)
     %t41 = ptrtoint i8* %t40 to i64
-    %t42 = call i64 @wasm_type_is_void(i64 %t41)
-    %t43 = sub i64 1, %t42
-    ret i64 %t43
+    %t42 = call i8* @func_decl_ret_type(i64 %t41)
+    %t43 = ptrtoint i8* %t42 to i64
+    %t44 = call i64 @wasm_type_is_void(i64 %t43)
+    %t45 = sub i64 1, %t44
+    ret i64 %t45
 L13:
     br label %L8
 L8:
@@ -66351,213 +66523,215 @@ L6:
     %t30 = ptrtoint i8* %t29 to i64
     %t31 = load i64, i64* %callee.2
     %t32 = call i64 @ident_expr_name_len(i64 %t31)
-    %t33 = call i64 @wasm_find_func(i64 %t30, i64 %t32)
-    store i64 %t33, i64* %index.3
-    %t34 = load i64, i64* %index.3
-    %t36 = icmp sge i64 %t34, 0
-    %t35 = zext i1 %t36 to i64
-    %t37 = icmp ne i64 %t35, 0
-    br i1 %t37, label %L11, label %L13
+    %t33 = load i64, i64* %expr.0
+    %t34 = call i64 @call_expr_arg_count(i64 %t33)
+    %t35 = call i64 @wasm_find_func_arity(i64 %t30, i64 %t32, i64 %t34)
+    store i64 %t35, i64* %index.3
+    %t36 = load i64, i64* %index.3
+    %t38 = icmp sge i64 %t36, 0
+    %t37 = zext i1 %t38 to i64
+    %t39 = icmp ne i64 %t37, 0
+    br i1 %t39, label %L11, label %L13
 L11:
-    %t38 = load i64, i64* %index.3
-    call void @wasm_mark_function(i64 %t38)
+    %t40 = load i64, i64* %index.3
+    call void @wasm_mark_function(i64 %t40)
     br label %L13
 L13:
     br label %L8
 L8:
     %args.4 = alloca i64
-    %t39 = load i64, i64* %expr.0
-    %t40 = call i8* @call_expr_args(i64 %t39)
-    %t41 = ptrtoint i8* %t40 to i64
-    store i64 %t41, i64* %args.4
+    %t41 = load i64, i64* %expr.0
+    %t42 = call i8* @call_expr_args(i64 %t41)
+    %t43 = ptrtoint i8* %t42 to i64
+    store i64 %t43, i64* %args.4
     %i.5 = alloca i64
     store i64 0, i64* %i.5
     br label %L14
 L14:
-    %t42 = load i64, i64* %i.5
-    %t43 = load i64, i64* %expr.0
-    %t44 = call i64 @call_expr_arg_count(i64 %t43)
-    %t46 = icmp slt i64 %t42, %t44
-    %t45 = zext i1 %t46 to i64
-    %t47 = icmp ne i64 %t45, 0
-    br i1 %t47, label %L15, label %L16
+    %t44 = load i64, i64* %i.5
+    %t45 = load i64, i64* %expr.0
+    %t46 = call i64 @call_expr_arg_count(i64 %t45)
+    %t48 = icmp slt i64 %t44, %t46
+    %t47 = zext i1 %t48 to i64
+    %t49 = icmp ne i64 %t47, 0
+    br i1 %t49, label %L15, label %L16
 L15:
     %p.6 = alloca i64
-    %t48 = load i64, i64* %args.4
-    %t49 = load i64, i64* %i.5
-    %t50 = mul i64 %t49, 8
-    %t51 = add i64 %t48, %t50
-    store i64 %t51, i64* %p.6
-    %t52 = load i64, i64* %p.6
-    %t54 = inttoptr i64 %t52 to i64*
-    %t53 = load i64, i64* %t54
-    call void @wasm_mark_expr(i64 %t53)
-    %t55 = load i64, i64* %i.5
-    %t56 = add i64 %t55, 1
-    store i64 %t56, i64* %i.5
+    %t50 = load i64, i64* %args.4
+    %t51 = load i64, i64* %i.5
+    %t52 = mul i64 %t51, 8
+    %t53 = add i64 %t50, %t52
+    store i64 %t53, i64* %p.6
+    %t54 = load i64, i64* %p.6
+    %t56 = inttoptr i64 %t54 to i64*
+    %t55 = load i64, i64* %t56
+    call void @wasm_mark_expr(i64 %t55)
+    %t57 = load i64, i64* %i.5
+    %t58 = add i64 %t57, 1
+    store i64 %t58, i64* %i.5
     br label %L14
 L16:
     ret void
 L5:
-    %t57 = load i64, i64* %kind.1
-    %t58 = load i64, i64* @NODE_BINARY_EXPR
-    %t60 = icmp eq i64 %t57, %t58
-    %t59 = zext i1 %t60 to i64
-    %t61 = icmp ne i64 %t59, 0
-    br i1 %t61, label %L17, label %L18
+    %t59 = load i64, i64* %kind.1
+    %t60 = load i64, i64* @NODE_BINARY_EXPR
+    %t62 = icmp eq i64 %t59, %t60
+    %t61 = zext i1 %t62 to i64
+    %t63 = icmp ne i64 %t61, 0
+    br i1 %t63, label %L17, label %L18
 L17:
-    %t62 = load i64, i64* %expr.0
-    %t63 = call i8* @binary_expr_left(i64 %t62)
-    %t64 = ptrtoint i8* %t63 to i64
-    call void @wasm_mark_expr(i64 %t64)
-    %t65 = load i64, i64* %expr.0
-    %t66 = call i8* @binary_expr_right(i64 %t65)
-    %t67 = ptrtoint i8* %t66 to i64
-    call void @wasm_mark_expr(i64 %t67)
+    %t64 = load i64, i64* %expr.0
+    %t65 = call i8* @binary_expr_left(i64 %t64)
+    %t66 = ptrtoint i8* %t65 to i64
+    call void @wasm_mark_expr(i64 %t66)
+    %t67 = load i64, i64* %expr.0
+    %t68 = call i8* @binary_expr_right(i64 %t67)
+    %t69 = ptrtoint i8* %t68 to i64
+    call void @wasm_mark_expr(i64 %t69)
     br label %L19
 L18:
-    %t68 = load i64, i64* %kind.1
-    %t69 = load i64, i64* @NODE_UNARY_EXPR
-    %t71 = icmp eq i64 %t68, %t69
-    %t70 = zext i1 %t71 to i64
-    %t72 = icmp ne i64 %t70, 0
-    br i1 %t72, label %L20, label %L21
+    %t70 = load i64, i64* %kind.1
+    %t71 = load i64, i64* @NODE_UNARY_EXPR
+    %t73 = icmp eq i64 %t70, %t71
+    %t72 = zext i1 %t73 to i64
+    %t74 = icmp ne i64 %t72, 0
+    br i1 %t74, label %L20, label %L21
 L20:
-    %t73 = load i64, i64* %expr.0
-    %t74 = call i8* @unary_expr_expr(i64 %t73)
-    %t75 = ptrtoint i8* %t74 to i64
-    call void @wasm_mark_expr(i64 %t75)
+    %t75 = load i64, i64* %expr.0
+    %t76 = call i8* @unary_expr_expr(i64 %t75)
+    %t77 = ptrtoint i8* %t76 to i64
+    call void @wasm_mark_expr(i64 %t77)
     br label %L22
 L21:
-    %t76 = load i64, i64* %kind.1
-    %t77 = load i64, i64* @NODE_GROUP_EXPR
-    %t79 = icmp eq i64 %t76, %t77
-    %t78 = zext i1 %t79 to i64
-    %t80 = icmp ne i64 %t78, 0
-    br i1 %t80, label %L23, label %L24
+    %t78 = load i64, i64* %kind.1
+    %t79 = load i64, i64* @NODE_GROUP_EXPR
+    %t81 = icmp eq i64 %t78, %t79
+    %t80 = zext i1 %t81 to i64
+    %t82 = icmp ne i64 %t80, 0
+    br i1 %t82, label %L23, label %L24
 L23:
-    %t81 = load i64, i64* %expr.0
-    %t82 = call i8* @group_expr_expr(i64 %t81)
-    %t83 = ptrtoint i8* %t82 to i64
-    call void @wasm_mark_expr(i64 %t83)
+    %t83 = load i64, i64* %expr.0
+    %t84 = call i8* @group_expr_expr(i64 %t83)
+    %t85 = ptrtoint i8* %t84 to i64
+    call void @wasm_mark_expr(i64 %t85)
     br label %L25
 L24:
-    %t84 = load i64, i64* %kind.1
-    %t85 = load i64, i64* @NODE_CAST_EXPR
-    %t87 = icmp eq i64 %t84, %t85
-    %t86 = zext i1 %t87 to i64
-    %t88 = icmp ne i64 %t86, 0
-    br i1 %t88, label %L26, label %L27
+    %t86 = load i64, i64* %kind.1
+    %t87 = load i64, i64* @NODE_CAST_EXPR
+    %t89 = icmp eq i64 %t86, %t87
+    %t88 = zext i1 %t89 to i64
+    %t90 = icmp ne i64 %t88, 0
+    br i1 %t90, label %L26, label %L27
 L26:
-    %t89 = load i64, i64* %expr.0
-    %t90 = call i8* @cast_expr_expr(i64 %t89)
-    %t91 = ptrtoint i8* %t90 to i64
-    call void @wasm_mark_expr(i64 %t91)
+    %t91 = load i64, i64* %expr.0
+    %t92 = call i8* @cast_expr_expr(i64 %t91)
+    %t93 = ptrtoint i8* %t92 to i64
+    call void @wasm_mark_expr(i64 %t93)
     br label %L28
 L27:
-    %t92 = load i64, i64* %kind.1
-    %t93 = load i64, i64* @NODE_BITCAST_EXPR
-    %t95 = icmp eq i64 %t92, %t93
-    %t94 = zext i1 %t95 to i64
-    %t96 = icmp ne i64 %t94, 0
-    br i1 %t96, label %L29, label %L30
+    %t94 = load i64, i64* %kind.1
+    %t95 = load i64, i64* @NODE_BITCAST_EXPR
+    %t97 = icmp eq i64 %t94, %t95
+    %t96 = zext i1 %t97 to i64
+    %t98 = icmp ne i64 %t96, 0
+    br i1 %t98, label %L29, label %L30
 L29:
-    %t97 = load i64, i64* %expr.0
-    %t98 = call i8* @bitcast_expr_expr(i64 %t97)
-    %t99 = ptrtoint i8* %t98 to i64
-    call void @wasm_mark_expr(i64 %t99)
+    %t99 = load i64, i64* %expr.0
+    %t100 = call i8* @bitcast_expr_expr(i64 %t99)
+    %t101 = ptrtoint i8* %t100 to i64
+    call void @wasm_mark_expr(i64 %t101)
     br label %L31
 L30:
-    %t100 = load i64, i64* %kind.1
-    %t101 = load i64, i64* @NODE_INDEX_EXPR
-    %t103 = icmp eq i64 %t100, %t101
-    %t102 = zext i1 %t103 to i64
-    %t104 = icmp ne i64 %t102, 0
-    br i1 %t104, label %L32, label %L33
+    %t102 = load i64, i64* %kind.1
+    %t103 = load i64, i64* @NODE_INDEX_EXPR
+    %t105 = icmp eq i64 %t102, %t103
+    %t104 = zext i1 %t105 to i64
+    %t106 = icmp ne i64 %t104, 0
+    br i1 %t106, label %L32, label %L33
 L32:
-    %t105 = load i64, i64* %expr.0
-    %t106 = call i8* @index_expr_base(i64 %t105)
-    %t107 = ptrtoint i8* %t106 to i64
-    call void @wasm_mark_expr(i64 %t107)
-    %t108 = load i64, i64* %expr.0
-    %t109 = call i8* @index_expr_index(i64 %t108)
-    %t110 = ptrtoint i8* %t109 to i64
-    call void @wasm_mark_expr(i64 %t110)
+    %t107 = load i64, i64* %expr.0
+    %t108 = call i8* @index_expr_base(i64 %t107)
+    %t109 = ptrtoint i8* %t108 to i64
+    call void @wasm_mark_expr(i64 %t109)
+    %t110 = load i64, i64* %expr.0
+    %t111 = call i8* @index_expr_index(i64 %t110)
+    %t112 = ptrtoint i8* %t111 to i64
+    call void @wasm_mark_expr(i64 %t112)
     br label %L34
 L33:
-    %t111 = load i64, i64* %kind.1
-    %t112 = load i64, i64* @NODE_FIELD_EXPR
-    %t114 = icmp eq i64 %t111, %t112
-    %t113 = zext i1 %t114 to i64
-    %t115 = icmp ne i64 %t113, 0
-    br i1 %t115, label %L35, label %L36
+    %t113 = load i64, i64* %kind.1
+    %t114 = load i64, i64* @NODE_FIELD_EXPR
+    %t116 = icmp eq i64 %t113, %t114
+    %t115 = zext i1 %t116 to i64
+    %t117 = icmp ne i64 %t115, 0
+    br i1 %t117, label %L35, label %L36
 L35:
-    %t116 = load i64, i64* %expr.0
-    %t117 = call i8* @field_expr_expr(i64 %t116)
-    %t118 = ptrtoint i8* %t117 to i64
-    call void @wasm_mark_expr(i64 %t118)
+    %t118 = load i64, i64* %expr.0
+    %t119 = call i8* @field_expr_expr(i64 %t118)
+    %t120 = ptrtoint i8* %t119 to i64
+    call void @wasm_mark_expr(i64 %t120)
     br label %L37
 L36:
-    %t119 = load i64, i64* %kind.1
-    %t120 = load i64, i64* @NODE_LET_EXPR
-    %t122 = icmp eq i64 %t119, %t120
-    %t121 = zext i1 %t122 to i64
-    %t123 = icmp ne i64 %t121, 0
-    br i1 %t123, label %L38, label %L39
+    %t121 = load i64, i64* %kind.1
+    %t122 = load i64, i64* @NODE_LET_EXPR
+    %t124 = icmp eq i64 %t121, %t122
+    %t123 = zext i1 %t124 to i64
+    %t125 = icmp ne i64 %t123, 0
+    br i1 %t125, label %L38, label %L39
 L38:
-    %t124 = load i64, i64* %expr.0
-    %t125 = call i8* @let_expr_init(i64 %t124)
-    %t126 = ptrtoint i8* %t125 to i64
-    call void @wasm_mark_expr(i64 %t126)
-    %t127 = load i64, i64* %expr.0
-    %t128 = call i8* @let_expr_body(i64 %t127)
-    %t129 = ptrtoint i8* %t128 to i64
-    call void @wasm_mark_expr(i64 %t129)
+    %t126 = load i64, i64* %expr.0
+    %t127 = call i8* @let_expr_init(i64 %t126)
+    %t128 = ptrtoint i8* %t127 to i64
+    call void @wasm_mark_expr(i64 %t128)
+    %t129 = load i64, i64* %expr.0
+    %t130 = call i8* @let_expr_body(i64 %t129)
+    %t131 = ptrtoint i8* %t130 to i64
+    call void @wasm_mark_expr(i64 %t131)
     br label %L40
 L39:
-    %t130 = load i64, i64* %kind.1
-    %t131 = load i64, i64* @NODE_BLOCK_EXPR
-    %t133 = icmp eq i64 %t130, %t131
-    %t132 = zext i1 %t133 to i64
-    %t134 = icmp ne i64 %t132, 0
-    br i1 %t134, label %L41, label %L43
+    %t132 = load i64, i64* %kind.1
+    %t133 = load i64, i64* @NODE_BLOCK_EXPR
+    %t135 = icmp eq i64 %t132, %t133
+    %t134 = zext i1 %t135 to i64
+    %t136 = icmp ne i64 %t134, 0
+    br i1 %t136, label %L41, label %L43
 L41:
     %stmts.7 = alloca i64
-    %t135 = load i64, i64* %expr.0
-    %t136 = call i8* @block_expr_stmts(i64 %t135)
-    %t137 = ptrtoint i8* %t136 to i64
-    store i64 %t137, i64* %stmts.7
+    %t137 = load i64, i64* %expr.0
+    %t138 = call i8* @block_expr_stmts(i64 %t137)
+    %t139 = ptrtoint i8* %t138 to i64
+    store i64 %t139, i64* %stmts.7
     %i.8 = alloca i64
     store i64 0, i64* %i.8
     br label %L44
 L44:
-    %t138 = load i64, i64* %i.8
-    %t139 = load i64, i64* %expr.0
-    %t140 = call i64 @block_expr_count(i64 %t139)
-    %t142 = icmp slt i64 %t138, %t140
-    %t141 = zext i1 %t142 to i64
-    %t143 = icmp ne i64 %t141, 0
-    br i1 %t143, label %L45, label %L46
+    %t140 = load i64, i64* %i.8
+    %t141 = load i64, i64* %expr.0
+    %t142 = call i64 @block_expr_count(i64 %t141)
+    %t144 = icmp slt i64 %t140, %t142
+    %t143 = zext i1 %t144 to i64
+    %t145 = icmp ne i64 %t143, 0
+    br i1 %t145, label %L45, label %L46
 L45:
     %p.9 = alloca i64
-    %t144 = load i64, i64* %stmts.7
-    %t145 = load i64, i64* %i.8
-    %t146 = mul i64 %t145, 8
-    %t147 = add i64 %t144, %t146
-    store i64 %t147, i64* %p.9
-    %t148 = load i64, i64* %p.9
-    %t150 = inttoptr i64 %t148 to i64*
-    %t149 = load i64, i64* %t150
-    call void @wasm_mark_stmt(i64 %t149)
-    %t151 = load i64, i64* %i.8
-    %t152 = add i64 %t151, 1
-    store i64 %t152, i64* %i.8
+    %t146 = load i64, i64* %stmts.7
+    %t147 = load i64, i64* %i.8
+    %t148 = mul i64 %t147, 8
+    %t149 = add i64 %t146, %t148
+    store i64 %t149, i64* %p.9
+    %t150 = load i64, i64* %p.9
+    %t152 = inttoptr i64 %t150 to i64*
+    %t151 = load i64, i64* %t152
+    call void @wasm_mark_stmt(i64 %t151)
+    %t153 = load i64, i64* %i.8
+    %t154 = add i64 %t153, 1
+    store i64 %t154, i64* %i.8
     br label %L44
 L46:
-    %t153 = load i64, i64* %expr.0
-    %t154 = call i8* @block_expr_tail(i64 %t153)
-    %t155 = ptrtoint i8* %t154 to i64
-    call void @wasm_mark_expr(i64 %t155)
+    %t155 = load i64, i64* %expr.0
+    %t156 = call i8* @block_expr_tail(i64 %t155)
+    %t157 = ptrtoint i8* %t156 to i64
+    call void @wasm_mark_expr(i64 %t157)
     br label %L43
 L43:
     br label %L40
@@ -66822,7 +66996,7 @@ L.entry:
     store i64 %t5, i64* @wasm_import_marks
     %main_index.0 = alloca i64
     %t6 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str237, i64 0, i64 0) to i64
-    %t7 = call i64 @wasm_find_func(i64 %t6, i64 4)
+    %t7 = call i64 @wasm_find_defined_func(i64 %t6, i64 4)
     store i64 %t7, i64* %main_index.0
     %t8 = load i64, i64* %main_index.0
     %t10 = icmp slt i64 %t8, 0
@@ -67357,7 +67531,7 @@ define void @wasm_emit_export_section() {
 L.entry:
     %main_index.0 = alloca i64
     %t0 = ptrtoint i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str237, i64 0, i64 0) to i64
-    %t1 = call i64 @wasm_find_func(i64 %t0, i64 4)
+    %t1 = call i64 @wasm_find_defined_func(i64 %t0, i64 4)
     store i64 %t1, i64* %main_index.0
     %t2 = load i64, i64* %main_index.0
     %t4 = icmp slt i64 %t2, 0
@@ -84352,10 +84526,10 @@ L490:
 @.str15 = private constant [2 x i8] c"0\00"
 @.str16 = private constant [4 x i8] c"%f\0A\00"
 @.str17 = private constant [6 x i8] c"0.1.0\00"
-@.str18 = private constant [8 x i8] c"587ec51\00"
+@.str18 = private constant [8 x i8] c"8afc7da\00"
 @.str19 = private constant [6 x i8] c"arm64\00"
 @.str20 = private constant [7 x i8] c"system\00"
-@.str21 = private constant [8 x i8] c"ef84d20\00"
+@.str21 = private constant [8 x i8] c"587ec51\00"
 @.str22 = private constant [5 x i8] c"func\00"
 @.str23 = private constant [4 x i8] c"var\00"
 @.str24 = private constant [7 x i8] c"struct\00"
@@ -85209,8 +85383,8 @@ L490:
 @.str872 = private constant [55 x i8] c"pointer difference is not supported by direct wasm yet\00"
 @.str873 = private constant [43 x i8] c"unsupported binary operator in direct wasm\00"
 @.str874 = private constant [58 x i8] c"direct wasm currently supports only direct function calls\00"
-@.str875 = private constant [37 x i8] c"unknown function in direct wasm call\00"
-@.str876 = private constant [41 x i8] c"wrong argument count in direct wasm call\00"
+@.str875 = private constant [41 x i8] c"wrong argument count in direct wasm call\00"
+@.str876 = private constant [37 x i8] c"unknown function in direct wasm call\00"
 @.str877 = private constant [59 x i8] c"expression is not supported by the direct wasm backend yet\00"
 @.str878 = private constant [42 x i8] c"direct wasm cannot assign this target yet\00"
 @.str879 = private constant [50 x i8] c"unknown assignment target in direct wasm function\00"
