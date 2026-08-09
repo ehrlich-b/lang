@@ -3,6 +3,8 @@
 
 const fs = require('fs');
 const { runLangCompiler } = require('../web/compiler_host.js');
+const { runLangProgram } = require('../web/program_host.js');
+const stdlibFiles = JSON.parse(fs.readFileSync('web/stdlib.json', 'utf8'));
 
 const compilerPath = process.argv[2];
 if (!compilerPath) {
@@ -10,12 +12,12 @@ if (!compilerPath) {
   process.exit(2);
 }
 
-(async () => {
-  const source = fs.readFileSync('test/direct_wasm_e2e.lang', 'utf8');
+async function compileAndRun(sourcePath) {
+  const source = fs.readFileSync(sourcePath, 'utf8');
   const result = await runLangCompiler(
     fs.readFileSync(compilerPath),
     ['input.lang', '-o', 'output.wasm'],
-    { 'input.lang': source },
+    { ...stdlibFiles, 'input.lang': source },
     undefined,
     { LANGBE: 'wasm' },
   );
@@ -25,8 +27,65 @@ if (!compilerPath) {
   }
   const program = result.files.get('output.wasm');
   if (!program) throw new Error('compiler did not write output.wasm');
-  const built = await WebAssembly.instantiate(program, {});
-  const value = Number(built.instance.exports.main());
-  if (value !== 42) throw new Error(`expected main() to return 42, got ${value}`);
-  console.log(`PASS compiler_direct_wasm_e2e (${program.byteLength} bytes)`);
+  const ran = await runLangProgram(program);
+  return { ...ran, bytes: program.byteLength };
+}
+
+async function compileReaderPipeline() {
+  const readerSource = `${fs.readFileSync('example/tiny/tiny.lang', 'utf8')}
+func main() *u8 { return tiny("answer 42"); }
+`;
+  const readerCompile = await runLangCompiler(
+    fs.readFileSync(compilerPath),
+    ['reader.lang', '-o', 'reader.wasm'],
+    { ...stdlibFiles, 'reader.lang': readerSource },
+    undefined,
+    { LANGBE: 'wasm' },
+  );
+  if (readerCompile.exit !== 0) {
+    throw new Error(readerCompile.stderr || readerCompile.stdout || `reader compiler exit ${readerCompile.exit}`);
+  }
+  const readerProgram = readerCompile.files.get('reader.wasm');
+  if (!readerProgram) throw new Error('compiler did not write reader.wasm');
+  const readerRun = await runLangProgram(readerProgram);
+  const memory = new Uint8Array(readerRun.instance.exports.memory.buffer);
+  let end = Number(readerRun.value);
+  while (memory[end] !== 0) end++;
+  const ast = Buffer.from(memory.subarray(Number(readerRun.value), end)).toString('utf8');
+
+  const programCompile = await runLangCompiler(
+    fs.readFileSync(compilerPath),
+    ['program.ast', '--from-ast', '-o', 'program.wasm'],
+    { 'program.ast': ast },
+    undefined,
+    { LANGBE: 'wasm' },
+  );
+  if (programCompile.exit !== 0) {
+    throw new Error(programCompile.stderr || programCompile.stdout || `AST compiler exit ${programCompile.exit}`);
+  }
+  const program = programCompile.files.get('program.wasm');
+  if (!program) throw new Error('compiler did not write program.wasm');
+  return { ast, ran: await runLangProgram(program) };
+}
+
+(async () => {
+  const arithmetic = await compileAndRun('test/direct_wasm_e2e.lang');
+  if (Number(arithmetic.value) !== 42) throw new Error(`expected 42, got ${arithmetic.value}`);
+
+  const memory = await compileAndRun('test/direct_wasm_memory_e2e.lang');
+  if (Number(memory.value) !== 176) throw new Error(`expected 176, got ${memory.value}`);
+
+  const imported = await compileAndRun('test/direct_wasm_import_e2e.lang');
+  if (Number(imported.value) !== 17 || imported.stdout !== 'direct import\n') {
+    throw new Error(`direct import mismatch: value=${imported.value} stdout=${JSON.stringify(imported.stdout)}`);
+  }
+  const ast = await compileAndRun('test/direct_wasm_ast_e2e.lang');
+  if (Number(ast.value) !== 40) throw new Error(`expected AST builder to start with 40, got ${ast.value}`);
+
+  const reader = await compileReaderPipeline();
+  if (Number(reader.ran.value) !== 42 || !reader.ast.startsWith('(program ')) {
+    throw new Error(`reader pipeline mismatch: value=${reader.ran.value} ast=${reader.ast}`);
+  }
+
+  console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}; reader → ${reader.ran.value})`);
 })().catch((error) => { console.error(error); process.exit(1); });

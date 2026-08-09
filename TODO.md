@@ -51,10 +51,10 @@ can add the next one. The working path is now intentionally graduated:
 - [x] `#parser{}` rewinds failed alternatives/sequences, guards empty repetitions, and exposes furthest-token parse errors.
 - [ ] Add optional per-node source spans to the shared AST for exact custom-language semantic locations.
 - [x] Compile and run editable Lang entirely in the browser: `compiler.wasm` now emits a direct wasm binary.
-- [ ] Put an editable reader beside editable source in the browser; expand direct wasm through pointers, strings, imports, and the reader runtime first.
+- [x] Put an editable reader beside editable source in the browser; compile reader → AST → program wasm entirely in the tab.
 
-The next implementation target is the reader-capable direct wasm slice: memory,
-strings, extern imports, globals, then enough structs/arrays for AST builders.
+The next implementation target is breadth and polish: generated `#parser{}`
+readers, exact custom-source spans, and more direct-backend language coverage.
 
 ---
 
@@ -194,15 +194,20 @@ polyglot stdlib written in reader-authored *better* languages.
       modules itself: functions, i64/bool locals, arithmetic, calls, `if`,
       and `while`. The browser lab now does source → wasm → `main()` with no
       LLVM or server hop; the first e2e result is a 133-byte module.
-- [ ] **Stage C2: reader-capable direct wasm** - add memory, pointers, strings,
-      globals, imports, aggregates, and compile-time reader execution. The
-      backend rejects unsupported constructs instead of emitting invalid wasm.
+- [x] **Stage C2: reader-capable direct wasm** - writable strings, pointer
+      loads/stores, globals, host imports, structs, lexical shadowing, and
+      reachability pruning are enough to run `std/tok.lang` + `std/ast.lang`.
+      The browser lab compiles an editable reader to wasm, runs it to obtain
+      shared AST, compiles that AST to a second wasm module, then runs `main()`.
+- [ ] **Stage C3: backend breadth** - arrays, function pointers, aggregates by
+      value, floats, break/continue, and generated `#parser{}` readers. Keep
+      unsupported constructs diagnostic rather than allowing invalid modules.
 - [x] **Demo site LIVE: https://ehrlich.dev/lang/** - `web/`: compiler.wasm lab, fib, ASCII
       mandelbrot, and the FOUR-language polyglot (`example/polyglot_wasm.lang`,
       flow sits out) precompiled to wasm, run client-side by `web/host.js`.
       `web/deploy.sh` deploys (pareto-pattern VPS); the `lang.ehrlich.dev`
-      vhost and Cloudflare DNS are live. Stage C1 made the lab runnable; Stage
-      C2 upgrades it to editable reader + source -> runnable wasm.
+      vhost and Cloudflare DNS are live. Stage C2 is the editable reader +
+      source → runnable wasm lab.
 - [x] **Retire the Mandelbrot workarounds** - LLVM expression typing now follows
       literals, casts, groups, calls, and both sides of nested binary trees;
       float reassignment stores through the declared target type; `a[i] = x`

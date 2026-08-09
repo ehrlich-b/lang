@@ -1,0 +1,13 @@
+extern func malloc(size i64) *u8;
+
+struct Pair {
+    left i64;
+    right i64;
+}
+
+func main() i64 {
+    var pair *Pair = malloc(16);
+    pair.left = 19;
+    pair.right = 23;
+    return pair.left + pair.right;
+}

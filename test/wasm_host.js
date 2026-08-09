@@ -93,7 +93,32 @@ const env = {
   memset: (d, c, n) => { mem().fill(c, d, d + n); return d; },
 };
 
-WebAssembly.instantiate(bytes, { env }).then(({ instance: inst }) => {
+// The direct backend uses one canonical i64 ABI (including pointers) and puts
+// those imports in a separate namespace. LLVM-generated modules keep their
+// native wasm32 pointer signatures under env.
+const lang = {
+  ...env,
+  mmap: (addr, len) => BigInt(bump(len)),
+  malloc: (size) => BigInt(bump(size)),
+  calloc: (n, size) => BigInt(bump(Number(n) * Number(size))),
+  getenv: () => 0n,
+  memcpy: (d, s, n) => {
+    const dst = Number(d), src = Number(s), count = Number(n);
+    mem().copyWithin(dst, src, src + count);
+    return d;
+  },
+  memmove: (d, s, n) => {
+    const dst = Number(d), src = Number(s), count = Number(n);
+    mem().copyWithin(dst, src, src + count);
+    return d;
+  },
+  memset: (d, c, n) => {
+    mem().fill(Number(c), Number(d), Number(d) + Number(n));
+    return d;
+  },
+};
+
+WebAssembly.instantiate(bytes, { env, lang }).then(({ instance: inst }) => {
   instance = inst;
   try {
     if (instance.exports.__wasm_call_ctors) instance.exports.__wasm_call_ctors();

@@ -65,6 +65,9 @@ Start with the copyable [reader guide](./docs/READERS.md), grow into the small
 [precedence parser](./example/calc/calc.lang), then steal from the shipped
 examples below.
 
+Or [write and run a reader in the browser](https://lang.ehrlich.dev/lab.html).
+The reader, generated AST, compiler, and output program all stay in the tab.
+
 ## Shipped readers, one binary
 
 A reader parses its own surface syntax and emits lang AST. The kernel compiles whatever any reader emits, so several readers can share one program — and because they all lower to the same AST, they share one calling convention. They call each other directly at the machine level. No FFI, no interpreter, no glue.

@@ -1,0 +1,6 @@
+include "example/tiny/tiny.lang"
+
+func main() i64 {
+    var output *u8 = tiny("answer 42");
+    return *output;
+}

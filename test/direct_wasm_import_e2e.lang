@@ -1,0 +1,8 @@
+extern func write(fd i64, buf *u8, count i64) i64;
+
+var message *u8 = "direct import\n";
+
+func main() i64 {
+    write(1, message, 14);
+    return 17;
+}

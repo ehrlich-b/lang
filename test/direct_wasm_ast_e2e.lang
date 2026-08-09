@@ -1,0 +1,6 @@
+include "std/ast.lang"
+
+func main() i64 {
+    var node *u8 = ast_number("42");
+    return *node;
+}

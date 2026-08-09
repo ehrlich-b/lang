@@ -8,98 +8,157 @@
   :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#c9d1d9; --dim:#8b949e; --green:#7ee787; --blue:#79c0ff; --warn:#ffa657; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
-  main { max-width:1050px; margin:auto; padding:2rem 1rem; }
+  main { max-width:1120px; margin:auto; padding:1.5rem 1rem; }
   a { color:var(--blue); }
   h1 { color:var(--green); margin:.5rem 0 0; font-size:1.8rem; }
   p { color:var(--dim); margin:.3rem 0 1.2rem; }
-  .lab { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--border); border-radius:7px; overflow:hidden; background:var(--panel); }
+  .lab { display:grid; grid-template-columns:1.35fr .65fr; border:1px solid var(--border); border-radius:7px; overflow:hidden; background:var(--panel); }
   .pane + .pane { border-left:1px solid var(--border); }
   .head { height:42px; display:flex; align-items:center; justify-content:space-between; padding:0 .8rem; border-bottom:1px solid var(--border); color:var(--dim); }
-  textarea, pre { width:100%; height:310px; margin:0; padding:.8rem; border:0; background:var(--panel); color:var(--text); font:13px/1.45 inherit; resize:none; overflow:auto; tab-size:4; }
+  textarea, pre { width:100%; height:350px; margin:0; padding:.8rem; border:0; background:var(--panel); color:var(--text); font:13px/1.45 inherit; resize:none; overflow:auto; tab-size:4; }
+  #custom-source { height:82px; border-bottom:1px solid var(--border); }
+  #output { height:226px; white-space:pre-wrap; }
   textarea:focus { outline:1px solid var(--blue); outline-offset:-1px; }
   pre { white-space:pre; }
   button { border:0; border-radius:5px; padding:.3rem .8rem; color:#04260f; background:var(--green); font:inherit; font-weight:bold; cursor:pointer; }
   button:disabled { opacity:.5; cursor:wait; }
   .ok { color:var(--green); } .bad { color:var(--warn); }
   .note { font-size:.85rem; margin-top:.8rem; }
-  @media (max-width:760px) { .lab { grid-template-columns:1fr; } .pane + .pane { border-left:0; border-top:1px solid var(--border); } textarea, pre { height:230px; } }
+  @media (max-width:760px) { .lab { grid-template-columns:1fr; } .pane + .pane { border-left:0; border-top:1px solid var(--border); } #reader { height:300px; } }
 </style>
 </head>
 <body><main>
   <a href="./">&larr; lang</a>
-  <h1>compiler.wasm</h1>
-  <p>Edit Lang. Its wasm compiler builds and runs your program in this tab.</p>
+  <h1>write a language</h1>
+  <p>A compiler compiler turns your parser into a compiler. Edit the reader; lang compiles its AST to wasm.</p>
 
   <div class="lab">
     <section class="pane">
-      <div class="head"><span>input.lang</span><button id="compile">compile + run</button></div>
-      <textarea id="source" spellcheck="false">func square(n i64) i64 {
-    return n * n;
-}
+      <div class="head"><span>reader.lang</span><button id="compile">build + run</button></div>
+      <textarea id="reader" spellcheck="false">include "std/tok.lang"
+include "std/ast.lang"
 
-func main() i64 {
-    var n i64 = 3;
-    while n < 7 {
-        n = n + 1;
+reader read(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    if tok_kind(tokens) != TOK_IDENT ||
+       !streq(tok_text(tokens), "answer") {
+        return nil;
     }
-    return square(n);
+    tok_next(tokens);
+    if tok_kind(tokens) != TOK_NUMBER { return nil; }
+
+    var body *u8 = ast_block1(
+        ast_return(ast_number(tok_text(tokens)))
+    );
+    return ast_program1(
+        ast_func("main", ast_vec(), ast_type_i64(), body)
+    );
 }
 </textarea>
     </section>
     <section class="pane">
-      <div class="head"><span>result</span><span id="status">loading compiler…</span></div>
-      <pre id="output"></pre>
+      <div class="head"><span>source.read</span><span id="status">loading…</span></div>
+      <textarea id="custom-source" spellcheck="false">answer 42</textarea>
+      <div class="head"><span>result</span></div>
+      <pre id="output">Your reader must be named read.</pre>
     </section>
   </div>
-  <p class="note">First backend slice: i64/bool functions, locals, calls, <code>if</code>, and <code>while</code>. Reader programs are next.</p>
+  <p class="note">reader → shared AST → direct wasm. Both compilers and both programs run locally.</p>
 </main>
 <script src="compiler_host.js"></script>
+<script src="program_host.js"></script>
 <script>
 let compilerBytes;
+let stdlibFiles;
 const button = document.getElementById('compile');
-const source = document.getElementById('source');
+const reader = document.getElementById('reader');
+const customSource = document.getElementById('custom-source');
 const output = document.getElementById('output');
 const status = document.getElementById('status');
 
-fetch('compiler.wasm').then(r => {
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.arrayBuffer();
-}).then(bytes => {
-  compilerBytes = bytes;
-  status.innerHTML = '<span class="ok">ready · ' + Math.round(bytes.byteLength / 1024) + ' KiB</span>';
+Promise.all([
+  fetch('compiler.wasm').then(r => {
+    if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
+    return r.arrayBuffer();
+  }),
+  fetch('stdlib.json').then(r => {
+    if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
+    return r.json();
+  }),
+]).then(([compiler, stdlib]) => {
+  compilerBytes = compiler;
+  stdlibFiles = stdlib;
+  status.innerHTML = '<span class="ok">ready</span>';
 }).catch(error => {
   status.innerHTML = '<span class="bad">load failed</span>';
   output.textContent = String(error);
 });
 
+function langString(text) {
+  return `"${text
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"')
+    .replaceAll('\n', '\\n')
+    .replaceAll('\r', '\\r')
+    .replaceAll('\t', '\\t')}"`;
+}
+
+function readCString(instance, pointer) {
+  const memory = new Uint8Array(instance.exports.memory.buffer);
+  const start = Number(pointer);
+  let end = start;
+  while (end < memory.length && memory[end] !== 0) end++;
+  return new TextDecoder().decode(memory.subarray(start, end));
+}
+
+async function compile(args, files) {
+  const result = await runLangCompiler(
+    compilerBytes, args, files, undefined, { LANGBE: 'wasm' },
+  );
+  if (result.exit !== 0) {
+    throw new Error(result.stderr || result.stdout || `compiler exit ${result.exit}`);
+  }
+  return result;
+}
+
 button.onclick = async () => {
-  if (!compilerBytes) return;
+  if (!compilerBytes || !stdlibFiles) return;
   button.disabled = true;
-  status.textContent = 'compiling…';
+  status.textContent = 'building reader…';
   output.textContent = '';
   const started = performance.now();
   try {
-    const result = await runLangCompiler(
-      compilerBytes,
-      ['input.lang', '-o', 'output.wasm'],
-      { 'input.lang': source.value },
-      undefined,
-      { LANGBE: 'wasm' },
+    const harness = `${reader.value}\nfunc main() *u8 { return read(${langString(customSource.value)}); }\n`;
+    const readerBuild = await compile(
+      ['reader.lang', '-o', 'reader.wasm'],
+      { ...stdlibFiles, 'reader.lang': harness },
     );
-    const elapsed = Math.round(performance.now() - started);
-    const program = result.files.get('output.wasm');
-    if (result.exit === 0 && program) {
-      const built = await WebAssembly.instantiate(program, {});
-      const value = built.instance.exports.main();
-      output.textContent = `main() → ${value}\n\n${program.byteLength} byte wasm module`;
-      status.innerHTML = `<span class="ok">ran · ${elapsed}ms</span>`;
-    } else {
-      output.textContent = result.stderr || result.stdout || `compiler exit ${result.exit}`;
-      status.innerHTML = `<span class="bad">failed · ${elapsed}ms</span>`;
+    const readerProgram = readerBuild.files.get('reader.wasm');
+    if (!readerProgram) throw new Error('reader compiler wrote no module');
+
+    status.textContent = 'running reader…';
+    const readerRun = await runLangProgram(readerProgram);
+    if (readerRun.value === 0n) {
+      throw new Error(readerRun.stderr || readerRun.stdout || 'reader returned nil');
     }
+    const ast = readCString(readerRun.instance, readerRun.value);
+
+    status.textContent = 'compiling AST…';
+    const programBuild = await compile(
+      ['program.ast', '--from-ast', '-o', 'program.wasm'],
+      { 'program.ast': ast },
+    );
+    const program = programBuild.files.get('program.wasm');
+    if (!program) throw new Error('kernel wrote no module');
+    const ran = await runLangProgram(program);
+    const elapsed = Math.round(performance.now() - started);
+    const astPreview = ast.length > 320 ? `${ast.slice(0, 320)}…` : ast;
+    const printed = ran.stdout || ran.stderr;
+    output.textContent = `${printed ? printed + '\n' : ''}main() → ${ran.value}\n\nAST\n${astPreview}`;
+    status.innerHTML = `<span class="ok">ran · ${elapsed}ms</span>`;
   } catch (error) {
-    output.textContent = String(error);
-    status.innerHTML = '<span class="bad">host error</span>';
+    output.textContent = String(error).replace(/^Error: /, '');
+    status.innerHTML = '<span class="bad">failed</span>';
   }
   button.disabled = false;
 };

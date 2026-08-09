@@ -118,8 +118,11 @@ source file, with no host filesystem access:
 `web/compiler_host.js` supplies argv, environment variables, allocation, and an
 in-memory filesystem. The end-to-end test exercises both compiler paths: LLVM
 IR for the mature backend and a directly emitted wasm module for the browser
-lab. Direct wasm currently covers i64/bool functions, locals, calls, `if`,
-and `while`; unsupported features fail with compiler diagnostics.
+lab. Direct wasm covers the scalar control-flow core plus strings, pointers,
+globals, host imports, heap-backed structs, source includes, and dead-function
+pruning. That is enough for the browser E2E to run `std/tok.lang` and
+`std/ast.lang`: reader source → shared AST → program wasm → `main()`. Unsupported
+features still fail with compiler diagnostics.
 
 Test a candidate compiler without promoting it:
 

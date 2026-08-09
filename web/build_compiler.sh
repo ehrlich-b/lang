@@ -21,6 +21,8 @@ restore_os() { echo "$OS_LANG_ORIG" > std/os.lang; }
 trap restore_os EXIT
 echo 'include "std/os/libc.lang"' > std/os.lang
 
+node web/build_stdlib.js
+
 tmp=$(mktemp -d)
 trap 'restore_os; rm -rf "$tmp"' EXIT
 LANGOS=wasm LANGBE=llvm "$COMPILER" \

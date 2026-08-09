@@ -1,9 +1,9 @@
 // src/codegen_wasm.lang - direct WebAssembly binary backend
 //
 // This intentionally begins as a narrow, executable backend rather than a
-// second textual lowering. Its first slice covers word-sized functions,
-// locals, arithmetic, calls, if, and while. Unsupported language features
-// fail closed with source-aware diagnostics while the slice grows.
+// second textual lowering. The reader-capable slice covers scalar functions,
+// structured control flow, strings, pointers, globals, imports, and structs.
+// Unsupported language features fail closed with source-aware diagnostics.
 
 struct WasmBuf {
     data *u8;
@@ -15,14 +15,30 @@ var wasm_module *WasmBuf = nil;
 var wasm_section *WasmBuf = nil;
 var wasm_body *WasmBuf = nil;
 
-var wasm_funcs *u8 = nil;       // declaration pointers
+var wasm_funcs *u8 = nil;       // definition declaration pointers
 var wasm_func_count i64 = 0;
-var wasm_locals *u8 = nil;      // [name:8][len:8][index:8]
+var wasm_imports *u8 = nil;     // extern function declaration pointers
+var wasm_import_count i64 = 0;
+var wasm_func_marks *u8 = nil;
+var wasm_import_marks *u8 = nil;
+var wasm_globals *u8 = nil;     // global variable declaration pointers
+var wasm_global_count i64 = 0;
+var wasm_structs *u8 = nil;     // struct declaration pointers
+var wasm_struct_count i64 = 0;
+var wasm_strings *u8 = nil;     // [data:8][len:8][offset:8]
+var wasm_string_count i64 = 0;
+var wasm_data_end i64 = 1024;
+var wasm_locals *u8 = nil;      // [name:8][len:8][index:8][type:8][decl:8]
 var wasm_local_count i64 = 0;
 var wasm_param_count i64 = 0;
+var wasm_bindings *u8 = nil;    // active [name:8][len:8][local index:8]
+var wasm_binding_count i64 = 0;
 var wasm_had_error i64 = 0;
 var wasm_current_decl *u8 = nil;
 var wasm_included_files *u8 = nil;
+var wasm_i64_type *u8 = nil;
+var wasm_u8_type *u8 = nil;
+var wasm_u8_ptr_type *u8 = nil;
 
 func wasm_buf_new(cap i64) *WasmBuf {
     var b *WasmBuf = alloc(24);
@@ -110,8 +126,10 @@ func wasm_type_is_void(t *u8) i64 {
     return wasm_name_eq(base_type_name(t), base_type_name_len(t), "void", 4);
 }
 
-func wasm_type_is_word(t *u8) i64 {
-    if t == nil || type_kind(t) != TYPE_BASE { return 0; }
+func wasm_type_is_value(t *u8) i64 {
+    if t == nil { return 0; }
+    if type_kind(t) == TYPE_PTR { return 1; }
+    if type_kind(t) != TYPE_BASE { return 0; }
     var name *u8 = base_type_name(t);
     var len i64 = base_type_name_len(t);
     if wasm_name_eq(name, len, "i64", 3) != 0 { return 1; }
@@ -119,68 +137,233 @@ func wasm_type_is_word(t *u8) i64 {
     return 0;
 }
 
+func wasm_type_size(t *u8) i64 {
+    if t == nil { return 8; }
+    if type_kind(t) == TYPE_PTR { return 8; }
+    if type_kind(t) != TYPE_BASE { return 8; }
+    var name *u8 = base_type_name(t);
+    var len i64 = base_type_name_len(t);
+    if wasm_name_eq(name, len, "i8", 2) != 0 || wasm_name_eq(name, len, "u8", 2) != 0 ||
+       wasm_name_eq(name, len, "bool", 4) != 0 { return 1; }
+    if wasm_name_eq(name, len, "i16", 3) != 0 || wasm_name_eq(name, len, "u16", 3) != 0 { return 2; }
+    if wasm_name_eq(name, len, "i32", 3) != 0 || wasm_name_eq(name, len, "u32", 3) != 0 { return 4; }
+    var struct_decl *u8 = wasm_find_struct(name, len);
+    if struct_decl != nil { return wasm_struct_size(struct_decl); }
+    return 8;
+}
+
+func wasm_find_struct(name *u8, name_len i64) *u8 {
+    var i i64 = 0;
+    while i < wasm_struct_count {
+        var p **u8 = wasm_structs + i * 8;
+        var decl *u8 = *p;
+        if wasm_name_eq(struct_decl_name(decl), struct_decl_name_len(decl), name, name_len) != 0 {
+            return decl;
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
+func wasm_struct_size(decl *u8) i64 {
+    if decl == nil { return 0; }
+    var size i64 = 0;
+    var fields *u8 = struct_decl_fields(decl);
+    var i i64 = 0;
+    while i < struct_decl_field_count(decl) {
+        var field *u8 = get_struct_field(fields, i);
+        var field_size i64 = wasm_type_size(struct_field_type(field));
+        if field_size < 8 { field_size = 8; }
+        size = size + field_size;
+        i = i + 1;
+    }
+    return size;
+}
+
+func wasm_struct_for_type(t *u8) *u8 {
+    if t == nil { return nil; }
+    if type_kind(t) == TYPE_PTR { t = ptr_type_elem(t); }
+    if t == nil || type_kind(t) != TYPE_BASE { return nil; }
+    return wasm_find_struct(base_type_name(t), base_type_name_len(t));
+}
+
+func wasm_field_offset(decl *u8, name *u8, name_len i64) i64 {
+    if decl == nil { return 0 - 1; }
+    var offset i64 = 0;
+    var fields *u8 = struct_decl_fields(decl);
+    var i i64 = 0;
+    while i < struct_decl_field_count(decl) {
+        var field *u8 = get_struct_field(fields, i);
+        if wasm_name_eq(struct_field_name(field), struct_field_name_len(field), name, name_len) != 0 {
+            return offset;
+        }
+        var size i64 = wasm_type_size(struct_field_type(field));
+        if size < 8 { size = 8; }
+        offset = offset + size;
+        i = i + 1;
+    }
+    return 0 - 1;
+}
+
+func wasm_field_type(decl *u8, name *u8, name_len i64) *u8 {
+    if decl == nil { return nil; }
+    var fields *u8 = struct_decl_fields(decl);
+    var i i64 = 0;
+    while i < struct_decl_field_count(decl) {
+        var field *u8 = get_struct_field(fields, i);
+        if wasm_name_eq(struct_field_name(field), struct_field_name_len(field), name, name_len) != 0 {
+            return struct_field_type(field);
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
 func wasm_func_get(index i64) *u8 {
     var p **u8 = wasm_funcs + index * 8;
     return *p;
 }
 
+func wasm_import_get(index i64) *u8 {
+    var p **u8 = wasm_imports + index * 8;
+    return *p;
+}
+
+func wasm_func_decl_by_index(index i64) *u8 {
+    if index < wasm_import_count { return wasm_import_get(index); }
+    return wasm_func_get(index - wasm_import_count);
+}
+
 func wasm_find_func(name *u8, name_len i64) i64 {
     var i i64 = 0;
+    while i < wasm_import_count {
+        var imported *u8 = wasm_import_get(i);
+        if wasm_name_eq(func_decl_name(imported), func_decl_name_len(imported), name, name_len) != 0 {
+            return i;
+        }
+        i = i + 1;
+    }
+    i = 0;
     while i < wasm_func_count {
         var decl *u8 = wasm_func_get(i);
         if wasm_name_eq(func_decl_name(decl), func_decl_name_len(decl), name, name_len) != 0 {
-            return i;
+            return wasm_import_count + i;
         }
         i = i + 1;
     }
     return 0 - 1;
 }
 
-func wasm_local_add(name *u8, name_len i64) i64 {
-    var previous i64 = 0;
-    while previous < wasm_local_count {
-        var old *u8 = wasm_locals + previous * 24;
-        var old_name **u8 = old;
-        var old_len *i64 = old + 8;
-        if wasm_name_eq(*old_name, *old_len, name, name_len) != 0 {
-            wasm_error("local shadowing is not supported by the first direct wasm slice");
-            return previous;
-        }
-        previous = previous + 1;
-    }
+func wasm_local_add(name *u8, name_len i64, local_type *u8, decl *u8) i64 {
     var index i64 = wasm_local_count;
-    var entry *u8 = wasm_locals + index * 24;
+    var entry *u8 = wasm_locals + index * 40;
     var np **u8 = entry;
     *np = name;
     var lp *i64 = entry + 8;
     *lp = name_len;
     var ip *i64 = entry + 16;
     *ip = index;
+    var tp **u8 = entry + 24;
+    *tp = local_type;
+    var decl_p **u8 = entry + 32;
+    *decl_p = decl;
     wasm_local_count = wasm_local_count + 1;
     return index;
 }
 
 func wasm_find_local(name *u8, name_len i64) i64 {
-    var i i64 = wasm_local_count - 1;
+    var i i64 = wasm_binding_count - 1;
     while i >= 0 {
-        var entry *u8 = wasm_locals + i * 24;
+        var entry *u8 = wasm_bindings + i * 24;
         var np **u8 = entry;
         var lp *i64 = entry + 8;
-        if wasm_name_eq(*np, *lp, name, name_len) != 0 { return i; }
+        if wasm_name_eq(*np, *lp, name, name_len) != 0 {
+            var ip *i64 = entry + 16;
+            return *ip;
+        }
         i = i - 1;
     }
     return 0 - 1;
+}
+
+func wasm_local_type(index i64) *u8 {
+    var tp **u8 = wasm_locals + index * 40 + 24;
+    return *tp;
+}
+
+func wasm_bind_local(name *u8, name_len i64, index i64) void {
+    var entry *u8 = wasm_bindings + wasm_binding_count * 24;
+    var np **u8 = entry;
+    *np = name;
+    var lp *i64 = entry + 8;
+    *lp = name_len;
+    var ip *i64 = entry + 16;
+    *ip = index;
+    wasm_binding_count = wasm_binding_count + 1;
+}
+
+func wasm_local_for_decl(decl *u8) i64 {
+    var i i64 = wasm_param_count;
+    while i < wasm_local_count {
+        var dp **u8 = wasm_locals + i * 40 + 32;
+        if *dp == decl { return i; }
+        i = i + 1;
+    }
+    return 0 - 1;
+}
+
+func wasm_global_get(index i64) *u8 {
+    var p **u8 = wasm_globals + index * 8;
+    return *p;
+}
+
+func wasm_find_global(name *u8, name_len i64) i64 {
+    var i i64 = wasm_global_count - 1;
+    while i >= 0 {
+        var decl *u8 = wasm_global_get(i);
+        if wasm_name_eq(var_decl_name(decl), var_decl_name_len(decl), name, name_len) != 0 {
+            return i;
+        }
+        i = i - 1;
+    }
+    return 0 - 1;
+}
+
+func wasm_add_string(data *u8, len i64) i64 {
+    var i i64 = 0;
+    while i < wasm_string_count {
+        var entry *u8 = wasm_strings + i * 24;
+        var dp **u8 = entry;
+        var lp *i64 = entry + 8;
+        if wasm_name_eq(*dp, *lp, data, len) != 0 {
+            var op *i64 = entry + 16;
+            return *op;
+        }
+        i = i + 1;
+    }
+    var offset i64 = wasm_data_end;
+    var entry *u8 = wasm_strings + wasm_string_count * 24;
+    var dp **u8 = entry;
+    *dp = data;
+    var lp *i64 = entry + 8;
+    *lp = len;
+    var op *i64 = entry + 16;
+    *op = offset;
+    wasm_string_count = wasm_string_count + 1;
+    wasm_data_end = wasm_data_end + len + 1;
+    if wasm_data_end >= 1024 * 1024 { wasm_error("direct wasm string data exceeds 1 MiB"); }
+    return offset;
 }
 
 func wasm_collect_locals(stmt *u8) void {
     if stmt == nil { return; }
     var kind i64 = node_kind(stmt);
     if kind == NODE_VAR_DECL {
-        if wasm_type_is_word(var_decl_type(stmt)) == 0 {
-            wasm_error("direct wasm currently supports only i64 and bool locals");
+        if wasm_type_is_value(var_decl_type(stmt)) == 0 {
+            wasm_error("direct wasm currently supports only scalar and pointer locals");
             return;
         }
-        wasm_local_add(var_decl_name(stmt), var_decl_name_len(stmt));
+        wasm_local_add(var_decl_name(stmt), var_decl_name_len(stmt), var_decl_type(stmt), stmt);
     } else if kind == NODE_BLOCK_STMT {
         var stmts *u8 = block_stmt_stmts(stmt);
         var i i64 = 0;
@@ -208,6 +391,135 @@ func wasm_parse_integer(text *u8, len i64) i64 {
     return value;
 }
 
+func wasm_expr_type(expr *u8) *u8 {
+    if expr == nil { return nil; }
+    var kind i64 = node_kind(expr);
+    if kind == NODE_NUMBER_EXPR || kind == NODE_BOOL_EXPR { return wasm_i64_type; }
+    if kind == NODE_STRING_EXPR { return wasm_u8_ptr_type; }
+    if kind == NODE_NIL_EXPR { return wasm_u8_ptr_type; }
+    if kind == NODE_GROUP_EXPR { return wasm_expr_type(group_expr_expr(expr)); }
+    if kind == NODE_CAST_EXPR { return cast_expr_type(expr); }
+    if kind == NODE_BITCAST_EXPR { return bitcast_expr_type(expr); }
+    if kind == NODE_IDENT_EXPR {
+        var local i64 = wasm_find_local(ident_expr_name(expr), ident_expr_name_len(expr));
+        if local >= 0 { return wasm_local_type(local); }
+        var global i64 = wasm_find_global(ident_expr_name(expr), ident_expr_name_len(expr));
+        if global >= 0 { return var_decl_type(wasm_global_get(global)); }
+        return nil;
+    }
+    if kind == NODE_UNARY_EXPR {
+        var inner_type *u8 = wasm_expr_type(unary_expr_expr(expr));
+        if unary_expr_op(expr) == TOKEN_STAR && inner_type != nil && type_kind(inner_type) == TYPE_PTR {
+            return ptr_type_elem(inner_type);
+        }
+        return inner_type;
+    }
+    if kind == NODE_INDEX_EXPR {
+        var base_type *u8 = wasm_expr_type(index_expr_base(expr));
+        if base_type != nil && type_kind(base_type) == TYPE_PTR { return ptr_type_elem(base_type); }
+        return nil;
+    }
+    if kind == NODE_FIELD_EXPR {
+        var decl *u8 = wasm_struct_for_type(wasm_expr_type(field_expr_expr(expr)));
+        return wasm_field_type(decl, field_expr_field(expr), field_expr_field_len(expr));
+    }
+    if kind == NODE_BINARY_EXPR {
+        var left_type *u8 = wasm_expr_type(binary_expr_left(expr));
+        if left_type != nil && type_kind(left_type) == TYPE_PTR &&
+           (binary_expr_op(expr) == TOKEN_PLUS || binary_expr_op(expr) == TOKEN_MINUS) {
+            return left_type;
+        }
+        return wasm_i64_type;
+    }
+    if kind == NODE_CALL_EXPR {
+        var callee *u8 = call_expr_func(expr);
+        if callee != nil && node_kind(callee) == NODE_IDENT_EXPR {
+            var index i64 = wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee));
+            if index >= 0 { return func_decl_ret_type(wasm_func_decl_by_index(index)); }
+        }
+    }
+    return nil;
+}
+
+func wasm_emit_address(expr *u8, out *WasmBuf) *u8 {
+    if expr == nil { wasm_error("missing memory address in direct wasm"); return nil; }
+    if node_kind(expr) == NODE_UNARY_EXPR && unary_expr_op(expr) == TOKEN_STAR {
+        var pointer *u8 = unary_expr_expr(expr);
+        var pointer_type *u8 = wasm_expr_type(pointer);
+        wasm_emit_expr(pointer, out);
+        wasm_put(out, 167);  // i32.wrap_i64
+        if pointer_type != nil && type_kind(pointer_type) == TYPE_PTR {
+            return ptr_type_elem(pointer_type);
+        }
+        return nil;
+    }
+    if node_kind(expr) == NODE_INDEX_EXPR {
+        var base *u8 = index_expr_base(expr);
+        var base_type *u8 = wasm_expr_type(base);
+        var elem_type *u8 = nil;
+        if base_type != nil && type_kind(base_type) == TYPE_PTR { elem_type = ptr_type_elem(base_type); }
+        wasm_emit_expr(base, out);
+        wasm_emit_expr(index_expr_index(expr), out);
+        var size i64 = wasm_type_size(elem_type);
+        if size > 1 {
+            wasm_put(out, 66); wasm_put_sleb(out, size);
+            wasm_put(out, 126);  // i64.mul
+        }
+        wasm_put(out, 124);  // i64.add
+        wasm_put(out, 167);  // i32.wrap_i64
+        return elem_type;
+    }
+    if node_kind(expr) == NODE_FIELD_EXPR {
+        var base *u8 = field_expr_expr(expr);
+        var decl *u8 = wasm_struct_for_type(wasm_expr_type(base));
+        var offset i64 = wasm_field_offset(decl, field_expr_field(expr), field_expr_field_len(expr));
+        if offset < 0 {
+            wasm_error("unknown struct field in direct wasm");
+            return nil;
+        }
+        wasm_emit_expr(base, out);
+        if offset > 0 {
+            wasm_put(out, 66); wasm_put_sleb(out, offset);
+            wasm_put(out, 124);  // i64.add
+        }
+        wasm_put(out, 167);  // i32.wrap_i64
+        return wasm_field_type(decl, field_expr_field(expr), field_expr_field_len(expr));
+    }
+    wasm_error("direct wasm cannot take this memory address yet");
+    return nil;
+}
+
+func wasm_emit_load(value_type *u8, out *WasmBuf) void {
+    var size i64 = wasm_type_size(value_type);
+    var signed i64 = 0;
+    if value_type != nil && type_kind(value_type) == TYPE_BASE {
+        var name *u8 = base_type_name(value_type);
+        var len i64 = base_type_name_len(value_type);
+        if wasm_name_eq(name, len, "i8", 2) != 0 ||
+           wasm_name_eq(name, len, "i16", 3) != 0 ||
+           wasm_name_eq(name, len, "i32", 3) != 0 { signed = 1; }
+    }
+    if size == 1 {
+        if signed != 0 { wasm_put(out, 48); } else { wasm_put(out, 49); }
+    } else if size == 2 {
+        if signed != 0 { wasm_put(out, 50); } else { wasm_put(out, 51); }
+    } else if size == 4 {
+        if signed != 0 { wasm_put(out, 52); } else { wasm_put(out, 53); }
+    } else { wasm_put(out, 41); }             // i64.load
+    wasm_put_uleb(out, 0);  // conservative alignment
+    wasm_put_uleb(out, 0);  // offset
+}
+
+func wasm_emit_store(value_type *u8, out *WasmBuf) void {
+    var size i64 = wasm_type_size(value_type);
+    if size == 1 { wasm_put(out, 60); }       // i64.store8
+    else if size == 2 { wasm_put(out, 61); }  // i64.store16
+    else if size == 4 { wasm_put(out, 62); }  // i64.store32
+    else { wasm_put(out, 55); }               // i64.store
+    wasm_put_uleb(out, 0);
+    wasm_put_uleb(out, 0);
+}
+
 func wasm_emit_truth(expr *u8, out *WasmBuf) void {
     wasm_emit_expr(expr, out);
     wasm_put(out, 80);  // i64.eqz
@@ -228,6 +540,12 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         wasm_put_sleb(out, bool_expr_value(expr));
         return;
     }
+    if kind == NODE_STRING_EXPR {
+        var offset i64 = wasm_add_string(string_expr_value(expr), string_expr_value_len(expr));
+        wasm_put(out, 66);
+        wasm_put_sleb(out, offset);
+        return;
+    }
     if kind == NODE_NIL_EXPR {
         wasm_put(out, 66);
         wasm_put_sleb(out, 0);
@@ -237,15 +555,29 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         wasm_emit_expr(group_expr_expr(expr), out);
         return;
     }
+    if kind == NODE_CAST_EXPR {
+        wasm_emit_expr(cast_expr_expr(expr), out);
+        return;
+    }
+    if kind == NODE_BITCAST_EXPR {
+        wasm_emit_expr(bitcast_expr_expr(expr), out);
+        return;
+    }
     if kind == NODE_IDENT_EXPR {
         var local i64 = wasm_find_local(ident_expr_name(expr), ident_expr_name_len(expr));
-        if local < 0 {
-            wasm_error("unknown local in direct wasm function");
-            wasm_put(out, 66); wasm_put_sleb(out, 0);
+        if local >= 0 {
+            wasm_put(out, 32);  // local.get
+            wasm_put_uleb(out, local);
             return;
         }
-        wasm_put(out, 32);  // local.get
-        wasm_put_uleb(out, local);
+        var global i64 = wasm_find_global(ident_expr_name(expr), ident_expr_name_len(expr));
+        if global >= 0 {
+            wasm_put(out, 35);  // global.get
+            wasm_put_uleb(out, global);
+            return;
+        }
+        wasm_error("unknown value in direct wasm function");
+        wasm_put(out, 66); wasm_put_sleb(out, 0);
         return;
     }
     if kind == NODE_UNARY_EXPR {
@@ -258,6 +590,9 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
             wasm_emit_expr(unary_expr_expr(expr), out);
             wasm_put(out, 80);   // i64.eqz
             wasm_put(out, 173);  // i64.extend_i32_u
+        } else if unary_op == TOKEN_STAR {
+            var loaded_type *u8 = wasm_emit_address(expr, out);
+            wasm_emit_load(loaded_type, out);
         } else {
             wasm_error("unsupported unary operator in direct wasm");
             wasm_put(out, 66); wasm_put_sleb(out, 0);
@@ -275,8 +610,22 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
             else { wasm_put(out, 132); }
             return;
         }
+        var left_type *u8 = wasm_expr_type(binary_expr_left(expr));
+        var right_type *u8 = wasm_expr_type(binary_expr_right(expr));
         wasm_emit_expr(binary_expr_left(expr), out);
         wasm_emit_expr(binary_expr_right(expr), out);
+        if left_type != nil && type_kind(left_type) == TYPE_PTR &&
+           (op == TOKEN_PLUS || op == TOKEN_MINUS) {
+            if right_type != nil && type_kind(right_type) == TYPE_PTR {
+                wasm_error("pointer difference is not supported by direct wasm yet");
+            } else {
+                var elem_size i64 = wasm_type_size(ptr_type_elem(left_type));
+                if elem_size > 1 {
+                    wasm_put(out, 66); wasm_put_sleb(out, elem_size);
+                    wasm_put(out, 126);  // i64.mul
+                }
+            }
+        }
         if op == TOKEN_PLUS { wasm_put(out, 124); }
         else if op == TOKEN_MINUS { wasm_put(out, 125); }
         else if op == TOKEN_STAR { wasm_put(out, 126); }
@@ -296,6 +645,16 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         else { wasm_error("unsupported binary operator in direct wasm"); }
         return;
     }
+    if kind == NODE_INDEX_EXPR {
+        var indexed_type *u8 = wasm_emit_address(expr, out);
+        wasm_emit_load(indexed_type, out);
+        return;
+    }
+    if kind == NODE_FIELD_EXPR {
+        var field_type *u8 = wasm_emit_address(expr, out);
+        wasm_emit_load(field_type, out);
+        return;
+    }
     if kind == NODE_CALL_EXPR {
         var callee *u8 = call_expr_func(expr);
         if node_kind(callee) != NODE_IDENT_EXPR {
@@ -309,7 +668,7 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
             wasm_put(out, 66); wasm_put_sleb(out, 0);
             return;
         }
-        if call_expr_arg_count(expr) != func_decl_param_count(wasm_func_get(index)) {
+        if call_expr_arg_count(expr) != func_decl_param_count(wasm_func_decl_by_index(index)) {
             wasm_error("wrong argument count in direct wasm call");
             wasm_put(out, 66); wasm_put_sleb(out, 0);
             return;
@@ -336,7 +695,7 @@ func wasm_expr_has_value(expr *u8) i64 {
         var callee *u8 = call_expr_func(expr);
         if callee != nil && node_kind(callee) == NODE_IDENT_EXPR {
             var index i64 = wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee));
-            if index >= 0 { return 1 - wasm_type_is_void(func_decl_ret_type(wasm_func_get(index))); }
+            if index >= 0 { return 1 - wasm_type_is_void(func_decl_ret_type(wasm_func_decl_by_index(index))); }
         }
     }
     return 1;
@@ -346,6 +705,7 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
     if stmt == nil { return; }
     var kind i64 = node_kind(stmt);
     if kind == NODE_BLOCK_STMT {
+        var saved_bindings i64 = wasm_binding_count;
         var stmts *u8 = block_stmt_stmts(stmt);
         var i i64 = 0;
         while i < block_stmt_count(stmt) {
@@ -353,30 +713,43 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
             wasm_emit_stmt(*p, out);
             i = i + 1;
         }
+        wasm_binding_count = saved_bindings;
         return;
     }
     if kind == NODE_VAR_DECL {
-        var local i64 = wasm_find_local(var_decl_name(stmt), var_decl_name_len(stmt));
+        var local i64 = wasm_local_for_decl(stmt);
         if var_decl_init(stmt) != nil { wasm_emit_expr(var_decl_init(stmt), out); }
         else { wasm_put(out, 66); wasm_put_sleb(out, 0); }
         wasm_put(out, 33);  // local.set
         wasm_put_uleb(out, local);
+        wasm_bind_local(var_decl_name(stmt), var_decl_name_len(stmt), local);
         return;
     }
     if kind == NODE_ASSIGN_STMT {
         var target *u8 = assign_stmt_target(stmt);
+        if node_kind(target) == NODE_UNARY_EXPR || node_kind(target) == NODE_INDEX_EXPR ||
+           node_kind(target) == NODE_FIELD_EXPR {
+            var stored_type *u8 = wasm_emit_address(target, out);
+            wasm_emit_expr(assign_stmt_value(stmt), out);
+            wasm_emit_store(stored_type, out);
+            return;
+        }
         if node_kind(target) != NODE_IDENT_EXPR {
-            wasm_error("direct wasm currently assigns only local variables");
+            wasm_error("direct wasm cannot assign this target yet");
             return;
         }
         var local i64 = wasm_find_local(ident_expr_name(target), ident_expr_name_len(target));
-        if local < 0 {
-            wasm_error("unknown assignment target in direct wasm function");
+        if local >= 0 {
+            wasm_emit_expr(assign_stmt_value(stmt), out);
+            wasm_put(out, 33);
+            wasm_put_uleb(out, local);
             return;
         }
+        var global i64 = wasm_find_global(ident_expr_name(target), ident_expr_name_len(target));
+        if global < 0 { wasm_error("unknown assignment target in direct wasm function"); return; }
         wasm_emit_expr(assign_stmt_value(stmt), out);
-        wasm_put(out, 33);
-        wasm_put_uleb(out, local);
+        wasm_put(out, 36);  // global.set
+        wasm_put_uleb(out, global);
         return;
     }
     if kind == NODE_EXPR_STMT {
@@ -391,33 +764,56 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
         return;
     }
     if kind == NODE_IF_STMT {
+        var saved_bindings i64 = wasm_binding_count;
         wasm_emit_truth(if_stmt_cond(stmt), out);
         wasm_put(out, 4); wasm_put(out, 64);  // if, empty block type
         wasm_emit_stmt(if_stmt_then(stmt), out);
+        wasm_binding_count = saved_bindings;
         if if_stmt_else(stmt) != nil {
             wasm_put(out, 5);  // else
             wasm_emit_stmt(if_stmt_else(stmt), out);
+            wasm_binding_count = saved_bindings;
         }
         wasm_put(out, 11);  // end
         return;
     }
     if kind == NODE_WHILE_STMT {
+        var saved_bindings i64 = wasm_binding_count;
         wasm_put(out, 2); wasm_put(out, 64);  // outer break block
         wasm_put(out, 3); wasm_put(out, 64);  // loop
         wasm_emit_truth(while_stmt_cond(stmt), out);
         wasm_put(out, 69);                    // i32.eqz
         wasm_put(out, 13); wasm_put_uleb(out, 1);  // br_if outer
         wasm_emit_stmt(while_stmt_body(stmt), out);
+        wasm_binding_count = saved_bindings;
         wasm_put(out, 12); wasm_put_uleb(out, 0);  // br loop
         wasm_put(out, 11);
         wasm_put(out, 11);
         return;
     }
     if kind == NODE_BREAK_STMT || kind == NODE_CONTINUE_STMT {
-        wasm_error("break and continue are not in the first direct wasm slice");
+        wasm_error("break and continue are not supported by direct wasm yet");
         return;
     }
     wasm_error("statement is not supported by the direct wasm backend yet");
+}
+
+func wasm_reader_function(decl *u8) *u8 {
+    var reader_fn *u8 = func_decl_alloc();
+    func_decl_set_name(reader_fn, reader_decl_name(decl));
+    func_decl_set_name_len(reader_fn, reader_decl_name_len(decl));
+    var params *u8 = alloc(24);
+    param_set_name(params, reader_decl_param_name(decl));
+    param_set_name_len(params, reader_decl_param_len(decl));
+    param_set_type(params, wasm_u8_ptr_type);
+    func_decl_set_params(reader_fn, params);
+    func_decl_set_param_count(reader_fn, 1);
+    func_decl_set_ret_type(reader_fn, wasm_u8_ptr_type);
+    func_decl_set_body(reader_fn, reader_decl_body(decl));
+    func_decl_set_is_extern(reader_fn, 0);
+    func_decl_set_is_pub(reader_fn, reader_decl_is_pub(decl));
+    node_copy_origin(reader_fn, decl);
+    return reader_fn;
 }
 
 func wasm_collect_decl(decl *u8) void {
@@ -425,13 +821,53 @@ func wasm_collect_decl(decl *u8) void {
     var kind i64 = node_kind(decl);
     if kind == NODE_FUNC_DECL {
         if func_decl_is_extern(decl) != 0 {
-            wasm_error("extern functions are not supported by the first direct wasm slice");
+            if wasm_import_count >= LIMIT_FUNCS {
+                wasm_error("too many extern functions for direct wasm output");
+            } else {
+                var import_slot **u8 = wasm_imports + wasm_import_count * 8;
+                *import_slot = decl;
+                wasm_import_count = wasm_import_count + 1;
+            }
         } else if wasm_func_count >= LIMIT_FUNCS {
             wasm_error("too many functions for direct wasm output");
         } else {
             var slot **u8 = wasm_funcs + wasm_func_count * 8;
             *slot = decl;
             wasm_func_count = wasm_func_count + 1;
+        }
+        return;
+    }
+    if kind == NODE_READER_DECL {
+        if wasm_func_count >= LIMIT_FUNCS {
+            wasm_error("too many readers for direct wasm output");
+        } else {
+            var reader_slot **u8 = wasm_funcs + wasm_func_count * 8;
+            *reader_slot = wasm_reader_function(decl);
+            wasm_func_count = wasm_func_count + 1;
+        }
+        return;
+    }
+    if kind == NODE_VAR_DECL {
+        if var_decl_is_extern(decl) != 0 {
+            wasm_error("extern globals are not supported by the direct wasm backend yet");
+        } else if wasm_type_is_value(var_decl_type(decl)) == 0 {
+            wasm_error("direct wasm currently supports only scalar and pointer globals");
+        } else if wasm_global_count >= LIMIT_GLOBALS {
+            wasm_error("too many globals for direct wasm output");
+        } else {
+            var global_slot **u8 = wasm_globals + wasm_global_count * 8;
+            *global_slot = decl;
+            wasm_global_count = wasm_global_count + 1;
+        }
+        return;
+    }
+    if kind == NODE_STRUCT_DECL {
+        if wasm_struct_count >= LIMIT_STRUCTS {
+            wasm_error("too many structs for direct wasm output");
+        } else {
+            var struct_slot **u8 = wasm_structs + wasm_struct_count * 8;
+            *struct_slot = decl;
+            wasm_struct_count = wasm_struct_count + 1;
         }
         return;
     }
@@ -461,17 +897,26 @@ func wasm_collect_decl(decl *u8) void {
         return;
     }
     if kind == NODE_REQUIRE_DECL {
-        wasm_error("require is not supported by the first direct wasm slice");
+        wasm_error("require is not supported by direct wasm yet");
         return;
     }
     if kind != NODE_MODULES_DECL {
-        wasm_error("only function declarations are supported by the first direct wasm slice");
+        wasm_error("declaration is not supported by the direct wasm backend yet");
     }
 }
 
 func wasm_collect_functions(prog *u8) void {
     wasm_funcs = alloc(LIMIT_FUNCS * 8);
     wasm_func_count = 0;
+    wasm_imports = alloc(LIMIT_FUNCS * 8);
+    wasm_import_count = 0;
+    wasm_globals = alloc(LIMIT_GLOBALS * 8);
+    wasm_global_count = 0;
+    wasm_structs = alloc(LIMIT_STRUCTS * 8);
+    wasm_struct_count = 0;
+    wasm_strings = alloc(LIMIT_STRINGS * 24);
+    wasm_string_count = 0;
+    wasm_data_end = 1024;
     wasm_included_files = map_new();
     var decls *u8 = program_decls(prog);
     var i i64 = 0;
@@ -481,12 +926,139 @@ func wasm_collect_functions(prog *u8) void {
     }
 }
 
+func wasm_mark_expr(expr *u8) void {
+    if expr == nil { return; }
+    var kind i64 = node_kind(expr);
+    if kind == NODE_CALL_EXPR {
+        var callee *u8 = call_expr_func(expr);
+        if callee != nil && node_kind(callee) == NODE_IDENT_EXPR {
+            var index i64 = wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee));
+            if index >= 0 { wasm_mark_function(index); }
+        }
+        var args *u8 = call_expr_args(expr);
+        var i i64 = 0;
+        while i < call_expr_arg_count(expr) {
+            var p **u8 = args + i * 8;
+            wasm_mark_expr(*p);
+            i = i + 1;
+        }
+        return;
+    }
+    if kind == NODE_BINARY_EXPR {
+        wasm_mark_expr(binary_expr_left(expr));
+        wasm_mark_expr(binary_expr_right(expr));
+    } else if kind == NODE_UNARY_EXPR {
+        wasm_mark_expr(unary_expr_expr(expr));
+    } else if kind == NODE_GROUP_EXPR {
+        wasm_mark_expr(group_expr_expr(expr));
+    } else if kind == NODE_CAST_EXPR {
+        wasm_mark_expr(cast_expr_expr(expr));
+    } else if kind == NODE_BITCAST_EXPR {
+        wasm_mark_expr(bitcast_expr_expr(expr));
+    } else if kind == NODE_INDEX_EXPR {
+        wasm_mark_expr(index_expr_base(expr));
+        wasm_mark_expr(index_expr_index(expr));
+    } else if kind == NODE_FIELD_EXPR {
+        wasm_mark_expr(field_expr_expr(expr));
+    } else if kind == NODE_LET_EXPR {
+        wasm_mark_expr(let_expr_init(expr));
+        wasm_mark_expr(let_expr_body(expr));
+    } else if kind == NODE_BLOCK_EXPR {
+        var stmts *u8 = block_expr_stmts(expr);
+        var i i64 = 0;
+        while i < block_expr_count(expr) {
+            var p **u8 = stmts + i * 8;
+            wasm_mark_stmt(*p);
+            i = i + 1;
+        }
+        wasm_mark_expr(block_expr_tail(expr));
+    }
+}
+
+func wasm_mark_stmt(stmt *u8) void {
+    if stmt == nil { return; }
+    var kind i64 = node_kind(stmt);
+    if kind == NODE_BLOCK_STMT {
+        var stmts *u8 = block_stmt_stmts(stmt);
+        var i i64 = 0;
+        while i < block_stmt_count(stmt) {
+            var p **u8 = stmts + i * 8;
+            wasm_mark_stmt(*p);
+            i = i + 1;
+        }
+    } else if kind == NODE_VAR_DECL {
+        wasm_mark_expr(var_decl_init(stmt));
+    } else if kind == NODE_ASSIGN_STMT {
+        wasm_mark_expr(assign_stmt_target(stmt));
+        wasm_mark_expr(assign_stmt_value(stmt));
+    } else if kind == NODE_EXPR_STMT {
+        wasm_mark_expr(expr_stmt_expr(stmt));
+    } else if kind == NODE_RETURN_STMT {
+        wasm_mark_expr(return_stmt_value(stmt));
+    } else if kind == NODE_IF_STMT {
+        wasm_mark_expr(if_stmt_cond(stmt));
+        wasm_mark_stmt(if_stmt_then(stmt));
+        wasm_mark_stmt(if_stmt_else(stmt));
+    } else if kind == NODE_WHILE_STMT {
+        wasm_mark_expr(while_stmt_cond(stmt));
+        wasm_mark_stmt(while_stmt_body(stmt));
+    }
+}
+
+func wasm_mark_function(index i64) void {
+    if index < wasm_import_count {
+        if *(wasm_import_marks + index) != 0 { return; }
+        *(wasm_import_marks + index) = 1;
+        return;
+    }
+    var defined_index i64 = index - wasm_import_count;
+    if *(wasm_func_marks + defined_index) != 0 { return; }
+    *(wasm_func_marks + defined_index) = 1;
+    wasm_mark_stmt(func_decl_body(wasm_func_get(defined_index)));
+}
+
+func wasm_prune_unreachable() void {
+    wasm_func_marks = alloc(wasm_func_count);
+    wasm_import_marks = alloc(wasm_import_count);
+    var main_index i64 = wasm_find_func("main", 4);
+    if main_index < 0 { wasm_error("direct wasm output requires a main function"); return; }
+    wasm_mark_function(main_index);
+
+    var new_imports *u8 = alloc(LIMIT_FUNCS * 8);
+    var new_import_count i64 = 0;
+    var i i64 = 0;
+    while i < wasm_import_count {
+        if *(wasm_import_marks + i) != 0 {
+            var dst **u8 = new_imports + new_import_count * 8;
+            *dst = wasm_import_get(i);
+            new_import_count = new_import_count + 1;
+        }
+        i = i + 1;
+    }
+
+    var new_funcs *u8 = alloc(LIMIT_FUNCS * 8);
+    var new_func_count i64 = 0;
+    i = 0;
+    while i < wasm_func_count {
+        if *(wasm_func_marks + i) != 0 {
+            var dst **u8 = new_funcs + new_func_count * 8;
+            *dst = wasm_func_get(i);
+            new_func_count = new_func_count + 1;
+        }
+        i = i + 1;
+    }
+    wasm_imports = new_imports;
+    wasm_import_count = new_import_count;
+    wasm_funcs = new_funcs;
+    wasm_func_count = new_func_count;
+}
+
 func wasm_emit_type_section() void {
     wasm_section.len = 0;
-    wasm_put_uleb(wasm_section, wasm_func_count);
+    wasm_put_uleb(wasm_section, wasm_import_count + wasm_func_count);
     var i i64 = 0;
-    while i < wasm_func_count {
-        var decl *u8 = wasm_func_get(i);
+    while i < wasm_import_count + wasm_func_count {
+        var decl *u8 = wasm_func_decl_by_index(i);
         wasm_current_decl = decl;
         wasm_put(wasm_section, 96);  // func type
         var count i64 = func_decl_param_count(decl);
@@ -495,8 +1067,8 @@ func wasm_emit_type_section() void {
         var j i64 = 0;
         while j < count {
             var p *u8 = params + j * 24;
-            if wasm_type_is_word(param_type(p)) == 0 {
-                wasm_error("direct wasm currently supports only i64 and bool parameters");
+            if wasm_type_is_value(param_type(p)) == 0 {
+                wasm_error("direct wasm currently supports only scalar and pointer parameters");
             }
             wasm_put(wasm_section, 126);  // i64
             j = j + 1;
@@ -504,8 +1076,8 @@ func wasm_emit_type_section() void {
         if wasm_type_is_void(func_decl_ret_type(decl)) != 0 {
             wasm_put_uleb(wasm_section, 0);
         } else {
-            if wasm_type_is_word(func_decl_ret_type(decl)) == 0 {
-                wasm_error("direct wasm currently supports only i64, bool, or void returns");
+            if wasm_type_is_value(func_decl_ret_type(decl)) == 0 {
+                wasm_error("direct wasm currently supports only scalar, pointer, or void returns");
             }
             wasm_put_uleb(wasm_section, 1);
             wasm_put(wasm_section, 126);
@@ -515,11 +1087,26 @@ func wasm_emit_type_section() void {
     wasm_emit_section(1, wasm_section);
 }
 
+func wasm_emit_import_section() void {
+    if wasm_import_count == 0 { return; }
+    wasm_put_uleb(wasm_section, wasm_import_count);
+    var i i64 = 0;
+    while i < wasm_import_count {
+        var decl *u8 = wasm_import_get(i);
+        wasm_put_name(wasm_section, "lang", 4);
+        wasm_put_name(wasm_section, func_decl_name(decl), func_decl_name_len(decl));
+        wasm_put(wasm_section, 0);  // function import
+        wasm_put_uleb(wasm_section, i);  // matching type index
+        i = i + 1;
+    }
+    wasm_emit_section(2, wasm_section);
+}
+
 func wasm_emit_function_section() void {
     wasm_put_uleb(wasm_section, wasm_func_count);
     var i i64 = 0;
     while i < wasm_func_count {
-        wasm_put_uleb(wasm_section, i);
+        wasm_put_uleb(wasm_section, wasm_import_count + i);
         i = i + 1;
     }
     wasm_emit_section(3, wasm_section);
@@ -528,8 +1115,48 @@ func wasm_emit_function_section() void {
 func wasm_emit_memory_section() void {
     wasm_put_uleb(wasm_section, 1);  // one memory
     wasm_put(wasm_section, 0);       // minimum only
-    wasm_put_uleb(wasm_section, 4);  // 256 KiB
+    wasm_put_uleb(wasm_section, 32); // 2 MiB; heap begins at 1 MiB
     wasm_emit_section(5, wasm_section);
+}
+
+func wasm_const_value(expr *u8) i64 {
+    if expr == nil || node_kind(expr) == NODE_NIL_EXPR { return 0; }
+    if node_kind(expr) == NODE_NUMBER_EXPR {
+        return wasm_parse_integer(number_expr_value(expr), number_expr_value_len(expr));
+    }
+    if node_kind(expr) == NODE_BOOL_EXPR { return bool_expr_value(expr); }
+    if node_kind(expr) == NODE_STRING_EXPR {
+        return wasm_add_string(string_expr_value(expr), string_expr_value_len(expr));
+    }
+    if node_kind(expr) == NODE_GROUP_EXPR { return wasm_const_value(group_expr_expr(expr)); }
+    if node_kind(expr) == NODE_UNARY_EXPR && unary_expr_op(expr) == TOKEN_MINUS {
+        return 0 - wasm_const_value(unary_expr_expr(expr));
+    }
+    wasm_error("global initializer is not constant in direct wasm");
+    return 0;
+}
+
+func wasm_emit_global_section() void {
+    // User globals are canonical i64 values. The final i32 global marks the
+    // beginning of host-managed heap space.
+    wasm_put_uleb(wasm_section, wasm_global_count + 1);
+    var i i64 = 0;
+    while i < wasm_global_count {
+        var decl *u8 = wasm_global_get(i);
+        wasm_current_decl = decl;
+        wasm_put(wasm_section, 126);  // i64
+        wasm_put(wasm_section, 1);    // mutable
+        wasm_put(wasm_section, 66);   // i64.const
+        wasm_put_sleb(wasm_section, wasm_const_value(var_decl_init(decl)));
+        wasm_put(wasm_section, 11);   // end initializer
+        i = i + 1;
+    }
+    wasm_put(wasm_section, 127);  // i32
+    wasm_put(wasm_section, 0);    // immutable
+    wasm_put(wasm_section, 65);   // i32.const
+    wasm_put_sleb(wasm_section, 1024 * 1024);
+    wasm_put(wasm_section, 11);
+    wasm_emit_section(6, wasm_section);
 }
 
 func wasm_emit_export_section() void {
@@ -538,27 +1165,33 @@ func wasm_emit_export_section() void {
         wasm_error("direct wasm output requires a main function");
         return;
     }
-    wasm_put_uleb(wasm_section, 2);
+    wasm_put_uleb(wasm_section, 3);
     wasm_put_name(wasm_section, "memory", 6);
     wasm_put(wasm_section, 2);  // memory export
     wasm_put_uleb(wasm_section, 0);
     wasm_put_name(wasm_section, "main", 4);
     wasm_put(wasm_section, 0);  // function export
     wasm_put_uleb(wasm_section, main_index);
+    wasm_put_name(wasm_section, "__heap_base", 11);
+    wasm_put(wasm_section, 3);  // global export
+    wasm_put_uleb(wasm_section, wasm_global_count);
     wasm_emit_section(7, wasm_section);
 }
 
 func wasm_emit_function_body(decl *u8) void {
     wasm_current_decl = decl;
     wasm_body.len = 0;
-    wasm_locals = alloc(LIMIT_LOCALS * 24);
+    wasm_locals = alloc(LIMIT_LOCALS * 40);
+    wasm_bindings = alloc(LIMIT_LOCALS * 24);
     wasm_local_count = 0;
+    wasm_binding_count = 0;
 
     var params *u8 = func_decl_params(decl);
     var i i64 = 0;
     while i < func_decl_param_count(decl) {
         var p *u8 = params + i * 24;
-        wasm_local_add(param_name(p), param_name_len(p));
+        var param_index i64 = wasm_local_add(param_name(p), param_name_len(p), param_type(p), nil);
+        wasm_bind_local(param_name(p), param_name_len(p), param_index);
         i = i + 1;
     }
     wasm_param_count = wasm_local_count;
@@ -595,6 +1228,27 @@ func wasm_emit_code_section() void {
     wasm_emit_section(10, wasm_section);
 }
 
+func wasm_emit_data_section() void {
+    if wasm_string_count == 0 { return; }
+    wasm_put_uleb(wasm_section, wasm_string_count);
+    var i i64 = 0;
+    while i < wasm_string_count {
+        var entry *u8 = wasm_strings + i * 24;
+        var data_p **u8 = entry;
+        var len_p *i64 = entry + 8;
+        var offset_p *i64 = entry + 16;
+        wasm_put(wasm_section, 0);   // active segment, memory 0
+        wasm_put(wasm_section, 65);  // i32.const
+        wasm_put_sleb(wasm_section, *offset_p);
+        wasm_put(wasm_section, 11);
+        wasm_put_uleb(wasm_section, *len_p + 1);
+        wasm_put_bytes(wasm_section, *data_p, *len_p);
+        wasm_put(wasm_section, 0);   // C string terminator
+        i = i + 1;
+    }
+    wasm_emit_section(11, wasm_section);
+}
+
 func generate_wasm(prog *u8, output_file *u8) void {
     cg_has_wasm_backend = 1;
     cg_generate_wasm_fn = &generate_wasm;
@@ -603,7 +1257,17 @@ func generate_wasm(prog *u8, output_file *u8) void {
     wasm_section = wasm_buf_new(8 * 1024 * 1024);
     wasm_body = wasm_buf_new(8 * 1024 * 1024);
 
+    wasm_i64_type = base_type_alloc();
+    base_type_set_name(wasm_i64_type, "i64");
+    base_type_set_name_len(wasm_i64_type, 3);
+    wasm_u8_type = base_type_alloc();
+    base_type_set_name(wasm_u8_type, "u8");
+    base_type_set_name_len(wasm_u8_type, 2);
+    wasm_u8_ptr_type = ptr_type_alloc();
+    ptr_type_set_elem(wasm_u8_ptr_type, wasm_u8_type);
+
     wasm_collect_functions(prog);
+    wasm_prune_unreachable();
     if wasm_had_error != 0 { os_unlink(output_file); exit(1); }
 
     // \0asm followed by binary format version 1.
@@ -613,10 +1277,13 @@ func generate_wasm(prog *u8, output_file *u8) void {
     wasm_put(wasm_module, 0); wasm_put(wasm_module, 0);
 
     wasm_emit_type_section();
+    wasm_emit_import_section();
     wasm_emit_function_section();
     wasm_emit_memory_section();
+    wasm_emit_global_section();
     wasm_emit_export_section();
     wasm_emit_code_section();
+    wasm_emit_data_section();
 
     if wasm_had_error != 0 {
         os_unlink(output_file);
