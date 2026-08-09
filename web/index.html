@@ -94,6 +94,7 @@
   .lang-card h3 .meta { color: var(--dim); font-weight: normal; font-size: .85rem; }
   .lang-card p { margin: .3rem 0; color: var(--text); }
   footer { margin-top: 3rem; color: var(--dim); max-width: 78ch; }
+  .cta { display:inline-block; padding:.45rem .8rem; border:1px solid var(--accent); border-radius:6px; text-decoration:none; color:var(--accent); }
   a { color: var(--accent2); }
   @media (max-width: 900px) {
     .panes { grid-template-columns: 1fr; }
@@ -113,15 +114,15 @@
   <p>
     <em>Compiler-compiler</em> is literal: write a reader &mdash; one function
     from source text to AST &mdash; and lang wraps it around a shared compiler
-    kernel. You provide the syntax and lowering. lang provides the type system,
-    LLVM backend, and native and wasm targets. The result is a compiler for
-    your language.
+    kernel. You provide syntax and lowering. lang provides the type system and
+    native/wasm backends. The result is a compiler for your language.
   </p>
   <p>
     C, Lisp, flow, Forth, and minipy ship as source you can steal, not a closed
     language list. The polyglot demo shows reader boundaries disappear in one
     wasm module &mdash; no VM, FFI, or glue.
   </p>
+  <p><a class="cta" href="lab.html">write a reader in your browser &rarr;</a></p>
 
   <div class="tabs" id="tabs"></div>
   <div id="examples"></div>
@@ -210,7 +211,7 @@
   <footer>
     <p>
       Read the <a href="readers.html">20-line guide</a>,
-      try the <a href="lab.html">browser compiler</a>,
+      <a href="lab.html">write one in the browser</a>,
       open the <a href="https://github.com/ehrlich-b/lang/blob/main/docs/AST_BUILDERS.md">AST builder reference</a>,
       and teach lang a new syntax.
     </p>
