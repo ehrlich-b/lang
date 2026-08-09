@@ -41,7 +41,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 24. ✓ Reject grammar traps before parser generation
 25. ✓ Make generated parse trees inspectable
 26. ✓ Make capture cardinality explicit
-27. → **Capture more languages only when it improves the reader toolkit** ← current
+27. → **Make expression precedence reusable** ← current
+28. Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -280,6 +281,23 @@ make singular lookup silently choose the first node:
 - [x] Add `pnode_get_all` for deliberate repeated captures, returning a Vec
       whose empty state is unambiguous.
 - [x] Guard repeated and cross-rule captures in native and browser readers.
+
+---
+
+## Next: Make expression precedence reusable
+
+Expression parsing is now the clearest repeated reader-authoring cost. Calc
+hand-writes a precedence ladder; Flow and C each flatten the same
+operand/operator tree and carry their own precedence climber.
+
+- [ ] Design the smallest shared lowering helper for a flat generated grammar;
+      keep precedence and associativity visible in reader code.
+- [ ] Migrate Calc and Flow as the simple and full-operator proofs. The helper
+      must make both readers shorter without making their trees less explicit.
+- [ ] Leave C's postfix, assignment, and `++`/`--` exceptions reader-local;
+      reuse only the honest common core.
+- [ ] Guard native and browser reader pipelines before treating the helper as a
+      reason to capture another syntax.
 
 ---
 
