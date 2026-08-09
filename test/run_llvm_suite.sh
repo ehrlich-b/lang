@@ -327,29 +327,35 @@ reader_scaffold_e2e() {
     esac
     local ok=1
 
-    (cd "$tmp" && "$compiler_path" new reader demo >created.out 2>&1) || ok=0
+    (cd "$tmp" && LANG_ROOT="$REPO_ROOT" \
+        "$compiler_path" new reader demo >created.out 2>&1) || ok=0
     test -f "$tmp/demo.lang" && test -f "$tmp/answer.demo" || ok=0
     grep -Fq 'Run: lang run demo.lang answer.demo' "$tmp/created.out" || ok=0
     cp "$tmp/demo.lang" "$tmp/demo.before"
     cp "$tmp/answer.demo" "$tmp/answer.before"
 
-    (cd "$tmp" && ! "$compiler_path" new reader demo >again.out 2>&1) || ok=0
+    (cd "$tmp" && ! LANG_ROOT="$REPO_ROOT" \
+        "$compiler_path" new reader demo >again.out 2>&1) || ok=0
     grep -Fq 'refusing to overwrite demo.lang' "$tmp/again.out" || ok=0
     cmp -s "$tmp/demo.before" "$tmp/demo.lang" || ok=0
     cmp -s "$tmp/answer.before" "$tmp/answer.demo" || ok=0
 
     printf 'keep me\n' >"$tmp/answer.blocked"
-    (cd "$tmp" && ! "$compiler_path" new reader blocked >blocked.out 2>&1) || ok=0
+    (cd "$tmp" && ! LANG_ROOT="$REPO_ROOT" \
+        "$compiler_path" new reader blocked >blocked.out 2>&1) || ok=0
     test ! -e "$tmp/blocked.lang" || ok=0
     grep -Fxq 'keep me' "$tmp/answer.blocked" || ok=0
 
     printf 'keep me too\n' >"$tmp/taken.lang"
-    (cd "$tmp" && ! "$compiler_path" new reader taken >taken.out 2>&1) || ok=0
+    (cd "$tmp" && ! LANG_ROOT="$REPO_ROOT" \
+        "$compiler_path" new reader taken >taken.out 2>&1) || ok=0
     test ! -e "$tmp/answer.taken" || ok=0
     grep -Fxq 'keep me too' "$tmp/taken.lang" || ok=0
 
-    (cd "$tmp" && ! "$compiler_path" new reader bad-name >invalid.out 2>&1) || ok=0
-    (cd "$tmp" && ! "$compiler_path" new reader reader >keyword.out 2>&1) || ok=0
+    (cd "$tmp" && ! LANG_ROOT="$REPO_ROOT" \
+        "$compiler_path" new reader bad-name >invalid.out 2>&1) || ok=0
+    (cd "$tmp" && ! LANG_ROOT="$REPO_ROOT" \
+        "$compiler_path" new reader reader >keyword.out 2>&1) || ok=0
     test ! -e "$tmp/bad-name.lang" && test ! -e "$tmp/reader.lang" || ok=0
     (cd "$tmp" && ! LANG_ROOT="$tmp/missing" \
         "$compiler_path" new reader orphan >toolkit.out 2>&1) || ok=0
@@ -359,7 +365,7 @@ reader_scaffold_e2e() {
     grep -Fq 'lang new reader <name>' "$tmp/help.out" || ok=0
 
     if [ "$ok" = 1 ]; then
-        (cd "$tmp" && LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        (cd "$tmp" && LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
             "$compiler_path" run demo.lang answer.demo >/dev/null 2>&1)
         local result=$?
     else
