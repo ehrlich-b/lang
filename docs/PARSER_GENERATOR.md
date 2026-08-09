@@ -27,9 +27,11 @@ Each rule creates `parse_<rule>(tokens)`. A parser returns `nil` when it does
 not match. Always check both the result and `tok_eof(tokens)` at the reader
 boundary; a successful prefix is not necessarily a complete program.
 
-In the browser lab, use `include "std/parser_runtime.lang"` instead. The browser
-compiler already owns the build-time generator; the reader module needs only
-the generated parser's token and `PNode` runtime.
+The browser lab uses `include "std/parser_runtime.lang"` to make the artifact
+boundary visible: compiler.wasm owns the build-time generator, while the reader
+module needs only tokens and `PNode`. Existing reader sources may keep
+`include "std/parser_reader.lang"`; the direct browser build substitutes that
+same target runtime automatically.
 
 ## Grammar notation
 

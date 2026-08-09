@@ -16,15 +16,19 @@
   .pane + .pane { border-left:1px solid var(--border); }
   .head { height:42px; display:flex; align-items:center; justify-content:space-between; padding:0 .8rem; border-bottom:1px solid var(--border); color:var(--dim); }
   textarea, pre { width:100%; height:350px; margin:0; padding:.8rem; border:0; background:var(--panel); color:var(--text); font:13px/1.45 inherit; resize:none; overflow:auto; tab-size:4; }
+  #reader { height:314px; }
   #custom-source { height:82px; border-bottom:1px solid var(--border); }
   #output { height:226px; white-space:pre-wrap; }
+  details.runtime { border-top:1px solid var(--border); color:var(--dim); }
+  details.runtime summary { height:36px; padding:.45rem .8rem; cursor:pointer; font-size:.85rem; }
+  #runtime { height:150px; border-top:1px solid var(--border); }
   textarea:focus { outline:1px solid var(--blue); outline-offset:-1px; }
   pre { white-space:pre; }
   button { border:0; border-radius:5px; padding:.3rem .8rem; color:#04260f; background:var(--green); font:inherit; font-weight:bold; cursor:pointer; }
   button:disabled { opacity:.5; cursor:wait; }
   .ok { color:var(--green); } .bad { color:var(--warn); }
   .note { font-size:.85rem; margin-top:.8rem; }
-  @media (max-width:760px) { .lab { grid-template-columns:1fr; } .pane + .pane { border-left:0; border-top:1px solid var(--border); } #reader { height:300px; } }
+  @media (max-width:760px) { .lab { grid-template-columns:1fr; } .pane + .pane { border-left:0; border-top:1px solid var(--border); } #reader { height:264px; } }
 </style>
 </head>
 <body><main>
@@ -62,6 +66,10 @@ reader read(text *u8) *u8 {
     );
 }
 </textarea>
+      <details class="runtime">
+        <summary>target runtime (optional)</summary>
+        <textarea id="runtime" aria-label="Target runtime source" spellcheck="false" placeholder="Lang helpers called by the AST your reader emits"></textarea>
+      </details>
     </section>
     <section class="pane">
       <div class="head"><span>source.read</span><span id="status" aria-live="polite">loading…</span></div>
@@ -72,23 +80,24 @@ reader read(text *u8) *u8 {
   </div>
   <p class="note">reader → shared AST → direct wasm. Both compilers and both programs run locally.</p>
 </main>
-<script src="compiler_host.js?v=reader6"></script>
-<script src="program_host.js?v=reader6"></script>
+<script src="compiler_host.js?v=reader7"></script>
+<script src="program_host.js?v=reader7"></script>
 <script>
 let compilerBytes;
 let stdlibFiles;
 const button = document.getElementById('compile');
 const reader = document.getElementById('reader');
+const runtime = document.getElementById('runtime');
 const customSource = document.getElementById('custom-source');
 const output = document.getElementById('output');
 const status = document.getElementById('status');
 
 Promise.all([
-  fetch('compiler.wasm?v=reader6').then(r => {
+  fetch('compiler.wasm?v=reader7').then(r => {
     if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
     return r.arrayBuffer();
   }),
-  fetch('stdlib.json?v=reader6').then(r => {
+  fetch('stdlib.json?v=reader7').then(r => {
     if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
     return r.json();
   }),
@@ -152,9 +161,20 @@ button.onclick = async () => {
     const ast = readCString(readerRun.instance, readerRun.value);
 
     status.textContent = 'compiling AST…';
+    const programArgs = ['program.ast', '--from-ast', '--ast-source', 'source.read'];
+    const programFiles = {
+      ...stdlibFiles,
+      'program.ast': ast,
+      'source.read': customSource.value,
+    };
+    if (runtime.value.trim()) {
+      programArgs.push('--runtime', 'runtime.lang');
+      programFiles['runtime.lang'] = runtime.value;
+    }
+    programArgs.push('-o', 'program.wasm');
     const programBuild = await compile(
-      ['program.ast', '--from-ast', '--ast-source', 'source.read', '-o', 'program.wasm'],
-      { 'program.ast': ast, 'source.read': customSource.value },
+      programArgs,
+      programFiles,
     );
     const program = programBuild.files.get('program.wasm');
     if (!program) throw new Error('kernel wrote no module');

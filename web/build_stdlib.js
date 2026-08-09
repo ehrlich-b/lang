@@ -15,6 +15,7 @@ const paths = [
   'std/tok.lang',
   'std/pnode.lang',
   'std/parser_runtime.lang',
+  'example/minilisp/lisp_runtime.lang',
 ];
 
 const files = Object.fromEntries(paths.map((path) => [path, fs.readFileSync(path, 'utf8')]));

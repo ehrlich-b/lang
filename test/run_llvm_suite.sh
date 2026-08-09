@@ -441,6 +441,27 @@ compiler_minilisp_runtime_e2e() {
 }
 compiler_minilisp_runtime_e2e
 
+# --from-ast is the browser reader handoff. Runtime helpers must be parsed as
+# Lang and prepended to reader-emitted AST before either backend sees it.
+from_ast_runtime_e2e() {
+    local name=from_ast_runtime_e2e
+    local tmp=$(mktemp -d)
+    local result=compile_error
+    if LANGBE=llvm $COMPILER test/from_ast_runtime.ast --from-ast \
+           --runtime example/minilisp/lisp_runtime.lang \
+           -o "$tmp/program.ll" >/dev/null 2>&1; then
+        do_timeout 10 lli $LLI_JIT_FLAG "$tmp/program.ll" >/dev/null 2>&1
+        result=$?
+    fi
+    if [ "$result" = 42 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name (expected 42, got $result)" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+from_ast_runtime_e2e
+
 # Reusing a LANG_CACHE must never mean reusing yesterday's reader body. This
 # rewrites and recompiles within one timestamp tick to guard content freshness,
 # not merely mtime freshness.
@@ -575,6 +596,9 @@ cli_errors_e2e() {
 
     $COMPILER --ast-source source.read >"$tmp/ast-source-mode.out" 2>&1 && ok=0
     grep -Fq -- "--ast-source requires --from-ast" "$tmp/ast-source-mode.out" || ok=0
+
+    $COMPILER --runtime runtime.lang >"$tmp/runtime-mode.out" 2>&1 && ok=0
+    grep -Fq -- "--runtime requires compiler generation or --from-ast" "$tmp/runtime-mode.out" || ok=0
 
     if [ "$ok" = 1 ]; then
         echo "PASS $name" >> "$results_file"

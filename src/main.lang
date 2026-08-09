@@ -96,6 +96,33 @@ func main_generate_selected(prog *u8, output_file *u8) void {
     }
 }
 
+func main_combine_programs(first *u8, second *u8) *u8 {
+    var first_count i64 = program_decl_count(first);
+    var second_count i64 = program_decl_count(second);
+    var total i64 = first_count + second_count;
+    var decls *u8 = alloc(total * 8);
+    var first_decls *u8 = program_decls(first);
+    var second_decls *u8 = program_decls(second);
+    var i i64 = 0;
+    while i < first_count {
+        var slot **u8 = decls + i * 8;
+        *slot = get_decl(first_decls, i);
+        i = i + 1;
+    }
+    var j i64 = 0;
+    while j < second_count {
+        var slot **u8 = decls + (first_count + j) * 8;
+        *slot = get_decl(second_decls, j);
+        j = j + 1;
+    }
+    var combined *u8 = alloc(16);
+    var decls_slot **u8 = combined;
+    *decls_slot = decls;
+    var count_slot *i64 = combined + 8;
+    *count_slot = total;
+    return combined;
+}
+
 // Global flags for AST modes
 var emit_ast_mode i64 = 0;
 var emit_expanded_ast_mode i64 = 0;  // Emit with includes fully expanded (NO ___main, for composition)
@@ -426,6 +453,7 @@ func cmd_help_compile() i64 {
     println("  --emit-exe-ast      Emit executable AST (expanded with ___main)");
     println("  --from-ast          Input is AST, not source");
     println("  --ast-source <file> Bind reader-relative AST spans to this source");
+    println("  --runtime <file>    Add Lang runtime to a compiler or AST input");
     println("  --embed-self        Inject AST file into self_kernel variable");
     println("  --expand-macros     Print macro expansions to stderr");
     println("  --dump-tokens       Print the lexer's tokens and stop");
@@ -1030,8 +1058,8 @@ func main(argc i64, argv **u8) i64 {
         i = i + 1;
     }
 
-    if vec_len(runtime_files) > 0 && gen_compiler == nil {
-        eprintln("Error: --runtime is only valid when building a compiler");
+    if vec_len(runtime_files) > 0 && gen_compiler == nil && from_ast_mode == 0 {
+        eprintln("Error: --runtime requires compiler generation or --from-ast");
         return 1;
     }
     if ast_source_file != nil && from_ast_mode == 0 {
@@ -1236,6 +1264,20 @@ func main(argc i64, argv **u8) i64 {
         if prog == nil {
             eprintln("Error: failed to parse AST");
             return 1;
+        }
+
+        if vec_len(runtime_files) > 0 {
+            var runtime_ast *u8 = build_embedded_runtime_ast(runtime_files);
+            if runtime_ast == nil {
+                eprintln("Error: failed to build AST runtime");
+                return 1;
+            }
+            var runtime_prog *u8 = parse_ast_from_string(runtime_ast);
+            if runtime_prog == nil {
+                eprintln("Error: failed to parse AST runtime");
+                return 1;
+            }
+            prog = main_combine_programs(runtime_prog, prog);
         }
 
         // Generate using appropriate backend

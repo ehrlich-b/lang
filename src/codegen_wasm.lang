@@ -33,6 +33,10 @@ var wasm_local_count i64 = 0;
 var wasm_param_count i64 = 0;
 var wasm_bindings *u8 = nil;    // active [name:8][len:8][local index:8]
 var wasm_binding_count i64 = 0;
+var wasm_control_depth i64 = 0;
+// Active loops: [label:8][label_len:8][break_depth:8][continue_depth:8]
+var wasm_loops *u8 = nil;
+var wasm_loop_count i64 = 0;
 var wasm_had_error i64 = 0;
 var wasm_current_decl *u8 = nil;
 var wasm_included_files *u8 = nil;
@@ -134,8 +138,13 @@ func wasm_type_is_value(t *u8) i64 {
     if type_kind(t) != TYPE_BASE { return 0; }
     var name *u8 = base_type_name(t);
     var len i64 = base_type_name_len(t);
-    if wasm_name_eq(name, len, "i64", 3) != 0 { return 1; }
     if wasm_name_eq(name, len, "bool", 4) != 0 { return 1; }
+    if len == 2 && (*name == 'i' || *name == 'u') && *(name + 1) == '8' { return 1; }
+    if len == 3 && (*name == 'i' || *name == 'u') {
+        if (*(name + 1) == '1' && *(name + 2) == '6') ||
+           (*(name + 1) == '3' && *(name + 2) == '2') ||
+           (*(name + 1) == '6' && *(name + 2) == '4') { return 1; }
+    }
     return 0;
 }
 
@@ -339,6 +348,42 @@ func wasm_bind_local(name *u8, name_len i64, index i64) void {
     var ip *i64 = entry + 16;
     *ip = index;
     wasm_binding_count = wasm_binding_count + 1;
+}
+
+func wasm_push_loop(label *u8, label_len i64,
+                    break_depth i64, continue_depth i64) void {
+    if wasm_loop_count >= LIMIT_LOOP_DEPTH {
+        wasm_error("too many nested loops in direct wasm output");
+        return;
+    }
+    var entry *u8 = wasm_loops + wasm_loop_count * 32;
+    var label_slot **u8 = entry;
+    *label_slot = label;
+    var len_slot *i64 = entry + 8;
+    *len_slot = label_len;
+    var break_slot *i64 = entry + 16;
+    *break_slot = break_depth;
+    var continue_slot *i64 = entry + 24;
+    *continue_slot = continue_depth;
+    wasm_loop_count = wasm_loop_count + 1;
+}
+
+func wasm_loop_branch_depth(label *u8, label_len i64, is_continue i64) i64 {
+    var i i64 = wasm_loop_count - 1;
+    while i >= 0 {
+        var entry *u8 = wasm_loops + i * 32;
+        var label_slot **u8 = entry;
+        var len_slot *i64 = entry + 8;
+        if label_len == 0 ||
+           wasm_name_eq(*label_slot, *len_slot, label, label_len) != 0 {
+            var target_slot *i64 = entry + 16;
+            if is_continue != 0 { target_slot = entry + 24; }
+            return wasm_control_depth - *target_slot;
+        }
+        i = i - 1;
+    }
+    wasm_error("loop control label not found in direct wasm output");
+    return -1;
 }
 
 func wasm_local_for_decl(decl *u8) i64 {
@@ -812,6 +857,7 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
         var saved_bindings i64 = wasm_binding_count;
         wasm_emit_truth(if_stmt_cond(stmt), out);
         wasm_put(out, 4); wasm_put(out, 64);  // if, empty block type
+        wasm_control_depth = wasm_control_depth + 1;
         wasm_emit_stmt(if_stmt_then(stmt), out);
         wasm_binding_count = saved_bindings;
         if if_stmt_else(stmt) != nil {
@@ -820,24 +866,46 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
             wasm_binding_count = saved_bindings;
         }
         wasm_put(out, 11);  // end
+        wasm_control_depth = wasm_control_depth - 1;
         return;
     }
     if kind == NODE_WHILE_STMT {
         var saved_bindings i64 = wasm_binding_count;
         wasm_put(out, 2); wasm_put(out, 64);  // outer break block
+        wasm_control_depth = wasm_control_depth + 1;
+        var break_depth i64 = wasm_control_depth;
         wasm_put(out, 3); wasm_put(out, 64);  // loop
+        wasm_control_depth = wasm_control_depth + 1;
+        var continue_depth i64 = wasm_control_depth;
+        wasm_push_loop(while_stmt_label(stmt), while_stmt_label_len(stmt),
+                       break_depth, continue_depth);
         wasm_emit_truth(while_stmt_cond(stmt), out);
         wasm_put(out, 69);                    // i32.eqz
-        wasm_put(out, 13); wasm_put_uleb(out, 1);  // br_if outer
+        wasm_put(out, 13);
+        wasm_put_uleb(out, wasm_control_depth - break_depth);  // br_if outer
         wasm_emit_stmt(while_stmt_body(stmt), out);
         wasm_binding_count = saved_bindings;
-        wasm_put(out, 12); wasm_put_uleb(out, 0);  // br loop
+        wasm_put(out, 12);
+        wasm_put_uleb(out, wasm_control_depth - continue_depth);  // br loop
+        wasm_loop_count = wasm_loop_count - 1;
         wasm_put(out, 11);
+        wasm_control_depth = wasm_control_depth - 1;
         wasm_put(out, 11);
+        wasm_control_depth = wasm_control_depth - 1;
         return;
     }
-    if kind == NODE_BREAK_STMT || kind == NODE_CONTINUE_STMT {
-        wasm_error("break and continue are not supported by direct wasm yet");
+    if kind == NODE_BREAK_STMT {
+        var depth i64 = wasm_loop_branch_depth(
+            break_stmt_label(stmt), break_stmt_label_len(stmt), 0
+        );
+        if depth >= 0 { wasm_put(out, 12); wasm_put_uleb(out, depth); }
+        return;
+    }
+    if kind == NODE_CONTINUE_STMT {
+        var depth i64 = wasm_loop_branch_depth(
+            continue_stmt_label(stmt), continue_stmt_label_len(stmt), 1
+        );
+        if depth >= 0 { wasm_put(out, 12); wasm_put_uleb(out, depth); }
         return;
     }
     wasm_error("statement is not supported by the direct wasm backend yet");
@@ -920,6 +988,12 @@ func wasm_collect_decl(decl *u8) void {
     if kind == NODE_INCLUDE_DECL {
         var path *u8 = include_decl_path(decl);
         var path_len i64 = include_decl_path_len(decl);
+        // compiler.wasm already owns the #parser{} generator. A reader module
+        // needs only the generated parser's token/PNode runtime.
+        if wasm_name_eq(path, path_len, "std/parser_reader.lang", 22) != 0 {
+            path = "std/parser_runtime.lang";
+            path_len = 23;
+        }
         var path_z *u8 = str_dup_n(path, path_len);
         if map_has(wasm_included_files, path_z) != 0 { return; }
         map_set(wasm_included_files, path_z, 1);
@@ -1262,6 +1336,9 @@ func wasm_emit_function_body(decl *u8) void {
     wasm_bindings = alloc(LIMIT_LOCALS * 24);
     wasm_local_count = 0;
     wasm_binding_count = 0;
+    wasm_control_depth = 0;
+    wasm_loops = alloc(LIMIT_LOOP_DEPTH * 32);
+    wasm_loop_count = 0;
 
     var params *u8 = func_decl_params(decl);
     var i i64 = 0;

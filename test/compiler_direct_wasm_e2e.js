@@ -31,8 +31,10 @@ async function compileAndRun(sourcePath) {
   return { ...ran, bytes: program.byteLength };
 }
 
-async function compileReaderPipeline(readerPath, readerName, source) {
-  return compileReaderSource(fs.readFileSync(readerPath, 'utf8'), readerName, source);
+async function compileReaderPipeline(readerPath, readerName, source, runtimePaths = []) {
+  return compileReaderSource(
+    fs.readFileSync(readerPath, 'utf8'), readerName, source, runtimePaths,
+  );
 }
 
 async function runReaderSource(sourceText, readerName, source) {
@@ -60,15 +62,18 @@ func main() *u8 { return ${readerName}(${JSON.stringify(source)}); }
   return { ast, readerRun };
 }
 
-async function compileReaderSource(sourceText, readerName, source) {
+async function compileReaderSource(sourceText, readerName, source, runtimePaths = []) {
   const read = await runReaderSource(sourceText, readerName, source);
   if (read.ast === null) return { ...read, ran: null };
   const sourceName = `${readerName}.source`;
+  const args = ['program.ast', '--from-ast', '--ast-source', sourceName];
+  for (const runtimePath of runtimePaths) args.push('--runtime', runtimePath);
+  args.push('-o', 'program.wasm');
 
   const programCompile = await runLangCompiler(
     fs.readFileSync(compilerPath),
-    ['program.ast', '--from-ast', '--ast-source', sourceName, '-o', 'program.wasm'],
-    { 'program.ast': read.ast, [sourceName]: source },
+    args,
+    { ...stdlibFiles, 'program.ast': read.ast, [sourceName]: source },
     undefined,
     { LANGBE: 'wasm' },
   );
@@ -93,6 +98,14 @@ async function compileReaderSource(sourceText, readerName, source) {
   }
   const ast = await compileAndRun('test/direct_wasm_ast_e2e.lang');
   if (Number(ast.value) !== 40) throw new Error(`expected AST builder to start with 40, got ${ast.value}`);
+  const labeledBreak = await compileAndRun('test/suite/185_labeled_break.lang');
+  if (Number(labeledBreak.value) !== 5) {
+    throw new Error(`expected labeled break result 5, got ${labeledBreak.value}`);
+  }
+  const labeledContinue = await compileAndRun('test/suite/186_labeled_continue.lang');
+  if (Number(labeledContinue.value) !== 15) {
+    throw new Error(`expected labeled continue result 15, got ${labeledContinue.value}`);
+  }
 
   const reader = await compileReaderPipeline('example/tiny/tiny.lang', 'tiny', 'answer 42');
   if (Number(reader.ran.value) !== 42 || !reader.ast.startsWith('(program ')) {
@@ -127,6 +140,26 @@ async function compileReaderSource(sourceText, readerName, source) {
       !generatedBadCompile.stderr.includes('bad.ptiny:2:1: error: unknown function')) {
     throw new Error(`generated reader span mismatch: ${generatedBadCompile.stderr}`);
   }
+  const forth = await compileReaderPipeline(
+    'example/forth/forth.lang', 'forth', ': main ( -- n ) 42 ;',
+  );
+  if (Number(forth.ran.value) !== 42 || !forth.ast.startsWith('(program ')) {
+    throw new Error(`forth reader mismatch: value=${forth.ran.value} ast=${forth.ast}`);
+  }
+  const minilisp = await compileReaderPipeline(
+    'example/minilisp/minilisp.lang', 'minilisp', '(defun main () 42)',
+    ['example/minilisp/lisp_runtime.lang'],
+  );
+  const lispPointer = Number(minilisp.ran.value);
+  const lispMemory = new DataView(minilisp.ran.instance.exports.memory.buffer);
+  const lispTag = lispMemory.getBigInt64(lispPointer, true);
+  const lispValue = lispMemory.getBigInt64(lispPointer + 8, true);
+  if (!minilisp.ast.startsWith('(program ') || !minilisp.ast.includes('lisp_int') ||
+      lispTag !== 0n || lispValue !== 42n) {
+    throw new Error(
+      `minilisp pipeline mismatch: result=${minilisp.ran.value} tag=${lispTag} value=${lispValue}`,
+    );
+  }
 
   const labHtml = fs.readFileSync('web/lab.html', 'utf8');
   const labSource = labHtml.match(/<textarea[^>]*\bid="reader"[^>]*>([\s\S]*?)<\/textarea>/);
@@ -136,5 +169,5 @@ async function compileReaderSource(sourceText, readerName, source) {
     throw new Error(`lab read pipeline mismatch: value=${read.ran.value} ast=${read.ast}`);
   }
 
-  console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}; readers → ${reader.ran.value}/${calc.ran.value}/${generated.ran.value}/${read.ran.value})`);
+  console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}; readers → ${reader.ran.value}/${calc.ran.value}/${generated.ran.value}/${forth.ran.value}/lisp:${lispValue}/${read.ran.value})`);
 })().catch((error) => { console.error(error); process.exit(1); });

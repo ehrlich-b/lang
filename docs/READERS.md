@@ -60,7 +60,9 @@ instead of asking the custom reader to parse it:
 
 `--runtime` expands includes at compiler-build time and stores the resulting
 AST in the native artifact, so using the compiler does not need the runtime
-source tree. Repeat the option to embed more than one runtime file.
+source tree. Repeat the option to embed more than one runtime file. The same
+option works with `--from-ast`, which is how the browser lab compiles AST plus
+an optional editable target runtime.
 
 ## The reader contract
 
@@ -93,7 +95,10 @@ notation and limits. A reader can also parse however it wants. Start here:
 The [browser lab](https://lang.ehrlich.dev/lab.html) embeds the parser generator
 in `compiler.wasm`. Its editable reader includes `std/parser_runtime.lang`, the
 small target-side half containing tokens and `PNode`; the build-only grammar
-generator stays in the compiler.
+generator stays in the compiler. Existing readers that include
+`std/parser_reader.lang` work unchanged—the browser compiler selects the runtime
+half when it builds the reader module. A collapsed target-runtime editor accepts
+Lang helpers called by emitted AST without adding height until it is opened.
 
 Keep the reader in three layers—parse, lower, emit—and test the smallest source
 that exercises each new construct. Imports, `#parser{}` grammars, types, globals,

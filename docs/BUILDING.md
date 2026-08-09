@@ -139,6 +139,11 @@ only `std/parser_runtime.lang`; the browser gate exercises grammar → reader wa
 → AST → program wasm. Unsupported features still fail with compiler diagnostics.
 The lab compiles returned AST with `--ast-source source.read`, binding optional
 `(span START END NODE)` metadata back to the editable custom source.
+Direct wasm also covers nested and labeled `break`/`continue` plus i/u8/16/32/64
+locals; that is enough to compile and run the shipped Forth reader in the gate.
+If emitted AST calls Lang helpers, add `--runtime helper.lang` beside
+`--from-ast`; the browser lab exposes the same path in a collapsed target-runtime
+editor. The browser gate uses it to compile and run Minilisp's boxed integer 42.
 
 Test a candidate compiler without promoting it:
 

@@ -45,9 +45,19 @@ shared AST, then compile and run that AST—all in the tab.
 - [x] Carry reader token spans through `PNode` and the AST builders.
 - [x] Report semantic errors at the exact location in custom-language source,
       in minted native compilers and the browser pipeline.
-- [ ] Grow direct wasm from reader failures, not a feature checklist: capture the
-      smallest missing construct from a useful reader, implement it, and add that
-      reader to the browser gate.
+- [x] Grow direct wasm from reader failures, not a feature checklist: structured
+      break/continue and narrow integer locals make the shipped Forth reader run
+      end to end and the minilisp reader compile and execute in the browser.
+- [x] Let browser builds consume ordinary `std/parser_reader.lang` sources while
+      keeping the build-time generator out of the reader module.
+- [x] Add browser-side target runtimes. `--from-ast --runtime` and the lab's
+      collapsed runtime editor now carry helpers emitted by a reader; the gate
+      reads, compiles, and runs Minilisp to a boxed 42 entirely in the tab.
+- [x] Re-run the shipped-reader inventory. Tiny, Calc, Minilisp, and Forth build
+      as reader wasm; C, Flow, and Minipy all stop at address-taken scalar locals.
+- [ ] Support address-taken locals in direct wasm. Nine ordinary cursor sites
+      across three readers make this a backend semantic, not reader-specific
+      cleanup; then rerun each reader through source → reader wasm → AST.
 
 Do not capture a sixth language yet. First make the next reader faster to write,
 debug, compile, and share than the five already shipped.
@@ -237,9 +247,10 @@ polyglot stdlib written in reader-authored *better* languages.
       The browser lab compiles an editable reader to wasm, runs it to obtain
       shared AST, compiles that AST to a second wasm module, then runs `main()`.
 - [ ] **Stage C3: reader-driven backend breadth** - generated `#parser{}` readers
-      now run in the browser. Add arrays, function pointers, aggregates by value,
-      floats, and break/continue only as useful readers demand them. Keep every
-      unsupported construct diagnostic rather than emitting invalid modules.
+      now run in the browser, and Forth drove nested/labeled loop control plus
+      narrow integer locals. Add arrays, function pointers, aggregates by value,
+      and floats only as useful readers demand them. Keep every unsupported
+      construct diagnostic rather than emitting invalid modules.
 - [x] **Demo site LIVE: https://ehrlich.dev/lang/** - `web/`: compiler.wasm lab, fib, ASCII
       mandelbrot, and the FOUR-language polyglot (`example/polyglot_wasm.lang`,
       flow sits out) precompiled to wasm, run client-side by `web/host.js`.

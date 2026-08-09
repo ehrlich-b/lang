@@ -1,0 +1,6 @@
+(program
+  (func main () (type_base i64)
+    (block
+      (return
+        (call (ident lisp_to_int)
+          (call (ident lisp_int) (number 42)))))))
