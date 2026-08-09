@@ -12,21 +12,24 @@ include "std/parser_reader.lang"
 
 #parser{
     expr = number | symbol | list
-    list = '(' expr* ')'
+    list = '(' items:expr* ')'
 }
 
 func main() i64 {
-    var tokens *Tokenizer = tok_new("(+ 1 2)");
+    var tokens *Tokenizer = tok_new("(add 1 2)");
     var tree *PNode = parse_expr(tokens);
     if tree == nil || !tok_eof(tokens) { return 1; }
+    var items *PNode = pnode_require(tree, "items");
+    if items == nil || vec_len(items.children) != 3 { return 2; }
     return 0;
 }
 ```
 
 Each rule creates `parse_<rule>(tokens)`. A parser returns `nil` when it does
 not match. Always check both the result and `tok_eof(tokens)` at the reader
-boundary; a successful prefix is not necessarily a complete program.
-Use `pnode_child(node, index)` for a generated sequence child.
+boundary; a successful prefix is not necessarily a complete program. Name the
+children used by lowering and retrieve them with `pnode_get` or
+`pnode_require`; `pnode_child(node, index)` remains available for old grammars.
 
 The browser lab uses `include "std/parser_runtime.lang"` to make the artifact
 boundary visible: compiler.wasm owns the build-time generator, while the reader
@@ -43,6 +46,7 @@ args  = value+                           one or more
 item  = symbol value?                    optional
 atom  = (number | symbol)                grouping
 stmt  = 'return' value ';'               keyword and punctuation literals
+decl  = 'var' name:symbol '=' value:expr  named captures for lowering
 ```
 
 Built-in token names are `number`, `symbol`/`ident`, `string`, and `operator`.
@@ -71,6 +75,33 @@ for helpers that unwrap this shape, then lower it with the
 composite nodes inherit the first and last child range. Pass either range to
 `ast_span(...)` when the emitted node should retain an exact semantic location.
 
+## Named captures
+
+Prefix any grammar element with `name:` when lowering cares about its meaning:
+
+```lang
+#parser{
+    assignment = target:symbol '=' value:expr
+    call = callee:symbol '(' args:expr* ')'
+}
+
+var target *PNode = pnode_require(tree, "target");
+var value *PNode = pnode_require(tree, "value");
+var args *PNode = pnode_get(tree, "args");
+```
+
+The modifier belongs to the capture, so `args:expr*` returns the whole
+repetition list. `pnode_get` returns `nil` for an absent optional capture.
+`pnode_require` also returns `nil`, but first prints the exact missing name as a
+reader-lowering error. Captures may use the same names in different choice
+branches.
+
+Capture wrappers are an internal `PNode` kind and do not change the tree of a
+grammar that has no captures. `pnode_child` transparently unwraps them, so a
+rule can migrate one element at a time without renumbering its positional
+children. Code that opts into captures should prefer the helpers over walking
+the raw `children` vector at captured edges.
+
 ## Alternatives and errors
 
 Alternatives are ordered and transactional. If a branch fails after consuming
@@ -80,9 +111,10 @@ tokens, the next branch restarts at the same token:
 action = 'do' symbol '=' number | 'do' symbol '(' number ')'
 ```
 
-Sequences succeed only when every required element matches; `?` elements may be
-absent. Failed sequences rewind as a unit. `*` and `+` also stop safely if their
-child can match without consuming input.
+Sequences succeed only when every required element matches; `?` elements,
+including named ones such as `else_part:else_clause?`, may be absent. Failed
+sequences rewind as a unit. `*` and `+` also stop safely if their child can
+match without consuming input.
 
 On failure, the tokenizer retains the furthest mismatch across tried branches:
 
@@ -104,6 +136,11 @@ are combined (`number or string`).
 Choice remains ordered—the first successful branch wins—and left recursion is
 unsupported. Use a hand-written parser when the grammar needs precedence,
 semantic lookahead, or error recovery.
+
+The grammar itself is checked before code generation. Missing `=`, groups or
+capture elements, trailing `|`, duplicate rules, and references to undefined
+rules report `#parser:line:column` at the offending grammar token. They do not
+fall through to a missing `parse_*` function or reader-wrapper link failure.
 
 `#parser{}` generates recognition and failure context. The reader still owns
 semantic validation, the wording around that context, lowering, and the final

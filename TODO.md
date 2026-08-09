@@ -36,8 +36,9 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 19. ✓ Inspect a reader before codegen
 20. ✓ Make the scaffold fail well
 21. ✓ Make reader ASTs readable and diffable
-22. → **Make grammar captures nameable** ← current
-23. → Capture more languages only when it improves the reader toolkit
+22. ✓ Make grammar captures nameable
+23. ✓ Make grammar mistakes local
+24. → **Capture more languages only when it improves the reader toolkit** ← current
 
 ---
 
@@ -208,19 +209,34 @@ snapshot tests without changing the shared AST format:
 
 ---
 
-## Current: Make grammar captures nameable
+## Completed: Make grammar captures nameable
 
 `#parser{}` removes the recognition boilerplate, but lowering still depends on
 positional `pnode_child(tree, 1)` calls. That is tolerable in the starter and
 fragile in a real grammar: inserting a literal silently renumbers the converter.
 The next reader-toolkit improvement should move meaning into the grammar:
 
-- [ ] Design named captures that keep existing grammar syntax and generated
+- [x] Design named captures that keep existing grammar syntax and generated
       `PNode` layouts backward compatible.
-- [ ] Generate small accessors or labeled-child lookup with a precise error when
+- [x] Generate small accessors or labeled-child lookup with a precise error when
       a capture is absent; do not turn parse trees into a second type system.
-- [ ] Convert the starter and one precedence reader, then guard native and
+- [x] Convert the starter and one precedence reader, then guard native and
       browser generation before migrating larger shipped examples.
+
+---
+
+## Completed: Make grammar mistakes local
+
+The generator used to stop silently on malformed grammar and let the failure
+surface later as a missing `parse_*` function or broken reader wrapper. Grammar
+authoring now fails at the grammar boundary:
+
+- [x] Report missing `=`, groups, choice branches, and capture elements with
+      `#parser:line:column`, expected input, and the token found.
+- [x] Reject duplicate rules and references to undefined rules before emitting
+      parser code.
+- [x] Guard every diagnostic as a fatal build in the native suite; the browser
+      compiler packages the same checked generator.
 
 ---
 

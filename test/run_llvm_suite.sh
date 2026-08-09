@@ -473,6 +473,125 @@ QUOTED_AST
 }
 reader_read_e2e
 
+# Required captures fail at the lowering boundary with the misspelled label,
+# instead of becoming a nil dereference or a later codegen error.
+reader_named_capture_diagnostic_e2e() {
+    local name=reader_named_capture_diagnostic_e2e
+    local tmp=$(mktemp -d)
+    local compiler_path=$COMPILER
+    case "$compiler_path" in
+        /*) ;;
+        ./*) compiler_path="$REPO_ROOT/${compiler_path#./}" ;;
+        *) compiler_path="$REPO_ROOT/$compiler_path" ;;
+    esac
+    local ok=1
+
+    cat >"$tmp/missing.lang" <<'MISSING_READER'
+include "std/parser_reader.lang"
+#parser{
+    missing_program = 'answer' value:number
+}
+reader missing(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    var tree *PNode = parse_missing_program(tokens);
+    if tree == nil || !tok_eof(tokens) { return nil; }
+    var typo *PNode = pnode_require(tree, "typo");
+    if typo == nil { return nil; }
+    return "(program)";
+}
+MISSING_READER
+    printf 'answer 42\n' >"$tmp/answer.missing"
+    (cd "$tmp" && ! LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        "$compiler_path" read missing.lang answer.missing \
+        >missing.out 2>missing.err) || ok=0
+    grep -Fq "reader lowering error: required grammar capture 'typo' is absent" \
+        "$tmp/missing.err" || ok=0
+    grep -Fq "answer.missing:1:1: error: reader 'missing' exited with status 1" \
+        "$tmp/missing.err" || ok=0
+    ! grep -Fq 'compilation failed' "$tmp/missing.err" || ok=0
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_named_capture_diagnostic_e2e
+
+# Grammar author errors belong at the token in #parser{}, not at a later
+# undefined generated function or reader-wrapper link step.
+parser_grammar_diagnostics_e2e() {
+    local name=parser_grammar_diagnostics_e2e
+    local tmp=$(mktemp -d)
+    local compiler_path=$COMPILER
+    case "$compiler_path" in
+        /*) ;;
+        ./*) compiler_path="$REPO_ROOT/${compiler_path#./}" ;;
+        *) compiler_path="$REPO_ROOT/$compiler_path" ;;
+    esac
+    local ok=1
+
+    cat >"$tmp/missing_equals.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    thing number
+}
+BAD_GRAMMAR
+    cat >"$tmp/missing_group.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    thing = (number | symbol
+}
+BAD_GRAMMAR
+    cat >"$tmp/unknown_rule.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    thing = missing
+}
+BAD_GRAMMAR
+    cat >"$tmp/duplicate_rule.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    thing = number
+    thing = symbol
+}
+BAD_GRAMMAR
+    cat >"$tmp/dangling_capture.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    thing = value:
+}
+BAD_GRAMMAR
+
+    local cases=(
+        "missing_equals|expected '=', found number"
+        "missing_group|expected ')', found end of input"
+        "unknown_rule|expected defined rule, found missing"
+        "duplicate_rule|expected unique rule name, found thing"
+        "dangling_capture|expected grammar element after capture, found end of input"
+    )
+    local spec case_name expected
+    for spec in "${cases[@]}"; do
+        case_name=${spec%%|*}
+        expected=${spec#*|}
+        LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache-$case_name" LANGBE=llvm \
+            "$compiler_path" "$tmp/$case_name.lang" -o "$tmp/$case_name.ll" \
+            >"$tmp/$case_name.out" 2>"$tmp/$case_name.err" && ok=0
+        grep -Eq '#parser:[0-9]+:[0-9]+:' "$tmp/$case_name.err" || ok=0
+        grep -Fq "$expected" "$tmp/$case_name.err" || ok=0
+        test ! -e "$tmp/$case_name.ll" || ok=0
+    done
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+parser_grammar_diagnostics_e2e
+
 # Prove the product claim, not just the macro path: lang turns a reader into a
 # compiler, that compiler consumes its own file extension, and its output runs.
 compiler_compiler_e2e() {

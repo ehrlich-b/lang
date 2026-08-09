@@ -55,7 +55,7 @@ include "std/ast.lang"
     flow_forin    = 'for' symbol 'in' flow_call flow_block
     flow_call     = symbol '(' flow_args ')'
     flow_exprstmt = flow_expr ';'
-    flow_expr     = flow_unary flow_oprest*
+    flow_expr     = first:flow_unary rest:flow_oprest*
     flow_oprest   = operator flow_unary
     flow_unary    = flow_neg | flow_postfix
     flow_neg      = operator flow_postfix
@@ -93,8 +93,8 @@ func fl_prec(op *u8) i64 {
 
 // flow_expr = flow_unary flow_oprest* -> parallel operand/op vecs.
 func fl_flatten(e *PNode, operands *u8, ops *u8) void {
-    vec_push(operands, vec_get(e.children, 0));
-    var star *PNode = vec_get(e.children, 1);
+    vec_push(operands, pnode_require(e, "first"));
+    var star *PNode = pnode_require(e, "rest");
     var m i64 = vec_len(star.children);
     var i i64 = 0;
     while i < m {

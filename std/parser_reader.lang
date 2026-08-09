@@ -39,6 +39,11 @@
 //   elem+     One or more
 //   elem?     Optional (zero or one)
 //
+// NAMED CAPTURES:
+//   value:number          Capture one number for lowering
+//   args:expr*            Capture the whole repetition list
+//   fallback:expr?        Optional capture (pnode_get returns nil)
+//
 // LITERALS (single characters):
 //   '('       Matches left paren
 //   ')'       Matches right paren
@@ -63,9 +68,11 @@
 //
 // RULE REFERENCES:
 //   list = '(' expr ')   // references the 'expr' rule
+//   Undefined and duplicate rules are grammar errors at the offending token.
 //
 // GROUPING:
 //   item = (number | symbol)+   // parentheses for grouping
+//   Missing delimiters/elements are reported as #parser:line:column errors.
 //
 // ============================================================
 // GENERATED CODE
@@ -96,6 +103,7 @@
 //   3 = PNODE_STRING   (string token)
 //   4 = PNODE_LIST     (sequence or list)
 //   5 = PNODE_OPERATOR (operator token: + - * /)
+//   6 = PNODE_CAPTURE  (internal wrapper; use pnode_get/pnode_require)
 //
 // ============================================================
 // EXAMPLE: S-EXPRESSION PARSER
@@ -183,6 +191,7 @@ require "std/pnode"
 
 reader parser(text *u8) *u8 {
     var g *Grammar = grammar_parse(text);
+    if g == nil { return nil; }
     var lang_code *u8 = rdgen_generate(g);
     return lang(lang_code);
 }

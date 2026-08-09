@@ -514,7 +514,7 @@ func scaffold_reader_source(name *u8) *u8 {
     append_str(source, &len, "include \"std/ast.lang\"\n\n");
     append_str(source, &len, "#parser{\n    ");
     append_str(source, &len, name);
-    append_str(source, &len, "_program = 'answer' number\n}\n\nreader ");
+    append_str(source, &len, "_program = 'answer' value:number\n}\n\nreader ");
     append_str(source, &len, name);
     append_str(source, &len, "(text *u8) *u8 {\n");
     append_str(source, &len, "    var tokens *Tokenizer = tok_new(text);\n");
@@ -526,7 +526,8 @@ func scaffold_reader_source(name *u8) *u8 {
     append_str(source, &len, name);
     append_str(source, &len, "\"); return nil;\n");
     append_str(source, &len, "    }\n");
-    append_str(source, &len, "    var value *PNode = pnode_child(tree, 1);\n");
+    append_str(source, &len, "    var value *PNode = pnode_require(tree, \"value\");\n");
+    append_str(source, &len, "    if value == nil { return nil; }\n");
     append_str(source, &len, "    return ast_main_i64(ast_span(ast_number(value.text), value.start, value.end));\n");
     append_str(source, &len, "}\n");
     *(source + len) = 0;

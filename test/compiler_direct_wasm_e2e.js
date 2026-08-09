@@ -158,6 +158,25 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   if (Number(generated.ran.value) !== 42 || !generated.ast.startsWith('(program ')) {
     throw new Error(`generated reader mismatch: value=${generated.ran.value} ast=${generated.ast}`);
   }
+  const badGrammarCompile = await runLangCompiler(
+    fs.readFileSync(compilerPath),
+    ['bad-grammar.lang', '-o', 'bad-grammar.wasm'],
+    {
+      ...stdlibFiles,
+      'bad-grammar.lang': `include "std/parser_runtime.lang"
+#parser{
+    bad = missing
+}
+func main() i64 { return 0; }
+`,
+    },
+    undefined,
+    { LANGBE: 'wasm' },
+  );
+  if (badGrammarCompile.exit === 0 || !/#parser:\d+:\d+:/.test(badGrammarCompile.stderr) ||
+      !badGrammarCompile.stderr.includes('expected defined rule, found missing')) {
+    throw new Error(`browser grammar diagnostic mismatch: ${badGrammarCompile.stderr}`);
+  }
   const generatedSource = fs.readFileSync('test/direct_wasm_parser_reader.lang', 'utf8');
   const generatedBad = await runReaderSource(
     generatedSource, 'parser_tiny', 'bad\nmissing',
@@ -233,7 +252,7 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
     'lang-reader-workspace', 'lang.lab.active', 'readerName(reader.value)',
     'focusDiagnostic(message)', "target.closest('details').open = true", "phase = 'AST compile'",
     'cachedReaderSource !== reader.value', 'customSource.value)',
-    'editor.js?v=workbench6', 'formatLangAst(ast)',
+    'editor.js?v=workbench7', 'formatLangAst(ast)', 'value:number',
     "'program.ast': formattedAst", 'installCodeEditor(reader, queueSave)',
   ]) {
     if (!labHtml.includes(marker)) throw new Error(`lab workbench marker missing: ${marker}`);

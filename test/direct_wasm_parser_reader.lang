@@ -2,15 +2,16 @@ include "std/parser_runtime.lang"
 include "std/ast.lang"
 
 #parser{
-    answer_program = ('answer' number) | ('bad' symbol)
+    answer_program = (command:'answer' value:number) | (command:'bad' value:symbol)
 }
 
 reader parser_tiny(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
     var tree *PNode = parse_answer_program(tokens);
     if tree == nil || !tok_eof(tokens) { return nil; }
-    var command *PNode = vec_get(tree.children, 0);
-    var value *PNode = vec_get(tree.children, 1);
+    var command *PNode = pnode_require(tree, "command");
+    var value *PNode = pnode_require(tree, "value");
+    if command == nil || value == nil { return nil; }
     var result *u8 = nil;
     if streq(command.text, "bad") {
         result = ast_call0(value.text);

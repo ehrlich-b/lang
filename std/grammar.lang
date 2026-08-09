@@ -9,6 +9,7 @@ include "std/tok.lang"
 //   rule = alt1 | alt2
 //   alt  = elem elem ...
 //   elem = 'literal' | name | elem* | elem+ | elem?
+//   elem = capture:elem
 //
 // Token kinds used in grammar:
 //   number  - matches TOK_NUMBER
@@ -37,6 +38,7 @@ var GNODE_REF i64 = 7;        // reference to another rule
 var GNODE_STAR i64 = 8;       // * (zero or more)
 var GNODE_PLUS i64 = 9;       // + (one or more)
 var GNODE_OPT i64 = 10;       // ? (optional)
+var GNODE_CAPTURE i64 = 11;   // name:element (named lowering capture)
 
 // ============================================================
 // Grammar Node Structure
@@ -47,16 +49,18 @@ struct GNode {
     name *u8;       // rule name or literal text
     name_len i64;   // length of name
     children *u8;   // Vec of child GNodes (for CHOICE, SEQ)
-    child *u8;      // single child (for STAR, PLUS, OPT)
+    child *u8;      // single child (for STAR, PLUS, OPT, CAPTURE)
+    start i64;      // byte offset in the grammar, for author diagnostics
 }
 
 func gnode_new(kind i64) *GNode {
-    var n *GNode = alloc(40);  // 5 fields * 8 bytes
+    var n *GNode = alloc(48);  // 6 fields * 8 bytes
     n.kind = kind;
     n.name = nil;
     n.name_len = 0;
     n.children = nil;
     n.child = nil;
+    n.start = -1;
     return n;
 }
 
@@ -98,12 +102,21 @@ func grammar_get_rule(g *Grammar, name *u8, name_len i64) *GNode {
 
 struct GrammarParser {
     t *Tokenizer;
+    failed i64;
 }
 
 func gp_new(text *u8) *GrammarParser {
-    var gp *GrammarParser = alloc(8);
+    var gp *GrammarParser = alloc(16);
     gp.t = tok_new(text);
+    gp.failed = 0;
     return gp;
+}
+
+func gp_fail(gp *GrammarParser, expected *u8) void {
+    if gp.failed != 0 { return; }
+    tok_note_expected(gp.t, expected);
+    tok_print_error(gp.t, "#parser");
+    gp.failed = 1;
 }
 
 // Check if current token is a specific keyword
@@ -120,33 +133,64 @@ func gp_is_keyword(gp *GrammarParser, kw *u8) bool {
 func gp_parse_element(gp *GrammarParser) *GNode {
     var node *GNode = nil;
 
+    // Named capture: value:number, body:(statement*), etc. The recursive call
+    // deliberately consumes the child's modifier first, so `items:expr+`
+    // captures the repetition list rather than each individual expression.
+    if tok_kind(gp.t) == TOK_IDENT {
+        var mark i64 = tok_mark(gp.t);
+        var capture_name *u8 = tok_text_ptr(gp.t);
+        var capture_name_len i64 = tok_text_len(gp.t);
+        tok_next(gp.t);
+        if tok_kind(gp.t) == TOK_COLON {
+            tok_next(gp.t);
+            var captured *GNode = gp_parse_element(gp);
+            if captured == nil {
+                gp_fail(gp, "grammar element after capture");
+                return nil;
+            }
+            var capture *GNode = gnode_with_name(
+                GNODE_CAPTURE, capture_name, capture_name_len);
+            capture.child = captured;
+            capture.start = mark;
+            return capture;
+        }
+        tok_reset(gp.t, mark);
+    }
+
     // Literal: 'x'
     if tok_kind(gp.t) == TOK_STRING {
+        var start i64 = tok_start_offset(gp.t);
         var text *u8 = tok_text_ptr(gp.t);
         var len i64 = tok_text_len(gp.t);
         // Strip quotes: 'x' -> x
         node = gnode_with_name(GNODE_LITERAL, text + 1, len - 2);
+        node.start = start;
         tok_next(gp.t);
     }
     // Token type keywords: number, symbol, string, ident
     else if gp_is_keyword(gp, "number") {
         node = gnode_with_name(GNODE_TOKTYPE, "number", 6);
+        node.start = tok_start_offset(gp.t);
         tok_next(gp.t);
     }
     else if gp_is_keyword(gp, "symbol") {
         node = gnode_with_name(GNODE_TOKTYPE, "symbol", 6);
+        node.start = tok_start_offset(gp.t);
         tok_next(gp.t);
     }
     else if gp_is_keyword(gp, "string") {
         node = gnode_with_name(GNODE_TOKTYPE, "string", 6);
+        node.start = tok_start_offset(gp.t);
         tok_next(gp.t);
     }
     else if gp_is_keyword(gp, "ident") {
         node = gnode_with_name(GNODE_TOKTYPE, "ident", 5);
+        node.start = tok_start_offset(gp.t);
         tok_next(gp.t);
     }
     else if gp_is_keyword(gp, "operator") {
         node = gnode_with_name(GNODE_TOKTYPE, "operator", 8);
+        node.start = tok_start_offset(gp.t);
         tok_next(gp.t);
     }
     // Rule reference: name (but stop if this ident is followed by '=' - that's a new rule)
@@ -172,15 +216,21 @@ func gp_parse_element(gp *GrammarParser) *GNode {
         }
         // Not followed by '=', this is a rule reference
         node = gnode_with_name(GNODE_REF, text, len);
+        node.start = save_start;
         // tok_next already called, tokenizer is at next token
     }
     // Grouped expression: ( ... )
     else if tok_kind(gp.t) == TOK_LPAREN {
+        var group_start i64 = tok_start_offset(gp.t);
         tok_next(gp.t);  // skip '('
         node = gp_parse_choice(gp);
-        if tok_kind(gp.t) == TOK_RPAREN {
-            tok_next(gp.t);  // skip ')'
+        if node == nil { return nil; }
+        if tok_kind(gp.t) != TOK_RPAREN {
+            gp_fail(gp, "')'");
+            return nil;
         }
+        tok_next(gp.t);  // skip ')'
+        if node.start < 0 { node.start = group_start; }
     }
     else {
         return nil;
@@ -190,12 +240,14 @@ func gp_parse_element(gp *GrammarParser) *GNode {
     if tok_kind(gp.t) == TOK_STAR {
         var star *GNode = gnode_new(GNODE_STAR);
         star.child = node;
+        star.start = node.start;
         node = star;
         tok_next(gp.t);
     }
     else if tok_kind(gp.t) == TOK_PLUS {
         var plus *GNode = gnode_new(GNODE_PLUS);
         plus.child = node;
+        plus.start = node.start;
         node = plus;
         tok_next(gp.t);
     }
@@ -206,6 +258,7 @@ func gp_parse_element(gp *GrammarParser) *GNode {
         if *text == 63 {
             var opt *GNode = gnode_new(GNODE_OPT);
             opt.child = node;
+            opt.start = node.start;
             node = opt;
             tok_next(gp.t);
         }
@@ -239,6 +292,8 @@ func gp_parse_seq(gp *GrammarParser) *GNode {
 
     var seq *GNode = gnode_new(GNODE_SEQ);
     seq.children = elements;
+    var first *GNode = vec_get(elements, 0);
+    seq.start = first.start;
     return seq;
 }
 
@@ -255,9 +310,11 @@ func gp_parse_choice(gp *GrammarParser) *GNode {
     while tok_kind(gp.t) == TOK_PIPE {
         tok_next(gp.t);  // skip '|'
         var alt *GNode = gp_parse_seq(gp);
-        if alt != nil {
-            vec_push(alts, alt);
+        if alt == nil {
+            gp_fail(gp, "grammar element after '|'");
+            return nil;
         }
+        vec_push(alts, alt);
     }
 
     if vec_len(alts) == 1 {
@@ -266,6 +323,7 @@ func gp_parse_choice(gp *GrammarParser) *GNode {
 
     var choice *GNode = gnode_new(GNODE_CHOICE);
     choice.children = alts;
+    choice.start = first.start;
     return choice;
 }
 
@@ -275,18 +333,21 @@ func gp_parse_rule(gp *GrammarParser) *GNode {
         return nil;
     }
 
+    var rule_start i64 = tok_start_offset(gp.t);
     var name *u8 = tok_text_ptr(gp.t);
     var name_len i64 = tok_text_len(gp.t);
     tok_next(gp.t);
 
     // Expect '='
     if tok_kind(gp.t) != TOK_EQ {
+        gp_fail(gp, "'='");
         return nil;
     }
     tok_next(gp.t);
 
     var body *GNode = gp_parse_choice(gp);
     if body == nil {
+        gp_fail(gp, "grammar element");
         return nil;
     }
 
@@ -294,7 +355,32 @@ func gp_parse_rule(gp *GrammarParser) *GNode {
     rule.name = name;
     rule.name_len = name_len;
     rule.child = body;
+    rule.start = rule_start;
     return rule;
+}
+
+func grammar_validate_node(g *Grammar, gp *GrammarParser, node *GNode) i64 {
+    if node == nil { return 1; }
+    if node.kind == GNODE_REF &&
+       grammar_get_rule(g, node.name, node.name_len) == nil {
+        tok_reset(gp.t, node.start);
+        gp_fail(gp, "defined rule");
+        return 0;
+    }
+    if node.children != nil {
+        var count i64 = vec_len(node.children);
+        var i i64 = 0;
+        while i < count {
+            if grammar_validate_node(g, gp, vec_get(node.children, i)) == 0 {
+                return 0;
+            }
+            i = i + 1;
+        }
+    }
+    if node.child != nil {
+        return grammar_validate_node(g, gp, node.child);
+    }
+    return 1;
 }
 
 // Parse a complete grammar
@@ -302,15 +388,35 @@ func grammar_parse(text *u8) *Grammar {
     var gp *GrammarParser = gp_new(text);
     var g *Grammar = grammar_new();
 
-    var done i64 = 0;
-    while !tok_eof(gp.t) && done == 0 {
+    // Native reader expansion passes only the block body; the browser's direct
+    // macro hook includes the closing `}` sentinel. Accept that one delimiter,
+    // but keep every other trailing token as a grammar error.
+    while !tok_eof(gp.t) && tok_kind(gp.t) != TOK_RBRACE && gp.failed == 0 {
         var rule *GNode = gp_parse_rule(gp);
         if rule == nil {
-            done = 1;
+            if gp.failed == 0 { gp_fail(gp, "rule name"); }
+            return nil;
         }
-        else {
-            grammar_add_rule(g, rule);
+        if grammar_get_rule(g, rule.name, rule.name_len) != nil {
+            tok_reset(gp.t, rule.start);
+            gp_fail(gp, "unique rule name");
+            return nil;
         }
+        grammar_add_rule(g, rule);
+    }
+
+    if gp.failed != 0 { return nil; }
+    if vec_len(g.rules) == 0 {
+        gp_fail(gp, "rule name");
+        return nil;
+    }
+
+    var count i64 = vec_len(g.rules);
+    var i i64 = 0;
+    while i < count {
+        var rule *GNode = vec_get(g.rules, i);
+        if grammar_validate_node(g, gp, rule.child) == 0 { return nil; }
+        i = i + 1;
     }
 
     return g;

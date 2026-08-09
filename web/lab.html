@@ -61,7 +61,7 @@
       <textarea id="reader" aria-label="Reader source" spellcheck="false">include "std/parser_runtime.lang"
 include "std/ast.lang"
 #parser{
-    answer_program = 'answer' number
+    answer_program = 'answer' value:number
 }
 reader read(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
@@ -69,7 +69,8 @@ reader read(text *u8) *u8 {
     if tree == nil || !tok_eof(tokens) {
         tok_print_error(tokens, "source.read"); return nil;
     }
-    var value *PNode = pnode_child(tree, 1);
+    var value *PNode = pnode_require(tree, "value");
+    if value == nil { return nil; }
     return ast_main_i64(ast_span(ast_number(value.text), value.start, value.end));
 }
 </textarea>
@@ -91,9 +92,9 @@ reader read(text *u8) *u8 {
   </div>
   <p class="note">local: reader → AST → wasm · <a id="save-workspace">save workspace</a> · <label class="file-action">open workspace<input id="open-workspace" type="file" accept=".json,application/json" hidden></label></p>
 </main>
-<script src="compiler_host.js?v=workbench6"></script>
-<script src="program_host.js?v=workbench6"></script>
-<script src="editor.js?v=workbench6"></script>
+<script src="compiler_host.js?v=workbench7"></script>
+<script src="program_host.js?v=workbench7"></script>
+<script src="editor.js?v=workbench7"></script>
 <script>
 let compilerBytes;
 let stdlibFiles;
@@ -137,11 +138,11 @@ const presets = {
 };
 
 Promise.all([
-  fetch('compiler.wasm?v=workbench6').then(r => {
+  fetch('compiler.wasm?v=workbench7').then(r => {
     if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
     return r.arrayBuffer();
   }),
-  fetch('stdlib.json?v=workbench6').then(r => {
+  fetch('stdlib.json?v=workbench7').then(r => {
     if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
     return r.json();
   }),

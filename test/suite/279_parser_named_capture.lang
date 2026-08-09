@@ -1,0 +1,48 @@
+// expect: 0
+// Named captures decouple lowering from positional grammar children.
+
+include "std/parser_reader.lang"
+
+#parser{
+    pair = left:number ':' right:number
+    action = command:('answer' | 'bad') value:(number | symbol)
+    maybe = required:number optional:symbol?
+    values = items:number+
+}
+
+func main() i64 {
+    var pair_tokens *Tokenizer = tok_new("10:32");
+    var pair *PNode = parse_pair(pair_tokens);
+    if pair == nil || !tok_eof(pair_tokens) { return 1; }
+    var left *PNode = pnode_require(pair, "left");
+    var right *PNode = pnode_require(pair, "right");
+    if left == nil || right == nil { return 2; }
+    if !streq(left.text, "10") || !streq(right.text, "32") { return 3; }
+
+    // Adding captures does not renumber positional access for migrated rules.
+    if pnode_child(pair, 0) != left || pnode_child(pair, 2) != right { return 4; }
+
+    // The same labels may describe both branches of a choice.
+    var action_tokens *Tokenizer = tok_new("bad missing");
+    var action *PNode = parse_action(action_tokens);
+    if action == nil || !tok_eof(action_tokens) { return 5; }
+    var command *PNode = pnode_require(action, "command");
+    var value *PNode = pnode_require(action, "value");
+    if command == nil || value == nil { return 6; }
+    if !streq(command.text, "bad") || !streq(value.text, "missing") { return 7; }
+
+    // Captured optionals remain optional; absent is not a parse failure.
+    var maybe_tokens *Tokenizer = tok_new("42");
+    var maybe *PNode = parse_maybe(maybe_tokens);
+    if maybe == nil || !tok_eof(maybe_tokens) { return 8; }
+    if pnode_require(maybe, "required") == nil { return 9; }
+    if pnode_get(maybe, "optional") != nil { return 10; }
+
+    // A modifier belongs to the capture, so one lookup returns the whole list.
+    var values_tokens *Tokenizer = tok_new("1 2 3");
+    var values *PNode = parse_values(values_tokens);
+    if values == nil || !tok_eof(values_tokens) { return 11; }
+    var items *PNode = pnode_require(values, "items");
+    if items == nil || vec_len(items.children) != 3 { return 12; }
+    return 0;
+}
