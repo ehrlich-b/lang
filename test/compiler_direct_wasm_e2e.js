@@ -3,7 +3,7 @@
 
 const fs = require('fs');
 const { runLangCompiler } = require('../web/compiler_host.js');
-const { runLangProgram } = require('../web/program_host.js');
+const { formatLangAst, runLangProgram } = require('../web/program_host.js');
 const stdlibFiles = JSON.parse(fs.readFileSync('web/stdlib.json', 'utf8'));
 
 const compilerPath = process.argv[2];
@@ -85,6 +85,7 @@ async function runReaderSource(sourceText, readerName, source) {
 async function compileReaderSource(sourceText, readerName, source, runtimePaths = []) {
   const read = await runReaderSource(sourceText, readerName, source);
   if (read.ast === null) return { ...read, ran: null };
+  const formattedAst = formatLangAst(read.ast);
   const sourceName = `${readerName}.source`;
   const args = ['program.ast', '--from-ast', '--ast-source', sourceName];
   for (const runtimePath of runtimePaths) args.push('--runtime', runtimePath);
@@ -93,7 +94,7 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   const programCompile = await runLangCompiler(
     fs.readFileSync(compilerPath),
     args,
-    { ...stdlibFiles, 'program.ast': read.ast, [sourceName]: source },
+    { ...stdlibFiles, 'program.ast': formattedAst, [sourceName]: source },
     undefined,
     { LANGBE: 'wasm' },
   );
@@ -102,7 +103,7 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   }
   const program = programCompile.files.get('program.wasm');
   if (!program) throw new Error('compiler did not write program.wasm');
-  return { ...read, ran: await runLangProgram(program) };
+  return { ...read, formattedAst, ran: await runLangProgram(program) };
 }
 
 (async () => {
@@ -232,7 +233,8 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
     'lang-reader-workspace', 'lang.lab.active', 'readerName(reader.value)',
     'focusDiagnostic(message)', "target.closest('details').open = true", "phase = 'AST compile'",
     'cachedReaderSource !== reader.value', 'customSource.value)',
-    'editor.js?v=workbench5', 'installCodeEditor(reader, queueSave)',
+    'editor.js?v=workbench6', 'formatLangAst(ast)',
+    "'program.ast': formattedAst", 'installCodeEditor(reader, queueSave)',
   ]) {
     if (!labHtml.includes(marker)) throw new Error(`lab workbench marker missing: ${marker}`);
   }
@@ -243,7 +245,8 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
     throw new Error(`lab starter no longer fits without scrolling: ${starterLines} lines`);
   }
   const read = await compileReaderSource(labSource[1], 'read', 'answer 42');
-  if (Number(read.ran.value) !== 42 || !read.ast.startsWith('(program ')) {
+  if (Number(read.ran.value) !== 42 || !read.ast.startsWith('(program ') ||
+      !read.formattedAst.startsWith('(program\n  (func ')) {
     throw new Error(`lab read pipeline mismatch: value=${read.ran.value} ast=${read.ast}`);
   }
   const readBad = await runReaderSource(labSource[1], 'read', 'answer nope');

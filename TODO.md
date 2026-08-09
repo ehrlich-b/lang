@@ -35,8 +35,9 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 18. ✓ Scaffold a reader outside the browser
 19. ✓ Inspect a reader before codegen
 20. ✓ Make the scaffold fail well
-21. → **Make reader ASTs readable and diffable** ← current
-22. → Capture more languages only when it improves the reader toolkit
+21. ✓ Make reader ASTs readable and diffable
+22. → **Make grammar captures nameable** ← current
+23. → Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -193,17 +194,33 @@ browser starters currently discard that context for a generic message:
 
 ---
 
-## Current: Make reader ASTs readable and diffable
+## Completed: Make reader ASTs readable and diffable
 
 `lang read` exposes the right artifact, but a larger reader still returns one
 very long S-expression line. Make the inspection command useful in reviews and
 snapshot tests without changing the shared AST format:
 
-- [ ] Format saved/stdout AST with deterministic indentation while preserving
+- [x] Format saved/stdout AST with deterministic indentation while preserving
       quoted strings, escapes, spans, and round-trip semantics.
-- [ ] Keep an explicit compact form for hosts that want the reader's raw bytes.
-- [ ] Use the same formatter for the browser AST download and guard native and
+- [x] Keep an explicit compact form for hosts that want the reader's raw bytes.
+- [x] Use the same formatter for the browser AST download and guard native and
       browser artifacts against semantic drift.
+
+---
+
+## Current: Make grammar captures nameable
+
+`#parser{}` removes the recognition boilerplate, but lowering still depends on
+positional `pnode_child(tree, 1)` calls. That is tolerable in the starter and
+fragile in a real grammar: inserting a literal silently renumbers the converter.
+The next reader-toolkit improvement should move meaning into the grammar:
+
+- [ ] Design named captures that keep existing grammar syntax and generated
+      `PNode` layouts backward compatible.
+- [ ] Generate small accessors or labeled-child lookup with a precise error when
+      a capture is absent; do not turn parse trees into a second type system.
+- [ ] Convert the starter and one precedence reader, then guard native and
+      browser generation before migrating larger shipped examples.
 
 ---
 

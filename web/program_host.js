@@ -3,6 +3,135 @@
 // optional third argument supplies UTF-8 stdin, used by reusable reader Wasm.
 'use strict';
 
+// Canonical review form for the shared S-expression AST. This mirrors the
+// native `lang read` formatter: tokens are unchanged, insignificant whitespace
+// and comments are normalized, and the root always puts declarations on their
+// own lines.
+function formatLangAst(source) {
+  let offset = 0;
+  const encoder = new TextEncoder();
+
+  function skipTrivia() {
+    let again = true;
+    while (again) {
+      again = false;
+      while (/\s/.test(source[offset] || '')) offset++;
+      if (source.startsWith('//', offset)) {
+        offset += 2;
+        while (offset < source.length && source[offset] !== '\n') offset++;
+        again = true;
+      } else if (source.startsWith('/*', offset)) {
+        const end = source.indexOf('*/', offset + 2);
+        if (end < 0) throw new Error('unterminated AST comment');
+        offset = end + 2;
+        again = true;
+      }
+    }
+  }
+
+  function parseNode() {
+    skipTrivia();
+    if (source[offset] === '(') {
+      offset++;
+      const children = [];
+      for (;;) {
+        skipTrivia();
+        if (source[offset] === ')') {
+          offset++;
+          return { children };
+        }
+        if (offset >= source.length) throw new Error("expected ')' in AST");
+        children.push(parseNode());
+      }
+    }
+
+    const start = offset;
+    const quote = source[offset] === '"' || source[offset] === "'" ? source[offset++] : '';
+    if (quote) {
+      while (offset < source.length && source[offset] !== quote) {
+        if (source[offset] === '\\') offset++;
+        offset++;
+      }
+      if (source[offset] !== quote) throw new Error('unterminated AST string');
+      offset++;
+    } else {
+      while (offset < source.length && !/[\s()]/.test(source[offset])) offset++;
+    }
+    if (offset === start) throw new Error(`unexpected AST token at byte ${offset}`);
+    return { text: source.slice(start, offset) };
+  }
+
+  const root = parseNode();
+  skipTrivia();
+  if (offset !== source.length) throw new Error(`trailing AST input at byte ${offset}`);
+
+  function measure(node) {
+    if (node.text !== undefined) {
+      node.flat = encoder.encode(node.text).length;
+      node.simple = true;
+      return node.flat;
+    }
+    node.simple = node.children.every(child => child.text !== undefined);
+    node.flat = 2 + node.children.reduce(
+      (width, child, index) => width + measure(child) + (index ? 1 : 0), 0,
+    );
+    return node.flat;
+  }
+  measure(root);
+
+  const output = [];
+  function emitFlat(node) {
+    if (node.text !== undefined) {
+      output.push(node.text);
+      return;
+    }
+    output.push('(');
+    node.children.forEach((child, index) => {
+      if (index) output.push(' ');
+      emitFlat(child);
+    });
+    output.push(')');
+  }
+
+  function emitPretty(node, indent, column, forceBreak = false) {
+    if (node.text !== undefined) {
+      output.push(node.text);
+      return column + node.flat;
+    }
+    if (!forceBreak && column + node.flat <= 88) {
+      emitFlat(node);
+      return column + node.flat;
+    }
+
+    output.push('(');
+    if (!node.children.length) {
+      output.push(')');
+      return column + 2;
+    }
+    emitFlat(node.children[0]);
+    let current = column + 1 + node.children[0].flat;
+    let broken = forceBreak;
+    const childIndent = indent + 2;
+    for (const child of node.children.slice(1)) {
+      if (!broken && (child.text !== undefined || child.simple) &&
+          current + 1 + child.flat <= 88) {
+        output.push(' ');
+        emitFlat(child);
+        current += 1 + child.flat;
+      } else {
+        output.push('\n', ' '.repeat(childIndent));
+        current = emitPretty(child, childIndent, childIndent);
+        broken = true;
+      }
+    }
+    output.push(')');
+    return current + 1;
+  }
+
+  emitPretty(root, 0, 0, true);
+  return output.join('');
+}
+
 async function runLangProgram(wasmBytes, onWrite, inputText) {
   let instance = null;
   let heapTop = 0;
@@ -110,4 +239,4 @@ async function runLangProgram(wasmBytes, onWrite, inputText) {
   return { value, exit, stdout, stderr, instance };
 }
 
-if (typeof module !== 'undefined') module.exports = { runLangProgram };
+if (typeof module !== 'undefined') module.exports = { formatLangAst, runLangProgram };

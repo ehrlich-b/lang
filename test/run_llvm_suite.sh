@@ -402,6 +402,46 @@ reader_read_e2e() {
     (cd "$tmp" && LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
         "$compiler_path" read demo.lang answer.demo >answer.stdout.ast 2>stdout.err) || ok=0
     cmp -s "$tmp/answer.ast" "$tmp/answer.stdout.ast" || ok=0
+    grep -Fq $'(program\n  (func ' "$tmp/answer.ast" || ok=0
+
+    (cd "$tmp" && LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        "$compiler_path" read demo.lang answer.demo --compact \
+        -o answer.compact.ast >compact.out 2>compact.err) || ok=0
+    grep -Fq '(program (func main ' "$tmp/answer.compact.ast" || ok=0
+    [ "$(wc -l < "$tmp/answer.compact.ast")" -eq 0 ] || ok=0
+    node "$REPO_ROOT/test/format_ast_e2e.js" "$tmp/answer.compact.ast" \
+        >"$tmp/answer.browser.ast" 2>"$tmp/browser.err" || ok=0
+    cmp -s "$tmp/answer.ast" "$tmp/answer.browser.ast" || ok=0
+
+    cat >"$tmp/passthrough.lang" <<'PASSTHROUGH'
+reader passthrough(text *u8) *u8 { return text; }
+PASSTHROUGH
+    cat >"$tmp/quoted.passthrough" <<'QUOTED_AST'
+/* formatting trivia */
+( program (func main () (type_base i64) (block
+  (expr_stmt (string "paren ) quote: \" slash: \\ newline: \n snowman: ☃"))
+  (return (span 0 2 (number 42))))))
+QUOTED_AST
+    (cd "$tmp" && LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        "$compiler_path" read passthrough.lang quoted.passthrough --compact \
+        -o quoted.compact.ast >/dev/null 2>quoted-compact.err) || ok=0
+    cmp -s "$tmp/quoted.passthrough" "$tmp/quoted.compact.ast" || ok=0
+    (cd "$tmp" && LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        "$compiler_path" read passthrough.lang quoted.passthrough \
+        -o quoted.ast >/dev/null 2>quoted.err) || ok=0
+    grep -Fq '(string "paren ) quote: \" slash: \\ newline: \n snowman: ☃")' \
+        "$tmp/quoted.ast" || ok=0
+    grep -Fq '(span 0 2 (number 42))' "$tmp/quoted.ast" || ok=0
+    node "$REPO_ROOT/test/format_ast_e2e.js" "$tmp/quoted.compact.ast" \
+        >"$tmp/quoted.browser.ast" 2>"$tmp/quoted-browser.err" || ok=0
+    cmp -s "$tmp/quoted.ast" "$tmp/quoted.browser.ast" || ok=0
+    (cd "$tmp" && LANG_ROOT="$REPO_ROOT" LANGBE=llvm \
+        "$compiler_path" --from-ast quoted.ast --ast-source quoted.passthrough \
+        -o quoted.ll >/dev/null 2>quoted-roundtrip.err) || ok=0
+    if [ "$ok" = 1 ]; then
+        do_timeout 10 lli $LLI_JIT_FLAG "$tmp/quoted.ll" >/dev/null 2>&1
+        [ "$?" = 42 ] || ok=0
+    fi
 
     printf 'keep me\n' >"$tmp/bad.ast"
     printf 'answer nope\n' >"$tmp/bad.demo"
@@ -413,6 +453,7 @@ reader_read_e2e() {
     grep -Fxq 'keep me' "$tmp/bad.ast" || ok=0
     "$compiler_path" help read >"$tmp/help.out" 2>&1 || ok=0
     grep -Fq 'lang read <reader.lang...> <source.ext>' "$tmp/help.out" || ok=0
+    grep -Fq -- '--compact preserves' "$tmp/help.out" || ok=0
 
     if [ "$ok" = 1 ] \
        && (cd "$tmp" && LANG_ROOT="$REPO_ROOT" LANGBE=llvm \

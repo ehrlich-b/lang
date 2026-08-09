@@ -24,8 +24,11 @@ Inspect the frontend boundary without running codegen:
 ```
 
 With no `-o`, `read` writes only the reader's shared AST to stdout, so it can be
-piped into other tools. `--ast-source` binds relative `(span START END ...)`
-nodes back to the custom source when the saved AST is compiled later.
+piped into other tools. Its deterministic indentation makes diffs and snapshots
+useful without changing tokens, strings, escapes, or `(span ...)` wrappers. Add
+`--compact` to preserve the reader's byte-for-byte output instead. `--ast-source`
+binds relative `(span START END ...)` nodes back to the custom source when the
+saved AST is compiled later. The browser AST download uses the same layout.
 
 The smallest complete example is [`example/tiny/tiny.lang`](../example/tiny/tiny.lang):
 

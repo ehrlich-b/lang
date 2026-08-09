@@ -53,6 +53,9 @@ text in, shared AST out—and lang turns it into a native compiler:
 ./out/lang compiler tiny tiny.lang -o tinyc
 ```
 
+`read` formats the shared AST for review and snapshots. Add `--compact` when a
+host needs the reader's byte-for-byte protocol output.
+
 Now `tinyc` is a native compiler for `.tiny` files:
 
 ```bash

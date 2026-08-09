@@ -655,9 +655,10 @@ func cmd_new(argc i64, argv **u8, arg_offset i64) i64 {
 func cmd_help_read() i64 {
     println("lang read - inspect the AST returned by a reader");
     println("");
-    println("Usage: lang read <reader.lang...> <source.ext> [-o output.ast]");
+    println("Usage: lang read <reader.lang...> <source.ext> [-o output.ast] [--compact]");
     println("");
     println("The source extension selects the reader. AST goes to stdout by default.");
+    println("Output is formatted for review; --compact preserves the reader's raw bytes.");
     println("");
     println("Example:");
     println("  lang read tiny.lang answer.tiny -o answer.ast");
@@ -761,8 +762,145 @@ func read_run_reader(name *u8, source_path *u8, content *u8) *u8 {
     return output;
 }
 
-func read_write_ast(fd i64, ast *u8) i64 {
+// A second, syntax-only S-expression parse lets `lang read` format the
+// reader's artifact without rebuilding it from compiler nodes (which would
+// discard `(span ...)` wrappers). `start` and `end` are unused on this private
+// tree, so the measurement pass stores flat width and simple-list status there.
+struct ReadAstFormatter {
+    output *u8;
+    len i64;
+    cap i64;
+    failed i64;
+}
+
+func read_ast_measure(node *PNode) i64 {
+    if node.kind != PNODE_LIST {
+        node.start = strlen(node.text);
+        node.end = 1;
+        return node.start;
+    }
+
+    var width i64 = 2;
+    var simple i64 = 1;
+    var count i64 = vec_len(node.children);
+    var i i64 = 0;
+    while i < count {
+        var child *PNode = vec_get(node.children, i);
+        if i > 0 { width = width + 1; }
+        width = width + read_ast_measure(child);
+        if child.kind == PNODE_LIST { simple = 0; }
+        i = i + 1;
+    }
+    node.start = width;
+    node.end = simple;
+    return width;
+}
+
+func read_ast_emit_char(formatter *ReadAstFormatter, c u8) void {
+    if formatter.len >= formatter.cap - 1 {
+        formatter.failed = 1;
+        return;
+    }
+    *(formatter.output + formatter.len) = c;
+    formatter.len = formatter.len + 1;
+}
+
+func read_ast_emit_text(formatter *ReadAstFormatter, text *u8) void {
+    while *text != 0 {
+        read_ast_emit_char(formatter, *text);
+        text = text + 1;
+    }
+}
+
+func read_ast_emit_indent(formatter *ReadAstFormatter, indent i64) void {
+    read_ast_emit_char(formatter, '\n');
+    var i i64 = 0;
+    while i < indent {
+        read_ast_emit_char(formatter, ' ');
+        i = i + 1;
+    }
+}
+
+func read_ast_emit_flat(formatter *ReadAstFormatter, node *PNode) void {
+    if node.kind != PNODE_LIST {
+        read_ast_emit_text(formatter, node.text);
+        return;
+    }
+
+    read_ast_emit_char(formatter, '(');
+    var count i64 = vec_len(node.children);
+    var i i64 = 0;
+    while i < count {
+        if i > 0 { read_ast_emit_char(formatter, ' '); }
+        read_ast_emit_flat(formatter, vec_get(node.children, i));
+        i = i + 1;
+    }
+    read_ast_emit_char(formatter, ')');
+}
+
+func read_ast_emit_pretty(formatter *ReadAstFormatter, node *PNode,
+                          indent i64, column i64, force_break i64) i64 {
+    if node.kind != PNODE_LIST {
+        read_ast_emit_text(formatter, node.text);
+        return column + node.start;
+    }
+    if force_break == 0 && column + node.start <= 88 {
+        read_ast_emit_flat(formatter, node);
+        return column + node.start;
+    }
+
+    read_ast_emit_char(formatter, '(');
+    var count i64 = vec_len(node.children);
+    if count == 0 {
+        read_ast_emit_char(formatter, ')');
+        return column + 2;
+    }
+
+    var first *PNode = vec_get(node.children, 0);
+    read_ast_emit_flat(formatter, first);
+    var current i64 = column + 1 + first.start;
+    var broken i64 = force_break;
+    var child_indent i64 = indent + 2;
+    var i i64 = 1;
+    while i < count {
+        var child *PNode = vec_get(node.children, i);
+        if broken == 0 && (child.kind != PNODE_LIST || child.end != 0) &&
+           current + 1 + child.start <= 88 {
+            read_ast_emit_char(formatter, ' ');
+            read_ast_emit_flat(formatter, child);
+            current = current + 1 + child.start;
+        } else {
+            read_ast_emit_indent(formatter, child_indent);
+            current = read_ast_emit_pretty(formatter, child, child_indent,
+                                           child_indent, 0);
+            broken = 1;
+        }
+        i = i + 1;
+    }
+    read_ast_emit_char(formatter, ')');
+    return current + 1;
+}
+
+func read_ast_format(ast *u8) *u8 {
+    var tokens *Tokenizer = tok_new(ast);
+    var root *PNode = parse_sexpr(tokens);
+    if root == nil || !tok_eof(tokens) { return nil; }
+    read_ast_measure(root);
+
+    var formatter *ReadAstFormatter = alloc(32);
+    formatter.output = alloc(SIZE_AST_EMIT);
+    formatter.len = 0;
+    formatter.cap = SIZE_AST_EMIT;
+    formatter.failed = 0;
+    read_ast_emit_pretty(formatter, root, 0, 0, 1);
+    if formatter.failed != 0 { return nil; }
+    *(formatter.output + formatter.len) = 0;
+    return formatter.output;
+}
+
+func read_write_ast(fd i64, ast *u8, compact i64) i64 {
     if file_write_all(fd, ast) == 0 { return 0; }
+    if compact != 0 { return 1; }
     var len i64 = strlen(ast);
     if len == 0 || *(ast + len - 1) != '\n' {
         if file_write_all(fd, "\n") == 0 { return 0; }
@@ -778,6 +916,7 @@ func cmd_read(argc i64, argv **u8, arg_offset i64) i64 {
 
     var paths *u8 = vec_new(8);
     var output_file *u8 = nil;
+    var compact i64 = 0;
     var i i64 = 0;
     while i < argc {
         var arg *u8 = get_arg(argv, arg_offset + i);
@@ -788,6 +927,8 @@ func cmd_read(argc i64, argv **u8, arg_offset i64) i64 {
             }
             i = i + 1;
             output_file = get_arg(argv, arg_offset + i);
+        } else if streq(arg, "--compact") {
+            compact = 1;
         } else if *arg == '-' {
             eprint("Error: unknown read option: ");
             eprintln(arg);
@@ -828,9 +969,16 @@ func cmd_read(argc i64, argv **u8, arg_offset i64) i64 {
     if read_prepare_readers(reader_files) == 0 { return 1; }
     var ast *u8 = read_run_reader(reader_name, source_path, content);
     if ast == nil { return 1; }
+    if compact == 0 {
+        ast = read_ast_format(ast);
+        if ast == nil {
+            eprintln("Error: cannot format reader AST");
+            return 1;
+        }
+    }
 
     if output_file == nil {
-        if read_write_ast(1, ast) == 0 {
+        if read_write_ast(1, ast, compact) == 0 {
             eprintln("Error: cannot write AST to stdout");
             return 1;
         }
@@ -843,7 +991,7 @@ func cmd_read(argc i64, argv **u8, arg_offset i64) i64 {
         eprintln(output_file);
         return 1;
     }
-    if read_write_ast(fd, ast) == 0 {
+    if read_write_ast(fd, ast, compact) == 0 {
         file_close(fd);
         os_unlink(output_file);
         eprint("Error: cannot write ");

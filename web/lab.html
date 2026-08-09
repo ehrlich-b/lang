@@ -91,9 +91,9 @@ reader read(text *u8) *u8 {
   </div>
   <p class="note">local: reader → AST → wasm · <a id="save-workspace">save workspace</a> · <label class="file-action">open workspace<input id="open-workspace" type="file" accept=".json,application/json" hidden></label></p>
 </main>
-<script src="compiler_host.js?v=workbench5"></script>
-<script src="program_host.js?v=workbench5"></script>
-<script src="editor.js?v=workbench5"></script>
+<script src="compiler_host.js?v=workbench6"></script>
+<script src="program_host.js?v=workbench6"></script>
+<script src="editor.js?v=workbench6"></script>
 <script>
 let compilerBytes;
 let stdlibFiles;
@@ -137,11 +137,11 @@ const presets = {
 };
 
 Promise.all([
-  fetch('compiler.wasm?v=workbench5').then(r => {
+  fetch('compiler.wasm?v=workbench6').then(r => {
     if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
     return r.arrayBuffer();
   }),
-  fetch('stdlib.json?v=workbench5').then(r => {
+  fetch('stdlib.json?v=workbench6').then(r => {
     if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
     return r.json();
   }),
@@ -374,14 +374,17 @@ func main() *u8 {
       throw new Error(readerRun.stderr || readerRun.stdout || 'reader returned nil');
     }
     const ast = readCString(readerRun.instance, readerRun.value);
-    astDownloadUrl = offerDownload(downloadAst, `${ast}\n`, `${name}.ast`, 'text/plain');
+    const formattedAst = formatLangAst(ast);
+    astDownloadUrl = offerDownload(
+      downloadAst, `${formattedAst}\n`, `${name}.ast`, 'text/plain',
+    );
 
     phase = 'AST compile';
     status.textContent = `${phase}…`;
     const programArgs = ['program.ast', '--from-ast', '--ast-source', 'source.read'];
     const programFiles = {
       ...stdlibFiles,
-      'program.ast': ast,
+      'program.ast': formattedAst,
       'source.read': customSource.value,
     };
     if (runtime.value.trim()) {
@@ -400,7 +403,9 @@ func main() *u8 {
     status.textContent = `${phase}…`;
     const ran = await runLangProgram(program);
     const elapsed = Math.round(performance.now() - started);
-    const astPreview = ast.length > 320 ? `${ast.slice(0, 320)}…` : ast;
+    const astPreview = formattedAst.length > 320
+      ? `${formattedAst.slice(0, 320)}…`
+      : formattedAst;
     const printed = ran.stdout || ran.stderr;
     output.textContent = `${printed ? printed + '\n' : ''}main() → ${ran.value}\n\nAST\n${astPreview}`;
     status.innerHTML = `<span class="ok">ran · ${elapsed}ms</span>`;
