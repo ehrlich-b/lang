@@ -34,8 +34,9 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 17. ✓ Make the textareas behave like code editors
 18. ✓ Scaffold a reader outside the browser
 19. ✓ Inspect a reader before codegen
-20. → **Make the scaffold fail well** ← current
-21. → Capture more languages only when it improves the reader toolkit
+20. ✓ Make the scaffold fail well
+21. → **Make reader ASTs readable and diffable** ← current
+22. → Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -178,17 +179,31 @@ need a complete target compile just to inspect that frontend boundary:
 
 ---
 
-## Current: Make the scaffold fail well
+## Completed: Make the scaffold fail well
 
 The generated parser already tracks its furthest failed token. The native and
 browser starters currently discard that context for a generic message:
 
-- [ ] Use `tok_print_error` in both starters so the first typo reports line,
+- [x] Use `tok_print_error` in both starters so the first typo reports line,
       column, expected grammar forms, and the token actually found.
-- [ ] Keep `lang read` failures to the reader diagnostic plus one source-path
+- [x] Keep `lang read` failures to the reader diagnostic plus one source-path
       status line; no duplicate parser or codegen noise.
-- [ ] Guard the same malformed scaffold input in native and browser reader
+- [x] Guard the same malformed scaffold input in native and browser reader
       loops before considering another shipped language.
+
+---
+
+## Current: Make reader ASTs readable and diffable
+
+`lang read` exposes the right artifact, but a larger reader still returns one
+very long S-expression line. Make the inspection command useful in reviews and
+snapshot tests without changing the shared AST format:
+
+- [ ] Format saved/stdout AST with deterministic indentation while preserving
+      quoted strings, escapes, spans, and round-trip semantics.
+- [ ] Keep an explicit compact form for hosts that want the reader's raw bytes.
+- [ ] Use the same formatter for the browser AST download and guard native and
+      browser artifacts against semantic drift.
 
 ---
 

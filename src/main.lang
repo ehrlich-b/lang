@@ -522,9 +522,9 @@ func scaffold_reader_source(name *u8) *u8 {
     append_str(source, &len, name);
     append_str(source, &len, "_program(tokens);\n");
     append_str(source, &len, "    if tree == nil || !tok_eof(tokens) {\n");
-    append_str(source, &len, "        eprintln(\"");
+    append_str(source, &len, "        tok_print_error(tokens, \"");
     append_str(source, &len, name);
-    append_str(source, &len, ": expected `answer NUMBER`\"); return nil;\n");
+    append_str(source, &len, "\"); return nil;\n");
     append_str(source, &len, "    }\n");
     append_str(source, &len, "    var value *PNode = pnode_child(tree, 1);\n");
     append_str(source, &len, "    return ast_main_i64(ast_span(ast_number(value.text), value.start, value.end));\n");

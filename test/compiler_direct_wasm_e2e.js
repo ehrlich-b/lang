@@ -232,7 +232,7 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
     'lang-reader-workspace', 'lang.lab.active', 'readerName(reader.value)',
     'focusDiagnostic(message)', "target.closest('details').open = true", "phase = 'AST compile'",
     'cachedReaderSource !== reader.value', 'customSource.value)',
-    'editor.js?v=workbench3', 'installCodeEditor(reader, queueSave)',
+    'editor.js?v=workbench5', 'installCodeEditor(reader, queueSave)',
   ]) {
     if (!labHtml.includes(marker)) throw new Error(`lab workbench marker missing: ${marker}`);
   }
@@ -245,6 +245,11 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   const read = await compileReaderSource(labSource[1], 'read', 'answer 42');
   if (Number(read.ran.value) !== 42 || !read.ast.startsWith('(program ')) {
     throw new Error(`lab read pipeline mismatch: value=${read.ran.value} ast=${read.ast}`);
+  }
+  const readBad = await runReaderSource(labSource[1], 'read', 'answer nope');
+  if (readBad.ast !== null ||
+      !readBad.readerRun.stderr.includes('source.read:1:8: expected number, found nope')) {
+    throw new Error(`lab reader failure mismatch: ${readBad.readerRun.stderr}`);
   }
 
   console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}/${addressed.bytes}; readers → tiny:${reader.ran.value}/calc:${calc.ran.value}/generated:${generated.ran.value}/forth:${forth.ran.value}/lisp:${lispValue}/C/Flow/Minipy/lab:${read.ran.value})`);

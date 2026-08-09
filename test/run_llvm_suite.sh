@@ -404,9 +404,10 @@ reader_read_e2e() {
     cmp -s "$tmp/answer.ast" "$tmp/answer.stdout.ast" || ok=0
 
     printf 'keep me\n' >"$tmp/bad.ast"
-    printf 'nope 42\n' >"$tmp/bad.demo"
+    printf 'answer nope\n' >"$tmp/bad.demo"
     (cd "$tmp" && ! LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
         "$compiler_path" read demo.lang bad.demo -o bad.ast >bad.out 2>bad.err) || ok=0
+    grep -Fq 'demo:1:8: expected number, found nope' "$tmp/bad.err" || ok=0
     grep -Fq "bad.demo:1:1: error: reader 'demo' exited with status 1" "$tmp/bad.err" || ok=0
     ! grep -Fq 'compilation failed' "$tmp/bad.err" || ok=0
     grep -Fxq 'keep me' "$tmp/bad.ast" || ok=0
