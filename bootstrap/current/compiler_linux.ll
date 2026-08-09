@@ -75667,6 +75667,48 @@ L12:
     ret i8* %t97
 }
 
+define i8* @pnode_child(i64 %node.arg, i64 %index.arg) {
+L.entry:
+    %node.0 = alloca i64
+    store i64 %node.arg, i64* %node.0
+    %index.1 = alloca i64
+    store i64 %index.arg, i64* %index.1
+    %t0 = alloca i64
+    store i64 1, i64* %t0
+    %t1 = load i64, i64* %node.0
+    %t3 = icmp eq i64 %t1, 0
+    %t2 = zext i1 %t3 to i64
+    %t4 = icmp eq i64 %t2, 0
+    br i1 %t4, label %L3, label %L4
+L3:
+    %t5 = load i64, i64* %node.0
+    %t6 = add i64 %t5, 16
+    %t7 = inttoptr i64 %t6 to i64*
+    %t8 = load i64, i64* %t7
+    %t10 = icmp eq i64 %t8, 0
+    %t9 = zext i1 %t10 to i64
+    %t11 = icmp ne i64 %t9, 0
+    %t12 = zext i1 %t11 to i64
+    store i64 %t12, i64* %t0
+    br label %L4
+L4:
+    %t13 = load i64, i64* %t0
+    %t14 = icmp ne i64 %t13, 0
+    br i1 %t14, label %L0, label %L2
+L0:
+    %t15 = inttoptr i64 0 to i8*
+    ret i8* %t15
+L2:
+    %t16 = load i64, i64* %node.0
+    %t17 = add i64 %t16, 16
+    %t18 = inttoptr i64 %t17 to i64*
+    %t19 = load i64, i64* %t18
+    %t20 = load i64, i64* %index.1
+    %t21 = call i64 @vec_get(i64 %t19, i64 %t20)
+    %t22 = inttoptr i64 %t21 to i8*
+    ret i8* %t22
+}
+
 @ast_version = global i64 1
 @sexpr_reader_source_name = global i64 0
 @sexpr_reader_source_text = global i64 0
@@ -87410,10 +87452,10 @@ L539:
 @.str15 = private constant [2 x i8] c"0\00"
 @.str16 = private constant [4 x i8] c"%f\0A\00"
 @.str17 = private constant [6 x i8] c"0.1.0\00"
-@.str18 = private constant [8 x i8] c"13dca4b\00"
+@.str18 = private constant [8 x i8] c"3b0e0ec\00"
 @.str19 = private constant [7 x i8] c"x86_64\00"
 @.str20 = private constant [7 x i8] c"system\00"
-@.str21 = private constant [8 x i8] c"67aae5e\00"
+@.str21 = private constant [8 x i8] c"13dca4b\00"
 @.str22 = private constant [5 x i8] c"func\00"
 @.str23 = private constant [4 x i8] c"var\00"
 @.str24 = private constant [7 x i8] c"struct\00"
