@@ -26,12 +26,13 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 9. ✓ WASM program target (`LANGOS=wasm` + suite + precompiled browser demos)
 10. ✓ Browser compiler and editable reader lab
 11. ✓ Real readers produce real compilers
-12. → **Exact source spans and reader-driven wasm breadth** ← current
-13. → Capture more languages only when it improves the reader toolkit
+12. ✓ Exact source spans and reader-driven wasm breadth
+13. → **Turn the browser proof into a reader workbench** ← current
+14. → Capture more languages only when it improves the reader toolkit
 
 ---
 
-## Current: Exact locations and reader-driven wasm breadth
+## Completed: Exact locations and reader-driven wasm breadth
 
 The browser now runs the same compiler-compiler loop as native: edit a
 `#parser{}` grammar and lowering, compile the reader, read custom source into
@@ -55,12 +56,33 @@ shared AST, then compile and run that AST—all in the tab.
       reads, compiles, and runs Minilisp to a boxed 42 entirely in the tab.
 - [x] Re-run the shipped-reader inventory. Tiny, Calc, Minilisp, and Forth build
       as reader wasm; C, Flow, and Minipy all stop at address-taken scalar locals.
-- [ ] Support address-taken locals in direct wasm. Nine ordinary cursor sites
-      across three readers make this a backend semantic, not reader-specific
-      cleanup; then rerun each reader through source → reader wasm → AST.
+- [x] Support address-taken locals in direct wasm with per-call spill frames;
+      parameters, shadowing, recursion, and pointer mutation retain Lang
+      semantics instead of forcing heap-cursor rewrites.
+- [x] Run every shipped reader through source → reader wasm → AST →
+      program wasm. Minimal C, Flow, and Minipy programs now join Tiny, Calc,
+      Forth, and runtime-backed Minilisp in the browser gate.
 
 Do not capture a sixth language yet. First make the next reader faster to write,
 debug, compile, and share than the five already shipped.
+
+---
+
+## Current: Turn the browser proof into a reader workbench
+
+The lab proves the complete compiler-compiler loop, but it still behaves like a
+single demo. Make it useful for studying and iterating on readers without making
+the runner taller:
+
+- [ ] Add a compact preset loader for the starter and shipped readers, clearly
+      presented as examples rather than the product.
+- [ ] Keep reader, source, and optional target runtime together when switching
+      presets; preserve in-progress edits locally.
+- [ ] Make the generated reader Wasm and final program Wasm downloadable.
+- [ ] Add a copy/share path once state size and failure behavior are honest.
+
+The primary action remains **write a language**. Presets are scaffolding for
+reader authors, not a return to marketing a fixed list of syntaxes.
 
 ---
 

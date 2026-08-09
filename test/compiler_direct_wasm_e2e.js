@@ -106,6 +106,10 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   if (Number(labeledContinue.value) !== 15) {
     throw new Error(`expected labeled continue result 15, got ${labeledContinue.value}`);
   }
+  const addressed = await compileAndRun('test/direct_wasm_address_e2e.lang');
+  if (Number(addressed.value) !== 42) {
+    throw new Error(`expected address-taken local result 42, got ${addressed.value}`);
+  }
 
   const reader = await compileReaderPipeline('example/tiny/tiny.lang', 'tiny', 'answer 42');
   if (Number(reader.ran.value) !== 42 || !reader.ast.startsWith('(program ')) {
@@ -160,6 +164,27 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
       `minilisp pipeline mismatch: result=${minilisp.ran.value} tag=${lispTag} value=${lispValue}`,
     );
   }
+  const cRead = await compileReaderPipeline(
+    'example/c/c.lang', 'c', 'int main() { return 42; }',
+  );
+  if (Number(cRead.ran.value) !== 42 ||
+      !cRead.ast?.startsWith('(program ') || !cRead.ast.includes('(func main ')) {
+    throw new Error(`C reader mismatch: ast=${cRead.ast}`);
+  }
+  const flowRead = await compileReaderPipeline(
+    'example/flow/flow.lang', 'flow', 'func main() { return 42; }',
+  );
+  if (Number(flowRead.ran.value) !== 42 ||
+      !flowRead.ast?.startsWith('(program ') || !flowRead.ast.includes('(func main ')) {
+    throw new Error(`Flow reader mismatch: ast=${flowRead.ast}`);
+  }
+  const minipyRead = await compileReaderPipeline(
+    'example/minipy/minipy.lang', 'minipy', 'def main():\n    return 42\n',
+  );
+  if (Number(minipyRead.ran.value) !== 42 ||
+      !minipyRead.ast?.startsWith('(program ') || !minipyRead.ast.includes('(func main ')) {
+    throw new Error(`Minipy reader mismatch: ast=${minipyRead.ast}`);
+  }
 
   const labHtml = fs.readFileSync('web/lab.html', 'utf8');
   const labSource = labHtml.match(/<textarea[^>]*\bid="reader"[^>]*>([\s\S]*?)<\/textarea>/);
@@ -169,5 +194,5 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
     throw new Error(`lab read pipeline mismatch: value=${read.ran.value} ast=${read.ast}`);
   }
 
-  console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}; readers → ${reader.ran.value}/${calc.ran.value}/${generated.ran.value}/${forth.ran.value}/lisp:${lispValue}/${read.ran.value})`);
+  console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}/${addressed.bytes}; readers → tiny:${reader.ran.value}/calc:${calc.ran.value}/generated:${generated.ran.value}/forth:${forth.ran.value}/lisp:${lispValue}/C/Flow/Minipy/lab:${read.ran.value})`);
 })().catch((error) => { console.error(error); process.exit(1); });

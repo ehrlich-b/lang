@@ -1,0 +1,32 @@
+func bump(value *i64) void {
+    *value = *value + 1;
+}
+
+func incremented(value i64) i64 {
+    bump(&value);
+    return value;
+}
+
+func sum_down(n i64, output *i64) void {
+    var current i64 = n;
+    if n > 0 {
+        sum_down(n - 1, &current);
+    }
+    *output = *output + current;
+}
+
+func shadowed() i64 {
+    var value i64 = 40;
+    {
+        var value i64 = 1;
+        bump(&value);
+        if value != 2 { return 0; }
+    }
+    return value;
+}
+
+func main() i64 {
+    var total i64 = 0;
+    sum_down(3, &total);
+    return incremented(35) + total + shadowed() - 40;
+}

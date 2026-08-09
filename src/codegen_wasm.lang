@@ -28,9 +28,12 @@ var wasm_struct_count i64 = 0;
 var wasm_strings *u8 = nil;     // [data:8][len:8][offset:8]
 var wasm_string_count i64 = 0;
 var wasm_data_end i64 = 1024;
-var wasm_locals *u8 = nil;      // [name:8][len:8][index:8][type:8][decl:8]
+// [name:8][len:8][index:8][type:8][decl:8][spilled:8][spill offset:8]
+var wasm_locals *u8 = nil;
 var wasm_local_count i64 = 0;
 var wasm_param_count i64 = 0;
+var wasm_spill_frame_size i64 = 0;
+var wasm_spill_base_local i64 = 0;
 var wasm_bindings *u8 = nil;    // active [name:8][len:8][local index:8]
 var wasm_binding_count i64 = 0;
 var wasm_control_depth i64 = 0;
@@ -304,7 +307,7 @@ func wasm_find_defined_func(name *u8, name_len i64) i64 {
 
 func wasm_local_add(name *u8, name_len i64, local_type *u8, decl *u8) i64 {
     var index i64 = wasm_local_count;
-    var entry *u8 = wasm_locals + index * 40;
+    var entry *u8 = wasm_locals + index * 56;
     var np **u8 = entry;
     *np = name;
     var lp *i64 = entry + 8;
@@ -315,6 +318,10 @@ func wasm_local_add(name *u8, name_len i64, local_type *u8, decl *u8) i64 {
     *tp = local_type;
     var decl_p **u8 = entry + 32;
     *decl_p = decl;
+    var spilled_p *i64 = entry + 40;
+    *spilled_p = 0;
+    var offset_p *i64 = entry + 48;
+    *offset_p = 0;
     wasm_local_count = wasm_local_count + 1;
     return index;
 }
@@ -335,8 +342,23 @@ func wasm_find_local(name *u8, name_len i64) i64 {
 }
 
 func wasm_local_type(index i64) *u8 {
-    var tp **u8 = wasm_locals + index * 40 + 24;
+    var tp **u8 = wasm_locals + index * 56 + 24;
     return *tp;
+}
+
+func wasm_local_is_spilled(index i64) i64 {
+    var spilled *i64 = wasm_locals + index * 56 + 40;
+    return *spilled;
+}
+
+func wasm_local_spill_offset(index i64) i64 {
+    var offset *i64 = wasm_locals + index * 56 + 48;
+    return *offset;
+}
+
+func wasm_mark_local_spilled(index i64) void {
+    var spilled *i64 = wasm_locals + index * 56 + 40;
+    *spilled = 1;
 }
 
 func wasm_bind_local(name *u8, name_len i64, index i64) void {
@@ -389,7 +411,7 @@ func wasm_loop_branch_depth(label *u8, label_len i64, is_continue i64) i64 {
 func wasm_local_for_decl(decl *u8) i64 {
     var i i64 = wasm_param_count;
     while i < wasm_local_count {
-        var dp **u8 = wasm_locals + i * 40 + 32;
+        var dp **u8 = wasm_locals + i * 56 + 32;
         if *dp == decl { return i; }
         i = i + 1;
     }
@@ -464,6 +486,99 @@ func wasm_collect_locals(stmt *u8) void {
     }
 }
 
+// WebAssembly value locals have no address. Find Lang locals used through `&`
+// before emission so those bindings can live in a per-call memory frame.
+func wasm_scan_address_expr(expr *u8) void {
+    if expr == nil { return; }
+    var kind i64 = node_kind(expr);
+    if kind == NODE_UNARY_EXPR {
+        var inner *u8 = unary_expr_expr(expr);
+        if unary_expr_op(expr) == TOKEN_AMP &&
+           inner != nil && node_kind(inner) == NODE_IDENT_EXPR {
+            var local i64 = wasm_find_local(
+                ident_expr_name(inner), ident_expr_name_len(inner)
+            );
+            if local >= 0 { wasm_mark_local_spilled(local); }
+        }
+        wasm_scan_address_expr(inner);
+    } else if kind == NODE_BINARY_EXPR {
+        wasm_scan_address_expr(binary_expr_left(expr));
+        wasm_scan_address_expr(binary_expr_right(expr));
+    } else if kind == NODE_GROUP_EXPR {
+        wasm_scan_address_expr(group_expr_expr(expr));
+    } else if kind == NODE_CAST_EXPR {
+        wasm_scan_address_expr(cast_expr_expr(expr));
+    } else if kind == NODE_BITCAST_EXPR {
+        wasm_scan_address_expr(bitcast_expr_expr(expr));
+    } else if kind == NODE_INDEX_EXPR {
+        wasm_scan_address_expr(index_expr_base(expr));
+        wasm_scan_address_expr(index_expr_index(expr));
+    } else if kind == NODE_FIELD_EXPR {
+        wasm_scan_address_expr(field_expr_expr(expr));
+    } else if kind == NODE_CALL_EXPR {
+        var args *u8 = call_expr_args(expr);
+        var i i64 = 0;
+        while i < call_expr_arg_count(expr) {
+            var p **u8 = args + i * 8;
+            wasm_scan_address_expr(*p);
+            i = i + 1;
+        }
+    }
+}
+
+func wasm_scan_address_stmt(stmt *u8) void {
+    if stmt == nil { return; }
+    var kind i64 = node_kind(stmt);
+    if kind == NODE_BLOCK_STMT {
+        var saved_bindings i64 = wasm_binding_count;
+        var stmts *u8 = block_stmt_stmts(stmt);
+        var i i64 = 0;
+        while i < block_stmt_count(stmt) {
+            var p **u8 = stmts + i * 8;
+            wasm_scan_address_stmt(*p);
+            i = i + 1;
+        }
+        wasm_binding_count = saved_bindings;
+    } else if kind == NODE_VAR_DECL {
+        wasm_scan_address_expr(var_decl_init(stmt));
+        var local i64 = wasm_local_for_decl(stmt);
+        wasm_bind_local(var_decl_name(stmt), var_decl_name_len(stmt), local);
+    } else if kind == NODE_ASSIGN_STMT {
+        wasm_scan_address_expr(assign_stmt_target(stmt));
+        wasm_scan_address_expr(assign_stmt_value(stmt));
+    } else if kind == NODE_EXPR_STMT {
+        wasm_scan_address_expr(expr_stmt_expr(stmt));
+    } else if kind == NODE_RETURN_STMT {
+        wasm_scan_address_expr(return_stmt_value(stmt));
+    } else if kind == NODE_IF_STMT {
+        var saved_bindings i64 = wasm_binding_count;
+        wasm_scan_address_expr(if_stmt_cond(stmt));
+        wasm_scan_address_stmt(if_stmt_then(stmt));
+        wasm_binding_count = saved_bindings;
+        wasm_scan_address_stmt(if_stmt_else(stmt));
+        wasm_binding_count = saved_bindings;
+    } else if kind == NODE_WHILE_STMT {
+        var saved_bindings i64 = wasm_binding_count;
+        wasm_scan_address_expr(while_stmt_cond(stmt));
+        wasm_scan_address_stmt(while_stmt_body(stmt));
+        wasm_binding_count = saved_bindings;
+    }
+}
+
+func wasm_assign_spill_offsets() void {
+    var offset i64 = 0;
+    var i i64 = 0;
+    while i < wasm_local_count {
+        if wasm_local_is_spilled(i) != 0 {
+            var slot *i64 = wasm_locals + i * 56 + 48;
+            *slot = offset;
+            offset = offset + 8;
+        }
+        i = i + 1;
+    }
+    wasm_spill_frame_size = offset;
+}
+
 func wasm_parse_integer(text *u8, len i64) i64 {
     var value i64 = 0;
     var i i64 = 0;
@@ -493,6 +608,11 @@ func wasm_expr_type(expr *u8) *u8 {
     }
     if kind == NODE_UNARY_EXPR {
         var inner_type *u8 = wasm_expr_type(unary_expr_expr(expr));
+        if unary_expr_op(expr) == TOKEN_AMP {
+            var pointer_type *u8 = ptr_type_alloc();
+            ptr_type_set_elem(pointer_type, inner_type);
+            return pointer_type;
+        }
         if unary_expr_op(expr) == TOKEN_STAR && inner_type != nil && type_kind(inner_type) == TYPE_PTR {
             return ptr_type_elem(inner_type);
         }
@@ -527,8 +647,26 @@ func wasm_expr_type(expr *u8) *u8 {
     return nil;
 }
 
+func wasm_emit_spill_pointer(local i64, out *WasmBuf, memory_address i64) void {
+    wasm_put(out, 32);  // local.get spill base
+    wasm_put_uleb(out, wasm_spill_base_local);
+    var offset i64 = wasm_local_spill_offset(local);
+    if offset > 0 {
+        wasm_put(out, 66); wasm_put_sleb(out, offset);
+        wasm_put(out, 124);  // i64.add
+    }
+    if memory_address != 0 { wasm_put(out, 167); }  // i32.wrap_i64
+}
+
 func wasm_emit_address(expr *u8, out *WasmBuf) *u8 {
     if expr == nil { wasm_error("missing memory address in direct wasm"); return nil; }
+    if node_kind(expr) == NODE_IDENT_EXPR {
+        var local i64 = wasm_find_local(ident_expr_name(expr), ident_expr_name_len(expr));
+        if local >= 0 && wasm_local_is_spilled(local) != 0 {
+            wasm_emit_spill_pointer(local, out, 1);
+            return wasm_local_type(local);
+        }
+    }
     if node_kind(expr) == NODE_UNARY_EXPR && unary_expr_op(expr) == TOKEN_STAR {
         var pointer *u8 = unary_expr_expr(expr);
         var pointer_type *u8 = wasm_expr_type(pointer);
@@ -606,6 +744,34 @@ func wasm_emit_store(value_type *u8, out *WasmBuf) void {
     wasm_put_uleb(out, 0);
 }
 
+func wasm_emit_spill_prologue(out *WasmBuf) void {
+    if wasm_spill_frame_size == 0 { return; }
+    // Spill frames grow down from 1 MiB; the host heap grows up from there.
+    wasm_put(out, 35); wasm_put_uleb(out, wasm_global_count + 1);  // global.get
+    wasm_put(out, 66); wasm_put_sleb(out, wasm_spill_frame_size);
+    wasm_put(out, 125);  // i64.sub
+    wasm_put(out, 34); wasm_put_uleb(out, wasm_spill_base_local);  // local.tee
+    wasm_put(out, 36); wasm_put_uleb(out, wasm_global_count + 1);  // global.set
+
+    var i i64 = 0;
+    while i < wasm_param_count {
+        if wasm_local_is_spilled(i) != 0 {
+            wasm_emit_spill_pointer(i, out, 1);
+            wasm_put(out, 32); wasm_put_uleb(out, i);  // local.get parameter
+            wasm_emit_store(wasm_local_type(i), out);
+        }
+        i = i + 1;
+    }
+}
+
+func wasm_emit_spill_restore(out *WasmBuf) void {
+    if wasm_spill_frame_size == 0 { return; }
+    wasm_put(out, 32); wasm_put_uleb(out, wasm_spill_base_local);
+    wasm_put(out, 66); wasm_put_sleb(out, wasm_spill_frame_size);
+    wasm_put(out, 124);  // i64.add
+    wasm_put(out, 36); wasm_put_uleb(out, wasm_global_count + 1);  // global.set
+}
+
 func wasm_emit_truth(expr *u8, out *WasmBuf) void {
     wasm_emit_expr(expr, out);
     wasm_put(out, 80);  // i64.eqz
@@ -652,8 +818,13 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
     if kind == NODE_IDENT_EXPR {
         var local i64 = wasm_find_local(ident_expr_name(expr), ident_expr_name_len(expr));
         if local >= 0 {
-            wasm_put(out, 32);  // local.get
-            wasm_put_uleb(out, local);
+            if wasm_local_is_spilled(local) != 0 {
+                wasm_emit_spill_pointer(local, out, 1);
+                wasm_emit_load(wasm_local_type(local), out);
+            } else {
+                wasm_put(out, 32);  // local.get
+                wasm_put_uleb(out, local);
+            }
             return;
         }
         var global i64 = wasm_find_global(ident_expr_name(expr), ident_expr_name_len(expr));
@@ -679,6 +850,22 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         } else if unary_op == TOKEN_STAR {
             var loaded_type *u8 = wasm_emit_address(expr, out);
             wasm_emit_load(loaded_type, out);
+        } else if unary_op == TOKEN_AMP {
+            var inner *u8 = unary_expr_expr(expr);
+            if inner == nil || node_kind(inner) != NODE_IDENT_EXPR {
+                wasm_error("direct wasm currently takes addresses only of locals");
+                wasm_put(out, 66); wasm_put_sleb(out, 0);
+                return;
+            }
+            var local i64 = wasm_find_local(
+                ident_expr_name(inner), ident_expr_name_len(inner)
+            );
+            if local < 0 || wasm_local_is_spilled(local) == 0 {
+                wasm_error("cannot take address of this direct wasm value");
+                wasm_put(out, 66); wasm_put_sleb(out, 0);
+                return;
+            }
+            wasm_emit_spill_pointer(local, out, 0);
         } else {
             wasm_error("unsupported unary operator in direct wasm");
             wasm_put(out, 66); wasm_put_sleb(out, 0);
@@ -808,10 +995,17 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
     }
     if kind == NODE_VAR_DECL {
         var local i64 = wasm_local_for_decl(stmt);
-        if var_decl_init(stmt) != nil { wasm_emit_expr(var_decl_init(stmt), out); }
-        else { wasm_put(out, 66); wasm_put_sleb(out, 0); }
-        wasm_put(out, 33);  // local.set
-        wasm_put_uleb(out, local);
+        if wasm_local_is_spilled(local) != 0 {
+            wasm_emit_spill_pointer(local, out, 1);
+            if var_decl_init(stmt) != nil { wasm_emit_expr(var_decl_init(stmt), out); }
+            else { wasm_put(out, 66); wasm_put_sleb(out, 0); }
+            wasm_emit_store(wasm_local_type(local), out);
+        } else {
+            if var_decl_init(stmt) != nil { wasm_emit_expr(var_decl_init(stmt), out); }
+            else { wasm_put(out, 66); wasm_put_sleb(out, 0); }
+            wasm_put(out, 33);  // local.set
+            wasm_put_uleb(out, local);
+        }
         wasm_bind_local(var_decl_name(stmt), var_decl_name_len(stmt), local);
         return;
     }
@@ -830,9 +1024,15 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
         }
         var local i64 = wasm_find_local(ident_expr_name(target), ident_expr_name_len(target));
         if local >= 0 {
-            wasm_emit_expr(assign_stmt_value(stmt), out);
-            wasm_put(out, 33);
-            wasm_put_uleb(out, local);
+            if wasm_local_is_spilled(local) != 0 {
+                wasm_emit_spill_pointer(local, out, 1);
+                wasm_emit_expr(assign_stmt_value(stmt), out);
+                wasm_emit_store(wasm_local_type(local), out);
+            } else {
+                wasm_emit_expr(assign_stmt_value(stmt), out);
+                wasm_put(out, 33);
+                wasm_put_uleb(out, local);
+            }
             return;
         }
         var global i64 = wasm_find_global(ident_expr_name(target), ident_expr_name_len(target));
@@ -850,6 +1050,7 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
     }
     if kind == NODE_RETURN_STMT {
         if return_stmt_value(stmt) != nil { wasm_emit_expr(return_stmt_value(stmt), out); }
+        wasm_emit_spill_restore(out);
         wasm_put(out, 15);  // return
         return;
     }
@@ -929,6 +1130,35 @@ func wasm_reader_function(decl *u8) *u8 {
     return reader_fn;
 }
 
+func wasm_collect_path(path *u8, path_len i64) void {
+    // compiler.wasm already owns the #parser{} generator. A reader module
+    // needs only the generated parser's token/PNode runtime.
+    if wasm_name_eq(path, path_len, "std/parser_reader.lang", 22) != 0 {
+        path = "std/parser_runtime.lang";
+        path_len = 23;
+    }
+    var path_z *u8 = str_dup_n(path, path_len);
+    if map_has(wasm_included_files, path_z) != 0 { return; }
+    map_set(wasm_included_files, path_z, 1);
+    var source *u8 = alloc(1024 * 1024);
+    var n i64 = read_file_contents(path, path_len, source, 1024 * 1024 - 1);
+    if n < 0 {
+        wasm_error("cannot open dependency for direct wasm output");
+        return;
+    }
+    var included *u8 = parse_program_from_named_string(source, path_z);
+    if included == nil {
+        wasm_error("cannot parse dependency for direct wasm output");
+        return;
+    }
+    var decls *u8 = program_decls(included);
+    var i i64 = 0;
+    while i < program_decl_count(included) {
+        wasm_collect_decl(get_decl(decls, i));
+        i = i + 1;
+    }
+}
+
 func wasm_collect_decl(decl *u8) void {
     wasm_current_decl = decl;
     cg_diagnostic_node = decl;
@@ -986,34 +1216,7 @@ func wasm_collect_decl(decl *u8) void {
         return;
     }
     if kind == NODE_INCLUDE_DECL {
-        var path *u8 = include_decl_path(decl);
-        var path_len i64 = include_decl_path_len(decl);
-        // compiler.wasm already owns the #parser{} generator. A reader module
-        // needs only the generated parser's token/PNode runtime.
-        if wasm_name_eq(path, path_len, "std/parser_reader.lang", 22) != 0 {
-            path = "std/parser_runtime.lang";
-            path_len = 23;
-        }
-        var path_z *u8 = str_dup_n(path, path_len);
-        if map_has(wasm_included_files, path_z) != 0 { return; }
-        map_set(wasm_included_files, path_z, 1);
-        var source *u8 = alloc(1024 * 1024);
-        var n i64 = read_file_contents(path, path_len, source, 1024 * 1024 - 1);
-        if n < 0 {
-            wasm_error("cannot open include file for direct wasm output");
-            return;
-        }
-        var included *u8 = parse_program_from_named_string(source, path_z);
-        if included == nil {
-            wasm_error("cannot parse include file for direct wasm output");
-            return;
-        }
-        var decls *u8 = program_decls(included);
-        var i i64 = 0;
-        while i < program_decl_count(included) {
-            wasm_collect_decl(get_decl(decls, i));
-            i = i + 1;
-        }
+        wasm_collect_path(include_decl_path(decl), include_decl_path_len(decl));
         return;
     }
     if kind == NODE_READER_EXPR {
@@ -1046,7 +1249,13 @@ func wasm_collect_decl(decl *u8) void {
         return;
     }
     if kind == NODE_REQUIRE_DECL {
-        wasm_error("require is not supported by direct wasm yet");
+        var module *u8 = require_decl_module(decl);
+        var module_len i64 = require_decl_module_len(decl);
+        var path *u8 = alloc(module_len + 6);
+        memcpy(path, module, module_len);
+        memcpy(path + module_len, ".lang", 5);
+        *(path + module_len + 5) = 0;
+        wasm_collect_path(path, module_len + 5);
         return;
     }
     if kind != NODE_MODULES_DECL {
@@ -1288,9 +1497,10 @@ func wasm_const_value(expr *u8) i64 {
 }
 
 func wasm_emit_global_section() void {
-    // User globals are canonical i64 values. The final i32 global marks the
-    // beginning of host-managed heap space.
-    wasm_put_uleb(wasm_section, wasm_global_count + 1);
+    // User globals are canonical i64 values. The i32 heap marker separates
+    // static data from host allocations; a private i64 spill stack grows down
+    // from that same boundary.
+    wasm_put_uleb(wasm_section, wasm_global_count + 2);
     var i i64 = 0;
     while i < wasm_global_count {
         var decl *u8 = wasm_global_get(i);
@@ -1305,6 +1515,11 @@ func wasm_emit_global_section() void {
     wasm_put(wasm_section, 127);  // i32
     wasm_put(wasm_section, 0);    // immutable
     wasm_put(wasm_section, 65);   // i32.const
+    wasm_put_sleb(wasm_section, 1024 * 1024);
+    wasm_put(wasm_section, 11);
+    wasm_put(wasm_section, 126);  // i64 spill stack pointer
+    wasm_put(wasm_section, 1);    // mutable
+    wasm_put(wasm_section, 66);   // i64.const
     wasm_put_sleb(wasm_section, 1024 * 1024);
     wasm_put(wasm_section, 11);
     wasm_emit_section(6, wasm_section);
@@ -1332,7 +1547,7 @@ func wasm_emit_export_section() void {
 func wasm_emit_function_body(decl *u8) void {
     wasm_current_decl = decl;
     wasm_body.len = 0;
-    wasm_locals = alloc(LIMIT_LOCALS * 40);
+    wasm_locals = alloc(LIMIT_LOCALS * 56);
     wasm_bindings = alloc(LIMIT_LOCALS * 24);
     wasm_local_count = 0;
     wasm_binding_count = 0;
@@ -1350,8 +1565,13 @@ func wasm_emit_function_body(decl *u8) void {
     }
     wasm_param_count = wasm_local_count;
     wasm_collect_locals(func_decl_body(decl));
+    wasm_scan_address_stmt(func_decl_body(decl));
+    wasm_assign_spill_offsets();
+    wasm_binding_count = wasm_param_count;
+    wasm_spill_base_local = wasm_local_count;
 
     var added i64 = wasm_local_count - wasm_param_count;
+    if wasm_spill_frame_size > 0 { added = added + 1; }
     if added > 0 {
         wasm_put_uleb(wasm_body, 1);  // one local group
         wasm_put_uleb(wasm_body, added);
@@ -1360,7 +1580,9 @@ func wasm_emit_function_body(decl *u8) void {
         wasm_put_uleb(wasm_body, 0);
     }
 
+    wasm_emit_spill_prologue(wasm_body);
     wasm_emit_stmt(func_decl_body(decl), wasm_body);
+    wasm_emit_spill_restore(wasm_body);
     if wasm_type_is_void(func_decl_ret_type(decl)) == 0 {
         // A valid default for paths not terminated by an explicit return.
         wasm_put(wasm_body, 66);

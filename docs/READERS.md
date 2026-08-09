@@ -99,6 +99,9 @@ generator stays in the compiler. Existing readers that include
 `std/parser_reader.lang` work unchanged—the browser compiler selects the runtime
 half when it builds the reader module. A collapsed target-runtime editor accepts
 Lang helpers called by emitted AST without adding height until it is opened.
+The direct backend also preserves address-taken locals, including parameters
+and recursive calls; reader authors do not need to replace `&cursor` with manual
+heap allocation for the browser.
 
 Keep the reader in three layers—parse, lower, emit—and test the smallest source
 that exercises each new construct. Imports, `#parser{}` grammars, types, globals,

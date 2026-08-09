@@ -630,11 +630,8 @@ func fo_emit_worddef(d *PNode, sigs *u8) *u8 {
     }
 
     var stmts *u8 = ast_vec();
-    // Keep the mutable cursor explicit. This also lets the reader compile to
-    // direct wasm, whose scalar locals do not have addressable storage.
-    var ip *i64 = alloc(8);
-    *ip = 0;
-    fo_emit_seq(body.children, ip, stack, stmts, sigs, wname);
+    var ip i64 = 0;
+    fo_emit_seq(body.children, &ip, stack, stmts, sigs, wname);
 
     // Anything left BELOW the result is a discarded value whose side effects
     // still have to happen, and happen first. The result itself needs no temp -
