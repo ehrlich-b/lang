@@ -84,3 +84,16 @@ builds its standalone wrapper from the reader's transitive sibling dependencies,
 so unrelated functions in the including program stay out. The generated
 executable and wrapper source live in `${LANG_CACHE:-.lang-cache}/readers/` when
 debugging.
+
+## Errors and source locations
+
+Syntax errors in `.lang` files report `path:line:column`. If a reader fails to
+compile, Lang points to its declaration and also names the generated wrapper in
+the cache. Semantic errors in reader-emitted AST retain the invoking source
+file, even though the shared AST does not yet carry exact per-node spans.
+
+Your reader still has the best information about its own syntax. Manual readers
+can track tokens directly; generated parsers retain the furthest failure. Use
+`tok_print_error(tokens, "mylang")` before returning `nil` for a one-line parse
+diagnostic with the custom source's line, column, expected forms, and found
+token.

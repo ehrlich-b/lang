@@ -1368,7 +1368,8 @@ func llvm_emit_expr(expr *u8) void {
                 llvm_set_result_temp(temp);
             }
         } else {
-            eprint("error: undefined identifier '");
+            cg_error_prefix();
+            eprint("undefined identifier '");
             eprint_buf(name, len);
             eprintln("'");
             cg_had_error = 1;
@@ -1400,7 +1401,8 @@ func llvm_emit_expr(expr *u8) void {
                     // Find the variant
                     var variant *u8 = find_variant(enum_decl, field_name, field_len);
                     if variant == nil {
-                        eprint("error: enum '");
+                        cg_error_prefix();
+                        eprint("enum '");
                         eprint_buf(enum_name, enum_name_len);
                         eprint("' has no variant '");
                         eprint_buf(field_name, field_len);
@@ -1603,7 +1605,8 @@ func llvm_emit_expr(expr *u8) void {
                     is_syscall_name = 1;
                 }
                 if is_syscall_name == 0 {
-                    eprint("error: undefined function '");
+                    cg_error_prefix();
+                    eprint("undefined function '");
                     eprint_buf(func_name, func_name_len);
                     eprintln("'");
                     cg_had_error = 1;
@@ -3192,7 +3195,8 @@ func llvm_emit_expr(expr *u8) void {
                 // Find the variant
                 var variant *u8 = find_variant(enum_decl, field_name, field_len);
                 if variant == nil {
-                    eprint("error: enum '");
+                    cg_error_prefix();
+                    eprint("enum '");
                     eprint_buf(enum_name, enum_name_len);
                     eprint("' has no variant '");
                     eprint_buf(field_name, field_len);
@@ -3512,7 +3516,8 @@ func llvm_emit_expr(expr *u8) void {
         // Fall back to external executable
         var reader_decl *u8 = find_reader(name, name_len);
         if reader_decl == nil {
-            eprint("error: reader macro '");
+            cg_error_prefix();
+            eprint("reader macro '");
             eprint_buf(name, name_len);
             eprintln("' not found");
             return;
@@ -3526,7 +3531,8 @@ func llvm_emit_expr(expr *u8) void {
         var n i64 = exec_capture(exe_path, content, content_len, output, 4194304);
 
         if n < 0 {
-            eprint("error: reader '");
+            cg_error_prefix();
+            eprint("reader '");
             eprint_buf(name, name_len);
             eprint("' exited with status ");
             eprint_i64(0 - n);
@@ -3535,7 +3541,8 @@ func llvm_emit_expr(expr *u8) void {
             return;
         }
         if n == 0 {
-            eprint("error: reader '");
+            cg_error_prefix();
+            eprint("reader '");
             eprint_buf(name, name_len);
             eprintln("' returned no AST");
             cg_had_error = 1;
@@ -3823,14 +3830,16 @@ func llvm_emit_expr(expr *u8) void {
                 // Look up enum and variant to get tag
                 var enum_decl *u8 = find_enum(enum_name, enum_len);
                 if enum_decl == nil {
-                    eprint("error: unknown enum '");
+                    cg_error_prefix();
+                    eprint("unknown enum '");
                     eprint_buf(enum_name, enum_len);
                     eprintln("' in match pattern");
                     return;
                 }
                 var variant *u8 = find_variant(enum_decl, var_name, var_len);
                 if variant == nil {
-                    eprint("error: unknown variant '");
+                    cg_error_prefix();
+                    eprint("unknown variant '");
                     eprint_buf(var_name, var_len);
                     eprintln("' in match pattern");
                     return;
@@ -4052,7 +4061,8 @@ func llvm_emit_expr(expr *u8) void {
     // Handle expression: handle { body } with { return(v) => ..., Effect(e, k) => ... }
     if k == NODE_HANDLE_EXPR {
         if llvm_is_wasm {
-            eprintln("error: algebraic effects (handle) are not supported on the wasm target - wasm has no stack switching");
+            cg_error_prefix();
+            eprintln("algebraic effects (handle) are not supported on the wasm target - wasm has no stack switching");
             exit(1);
         }
         var body *u8 = handle_expr_body(expr);
@@ -4404,7 +4414,8 @@ func llvm_emit_expr(expr *u8) void {
     // Perform expression: perform Effect(args)
     if k == NODE_PERFORM_EXPR {
         if llvm_is_wasm {
-            eprintln("error: algebraic effects (perform) are not supported on the wasm target - wasm has no stack switching");
+            cg_error_prefix();
+            eprintln("algebraic effects (perform) are not supported on the wasm target - wasm has no stack switching");
             exit(1);
         }
         var args *u8 = perform_expr_args(expr);
@@ -4562,7 +4573,8 @@ func llvm_emit_expr(expr *u8) void {
     // Resume expression: resume k(value)
     if k == NODE_RESUME_EXPR {
         if llvm_is_wasm {
-            eprintln("error: algebraic effects (resume) are not supported on the wasm target - wasm has no stack switching");
+            cg_error_prefix();
+            eprintln("algebraic effects (resume) are not supported on the wasm target - wasm has no stack switching");
             exit(1);
         }
         var k_expr *u8 = resume_expr_k(expr);
@@ -4912,11 +4924,13 @@ func llvm_emit_stmt(stmt *u8) void {
         var entry *u8 = llvm_find_loop(label, label_len);
         if entry == nil {
             if label != nil {
-                eprint("error: break target '");
+                cg_error_prefix();
+                eprint("break target '");
                 eprint_buf(label, label_len);
                 eprintln("' is not an enclosing loop");
             } else {
-                eprintln("error: break outside of loop");
+                cg_error_prefix();
+                eprintln("break outside of loop");
             }
             cg_had_error = 1;
             llvm_emit_line("    unreachable");
@@ -4937,11 +4951,13 @@ func llvm_emit_stmt(stmt *u8) void {
         var entry *u8 = llvm_find_loop(label, label_len);
         if entry == nil {
             if label != nil {
-                eprint("error: continue target '");
+                cg_error_prefix();
+                eprint("continue target '");
                 eprint_buf(label, label_len);
                 eprintln("' is not an enclosing loop");
             } else {
-                eprintln("error: continue outside of loop");
+                cg_error_prefix();
+                eprintln("continue outside of loop");
             }
             cg_had_error = 1;
             llvm_emit_line("    unreachable");
@@ -5143,7 +5159,8 @@ func llvm_emit_stmt(stmt *u8) void {
             // does not. Calling one through fn would pass the wrong ABI.
             if var_type != nil && type_kind(var_type) == TYPE_FUNC {
                 if node_kind(init) == NODE_LAMBDA_EXPR && lambda_has_captures(init) == 1 {
-                    eprint("error: cannot assign capturing lambda to 'fn' type variable '");
+                    cg_error_prefix();
+                    eprint("cannot assign capturing lambda to 'fn' type variable '");
                     eprint_buf(var_decl_name(stmt), var_decl_name_len(stmt));
                     eprintln("'");
                     eprintln("  hint: use a closure type for capturing lambdas");
@@ -6108,6 +6125,7 @@ func llvm_emit_block(block *u8) void {
 // ============================================================
 
 func llvm_emit_func(func_node *u8) void {
+    cg_diagnostic_node = func_node;
     // Register this function for return type lookup
     var name *u8 = func_decl_name(func_node);
     var name_len i64 = func_decl_name_len(func_node);
@@ -6408,7 +6426,8 @@ func llvm_emit_func(func_node *u8) void {
             llvm_emit_line("    ret void");
         }
     } else if llvm_emitted_terminator == 0 {
-        eprint("error: non-void function '");
+        cg_error_prefix();
+        eprint("non-void function '");
         eprint_buf(name, name_len);
         eprintln("' can reach the end without returning a value");
         cg_had_error = 1;
@@ -6630,6 +6649,8 @@ func llvm_emit_decl(decl *u8) void {
         return;
     }
 
+    cg_diagnostic_node = decl;
+
     var k i64 = node_kind(decl);
 
     if k == NODE_FUNC_DECL {
@@ -6666,7 +6687,7 @@ func llvm_emit_decl(decl *u8) void {
         }
 
         // Parse file
-        var inc_prog *u8 = parse_program_from_string(buf);
+        var inc_prog *u8 = parse_program_from_named_string(buf, path_str);
         if inc_prog == nil {
             eprint("Error: cannot parse include file: ");
             eprintln(path_str);
@@ -6721,7 +6742,7 @@ func llvm_emit_decl(decl *u8) void {
                 return;
             }
 
-            var req_prog *u8 = parse_program_from_string(buf);
+            var req_prog *u8 = parse_program_from_named_string(buf, full_path);
             if req_prog == nil {
                 eprint("Error: cannot parse require file: ");
                 eprintln(full_path);
@@ -6883,7 +6904,9 @@ func llvm_emit_decl(decl *u8) void {
                     var inc_count i64 = program_decl_count(prog);
                     var i i64 = 0;
                     while i < inc_count {
-                        llvm_emit_decl(get_decl(inc_decls, i));
+                        var generated_decl *u8 = get_decl(inc_decls, i);
+                        node_copy_origin(generated_decl, decl);
+                        llvm_emit_decl(generated_decl);
                         i = i + 1;
                     }
                 }
@@ -6915,7 +6938,9 @@ func llvm_emit_decl(decl *u8) void {
             var inc_count i64 = program_decl_count(prog);
             var i i64 = 0;
             while i < inc_count {
-                llvm_emit_decl(get_decl(inc_decls, i));
+                var generated_decl *u8 = get_decl(inc_decls, i);
+                node_copy_origin(generated_decl, decl);
+                llvm_emit_decl(generated_decl);
                 i = i + 1;
             }
         }
@@ -6930,6 +6955,7 @@ var llvm_first_pass_included *u8 = nil;
 
 // First pass helper: process a single declaration
 func llvm_register_decl(decl *u8) void {
+    cg_diagnostic_node = decl;
     if decl == nil {
         return;
     }
@@ -7002,7 +7028,7 @@ func llvm_register_decl(decl *u8) void {
         *(buf + n) = 0;
 
         // Parse file
-        var inc_prog *u8 = parse_program_from_string(buf);
+        var inc_prog *u8 = parse_program_from_named_string(buf, path_str);
         if inc_prog == nil {
             eprint("error: failed to parse include file: ");
             eprintln(path_str);
@@ -7064,7 +7090,7 @@ func llvm_register_decl(decl *u8) void {
             if n < 0 { return; }
             *(buf + n) = 0;
 
-            req_prog = parse_program_from_string(buf);
+            req_prog = parse_program_from_named_string(buf, full_path);
             if req_prog == nil {
                 eprint("error: failed to parse require file: ");
                 eprint_buf(path, path_len);

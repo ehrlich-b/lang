@@ -221,6 +221,7 @@ MALFORMED
     LANG_CACHE="$tmp/cache-malformed" LANGBE=llvm $COMPILER \
         "$tmp/malformed.lang" -o "$tmp/malformed.ll" >"$tmp/malformed.out" 2>&1 && ok=0
     test ! -e "$tmp/malformed.ll" || ok=0
+    grep -Fq "$tmp/malformed.lang:" "$tmp/malformed.out" || ok=0
     grep -Fq "expected ';'" "$tmp/malformed.out" || ok=0
 
     cat > "$tmp/unknown-builder.lang" <<'UNKNOWNBUILDER'
@@ -233,8 +234,24 @@ UNKNOWNBUILDER
         "$tmp/unknown-builder.lang" -o "$tmp/unknown-builder.ll" \
         >"$tmp/unknown-builder.out" 2>&1 && ok=0
     test ! -e "$tmp/unknown-builder.ll" || ok=0
+    grep -Fq "$tmp/unknown-builder.lang:" "$tmp/unknown-builder.out" || ok=0
     grep -Fq "undefined function 'ast_builder_that_does_not_exist'" \
         "$tmp/unknown-builder.out" || ok=0
+
+    cat > "$tmp/bad-ast-reader.lang" <<'BADASTREADER'
+include "std/ast.lang"
+reader badast(text *u8) *u8 {
+    var body *u8 = ast_block1(ast_return(ast_call0("missing_from_reader_ast")));
+    return ast_program1(ast_func("main", ast_vec(), ast_type_i64(), body));
+}
+BADASTREADER
+    printf 'anything\n' > "$tmp/program.badast"
+    LANG_CACHE="$tmp/cache-bad-ast" LANGBE=llvm $COMPILER \
+        "$tmp/bad-ast-reader.lang" "$tmp/program.badast" -o "$tmp/bad-ast.ll" \
+        >"$tmp/bad-ast.out" 2>&1 && ok=0
+    test ! -e "$tmp/bad-ast.ll" || ok=0
+    grep -Fq "$tmp/program.badast:1:1: error: undefined function 'missing_from_reader_ast'" \
+        "$tmp/bad-ast.out" || ok=0
 
     LANG_CACHE="$tmp/cache-compiler" LANGBE=llvm $COMPILER -c not_a_reader \
         example/tiny/tiny.lang -o "$tmp/not-a-reader.ll" \

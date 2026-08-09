@@ -2453,7 +2453,78 @@ func param_set_type(p *u8, t *u8) void {
 var parse_tokens *u8 = nil;      // vec of token pointers
 var parse_current i64 = 0;
 pub var parse_error_count i64 = 0;  // v2
+var parse_source_name *u8 = nil;
 var parse_max_errors i64 = 10;   // Stop after this many errors
+
+// Source provenance stays out of the stable AST layout. This side table lets
+// parsed and reader-generated declarations carry useful diagnostic context
+// without changing the S-expression ABI or every AST node allocation.
+// Entry: [node:8][source_name:8][line:8][column:8]
+var node_origins *u8 = nil;
+var node_origin_count i64 = 0;
+
+pub func node_set_origin(node *u8, source_name *u8, line i64, column i64) void {
+    if node == nil || source_name == nil || *source_name == 0 {
+        return;
+    }
+    if node_origins == nil {
+        node_origins = alloc(LIMIT_NODE_ORIGINS * 32);
+    }
+    if node_origin_count >= LIMIT_NODE_ORIGINS {
+        return;
+    }
+    var entry *u8 = node_origins + (node_origin_count * 32);
+    var node_slot **u8 = entry;
+    *node_slot = node;
+    var source_slot **u8 = entry + 8;
+    *source_slot = source_name;
+    var line_slot *i64 = entry + 16;
+    *line_slot = line;
+    var column_slot *i64 = entry + 24;
+    *column_slot = column;
+    node_origin_count = node_origin_count + 1;
+}
+
+func node_origin_entry(node *u8) *u8 {
+    var i i64 = node_origin_count - 1;
+    while i >= 0 {
+        var entry *u8 = node_origins + (i * 32);
+        var node_slot **u8 = entry;
+        if *node_slot == node {
+            return entry;
+        }
+        i = i - 1;
+    }
+    return nil;
+}
+
+pub func node_origin_source(node *u8) *u8 {
+    var entry *u8 = node_origin_entry(node);
+    if entry == nil { return nil; }
+    var source_slot **u8 = entry + 8;
+    return *source_slot;
+}
+
+pub func node_origin_line(node *u8) i64 {
+    var entry *u8 = node_origin_entry(node);
+    if entry == nil { return 0; }
+    var line_slot *i64 = entry + 16;
+    return *line_slot;
+}
+
+pub func node_origin_column(node *u8) i64 {
+    var entry *u8 = node_origin_entry(node);
+    if entry == nil { return 0; }
+    var column_slot *i64 = entry + 24;
+    return *column_slot;
+}
+
+pub func node_copy_origin(node *u8, source_node *u8) void {
+    var source *u8 = node_origin_source(source_node);
+    if source != nil {
+        node_set_origin(node, source, node_origin_line(source_node), node_origin_column(source_node));
+    }
+}
 
 // ============================================================
 // Token array helper (using vec)
@@ -2468,6 +2539,13 @@ pub func get_token(index i64) *u8 {
 
 pub func parser_token_count() i64 {
     return vec_len(parse_tokens);
+}
+
+// Set the human-readable source name used by parser diagnostics. Callers that
+// parse nested files should use parse_program_from_named_string(), which saves
+// and restores this value along with the rest of the parser state.
+pub func parser_set_source_name(name *u8) void {
+    parse_source_name = name;
 }
 
 // ============================================================
@@ -2549,11 +2627,14 @@ func parse_match(t i64) bool {
 
 func parse_error(msg *u8) void {
     var tok *u8 = parse_peek();
-    eprint("Error at ");
+    if parse_source_name != nil && *parse_source_name != 0 {
+        eprint(parse_source_name);
+        eprint(":");
+    }
     eprint_i64(tok_line(tok));
     eprint(":");
     eprint_i64(tok_col(tok));
-    eprint(": ");
+    eprint(": error: ");
     eprintln(msg);
     parse_error_count = parse_error_count + 1;
 
@@ -4123,8 +4204,10 @@ pub func parse_program() *u8 {
     var decl_count i64 = 0;
 
     while !parse_is_at_end() {
+        var start_tok *u8 = parse_peek();
         var decl *u8 = parse_declaration();
         if decl != nil {
+            node_set_origin(decl, parse_source_name, tok_line(start_tok), tok_col(start_tok));
             var p **u8 = decls + (decl_count * 8);
             *p = decl;
             decl_count = decl_count + 1;
@@ -4165,13 +4248,9 @@ func parse_expression_from_string(source *u8) *u8 {
     var saved_tokens *u8 = parse_tokens;
     var saved_current i64 = parse_current;
     var saved_errors i64 = parse_error_count;
+    var saved_source_name *u8 = parse_source_name;
 
-    // Initialize fresh state
-    parse_tokens = vec_new(8);
-    parse_current = 0;
-    parse_error_count = 0;
-
-    // Tokenize the source
+    // Tokenize into a fresh state
     parser_tokenize(source);
 
     // Parse as expression
@@ -4187,23 +4266,22 @@ func parse_expression_from_string(source *u8) *u8 {
     parse_tokens = saved_tokens;
     parse_current = saved_current;
     parse_error_count = saved_errors;
+    parse_source_name = saved_source_name;
 
     return expr;
 }
 
-// Parse a program from a source string (for include processing)
-func parse_program_from_string(source *u8) *u8 {
+// Parse a named program from a source string (for include processing).
+// Nested parses are isolated, including their source name and error count.
+func parse_program_from_named_string(source *u8, source_name *u8) *u8 {
     // Save current parser state
     var saved_tokens *u8 = parse_tokens;
     var saved_current i64 = parse_current;
     var saved_errors i64 = parse_error_count;
+    var saved_source_name *u8 = parse_source_name;
 
-    // Initialize fresh state
-    parse_tokens = vec_new(8);
-    parse_current = 0;
-    parse_error_count = 0;
-
-    // Tokenize the source
+    // Tokenize into a fresh state
+    parse_source_name = source_name;
     parser_tokenize(source);
 
     // Parse as program
@@ -4224,9 +4302,15 @@ func parse_program_from_string(source *u8) *u8 {
     parse_tokens = saved_tokens;
     parse_current = saved_current;
     parse_error_count = saved_errors;
+    parse_source_name = saved_source_name;
 
     if nested_errors > 0 {
         return nil;
     }
     return prog;
+}
+
+// Parse an unnamed generated program while preserving the caller's label.
+func parse_program_from_string(source *u8) *u8 {
+    return parse_program_from_named_string(source, parse_source_name);
 }

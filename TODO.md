@@ -47,13 +47,13 @@ can add the next one. The working path is now intentionally graduated:
 - [x] Tiny and calculator readers are guarded end to end.
 - [x] `lang compiler <reader> ... -o <binary>` produces a named native compiler in one command.
 - [x] Reader imports, grammars, types, globals, and transitive helpers can appear after the reader; wrappers omit unrelated host functions.
-- [ ] Add file/line context to diagnostics inside reader wrappers and emitted AST.
+- [x] Preserve source provenance through includes, reader wrappers, and reader-emitted top-level AST.
 - [x] `#parser{}` rewinds failed alternatives/sequences, guards empty repetitions, and exposes furthest-token parse errors.
+- [ ] Add optional per-node source spans to the shared AST for exact custom-language semantic locations.
 - [ ] Put an editable reader beside editable source in the browser; this depends on `compiler.wasm`.
 
-The next implementation target is file/line context for failures in generated
-reader wrappers and AST emitted by a reader, so users see their source file—not
-an implementation detail in `.lang-cache/readers/`.
+The next implementation target is `compiler.wasm`: put an editable reader next
+to editable source in the browser and compile both without a server.
 
 ---
 

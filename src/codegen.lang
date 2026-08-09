@@ -14,6 +14,24 @@ var cg_out_fd i64 = 0;           // output file descriptor
 var cg_label_num i64 = 0;        // for generating unique labels
 var cg_had_error i64 = 0;        // set to 1 if codegen encounters an error
 var cg_has_llvm_backend i64 = 0; // set to 1 by codegen_llvm.lang if included
+var cg_diagnostic_node *u8 = nil;
+
+// Prefix a diagnostic with the closest declaration provenance available.
+// Readers can provide exact errors for their own syntax; the kernel at least
+// preserves the invoking file for errors in the AST they emit.
+func cg_error_prefix() void {
+    var source *u8 = node_origin_source(cg_diagnostic_node);
+    if source != nil {
+        eprint(source);
+        eprint(":");
+        eprint_i64(node_origin_line(cg_diagnostic_node));
+        eprint(":");
+        eprint_i64(node_origin_column(cg_diagnostic_node));
+        eprint(": error: ");
+    } else {
+        eprint("error: ");
+    }
+}
 
 // When set, overrides LANGOS for target-triple selection. Reader executables
 // run on the build machine, so their build forces this to the host platform
@@ -1502,6 +1520,7 @@ func compile_reader_to_executable(decl *u8) void {
         // on THIS machine, so target the host platform even when the main
         // compile cross-targets (LANGOS=wasm would emit an unrunnable reader).
         cg_langos_override = os_platform_name();
+        parser_set_source_name(src_path);
         parser_tokenize(wrapper);
         var prog *u8 = parse_program();
         if parse_error_count > 0 {
@@ -1521,7 +1540,9 @@ func compile_reader_to_executable(decl *u8) void {
     os_waitpid(pid, status, 0);
     var exit_code i64 = process_status_code(*status);
     if exit_code != 0 {
-        eprint("error: reader '");
+        cg_diagnostic_node = decl;
+        cg_error_prefix();
+        eprint("reader '");
         eprint_buf(name, name_len);
         eprintln("' failed to compile");
         eprint("hint: inspect generated reader source at ");
@@ -1845,6 +1866,7 @@ func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
     if pid == 0 {
         // Child: compile wrapper source (host-targeted - the reader runs here)
         cg_langos_override = os_platform_name();
+        parser_set_source_name(src_path);
         parser_tokenize(wrapper);
         var prog *u8 = parse_program();
         if parse_error_count > 0 {
@@ -2011,7 +2033,8 @@ func check_func_visibility(name *u8, name_len i64) i64 {
     var is_pub i64 = *pub_ptr;
 
     if is_pub == 0 {
-        eprint("error: function '");
+        cg_error_prefix();
+        eprint("function '");
         eprint_buf(name, name_len);
         eprintln("' is not public");
         cg_had_error = 1;
@@ -2087,6 +2110,7 @@ func read_file_contents(path *u8, path_len i64, buf *u8, buf_cap i64) i64 {
 // Process a single declaration (first pass) - handles includes recursively
 // Note: This function must be defined before process_include_first_pass uses it
 func process_decl_first_pass(decl *u8) void {
+    cg_diagnostic_node = decl;
     var k i64 = node_kind(decl);
     if k == NODE_STRUCT_DECL {
         add_struct(decl);
@@ -2128,7 +2152,8 @@ func process_decl_first_pass(decl *u8) void {
             var reader_fn fn(*u8) *u8 = embedded_func;
             output = reader_fn(content);
             if output == nil {
-                eprint("error: embedded reader '");
+                cg_error_prefix();
+                eprint("embedded reader '");
                 eprint_buf(name, name_len);
                 eprintln("' returned nil");
                 cg_had_error = 1;
@@ -2138,7 +2163,8 @@ func process_decl_first_pass(decl *u8) void {
             // Look up the reader declaration
             var reader_decl *u8 = find_reader(name, name_len);
             if reader_decl == nil {
-                eprint("error: reader macro '");
+                cg_error_prefix();
+                eprint("reader macro '");
                 eprint_buf(name, name_len);
                 eprintln("' not found");
                 cg_had_error = 1;
@@ -2153,7 +2179,8 @@ func process_decl_first_pass(decl *u8) void {
             var n i64 = exec_capture(exe_path, content, content_len, output, 4194304);
 
             if n < 0 {
-                eprint("error: reader '");
+                cg_error_prefix();
+                eprint("reader '");
                 eprint_buf(name, name_len);
                 eprint("' exited with status ");
                 eprint_i64(0 - n);
@@ -2162,7 +2189,8 @@ func process_decl_first_pass(decl *u8) void {
                 return;
             }
             if n == 0 {
-                eprint("error: reader '");
+                cg_error_prefix();
+                eprint("reader '");
                 eprint_buf(name, name_len);
                 eprintln("' returned no AST");
                 cg_had_error = 1;
@@ -2173,7 +2201,8 @@ func process_decl_first_pass(decl *u8) void {
         // Parse the output as S-expr AST (readers MUST output AST)
         var prog *u8 = parse_ast_from_string(output);
         if prog == nil {
-            eprint("error: reader '");
+            cg_error_prefix();
+            eprint("reader '");
             eprint_buf(name, name_len);
             eprintln("' did not return valid AST");
             cg_had_error = 1;
@@ -2185,7 +2214,9 @@ func process_decl_first_pass(decl *u8) void {
         var gen_count i64 = program_decl_count(prog);
         var gi i64 = 0;
         while gi < gen_count {
-            process_decl_first_pass(get_decl(gen_decls, gi));
+            var generated_decl *u8 = get_decl(gen_decls, gi);
+            node_copy_origin(generated_decl, decl);
+            process_decl_first_pass(generated_decl);
             gi = gi + 1;
         }
         return;
@@ -2205,12 +2236,13 @@ func process_decl_first_pass(decl *u8) void {
         // Inline include processing to avoid forward declaration
         var path *u8 = include_decl_path(decl);
         var path_len i64 = include_decl_path_len(decl);
+        var path_str *u8 = str_dup_n(path, path_len);
 
         // Skip if already included (idempotent includes)
-        if map_has(cg_included_files, str_dup_n(path, path_len)) {
+        if map_has(cg_included_files, path_str) {
             return;
         }
-        map_set(cg_included_files, str_dup_n(path, path_len), 1);
+        map_set(cg_included_files, path_str, 1);
 
         // Check for circular include
         if include_stack_contains(path, path_len) {
@@ -2236,7 +2268,7 @@ func process_decl_first_pass(decl *u8) void {
         }
 
         // Parse file
-        var prog *u8 = parse_program_from_string(buf);
+        var prog *u8 = parse_program_from_named_string(buf, path_str);
         if prog == nil {
             eprint("error: failed to parse include file: ");
             eprint_buf(path, path_len);
@@ -2320,7 +2352,7 @@ func process_decl_first_pass(decl *u8) void {
                 return;
             }
 
-            var prog *u8 = parse_program_from_string(buf);
+            var prog *u8 = parse_program_from_named_string(buf, full_path);
             if prog == nil {
                 eprint("error: failed to parse require file: ");
                 eprint_buf(path, path_len);
@@ -3353,7 +3385,8 @@ func gen_expr(expr *u8) void {
             return;
         }
 
-        eprint("error: undefined identifier '");
+        cg_error_prefix();
+        eprint("undefined identifier '");
         eprint_buf(name, name_len);
         eprintln("'");
         cg_had_error = 1;
@@ -3403,7 +3436,8 @@ func gen_expr(expr *u8) void {
                 }
 
                 // Error: identifier not found
-                eprint("error: cannot take address of undefined identifier '");
+                cg_error_prefix();
+                eprint("cannot take address of undefined identifier '");
                 eprint_buf(name, name_len);
                 eprintln("'");
                 cg_had_error = 1;
@@ -3647,7 +3681,8 @@ func gen_expr(expr *u8) void {
                     // Find the variant
                     var variant *u8 = find_variant(enum_decl, field_name, field_len);
                     if variant == nil {
-                        eprint("error: enum '");
+                        cg_error_prefix();
+                        eprint("enum '");
                         eprint_buf(enum_name, enum_name_len);
                         eprint("' has no variant '");
                         eprint_buf(field_name, field_len);
@@ -3768,7 +3803,8 @@ func gen_expr(expr *u8) void {
             // valid indirect-call targets; syscall was handled above.
             if func_decl == nil && find_registered_reader(name, name_len) == nil &&
                find_local(name, name_len) < 0 && find_global(name, name_len) < 0 {
-                eprint("error: undefined function '");
+                cg_error_prefix();
+                eprint("undefined function '");
                 eprint_buf(name, name_len);
                 eprintln("'");
                 cg_had_error = 1;
@@ -4007,7 +4043,8 @@ func gen_expr(expr *u8) void {
                 // Find the variant
                 var variant *u8 = find_variant(enum_decl, field_name, field_len);
                 if variant == nil {
-                    eprint("error: enum '");
+                    cg_error_prefix();
+                    eprint("enum '");
                     eprint_buf(enum_name, enum_name_len);
                     eprint("' has no variant '");
                     eprint_buf(field_name, field_len);
@@ -4192,7 +4229,8 @@ func gen_expr(expr *u8) void {
             var reader_fn fn(*u8) *u8 = embedded_func;
             output = reader_fn(content);
             if output == nil {
-                eprint("error: embedded reader '");
+                cg_error_prefix();
+                eprint("embedded reader '");
                 eprint_buf(name, name_len);
                 eprintln("' returned nil");
                 cg_had_error = 1;
@@ -4202,7 +4240,8 @@ func gen_expr(expr *u8) void {
             // Look up the reader declaration
             var reader_decl *u8 = find_reader(name, name_len);
             if reader_decl == nil {
-                eprint("error: reader macro '");
+                cg_error_prefix();
+                eprint("reader macro '");
                 eprint_buf(name, name_len);
                 eprintln("' not found");
                 cg_had_error = 1;
@@ -4217,7 +4256,8 @@ func gen_expr(expr *u8) void {
             var n i64 = exec_capture(exe_path, content, content_len, output, 4194304);
 
             if n < 0 {
-                eprint("error: reader '");
+                cg_error_prefix();
+                eprint("reader '");
                 eprint_buf(name, name_len);
                 eprint("' exited with status ");
                 eprint_i64(0 - n);
@@ -4226,7 +4266,8 @@ func gen_expr(expr *u8) void {
                 return;
             }
             if n == 0 {
-                eprint("error: reader '");
+                cg_error_prefix();
+                eprint("reader '");
                 eprint_buf(name, name_len);
                 eprintln("' returned no AST");
                 cg_had_error = 1;
@@ -4461,7 +4502,8 @@ func gen_expr(expr *u8) void {
                 // Look up enum and variant to get tag
                 var enum_decl *u8 = find_enum(enum_name, enum_len);
                 if enum_decl == nil {
-                    eprint("error: unknown enum '");
+                    cg_error_prefix();
+                    eprint("unknown enum '");
                     eprint_buf(enum_name, enum_len);
                     eprintln("' in match pattern");
                     cg_had_error = 1;
@@ -4469,7 +4511,8 @@ func gen_expr(expr *u8) void {
                 }
                 var variant *u8 = find_variant(enum_decl, var_name, var_len);
                 if variant == nil {
-                    eprint("error: unknown variant '");
+                    cg_error_prefix();
+                    eprint("unknown variant '");
                     eprint_buf(var_name, var_len);
                     eprintln("' in match pattern");
                     cg_had_error = 1;
@@ -5209,7 +5252,8 @@ func gen_stmt(stmt *u8) void {
             if var_type != nil && type_kind(var_type) == TYPE_FUNC {
                 if node_kind(init) == NODE_LAMBDA_EXPR {
                     if lambda_has_captures(init) == 1 {
-                        eprint("error: cannot assign capturing lambda to 'fn' type variable '");
+                        cg_error_prefix();
+                        eprint("cannot assign capturing lambda to 'fn' type variable '");
                         eprint_buf(var_decl_name(stmt), var_decl_name_len(stmt));
                         eprintln("'");
                         eprintln("  hint: use 'closure(T) R' type for capturing lambdas");
@@ -5424,6 +5468,7 @@ func gen_block(block *u8) void {
 // ============================================================
 
 func gen_func(func_node *u8) void {
+    cg_diagnostic_node = func_node;
     // Extern functions have no body - skip code generation
     if func_decl_is_extern(func_node) {
         return;
@@ -5691,6 +5736,7 @@ func gen_all_lambdas() void {
 
 // Generate reader as a callable function (for standalone compilers)
 func gen_reader_func(reader_node *u8) void {
+    cg_diagnostic_node = reader_node;
     // Reset locals
     cg_local_count = 0;
     cg_stack_size = 0;
@@ -5765,6 +5811,8 @@ func gen_decl(decl *u8) void {
         return;
     }
 
+    cg_diagnostic_node = decl;
+
     var k i64 = node_kind(decl);
 
     if k == NODE_FUNC_DECL {
@@ -5795,12 +5843,13 @@ func gen_decl(decl *u8) void {
         // Generate code for included declarations (inline to avoid forward decl)
         var path *u8 = include_decl_path(decl);
         var path_len i64 = include_decl_path_len(decl);
+        var path_str *u8 = str_dup_n(path, path_len);
 
         // Skip if already included (idempotent includes)
-        if map_has(cg_included_files, str_dup_n(path, path_len)) {
+        if map_has(cg_included_files, path_str) {
             return;
         }
-        map_set(cg_included_files, str_dup_n(path, path_len), 1);
+        map_set(cg_included_files, path_str, 1);
 
         // Check for circular include (same check as first pass)
         if include_stack_contains(path, path_len) {
@@ -5819,7 +5868,7 @@ func gen_decl(decl *u8) void {
             return;
         }
 
-        var prog *u8 = parse_program_from_string(buf);
+        var prog *u8 = parse_program_from_named_string(buf, path_str);
         if prog == nil {
             cg_had_error = 1;
             include_stack_pop();
@@ -5874,7 +5923,7 @@ func gen_decl(decl *u8) void {
                 return;
             }
 
-            var prog *u8 = parse_program_from_string(buf);
+            var prog *u8 = parse_program_from_named_string(buf, full_path);
             if prog == nil {
                 include_stack_pop();
                 return;
@@ -5977,7 +6026,9 @@ func gen_decl(decl *u8) void {
         var gen_count i64 = program_decl_count(prog);
         var i i64 = 0;
         while i < gen_count {
-            gen_decl(get_decl(gen_decls, i));
+            var generated_decl *u8 = get_decl(gen_decls, i);
+            node_copy_origin(generated_decl, decl);
+            gen_decl(generated_decl);
             i = i + 1;
         }
         return;

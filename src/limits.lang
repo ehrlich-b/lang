@@ -6,6 +6,7 @@ var LIMIT_STMTS_PER_BLOCK i64 = 1024;
 var LIMIT_CALL_ARGS i64 = 16;
 var LIMIT_FUNC_PARAMS i64 = 16;
 var LIMIT_TOP_DECLS i64 = 4000;  // Increased for composition (kernel + readers)
+var LIMIT_NODE_ORIGINS i64 = 32768;  // Parsed + reader-generated top-level declarations
 
 // Codegen limits
 var LIMIT_LOCALS i64 = 1024;

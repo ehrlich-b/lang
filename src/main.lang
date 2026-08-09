@@ -203,9 +203,8 @@ func expand_collect_decl(decl *u8) void {
         *(buf + n) = 0;
 
         // Parse
-        parser_tokenize(buf);
-        var prog *u8 = parse_program();
-        if prog == nil || parse_error_count > 0 {
+        var prog *u8 = parse_program_from_named_string(buf, path_str);
+        if prog == nil {
             eprint("Error: cannot parse include file: ");
             eprintln(path_str);
             return;
@@ -252,9 +251,8 @@ func expand_collect_decl(decl *u8) void {
             *(buf + n) = 0;
 
             // Parse
-            parser_tokenize(buf);
-            var prog *u8 = parse_program();
-            if prog == nil || parse_error_count > 0 {
+            var prog *u8 = parse_program_from_named_string(buf, path_str);
+            if prog == nil {
                 eprint("Error: cannot parse require file: ");
                 eprintln(path_str);
                 return;
@@ -1292,9 +1290,8 @@ func main(argc i64, argv **u8) i64 {
                                 var ast_str *u8 = "";
                                 if src != nil {
                                     // Parse and emit AST
-                                    parser_tokenize(src);
-                                    var mod_prog *u8 = parse_program();
-                                    if mod_prog != nil && parse_error_count == 0 {
+                                    var mod_prog *u8 = parse_program_from_named_string(src, path_str);
+                                    if mod_prog != nil {
                                         ast_str = ast_emit_program(mod_prog);
                                     }
                                 }
@@ -1574,6 +1571,7 @@ func main(argc i64, argv **u8) i64 {
     }
 
     // Tokenize
+    parser_set_source_name("<inputs>");
     parser_tokenize(source_buf);
 
     // Check for lexer errors
@@ -1593,6 +1591,18 @@ func main(argc i64, argv **u8) i64 {
 
     if parse_error_count > 0 {
         return 1;
+    }
+
+    // The command source is synthetic, but its first declarations correspond
+    // one-for-one with CLI inputs. Give reader invocations (and top-level
+    // includes) the real input path so generated-code diagnostics can point
+    // back to something the user owns.
+    var root_decls *u8 = program_decls(prog);
+    var root_decl_count i64 = program_decl_count(prog);
+    i = 0;
+    while i < vec_len(input_files) && i < root_decl_count {
+        node_set_origin(get_decl(root_decls, i), vec_get(input_files, i), 1, 1);
+        i = i + 1;
     }
 
     // Output based on mode

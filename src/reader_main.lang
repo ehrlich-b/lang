@@ -96,6 +96,7 @@ func main(argc i64, argv **u8) i64 {
     *(source_buf + source_len) = 0;
 
     // Tokenize
+    parser_set_source_name("<reader-wrapper>");
     parser_tokenize(source_buf);
 
     // Check for lexer errors
