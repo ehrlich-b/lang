@@ -15,6 +15,7 @@
   a { color:var(--blue); }
   code { color:var(--green); }
   pre { background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:1rem; overflow:auto; font-size:.84rem; }
+  pre.command { white-space:pre-wrap; overflow-wrap:anywhere; }
   .back { color:var(--dim); }
 </style>
 </head>
@@ -25,6 +26,10 @@
     A reader is a frontend: source text in, shared AST out. Wrap it around
     lang&rsquo;s kernel and you get a native compiler for your syntax.
   </p>
+
+  <pre class="command"><code>$ git clone \
+  https://github.com/ehrlich-b/lang
+$ cd lang && make init</code></pre>
 
   <h2>the 20-line reader</h2>
   <pre><code>// tiny.lang: `answer 42` becomes a native program.
@@ -48,16 +53,14 @@ reader tiny(text *u8) *u8 {
     return ast_program1(ast_func("main", ast_vec(), ast_type_i64(), body));
 }</code></pre>
 
-  <p>Put <code>answer 42</code> in <code>answer.tiny</code>, then compile and run it:</p>
-  <pre><code>$ LANGBE=llvm lang tiny.lang answer.tiny -o answer.ll
-$ clang answer.ll -o answer
-$ ./answer; echo $?
+  <p>Compile and run the checked-in example:</p>
+  <pre class="command"><code>$ ./out/lang run example/tiny/tiny.lang example/tiny/answer.tiny
+$ echo $?
 42</code></pre>
 
   <h2>mint the compiler</h2>
-  <pre><code>$ lang -c tiny tiny.lang -o tinyc.ll
-$ clang -O2 tinyc.ll -o tinyc
-$ ./tinyc answer.tiny -o answer.ll</code></pre>
+  <pre class="command"><code>$ ./out/lang compiler tiny example/tiny/tiny.lang -o tinyc
+$ ./tinyc example/tiny/answer.tiny -o answer.ll</code></pre>
   <p>
     <code>tinyc</code> is the compiler. Your reader supplies syntax and lowering;
     the kernel supplies the type system, LLVM backend, native and wasm targets,
@@ -66,10 +69,15 @@ $ ./tinyc answer.tiny -o answer.ll</code></pre>
 
   <h2>grow it</h2>
   <p>
-    Use <code>#parser{}</code> when the syntax needs a grammar. Use
-    <code>std/ast.lang</code> instead of hand-building S-expressions. Keep parse,
-    lower, and emit separate. The shipped C, Lisp, Forth, flow, and minipy
-    readers are examples, not a closed list.
+    Next, read the
+    <a href="https://github.com/ehrlich-b/lang/blob/main/example/calc/calc.lang">small precedence parser</a>
+    and the
+    <a href="https://github.com/ehrlich-b/lang/blob/main/docs/AST_BUILDERS.md">AST builder quick reference</a>.
+    Use <code>#parser{}</code> for compact grammars with distinct prefixes; use
+    the calculator&rsquo;s manual pattern for precedence and custom errors. The
+    <a href="https://github.com/ehrlich-b/lang/blob/main/docs/PARSER_GENERATOR.md">parser guide</a>
+    spells out that boundary. The
+    shipped C, Lisp, Forth, flow, and minipy readers are examples, not a closed list.
   </p>
 </main></body>
 </html>

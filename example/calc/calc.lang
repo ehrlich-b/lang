@@ -1,0 +1,78 @@
+// A small reader with a real grammar: `answer (2 + 3) * 4`.
+
+include "std/tok.lang"
+include "std/ast.lang"
+
+func calc_primary(tokens *Tokenizer) *u8 {
+    if tok_kind(tokens) == TOK_NUMBER {
+        var value *u8 = ast_number(tok_text(tokens));
+        tok_next(tokens);
+        return value;
+    }
+
+    if tok_match(tokens, TOK_LPAREN) {
+        var expr *u8 = calc_expr(tokens);
+        if expr == nil { return nil; }
+        if !tok_expect(tokens, TOK_RPAREN) {
+            eprintln("calc: expected `)`");
+            return nil;
+        }
+        return expr;
+    }
+
+    eprintln("calc: expected a number or `(`");
+    return nil;
+}
+
+func calc_term(tokens *Tokenizer) *u8 {
+    var left *u8 = calc_primary(tokens);
+    if left == nil { return nil; }
+
+    while tok_kind(tokens) == TOK_STAR || tok_kind(tokens) == TOK_SLASH ||
+          tok_kind(tokens) == TOK_PERCENT {
+        var op i64 = tok_kind(tokens);
+        tok_next(tokens);
+        var right *u8 = calc_primary(tokens);
+        if right == nil { return nil; }
+
+        if op == TOK_STAR { left = ast_mul(left, right); }
+        else if op == TOK_SLASH { left = ast_div(left, right); }
+        else { left = ast_mod(left, right); }
+    }
+    return left;
+}
+
+func calc_expr(tokens *Tokenizer) *u8 {
+    var left *u8 = calc_term(tokens);
+    if left == nil { return nil; }
+
+    while tok_kind(tokens) == TOK_PLUS || tok_kind(tokens) == TOK_MINUS {
+        var op i64 = tok_kind(tokens);
+        tok_next(tokens);
+        var right *u8 = calc_term(tokens);
+        if right == nil { return nil; }
+
+        if op == TOK_PLUS { left = ast_add(left, right); }
+        else { left = ast_sub(left, right); }
+    }
+    return left;
+}
+
+reader calc(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    if tok_kind(tokens) != TOK_IDENT || !streq(tok_text(tokens), "answer") {
+        eprintln("calc: expected `answer EXPRESSION`");
+        return nil;
+    }
+    tok_next(tokens);
+
+    var value *u8 = calc_expr(tokens);
+    if value == nil { return nil; }
+    if !tok_eof(tokens) {
+        eprintln("calc: unexpected token after expression");
+        return nil;
+    }
+
+    var body *u8 = ast_block1(ast_return(value));
+    return ast_program1(ast_func("main", ast_vec(), ast_type_i64(), body));
+}

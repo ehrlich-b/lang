@@ -1,0 +1,5 @@
+include "example/calc/calc.lang"
+
+#calc{
+answer (2 + 3) * 4
+}

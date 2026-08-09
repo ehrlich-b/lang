@@ -24,7 +24,7 @@ A self-hosted compiler where syntax is a plugin.
 
 The compiler has two parts: a kernel (AST to native code) and readers (syntax to AST). The lang reader - the one that parses `func`, `if`, `while` - is just one reader. You can swap it for anything.
 
-**Cross-platform**: Linux x86-64 and macOS ARM64 via LLVM. 198 checks pass on both.
+**Cross-platform**: Linux x86-64 and macOS ARM64 via LLVM.
 
 ## It's a language
 
@@ -44,12 +44,10 @@ Functions, structs, pointers, algebraic effects. See [LANG.md](./LANG.md).
 ## It outputs compilers
 
 That makes lang a **compiler compiler**: you write one reader function—source
-text in, shared AST out—and lang turns it into a native compiler. The `-c` flag
-composes the kernel with that reader:
+text in, shared AST out—and lang turns it into a native compiler:
 
 ```bash
-LANGBE=llvm ./out/lang -c tiny example/tiny/tiny.lang -o tinyc.ll
-clang -O2 tinyc.ll -o tinyc
+./out/lang compiler tiny example/tiny/tiny.lang -o tinyc
 ```
 
 Now `tinyc` is a native compiler for `.tiny` files:
@@ -60,10 +58,14 @@ Now `tinyc` is a native compiler for `.tiny` files:
 
 Same AST means same calling convention. Functions call each other directly at the machine level, no wrappers or runtime glue.
 
-Start with the copyable [reader guide](./docs/READERS.md), then grow into the
-shipped examples below.
+Use the lower-level `-c tiny ... -o tinyc.ll` form when you want compiler IR
+for inspection or cross-compilation.
 
-## Five languages, one binary
+Start with the copyable [reader guide](./docs/READERS.md), grow into the small
+[precedence parser](./example/calc/calc.lang), then steal from the shipped
+examples below.
+
+## Shipped readers, one binary
 
 A reader parses its own surface syntax and emits lang AST. The kernel compiles whatever any reader emits, so several readers can share one program — and because they all lower to the same AST, they share one calling convention. They call each other directly at the machine level. No FFI, no interpreter, no glue.
 
@@ -184,6 +186,8 @@ remains a historical recovery path, but LLVM is the future for Language Forge.
 - [TODO.md](./TODO.md) - Roadmap
 - [docs/](./docs/) - Technical documentation
   - [READERS.md](./docs/READERS.md) - Write a syntax reader and mint a compiler
+  - [AST_BUILDERS.md](./docs/AST_BUILDERS.md) - Shared AST builder quick reference
+  - [PARSER_GENERATOR.md](./docs/PARSER_GENERATOR.md) - `#parser{}` grammar and limits
   - [BUILDING.md](./docs/BUILDING.md) - Build instructions and compilation pipeline
   - [BOOTSTRAP.md](./docs/BOOTSTRAP.md) - Bootstrap process and trust chain
   - [AST.md](./docs/AST.md) - AST node reference (41 node types)

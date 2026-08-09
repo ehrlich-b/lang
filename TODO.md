@@ -2,7 +2,8 @@
 
 ## Vision
 
-A **language forge**: one compiler that understands any syntax, compiles to any target.
+A **language forge**: write a source reader, compose it with one kernel, and get
+a native or wasm compiler for that syntax.
 
 ```
 lang hello.zig world.lang whats.lisp up.my_dsl -o program
@@ -21,13 +22,41 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 5. ✓ Kernel/reader split (lang as a reader, bootstrap verified)
 6. ✓ Cross-platform + LLVM backend (198/198 checks, Linux + macOS)
 7. ✓ Kernel/reader composition (bare kernel + -r reader = compiler)
-8. ✓ Reader authorship: five languages shipped (C, minilisp, flow, forth, minipy)
-9. → **WASM** ← current (Stage A done: `LANGOS=wasm` + suite; browser compiler next)
-10. → Capture more languages (Rust? OCaml?)
+8. ✓ Reader-authorship proof (C, minilisp, flow, forth, minipy)
+9. ✓ WASM program target (`LANGOS=wasm` + suite + precompiled browser demos)
+10. → **Reader UX** ← current
+11. → Browser compiler and editable reader lab
+12. → Capture more languages only when it improves the reader toolkit
 
 ---
 
-## Current: Ship Readers (Reader-Authorship Proof)
+## Current: Make authoring a reader boring
+
+The product is not the set of syntaxes in `example/`; it is how quickly someone
+can add the next one. The working path is now intentionally graduated:
+
+1. `example/tiny/` — a 20-line recognizer and AST emitter
+2. `example/calc/` — a 78-line precedence parser with useful errors
+3. `#parser{}` — generated recognition for compact, disjoint-prefix grammars
+4. shipped frontends — lowering, runtimes, layout, effects, and interop
+
+- [x] `lang help reader` explains the compiler-compiler model and gives runnable commands.
+- [x] Reader and AST-builder quick references, plus an honest `#parser{}` boundary guide.
+- [x] Reader parse/build/link failures are fatal, remove partial output, and identify bad helpers.
+- [x] Reader subprocesses inherit the environment and accept source/AST beyond the old 64 KiB cap.
+- [x] Tiny and calculator readers are guarded end to end.
+- [x] `lang compiler <reader> ... -o <binary>` produces a named native compiler in one command.
+- [ ] Remove the declaration-order constraint in generated reader wrappers.
+- [ ] Add file/line context to diagnostics inside reader wrappers and emitted AST.
+- [ ] Make `#parser{}` transactional (rewind failed alternatives) and add structured parse errors.
+- [ ] Put an editable reader beside editable source in the browser; this depends on `compiler.wasm`.
+
+The next implementation target is removing the declaration-order constraint in
+reader wrappers without pulling unrelated host-program declarations into them.
+
+---
+
+## Archive: Ship Readers (Reader-Authorship Proof)
 
 **The thesis:** lang is the easiest possible reader-maker. A reader is a syntax
 plugin that emits lang AST; the kernel compiles any reader's output to native
@@ -227,7 +256,7 @@ still contained the emitter is `ff8813d`.
 
 ## Foundation Status
 
-**Solid (198/198 checks passing):**
+**Solid (native and wasm suites passing):**
 - Self-hosting with fixed-point verification
 - LLVM backend (primary, all features)
 - Cross-platform (Linux x86-64, macOS ARM64)

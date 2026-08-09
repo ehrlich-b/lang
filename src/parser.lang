@@ -4212,6 +4212,11 @@ func parse_program_from_string(source *u8) *u8 {
         prog = parse_program();
     }
 
+    // Included files use an isolated parser state. Preserve the fact that the
+    // isolated parse failed before restoring the caller's error counter;
+    // otherwise callers receive a partial program and compilation continues.
+    var nested_errors i64 = parse_error_count;
+
     // Free the temporary token vec
     vec_free(parse_tokens);
 
@@ -4220,5 +4225,8 @@ func parse_program_from_string(source *u8) *u8 {
     parse_current = saved_current;
     parse_error_count = saved_errors;
 
+    if nested_errors > 0 {
+        return nil;
+    }
     return prog;
 }

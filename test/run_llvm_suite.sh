@@ -151,6 +151,7 @@ reader_e2e() {
     rm -rf "$tmp"
 }
 reader_e2e reader_tiny_e2e     example/tiny/test_tiny.lang 42
+reader_e2e reader_calc_e2e     example/calc/test_calc.lang 20
 reader_e2e reader_minilisp_e2e example/minilisp/test_defun.lang
 reader_e2e reader_c_e2e         example/c/test_c.lang
 reader_e2e reader_forth_e2e     example/forth/test_forth.lang
@@ -180,6 +181,60 @@ BADEOF
     rm -rf "$tmp"
 }
 compile_must_fail compile_error_is_fatal
+
+# Reader authoring errors must be ordinary compiler failures: one diagnostic,
+# a nonzero status, and no stale or partial output that looks usable.
+reader_authoring_failures_e2e() {
+    local name=reader_authoring_failures_e2e
+    local tmp=$(mktemp -d)
+    local ok=1
+
+    cat > "$tmp/malformed.lang" <<'MALFORMED'
+include "std/ast.lang"
+reader malformed(text *u8) *u8 {
+    var value *u8 = ast_number("42")
+    return value;
+}
+MALFORMED
+    LANG_CACHE="$tmp/cache-malformed" LANGBE=llvm $COMPILER \
+        "$tmp/malformed.lang" -o "$tmp/malformed.ll" >"$tmp/malformed.out" 2>&1 && ok=0
+    test ! -e "$tmp/malformed.ll" || ok=0
+    grep -Fq "expected ';'" "$tmp/malformed.out" || ok=0
+
+    cat > "$tmp/unknown-builder.lang" <<'UNKNOWNBUILDER'
+include "std/ast.lang"
+reader unknown_builder(text *u8) *u8 {
+    return ast_builder_that_does_not_exist(text);
+}
+UNKNOWNBUILDER
+    LANG_CACHE="$tmp/cache-builder" LANGBE=llvm $COMPILER \
+        "$tmp/unknown-builder.lang" -o "$tmp/unknown-builder.ll" \
+        >"$tmp/unknown-builder.out" 2>&1 && ok=0
+    test ! -e "$tmp/unknown-builder.ll" || ok=0
+    grep -Fq "undefined function 'ast_builder_that_does_not_exist'" \
+        "$tmp/unknown-builder.out" || ok=0
+
+    LANG_CACHE="$tmp/cache-compiler" LANGBE=llvm $COMPILER -c not_a_reader \
+        example/tiny/tiny.lang -o "$tmp/not-a-reader.ll" \
+        >"$tmp/not-a-reader.out" 2>&1 && ok=0
+    test ! -e "$tmp/not-a-reader.ll" || ok=0
+    grep -Fq "undefined function 'not_a_reader'" "$tmp/not-a-reader.out" || ok=0
+
+    printf 'nope 42\n' > "$tmp/bad.tiny"
+    LANG_CACHE="$tmp/cache-input" LANGBE=llvm $COMPILER \
+        example/tiny/tiny.lang "$tmp/bad.tiny" -o "$tmp/bad-reader.ll" \
+        >"$tmp/bad-reader.out" 2>&1 && ok=0
+    test ! -e "$tmp/bad-reader.ll" || ok=0
+    test "$(grep -Fc 'tiny: expected' "$tmp/bad-reader.out")" = 1 || ok=0
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_authoring_failures_e2e
 
 negative_compile_e2e() {
     local name=$1; local file=$2
@@ -241,6 +296,27 @@ compiler_compiler_e2e() {
 }
 compiler_compiler_e2e
 
+compiler_command_e2e() {
+    local name=compiler_command_e2e
+    local tmp=$(mktemp -d)
+    if LANG_CACHE="$tmp/cache-build" LANGBE=llvm $COMPILER compiler tiny \
+           example/tiny/tiny.lang -o "$tmp/tinyc" >/dev/null 2>&1 \
+       && LANG_CACHE="$tmp/cache-use" "$tmp/tinyc" example/tiny/answer.tiny \
+           -o "$tmp/answer.ll" >/dev/null 2>&1; then
+        do_timeout 10 lli $LLI_JIT_FLAG "$tmp/answer.ll" >/dev/null 2>&1
+        local result=$?
+    else
+        local result=compile_error
+    fi
+    if [ "$result" = 42 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name (expected 42, got $result)" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+compiler_command_e2e
+
 # Reusing a LANG_CACHE must never mean reusing yesterday's reader body. This
 # rewrites and recompiles within one timestamp tick to guard content freshness,
 # not merely mtime freshness.
@@ -283,6 +359,42 @@ PROBE2
     rm -rf "$tmp"
 }
 reader_cache_refresh_e2e
+
+# Reader stdin used to truncate silently at 64 KiB. Real source files and their
+# generated AST routinely exceed that once a language grows past a toy.
+reader_large_input_e2e() {
+    local name=reader_large_input_e2e
+    local tmp=$(mktemp -d)
+    cat > "$tmp/largeio.lang" <<'LARGEIO'
+include "std/ast.lang"
+reader largeio(text *u8) *u8 {
+    if strlen(text) < 70000 {
+        eprintln("largeio: input was truncated");
+        return nil;
+    }
+    var body *u8 = ast_block1(ast_return(ast_number("42")));
+    return ast_program1(ast_func("main", ast_vec(), ast_type_i64(), body));
+}
+LARGEIO
+    printf '%070000d\n' 0 > "$tmp/program.largeio"
+
+    if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER \
+           "$tmp/largeio.lang" "$tmp/program.largeio" -o "$tmp/out.ll" \
+           >/dev/null 2>&1; then
+        do_timeout 10 lli $LLI_JIT_FLAG "$tmp/out.ll" >/dev/null 2>&1
+        local result=$?
+    else
+        local result=compile_error
+    fi
+
+    if [ "$result" = 42 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name (expected 42, got $result)" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_large_input_e2e
 
 cli_run_e2e() {
     local name=cli_run_e2e
@@ -327,6 +439,9 @@ cli_errors_e2e() {
 
     $COMPILER -c >"$tmp/compiler.out" 2>&1 && ok=0
     grep -Fq -- "-c needs a reader function name" "$tmp/compiler.out" || ok=0
+
+    $COMPILER compiler >"$tmp/compiler-command.out" 2>&1 && ok=0
+    grep -Fq "compiler needs a reader name" "$tmp/compiler-command.out" || ok=0
 
     $COMPILER -r tiny >"$tmp/reader.out" 2>&1 && ok=0
     grep -Fq -- "-r needs a reader name and file" "$tmp/reader.out" || ok=0

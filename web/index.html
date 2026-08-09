@@ -118,9 +118,9 @@
     your language.
   </p>
   <p>
-    Five readers ship as examples, not limits: C, Lisp, flow, Forth, and minipy.
-    Run the polyglot demo to watch four of them call each other in one wasm
-    module &mdash; no VM, FFI, or glue.
+    C, Lisp, flow, Forth, and minipy ship as source you can steal, not a closed
+    language list. The polyglot demo shows reader boundaries disappear in one
+    wasm module &mdash; no VM, FFI, or glue.
   </p>
 
   <div class="tabs" id="tabs"></div>
@@ -145,13 +145,18 @@
 
   <p>
     The <a href="readers.html">reader guide</a>
-    starts with 20 lines. Then steal the closest shipped example.
+    starts with 20 lines. The small calculator adds a real expression grammar.
+    Then steal the closest shipped example.
   </p>
 
   <div class="langs">
     <div class="lang-card">
       <h3>#tiny{} <span class="meta">&mdash; starter &middot; 20 lines</span></h3>
       <p><code>answer 42</code> becomes a native program. Copy this first.</p>
+    </div>
+    <div class="lang-card">
+      <h3>#calc{} <span class="meta">&mdash; precedence &middot; 80 lines</span></h3>
+      <p>A tiny recursive-descent parser for arithmetic. Grow into this second.</p>
     </div>
     <div class="lang-card">
       <h3>#c{} <span class="meta">&mdash; imperative &middot; 840 lines</span></h3>
@@ -195,8 +200,7 @@
     Reuse lang&rsquo;s tokenizer, <code>#parser{}</code>, and AST builders, or
     replace any of them. Then wrap your reader around the kernel:
   </p>
-  <pre class="snip"><span class="c">$</span> lang -c mine my_reader.lang -o mine.ll
-<span class="c">$</span> clang -O2 mine.ll -o mine</pre>
+  <pre class="snip"><span class="c">$</span> ./out/lang compiler mine my_reader.lang -o mine</pre>
   <p>
     <code>mine</code> is now a standalone compiler for whole files in your
     syntax. lang itself is built the same way: kernel + lang reader, verified to
@@ -206,7 +210,7 @@
   <footer>
     <p>
       Read the <a href="readers.html">20-line guide</a>,
-      open the <a href="https://github.com/ehrlich-b/lang/blob/main/std/ast.lang">AST builder</a>,
+      open the <a href="https://github.com/ehrlich-b/lang/blob/main/docs/AST_BUILDERS.md">AST builder reference</a>,
       and teach lang a new syntax.
     </p>
   </footer>
@@ -218,7 +222,7 @@ const EXAMPLES = [
   {
     id: 'polyglot_wasm',
     title: 'polyglot.lang',
-    desc: '<b>Four shipped readers, one wasm module</b> — minipy &rarr; lang &rarr; C &rarr; Forth &rarr; Lisp, proof that reader boundaries disappear after lowering.',
+    desc: '<b>Reader boundaries disappear</b> — minipy &rarr; lang &rarr; C &rarr; Forth &rarr; Lisp in one wasm module.',
   },
   {
     id: 'fib',

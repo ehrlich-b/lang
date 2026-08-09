@@ -87,10 +87,12 @@ A reader is a frontend function: source text in, shared AST out. Compose one
 with the kernel to produce a compiler for its file syntax:
 
 ```bash
-LANGBE=llvm ./out/lang -c tiny example/tiny/tiny.lang -o tinyc.ll
-clang -O2 tinyc.ll -o tinyc
+./out/lang compiler tiny example/tiny/tiny.lang -o tinyc
 ./tinyc example/tiny/answer.tiny -o answer.ll
 ```
+
+Use `./out/lang -c tiny ... -o tinyc.ll` when you specifically want the
+intermediate compiler IR.
 
 See [READERS.md](./READERS.md) for the copyable 20-line reader and the reader
 contract.

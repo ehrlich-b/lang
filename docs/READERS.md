@@ -30,23 +30,24 @@ It has the whole frontend pipeline:
 2. The reader recognizes `answer NUMBER`.
 3. The `ast_*` calls emit a shared-AST `main` returning that number.
 
-Run it alongside the regular compiler:
+From a fresh clone, initialize the preserved compiler and run it:
 
 ```bash
-LANGBE=llvm ./out/lang run example/tiny/tiny.lang example/tiny/answer.tiny
+make init
+./out/lang run example/tiny/tiny.lang example/tiny/answer.tiny
 echo $?    # 42
 ```
 
-Or mint a compiler that understands `.tiny` directly:
+Or mint a native compiler that understands `.tiny` directly:
 
 ```bash
-LANGBE=llvm ./out/lang -c tiny example/tiny/tiny.lang -o /tmp/tinyc.ll
-clang -O2 /tmp/tinyc.ll -o /tmp/tinyc
+./out/lang compiler tiny example/tiny/tiny.lang -o /tmp/tinyc
 /tmp/tinyc example/tiny/answer.tiny -o /tmp/answer.ll
 ```
 
 That is the “compiler compiler” part: `tiny.lang` is ordinary Lang code, while
-`tinyc` is a native compiler produced from it.
+`tinyc` is a native compiler produced from it. The lower-level `-c tiny` form
+emits compiler IR when you need to inspect or cross-compile it.
 
 ## The reader contract
 
@@ -57,17 +58,19 @@ reader name(text *u8) *u8 { ... }
 The input is the text inside `#name{...}`, or the full contents of a `.name`
 file. The result is an AST S-expression. Return an expression node when the
 reader is used inside an expression; return `(program ...)` for a whole file.
-Use [`std/ast.lang`](../std/ast.lang) to build the result instead of assembling
-S-expressions by hand.
+Use the [AST builder quick reference](./AST_BUILDERS.md) to build the result
+instead of assembling S-expressions by hand.
 
 Expansion is recursive: AST emitted by one reader may contain another reader
 form, and the kernel keeps expanding until only ordinary AST remains.
 
 For a larger syntax, `#parser{}` generates recursive-descent parser functions
-from a grammar; [`std/parser_reader.lang`](../std/parser_reader.lang) documents
-its grammar notation. A reader can also parse however it wants. Start here:
+from a compact grammar; its [quick reference](./PARSER_GENERATOR.md) documents
+the notation and current no-backtracking boundary. A reader can also parse
+however it wants. Start here:
 
 - [`tiny`](../example/tiny/tiny.lang): one grammar rule, one function
+- [`calc`](../example/calc/calc.lang): recursive descent and operator precedence
 - [`forth`](../example/forth/forth.lang): flat words and a compile-time stack
 - [`minilisp`](../example/minilisp/minilisp.lang): expressions and closures
 - [`minipy`](../example/minipy/minipy.lang): indentation-sensitive blocks
@@ -75,5 +78,7 @@ its grammar notation. A reader can also parse however it wants. Start here:
 - [`flow`](../example/flow/flow.lang): generators lowered to algebraic effects
 
 Keep the reader in three layers—parse, lower, emit—and test the smallest source
-that exercises each new construct. The generated reader executable and wrapper
-source live in `${LANG_CACHE:-.lang-cache}/readers/` when debugging.
+that exercises each new construct. Put imports, generated grammar declarations,
+and helper functions before the `reader` declaration; those preceding siblings
+form its standalone build wrapper. The generated executable and wrapper source
+live in `${LANG_CACHE:-.lang-cache}/readers/` when debugging.
