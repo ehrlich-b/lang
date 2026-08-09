@@ -40,7 +40,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 23. ✓ Make grammar mistakes local
 24. ✓ Reject grammar traps before parser generation
 25. ✓ Make generated parse trees inspectable
-26. → **Capture more languages only when it improves the reader toolkit** ← current
+26. ✓ Make capture cardinality explicit
+27. → **Capture more languages only when it improves the reader toolkit** ← current
 
 ---
 
@@ -266,6 +267,19 @@ between recognition and lowering was not:
 - [x] Send it to stderr so native `lang read` and reusable reader-Wasm stdout
       keep their AST-only contracts.
 - [x] Guard identical tree output through native and browser reader hosts.
+
+---
+
+## Completed: Make capture cardinality explicit
+
+A capture repeated by `*`/`+` or surfaced through two rule references could
+make singular lookup silently choose the first node:
+
+- [x] Make `pnode_get` and `pnode_require` reject multiple visible matches with
+      one lowering diagnostic; required lookup must not also call them absent.
+- [x] Add `pnode_get_all` for deliberate repeated captures, returning a Vec
+      whose empty state is unambiguous.
+- [x] Guard repeated and cross-rule captures in native and browser readers.
 
 ---
 

@@ -548,6 +548,37 @@ reader_pnode_dump_e2e() {
 }
 reader_pnode_dump_e2e
 
+# Capture labels may surface through rule references. A singular lookup must
+# reject two matches rather than silently lowering the first one.
+reader_capture_ambiguity_e2e() {
+    local name=reader_capture_ambiguity_e2e
+    local tmp=$(mktemp -d)
+    local compiler_path=$COMPILER
+    case "$compiler_path" in
+        /*) ;;
+        ./*) compiler_path="$REPO_ROOT/${compiler_path#./}" ;;
+        *) compiler_path="$REPO_ROOT/$compiler_path" ;;
+    esac
+    local ok=1
+
+    LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        "$compiler_path" read test/pnode_ambiguity_reader.lang \
+        test/pnode_ambiguity_source.pambiguity \
+        >"$tmp/ambiguous.ast" 2>"$tmp/ambiguous.err" && ok=0
+    grep -Fxf test/pnode_ambiguity.expected "$tmp/ambiguous.err" || ok=0
+    ! grep -Fq "capture 'value' is absent" "$tmp/ambiguous.err" || ok=0
+    ! grep -Fq 'compilation failed' "$tmp/ambiguous.err" || ok=0
+    test ! -s "$tmp/ambiguous.ast" || ok=0
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_capture_ambiguity_e2e
+
 # Grammar author errors belong at the token in #parser{}, not at a later
 # undefined generated function or reader-wrapper link step.
 parser_grammar_diagnostics_e2e() {

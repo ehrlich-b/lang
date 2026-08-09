@@ -1,0 +1,16 @@
+include "std/parser_reader.lang"
+include "std/ast.lang"
+
+#parser{
+    atom = value:number
+    pair = atom atom
+}
+
+reader pambiguity(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    var tree *PNode = parse_pair(tokens);
+    if tree == nil || !tok_eof(tokens) { return nil; }
+    var value *PNode = pnode_require(tree, "value");
+    if value == nil { return nil; }
+    return ast_main_i64(ast_number(value.text));
+}

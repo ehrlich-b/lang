@@ -108,7 +108,9 @@ from a compact grammar, rewinds failed alternatives, and retains furthest-token
 error context; its [quick reference](./PARSER_GENERATOR.md) documents the
 notation and limits. Name lowering inputs in the grammar (`value:number`) and
 use `pnode_require(tree, "value")` instead of coupling converters to child
-indexes. A reader can also parse however it wants. Start here:
+indexes. Singular lookup rejects multiple visible matches; use
+`pnode_get_all(tree, "item")` only when repeated captures are deliberate. A
+reader can also parse however it wants. Start here:
 
 - [`tiny`](../example/tiny/tiny.lang): one grammar rule, one function
 - [`calc`](../example/calc/calc.lang): recursive descent and operator precedence

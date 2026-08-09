@@ -96,6 +96,7 @@
 //   func pnode_atom(kind i64, text *u8) *PNode
 //   func pnode_list(children *u8) *PNode
 //   func pnode_dump(node *PNode) void  // tree + labels + spans to stderr
+//   func pnode_get_all(node *PNode, name *u8) *u8  // Vec for repeated labels
 //
 // PARSER FUNCTIONS (one per rule):
 //   func parse_<rule>(t *Tokenizer) *PNode

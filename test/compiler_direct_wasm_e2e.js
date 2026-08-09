@@ -166,6 +166,15 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   if (Number(debugTree.ran.value) !== 32 || debugTree.readerRun.stderr !== expectedTree) {
     throw new Error(`parse-tree dump mismatch: value=${debugTree.ran.value}\n${debugTree.readerRun.stderr}`);
   }
+  const ambiguousCapture = await compileReaderPipeline(
+    'test/pnode_ambiguity_reader.lang', 'pambiguity',
+    fs.readFileSync('test/pnode_ambiguity_source.pambiguity', 'utf8'),
+  );
+  const expectedAmbiguity = fs.readFileSync('test/pnode_ambiguity.expected', 'utf8');
+  if (ambiguousCapture.ast !== null ||
+      ambiguousCapture.readerRun.stderr !== expectedAmbiguity) {
+    throw new Error(`capture ambiguity mismatch: ast=${ambiguousCapture.ast}\n${ambiguousCapture.readerRun.stderr}`);
+  }
   const badGrammars = [
     ['undefined', 'bad = missing', 'expected defined rule, found missing'],
     ['duplicate-capture', 'bad = value:number value:symbol',
@@ -271,7 +280,7 @@ func main() i64 { return 0; }
     'lang-reader-workspace', 'lang.lab.active', 'readerName(reader.value)',
     'focusDiagnostic(message)', "target.closest('details').open = true", "phase = 'AST compile'",
     'cachedReaderSource !== reader.value', 'customSource.value)',
-    'editor.js?v=workbench9', 'formatLangAst(ast)', 'value:number',
+    'editor.js?v=workbench10', 'formatLangAst(ast)', 'value:number',
     "'program.ast': formattedAst", 'installCodeEditor(reader, queueSave)',
   ]) {
     if (!labHtml.includes(marker)) throw new Error(`lab workbench marker missing: ${marker}`);

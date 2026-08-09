@@ -92,7 +92,28 @@ pub func pnode_child(node *PNode, index i64) *PNode {
     return pnode_unwrap(vec_get(node.children, index));
 }
 
-func pnode_capture_match(node *PNode, name *u8) *PNode {
+func pnode_collect_capture_chain(node *PNode, name *u8,
+                                 matches *u8) void {
+    while node != nil && node.kind == PNODE_CAPTURE {
+        if node.text != nil && streq(node.text, name) {
+            vec_push(matches, pnode_unwrap(node));
+        }
+        if node.children == nil || vec_len(node.children) == 0 { return; }
+        node = vec_get(node.children, 0);
+    }
+}
+
+func pnode_count_capture_chain(node *PNode, name *u8) i64 {
+    var count i64 = 0;
+    while node != nil && node.kind == PNODE_CAPTURE {
+        if node.text != nil && streq(node.text, name) { count = count + 1; }
+        if node.children == nil || vec_len(node.children) == 0 { return count; }
+        node = vec_get(node.children, 0);
+    }
+    return count;
+}
+
+func pnode_first_capture_chain(node *PNode, name *u8) *PNode {
     while node != nil && node.kind == PNODE_CAPTURE {
         if node.text != nil && streq(node.text, name) {
             return pnode_unwrap(node);
@@ -103,32 +124,79 @@ func pnode_capture_match(node *PNode, name *u8) *PNode {
     return nil;
 }
 
-// Look up a capture directly owned by this rule result. Optional captures
-// return nil; use pnode_require when absence is a lowering bug.
-pub func pnode_get(node *PNode, name *u8) *PNode {
-    var found *PNode = pnode_capture_match(node, name);
-    if found != nil { return found; }
+func pnode_visible_capture_count(node *PNode, name *u8) i64 {
+    var total i64 = pnode_count_capture_chain(node, name);
+    node = pnode_unwrap(node);
+    if node == nil || node.children == nil { return total; }
+    var count i64 = vec_len(node.children);
+    var i i64 = 0;
+    while i < count {
+        total = total + pnode_count_capture_chain(
+            vec_get(node.children, i), name);
+        i = i + 1;
+    }
+    return total;
+}
 
+func pnode_first_visible_capture(node *PNode, name *u8) *PNode {
+    var found *PNode = pnode_first_capture_chain(node, name);
+    if found != nil { return found; }
     node = pnode_unwrap(node);
     if node == nil || node.children == nil { return nil; }
     var count i64 = vec_len(node.children);
     var i i64 = 0;
     while i < count {
-        found = pnode_capture_match(vec_get(node.children, i), name);
+        found = pnode_first_capture_chain(vec_get(node.children, i), name);
         if found != nil { return found; }
         i = i + 1;
     }
     return nil;
 }
 
-pub func pnode_require(node *PNode, name *u8) *PNode {
-    var found *PNode = pnode_get(node, name);
-    if found == nil {
+// Return every matching capture directly visible from this parse node. This is
+// the explicit API for captures repeated by `*`/`+` or surfaced by more than
+// one referenced rule.
+pub func pnode_get_all(node *PNode, name *u8) *u8 {
+    var matches *u8 = vec_new(4);
+    pnode_collect_capture_chain(node, name, matches);
+
+    node = pnode_unwrap(node);
+    if node == nil || node.children == nil { return matches; }
+    var count i64 = vec_len(node.children);
+    var i i64 = 0;
+    while i < count {
+        pnode_collect_capture_chain(vec_get(node.children, i), name, matches);
+        i = i + 1;
+    }
+    return matches;
+}
+
+func pnode_lookup_one(node *PNode, name *u8, required i64) *PNode {
+    var count i64 = pnode_visible_capture_count(node, name);
+    if count > 1 {
+        eprint("reader lowering error: grammar capture '");
+        eprint(name);
+        eprintln("' is ambiguous in this parse node");
+        return nil;
+    }
+    if count == 0 {
+        if required == 0 { return nil; }
         eprint("reader lowering error: required grammar capture '");
         eprint(name);
         eprintln("' is absent");
+        return nil;
     }
-    return found;
+    return pnode_first_visible_capture(node, name);
+}
+
+// Look up one capture directly visible from this parse node. Optional captures
+// return nil; multiple matches are an error instead of an arbitrary first hit.
+pub func pnode_get(node *PNode, name *u8) *PNode {
+    return pnode_lookup_one(node, name, 0);
+}
+
+pub func pnode_require(node *PNode, name *u8) *PNode {
+    return pnode_lookup_one(node, name, 1);
 }
 
 func pnode_kind_name(kind i64) *u8 {

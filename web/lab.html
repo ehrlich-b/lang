@@ -92,9 +92,9 @@ reader read(text *u8) *u8 {
   </div>
   <p class="note">local: reader → AST → wasm · <a id="save-workspace">save workspace</a> · <label class="file-action">open workspace<input id="open-workspace" type="file" accept=".json,application/json" hidden></label></p>
 </main>
-<script src="compiler_host.js?v=workbench9"></script>
-<script src="program_host.js?v=workbench9"></script>
-<script src="editor.js?v=workbench9"></script>
+<script src="compiler_host.js?v=workbench10"></script>
+<script src="program_host.js?v=workbench10"></script>
+<script src="editor.js?v=workbench10"></script>
 <script>
 let compilerBytes;
 let stdlibFiles;
@@ -138,11 +138,11 @@ const presets = {
 };
 
 Promise.all([
-  fetch('compiler.wasm?v=workbench9').then(r => {
+  fetch('compiler.wasm?v=workbench10').then(r => {
     if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
     return r.arrayBuffer();
   }),
-  fetch('stdlib.json?v=workbench9').then(r => {
+  fetch('stdlib.json?v=workbench10').then(r => {
     if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
     return r.json();
   }),

@@ -100,6 +100,7 @@ Prefix any grammar element with `name:` when lowering cares about its meaning:
 var target *PNode = pnode_require(tree, "target");
 var value *PNode = pnode_require(tree, "value");
 var args *PNode = pnode_get(tree, "args");
+var items *u8 = pnode_get_all(tree, "item");
 ```
 
 The modifier belongs to the capture, so `args:expr*` returns the whole
@@ -108,6 +109,12 @@ repetition list. `pnode_get` returns `nil` for an absent optional capture.
 reader-lowering error. Captures may use the same names in different choice
 branches. A name may occur only once on any one branch; otherwise `pnode_get`
 would have no honest answer.
+
+`pnode_get` and `pnode_require` also reject multiple matches that become visible
+through repetitions or referenced rules; they never choose the first silently.
+Use `items:expr*` when lowering wants one captured list. Use `(item:expr)*` with
+`pnode_get_all(tree, "item")` when each repeated result needs its own label; the
+returned Vec is empty when there are no matches.
 
 Capture wrappers are an internal `PNode` kind and do not change the tree of a
 grammar that has no captures. `pnode_child` transparently unwraps them, so a

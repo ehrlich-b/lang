@@ -9,6 +9,7 @@ include "std/parser_reader.lang"
     maybe = required:number optional:symbol?
     values = items:number+
     chain = head:number tail:chain?
+    repeated = (item:number)*
 }
 
 func main() i64 {
@@ -55,5 +56,15 @@ func main() i64 {
     if tail == nil || !streq(pnode_require(tail, "head").text, "2") {
         return 15;
     }
+
+    // Captures inside a repetition are explicitly plural.
+    var repeated_tokens *Tokenizer = tok_new("4 5 6");
+    var repeated *PNode = parse_repeated(repeated_tokens);
+    if repeated == nil || !tok_eof(repeated_tokens) { return 16; }
+    var matches *u8 = pnode_get_all(repeated, "item");
+    if vec_len(matches) != 3 { return 17; }
+    var middle *PNode = vec_get(matches, 1);
+    if !streq(middle.text, "5") { return 18; }
+    if vec_len(pnode_get_all(repeated, "missing")) != 0 { return 19; }
     return 0;
 }
