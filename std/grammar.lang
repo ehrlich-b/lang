@@ -199,8 +199,9 @@ func gp_parse_element(gp *GrammarParser) *GNode {
         node = plus;
         tok_next(gp.t);
     }
-    else if tok_kind(gp.t) == TOK_UNKNOWN {
-        // Check for '?' character (ASCII 63)
+    else if tok_kind(gp.t) == TOK_QUESTION || tok_kind(gp.t) == TOK_UNKNOWN {
+        // TOK_QUESTION is current; TOK_UNKNOWN accepts caches built with the
+        // older tokenizer that did not name '?' yet.
         var text *u8 = tok_text_ptr(gp.t);
         if *text == 63 {
             var opt *GNode = gnode_new(GNODE_OPT);

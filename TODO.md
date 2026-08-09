@@ -37,7 +37,7 @@ can add the next one. The working path is now intentionally graduated:
 
 1. `example/tiny/` — a 20-line recognizer and AST emitter
 2. `example/calc/` — a 78-line precedence parser with useful errors
-3. `#parser{}` — generated recognition for compact, disjoint-prefix grammars
+3. `#parser{}` — transactional generated parsers with furthest-failure context
 4. shipped frontends — lowering, runtimes, layout, effects, and interop
 
 - [x] `lang help reader` explains the compiler-compiler model and gives runnable commands.
@@ -48,12 +48,12 @@ can add the next one. The working path is now intentionally graduated:
 - [x] `lang compiler <reader> ... -o <binary>` produces a named native compiler in one command.
 - [x] Reader imports, grammars, types, globals, and transitive helpers can appear after the reader; wrappers omit unrelated host functions.
 - [ ] Add file/line context to diagnostics inside reader wrappers and emitted AST.
-- [ ] Make `#parser{}` transactional (rewind failed alternatives) and add structured parse errors.
+- [x] `#parser{}` rewinds failed alternatives/sequences, guards empty repetitions, and exposes furthest-token parse errors.
 - [ ] Put an editable reader beside editable source in the browser; this depends on `compiler.wasm`.
 
-The next implementation target is transactional `#parser{}` alternatives:
-failed branches must rewind before the next branch, with errors that identify
-the furthest token and expected forms.
+The next implementation target is file/line context for failures in generated
+reader wrappers and AST emitted by a reader, so users see their source file—not
+an implementation detail in `.lang-cache/readers/`.
 
 ---
 
@@ -143,8 +143,8 @@ polyglot stdlib written in reader-authored *better* languages.
       The stack effect comment is load-bearing - it names the params and counts
       the results, which is what makes a word an ordinary i64 function. Body
       words are flat and `if`/`else`/`then` are given meaning by the converter,
-      exactly as Forth's immediate words do, which also dodges the weak
-      no-backtrack parser entirely. Reader-only. Guarded by `reader_forth_e2e`.
+      exactly as Forth's immediate words do. Reader-only. Guarded by
+      `reader_forth_e2e`.
       Bounds: recursion but no loops/`variable` yet, names are lang identifiers
       plus an optional `?`, negative literals must be `0 5 -` (the tokenizer
       splits `-5`). In the polyglot, C's trial-division loop calls Forth's

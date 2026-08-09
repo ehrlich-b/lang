@@ -1,3 +1,6 @@
+// Generated alternatives are transactional: a failed branch rewinds before
+// the next one. Tokenizers retain the furthest failure for reader diagnostics;
+// see tok_error_offset/line/column/expected/found in std/tok.lang.
 // ============================================================
 // std/parser_reader.lang - #parser{} Reader Macro
 // ============================================================

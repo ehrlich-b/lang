@@ -59,16 +59,24 @@ struct Tokenizer {
     tok_start i64;  // start of current token
     tok_len i64;    // length of current token
     tok_kind i64;   // kind of current token
+    error_pos i64;       // furthest failed match, or -1
+    error_expected *u8;  // "number or '('", capped at 511 bytes
+    error_expected_len i64;
+    error_found *u8;     // token text captured at error_pos
 }
 
 pub func tok_new(input *u8) *Tokenizer {
-    var t *Tokenizer = alloc(48);  // 6 fields * 8 bytes
+    var t *Tokenizer = alloc(80);  // 10 fields * 8 bytes
     t.input = input;
     t.pos = 0;
     t.len = strlen(input);
     t.tok_start = 0;
     t.tok_len = 0;
     t.tok_kind = TOK_EOF;
+    t.error_pos = -1;
+    t.error_expected = alloc(512);
+    t.error_expected_len = 0;
+    t.error_found = nil;
     tok_next(t);  // prime the tokenizer
     return t;
 }
@@ -369,6 +377,123 @@ pub func tok_text(t *Tokenizer) *u8 {
     }
     *(buf + t.tok_len) = 0;
     return buf;
+}
+
+// A checkpoint names the current token, not the byte after it. Restoring and
+// lexing again also handles whitespace/comments between the previous token and
+// this one, while leaving furthest-error tracking intact across alternatives.
+pub func tok_mark(t *Tokenizer) i64 {
+    return t.tok_start;
+}
+
+pub func tok_reset(t *Tokenizer, mark i64) void {
+    if mark < 0 { mark = 0; }
+    if mark > t.len { mark = t.len; }
+    t.pos = mark;
+    tok_next(t);
+}
+
+func tok_expected_has(t *Tokenizer, expected *u8, expected_len i64) i64 {
+    var i i64 = 0;
+    while i + expected_len <= t.error_expected_len {
+        var before_ok i64 = 0;
+        if i == 0 { before_ok = 1; }
+        else if i >= 4 && str_eq_n(t.error_expected + i - 4, 4, " or ", 4) { before_ok = 1; }
+        if before_ok != 0 && str_eq_n(t.error_expected + i, expected_len, expected, expected_len) {
+            var after i64 = i + expected_len;
+            if after == t.error_expected_len { return 1; }
+            if after + 4 <= t.error_expected_len &&
+               str_eq_n(t.error_expected + after, 4, " or ", 4) {
+                return 1;
+            }
+        }
+        i = i + 1;
+    }
+    return 0;
+}
+
+// Generated parsers call this on a terminal mismatch. Expectations at the
+// furthest byte win; alternatives failing at that byte are accumulated.
+pub func tok_note_expected(t *Tokenizer, expected *u8) void {
+    var at i64 = t.tok_start;
+    if at < t.error_pos { return; }
+
+    if at > t.error_pos {
+        t.error_pos = at;
+        t.error_expected_len = 0;
+        *t.error_expected = 0;
+        if t.tok_kind == TOK_EOF { t.error_found = "end of input"; }
+        else { t.error_found = tok_text(t); }
+    }
+
+    var expected_len i64 = strlen(expected);
+    if tok_expected_has(t, expected, expected_len) != 0 { return; }
+
+    var needed i64 = expected_len;
+    if t.error_expected_len > 0 { needed = needed + 4; }
+    if t.error_expected_len + needed >= 512 { return; }
+
+    if t.error_expected_len > 0 {
+        memcpy(t.error_expected + t.error_expected_len, " or ", 4);
+        t.error_expected_len = t.error_expected_len + 4;
+    }
+    memcpy(t.error_expected + t.error_expected_len, expected, expected_len);
+    t.error_expected_len = t.error_expected_len + expected_len;
+    *(t.error_expected + t.error_expected_len) = 0;
+}
+
+pub func tok_error_offset(t *Tokenizer) i64 {
+    return t.error_pos;
+}
+
+pub func tok_error_expected(t *Tokenizer) *u8 {
+    return t.error_expected;
+}
+
+pub func tok_error_found(t *Tokenizer) *u8 {
+    if t.error_found == nil { return ""; }
+    return t.error_found;
+}
+
+pub func tok_error_line(t *Tokenizer) i64 {
+    var stop i64 = t.error_pos;
+    if stop < 0 { stop = t.tok_start; }
+    var line i64 = 1;
+    var i i64 = 0;
+    while i < stop {
+        if *(t.input + i) == 10 { line = line + 1; }
+        i = i + 1;
+    }
+    return line;
+}
+
+pub func tok_error_column(t *Tokenizer) i64 {
+    var stop i64 = t.error_pos;
+    if stop < 0 { stop = t.tok_start; }
+    var column i64 = 1;
+    var i i64 = 0;
+    while i < stop {
+        if *(t.input + i) == 10 { column = 1; }
+        else { column = column + 1; }
+        i = i + 1;
+    }
+    return column;
+}
+
+// Ready-to-use diagnostic for small readers. Larger readers can use the query
+// functions above to integrate the same structured data into their own errors.
+pub func tok_print_error(t *Tokenizer, label *u8) void {
+    if label != nil && *label != 0 {
+        eprint(label);
+        eprint(":");
+    }
+    eprint_i64(tok_error_line(t));
+    eprint(":");
+    eprint_i64(tok_error_column(t));
+    eprint(": expected ");
+    eprint(tok_error_expected(t));
+    eprint(", found ");
+    eprintln(tok_error_found(t));
 }
 
 // Parse the current number token as i64

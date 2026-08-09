@@ -65,9 +65,9 @@ Expansion is recursive: AST emitted by one reader may contain another reader
 form, and the kernel keeps expanding until only ordinary AST remains.
 
 For a larger syntax, `#parser{}` generates recursive-descent parser functions
-from a compact grammar; its [quick reference](./PARSER_GENERATOR.md) documents
-the notation and current no-backtracking boundary. A reader can also parse
-however it wants. Start here:
+from a compact grammar, rewinds failed alternatives, and retains furthest-token
+error context; its [quick reference](./PARSER_GENERATOR.md) documents the
+notation and limits. A reader can also parse however it wants. Start here:
 
 - [`tiny`](../example/tiny/tiny.lang): one grammar rule, one function
 - [`calc`](../example/calc/calc.lang): recursive descent and operator precedence

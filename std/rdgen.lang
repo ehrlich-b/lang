@@ -26,13 +26,15 @@ struct RDGen {
     sb *StringBuilder;  // output buffer
     grammar *Grammar;   // grammar being generated
     indent i64;         // current indentation level
+    next_temp i64;      // unique suffix for generated local names
 }
 
 func rdgen_new(g *Grammar) *RDGen {
-    var rd *RDGen = alloc(24);
+    var rd *RDGen = alloc(32);
     rd.sb = sb_new();
     rd.grammar = g;
     rd.indent = 0;
+    rd.next_temp = 0;
     return rd;
 }
 
@@ -70,6 +72,28 @@ func rdgen_newline(rd *RDGen) void {
     sb_char(rd.sb, 10);
 }
 
+func rdgen_temp(rd *RDGen) i64 {
+    var id i64 = rd.next_temp;
+    rd.next_temp = rd.next_temp + 1;
+    return id;
+}
+
+func rdgen_name1(prefix *u8, id i64) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, prefix);
+    sb_int(sb, id);
+    return sb_finish(sb);
+}
+
+func rdgen_name2(prefix *u8, id i64, index i64) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, prefix);
+    sb_int(sb, id);
+    sb_char(sb, 95);  // _
+    sb_int(sb, index);
+    return sb_finish(sb);
+}
+
 // ============================================================
 // Stack-based Expression Generator (avoids mutual recursion)
 // ============================================================
@@ -84,15 +108,17 @@ struct GenWork {
     phase i64;
     temp_data *u8;  // for storing intermediate results
     temp_int i64;   // for storing loop counters
+    temp_id i64;    // unique names for this generated expression
 }
 
 func genwork_new(node *GNode, result_var *u8) *GenWork {
-    var w *GenWork = alloc(40);
+    var w *GenWork = alloc(48);
     w.node = node;
     w.result_var = result_var;
     w.phase = 0;
     w.temp_data = nil;
     w.temp_int = 0;
+    w.temp_id = -1;
     return w;
 }
 
@@ -147,17 +173,20 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
                 else {
                     sb_int(rd.sb, c);
                 }
-                sb_str(rd.sb, " { ");
+                sb_str(rd.sb, " && tok_text_len(t) == 1 { ");
                 sb_str(rd.sb, result_var);
                 // Marker keeps its matched text (kind stays 0, so `kind != 0`
                 // skip-checks are unaffected) so converters can tell '(' from '['.
-                sb_str(rd.sb, " = pnode_atom(0, tok_text(t)); tok_next(t); }");
+                sb_str(rd.sb, " = pnode_atom(0, tok_text(t)); tok_next(t); } else { tok_note_expected(t, \"'");
+                rdgen_strn(rd, lit, len);
+                sb_str(rd.sb, "'\"); }");
                 rdgen_newline(rd);
             }
             else {
-                // Multi-char literal = keyword: match a TOK_IDENT with this exact text.
+                // Multi-char literals match exact token text. This covers both
+                // keywords (`return`) and operators (`==`, `->`, `++`).
                 rdgen_indent(rd);
-                sb_str(rd.sb, "if tok_kind(t) == TOK_IDENT && str_eq_n(tok_text_ptr(t), tok_text_len(t), \"");
+                sb_str(rd.sb, "if str_eq_n(tok_text_ptr(t), tok_text_len(t), \"");
                 var ki i64 = 0;
                 while ki < len {
                     sb_char(rd.sb, *(lit + ki));
@@ -167,7 +196,9 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
                 sb_int(rd.sb, len);
                 sb_str(rd.sb, ") { ");
                 sb_str(rd.sb, result_var);
-                sb_str(rd.sb, " = pnode_atom(2, tok_text(t)); tok_next(t); }");
+                sb_str(rd.sb, " = pnode_atom(2, tok_text(t)); tok_next(t); } else { tok_note_expected(t, \"'");
+                rdgen_strn(rd, lit, len);
+                sb_str(rd.sb, "'\"); }");
                 rdgen_newline(rd);
             }
         }
@@ -221,7 +252,11 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
             rdgen_newline(rd);
             rdgen_line(rd, "tok_next(t);");
             rd.indent = rd.indent - 1;
-            rdgen_line(rd, "}");
+            rdgen_indent(rd);
+            sb_str(rd.sb, "} else { tok_note_expected(t, \"");
+            rdgen_strn(rd, name, name_len);
+            sb_str(rd.sb, "\"); }");
+            rdgen_newline(rd);
         }
 
         // REF: reference to another rule
@@ -240,55 +275,96 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
             var n i64 = vec_len(children);
 
             if phase == 0 {
-                // Phase 0: emit sequence setup and start first child
+                work.temp_id = rdgen_temp(rd);
+                var seq_name *u8 = rdgen_name1("_seq", work.temp_id);
+                var mark_name *u8 = rdgen_name1("_seq_mark", work.temp_id);
+                var ok_name *u8 = rdgen_name1("_seq_ok", work.temp_id);
+
                 rdgen_indent(rd);
-                sb_str(rd.sb, "var _seq *u8 = vec_new(");
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, mark_name);
+                sb_str(rd.sb, " i64 = tok_mark(t);");
+                rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, seq_name);
+                sb_str(rd.sb, " *u8 = vec_new(");
                 rdgen_int(rd, n);
                 sb_str(rd.sb, ");");
                 rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, ok_name);
+                sb_str(rd.sb, " i64 = 1;");
+                rdgen_newline(rd);
 
                 if n > 0 {
-                    // Emit var for first element
+                    var elem_name *u8 = rdgen_name2("_e", work.temp_id, 0);
                     rdgen_indent(rd);
-                    sb_str(rd.sb, "var _e0 *PNode = nil;");
+                    sb_str(rd.sb, "var ");
+                    sb_str(rd.sb, elem_name);
+                    sb_str(rd.sb, " *PNode = nil;");
                     rdgen_newline(rd);
 
-                    // Push continuation for after first child
                     work.phase = 1;
                     work.temp_int = 0;
                     vec_push(stack, work);
 
-                    // Push first child
                     var child *GNode = vec_get(children, 0);
-                    vec_push(stack, genwork_new(child, "_e0"));
+                    vec_push(stack, genwork_new(child, elem_name));
+                }
+                else {
+                    rdgen_indent(rd);
+                    sb_str(rd.sb, result_var);
+                    sb_str(rd.sb, " = pnode_list(");
+                    sb_str(rd.sb, seq_name);
+                    sb_str(rd.sb, ");");
+                    rdgen_newline(rd);
                 }
             }
             else {
-                // Phase 1+: after processing a child
                 var i i64 = work.temp_int;
+                var seq_name *u8 = rdgen_name1("_seq", work.temp_id);
+                var mark_name *u8 = rdgen_name1("_seq_mark", work.temp_id);
+                var ok_name *u8 = rdgen_name1("_seq_ok", work.temp_id);
+                var elem_name *u8 = rdgen_name2("_e", work.temp_id, i);
+                var completed_child *GNode = vec_get(children, i);
 
-                // For first element, fail early if it didn't match
-                if i == 0 {
+                // Optional elements may be absent. Every other sequence element
+                // is required; failure rewinds the whole sequence.
+                if completed_child.kind != GNODE_OPT {
                     rdgen_indent(rd);
-                    sb_str(rd.sb, "if _e0 == nil { return nil; }");
+                    sb_str(rd.sb, "if ");
+                    sb_str(rd.sb, elem_name);
+                    sb_str(rd.sb, " == nil { ");
+                    sb_str(rd.sb, ok_name);
+                    sb_str(rd.sb, " = 0; }");
                     rdgen_newline(rd);
                 }
 
-                // Emit the collection code for completed child
                 rdgen_indent(rd);
-                sb_str(rd.sb, "if _e");
-                rdgen_int(rd, i);
-                sb_str(rd.sb, " != nil { vec_push(_seq, _e");
-                rdgen_int(rd, i);
+                sb_str(rd.sb, "if ");
+                sb_str(rd.sb, elem_name);
+                sb_str(rd.sb, " != nil { vec_push(");
+                sb_str(rd.sb, seq_name);
+                sb_str(rd.sb, ", ");
+                sb_str(rd.sb, elem_name);
                 sb_str(rd.sb, "); }");
                 rdgen_newline(rd);
 
                 i = i + 1;
                 if i < n {
-                    // More children to process
                     rdgen_indent(rd);
-                    sb_str(rd.sb, "var _e");
-                    rdgen_int(rd, i);
+                    sb_str(rd.sb, "if ");
+                    sb_str(rd.sb, ok_name);
+                    sb_str(rd.sb, " != 0 {");
+                    rdgen_newline(rd);
+                    rd.indent = rd.indent + 1;
+
+                    var next_elem_name *u8 = rdgen_name2("_e", work.temp_id, i);
+                    rdgen_indent(rd);
+                    sb_str(rd.sb, "var ");
+                    sb_str(rd.sb, next_elem_name);
                     sb_str(rd.sb, " *PNode = nil;");
                     rdgen_newline(rd);
 
@@ -297,18 +373,31 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
                     vec_push(stack, work);
 
                     var child *GNode = vec_get(children, i);
-                    var elem_var *u8 = alloc(16);
-                    *(elem_var + 0) = 95;
-                    *(elem_var + 1) = 101;
-                    *(elem_var + 2) = 48 + i;
-                    *(elem_var + 3) = 0;
-                    vec_push(stack, genwork_new(child, elem_var));
+                    vec_push(stack, genwork_new(child, next_elem_name));
                 }
                 else {
-                    // All children done
+                    var closes i64 = n - 1;
+                    while closes > 0 {
+                        rd.indent = rd.indent - 1;
+                        rdgen_line(rd, "}");
+                        closes = closes - 1;
+                    }
+
                     rdgen_indent(rd);
+                    sb_str(rd.sb, "if ");
+                    sb_str(rd.sb, ok_name);
+                    sb_str(rd.sb, " != 0 { ");
                     sb_str(rd.sb, result_var);
-                    sb_str(rd.sb, " = pnode_list(_seq);");
+                    sb_str(rd.sb, " = pnode_list(");
+                    sb_str(rd.sb, seq_name);
+                    sb_str(rd.sb, "); }");
+                    rdgen_newline(rd);
+                    rdgen_indent(rd);
+                    sb_str(rd.sb, "if ");
+                    sb_str(rd.sb, ok_name);
+                    sb_str(rd.sb, " == 0 { tok_reset(t, ");
+                    sb_str(rd.sb, mark_name);
+                    sb_str(rd.sb, "); }");
                     rdgen_newline(rd);
                 }
             }
@@ -319,28 +408,48 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
             var children *u8 = node.children;
             var n i64 = vec_len(children);
 
+            if phase == 0 {
+                work.temp_id = rdgen_temp(rd);
+                var mark_name *u8 = rdgen_name1("_choice_mark", work.temp_id);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, mark_name);
+                sb_str(rd.sb, " i64 = tok_mark(t);");
+                rdgen_newline(rd);
+            }
+
             if phase < n {
-                // Process alternative at index 'phase'
                 if phase > 0 {
-                    // Close previous, open new check
+                    var mark_name *u8 = rdgen_name1("_choice_mark", work.temp_id);
                     rdgen_indent(rd);
                     sb_str(rd.sb, "if ");
                     sb_str(rd.sb, result_var);
                     sb_str(rd.sb, " == nil {");
                     rdgen_newline(rd);
                     rd.indent = rd.indent + 1;
+                    rdgen_indent(rd);
+                    sb_str(rd.sb, "tok_reset(t, ");
+                    sb_str(rd.sb, mark_name);
+                    sb_str(rd.sb, ");");
+                    rdgen_newline(rd);
                 }
 
-                // Push continuation
                 work.phase = phase + 1;
                 vec_push(stack, work);
 
-                // Push child
                 var child *GNode = vec_get(children, phase);
                 vec_push(stack, genwork_new(child, result_var));
             }
             else {
-                // All alternatives done, close braces
+                var mark_name *u8 = rdgen_name1("_choice_mark", work.temp_id);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if ");
+                sb_str(rd.sb, result_var);
+                sb_str(rd.sb, " == nil { tok_reset(t, ");
+                sb_str(rd.sb, mark_name);
+                sb_str(rd.sb, "); }");
+                rdgen_newline(rd);
+
                 var closes i64 = n - 1;
                 while closes > 0 {
                     rd.indent = rd.indent - 1;
@@ -355,33 +464,84 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
             var child *GNode = node.child;
 
             if phase == 0 {
-                // Setup - use a done flag instead of break
+                work.temp_id = rdgen_temp(rd);
+                var list_name *u8 = rdgen_name1("_star_list", work.temp_id);
+                var done_name *u8 = rdgen_name1("_star_done", work.temp_id);
+                var mark_name *u8 = rdgen_name1("_star_mark", work.temp_id);
+                var item_name *u8 = rdgen_name1("_star_item", work.temp_id);
                 rdgen_indent(rd);
-                sb_str(rd.sb, "var _list *u8 = vec_new(8);");
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, list_name);
+                sb_str(rd.sb, " *u8 = vec_new(8);");
                 rdgen_newline(rd);
-                rdgen_line(rd, "var _star_done i64 = 0;");
-                rdgen_line(rd, "while _star_done == 0 {");
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, done_name);
+                sb_str(rd.sb, " i64 = 0;");
+                rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "while ");
+                sb_str(rd.sb, done_name);
+                sb_str(rd.sb, " == 0 {");
+                rdgen_newline(rd);
                 rd.indent = rd.indent + 1;
-                rdgen_line(rd, "var _item *PNode = nil;");
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, mark_name);
+                sb_str(rd.sb, " i64 = tok_mark(t);");
+                rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, item_name);
+                sb_str(rd.sb, " *PNode = nil;");
+                rdgen_newline(rd);
 
-                // Push continuation
                 work.phase = 1;
                 vec_push(stack, work);
-
-                // Push child
-                vec_push(stack, genwork_new(child, "_item"));
+                vec_push(stack, genwork_new(child, item_name));
             }
             else if phase == 1 {
-                // After child - check if done
-                rdgen_line(rd, "if _item == nil { _star_done = 1; }");
-                rdgen_line(rd, "if _item != nil { vec_push(_list, _item); }");
+                var list_name *u8 = rdgen_name1("_star_list", work.temp_id);
+                var done_name *u8 = rdgen_name1("_star_done", work.temp_id);
+                var mark_name *u8 = rdgen_name1("_star_mark", work.temp_id);
+                var item_name *u8 = rdgen_name1("_star_item", work.temp_id);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if ");
+                sb_str(rd.sb, item_name);
+                sb_str(rd.sb, " == nil { tok_reset(t, ");
+                sb_str(rd.sb, mark_name);
+                sb_str(rd.sb, "); ");
+                sb_str(rd.sb, done_name);
+                sb_str(rd.sb, " = 1; }");
+                rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if ");
+                sb_str(rd.sb, item_name);
+                sb_str(rd.sb, " != nil && tok_mark(t) == ");
+                sb_str(rd.sb, mark_name);
+                sb_str(rd.sb, " { ");
+                sb_str(rd.sb, done_name);
+                sb_str(rd.sb, " = 1; }");
+                rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if ");
+                sb_str(rd.sb, item_name);
+                sb_str(rd.sb, " != nil && tok_mark(t) != ");
+                sb_str(rd.sb, mark_name);
+                sb_str(rd.sb, " { vec_push(");
+                sb_str(rd.sb, list_name);
+                sb_str(rd.sb, ", ");
+                sb_str(rd.sb, item_name);
+                sb_str(rd.sb, "); }");
+                rdgen_newline(rd);
                 rd.indent = rd.indent - 1;
                 rdgen_line(rd, "}");
 
-                // Emit result assignment
                 rdgen_indent(rd);
                 sb_str(rd.sb, result_var);
-                sb_str(rd.sb, " = pnode_list(_list);");
+                sb_str(rd.sb, " = pnode_list(");
+                sb_str(rd.sb, list_name);
+                sb_str(rd.sb, ");");
                 rdgen_newline(rd);
             }
         }
@@ -391,48 +551,157 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
             var child *GNode = node.child;
 
             if phase == 0 {
-                // Setup - parse first (required)
+                work.temp_id = rdgen_temp(rd);
+                var list_name *u8 = rdgen_name1("_plus_list", work.temp_id);
+                var mark_name *u8 = rdgen_name1("_plus_mark", work.temp_id);
+                var first_name *u8 = rdgen_name1("_plus_first", work.temp_id);
                 rdgen_indent(rd);
-                sb_str(rd.sb, "var _list *u8 = vec_new(8);");
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, mark_name);
+                sb_str(rd.sb, " i64 = tok_mark(t);");
                 rdgen_newline(rd);
-                rdgen_line(rd, "var _first *PNode = nil;");
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, list_name);
+                sb_str(rd.sb, " *u8 = vec_new(8);");
+                rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, first_name);
+                sb_str(rd.sb, " *PNode = nil;");
+                rdgen_newline(rd);
 
                 work.phase = 1;
                 vec_push(stack, work);
-                vec_push(stack, genwork_new(child, "_first"));
+                vec_push(stack, genwork_new(child, first_name));
             }
             else if phase == 1 {
-                // After first - check required, start loop
-                rdgen_line(rd, "if _first == nil { return nil; }");
-                rdgen_line(rd, "vec_push(_list, _first);");
-                rdgen_line(rd, "var _plus_done i64 = 0;");
-                rdgen_line(rd, "while _plus_done == 0 {");
+                var list_name *u8 = rdgen_name1("_plus_list", work.temp_id);
+                var mark_name *u8 = rdgen_name1("_plus_mark", work.temp_id);
+                var first_name *u8 = rdgen_name1("_plus_first", work.temp_id);
+                var done_name *u8 = rdgen_name1("_plus_done", work.temp_id);
+                var loop_mark_name *u8 = rdgen_name1("_plus_loop_mark", work.temp_id);
+                var item_name *u8 = rdgen_name1("_plus_item", work.temp_id);
+
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if ");
+                sb_str(rd.sb, first_name);
+                sb_str(rd.sb, " == nil { tok_reset(t, ");
+                sb_str(rd.sb, mark_name);
+                sb_str(rd.sb, "); }");
+                rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if ");
+                sb_str(rd.sb, first_name);
+                sb_str(rd.sb, " != nil {");
+                rdgen_newline(rd);
                 rd.indent = rd.indent + 1;
-                rdgen_line(rd, "var _item *PNode = nil;");
+                rdgen_indent(rd);
+                sb_str(rd.sb, "vec_push(");
+                sb_str(rd.sb, list_name);
+                sb_str(rd.sb, ", ");
+                sb_str(rd.sb, first_name);
+                sb_str(rd.sb, ");");
+                rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, done_name);
+                sb_str(rd.sb, " i64 = 0;");
+                rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "while ");
+                sb_str(rd.sb, done_name);
+                sb_str(rd.sb, " == 0 {");
+                rdgen_newline(rd);
+                rd.indent = rd.indent + 1;
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, loop_mark_name);
+                sb_str(rd.sb, " i64 = tok_mark(t);");
+                rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, item_name);
+                sb_str(rd.sb, " *PNode = nil;");
+                rdgen_newline(rd);
 
                 work.phase = 2;
                 vec_push(stack, work);
-                vec_push(stack, genwork_new(child, "_item"));
+                vec_push(stack, genwork_new(child, item_name));
             }
             else if phase == 2 {
-                // After loop child - check if done
-                rdgen_line(rd, "if _item == nil { _plus_done = 1; }");
-                rdgen_line(rd, "if _item != nil { vec_push(_list, _item); }");
+                var list_name *u8 = rdgen_name1("_plus_list", work.temp_id);
+                var done_name *u8 = rdgen_name1("_plus_done", work.temp_id);
+                var loop_mark_name *u8 = rdgen_name1("_plus_loop_mark", work.temp_id);
+                var item_name *u8 = rdgen_name1("_plus_item", work.temp_id);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if ");
+                sb_str(rd.sb, item_name);
+                sb_str(rd.sb, " == nil { tok_reset(t, ");
+                sb_str(rd.sb, loop_mark_name);
+                sb_str(rd.sb, "); ");
+                sb_str(rd.sb, done_name);
+                sb_str(rd.sb, " = 1; }");
+                rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if ");
+                sb_str(rd.sb, item_name);
+                sb_str(rd.sb, " != nil && tok_mark(t) == ");
+                sb_str(rd.sb, loop_mark_name);
+                sb_str(rd.sb, " { ");
+                sb_str(rd.sb, done_name);
+                sb_str(rd.sb, " = 1; }");
+                rdgen_newline(rd);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if ");
+                sb_str(rd.sb, item_name);
+                sb_str(rd.sb, " != nil && tok_mark(t) != ");
+                sb_str(rd.sb, loop_mark_name);
+                sb_str(rd.sb, " { vec_push(");
+                sb_str(rd.sb, list_name);
+                sb_str(rd.sb, ", ");
+                sb_str(rd.sb, item_name);
+                sb_str(rd.sb, "); }");
+                rdgen_newline(rd);
                 rd.indent = rd.indent - 1;
                 rdgen_line(rd, "}");
 
-                // Emit result assignment
                 rdgen_indent(rd);
                 sb_str(rd.sb, result_var);
-                sb_str(rd.sb, " = pnode_list(_list);");
+                sb_str(rd.sb, " = pnode_list(");
+                sb_str(rd.sb, list_name);
+                sb_str(rd.sb, ");");
                 rdgen_newline(rd);
+                rd.indent = rd.indent - 1;
+                rdgen_line(rd, "}");
             }
         }
 
         // OPT: optional
         else if kind == GNODE_OPT {
             var child *GNode = node.child;
-            vec_push(stack, genwork_new(child, result_var));
+            if phase == 0 {
+                work.temp_id = rdgen_temp(rd);
+                var mark_name *u8 = rdgen_name1("_opt_mark", work.temp_id);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "var ");
+                sb_str(rd.sb, mark_name);
+                sb_str(rd.sb, " i64 = tok_mark(t);");
+                rdgen_newline(rd);
+                work.phase = 1;
+                vec_push(stack, work);
+                vec_push(stack, genwork_new(child, result_var));
+            }
+            else {
+                var mark_name *u8 = rdgen_name1("_opt_mark", work.temp_id);
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if ");
+                sb_str(rd.sb, result_var);
+                sb_str(rd.sb, " == nil { tok_reset(t, ");
+                sb_str(rd.sb, mark_name);
+                sb_str(rd.sb, "); }");
+                rdgen_newline(rd);
+            }
         }
     }
 }

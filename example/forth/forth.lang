@@ -56,8 +56,8 @@ include "std/ast.lang"
 
 // The grammar is almost nothing - which is the point. A body is a FLAT word
 // list; `if`/`else`/`then` are ordinary words that the converter gives meaning
-// to, exactly as Forth does with immediate words. That also dodges the weak
-// no-backtrack parser: there is no nesting for it to get wrong.
+// to, exactly as Forth does with immediate words. There is deliberately no
+// expression grammar: nesting is meaning assigned later by the reader.
 #parser{
     fo_program   = fo_def+
     fo_def       = fo_worddef | fo_externdef | fo_effect

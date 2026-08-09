@@ -20,11 +20,10 @@
 //               calls f(a,b), member access p.f and (*p).f  (-> lexed as .)
 //   strings:    "..." literals (char*); funcs may return non-struct types only
 //
-// rdgen's generated parser is weak (no backtracking; a sequence only requires
-// its first element). So every grammar choice is driven by a distinct first
-// token: keyword-literals lead statements, and each statement alternative is a
-// NAMED rule (a choice of inline sequences would short-circuit on the first
-// mismatch). Operator precedence is flat in the grammar and resolved here.
+// rdgen handles ordered alternatives transactionally. This grammar still uses
+// keyword-led named statement rules because that shape is easy to inspect and
+// produces smaller parse trees. Operator precedence is flat in the grammar and
+// resolved here.
 
 // require (not include) so the -r composition path can filter them: the kernel
 // already carries std/core and std/tok, and this lets `kernel -r c c.ast`
@@ -91,13 +90,13 @@ include "std/ast.lang"
     c_expr      = c_binexpr c_terntail*
     c_terntail  = '?' c_expr ':' c_expr
     c_binexpr   = c_unary c_oprest*
-    c_oprest    = operator c_unary
+    c_oprest    = operator c_unary?
     c_unary     = c_neg | c_postfix
     c_neg       = operator c_postfix
     c_postfix   = c_primary c_postfixop*
     c_postfixop = c_callargs | c_member | c_index
     c_callargs  = '(' c_args ')'
-    c_member    = '.' symbol
+    c_member    = '.' symbol | '->' symbol
     c_index     = '[' c_expr ']'
     c_args      = c_argitem*
     c_argitem   = c_expr | ','
@@ -144,8 +143,8 @@ func flatten_expr(e *PNode, operands *u8, ops *u8) void {
     while i < m {
         var orn *PNode = vec_get(star.children, i);  // oprest = [op_atom, postfix]
         vec_push(ops, vec_get(orn.children, 0));
-        // A trailing postfix ++/-- has no right operand (the c_unary failed to
-        // match), so the oprest is just [op]; leave operands one shorter than ops.
+        // A trailing postfix ++/-- has no right operand (the grammar makes it
+        // optional), so the oprest is just [op]; leave operands one shorter.
         if vec_len(orn.children) > 1 {
             vec_push(operands, vec_get(orn.children, 1));
         }

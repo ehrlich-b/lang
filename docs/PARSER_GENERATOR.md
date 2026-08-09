@@ -1,9 +1,9 @@
 # `#parser{}` quick reference
 
 `#parser{}` turns a compact grammar into recursive-descent functions. It is a
-good fit for prefix syntax and rules whose alternatives start differently. For
-operator precedence, contextual syntax, or precise diagnostics, copy the manual
-recursive-descent pattern in [`example/calc/calc.lang`](../example/calc/calc.lang).
+good fit for token grammars, including alternatives that share a prefix. For
+operator precedence, contextual syntax, or recovery, copy the manual recursive-
+descent pattern in [`example/calc/calc.lang`](../example/calc/calc.lang).
 
 ## Smallest parser
 
@@ -39,8 +39,8 @@ stmt  = 'return' value ';'               keyword and punctuation literals
 ```
 
 Built-in token names are `number`, `symbol`/`ident`, `string`, and `operator`.
-Quoted one-character literals match punctuation tokens. Longer quoted literals
-match identifier text, so `'return'` is a keyword match.
+Quoted literals match exact token text: `'return'` matches a keyword and `'=='`,
+`'->'`, or `'++'` match multi-character operators.
 
 ## Parse tree
 
@@ -60,13 +60,40 @@ syntax. Inspect [`example/minilisp/minilisp.lang`](../example/minilisp/minilisp.
 for helpers that unwrap this shape, then lower it with the
 [AST builders](./AST_BUILDERS.md).
 
-## Current boundary
+## Alternatives and errors
 
-The generated parser does not rewind the tokenizer between alternatives. Keep
-choice prefixes disjoint: `number | symbol | list` is safe; two branches that
-both begin with `'if'` are not. Left recursion is also unsupported. Factor a
-shared prefix into one rule, or use a hand-written parser when the grammar needs
-lookahead, precedence, recovery, or custom error messages.
+Alternatives are ordered and transactional. If a branch fails after consuming
+tokens, the next branch restarts at the same token:
 
-`#parser{}` generates recognition only. The reader still owns validation,
-diagnostics, semantic lowering, and the final shared AST.
+```text
+action = 'do' symbol '=' number | 'do' symbol '(' number ')'
+```
+
+Sequences succeed only when every required element matches; `?` elements may be
+absent. Failed sequences rewind as a unit. `*` and `+` also stop safely if their
+child can match without consuming input.
+
+On failure, the tokenizer retains the furthest mismatch across tried branches:
+
+```lang
+var tree *PNode = parse_action(tokens);
+if tree == nil {
+    tok_print_error(tokens, "mylang");
+    return nil;
+}
+```
+
+That prints, for example, `mylang:2:9: expected number or string, found name`.
+Use the query functions when you want different wording or structured output.
+
+`tok_error_offset` exposes the zero-based byte offset; line and column are
+one-based. Expectations from alternatives failing at the same furthest token
+are combined (`number or string`).
+
+Choice remains ordered—the first successful branch wins—and left recursion is
+unsupported. Use a hand-written parser when the grammar needs precedence,
+semantic lookahead, or error recovery.
+
+`#parser{}` generates recognition and failure context. The reader still owns
+semantic validation, the wording around that context, lowering, and the final
+shared AST.

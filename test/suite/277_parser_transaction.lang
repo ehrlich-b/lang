@@ -1,0 +1,55 @@
+// expect: 0
+// Alternatives sharing a prefix rewind, and failures retain useful context.
+
+include "std/parser_reader.lang"
+
+#parser{
+    action = 'do' symbol '=' number | 'do' symbol '(' number ')'
+    atom = number | string
+    tx_comparison = '==' | '!='
+    long_sequence = number number number number number number number number number number number number
+    maybe_number = number?
+    many_maybe = maybe_number*
+}
+
+func main() i64 {
+    // The assignment branch consumes `do work`, then fails at `(`. The call
+    // branch must restart at `do` rather than inherit that partial consumption.
+    var good *Tokenizer = tok_new("do work(42)");
+    var parsed *PNode = parse_action(good);
+    if parsed == nil || !tok_eof(good) { return 1; }
+
+    // A failed sequence rewinds to its first token.
+    var bad *Tokenizer = tok_new("do work(");
+    if parse_action(bad) != nil { return 2; }
+    if tok_mark(bad) != 0 { return 3; }
+    if tok_error_offset(bad) != 8 { return 4; }
+    if !streq(tok_error_expected(bad), "number") { return 5; }
+    if !streq(tok_error_found(bad), "end of input") { return 6; }
+
+    // Alternatives failing at the same furthest token accumulate expectations.
+    var wrong_atom *Tokenizer = tok_new("name");
+    if parse_atom(wrong_atom) != nil { return 7; }
+    if !streq(tok_error_expected(wrong_atom), "number or string") { return 8; }
+
+    var comparison *Tokenizer = tok_new("!=");
+    if parse_tx_comparison(comparison) == nil || !tok_eof(comparison) { return 9; }
+
+    // Generated temporary names work beyond the old single-digit limit.
+    var long_tokens *Tokenizer = tok_new("1 2 3 4 5 6 7 8 9 10 11 12");
+    if parse_long_sequence(long_tokens) == nil || !tok_eof(long_tokens) { return 10; }
+
+    // A repeated child that can match empty must stop without spinning.
+    var stalled *Tokenizer = tok_new("name");
+    var empty_many *PNode = parse_many_maybe(stalled);
+    if empty_many == nil || vec_len(empty_many.children) != 0 { return 11; }
+    if tok_mark(stalled) != 0 { return 12; }
+
+    // Error locations are reader-ready and one-based for people.
+    var second_line *Tokenizer = tok_new("do work(\n");
+    if parse_action(second_line) != nil { return 13; }
+    if tok_error_line(second_line) != 2 || tok_error_column(second_line) != 1 {
+        return 14;
+    }
+    return 0;
+}
