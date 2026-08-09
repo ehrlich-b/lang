@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lang — browser compiler</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#c9d1d9; --dim:#8b949e; --green:#7ee787; --blue:#79c0ff; --warn:#ffa657; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  main { max-width:1050px; margin:auto; padding:2rem 1rem; }
+  a { color:var(--blue); }
+  h1 { color:var(--green); margin:.5rem 0 0; font-size:1.8rem; }
+  p { color:var(--dim); margin:.3rem 0 1.2rem; }
+  .lab { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--border); border-radius:7px; overflow:hidden; background:var(--panel); }
+  .pane + .pane { border-left:1px solid var(--border); }
+  .head { height:42px; display:flex; align-items:center; justify-content:space-between; padding:0 .8rem; border-bottom:1px solid var(--border); color:var(--dim); }
+  textarea, pre { width:100%; height:310px; margin:0; padding:.8rem; border:0; background:var(--panel); color:var(--text); font:13px/1.45 inherit; resize:none; overflow:auto; tab-size:4; }
+  textarea:focus { outline:1px solid var(--blue); outline-offset:-1px; }
+  pre { white-space:pre; }
+  button { border:0; border-radius:5px; padding:.3rem .8rem; color:#04260f; background:var(--green); font:inherit; font-weight:bold; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .ok { color:var(--green); } .bad { color:var(--warn); }
+  .note { font-size:.85rem; margin-top:.8rem; }
+  @media (max-width:760px) { .lab { grid-template-columns:1fr; } .pane + .pane { border-left:0; border-top:1px solid var(--border); } textarea, pre { height:230px; } }
+</style>
+</head>
+<body><main>
+  <a href="./">&larr; lang</a>
+  <h1>compiler.wasm</h1>
+  <p>Edit Lang. Compile locally to LLVM IR. Nothing leaves the tab.</p>
+
+  <div class="lab">
+    <section class="pane">
+      <div class="head"><span>input.lang</span><button id="compile">compile</button></div>
+      <textarea id="source" spellcheck="false">var message *u8 = "edit me";
+
+func main() i64 {
+    message = "b";
+    return *message;
+}
+</textarea>
+    </section>
+    <section class="pane">
+      <div class="head"><span>output.ll</span><span id="status">loading compiler…</span></div>
+      <pre id="output"></pre>
+    </section>
+  </div>
+  <p class="note">Reader editing and one-click execution need the direct wasm backend; this is the compiler-in-browser boundary, now running.</p>
+</main>
+<script src="compiler_host.js"></script>
+<script>
+let compilerBytes;
+const button = document.getElementById('compile');
+const source = document.getElementById('source');
+const output = document.getElementById('output');
+const status = document.getElementById('status');
+
+fetch('compiler.wasm').then(r => {
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.arrayBuffer();
+}).then(bytes => {
+  compilerBytes = bytes;
+  status.innerHTML = '<span class="ok">ready · ' + Math.round(bytes.byteLength / 1024) + ' KiB</span>';
+}).catch(error => {
+  status.innerHTML = '<span class="bad">load failed</span>';
+  output.textContent = String(error);
+});
+
+button.onclick = async () => {
+  if (!compilerBytes) return;
+  button.disabled = true;
+  status.textContent = 'compiling…';
+  output.textContent = '';
+  const started = performance.now();
+  try {
+    const result = await runLangCompiler(
+      compilerBytes,
+      ['input.lang', '-o', 'output.ll'],
+      { 'input.lang': source.value },
+    );
+    const elapsed = Math.round(performance.now() - started);
+    const ir = result.files.get('output.ll');
+    if (result.exit === 0 && ir) {
+      output.textContent = new TextDecoder().decode(ir);
+      status.innerHTML = `<span class="ok">compiled · ${elapsed}ms</span>`;
+    } else {
+      output.textContent = result.stderr || result.stdout || `compiler exit ${result.exit}`;
+      status.innerHTML = `<span class="bad">failed · ${elapsed}ms</span>`;
+    }
+  } catch (error) {
+    output.textContent = String(error);
+    status.innerHTML = '<span class="bad">host error</span>';
+  }
+  button.disabled = false;
+};
+</script>
+</body>
+</html>

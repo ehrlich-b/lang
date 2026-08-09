@@ -163,7 +163,7 @@ node test/wasm_host.js hello.wasm
 ```
 
 `test/wasm_host.js` is a small node host providing the libc surface
-(write/alloc/exit). 165 of the suite's tests pass on wasm
+(write/alloc/exit). 168 of the suite's tests pass on wasm
 (`./test/run_wasm_suite.sh`); the exception is algebraic effects, which need
 stack switching that core wasm cannot express - the compiler rejects them
 cleanly for this target.

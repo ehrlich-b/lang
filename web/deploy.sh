@@ -10,7 +10,7 @@ REMOTE_DIR="/var/www/lang"
 ./build.sh
 
 ssh $SERVER "mkdir -p $REMOTE_DIR/examples"
-scp index.html readers.html host.js $SERVER:$REMOTE_DIR/
+scp index.html readers.html lab.html host.js compiler_host.js compiler.wasm $SERVER:$REMOTE_DIR/
 scp examples/*.wasm examples/*.lang $SERVER:$REMOTE_DIR/examples/
 
 # Path on the apex: ehrlich.dev/lang/ (apex root is /var/www/bryan)

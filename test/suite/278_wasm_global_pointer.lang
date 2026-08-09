@@ -1,0 +1,7 @@
+// expect: 98
+var message *u8 = "a";
+
+func main() i64 {
+    message = "b";
+    return *message;
+}

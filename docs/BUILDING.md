@@ -104,6 +104,20 @@ contract.
 ./test/run_wasm_suite.sh
 ```
 
+## Browser compiler
+
+Build the self-hosted compiler as wasm and verify that it can compile a virtual
+source file, with no host filesystem access:
+
+```bash
+./web/build_compiler.sh
+./test/run_compiler_wasm.sh
+```
+
+`web/compiler_host.js` supplies argv, environment variables, allocation, and an
+in-memory filesystem. `compiler.wasm` currently emits LLVM IR; turning that IR
+into a runnable module in the browser is the direct-wasm-backend milestone.
+
 Test a candidate compiler without promoting it:
 
 ```bash

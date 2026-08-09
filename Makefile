@@ -1,4 +1,4 @@
-.PHONY: all init bootstrap bootstrap-local bootstrap-verify build release test test-suite test-all test-run clean distclean \
+.PHONY: all init bootstrap bootstrap-local bootstrap-verify build release test test-suite test-all test-compiler-wasm test-run clean distclean \
 		build-kernel build-lang-reader emit-kernel-ast emit-lang-reader-ast emit-compiler-ast \
 		seed-bootstrap test-composition test-bootstrap generate-os-layer generate-version-info llvm-verify \
 		compile run stdlib-run dev-run dev-stdlib-run status
@@ -459,6 +459,10 @@ test-suite:
 # Run ALL tests
 test-all: test-suite
 	@./test/run_wasm_suite.sh
+	@./test/run_compiler_wasm.sh
+
+test-compiler-wasm:
+	@./test/run_compiler_wasm.sh
 
 # Compile and run sample test programs
 test-run:

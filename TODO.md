@@ -50,10 +50,11 @@ can add the next one. The working path is now intentionally graduated:
 - [x] Preserve source provenance through includes, reader wrappers, and reader-emitted top-level AST.
 - [x] `#parser{}` rewinds failed alternatives/sequences, guards empty repetitions, and exposes furthest-token parse errors.
 - [ ] Add optional per-node source spans to the shared AST for exact custom-language semantic locations.
-- [ ] Put an editable reader beside editable source in the browser; this depends on `compiler.wasm`.
+- [x] Compile editable Lang to LLVM IR entirely in the browser with `compiler.wasm` and a JS virtual filesystem.
+- [ ] Put an editable reader beside editable source in the browser; this now depends on the direct wasm backend.
 
-The next implementation target is `compiler.wasm`: put an editable reader next
-to editable source in the browser and compile both without a server.
+The next implementation target is the direct wasm backend: turn browser-emitted
+AST into an instantiable module without shipping LLVM into the tab.
 
 ---
 
@@ -174,7 +175,7 @@ polyglot stdlib written in reader-authored *better* languages.
 - [x] **Stage A: wasm as a program target** - `LANGOS=wasm` emits a
       wasm32-unknown-unknown triple; `test/run_wasm_suite.sh` runs the suite
       under node via `test/wasm_host.js` (a ~100-line host providing the libc
-      surface): **165 passed, 0 failed, 21 skipped**. Effects are a clean
+      surface): **168 passed, 0 failed, 21 skipped**. Effects are a clean
       compile error on this target (their lowering is target-specific inline
       asm; core wasm has no stack switching), and the suite skips on that
       diagnostic. Landing this surfaced a real ABI bug: closure signatures
@@ -183,21 +184,22 @@ polyglot stdlib written in reader-authored *better* languages.
       that, wasm traps. The env param is now uniformly i64. Reader executables
       are now forced to target the build host (they run at compile time), so
       cross-targeting cannot produce unrunnable readers.
-- [ ] **Stage B: compiler.wasm** - compile the compiler itself to wasm
-      (wasm32-wasi or a JS virtual-FS shim for file IO/getenv). Reader
-      executables can't fork/exec in a browser: precompile each reader to its
-      own wasm module and shim exec_run to instantiate it.
+- [x] **Stage B: compiler.wasm** - the 478 KiB self-hosted compiler runs behind
+      a JS virtual filesystem and real argv/environment shim. Its e2e test asks
+      compiler.wasm to compile an in-memory source file to LLVM, links that IR
+      to wasm, and runs the result. The live lab exposes editable Lang -> LLVM.
+      wasm32 pointer relocations required pointer globals to use i32 storage and
+      widen on load; `278_wasm_global_pointer` guards initialization + assignment.
 - [ ] **Stage C: a direct wasm backend** (`codegen_wasm.lang`) so the browser
       never needs LLVM: compiler.wasm compiles source → wasm binary →
       instantiate → run, fully client-side. lang is nearly the easiest possible
       wasm-backend target: one value type (i64), structured control flow.
-- [x] **Demo site LIVE: https://ehrlich.dev/lang/** - `web/`: fib, ASCII
+- [x] **Demo site LIVE: https://ehrlich.dev/lang/** - `web/`: compiler.wasm lab, fib, ASCII
       mandelbrot, and the FOUR-language polyglot (`example/polyglot_wasm.lang`,
       flow sits out) precompiled to wasm, run client-side by `web/host.js`.
       `web/deploy.sh` deploys (pareto-pattern VPS); the `lang.ehrlich.dev`
-      vhost is staged on the server and lights up once a Cloudflare DNS record
-      for `lang` is added. Stage B/C upgrade this same page from "precompiled
-      examples" to "the compiler itself, in your browser".
+      vhost and Cloudflare DNS are live. Stage C upgrades the lab from LLVM text
+      output to editable reader + source -> runnable wasm.
 - [x] **Retire the Mandelbrot workarounds** - LLVM expression typing now follows
       literals, casts, groups, calls, and both sides of nested binary trees;
       float reassignment stores through the declared target type; `a[i] = x`

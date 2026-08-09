@@ -35,3 +35,5 @@ for e in $EXAMPLES; do
     rm -rf "$tmp"
     echo "built web/examples/$e.wasm ($(wc -c < web/examples/$e.wasm | tr -d ' ') bytes)"
 done
+
+COMPILER="$COMPILER" WASM_CLANG="$WASM_CLANG" ./web/build_compiler.sh
