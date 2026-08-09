@@ -45,7 +45,7 @@ Ship the artifact boundary before adding another language:
 - [x] `--runtime file.lang` expands and embeds runtime AST at compiler-build time.
 - [x] The shipped minilisp reader mints a self-contained compiler with its runtime.
 - [x] Generated compilers have a small, honest CLI (`--help`, output defaults, diagnostics).
-- [ ] Bootstrap and release gates exercise the real generated-reader path.
+- [x] Bootstrap and release gates exercise the real generated-reader path.
 
 Then return to reader authoring and browser parity. The product is not the set
 of syntaxes in `example/`; it is how quickly someone can add the next one. The
