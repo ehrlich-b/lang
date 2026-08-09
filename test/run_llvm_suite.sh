@@ -519,6 +519,35 @@ MISSING_READER
 }
 reader_named_capture_diagnostic_e2e
 
+# A successful generated parse can be inspected without contaminating the AST
+# stream consumed by snapshots, pipes, or --from-ast.
+reader_pnode_dump_e2e() {
+    local name=reader_pnode_dump_e2e
+    local tmp=$(mktemp -d)
+    local compiler_path=$COMPILER
+    case "$compiler_path" in
+        /*) ;;
+        ./*) compiler_path="$REPO_ROOT/${compiler_path#./}" ;;
+        *) compiler_path="$REPO_ROOT/$compiler_path" ;;
+    esac
+    local ok=1
+
+    LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        "$compiler_path" read test/pnode_dump_reader.lang \
+        test/pnode_dump_source.pdebug >"$tmp/tree.ast" 2>"$tmp/tree.err" || ok=0
+    cmp -s test/pnode_dump.expected "$tmp/tree.err" || ok=0
+    grep -Fq '(number 32)' "$tmp/tree.ast" || ok=0
+    ! grep -Fq 'capture "left"' "$tmp/tree.ast" || ok=0
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_pnode_dump_e2e
+
 # Grammar author errors belong at the token in #parser{}, not at a later
 # undefined generated function or reader-wrapper link step.
 parser_grammar_diagnostics_e2e() {

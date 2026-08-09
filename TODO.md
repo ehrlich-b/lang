@@ -39,7 +39,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 22. ✓ Make grammar captures nameable
 23. ✓ Make grammar mistakes local
 24. ✓ Reject grammar traps before parser generation
-25. → **Capture more languages only when it improves the reader toolkit** ← current
+25. ✓ Make generated parse trees inspectable
+26. → **Capture more languages only when it improves the reader toolkit** ← current
 
 ---
 
@@ -252,6 +253,19 @@ stop at the authoring boundary:
       reference that closes the cycle.
 - [x] Keep right recursion valid and guard both checks in native and browser
       compiler paths.
+
+---
+
+## Completed: Make generated parse trees inspectable
+
+The lexer and final shared AST were inspectable, but the generated `PNode`
+between recognition and lowering was not:
+
+- [x] Add one deterministic `pnode_dump(tree)` with kinds, token text, named
+      capture wrappers, and byte spans.
+- [x] Send it to stderr so native `lang read` and reusable reader-Wasm stdout
+      keep their AST-only contracts.
+- [x] Guard identical tree output through native and browser reader hosts.
 
 ---
 

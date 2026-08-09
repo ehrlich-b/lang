@@ -161,4 +161,6 @@ can track tokens directly; generated parsers retain the furthest failure. Use
 `tok_print_error(tokens, "mylang")` before returning `nil` for a one-line parse
 diagnostic with the custom source's line, column, expected forms, and found
 token. Generated `PNode`s expose `start` and `end` byte offsets for semantic
-locations.
+locations. Call `pnode_dump(tree)` after a successful generated parse to print
+the complete tree—including named-capture wrappers and spans—to stderr without
+mixing debug output into `lang read`'s AST stdout.

@@ -130,3 +130,71 @@ pub func pnode_require(node *PNode, name *u8) *PNode {
     }
     return found;
 }
+
+func pnode_kind_name(kind i64) *u8 {
+    if kind == 0 { return "marker"; }
+    if kind == PNODE_NUMBER { return "number"; }
+    if kind == PNODE_SYMBOL { return "symbol"; }
+    if kind == PNODE_STRING { return "string"; }
+    if kind == PNODE_LIST { return "list"; }
+    if kind == PNODE_OPERATOR { return "operator"; }
+    if kind == PNODE_CAPTURE { return "capture"; }
+    return "unknown";
+}
+
+func pnode_dump_text(text *u8) void {
+    eprint("\"");
+    var p *u8 = text;
+    while p != nil && *p != 0 {
+        var c i64 = *p;
+        if c == 34 { eprint("\\\""); }
+        else if c == 92 { eprint("\\\\"); }
+        else if c == 10 { eprint("\\n"); }
+        else if c == 13 { eprint("\\r"); }
+        else if c == 9 { eprint("\\t"); }
+        else {
+            var byte u8 = c;
+            eprint_buf(&byte, 1);
+        }
+        p = p + 1;
+    }
+    eprint("\"");
+}
+
+func pnode_dump_at(node *PNode, depth i64) void {
+    var i i64 = 0;
+    while i < depth {
+        eprint("  ");
+        i = i + 1;
+    }
+    if node == nil {
+        eprintln("nil");
+        return;
+    }
+
+    eprint(pnode_kind_name(node.kind));
+    if node.text != nil {
+        eprint(" ");
+        pnode_dump_text(node.text);
+    }
+    eprint(" @");
+    eprint_i64(node.start);
+    eprint(":");
+    eprint_i64(node.end);
+    eprint("\n");
+
+    if node.children == nil { return; }
+    var count i64 = vec_len(node.children);
+    i = 0;
+    while i < count {
+        pnode_dump_at(vec_get(node.children, i), depth + 1);
+        i = i + 1;
+    }
+}
+
+// Print the generated parse tree to stderr without changing a reader's AST
+// output. Capture wrappers are deliberately visible: this is a lowering aid,
+// not the transparent positional view exposed by pnode_child.
+pub func pnode_dump(node *PNode) void {
+    pnode_dump_at(node, 0);
+}

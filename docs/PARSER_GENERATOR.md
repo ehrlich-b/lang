@@ -75,6 +75,18 @@ for helpers that unwrap this shape, then lower it with the
 composite nodes inherit the first and last child range. Pass either range to
 `ast_span(...)` when the emitted node should retain an exact semantic location.
 
+When recognition succeeds but lowering is wrong, inspect that boundary before
+changing child indexes or converters:
+
+```lang
+var tree *PNode = parse_assignment(tokens);
+pnode_dump(tree);
+```
+
+`pnode_dump` writes only to stderr, leaving a reader's AST output untouched. It
+shows every node's kind, quoted token text, capture wrapper, and byte span with
+two-space nesting, so native and browser runs produce the same diffable tree.
+
 ## Named captures
 
 Prefix any grammar element with `name:` when lowering cares about its meaning:

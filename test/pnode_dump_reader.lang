@@ -1,0 +1,16 @@
+include "std/parser_reader.lang"
+include "std/ast.lang"
+
+#parser{
+    debug_program = left:number ':' right:number
+}
+
+reader pdebug(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    var tree *PNode = parse_debug_program(tokens);
+    if tree == nil || !tok_eof(tokens) { return nil; }
+    pnode_dump(tree);
+    var right *PNode = pnode_require(tree, "right");
+    if right == nil { return nil; }
+    return ast_main_i64(ast_number(right.text));
+}

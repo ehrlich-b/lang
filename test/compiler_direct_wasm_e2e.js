@@ -158,6 +158,14 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   if (Number(generated.ran.value) !== 42 || !generated.ast.startsWith('(program ')) {
     throw new Error(`generated reader mismatch: value=${generated.ran.value} ast=${generated.ast}`);
   }
+  const debugTree = await compileReaderPipeline(
+    'test/pnode_dump_reader.lang', 'pdebug',
+    fs.readFileSync('test/pnode_dump_source.pdebug', 'utf8'),
+  );
+  const expectedTree = fs.readFileSync('test/pnode_dump.expected', 'utf8');
+  if (Number(debugTree.ran.value) !== 32 || debugTree.readerRun.stderr !== expectedTree) {
+    throw new Error(`parse-tree dump mismatch: value=${debugTree.ran.value}\n${debugTree.readerRun.stderr}`);
+  }
   const badGrammars = [
     ['undefined', 'bad = missing', 'expected defined rule, found missing'],
     ['duplicate-capture', 'bad = value:number value:symbol',
@@ -263,7 +271,7 @@ func main() i64 { return 0; }
     'lang-reader-workspace', 'lang.lab.active', 'readerName(reader.value)',
     'focusDiagnostic(message)', "target.closest('details').open = true", "phase = 'AST compile'",
     'cachedReaderSource !== reader.value', 'customSource.value)',
-    'editor.js?v=workbench8', 'formatLangAst(ast)', 'value:number',
+    'editor.js?v=workbench9', 'formatLangAst(ast)', 'value:number',
     "'program.ast': formattedAst", 'installCodeEditor(reader, queueSave)',
   ]) {
     if (!labHtml.includes(marker)) throw new Error(`lab workbench marker missing: ${marker}`);
