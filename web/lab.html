@@ -69,8 +69,8 @@ reader read(text *u8) *u8 {
   </div>
   <p class="note">reader → shared AST → direct wasm. Both compilers and both programs run locally.</p>
 </main>
-<script src="compiler_host.js"></script>
-<script src="program_host.js"></script>
+<script src="compiler_host.js?v=reader2"></script>
+<script src="program_host.js?v=reader2"></script>
 <script>
 let compilerBytes;
 let stdlibFiles;
@@ -81,11 +81,11 @@ const output = document.getElementById('output');
 const status = document.getElementById('status');
 
 Promise.all([
-  fetch('compiler.wasm').then(r => {
+  fetch('compiler.wasm?v=reader2').then(r => {
     if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
     return r.arrayBuffer();
   }),
-  fetch('stdlib.json').then(r => {
+  fetch('stdlib.json?v=reader2').then(r => {
     if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
     return r.json();
   }),
