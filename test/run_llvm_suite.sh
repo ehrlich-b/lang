@@ -565,7 +565,7 @@ reader_capture_ambiguity_e2e() {
         "$compiler_path" read test/pnode_ambiguity_reader.lang \
         test/pnode_ambiguity_source.pambiguity \
         >"$tmp/ambiguous.ast" 2>"$tmp/ambiguous.err" && ok=0
-    grep -Fxf test/pnode_ambiguity.expected "$tmp/ambiguous.err" || ok=0
+    grep -Fxqf test/pnode_ambiguity.expected "$tmp/ambiguous.err" || ok=0
     ! grep -Fq "capture 'value' is absent" "$tmp/ambiguous.err" || ok=0
     ! grep -Fq 'compilation failed' "$tmp/ambiguous.err" || ok=0
     test ! -s "$tmp/ambiguous.ast" || ok=0
