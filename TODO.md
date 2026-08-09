@@ -46,13 +46,14 @@ can add the next one. The working path is now intentionally graduated:
 - [x] Reader subprocesses inherit the environment and accept source/AST beyond the old 64 KiB cap.
 - [x] Tiny and calculator readers are guarded end to end.
 - [x] `lang compiler <reader> ... -o <binary>` produces a named native compiler in one command.
-- [ ] Remove the declaration-order constraint in generated reader wrappers.
+- [x] Reader imports, grammars, types, globals, and transitive helpers can appear after the reader; wrappers omit unrelated host functions.
 - [ ] Add file/line context to diagnostics inside reader wrappers and emitted AST.
 - [ ] Make `#parser{}` transactional (rewind failed alternatives) and add structured parse errors.
 - [ ] Put an editable reader beside editable source in the browser; this depends on `compiler.wasm`.
 
-The next implementation target is removing the declaration-order constraint in
-reader wrappers without pulling unrelated host-program declarations into them.
+The next implementation target is transactional `#parser{}` alternatives:
+failed branches must rewind before the next branch, with errors that identify
+the furthest token and expected forms.
 
 ---
 

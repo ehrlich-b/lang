@@ -78,7 +78,9 @@ however it wants. Start here:
 - [`flow`](../example/flow/flow.lang): generators lowered to algebraic effects
 
 Keep the reader in three layers—parse, lower, emit—and test the smallest source
-that exercises each new construct. Put imports, generated grammar declarations,
-and helper functions before the `reader` declaration; those preceding siblings
-form its standalone build wrapper. The generated executable and wrapper source
-live in `${LANG_CACHE:-.lang-cache}/readers/` when debugging.
+that exercises each new construct. Imports, `#parser{}` grammars, types, globals,
+and helper functions may appear before or after the `reader` declaration. Lang
+builds its standalone wrapper from the reader's transitive sibling dependencies,
+so unrelated functions in the including program stay out. The generated
+executable and wrapper source live in `${LANG_CACHE:-.lang-cache}/readers/` when
+debugging.

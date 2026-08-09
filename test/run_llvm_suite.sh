@@ -157,6 +157,28 @@ reader_e2e reader_c_e2e         example/c/test_c.lang
 reader_e2e reader_forth_e2e     example/forth/test_forth.lang
 reader_e2e reader_minipy_e2e    example/minipy/test_minipy.lang
 
+# The order regression also guards wrapper scope: later dependencies belong in
+# the reader executable, unrelated host functions do not.
+reader_order_wrapper_e2e() {
+    local name=reader_order_wrapper_e2e
+    local tmp=$(mktemp -d)
+    local ok=1
+    LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER \
+        test/suite/276_reader_declaration_order.lang -o "$tmp/order.ll" \
+        >/dev/null 2>&1 || ok=0
+    local wrapper="$tmp/.lang-cache/readers/late_order.lang"
+    test -f "$wrapper" || ok=0
+    grep -Fq "func late_order_emit" "$wrapper" || ok=0
+    if grep -Fq "func unrelated_host_helper" "$wrapper"; then ok=0; fi
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_order_wrapper_e2e
+
 # A build that reports an error must FAIL. It used not to: cg_had_error was set
 # in fifteen places and read in none, so the compiler printed the diagnostic,
 # wrote its output and exited 0. The reader path is the one that made this

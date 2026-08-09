@@ -1,0 +1,31 @@
+// expect: 42
+// A reader's imports, grammar, and helpers may follow the reader declaration.
+
+reader late_order(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    var value *PNode = parse_late_value(tokens);
+    if value == nil { return nil; }
+    return late_order_emit(value);
+}
+
+include "std/parser_reader.lang"
+include "std/ast.lang"
+
+#parser{
+    late_value = number
+}
+
+func late_order_emit(value *PNode) *u8 {
+    return ast_number(value.text);
+}
+
+// This host-only helper is not a dependency of the reader and should not be
+// pulled into its generated wrapper.
+func unrelated_host_helper(value i64) i64 {
+    return value + 1000;
+}
+
+func main() i64 {
+    if unrelated_host_helper(1) != 1001 { return 1; }
+    return #late_order{42};
+}

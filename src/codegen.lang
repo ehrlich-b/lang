@@ -1136,9 +1136,9 @@ func should_recompile_reader(cached_exe *u8) i64 {
     return 0;  // cache is valid
 }
 
-// The wrapper is a deterministic rendering of the reader plus its preceding
-// sibling declarations. Comparing it catches source edits even when the file
-// and cached executable have the same one-second mtime.
+// The wrapper is a deterministic rendering of the reader plus the sibling
+// declarations it depends on. Comparing it catches source edits even when the
+// file and cached executable have the same one-second mtime.
 func reader_wrapper_matches(path *u8, wrapper *u8, wrapper_len i64) i64 {
     var fd i64 = file_open(path, 0);
     if fd < 0 {
@@ -1152,6 +1152,63 @@ func reader_wrapper_matches(path *u8, wrapper *u8, wrapper_len i64) i64 {
         return 0;
     }
     return memcmp(cached, wrapper, wrapper_len);
+}
+
+// Reader wrappers are built from an AST, so comments and whitespace are gone by
+// this point. An identifier-boundary search over that regenerated source gives
+// us a small, conservative dependency graph without teaching the wrapper builder
+// a second AST walker. False positives only include an extra sibling; partial
+// identifier matches (helper vs helper_more) do not.
+func reader_is_ident_char(c u8) i64 {
+    if c >= 'a' && c <= 'z' { return 1; }
+    if c >= 'A' && c <= 'Z' { return 1; }
+    if c >= '0' && c <= '9' { return 1; }
+    if c == '_' { return 1; }
+    return 0;
+}
+
+func reader_source_mentions(source *u8, name *u8, name_len i64) i64 {
+    if source == nil || name == nil || name_len == 0 { return 0; }
+    var i i64 = 0;
+    while *(source + i) != 0 {
+        var j i64 = 0;
+        while j < name_len && *(source + i + j) != 0 &&
+              *(source + i + j) == *(name + j) {
+            j = j + 1;
+        }
+        if j == name_len {
+            var before_ok i64 = 0;
+            if i == 0 { before_ok = 1; }
+            else if reader_is_ident_char(*(source + i - 1)) == 0 { before_ok = 1; }
+            if before_ok != 0 && reader_is_ident_char(*(source + i + name_len)) == 0 {
+                return 1;
+            }
+        }
+        i = i + 1;
+    }
+    return 0;
+}
+
+// A declaration-level reader expression whose reader is declared in this same
+// file is normally a USE of that reader, not part of its implementation. Do not
+// copy it into another reader's wrapper: its executable is intentionally not
+// available until the containing file's readers have been built.
+func reader_expr_uses_sibling_reader(expr *u8) i64 {
+    var expr_name *u8 = reader_expr_name(expr);
+    var expr_len i64 = reader_expr_name_len(expr);
+    var i i64 = 0;
+    while i < cg_current_file_decl_count {
+        var sibling *u8 = get_decl(cg_current_file_decls, i);
+        if node_kind(sibling) == NODE_READER_DECL {
+            var sibling_name *u8 = reader_decl_name(sibling);
+            var sibling_len i64 = reader_decl_name_len(sibling);
+            if sibling_len == expr_len && memcmp(sibling_name, expr_name, expr_len) {
+                return 1;
+            }
+        }
+        i = i + 1;
+    }
+    return 0;
 }
 
 // Generate and compile reader to executable
@@ -1195,16 +1252,83 @@ func compile_reader_to_executable(decl *u8) void {
     var dependency_newer i64 = 0;
     var exe_mtime i64 = file_mtime(exe_path);
 
-    // Build wrapper source with sibling declarations from current file
+    // Build wrapper source with dependencies from the reader's current file.
     var wrapper *u8 = alloc(1048576);  // 1MB for larger reader files
     var wp *u8 = wrapper;
 
-    // Serialize sibling declarations from the reader's immediate context.
-    // We only include declarations that are BETWEEN the file start and
-    // the reader declaration, to avoid including stdlib functions.
-    // For now, we only serialize include statements (user must explicitly
-    // include helper files), and we find the reader in the decl list to
-    // only include declarations that come BEFORE it in the same file.
+    // Generate the reader body first: it seeds the dependency closure below.
+    var body_src *u8 = ast_to_string_block(body);
+
+    // Select named siblings by dependency, regardless of whether they appear
+    // before or after the reader. Each selected declaration extends the source
+    // searched on the next pass, so helper -> helper and helper -> type/global
+    // dependencies are transitive. The current-file boundary keeps unrelated
+    // declarations from the including host program out of this wrapper.
+    var selected *u8 = alloc(cg_current_file_decl_count);
+    var dependency_src *u8 = alloc(1048576);
+    var dependency_len i64 = strlen(body_src);
+    memcpy(dependency_src, body_src, dependency_len);
+    *(dependency_src + dependency_len) = 0;
+
+    var changed i64 = 1;
+    while changed != 0 {
+        changed = 0;
+        i = 0;
+        while i < cg_current_file_decl_count {
+            if *(selected + i) == 0 {
+                var sibling *u8 = get_decl(cg_current_file_decls, i);
+                var k i64 = node_kind(sibling);
+                var sibling_name *u8 = nil;
+                var sibling_name_len i64 = 0;
+                if k == NODE_FUNC_DECL {
+                    sibling_name = func_decl_name(sibling);
+                    sibling_name_len = func_decl_name_len(sibling);
+                }
+                if k == NODE_STRUCT_DECL {
+                    sibling_name = struct_decl_name(sibling);
+                    sibling_name_len = struct_decl_name_len(sibling);
+                }
+                if k == NODE_ENUM_DECL {
+                    sibling_name = enum_decl_name(sibling);
+                    sibling_name_len = enum_decl_name_len(sibling);
+                }
+                if k == NODE_EFFECT_DECL {
+                    sibling_name = effect_decl_name(sibling);
+                    sibling_name_len = effect_decl_name_len(sibling);
+                }
+                if k == NODE_VAR_DECL {
+                    sibling_name = var_decl_name(sibling);
+                    sibling_name_len = var_decl_name_len(sibling);
+                }
+
+                // main belongs to the host program; the wrapper supplies its
+                // own main below. Everything else is selected only on use.
+                var is_main i64 = 0;
+                if k == NODE_FUNC_DECL && sibling_name_len == 4 &&
+                   memcmp(sibling_name, "main", 4) {
+                    is_main = 1;
+                }
+                if sibling_name != nil && is_main == 0 &&
+                   reader_source_mentions(dependency_src, sibling_name, sibling_name_len) != 0 {
+                    *(selected + i) = 1;
+                    changed = 1;
+
+                    ast_str_init();
+                    if k == NODE_FUNC_DECL { ast_to_string_func_decl(sibling); }
+                    if k == NODE_STRUCT_DECL { ast_to_string_struct_decl(sibling); }
+                    if k == NODE_ENUM_DECL { ast_to_string_enum_decl(sibling); }
+                    if k == NODE_EFFECT_DECL { ast_to_string_effect_decl(sibling); }
+                    if k == NODE_VAR_DECL { ast_to_string_stmt(sibling); }
+                    var selected_src *u8 = ast_str_finish();
+                    var selected_len i64 = strlen(selected_src);
+                    memcpy(dependency_src + dependency_len, selected_src, selected_len);
+                    dependency_len = dependency_len + selected_len;
+                    *(dependency_src + dependency_len) = 0;
+                }
+            }
+            i = i + 1;
+        }
+    }
 
     ast_str_init();
 
@@ -1212,24 +1336,12 @@ func compile_reader_to_executable(decl *u8) void {
     // String is: include "std/core.lang"\n = 24 chars
     ast_str_append_cstr("include \"std/core.lang\"\n");
 
-    // Find the reader's position in the declaration list
-    var reader_pos i64 = -1;
-    i = 0;
-    while i < cg_current_file_decl_count {
-        var sibling *u8 = get_decl(cg_current_file_decls, i);
-        if sibling == decl {
-            reader_pos = i;
-        }
-        i = i + 1;
-    }
-
-    // Emit sibling declarations so the reader executable has access to them.
-    // This includes: include statements, reader macro expansions (like #parser{}),
-    // struct declarations, and function declarations that come BEFORE the reader.
-    if reader_pos > 0 {
-        // Emit include statements before the reader
+    // Imports are explicit dependencies of this source file. Emit every one up
+    // front so imports may appear after the reader and generated declarations
+    // have their prerequisite readers registered before expansion.
+    if cg_current_file_decl_count > 0 {
         i = 0;
-        while i < reader_pos {
+        while i < cg_current_file_decl_count {
             var sibling *u8 = get_decl(cg_current_file_decls, i);
             var k i64 = node_kind(sibling);
             if k == NODE_INCLUDE_DECL {
@@ -1252,116 +1364,68 @@ func compile_reader_to_executable(decl *u8) void {
             i = i + 1;
         }
 
-        // Emit reader macro expansions (e.g., #parser{} generates code)
+        // Preserve declaration generators such as #parser{} in source form.
+        // Putting them after imports lets a cold cache build them even when the
+        // grammar appears after this reader in the original file. Expressions
+        // driven by a sibling reader are use sites and are deliberately omitted.
         i = 0;
-        while i < reader_pos {
+        while i < cg_current_file_decl_count {
             var sibling *u8 = get_decl(cg_current_file_decls, i);
             var k i64 = node_kind(sibling);
-            if k == NODE_READER_EXPR {
-                // Get reader name and content
+            if k == NODE_READER_EXPR && reader_expr_uses_sibling_reader(sibling) == 0 {
                 var rname *u8 = reader_expr_name(sibling);
                 var rname_len i64 = reader_expr_name_len(sibling);
                 var rcontent *u8 = reader_expr_content(sibling);
                 var rcontent_len i64 = reader_expr_content_len(sibling);
-
-                // Build executable path
-                var rexe_path *u8 = build_reader_cache_path(rname, rname_len);
-
-                // Execute reader and get output
-                var rout *u8 = alloc(4194304);
-                var rn i64 = exec_capture(rexe_path, rcontent, rcontent_len, rout, 4194304);
-                if rn <= 0 {
-                    eprint("error: prerequisite reader '");
-                    eprint_buf(rname, rname_len);
-                    if rn < 0 {
-                        eprint("' exited with status ");
-                        eprint_i64(0 - rn);
-                        eprintln("");
-                    } else {
-                        eprintln("' returned no AST");
-                    }
-                    cg_had_error = 1;
-                    return;
-                }
-                if rn > 0 {
-                    // Reader output is AST S-expressions, not lang source.
-                    // Parse it and unparse each decl back to lang source so the
-                    // regenerated reader wrapper is valid lang syntax (the lang
-                    // reader can't parse raw "(program ...)" S-exprs).
-                    var rprog *u8 = parse_ast_from_string(rout);
-                    if rprog != nil {
-                        var rdecls *u8 = program_decls(rprog);
-                        var rcount i64 = program_decl_count(rprog);
-                        var ri i64 = 0;
-                        while ri < rcount {
-                            var rd *u8 = get_decl(rdecls, ri);
-                            var rk i64 = node_kind(rd);
-                            if rk == NODE_STRUCT_DECL {
-                                ast_to_string_struct_decl(rd);
-                            }
-                            if rk == NODE_FUNC_DECL {
-                                ast_to_string_func_decl(rd);
-                            }
-                            ri = ri + 1;
-                        }
-                    }
-                }
+                ast_str_append_char(35);  // #
+                ast_str_append(rname, rname_len);
+                ast_str_append_char(123);  // {
+                ast_str_append(rcontent, rcontent_len);
+                ast_str_append_cstr("}\n");
             }
             i = i + 1;
         }
 
-        // Emit struct declarations before the reader
+        // Emit the selected dependency closure in declaration-friendly order.
         i = 0;
-        while i < reader_pos {
+        while i < cg_current_file_decl_count {
             var sibling *u8 = get_decl(cg_current_file_decls, i);
             var k i64 = node_kind(sibling);
-            if k == NODE_STRUCT_DECL {
+            if *(selected + i) != 0 && k == NODE_STRUCT_DECL {
                 ast_to_string_struct_decl(sibling);
             }
             i = i + 1;
         }
 
-        // Enum and effect declarations before the reader
         i = 0;
-        while i < reader_pos {
+        while i < cg_current_file_decl_count {
             var sibling *u8 = get_decl(cg_current_file_decls, i);
             var k i64 = node_kind(sibling);
-            if k == NODE_ENUM_DECL {
+            if *(selected + i) != 0 && k == NODE_ENUM_DECL {
                 ast_to_string_enum_decl(sibling);
             }
-            if k == NODE_EFFECT_DECL {
+            if *(selected + i) != 0 && k == NODE_EFFECT_DECL {
                 ast_to_string_effect_decl(sibling);
             }
             i = i + 1;
         }
 
-        // Module-level globals before the reader. Without this a `var x = 0;`
-        // declared in the reader's OWN file is dropped, and codegen emits a
-        // bogus local `%x` with no `@x = global` behind it - the reader then
-        // fails to build with "use of undefined value". Globals from INCLUDED
-        // files were always fine, which is what made this look like a mystery.
         i = 0;
-        while i < reader_pos {
+        while i < cg_current_file_decl_count {
             var sibling *u8 = get_decl(cg_current_file_decls, i);
             var k i64 = node_kind(sibling);
-            if k == NODE_VAR_DECL {
+            if *(selected + i) != 0 && k == NODE_VAR_DECL {
                 ast_to_string_stmt(sibling);
             }
             i = i + 1;
         }
 
-        // Emit function declarations before the reader (skip main)
         i = 0;
-        while i < reader_pos {
+        while i < cg_current_file_decl_count {
             var sibling *u8 = get_decl(cg_current_file_decls, i);
             var k i64 = node_kind(sibling);
-            if k == NODE_FUNC_DECL {
-                // Skip main() to avoid conflict with wrapper main
-                var fname *u8 = func_decl_name(sibling);
-                var flen i64 = func_decl_name_len(sibling);
-                if flen != 4 || !memcmp(fname, "main", 4) {
-                    ast_to_string_func_decl(sibling);
-                }
+            if *(selected + i) != 0 && k == NODE_FUNC_DECL {
+                ast_to_string_func_decl(sibling);
             }
             i = i + 1;
         }
@@ -1372,9 +1436,6 @@ func compile_reader_to_executable(decl *u8) void {
     // Copy sibling declarations to wrapper
     var siblings_copy *u8 = siblings_src;
     while *siblings_copy != 0 { *wp = *siblings_copy; wp = wp + 1; siblings_copy = siblings_copy + 1; }
-
-    // Generate reader body source
-    var body_src *u8 = ast_to_string_block(body);
 
     // func <name>(<param> *u8) *u8
     var fn_kw *u8 = "func ";
