@@ -24,16 +24,32 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 7. ✓ Kernel/reader composition (bare kernel + -r reader = compiler)
 8. ✓ Reader-authorship proof (C, minilisp, flow, forth, minipy)
 9. ✓ WASM program target (`LANGOS=wasm` + suite + precompiled browser demos)
-10. → **Reader UX** ← current
-11. → Browser compiler and editable reader lab
-12. → Capture more languages only when it improves the reader toolkit
+10. ✓ Browser compiler and editable reader lab
+11. → **Real readers produce real compilers** ← current
+12. → Exact source spans and direct-wasm reader breadth
+13. → Capture more languages only when it improves the reader toolkit
 
 ---
 
-## Current: Make authoring a reader boring
+## Current: Real readers produce real compilers
 
-The product is not the set of syntaxes in `example/`; it is how quickly someone
-can add the next one. The working path is now intentionally graduated:
+`lang` is a compiler compiler: give it a reader, and it mints a standalone
+compiler for that syntax. This now works for generated grammars and readers
+with runtimes, not only the small hand-written examples.
+
+Ship the artifact boundary before adding another language:
+
+- [x] A minimal `#parser{}` reader mints a standalone compiler and compiles a program.
+- [x] Native artifacts retain generated parsers but dead-strip the parser generator and Lang frontend.
+- [x] The shipped C reader mints a standalone `cc` and passes an end-to-end test.
+- [x] `--runtime file.lang` expands and embeds runtime AST at compiler-build time.
+- [x] The shipped minilisp reader mints a self-contained compiler with its runtime.
+- [x] Generated compilers have a small, honest CLI (`--help`, output defaults, diagnostics).
+- [ ] Bootstrap and release gates exercise the real generated-reader path.
+
+Then return to reader authoring and browser parity. The product is not the set
+of syntaxes in `example/`; it is how quickly someone can add the next one. The
+working learning path is:
 
 1. `example/tiny/` — a 20-line recognizer and AST emitter
 2. `example/calc/` — a 78-line precedence parser with useful errors
@@ -53,8 +69,10 @@ can add the next one. The working path is now intentionally graduated:
 - [x] Compile and run editable Lang entirely in the browser: `compiler.wasm` now emits a direct wasm binary.
 - [x] Put an editable reader beside editable source in the browser; compile reader → AST → program wasm entirely in the tab.
 
-The next implementation target is breadth and polish: generated `#parser{}`
-readers, exact custom-source spans, and more direct-backend language coverage.
+Browser-side generated readers are next. Direct wasm still cannot compile the
+parser generator's `require` graph, and its host cannot run the native
+subprocess used by `#parser{}` expansion. Reuse the native artifact boundary:
+ship generated parser code to the browser, not the generator that made it.
 
 ---
 

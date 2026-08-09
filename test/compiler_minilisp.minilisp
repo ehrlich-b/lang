@@ -1,0 +1,1 @@
+(defun main () (lisp_to_int (+ 40 2)))

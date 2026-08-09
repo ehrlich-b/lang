@@ -94,6 +94,18 @@ with the kernel to produce a compiler for its file syntax:
 Use `./out/lang -c tiny ... -o tinyc.ll` when you specifically want the
 intermediate compiler IR.
 
+For a reader whose output calls runtime helpers, embed Lang runtime source when
+minting the compiler:
+
+```bash
+./out/lang compiler minilisp example/minilisp/minilisp.lang \
+  --runtime example/minilisp/lisp_runtime.lang -o minilispc
+```
+
+The native compiler carries the expanded runtime AST and can be used away from
+the repository. Generated parser functions remain in the artifact; the
+build-only parser generator and Lang frontend are removed by dead stripping.
+
 See [READERS.md](./READERS.md) for the copyable 20-line reader and the reader
 contract.
 

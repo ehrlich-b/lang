@@ -61,6 +61,16 @@ Same AST means same calling convention. Functions call each other directly at th
 Use the lower-level `-c tiny ... -o tinyc.ll` form when you want compiler IR
 for inspection or cross-compilation.
 
+If emitted programs need a Lang runtime, embed it when the compiler is built:
+
+```bash
+./out/lang compiler minilisp example/minilisp/minilisp.lang \
+  --runtime example/minilisp/lisp_runtime.lang -o minilispc
+```
+
+The runtime is expanded once and carried inside `minilispc`; `.minilisp` files
+are still parsed only by the minilisp reader.
+
 Start with the copyable [reader guide](./docs/READERS.md), grow into the small
 [precedence parser](./example/calc/calc.lang), then steal from the shipped
 examples below.

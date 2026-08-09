@@ -7159,10 +7159,13 @@ func llvm_register_decl(decl *u8) void {
             }
         }
 
-        // Switch to new module ID for visibility tracking
+        // Reader wrappers flatten imports into one temporary module; normal
+        // requires retain their visibility boundary.
         var saved_module i64 = cg_current_module;
-        cg_current_module = cg_next_module;
-        cg_next_module = cg_next_module + 1;
+        if cg_flatten_require_modules == 0 {
+            cg_current_module = cg_next_module;
+            cg_next_module = cg_next_module + 1;
+        }
 
         var saved_file_decls *u8 = cg_current_file_decls;
         var saved_file_count i64 = cg_current_file_decl_count;

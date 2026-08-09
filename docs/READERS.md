@@ -49,6 +49,19 @@ That is the “compiler compiler” part: `tiny.lang` is ordinary Lang code, whi
 `tinyc` is a native compiler produced from it. The lower-level `-c tiny` form
 emits compiler IR when you need to inspect or cross-compile it.
 
+Readers may emit calls into a Lang runtime. Embed that runtime in the compiler
+instead of asking the custom reader to parse it:
+
+```bash
+./out/lang compiler minilisp example/minilisp/minilisp.lang \
+  --runtime example/minilisp/lisp_runtime.lang -o /tmp/minilispc
+/tmp/minilispc program.minilisp -o program.ll
+```
+
+`--runtime` expands includes at compiler-build time and stores the resulting
+AST in the native artifact, so using the compiler does not need the runtime
+source tree. Repeat the option to embed more than one runtime file.
+
 ## The reader contract
 
 ```lang

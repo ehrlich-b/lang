@@ -278,6 +278,11 @@ var cg_temp_struct_decl *u8 = nil;
 var cg_current_file_decls *u8 = nil;
 var cg_current_file_decl_count i64 = 0;
 var cg_in_scoped_context i64 = 0;  // 1 when processing included files
+// Reader wrappers and minted compiler artifacts deliberately combine sources
+// into one implementation unit. Their direct requires are already rendered as
+// includes; keep transitive requires in that same unit too. Normal compilation
+// leaves this off and enforces module visibility.
+var cg_flatten_require_modules i64 = 0;
 
 // ============================================================
 // Initialization
@@ -1528,6 +1533,7 @@ func compile_reader_to_executable(decl *u8) void {
         // on THIS machine, so target the host platform even when the main
         // compile cross-targets (LANGOS=wasm would emit an unrunnable reader).
         cg_langos_override = os_platform_name();
+        cg_flatten_require_modules = 1;
         parser_set_source_name(src_path);
         parser_tokenize(wrapper);
         var prog *u8 = parse_program();
@@ -2369,10 +2375,13 @@ func process_decl_first_pass(decl *u8) void {
                 return;
             }
 
-            // Switch to new module ID (require creates visibility boundary)
+            // Normal requires create visibility boundaries. A reader wrapper
+            // is one flattened temporary implementation unit.
             var saved_module i64 = cg_current_module;
-            cg_current_module = cg_next_module;
-            cg_next_module = cg_next_module + 1;
+            if cg_flatten_require_modules == 0 {
+                cg_current_module = cg_next_module;
+                cg_next_module = cg_next_module + 1;
+            }
 
             var req_decls *u8 = program_decls(prog);
             var req_count i64 = program_decl_count(prog);
@@ -2416,8 +2425,10 @@ func process_decl_first_pass(decl *u8) void {
             }
 
             var saved_module i64 = cg_current_module;
-            cg_current_module = cg_next_module;
-            cg_next_module = cg_next_module + 1;
+            if cg_flatten_require_modules == 0 {
+                cg_current_module = cg_next_module;
+                cg_next_module = cg_next_module + 1;
+            }
 
             var req_decls *u8 = program_decls(prog);
             var req_count i64 = program_decl_count(prog);
