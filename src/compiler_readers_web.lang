@@ -1,0 +1,10 @@
+// Reader macros that must run inside compiler.wasm: the browser host cannot
+// fork the native helper process used by an ordinary compiler.
+include "std/parser_reader.lang"
+
+func compiler_expand_direct_reader(name *u8, name_len i64, text *u8) *u8 {
+    if name_len == 6 && memcmp(name, "parser", 6) { return parser(text); }
+    return nil;
+}
+
+func init_compiler_readers() void {}

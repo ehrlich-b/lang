@@ -75,8 +75,9 @@ Start with the copyable [reader guide](./docs/READERS.md), grow into the small
 [precedence parser](./example/calc/calc.lang), then steal from the shipped
 examples below.
 
-Or [write and run a reader in the browser](https://lang.ehrlich.dev/lab.html).
-The reader, generated AST, compiler, and output program all stay in the tab.
+Or [write and run a generated reader in the browser](https://lang.ehrlich.dev/lab.html).
+Edit its `#parser{}` grammar and lowering; the reader, AST, compiler, and output
+program all stay in the tab.
 
 ## Shipped readers, one binary
 

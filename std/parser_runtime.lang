@@ -1,0 +1,5 @@
+// Runtime half of #parser{} for generated-reader targets. The compiler owns
+// grammar parsing and code generation; the resulting reader needs only tokens
+// and the PNode tree it constructs.
+include "std/tok.lang"
+include "std/pnode.lang"

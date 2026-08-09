@@ -28,7 +28,7 @@ trap 'restore_os; rm -rf "$tmp"' EXIT
 LANGOS=wasm LANGBE=llvm "$COMPILER" \
     std/core.lang out/version_info.lang src/lexer.lang src/parser.lang \
     src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang \
-    src/sexpr_reader.lang src/main.lang -o "$tmp/compiler.ll"
+    src/sexpr_reader.lang src/compiler_readers_web.lang src/main.lang -o "$tmp/compiler.ll"
 "$WASM_CLANG" --target=wasm32-unknown-unknown -nostdlib $WASM_LDFLAGS \
     "$tmp/compiler.ll" -o web/compiler.wasm
 echo "built web/compiler.wasm ($(wc -c < web/compiler.wasm | tr -d ' ') bytes)"

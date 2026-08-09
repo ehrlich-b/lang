@@ -133,8 +133,10 @@ IR for the mature backend and a directly emitted wasm module for the browser
 lab. Direct wasm covers the scalar control-flow core plus strings, pointers,
 globals, host imports, heap-backed structs, source includes, and dead-function
 pruning. That is enough for the browser E2E to run `std/tok.lang` and
-`std/ast.lang`: reader source → shared AST → program wasm → `main()`. Unsupported
-features still fail with compiler diagnostics.
+`std/ast.lang`: reader source → shared AST → program wasm → `main()`. The web
+build also embeds the `#parser{}` generator, while generated reader modules carry
+only `std/parser_runtime.lang`; the browser gate exercises grammar → reader wasm
+→ AST → program wasm. Unsupported features still fail with compiler diagnostics.
 
 Test a candidate compiler without promoting it:
 

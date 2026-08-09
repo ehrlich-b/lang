@@ -938,6 +938,33 @@ func wasm_collect_decl(decl *u8) void {
         }
         return;
     }
+    if kind == NODE_READER_EXPR {
+        // Browser compilers cannot fork a reader helper. Readers shipped in
+        // compiler_readers_web.lang expand directly inside compiler.wasm.
+        var name *u8 = reader_expr_name(decl);
+        var name_len i64 = reader_expr_name_len(decl);
+        var output *u8 = compiler_expand_direct_reader(
+            name, name_len, reader_expr_content(decl)
+        );
+        if output == nil {
+            wasm_error("reader macro is not available to the direct wasm compiler");
+            return;
+        }
+        var generated *u8 = parse_ast_from_string(output);
+        if generated == nil {
+            wasm_error("embedded reader did not return valid AST");
+            return;
+        }
+        var generated_decls *u8 = program_decls(generated);
+        var generated_i i64 = 0;
+        while generated_i < program_decl_count(generated) {
+            var generated_decl *u8 = get_decl(generated_decls, generated_i);
+            node_copy_origin(generated_decl, decl);
+            wasm_collect_decl(generated_decl);
+            generated_i = generated_i + 1;
+        }
+        return;
+    }
     if kind == NODE_REQUIRE_DECL {
         wasm_error("require is not supported by direct wasm yet");
         return;

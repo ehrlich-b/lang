@@ -1,0 +1,15 @@
+include "std/parser_runtime.lang"
+include "std/ast.lang"
+
+#parser{
+    answer_program = 'answer' number
+}
+
+reader parser_tiny(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    var tree *PNode = parse_answer_program(tokens);
+    if tree == nil || !tok_eof(tokens) { return nil; }
+    var value *PNode = vec_get(tree.children, 1);
+    var body *u8 = ast_block1(ast_return(ast_number(value.text)));
+    return ast_program1(ast_func("main", ast_vec(), ast_type_i64(), body));
+}

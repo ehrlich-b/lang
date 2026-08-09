@@ -30,29 +30,29 @@
 <body><main>
   <a href="./">&larr; lang</a>
   <h1>write a language</h1>
-  <p>A compiler compiler turns your parser into a compiler. Edit the reader; lang compiles its AST to wasm.</p>
+  <p>A compiler compiler turns your grammar and lowering into a compiler. Edit either; everything runs here.</p>
 
   <div class="lab">
     <section class="pane">
       <div class="head"><span>reader.lang</span><button id="compile" disabled>build + run</button></div>
-      <textarea id="reader" aria-label="Reader source" spellcheck="false">include "std/tok.lang"
+      <textarea id="reader" aria-label="Reader source" spellcheck="false">include "std/parser_runtime.lang"
 include "std/ast.lang"
+
+#parser{
+    answer_program = 'answer' number
+}
 
 reader read(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
-    if tok_kind(tokens) != TOK_IDENT ||
-       !streq(tok_text(tokens), "answer") {
+    var tree *PNode = parse_answer_program(tokens);
+    if tree == nil || !tok_eof(tokens) {
         eprintln("reader: expected `answer NUMBER`");
         return nil;
     }
-    tok_next(tokens);
-    if tok_kind(tokens) != TOK_NUMBER {
-        eprintln("reader: expected a number");
-        return nil;
-    }
 
+    var value *PNode = vec_get(tree.children, 1);
     var body *u8 = ast_block1(
-        ast_return(ast_number(tok_text(tokens)))
+        ast_return(ast_number(value.text))
     );
     return ast_program1(
         ast_func("main", ast_vec(), ast_type_i64(), body)
@@ -69,8 +69,8 @@ reader read(text *u8) *u8 {
   </div>
   <p class="note">reader → shared AST → direct wasm. Both compilers and both programs run locally.</p>
 </main>
-<script src="compiler_host.js?v=reader3"></script>
-<script src="program_host.js?v=reader3"></script>
+<script src="compiler_host.js?v=reader5"></script>
+<script src="program_host.js?v=reader5"></script>
 <script>
 let compilerBytes;
 let stdlibFiles;
@@ -81,11 +81,11 @@ const output = document.getElementById('output');
 const status = document.getElementById('status');
 
 Promise.all([
-  fetch('compiler.wasm?v=reader3').then(r => {
+  fetch('compiler.wasm?v=reader5').then(r => {
     if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
     return r.arrayBuffer();
   }),
-  fetch('stdlib.json?v=reader3').then(r => {
+  fetch('stdlib.json?v=reader5').then(r => {
     if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
     return r.json();
   }),

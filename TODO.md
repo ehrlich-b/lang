@@ -25,13 +25,35 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 8. ✓ Reader-authorship proof (C, minilisp, flow, forth, minipy)
 9. ✓ WASM program target (`LANGOS=wasm` + suite + precompiled browser demos)
 10. ✓ Browser compiler and editable reader lab
-11. → **Real readers produce real compilers** ← current
-12. → Exact source spans and direct-wasm reader breadth
+11. ✓ Real readers produce real compilers
+12. → **Exact source spans and reader-driven wasm breadth** ← current
 13. → Capture more languages only when it improves the reader toolkit
 
 ---
 
-## Current: Real readers produce real compilers
+## Current: Exact locations and reader-driven wasm breadth
+
+The browser now runs the same compiler-compiler loop as native: edit a
+`#parser{}` grammar and lowering, compile the reader, read custom source into
+shared AST, then compile and run that AST—all in the tab.
+
+- [x] Split the generated parser runtime from its build-time generator.
+- [x] Embed `#parser{}` expansion in `compiler.wasm`; no subprocess or server hop.
+- [x] Make the lab starter a generated grammar, not a hand-written recognizer.
+- [x] Guard grammar → reader wasm → AST → program wasm → `main()` end to end.
+- [ ] Add an optional source span to shared AST nodes without breaking old readers.
+- [ ] Carry reader token spans through `PNode` and the AST builders.
+- [ ] Report semantic errors at the exact location in custom-language source.
+- [ ] Grow direct wasm from reader failures, not a feature checklist: capture the
+      smallest missing construct from a useful reader, implement it, and add that
+      reader to the browser gate.
+
+Do not capture a sixth language yet. First make the next reader faster to write,
+debug, compile, and share than the five already shipped.
+
+---
+
+## Completed: Real readers produce real compilers
 
 `lang` is a compiler compiler: give it a reader, and it mints a standalone
 compiler for that syntax. This now works for generated grammars and readers
@@ -65,14 +87,10 @@ working learning path is:
 - [x] Reader imports, grammars, types, globals, and transitive helpers can appear after the reader; wrappers omit unrelated host functions.
 - [x] Preserve source provenance through includes, reader wrappers, and reader-emitted top-level AST.
 - [x] `#parser{}` rewinds failed alternatives/sequences, guards empty repetitions, and exposes furthest-token parse errors.
-- [ ] Add optional per-node source spans to the shared AST for exact custom-language semantic locations.
 - [x] Compile and run editable Lang entirely in the browser: `compiler.wasm` now emits a direct wasm binary.
 - [x] Put an editable reader beside editable source in the browser; compile reader → AST → program wasm entirely in the tab.
-
-Browser-side generated readers are next. Direct wasm still cannot compile the
-parser generator's `require` graph, and its host cannot run the native
-subprocess used by `#parser{}` expansion. Reuse the native artifact boundary:
-ship generated parser code to the browser, not the generator that made it.
+- [x] Generate a reader from editable `#parser{}` grammar in the browser and run
+      its custom source end to end.
 
 ---
 
@@ -217,9 +235,10 @@ polyglot stdlib written in reader-authored *better* languages.
       reachability pruning are enough to run `std/tok.lang` + `std/ast.lang`.
       The browser lab compiles an editable reader to wasm, runs it to obtain
       shared AST, compiles that AST to a second wasm module, then runs `main()`.
-- [ ] **Stage C3: backend breadth** - arrays, function pointers, aggregates by
-      value, floats, break/continue, and generated `#parser{}` readers. Keep
-      unsupported constructs diagnostic rather than allowing invalid modules.
+- [ ] **Stage C3: reader-driven backend breadth** - generated `#parser{}` readers
+      now run in the browser. Add arrays, function pointers, aggregates by value,
+      floats, and break/continue only as useful readers demand them. Keep every
+      unsupported construct diagnostic rather than emitting invalid modules.
 - [x] **Demo site LIVE: https://ehrlich.dev/lang/** - `web/`: compiler.wasm lab, fib, ASCII
       mandelbrot, and the FOUR-language polyglot (`example/polyglot_wasm.lang`,
       flow sits out) precompiled to wasm, run client-side by `web/host.js`.

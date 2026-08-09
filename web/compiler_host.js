@@ -179,7 +179,11 @@ async function runLangCompiler(wasmBytes, args, initialFiles, onWrite, environme
     exit = number(BigInt(instance.exports.main(BigInt(argv.length), BigInt(argvPtr), 0)) & 255n);
   } catch (error) {
     if (error instanceof ExitTrap) exit = error.code;
-    else if (error instanceof WebAssembly.RuntimeError) { exit = 139; trapped = true; }
+    else if (error instanceof WebAssembly.RuntimeError) {
+      exit = 139;
+      trapped = true;
+      output.stderr += `${error.stack || error}\n`;
+    }
     else throw error;
   }
 

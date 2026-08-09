@@ -99,6 +99,12 @@ func main() *u8 { return ${readerName}(${JSON.stringify(source)}); }
   if (invalid.ast !== null || !invalid.readerRun.stderr.includes('expected `answer EXPRESSION`')) {
     throw new Error(`reader failure mismatch: ast=${invalid.ast} stderr=${invalid.readerRun.stderr}`);
   }
+  const generated = await compileReaderPipeline(
+    'test/direct_wasm_parser_reader.lang', 'parser_tiny', 'answer 42',
+  );
+  if (Number(generated.ran.value) !== 42 || !generated.ast.startsWith('(program ')) {
+    throw new Error(`generated reader mismatch: value=${generated.ran.value} ast=${generated.ast}`);
+  }
 
   const labHtml = fs.readFileSync('web/lab.html', 'utf8');
   const labSource = labHtml.match(/<textarea[^>]*\bid="reader"[^>]*>([\s\S]*?)<\/textarea>/);
@@ -108,5 +114,5 @@ func main() *u8 { return ${readerName}(${JSON.stringify(source)}); }
     throw new Error(`lab read pipeline mismatch: value=${read.ran.value} ast=${read.ast}`);
   }
 
-  console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}; readers → ${reader.ran.value}/${calc.ran.value}/${read.ran.value})`);
+  console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}; readers → ${reader.ran.value}/${calc.ran.value}/${generated.ran.value}/${read.ran.value})`);
 })().catch((error) => { console.error(error); process.exit(1); });

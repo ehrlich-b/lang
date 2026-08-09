@@ -90,6 +90,11 @@ notation and limits. A reader can also parse however it wants. Start here:
 - [`C`](../example/c/c.lang): a broad imperative grammar
 - [`flow`](../example/flow/flow.lang): generators lowered to algebraic effects
 
+The [browser lab](https://lang.ehrlich.dev/lab.html) embeds the parser generator
+in `compiler.wasm`. Its editable reader includes `std/parser_runtime.lang`, the
+small target-side half containing tokens and `PNode`; the build-only grammar
+generator stays in the compiler.
+
 Keep the reader in three layers—parse, lower, emit—and test the smallest source
 that exercises each new construct. Imports, `#parser{}` grammars, types, globals,
 and helper functions may appear before or after the `reader` declaration. Lang

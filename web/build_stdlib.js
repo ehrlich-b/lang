@@ -13,6 +13,8 @@ const paths = [
   'std/emit.lang',
   'std/ast.lang',
   'std/tok.lang',
+  'std/pnode.lang',
+  'std/parser_runtime.lang',
 ];
 
 const files = Object.fromEntries(paths.map((path) => [path, fs.readFileSync(path, 'utf8')]));
