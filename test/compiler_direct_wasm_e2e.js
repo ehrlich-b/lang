@@ -187,6 +187,23 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   }
 
   const labHtml = fs.readFileSync('web/lab.html', 'utf8');
+  for (const path of [
+    'example/tiny/tiny.lang', 'example/calc/calc.lang', 'example/c/c.lang',
+    'example/forth/forth.lang', 'example/minilisp/minilisp.lang',
+    'example/minipy/minipy.lang', 'example/flow/flow.lang',
+  ]) {
+    if (stdlibFiles[path] !== fs.readFileSync(path, 'utf8')) {
+      throw new Error(`browser preset is missing or stale: ${path}`);
+    }
+  }
+  const inlineScripts = [...labHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+  new Function(inlineScripts.at(-1)[1]);
+  for (const marker of [
+    'id="preset"', 'id="download-reader"', 'id="download-program"',
+    'lang.lab.active', 'readerName(reader.value)',
+  ]) {
+    if (!labHtml.includes(marker)) throw new Error(`lab workbench marker missing: ${marker}`);
+  }
   const labSource = labHtml.match(/<textarea[^>]*\bid="reader"[^>]*>([\s\S]*?)<\/textarea>/);
   if (!labSource) throw new Error('could not find the reader source in web/lab.html');
   const read = await compileReaderSource(labSource[1], 'read', 'answer 42');

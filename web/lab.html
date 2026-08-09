@@ -15,6 +15,8 @@
   .lab { display:grid; grid-template-columns:1.35fr .65fr; border:1px solid var(--border); border-radius:7px; overflow:hidden; background:var(--panel); }
   .pane + .pane { border-left:1px solid var(--border); }
   .head { height:42px; display:flex; align-items:center; justify-content:space-between; padding:0 .8rem; border-bottom:1px solid var(--border); color:var(--dim); }
+  .tools, .downloads { display:flex; align-items:center; gap:.55rem; }
+  select { max-width:112px; border:1px solid var(--border); border-radius:4px; padding:.2rem .35rem; background:var(--bg); color:var(--text); font:12px inherit; }
   textarea, pre { width:100%; height:350px; margin:0; padding:.8rem; border:0; background:var(--panel); color:var(--text); font:13px/1.45 inherit; resize:none; overflow:auto; tab-size:4; }
   #reader { height:314px; }
   #custom-source { height:82px; border-bottom:1px solid var(--border); }
@@ -26,6 +28,7 @@
   pre { white-space:pre; }
   button { border:0; border-radius:5px; padding:.3rem .8rem; color:#04260f; background:var(--green); font:inherit; font-weight:bold; cursor:pointer; }
   button:disabled { opacity:.5; cursor:wait; }
+  .download { font-size:.78rem; text-decoration:none; }
   .ok { color:var(--green); } .bad { color:var(--warn); }
   .note { font-size:.85rem; margin-top:.8rem; }
   @media (max-width:760px) { .lab { grid-template-columns:1fr; } .pane + .pane { border-left:0; border-top:1px solid var(--border); } #reader { height:264px; } }
@@ -38,7 +41,21 @@
 
   <div class="lab">
     <section class="pane">
-      <div class="head"><span>reader.lang</span><button id="compile" disabled>build + run</button></div>
+      <div class="head"><span>reader.lang</span><span class="tools">
+        <select id="preset" aria-label="Reader workspace">
+          <option value="starter">starter</option>
+          <optgroup label="examples">
+            <option value="tiny">tiny</option>
+            <option value="calc">calculator</option>
+            <option value="c">C subset</option>
+            <option value="forth">Forth</option>
+            <option value="minilisp">Minilisp</option>
+            <option value="minipy">Minipy</option>
+            <option value="flow">Flow</option>
+          </optgroup>
+        </select>
+        <button id="compile" disabled>build + run</button>
+      </span></div>
       <textarea id="reader" aria-label="Reader source" spellcheck="false">include "std/parser_runtime.lang"
 include "std/ast.lang"
 
@@ -67,48 +84,132 @@ reader read(text *u8) *u8 {
 }
 </textarea>
       <details class="runtime">
-        <summary>target runtime (optional)</summary>
+        <summary id="runtime-label">target runtime (optional)</summary>
         <textarea id="runtime" aria-label="Target runtime source" spellcheck="false" placeholder="Lang helpers called by the AST your reader emits"></textarea>
       </details>
     </section>
     <section class="pane">
       <div class="head"><span>source.read</span><span id="status" aria-live="polite">loading…</span></div>
       <textarea id="custom-source" aria-label="Source in your language" spellcheck="false">answer 42</textarea>
-      <div class="head"><span>result</span></div>
-      <pre id="output">Your reader must be named read.</pre>
+      <div class="head"><span>result</span><span class="downloads">
+        <a class="download" id="download-reader" hidden>reader ↓</a>
+        <a class="download" id="download-program" hidden>program ↓</a>
+      </span></div>
+      <pre id="output">Define a reader, then build + run.</pre>
     </section>
   </div>
   <p class="note">reader → shared AST → direct wasm. Both compilers and both programs run locally.</p>
 </main>
-<script src="compiler_host.js?v=reader7"></script>
-<script src="program_host.js?v=reader7"></script>
+<script src="compiler_host.js?v=workbench1"></script>
+<script src="program_host.js?v=workbench1"></script>
 <script>
 let compilerBytes;
 let stdlibFiles;
+let activePreset = 'starter';
+let saveTimer;
+let readerDownloadUrl;
+let programDownloadUrl;
 const button = document.getElementById('compile');
+const preset = document.getElementById('preset');
 const reader = document.getElementById('reader');
 const runtime = document.getElementById('runtime');
+const runtimeLabel = document.getElementById('runtime-label');
 const customSource = document.getElementById('custom-source');
 const output = document.getElementById('output');
 const status = document.getElementById('status');
+const downloadReader = document.getElementById('download-reader');
+const downloadProgram = document.getElementById('download-program');
+const starterReader = reader.value;
+
+const presets = {
+  starter: { source: 'answer 42' },
+  tiny: { reader: 'example/tiny/tiny.lang', source: 'answer 42' },
+  calc: { reader: 'example/calc/calc.lang', source: 'answer 1 + 2 * 3' },
+  c: { reader: 'example/c/c.lang', source: 'int main() { return 42; }' },
+  forth: { reader: 'example/forth/forth.lang', source: ': main ( -- n ) 42 ;' },
+  minilisp: {
+    reader: 'example/minilisp/minilisp.lang',
+    source: '(defun main () 42)',
+    runtime: 'example/minilisp/lisp_runtime.lang',
+  },
+  minipy: { reader: 'example/minipy/minipy.lang', source: 'def main():\n    return 42\n' },
+  flow: { reader: 'example/flow/flow.lang', source: 'func main() { return 42; }' },
+};
 
 Promise.all([
-  fetch('compiler.wasm?v=reader7').then(r => {
+  fetch('compiler.wasm?v=workbench1').then(r => {
     if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
     return r.arrayBuffer();
   }),
-  fetch('stdlib.json?v=reader7').then(r => {
+  fetch('stdlib.json?v=workbench1').then(r => {
     if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
     return r.json();
   }),
 ]).then(([compiler, stdlib]) => {
   compilerBytes = compiler;
   stdlibFiles = stdlib;
+  const savedPreset = storageGet('lang.lab.active');
+  loadPreset(savedPreset && presets[savedPreset] ? savedPreset : 'starter');
   button.disabled = false;
   status.innerHTML = '<span class="ok">ready</span>';
 }).catch(error => {
   status.innerHTML = '<span class="bad">load failed</span>';
   output.textContent = String(error);
+});
+
+function storageGet(key) {
+  try { return localStorage.getItem(key); } catch (_) { return null; }
+}
+
+function storageSet(key, value) {
+  try { localStorage.setItem(key, value); } catch (_) {}
+}
+
+function presetValue(name, field) {
+  const saved = storageGet(`lang.lab.${name}.${field}`);
+  if (saved !== null) return saved;
+  const spec = presets[name];
+  if (field === 'reader') return spec.reader ? stdlibFiles[spec.reader] : starterReader;
+  if (field === 'source') return spec.source;
+  if (field === 'runtime') return spec.runtime ? stdlibFiles[spec.runtime] : '';
+  return '';
+}
+
+function saveDraft() {
+  storageSet(`lang.lab.${activePreset}.reader`, reader.value);
+  storageSet(`lang.lab.${activePreset}.source`, customSource.value);
+  storageSet(`lang.lab.${activePreset}.runtime`, runtime.value);
+  storageSet('lang.lab.active', activePreset);
+}
+
+function queueSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveDraft, 150);
+}
+
+function loadPreset(name) {
+  activePreset = name;
+  preset.value = name;
+  reader.value = presetValue(name, 'reader');
+  customSource.value = presetValue(name, 'source');
+  runtime.value = presetValue(name, 'runtime');
+  runtimeLabel.textContent = runtime.value.trim()
+    ? 'target runtime (included)'
+    : 'target runtime (optional)';
+  storageSet('lang.lab.active', name);
+}
+
+preset.onchange = () => {
+  saveDraft();
+  loadPreset(preset.value);
+};
+reader.addEventListener('input', queueSave);
+customSource.addEventListener('input', queueSave);
+runtime.addEventListener('input', () => {
+  runtimeLabel.textContent = runtime.value.trim()
+    ? 'target runtime (included)'
+    : 'target runtime (optional)';
+  queueSave();
 });
 
 function langString(text) {
@@ -128,6 +229,29 @@ function readCString(instance, pointer) {
   return new TextDecoder().decode(memory.subarray(start, end));
 }
 
+function readerName(source) {
+  const matches = [...source.matchAll(/^\s*reader\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm)];
+  if (!matches.length) throw new Error('define a reader with `reader name(text *u8)`');
+  return matches[matches.length - 1][1];
+}
+
+function clearDownloads() {
+  if (readerDownloadUrl) URL.revokeObjectURL(readerDownloadUrl);
+  if (programDownloadUrl) URL.revokeObjectURL(programDownloadUrl);
+  readerDownloadUrl = undefined;
+  programDownloadUrl = undefined;
+  downloadReader.hidden = true;
+  downloadProgram.hidden = true;
+}
+
+function offerDownload(anchor, bytes, name) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/wasm' }));
+  anchor.href = url;
+  anchor.download = name;
+  anchor.hidden = false;
+  return url;
+}
+
 async function compile(args, files) {
   const result = await runLangCompiler(
     compilerBytes, args, files, undefined, { LANGBE: 'wasm' },
@@ -143,15 +267,18 @@ button.onclick = async () => {
   button.disabled = true;
   status.textContent = 'building reader…';
   output.textContent = '';
+  clearDownloads();
   const started = performance.now();
   try {
-    const harness = `${reader.value}\nfunc main() *u8 { return read(${langString(customSource.value)}); }\n`;
+    const name = readerName(reader.value);
+    const harness = `${reader.value}\nfunc main() *u8 { return ${name}(${langString(customSource.value)}); }\n`;
     const readerBuild = await compile(
       ['reader.lang', '-o', 'reader.wasm'],
       { ...stdlibFiles, 'reader.lang': harness },
     );
     const readerProgram = readerBuild.files.get('reader.wasm');
     if (!readerProgram) throw new Error('reader compiler wrote no module');
+    readerDownloadUrl = offerDownload(downloadReader, readerProgram, `${name}-reader.wasm`);
 
     status.textContent = 'running reader…';
     const readerRun = await runLangProgram(readerProgram);
@@ -178,6 +305,7 @@ button.onclick = async () => {
     );
     const program = programBuild.files.get('program.wasm');
     if (!program) throw new Error('kernel wrote no module');
+    programDownloadUrl = offerDownload(downloadProgram, program, `${name}-program.wasm`);
     const ran = await runLangProgram(program);
     const elapsed = Math.round(performance.now() - started);
     const astPreview = ast.length > 320 ? `${ast.slice(0, 320)}…` : ast;

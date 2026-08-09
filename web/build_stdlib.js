@@ -15,6 +15,13 @@ const paths = [
   'std/tok.lang',
   'std/pnode.lang',
   'std/parser_runtime.lang',
+  'example/tiny/tiny.lang',
+  'example/calc/calc.lang',
+  'example/c/c.lang',
+  'example/forth/forth.lang',
+  'example/minilisp/minilisp.lang',
+  'example/minipy/minipy.lang',
+  'example/flow/flow.lang',
   'example/minilisp/lisp_runtime.lang',
 ];
 

@@ -102,6 +102,9 @@ Lang helpers called by emitted AST without adding height until it is opened.
 The direct backend also preserves address-taken locals, including parameters
 and recursive calls; reader authors do not need to replace `&cursor` with manual
 heap allocation for the browser.
+Use the compact examples menu to load a reader, matching source, and any target
+runtime without changing the lab's height. Each workspace keeps a local draft,
+and a successful run exposes both reader and program Wasm downloads.
 
 Keep the reader in three layers—parse, lower, emit—and test the smallest source
 that exercises each new construct. Imports, `#parser{}` grammars, types, globals,

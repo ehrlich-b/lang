@@ -74,11 +74,11 @@ The lab proves the complete compiler-compiler loop, but it still behaves like a
 single demo. Make it useful for studying and iterating on readers without making
 the runner taller:
 
-- [ ] Add a compact preset loader for the starter and shipped readers, clearly
+- [x] Add a compact preset loader for the starter and shipped readers, clearly
       presented as examples rather than the product.
-- [ ] Keep reader, source, and optional target runtime together when switching
+- [x] Keep reader, source, and optional target runtime together when switching
       presets; preserve in-progress edits locally.
-- [ ] Make the generated reader Wasm and final program Wasm downloadable.
+- [x] Make the generated reader Wasm and final program Wasm downloadable.
 - [ ] Add a copy/share path once state size and failure behavior are honest.
 
 The primary action remains **write a language**. Presets are scaffolding for
