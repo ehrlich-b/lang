@@ -1,0 +1,635 @@
+// src/codegen_wasm.lang - direct WebAssembly binary backend
+//
+// This intentionally begins as a narrow, executable backend rather than a
+// second textual lowering. Its first slice covers word-sized functions,
+// locals, arithmetic, calls, if, and while. Unsupported language features
+// fail closed with source-aware diagnostics while the slice grows.
+
+struct WasmBuf {
+    data *u8;
+    len i64;
+    cap i64;
+}
+
+var wasm_module *WasmBuf = nil;
+var wasm_section *WasmBuf = nil;
+var wasm_body *WasmBuf = nil;
+
+var wasm_funcs *u8 = nil;       // declaration pointers
+var wasm_func_count i64 = 0;
+var wasm_locals *u8 = nil;      // [name:8][len:8][index:8]
+var wasm_local_count i64 = 0;
+var wasm_param_count i64 = 0;
+var wasm_had_error i64 = 0;
+var wasm_current_decl *u8 = nil;
+var wasm_included_files *u8 = nil;
+
+func wasm_buf_new(cap i64) *WasmBuf {
+    var b *WasmBuf = alloc(24);
+    b.data = alloc(cap);
+    b.len = 0;
+    b.cap = cap;
+    return b;
+}
+
+func wasm_put(b *WasmBuf, value i64) void {
+    if b.len >= b.cap {
+        if wasm_had_error == 0 { eprintln("error: wasm output buffer overflow"); }
+        wasm_had_error = 1;
+        return;
+    }
+    *(b.data + b.len) = value;
+    b.len = b.len + 1;
+}
+
+func wasm_put_bytes(b *WasmBuf, data *u8, len i64) void {
+    var i i64 = 0;
+    while i < len {
+        wasm_put(b, *(data + i));
+        i = i + 1;
+    }
+}
+
+func wasm_put_uleb(b *WasmBuf, value i64) void {
+    while value >= 128 {
+        wasm_put(b, (value & 127) | 128);
+        value = value >> 7;
+    }
+    wasm_put(b, value);
+}
+
+func wasm_put_sleb(b *WasmBuf, value i64) void {
+    var more i64 = 1;
+    while more != 0 {
+        var byte i64 = value & 127;
+        value = value >> 7;
+        if (value == 0 && (byte & 64) == 0) ||
+           (value == 0 - 1 && (byte & 64) != 0) {
+            more = 0;
+        } else {
+            byte = byte | 128;
+        }
+        wasm_put(b, byte);
+    }
+}
+
+func wasm_put_name(b *WasmBuf, name *u8, len i64) void {
+    wasm_put_uleb(b, len);
+    wasm_put_bytes(b, name, len);
+}
+
+func wasm_emit_section(id i64, payload *WasmBuf) void {
+    wasm_put(wasm_module, id);
+    wasm_put_uleb(wasm_module, payload.len);
+    wasm_put_bytes(wasm_module, payload.data, payload.len);
+    payload.len = 0;
+}
+
+func wasm_name_eq(a *u8, a_len i64, b *u8, b_len i64) i64 {
+    if a_len != b_len { return 0; }
+    var i i64 = 0;
+    while i < a_len {
+        if *(a + i) != *(b + i) { return 0; }
+        i = i + 1;
+    }
+    return 1;
+}
+
+func wasm_error(message *u8) void {
+    if wasm_had_error == 0 {
+        cg_diagnostic_node = wasm_current_decl;
+        cg_error_prefix();
+        eprintln(message);
+    }
+    wasm_had_error = 1;
+}
+
+func wasm_type_is_void(t *u8) i64 {
+    if t == nil { return 1; }
+    if type_kind(t) != TYPE_BASE { return 0; }
+    return wasm_name_eq(base_type_name(t), base_type_name_len(t), "void", 4);
+}
+
+func wasm_type_is_word(t *u8) i64 {
+    if t == nil || type_kind(t) != TYPE_BASE { return 0; }
+    var name *u8 = base_type_name(t);
+    var len i64 = base_type_name_len(t);
+    if wasm_name_eq(name, len, "i64", 3) != 0 { return 1; }
+    if wasm_name_eq(name, len, "bool", 4) != 0 { return 1; }
+    return 0;
+}
+
+func wasm_func_get(index i64) *u8 {
+    var p **u8 = wasm_funcs + index * 8;
+    return *p;
+}
+
+func wasm_find_func(name *u8, name_len i64) i64 {
+    var i i64 = 0;
+    while i < wasm_func_count {
+        var decl *u8 = wasm_func_get(i);
+        if wasm_name_eq(func_decl_name(decl), func_decl_name_len(decl), name, name_len) != 0 {
+            return i;
+        }
+        i = i + 1;
+    }
+    return 0 - 1;
+}
+
+func wasm_local_add(name *u8, name_len i64) i64 {
+    var previous i64 = 0;
+    while previous < wasm_local_count {
+        var old *u8 = wasm_locals + previous * 24;
+        var old_name **u8 = old;
+        var old_len *i64 = old + 8;
+        if wasm_name_eq(*old_name, *old_len, name, name_len) != 0 {
+            wasm_error("local shadowing is not supported by the first direct wasm slice");
+            return previous;
+        }
+        previous = previous + 1;
+    }
+    var index i64 = wasm_local_count;
+    var entry *u8 = wasm_locals + index * 24;
+    var np **u8 = entry;
+    *np = name;
+    var lp *i64 = entry + 8;
+    *lp = name_len;
+    var ip *i64 = entry + 16;
+    *ip = index;
+    wasm_local_count = wasm_local_count + 1;
+    return index;
+}
+
+func wasm_find_local(name *u8, name_len i64) i64 {
+    var i i64 = wasm_local_count - 1;
+    while i >= 0 {
+        var entry *u8 = wasm_locals + i * 24;
+        var np **u8 = entry;
+        var lp *i64 = entry + 8;
+        if wasm_name_eq(*np, *lp, name, name_len) != 0 { return i; }
+        i = i - 1;
+    }
+    return 0 - 1;
+}
+
+func wasm_collect_locals(stmt *u8) void {
+    if stmt == nil { return; }
+    var kind i64 = node_kind(stmt);
+    if kind == NODE_VAR_DECL {
+        if wasm_type_is_word(var_decl_type(stmt)) == 0 {
+            wasm_error("direct wasm currently supports only i64 and bool locals");
+            return;
+        }
+        wasm_local_add(var_decl_name(stmt), var_decl_name_len(stmt));
+    } else if kind == NODE_BLOCK_STMT {
+        var stmts *u8 = block_stmt_stmts(stmt);
+        var i i64 = 0;
+        while i < block_stmt_count(stmt) {
+            var p **u8 = stmts + i * 8;
+            wasm_collect_locals(*p);
+            i = i + 1;
+        }
+    } else if kind == NODE_IF_STMT {
+        wasm_collect_locals(if_stmt_then(stmt));
+        wasm_collect_locals(if_stmt_else(stmt));
+    } else if kind == NODE_WHILE_STMT {
+        wasm_collect_locals(while_stmt_body(stmt));
+    }
+}
+
+func wasm_parse_integer(text *u8, len i64) i64 {
+    var value i64 = 0;
+    var i i64 = 0;
+    while i < len {
+        var c u8 = *(text + i);
+        if c >= '0' && c <= '9' { value = value * 10 + (c - '0'); }
+        i = i + 1;
+    }
+    return value;
+}
+
+func wasm_emit_truth(expr *u8, out *WasmBuf) void {
+    wasm_emit_expr(expr, out);
+    wasm_put(out, 80);  // i64.eqz
+    wasm_put(out, 69);  // i32.eqz: nonzero becomes true
+}
+
+func wasm_emit_expr(expr *u8, out *WasmBuf) void {
+    if expr == nil { wasm_put(out, 66); wasm_put_sleb(out, 0); return; }
+    var kind i64 = node_kind(expr);
+
+    if kind == NODE_NUMBER_EXPR {
+        wasm_put(out, 66);  // i64.const
+        wasm_put_sleb(out, wasm_parse_integer(number_expr_value(expr), number_expr_value_len(expr)));
+        return;
+    }
+    if kind == NODE_BOOL_EXPR {
+        wasm_put(out, 66);
+        wasm_put_sleb(out, bool_expr_value(expr));
+        return;
+    }
+    if kind == NODE_NIL_EXPR {
+        wasm_put(out, 66);
+        wasm_put_sleb(out, 0);
+        return;
+    }
+    if kind == NODE_GROUP_EXPR {
+        wasm_emit_expr(group_expr_expr(expr), out);
+        return;
+    }
+    if kind == NODE_IDENT_EXPR {
+        var local i64 = wasm_find_local(ident_expr_name(expr), ident_expr_name_len(expr));
+        if local < 0 {
+            wasm_error("unknown local in direct wasm function");
+            wasm_put(out, 66); wasm_put_sleb(out, 0);
+            return;
+        }
+        wasm_put(out, 32);  // local.get
+        wasm_put_uleb(out, local);
+        return;
+    }
+    if kind == NODE_UNARY_EXPR {
+        var unary_op i64 = unary_expr_op(expr);
+        if unary_op == TOKEN_MINUS {
+            wasm_put(out, 66); wasm_put_sleb(out, 0);
+            wasm_emit_expr(unary_expr_expr(expr), out);
+            wasm_put(out, 125);  // i64.sub
+        } else if unary_op == TOKEN_BANG {
+            wasm_emit_expr(unary_expr_expr(expr), out);
+            wasm_put(out, 80);   // i64.eqz
+            wasm_put(out, 173);  // i64.extend_i32_u
+        } else {
+            wasm_error("unsupported unary operator in direct wasm");
+            wasm_put(out, 66); wasm_put_sleb(out, 0);
+        }
+        return;
+    }
+    if kind == NODE_BINARY_EXPR {
+        var op i64 = binary_expr_op(expr);
+        if op == TOKEN_AMPAMP || op == TOKEN_PIPEPIPE {
+            wasm_emit_truth(binary_expr_left(expr), out);
+            wasm_put(out, 173);
+            wasm_emit_truth(binary_expr_right(expr), out);
+            wasm_put(out, 173);
+            if op == TOKEN_AMPAMP { wasm_put(out, 131); }
+            else { wasm_put(out, 132); }
+            return;
+        }
+        wasm_emit_expr(binary_expr_left(expr), out);
+        wasm_emit_expr(binary_expr_right(expr), out);
+        if op == TOKEN_PLUS { wasm_put(out, 124); }
+        else if op == TOKEN_MINUS { wasm_put(out, 125); }
+        else if op == TOKEN_STAR { wasm_put(out, 126); }
+        else if op == TOKEN_SLASH { wasm_put(out, 127); }
+        else if op == TOKEN_PERCENT { wasm_put(out, 129); }
+        else if op == TOKEN_AMP { wasm_put(out, 131); }
+        else if op == TOKEN_PIPE { wasm_put(out, 132); }
+        else if op == TOKEN_CARET { wasm_put(out, 133); }
+        else if op == TOKEN_LTLT { wasm_put(out, 134); }
+        else if op == TOKEN_GTGT { wasm_put(out, 135); }
+        else if op == TOKEN_EQEQ { wasm_put(out, 81); wasm_put(out, 173); }
+        else if op == TOKEN_BANGEQ { wasm_put(out, 82); wasm_put(out, 173); }
+        else if op == TOKEN_LT { wasm_put(out, 83); wasm_put(out, 173); }
+        else if op == TOKEN_GT { wasm_put(out, 85); wasm_put(out, 173); }
+        else if op == TOKEN_LTEQ { wasm_put(out, 87); wasm_put(out, 173); }
+        else if op == TOKEN_GTEQ { wasm_put(out, 89); wasm_put(out, 173); }
+        else { wasm_error("unsupported binary operator in direct wasm"); }
+        return;
+    }
+    if kind == NODE_CALL_EXPR {
+        var callee *u8 = call_expr_func(expr);
+        if node_kind(callee) != NODE_IDENT_EXPR {
+            wasm_error("direct wasm currently supports only direct function calls");
+            wasm_put(out, 66); wasm_put_sleb(out, 0);
+            return;
+        }
+        var index i64 = wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee));
+        if index < 0 {
+            wasm_error("unknown function in direct wasm call");
+            wasm_put(out, 66); wasm_put_sleb(out, 0);
+            return;
+        }
+        if call_expr_arg_count(expr) != func_decl_param_count(wasm_func_get(index)) {
+            wasm_error("wrong argument count in direct wasm call");
+            wasm_put(out, 66); wasm_put_sleb(out, 0);
+            return;
+        }
+        var args *u8 = call_expr_args(expr);
+        var i i64 = 0;
+        while i < call_expr_arg_count(expr) {
+            var p **u8 = args + i * 8;
+            wasm_emit_expr(*p, out);
+            i = i + 1;
+        }
+        wasm_put(out, 16);  // call
+        wasm_put_uleb(out, index);
+        return;
+    }
+
+    wasm_error("expression is not supported by the direct wasm backend yet");
+    wasm_put(out, 66); wasm_put_sleb(out, 0);
+}
+
+func wasm_expr_has_value(expr *u8) i64 {
+    if expr == nil { return 0; }
+    if node_kind(expr) == NODE_CALL_EXPR {
+        var callee *u8 = call_expr_func(expr);
+        if callee != nil && node_kind(callee) == NODE_IDENT_EXPR {
+            var index i64 = wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee));
+            if index >= 0 { return 1 - wasm_type_is_void(func_decl_ret_type(wasm_func_get(index))); }
+        }
+    }
+    return 1;
+}
+
+func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
+    if stmt == nil { return; }
+    var kind i64 = node_kind(stmt);
+    if kind == NODE_BLOCK_STMT {
+        var stmts *u8 = block_stmt_stmts(stmt);
+        var i i64 = 0;
+        while i < block_stmt_count(stmt) {
+            var p **u8 = stmts + i * 8;
+            wasm_emit_stmt(*p, out);
+            i = i + 1;
+        }
+        return;
+    }
+    if kind == NODE_VAR_DECL {
+        var local i64 = wasm_find_local(var_decl_name(stmt), var_decl_name_len(stmt));
+        if var_decl_init(stmt) != nil { wasm_emit_expr(var_decl_init(stmt), out); }
+        else { wasm_put(out, 66); wasm_put_sleb(out, 0); }
+        wasm_put(out, 33);  // local.set
+        wasm_put_uleb(out, local);
+        return;
+    }
+    if kind == NODE_ASSIGN_STMT {
+        var target *u8 = assign_stmt_target(stmt);
+        if node_kind(target) != NODE_IDENT_EXPR {
+            wasm_error("direct wasm currently assigns only local variables");
+            return;
+        }
+        var local i64 = wasm_find_local(ident_expr_name(target), ident_expr_name_len(target));
+        if local < 0 {
+            wasm_error("unknown assignment target in direct wasm function");
+            return;
+        }
+        wasm_emit_expr(assign_stmt_value(stmt), out);
+        wasm_put(out, 33);
+        wasm_put_uleb(out, local);
+        return;
+    }
+    if kind == NODE_EXPR_STMT {
+        var expr *u8 = expr_stmt_expr(stmt);
+        wasm_emit_expr(expr, out);
+        if wasm_expr_has_value(expr) != 0 { wasm_put(out, 26); }  // drop
+        return;
+    }
+    if kind == NODE_RETURN_STMT {
+        if return_stmt_value(stmt) != nil { wasm_emit_expr(return_stmt_value(stmt), out); }
+        wasm_put(out, 15);  // return
+        return;
+    }
+    if kind == NODE_IF_STMT {
+        wasm_emit_truth(if_stmt_cond(stmt), out);
+        wasm_put(out, 4); wasm_put(out, 64);  // if, empty block type
+        wasm_emit_stmt(if_stmt_then(stmt), out);
+        if if_stmt_else(stmt) != nil {
+            wasm_put(out, 5);  // else
+            wasm_emit_stmt(if_stmt_else(stmt), out);
+        }
+        wasm_put(out, 11);  // end
+        return;
+    }
+    if kind == NODE_WHILE_STMT {
+        wasm_put(out, 2); wasm_put(out, 64);  // outer break block
+        wasm_put(out, 3); wasm_put(out, 64);  // loop
+        wasm_emit_truth(while_stmt_cond(stmt), out);
+        wasm_put(out, 69);                    // i32.eqz
+        wasm_put(out, 13); wasm_put_uleb(out, 1);  // br_if outer
+        wasm_emit_stmt(while_stmt_body(stmt), out);
+        wasm_put(out, 12); wasm_put_uleb(out, 0);  // br loop
+        wasm_put(out, 11);
+        wasm_put(out, 11);
+        return;
+    }
+    if kind == NODE_BREAK_STMT || kind == NODE_CONTINUE_STMT {
+        wasm_error("break and continue are not in the first direct wasm slice");
+        return;
+    }
+    wasm_error("statement is not supported by the direct wasm backend yet");
+}
+
+func wasm_collect_decl(decl *u8) void {
+    wasm_current_decl = decl;
+    var kind i64 = node_kind(decl);
+    if kind == NODE_FUNC_DECL {
+        if func_decl_is_extern(decl) != 0 {
+            wasm_error("extern functions are not supported by the first direct wasm slice");
+        } else if wasm_func_count >= LIMIT_FUNCS {
+            wasm_error("too many functions for direct wasm output");
+        } else {
+            var slot **u8 = wasm_funcs + wasm_func_count * 8;
+            *slot = decl;
+            wasm_func_count = wasm_func_count + 1;
+        }
+        return;
+    }
+    if kind == NODE_INCLUDE_DECL {
+        var path *u8 = include_decl_path(decl);
+        var path_len i64 = include_decl_path_len(decl);
+        var path_z *u8 = str_dup_n(path, path_len);
+        if map_has(wasm_included_files, path_z) != 0 { return; }
+        map_set(wasm_included_files, path_z, 1);
+        var source *u8 = alloc(1024 * 1024);
+        var n i64 = read_file_contents(path, path_len, source, 1024 * 1024 - 1);
+        if n < 0 {
+            wasm_error("cannot open include file for direct wasm output");
+            return;
+        }
+        var included *u8 = parse_program_from_named_string(source, path_z);
+        if included == nil {
+            wasm_error("cannot parse include file for direct wasm output");
+            return;
+        }
+        var decls *u8 = program_decls(included);
+        var i i64 = 0;
+        while i < program_decl_count(included) {
+            wasm_collect_decl(get_decl(decls, i));
+            i = i + 1;
+        }
+        return;
+    }
+    if kind == NODE_REQUIRE_DECL {
+        wasm_error("require is not supported by the first direct wasm slice");
+        return;
+    }
+    if kind != NODE_MODULES_DECL {
+        wasm_error("only function declarations are supported by the first direct wasm slice");
+    }
+}
+
+func wasm_collect_functions(prog *u8) void {
+    wasm_funcs = alloc(LIMIT_FUNCS * 8);
+    wasm_func_count = 0;
+    wasm_included_files = map_new();
+    var decls *u8 = program_decls(prog);
+    var i i64 = 0;
+    while i < program_decl_count(prog) {
+        wasm_collect_decl(get_decl(decls, i));
+        i = i + 1;
+    }
+}
+
+func wasm_emit_type_section() void {
+    wasm_section.len = 0;
+    wasm_put_uleb(wasm_section, wasm_func_count);
+    var i i64 = 0;
+    while i < wasm_func_count {
+        var decl *u8 = wasm_func_get(i);
+        wasm_current_decl = decl;
+        wasm_put(wasm_section, 96);  // func type
+        var count i64 = func_decl_param_count(decl);
+        wasm_put_uleb(wasm_section, count);
+        var params *u8 = func_decl_params(decl);
+        var j i64 = 0;
+        while j < count {
+            var p *u8 = params + j * 24;
+            if wasm_type_is_word(param_type(p)) == 0 {
+                wasm_error("direct wasm currently supports only i64 and bool parameters");
+            }
+            wasm_put(wasm_section, 126);  // i64
+            j = j + 1;
+        }
+        if wasm_type_is_void(func_decl_ret_type(decl)) != 0 {
+            wasm_put_uleb(wasm_section, 0);
+        } else {
+            if wasm_type_is_word(func_decl_ret_type(decl)) == 0 {
+                wasm_error("direct wasm currently supports only i64, bool, or void returns");
+            }
+            wasm_put_uleb(wasm_section, 1);
+            wasm_put(wasm_section, 126);
+        }
+        i = i + 1;
+    }
+    wasm_emit_section(1, wasm_section);
+}
+
+func wasm_emit_function_section() void {
+    wasm_put_uleb(wasm_section, wasm_func_count);
+    var i i64 = 0;
+    while i < wasm_func_count {
+        wasm_put_uleb(wasm_section, i);
+        i = i + 1;
+    }
+    wasm_emit_section(3, wasm_section);
+}
+
+func wasm_emit_memory_section() void {
+    wasm_put_uleb(wasm_section, 1);  // one memory
+    wasm_put(wasm_section, 0);       // minimum only
+    wasm_put_uleb(wasm_section, 4);  // 256 KiB
+    wasm_emit_section(5, wasm_section);
+}
+
+func wasm_emit_export_section() void {
+    var main_index i64 = wasm_find_func("main", 4);
+    if main_index < 0 {
+        wasm_error("direct wasm output requires a main function");
+        return;
+    }
+    wasm_put_uleb(wasm_section, 2);
+    wasm_put_name(wasm_section, "memory", 6);
+    wasm_put(wasm_section, 2);  // memory export
+    wasm_put_uleb(wasm_section, 0);
+    wasm_put_name(wasm_section, "main", 4);
+    wasm_put(wasm_section, 0);  // function export
+    wasm_put_uleb(wasm_section, main_index);
+    wasm_emit_section(7, wasm_section);
+}
+
+func wasm_emit_function_body(decl *u8) void {
+    wasm_current_decl = decl;
+    wasm_body.len = 0;
+    wasm_locals = alloc(LIMIT_LOCALS * 24);
+    wasm_local_count = 0;
+
+    var params *u8 = func_decl_params(decl);
+    var i i64 = 0;
+    while i < func_decl_param_count(decl) {
+        var p *u8 = params + i * 24;
+        wasm_local_add(param_name(p), param_name_len(p));
+        i = i + 1;
+    }
+    wasm_param_count = wasm_local_count;
+    wasm_collect_locals(func_decl_body(decl));
+
+    var added i64 = wasm_local_count - wasm_param_count;
+    if added > 0 {
+        wasm_put_uleb(wasm_body, 1);  // one local group
+        wasm_put_uleb(wasm_body, added);
+        wasm_put(wasm_body, 126);    // i64
+    } else {
+        wasm_put_uleb(wasm_body, 0);
+    }
+
+    wasm_emit_stmt(func_decl_body(decl), wasm_body);
+    if wasm_type_is_void(func_decl_ret_type(decl)) == 0 {
+        // A valid default for paths not terminated by an explicit return.
+        wasm_put(wasm_body, 66);
+        wasm_put_sleb(wasm_body, 0);
+    }
+    wasm_put(wasm_body, 11);  // function end
+
+    wasm_put_uleb(wasm_section, wasm_body.len);
+    wasm_put_bytes(wasm_section, wasm_body.data, wasm_body.len);
+}
+
+func wasm_emit_code_section() void {
+    wasm_put_uleb(wasm_section, wasm_func_count);
+    var i i64 = 0;
+    while i < wasm_func_count {
+        wasm_emit_function_body(wasm_func_get(i));
+        i = i + 1;
+    }
+    wasm_emit_section(10, wasm_section);
+}
+
+func generate_wasm(prog *u8, output_file *u8) void {
+    cg_has_wasm_backend = 1;
+    cg_generate_wasm_fn = &generate_wasm;
+    wasm_had_error = 0;
+    wasm_module = wasm_buf_new(8 * 1024 * 1024);
+    wasm_section = wasm_buf_new(8 * 1024 * 1024);
+    wasm_body = wasm_buf_new(8 * 1024 * 1024);
+
+    wasm_collect_functions(prog);
+    if wasm_had_error != 0 { os_unlink(output_file); exit(1); }
+
+    // \0asm followed by binary format version 1.
+    wasm_put(wasm_module, 0); wasm_put(wasm_module, 97);
+    wasm_put(wasm_module, 115); wasm_put(wasm_module, 109);
+    wasm_put(wasm_module, 1); wasm_put(wasm_module, 0);
+    wasm_put(wasm_module, 0); wasm_put(wasm_module, 0);
+
+    wasm_emit_type_section();
+    wasm_emit_function_section();
+    wasm_emit_memory_section();
+    wasm_emit_export_section();
+    wasm_emit_code_section();
+
+    if wasm_had_error != 0 {
+        os_unlink(output_file);
+        eprintln("error: direct wasm compilation failed");
+        exit(1);
+    }
+
+    var fd i64 = file_open(output_file, O_WRONLY_CREAT_TRUNC);
+    if fd < 0 {
+        eprint("Error: cannot open output file: ");
+        eprintln(output_file);
+        exit(1);
+    }
+    file_write(fd, wasm_module.data, wasm_module.len);
+    file_close(fd);
+}

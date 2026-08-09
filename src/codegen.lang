@@ -14,6 +14,7 @@ var cg_out_fd i64 = 0;           // output file descriptor
 var cg_label_num i64 = 0;        // for generating unique labels
 var cg_had_error i64 = 0;        // set to 1 if codegen encounters an error
 var cg_has_llvm_backend i64 = 0; // set to 1 by codegen_llvm.lang if included
+var cg_has_wasm_backend i64 = 0; // set to 1 by codegen_wasm.lang if included
 var cg_diagnostic_node *u8 = nil;
 
 // Prefix a diagnostic with the closest declaration provenance available.
@@ -51,9 +52,16 @@ func cg_backend_is_llvm() i64 {
     return 0;
 }
 
+func cg_backend_is_wasm() i64 {
+    var langbe *u8 = getenv("LANGBE");
+    if langbe != nil && streq(langbe, "wasm") { return 1; }
+    return 0;
+}
+
 // Function pointer for LLVM backend (avoids linker error in standalone compilers)
 // Set by codegen_llvm.lang, nil if LLVM not available
 var cg_generate_llvm_fn *u8 = nil;
+var cg_generate_wasm_fn *u8 = nil;
 
 // Locals array: each entry is [name_ptr:8][name_len:8][offset:8][type_ptr:8] = 32 bytes
 // Max 1024 locals

@@ -28,25 +28,30 @@
 <body><main>
   <a href="./">&larr; lang</a>
   <h1>compiler.wasm</h1>
-  <p>Edit Lang. Compile locally to LLVM IR. Nothing leaves the tab.</p>
+  <p>Edit Lang. Its wasm compiler builds and runs your program in this tab.</p>
 
   <div class="lab">
     <section class="pane">
-      <div class="head"><span>input.lang</span><button id="compile">compile</button></div>
-      <textarea id="source" spellcheck="false">var message *u8 = "edit me";
+      <div class="head"><span>input.lang</span><button id="compile">compile + run</button></div>
+      <textarea id="source" spellcheck="false">func square(n i64) i64 {
+    return n * n;
+}
 
 func main() i64 {
-    message = "b";
-    return *message;
+    var n i64 = 3;
+    while n < 7 {
+        n = n + 1;
+    }
+    return square(n);
 }
 </textarea>
     </section>
     <section class="pane">
-      <div class="head"><span>output.ll</span><span id="status">loading compiler…</span></div>
+      <div class="head"><span>result</span><span id="status">loading compiler…</span></div>
       <pre id="output"></pre>
     </section>
   </div>
-  <p class="note">Reader editing and one-click execution need the direct wasm backend; this is the compiler-in-browser boundary, now running.</p>
+  <p class="note">First backend slice: i64/bool functions, locals, calls, <code>if</code>, and <code>while</code>. Reader programs are next.</p>
 </main>
 <script src="compiler_host.js"></script>
 <script>
@@ -76,14 +81,18 @@ button.onclick = async () => {
   try {
     const result = await runLangCompiler(
       compilerBytes,
-      ['input.lang', '-o', 'output.ll'],
+      ['input.lang', '-o', 'output.wasm'],
       { 'input.lang': source.value },
+      undefined,
+      { LANGBE: 'wasm' },
     );
     const elapsed = Math.round(performance.now() - started);
-    const ir = result.files.get('output.ll');
-    if (result.exit === 0 && ir) {
-      output.textContent = new TextDecoder().decode(ir);
-      status.innerHTML = `<span class="ok">compiled · ${elapsed}ms</span>`;
+    const program = result.files.get('output.wasm');
+    if (result.exit === 0 && program) {
+      const built = await WebAssembly.instantiate(program, {});
+      const value = built.instance.exports.main();
+      output.textContent = `main() → ${value}\n\n${program.byteLength} byte wasm module`;
+      status.innerHTML = `<span class="ok">ran · ${elapsed}ms</span>`;
     } else {
       output.textContent = result.stderr || result.stdout || `compiler exit ${result.exit}`;
       status.innerHTML = `<span class="bad">failed · ${elapsed}ms</span>`;

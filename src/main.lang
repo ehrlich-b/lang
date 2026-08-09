@@ -84,6 +84,18 @@ func append_str(buf *u8, len *i64, s *u8) void {
     }
 }
 
+// The full compiler always includes both optional backends. Keeping this
+// dispatch in main lets smaller standalone compilers continue to omit them.
+func main_generate_selected(prog *u8, output_file *u8) void {
+    if cg_backend_is_wasm() != 0 {
+        generate_wasm(prog, output_file);
+    } else if cg_backend_is_llvm() != 0 {
+        generate_llvm(prog, output_file);
+    } else {
+        generate(prog, output_file);
+    }
+}
+
 // Global flags for AST modes
 var emit_ast_mode i64 = 0;
 var emit_expanded_ast_mode i64 = 0;  // Emit with includes fully expanded (NO ___main, for composition)
@@ -1043,8 +1055,9 @@ func main(argc i64, argv **u8) i64 {
         // Skip for: --emit-ast (debug), --emit-expanded-ast (composition), LLVM backend (clang provides entry)
         // Include for: normal x86 compile, --emit-exe-ast (standalone executable AST)
         var is_llvm i64 = cg_backend_is_llvm();
+        var is_wasm i64 = cg_backend_is_wasm();
         // Add ___main if: exe-ast mode OR (normal compile without AST modes and not LLVM)
-        if emit_exe_ast_mode != 0 || (emit_ast_mode == 0 && emit_expanded_ast_mode == 0 && is_llvm == 0) {
+        if emit_exe_ast_mode != 0 || (emit_ast_mode == 0 && emit_expanded_ast_mode == 0 && is_llvm == 0 && is_wasm == 0) {
             // Simple ___main - no environment setup for basic programs
             // Programs needing getenv should include std/core.lang
             append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(argc, argv); }\n");
@@ -1074,21 +1087,26 @@ func main(argc i64, argv **u8) i64 {
             compiler_binary = gen_compiler;
         }
         var compiler_tmp *u8 = str_concat("/tmp/lang-compiler-", i64_to_str(getpid()));
-        if cg_backend_is_llvm() != 0 {
+        if cg_backend_is_wasm() != 0 {
+            output_file = str_concat(compiler_tmp, ".wasm");
+        } else if cg_backend_is_llvm() != 0 {
             output_file = str_concat(compiler_tmp, ".ll");
         } else {
             output_file = str_concat(compiler_tmp, ".s");
         }
     } else if output_file == nil {
         if run_mode != 0 {
-            if cg_backend_is_llvm() != 0 {
+            if cg_backend_is_wasm() != 0 {
+                output_file = str_concat(run_base, ".wasm");
+            } else if cg_backend_is_llvm() != 0 {
                 output_file = str_concat(run_base, ".ll");
             } else {
                 output_file = str_concat(run_base, ".s");
             }
             remove_run_output = 1;
         } else {
-            output_file = "a.s";
+            if cg_backend_is_wasm() != 0 { output_file = "a.wasm"; }
+            else { output_file = "a.s"; }
         }
     }
 
@@ -1112,11 +1130,7 @@ func main(argc i64, argv **u8) i64 {
         }
 
         // Generate using appropriate backend
-        if cg_backend_is_llvm() != 0 {
-            generate_llvm(prog, output_file);
-        } else {
-            generate(prog, output_file);
-        }
+        main_generate_selected(prog, output_file);
 
         print("Wrote ");
         println(output_file);
@@ -1323,11 +1337,7 @@ func main(argc i64, argv **u8) i64 {
         }
 
         // Generate using appropriate backend
-        if cg_backend_is_llvm() != 0 {
-            generate_llvm(prog, output_file);
-        } else {
-            generate(prog, output_file);
-        }
+        main_generate_selected(prog, output_file);
 
         print("Wrote ");
         println(output_file);
@@ -1551,11 +1561,7 @@ func main(argc i64, argv **u8) i64 {
         }
 
         // Generate using appropriate backend
-        if cg_backend_is_llvm() != 0 {
-            generate_llvm(combined_prog, output_file);
-        } else {
-            generate(combined_prog, output_file);
-        }
+        main_generate_selected(combined_prog, output_file);
 
         print("Wrote ");
         print(output_file);
@@ -1665,17 +1671,20 @@ func main(argc i64, argv **u8) i64 {
     } else {
         // Backend selection: LANGBE, or the platform default when unset
         var is_llvm i64 = cg_backend_is_llvm();
-        if is_llvm != 0 {
-            // LLVM IR backend
-            generate_llvm(prog, output_file);
-        } else {
-            // x86 assembly backend
-            generate(prog, output_file);
-        }
+        var is_wasm i64 = cg_backend_is_wasm();
+        main_generate_selected(prog, output_file);
 
         if run_mode != 0 {
+            if is_wasm != 0 {
+                eprintln("error: --run does not yet support direct wasm output");
+                return 1;
+            }
             return run_compiled_output(output_file, run_base, is_llvm, remove_run_output);
         } else if build_compiler_mode != 0 {
+            if is_wasm != 0 {
+                eprintln("error: --build-compiler does not yet support direct wasm output");
+                return 1;
+            }
             return link_compiler_output(output_file, compiler_binary, is_llvm);
         } else {
             print("Wrote ");

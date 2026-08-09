@@ -102,6 +102,7 @@ contract.
 ```bash
 ./test/run_llvm_suite.sh
 ./test/run_wasm_suite.sh
+./test/run_direct_wasm.sh
 ```
 
 ## Browser compiler
@@ -115,8 +116,10 @@ source file, with no host filesystem access:
 ```
 
 `web/compiler_host.js` supplies argv, environment variables, allocation, and an
-in-memory filesystem. `compiler.wasm` currently emits LLVM IR; turning that IR
-into a runnable module in the browser is the direct-wasm-backend milestone.
+in-memory filesystem. The end-to-end test exercises both compiler paths: LLVM
+IR for the mature backend and a directly emitted wasm module for the browser
+lab. Direct wasm currently covers i64/bool functions, locals, calls, `if`,
+and `while`; unsupported features fail with compiler diagnostics.
 
 Test a candidate compiler without promoting it:
 

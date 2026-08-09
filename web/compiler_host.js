@@ -2,7 +2,7 @@
 // a tiny in-memory filesystem, then returns every file the compiler wrote.
 'use strict';
 
-async function runLangCompiler(wasmBytes, args, initialFiles, onWrite) {
+async function runLangCompiler(wasmBytes, args, initialFiles, onWrite, environment) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const files = new Map();
@@ -123,7 +123,7 @@ async function runLangCompiler(wasmBytes, args, initialFiles, onWrite) {
     free: () => {},
     getenv: (nameValue) => {
       const name = cstr(nameValue);
-      const values = { LANGOS: 'wasm', LANGBE: 'llvm' };
+      const values = { LANGOS: 'wasm', LANGBE: 'llvm', ...(environment || {}) };
       if (!(name in values)) return 0;
       if (!envStrings.has(name)) envStrings.set(name, putString(values[name]));
       return envStrings.get(name);

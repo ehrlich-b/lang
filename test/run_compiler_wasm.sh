@@ -7,6 +7,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 COMPILER=${COMPILER:-./out/lang} ./web/build_compiler.sh
+node test/compiler_direct_wasm_e2e.js web/compiler.wasm
 node test/compiler_wasm_e2e.js web/compiler.wasm "$tmp/output.ll"
 
 if [ -x /opt/homebrew/opt/llvm/bin/clang ]; then

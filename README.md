@@ -15,11 +15,11 @@ A self-hosted compiler where syntax is a plugin.
                                  │ kernel
                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    LLVM IR (Linux, macOS, ...)                  │
+│            LLVM IR (native) or direct WebAssembly             │
 └─────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
-                            native exe
+                     native exe or browser module
 ```
 
 The compiler has two parts: a kernel (AST to native code) and readers (syntax to AST). The lang reader - the one that parses `func`, `if`, `while` - is just one reader. You can swap it for anything.

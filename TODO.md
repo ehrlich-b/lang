@@ -50,11 +50,11 @@ can add the next one. The working path is now intentionally graduated:
 - [x] Preserve source provenance through includes, reader wrappers, and reader-emitted top-level AST.
 - [x] `#parser{}` rewinds failed alternatives/sequences, guards empty repetitions, and exposes furthest-token parse errors.
 - [ ] Add optional per-node source spans to the shared AST for exact custom-language semantic locations.
-- [x] Compile editable Lang to LLVM IR entirely in the browser with `compiler.wasm` and a JS virtual filesystem.
-- [ ] Put an editable reader beside editable source in the browser; this now depends on the direct wasm backend.
+- [x] Compile and run editable Lang entirely in the browser: `compiler.wasm` now emits a direct wasm binary.
+- [ ] Put an editable reader beside editable source in the browser; expand direct wasm through pointers, strings, imports, and the reader runtime first.
 
-The next implementation target is the direct wasm backend: turn browser-emitted
-AST into an instantiable module without shipping LLVM into the tab.
+The next implementation target is the reader-capable direct wasm slice: memory,
+strings, extern imports, globals, then enough structs/arrays for AST builders.
 
 ---
 
@@ -190,16 +190,19 @@ polyglot stdlib written in reader-authored *better* languages.
       to wasm, and runs the result. The live lab exposes editable Lang -> LLVM.
       wasm32 pointer relocations required pointer globals to use i32 storage and
       widen on load; `278_wasm_global_pointer` guards initialization + assignment.
-- [ ] **Stage C: a direct wasm backend** (`codegen_wasm.lang`) so the browser
-      never needs LLVM: compiler.wasm compiles source → wasm binary →
-      instantiate → run, fully client-side. lang is nearly the easiest possible
-      wasm-backend target: one value type (i64), structured control flow.
+- [x] **Stage C1: executable direct wasm** - `codegen_wasm.lang` emits binary
+      modules itself: functions, i64/bool locals, arithmetic, calls, `if`,
+      and `while`. The browser lab now does source → wasm → `main()` with no
+      LLVM or server hop; the first e2e result is a 133-byte module.
+- [ ] **Stage C2: reader-capable direct wasm** - add memory, pointers, strings,
+      globals, imports, aggregates, and compile-time reader execution. The
+      backend rejects unsupported constructs instead of emitting invalid wasm.
 - [x] **Demo site LIVE: https://ehrlich.dev/lang/** - `web/`: compiler.wasm lab, fib, ASCII
       mandelbrot, and the FOUR-language polyglot (`example/polyglot_wasm.lang`,
       flow sits out) precompiled to wasm, run client-side by `web/host.js`.
       `web/deploy.sh` deploys (pareto-pattern VPS); the `lang.ehrlich.dev`
-      vhost and Cloudflare DNS are live. Stage C upgrades the lab from LLVM text
-      output to editable reader + source -> runnable wasm.
+      vhost and Cloudflare DNS are live. Stage C1 made the lab runnable; Stage
+      C2 upgrades it to editable reader + source -> runnable wasm.
 - [x] **Retire the Mandelbrot workarounds** - LLVM expression typing now follows
       literals, casts, groups, calls, and both sides of nested binary trees;
       float reassignment stores through the declared target type; `a[i] = x`

@@ -1,0 +1,16 @@
+func add(a i64, b i64) i64 {
+    return a + b;
+}
+
+func main() i64 {
+    var n i64 = 0;
+    var sum i64 = 0;
+    while n < 5 {
+        sum = sum + add(n, 1);
+        n = n + 1;
+    }
+    if sum == 15 {
+        return 42;
+    }
+    return 1;
+}
