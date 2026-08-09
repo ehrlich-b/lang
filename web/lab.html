@@ -34,18 +34,22 @@
 
   <div class="lab">
     <section class="pane">
-      <div class="head"><span>reader.lang</span><button id="compile">build + run</button></div>
-      <textarea id="reader" spellcheck="false">include "std/tok.lang"
+      <div class="head"><span>reader.lang</span><button id="compile" disabled>build + run</button></div>
+      <textarea id="reader" aria-label="Reader source" spellcheck="false">include "std/tok.lang"
 include "std/ast.lang"
 
 reader read(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
     if tok_kind(tokens) != TOK_IDENT ||
        !streq(tok_text(tokens), "answer") {
+        eprintln("reader: expected `answer NUMBER`");
         return nil;
     }
     tok_next(tokens);
-    if tok_kind(tokens) != TOK_NUMBER { return nil; }
+    if tok_kind(tokens) != TOK_NUMBER {
+        eprintln("reader: expected a number");
+        return nil;
+    }
 
     var body *u8 = ast_block1(
         ast_return(ast_number(tok_text(tokens)))
@@ -57,8 +61,8 @@ reader read(text *u8) *u8 {
 </textarea>
     </section>
     <section class="pane">
-      <div class="head"><span>source.read</span><span id="status">loading…</span></div>
-      <textarea id="custom-source" spellcheck="false">answer 42</textarea>
+      <div class="head"><span>source.read</span><span id="status" aria-live="polite">loading…</span></div>
+      <textarea id="custom-source" aria-label="Source in your language" spellcheck="false">answer 42</textarea>
       <div class="head"><span>result</span></div>
       <pre id="output">Your reader must be named read.</pre>
     </section>
@@ -88,6 +92,7 @@ Promise.all([
 ]).then(([compiler, stdlib]) => {
   compilerBytes = compiler;
   stdlibFiles = stdlib;
+  button.disabled = false;
   status.innerHTML = '<span class="ok">ready</span>';
 }).catch(error => {
   status.innerHTML = '<span class="bad">load failed</span>';
@@ -162,6 +167,13 @@ button.onclick = async () => {
   }
   button.disabled = false;
 };
+
+document.addEventListener('keydown', event => {
+  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+    event.preventDefault();
+    button.click();
+  }
+});
 </script>
 </body>
 </html>

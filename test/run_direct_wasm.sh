@@ -29,6 +29,7 @@ run_case test/direct_wasm_import_e2e.lang 17
 run_case test/direct_wasm_struct_e2e.lang 42
 run_case test/direct_wasm_ast_e2e.lang 40
 run_case test/direct_wasm_reader_e2e.lang 40
+run_case test/direct_wasm_calc_reader_e2e.lang 40
 
 unsupported="$tmp/unsupported.wasm"
 if LANGBE=wasm LANGOS=wasm "$COMPILER" test/suite/250_arrays.lang -o "$unsupported" \

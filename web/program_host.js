@@ -88,7 +88,8 @@ async function runLangProgram(wasmBytes, onWrite) {
   let value = 0n;
   let exit = 0;
   try {
-    value = instance.exports.main();
+    const returned = instance.exports.main();
+    value = returned === undefined ? 0n : returned;
     exit = number(BigInt(value) & 255n);
   } catch (error) {
     if (error instanceof ExitTrap) exit = error.code;

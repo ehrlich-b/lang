@@ -31,9 +31,9 @@ async function compileAndRun(sourcePath) {
   return { ...ran, bytes: program.byteLength };
 }
 
-async function compileReaderPipeline() {
-  const readerSource = `${fs.readFileSync('example/tiny/tiny.lang', 'utf8')}
-func main() *u8 { return tiny("answer 42"); }
+async function compileReaderPipeline(readerPath, readerName, source) {
+  const readerSource = `${fs.readFileSync(readerPath, 'utf8')}
+func main() *u8 { return ${readerName}(${JSON.stringify(source)}); }
 `;
   const readerCompile = await runLangCompiler(
     fs.readFileSync(compilerPath),
@@ -48,6 +48,7 @@ func main() *u8 { return tiny("answer 42"); }
   const readerProgram = readerCompile.files.get('reader.wasm');
   if (!readerProgram) throw new Error('compiler did not write reader.wasm');
   const readerRun = await runLangProgram(readerProgram);
+  if (readerRun.value === 0n) return { ast: null, readerRun, ran: null };
   const memory = new Uint8Array(readerRun.instance.exports.memory.buffer);
   let end = Number(readerRun.value);
   while (memory[end] !== 0) end++;
@@ -82,10 +83,18 @@ func main() *u8 { return tiny("answer 42"); }
   const ast = await compileAndRun('test/direct_wasm_ast_e2e.lang');
   if (Number(ast.value) !== 40) throw new Error(`expected AST builder to start with 40, got ${ast.value}`);
 
-  const reader = await compileReaderPipeline();
+  const reader = await compileReaderPipeline('example/tiny/tiny.lang', 'tiny', 'answer 42');
   if (Number(reader.ran.value) !== 42 || !reader.ast.startsWith('(program ')) {
-    throw new Error(`reader pipeline mismatch: value=${reader.ran.value} ast=${reader.ast}`);
+    throw new Error(`tiny reader pipeline mismatch: value=${reader.ran.value} ast=${reader.ast}`);
+  }
+  const calc = await compileReaderPipeline('example/calc/calc.lang', 'calc', 'answer 1 + 2 * 3');
+  if (Number(calc.ran.value) !== 7 || !calc.ast.includes('(binop + ')) {
+    throw new Error(`calc reader pipeline mismatch: value=${calc.ran.value} ast=${calc.ast}`);
+  }
+  const invalid = await compileReaderPipeline('example/calc/calc.lang', 'calc', 'wat');
+  if (invalid.ast !== null || !invalid.readerRun.stderr.includes('expected `answer EXPRESSION`')) {
+    throw new Error(`reader failure mismatch: ast=${invalid.ast} stderr=${invalid.readerRun.stderr}`);
   }
 
-  console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}; reader → ${reader.ran.value})`);
+  console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}; readers → ${reader.ran.value}/${calc.ran.value})`);
 })().catch((error) => { console.error(error); process.exit(1); });

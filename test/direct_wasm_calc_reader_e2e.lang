@@ -1,0 +1,6 @@
+include "example/calc/calc.lang"
+
+func main() i64 {
+    var output *u8 = calc("answer 1 + 2 * 3");
+    return *output;
+}

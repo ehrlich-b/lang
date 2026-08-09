@@ -123,7 +123,7 @@ WebAssembly.instantiate(bytes, { env, lang }).then(({ instance: inst }) => {
   try {
     if (instance.exports.__wasm_call_ctors) instance.exports.__wasm_call_ctors();
     const ret = instance.exports.main(0n, 0, 0);
-    process.exit(Number(BigInt(ret) & 255n));
+    process.exit(ret === undefined ? 0 : Number(BigInt(ret) & 255n));
   } catch (e) {
     if (e instanceof ExitTrap) process.exit(e.code);
     // A wasm trap (bad indirect call, OOB access) is the sandbox's SIGSEGV;
