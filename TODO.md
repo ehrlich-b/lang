@@ -42,7 +42,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 25. ✓ Make generated parse trees inspectable
 26. ✓ Make capture cardinality explicit
 27. ✓ Make expression precedence reusable
-28. Capture more languages only when it improves the reader toolkit
+28. → **Make choice branches self-identifying** ← current
+29. Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -301,6 +302,26 @@ the ladder and the climb; walking a parse tree stays reader-local:
       reuse only the honest common core.
 - [x] Guard the table, both associativities, and both refusals in the native
       suite, through `lang read`, and on the browser backend.
+
+---
+
+## Next: Make choice branches self-identifying
+
+A generated choice returns the node its winning alternative built and nothing
+that says which alternative won. Lowering re-derives it: `flow_stmt` and
+`c_stmt` dispatch on the leading keyword's text, and `flow_unary`/`c_unary`
+tell a negation from a postfix by asking whether the first child is an operator
+atom. Named captures removed that coupling for sequences; choices still tie
+lowering to grammar order and `PNode` kinds, and a branch nobody recognized
+falls through to a default node instead of failing.
+
+- [ ] Let a grammar name its alternatives and let lowering ask which one
+      matched, without changing `PNode` layout or existing grammars.
+- [ ] Keep the answer one cheap lookup; do not make reader authors re-declare
+      their grammar as a tagged union.
+- [ ] Convert Flow's statement and operand dispatch as the proof, and replace
+      its silent `ast_int(0)` fallback with a diagnostic.
+- [ ] Guard native and browser reader pipelines before capturing another syntax.
 
 ---
 
