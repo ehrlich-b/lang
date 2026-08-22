@@ -110,10 +110,16 @@ notation and limits. Name lowering inputs in the grammar (`value:number`) and
 use `pnode_require(tree, "value")` instead of coupling converters to child
 indexes. Singular lookup rejects multiple visible matches; use
 `pnode_get_all(tree, "item")` only when repeated captures are deliberate. A
-reader can also parse however it wants. Start here:
+reader can also parse however it wants.
+
+Operator precedence is shared rather than rewritten per reader: declare the
+ladder with `std/prec.lang` (`prec_left`/`prec_right`, loosest level first),
+push operands and operators in source order, and let `prec_build` shape the
+tree. It works the same from a hand-written parser and from a flat `#parser{}`
+rule, and it refuses an operator the table never declared. Start here:
 
 - [`tiny`](../example/tiny/tiny.lang): one grammar rule, one function
-- [`calc`](../example/calc/calc.lang): recursive descent and operator precedence
+- [`calc`](../example/calc/calc.lang): recursive descent and a precedence table
 - [`forth`](../example/forth/forth.lang): flat words and a compile-time stack
 - [`minilisp`](../example/minilisp/minilisp.lang): expressions and closures
 - [`minipy`](../example/minipy/minipy.lang): indentation-sensitive blocks

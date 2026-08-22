@@ -1,0 +1,24 @@
+include "std/tok.lang"
+include "std/ast.lang"
+include "std/prec.lang"
+
+// The table lists '+' and nothing else, so `1 @ 2` has no shape to lower to.
+reader punlisted(text *u8) *u8 {
+    var table *PrecTable = prec_new();
+    prec_left(table, "+");
+
+    var tokens *Tokenizer = tok_new(text);
+    var expr *PrecExpr = prec_expr(table);
+    prec_operand(expr, ast_number(tok_text(tokens)));
+    tok_next(tokens);
+    while !tok_eof(tokens) {
+        prec_op(expr, tok_text(tokens));
+        tok_next(tokens);
+        prec_operand(expr, ast_number(tok_text(tokens)));
+        tok_next(tokens);
+    }
+
+    var value *u8 = prec_build(expr);
+    if value == nil { return nil; }
+    return ast_main_i64(value);
+}

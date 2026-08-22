@@ -1,9 +1,11 @@
 # `#parser{}` quick reference
 
 `#parser{}` turns a compact grammar into recursive-descent functions. It is a
-good fit for token grammars, including alternatives that share a prefix. For
-operator precedence, contextual syntax, or recovery, copy the manual recursive-
-descent pattern in [`example/calc/calc.lang`](../example/calc/calc.lang).
+good fit for token grammars, including alternatives that share a prefix.
+Operator precedence stays out of the grammar: keep one flat rule and resolve it
+with the [precedence table](#operator-precedence). For contextual syntax or
+recovery, copy the manual recursive-descent pattern in
+[`example/calc/calc.lang`](../example/calc/calc.lang).
 
 ## Smallest parser
 
@@ -156,7 +158,47 @@ are combined (`number or string`).
 Choice remains ordered—the first successful branch wins. Direct, indirect, and
 nullable-prefix left recursion are rejected at the reference that closes the
 cycle; right recursion works. Use a hand-written parser when the grammar needs
-precedence, semantic lookahead, or error recovery.
+semantic lookahead or error recovery.
+
+## Operator precedence
+
+A precedence ladder written as grammar rules is left-recursive, so `#parser{}`
+rejects it. Write one flat rule instead and give the operators their binding
+powers in `std/prec.lang`:
+
+```lang
+#parser{
+    expr   = first:unary rest:oprest*
+    oprest = op:operator right:unary
+}
+
+func table() *PrecTable {
+    var t *PrecTable = prec_new();
+    prec_left(t, "+ -");        // loosest level first
+    prec_left(t, "* / %");      // each call binds tighter than the last
+    return t;
+}
+```
+
+Lowering walks the flat tree once, pushing operands and operators in source
+order; the table decides the shape of the result.
+
+```lang
+var e *PrecExpr = prec_expr(table());
+prec_operand(e, emit_operand(pnode_require(tree, "first")));
+// ... for each rest item: prec_op(e, op.text) then prec_operand(e, ...)
+return prec_build(e);
+```
+
+`prec_right` makes a level right-associative. `prec_of(table, text)` is 0 for
+an operator the table does not list, which is how a hand-written parser decides
+whether the next token continues the expression at all. `prec_build` refuses an
+undeclared operator, and refuses an operator missing an operand, rather than
+choosing a binding power for you.
+
+The helper owns the ladder and the climb. Walking your own parse tree and
+emitting operands stays reader-local, which is where language-specific
+exceptions—postfix operators, assignment peeled off as a statement—belong.
 
 The grammar itself is checked before code generation. Missing `=`, groups or
 capture elements, trailing `|`, duplicate rules or captures, undefined rules,

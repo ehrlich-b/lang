@@ -12,6 +12,7 @@ const paths = [
   'std/core.lang',
   'std/emit.lang',
   'std/ast.lang',
+  'std/prec.lang',
   'std/tok.lang',
   'std/pnode.lang',
   'std/parser_runtime.lang',

@@ -41,7 +41,7 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 24. ✓ Reject grammar traps before parser generation
 25. ✓ Make generated parse trees inspectable
 26. ✓ Make capture cardinality explicit
-27. → **Make expression precedence reusable** ← current
+27. ✓ Make expression precedence reusable
 28. Capture more languages only when it improves the reader toolkit
 
 ---
@@ -284,20 +284,23 @@ make singular lookup silently choose the first node:
 
 ---
 
-## Next: Make expression precedence reusable
+## Completed: Make expression precedence reusable
 
-Expression parsing is now the clearest repeated reader-authoring cost. Calc
-hand-writes a precedence ladder; Flow and C each flatten the same
-operand/operator tree and carry their own precedence climber.
+Calc hand-wrote a precedence ladder; Flow and C each flattened the same
+operand/operator tree and carried their own climber. `std/prec.lang` now owns
+the ladder and the climb; walking a parse tree stays reader-local:
 
-- [ ] Design the smallest shared lowering helper for a flat generated grammar;
-      keep precedence and associativity visible in reader code.
-- [ ] Migrate Calc and Flow as the simple and full-operator proofs. The helper
-      must make both readers shorter without making their trees less explicit.
-- [ ] Leave C's postfix, assignment, and `++`/`--` exceptions reader-local;
+- [x] One table (`prec_left`/`prec_right`, loosest level first) plus a
+      push-operands-and-operators builder, with no callbacks - the direct wasm
+      backend the browser uses does not take function pointers.
+- [x] `prec_build` refuses an undeclared operator or a missing operand instead
+      of choosing a binding power; right-associative levels are now expressible.
+- [x] Calc and Flow migrated: Calc keeps its hand-written descent, Flow keeps
+      its flat grammar, and both lost their climbers.
+- [x] Leave C's postfix, assignment, and `++`/`--` exceptions reader-local;
       reuse only the honest common core.
-- [ ] Guard native and browser reader pipelines before treating the helper as a
-      reason to capture another syntax.
+- [x] Guard the table, both associativities, and both refusals in the native
+      suite, through `lang read`, and on the browser backend.
 
 ---
 

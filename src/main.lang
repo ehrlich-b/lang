@@ -1089,6 +1089,7 @@ func cmd_help_reader() i64 {
     println("");
     println("Then use example/tiny/tiny.lang and docs/READERS.md.");
     println("Use std/tok.lang to scan text and std/ast.lang to build output.");
+    println("Use std/prec.lang for operator precedence instead of a hand climb.");
     return 0;
 }
 

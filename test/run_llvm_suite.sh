@@ -579,6 +579,36 @@ reader_capture_ambiguity_e2e() {
 }
 reader_capture_ambiguity_e2e
 
+# A shared precedence table is only reusable if it refuses to guess. An
+# operator the reader never declared must stop the read, not lower to some
+# arbitrary binding power.
+reader_prec_ladder_e2e() {
+    local name=reader_prec_ladder_e2e
+    local tmp=$(mktemp -d)
+    local compiler_path=$COMPILER
+    case "$compiler_path" in
+        /*) ;;
+        ./*) compiler_path="$REPO_ROOT/${compiler_path#./}" ;;
+        *) compiler_path="$REPO_ROOT/$compiler_path" ;;
+    esac
+    local ok=1
+
+    LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        "$compiler_path" read test/prec_unlisted_reader.lang \
+        test/prec_unlisted_source.punlisted \
+        >"$tmp/unlisted.ast" 2>"$tmp/unlisted.err" && ok=0
+    grep -Fxqf test/prec_unlisted.expected "$tmp/unlisted.err" || ok=0
+    test ! -s "$tmp/unlisted.ast" || ok=0
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_prec_ladder_e2e
+
 # Grammar author errors belong at the token in #parser{}, not at a later
 # undefined generated function or reader-wrapper link step.
 parser_grammar_diagnostics_e2e() {

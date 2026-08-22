@@ -1,0 +1,82 @@
+// expect: 0
+// A precedence table replaces a hand-written climb: levels bind in declaration
+// order, associativity is per level, and an unlisted operator is an error.
+
+include "std/prec.lang"
+
+func ladder() *PrecTable {
+    var t *PrecTable = prec_new();
+    prec_left(t, "+ -");
+    prec_left(t, "* / %");
+    prec_right(t, "^");
+    return t;
+}
+
+func build3(t *PrecTable, a *u8, op1 *u8, b *u8, op2 *u8, c *u8) *u8 {
+    var e *PrecExpr = prec_expr(t);
+    prec_operand(e, ast_number(a));
+    prec_op(e, op1);
+    prec_operand(e, ast_number(b));
+    prec_op(e, op2);
+    prec_operand(e, ast_number(c));
+    return prec_build(e);
+}
+
+func main() i64 {
+    var t *PrecTable = ladder();
+
+    // Declaration order is the ladder: the later level binds tighter, whether
+    // it appears on the right or the left of the looser one.
+    var mixed *u8 = build3(t, "1", "+", "2", "*", "3");
+    if mixed == nil { return 1; }
+    if !streq(mixed, "(binop + (number 1) (binop * (number 2) (number 3)))") {
+        return 2;
+    }
+    var mixed_left *u8 = build3(t, "1", "*", "2", "+", "3");
+    if mixed_left == nil { return 3; }
+    if !streq(mixed_left, "(binop + (binop * (number 1) (number 2)) (number 3))") {
+        return 4;
+    }
+
+    // Equal power folds the way the level says.
+    var left *u8 = build3(t, "1", "-", "2", "-", "3");
+    if left == nil { return 5; }
+    if !streq(left, "(binop - (binop - (number 1) (number 2)) (number 3))") {
+        return 6;
+    }
+    var right *u8 = build3(t, "2", "^", "3", "^", "4");
+    if right == nil { return 7; }
+    if !streq(right, "(binop ^ (number 2) (binop ^ (number 3) (number 4)))") {
+        return 8;
+    }
+
+    // A lone operand is an expression; nothing has to be a binop.
+    var single *PrecExpr = prec_expr(t);
+    prec_operand(single, ast_number("7"));
+    var only *u8 = prec_build(single);
+    if only == nil || !streq(only, "(number 7)") { return 9; }
+
+    // prec_of is what a token-driven reader asks to know whether the next
+    // token continues the expression at all.
+    if prec_of(t, "+") != 1 { return 10; }
+    if prec_of(t, "%") != 2 { return 11; }
+    if prec_of(t, "^") != 3 { return 12; }
+    if prec_of(t, ")") != 0 { return 13; }
+    if prec_of(t, "") != 0 { return 14; }
+
+    // Refusals: an operator with no level is a hole in the ladder, and a
+    // missing operand is a broken walk. Guessing either one is a miscompile.
+    var unlisted *PrecExpr = prec_expr(t);
+    prec_operand(unlisted, ast_number("1"));
+    prec_op(unlisted, "@");
+    prec_operand(unlisted, ast_number("2"));
+    if prec_build(unlisted) != nil { return 15; }
+
+    var ragged *PrecExpr = prec_expr(t);
+    prec_operand(ragged, ast_number("1"));
+    prec_op(ragged, "+");
+    if prec_build(ragged) != nil { return 16; }
+
+    if prec_build(prec_expr(t)) != nil { return 17; }
+    return 0;
+}

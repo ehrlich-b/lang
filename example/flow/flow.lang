@@ -34,6 +34,7 @@ include "std/core.lang"
 include "std/tok.lang"
 include "std/parser_reader.lang"
 include "std/ast.lang"
+include "std/prec.lang"
 
 #parser{
     flow_program  = flow_decl+
@@ -56,7 +57,7 @@ include "std/ast.lang"
     flow_call     = symbol '(' flow_args ')'
     flow_exprstmt = flow_expr ';'
     flow_expr     = first:flow_unary rest:flow_oprest*
-    flow_oprest   = operator flow_unary
+    flow_oprest   = op:operator right:flow_unary
     flow_unary    = flow_neg | flow_postfix
     flow_neg      = operator flow_postfix
     flow_postfix  = flow_primary flow_callopt*
@@ -71,60 +72,43 @@ include "std/ast.lang"
 // PNode kinds: 1=number, 2=symbol, 4=list/seq, 5=operator, 0=literal marker
 
 // ============================================================
-// Expressions (flat operand/op list resolved by precedence climbing)
+// Expressions (a flat operand/op list resolved by std/prec.lang)
 // ============================================================
 
-func fl_prec(op *u8) i64 {
-    if streq(op, "||") { return 1; }
-    if streq(op, "&&") { return 2; }
-    if streq(op, "==") { return 3; }
-    if streq(op, "!=") { return 3; }
-    if streq(op, "<") { return 4; }
-    if streq(op, ">") { return 4; }
-    if streq(op, "<=") { return 4; }
-    if streq(op, ">=") { return 4; }
-    if streq(op, "+") { return 5; }
-    if streq(op, "-") { return 5; }
-    if streq(op, "*") { return 6; }
-    if streq(op, "/") { return 6; }
-    if streq(op, "%") { return 6; }
-    return 0;
+// Loosest level first. `=` is deliberately absent: it is peeled off as an
+// assignment statement below, never climbed as a binop.
+func fl_table() *PrecTable {
+    var t *PrecTable = prec_new();
+    prec_left(t, "||");
+    prec_left(t, "&&");
+    prec_left(t, "== !=");
+    prec_left(t, "< > <= >=");
+    prec_left(t, "+ -");
+    prec_left(t, "* / %");
+    return t;
 }
 
-// flow_expr = flow_unary flow_oprest* -> parallel operand/op vecs.
-func fl_flatten(e *PNode, operands *u8, ops *u8) void {
-    vec_push(operands, pnode_require(e, "first"));
-    var star *PNode = pnode_require(e, "rest");
-    var m i64 = vec_len(star.children);
-    var i i64 = 0;
-    while i < m {
-        var orn *PNode = vec_get(star.children, i);   // flow_oprest = [op, unary]
-        vec_push(ops, vec_get(orn.children, 0));
-        vec_push(operands, vec_get(orn.children, 1));
+// flow_expr = first:flow_unary rest:flow_oprest*. Push operands and operators
+// in source order; the table decides the shape of the tree. `first` is the
+// operand before rest[from], so the assignment path can start past the '='.
+func fl_emit_flat(first *PNode, rest *PNode, from i64) *u8 {
+    var expr *PrecExpr = prec_expr(fl_table());
+    prec_operand(expr, fl_emit_operand(first));
+
+    var n i64 = vec_len(rest.children);
+    var i i64 = from;
+    while i < n {
+        var item *PNode = vec_get(rest.children, i);   // op:operator right:flow_unary
+        var op *PNode = pnode_require(item, "op");
+        prec_op(expr, op.text);
+        prec_operand(expr, fl_emit_operand(pnode_require(item, "right")));
         i = i + 1;
     }
+    return prec_build(expr);
 }
 
 func fl_emit_expr(e *PNode) *u8 {
-    var operands *u8 = vec_new(8);
-    var ops *u8 = vec_new(8);
-    fl_flatten(e, operands, ops);
-    var pos i64 = 0;
-    return fl_climb(operands, ops, &pos, 0);
-}
-
-func fl_climb(operands *u8, ops *u8, posptr *i64, minprec i64) *u8 {
-    var left *u8 = fl_emit_operand(vec_get(operands, *posptr));
-    var nops i64 = vec_len(ops);
-    while *posptr < nops {
-        var opnode *PNode = vec_get(ops, *posptr);
-        var p i64 = fl_prec(opnode.text);
-        if p < minprec { return left; }
-        *posptr = *posptr + 1;
-        var right *u8 = fl_climb(operands, ops, posptr, p + 1);   // left-associative
-        left = ast_binop(opnode.text, left, right);
-    }
-    return left;
+    return fl_emit_flat(pnode_require(e, "first"), pnode_require(e, "rest"), 0);
 }
 
 // flow_unary = flow_neg | flow_postfix. flow_neg leads with an operator atom.
@@ -252,20 +236,17 @@ func fl_emit_stmt(s *PNode, send_target *u8) *u8 {
 }
 
 // Bare expression statement: peel a leading '=' as an assignment, else expr_stmt.
-func fl_emit_exprstmt(expr *PNode) *u8 {
-    var operands *u8 = vec_new(8);
-    var ops *u8 = vec_new(8);
-    fl_flatten(expr, operands, ops);
-    if vec_len(ops) > 0 {
-        var op0 *PNode = vec_get(ops, 0);
+func fl_emit_exprstmt(e *PNode) *u8 {
+    var rest *PNode = pnode_require(e, "rest");
+    if vec_len(rest.children) > 0 {
+        var item0 *PNode = vec_get(rest.children, 0);
+        var op0 *PNode = pnode_require(item0, "op");
         if streq(op0.text, "=") {
-            var lv *PNode = vec_get(operands, 0);
-            var rpos i64 = 1;
-            return ast_assign(fl_emit_operand(lv), fl_climb(operands, ops, &rpos, 1));
+            var lhs *u8 = fl_emit_operand(pnode_require(e, "first"));
+            return ast_assign(lhs, fl_emit_flat(pnode_require(item0, "right"), rest, 1));
         }
     }
-    var epos i64 = 0;
-    return ast_expr_stmt(fl_climb(operands, ops, &epos, 0));
+    return ast_expr_stmt(fl_emit_expr(e));
 }
 
 // for X in GEN(args) { body }  ->  drive the generator with a handle:

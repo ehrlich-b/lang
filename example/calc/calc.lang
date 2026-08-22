@@ -2,6 +2,16 @@
 
 include "std/tok.lang"
 include "std/ast.lang"
+include "std/prec.lang"
+
+// The whole precedence ladder, loosest level first. A new binary operator is
+// one entry here; `prec_right` would make a level right-associative.
+func calc_table() *PrecTable {
+    var t *PrecTable = prec_new();
+    prec_left(t, "+ -");
+    prec_left(t, "* / %");
+    return t;
+}
 
 func calc_primary(tokens *Tokenizer) *u8 {
     if tok_kind(tokens) == TOK_NUMBER {
@@ -24,38 +34,24 @@ func calc_primary(tokens *Tokenizer) *u8 {
     return nil;
 }
 
-func calc_term(tokens *Tokenizer) *u8 {
-    var left *u8 = calc_primary(tokens);
-    if left == nil { return nil; }
+// The table decides where each operator binds; this loop only has to read
+// operands and operators in source order.
+func calc_expr(tokens *Tokenizer) *u8 {
+    var table *PrecTable = calc_table();
+    var expr *PrecExpr = prec_expr(table);
 
-    while tok_kind(tokens) == TOK_STAR || tok_kind(tokens) == TOK_SLASH ||
-          tok_kind(tokens) == TOK_PERCENT {
-        var op i64 = tok_kind(tokens);
+    var first *u8 = calc_primary(tokens);
+    if first == nil { return nil; }
+    prec_operand(expr, first);
+
+    while prec_of(table, tok_text(tokens)) > 0 {
+        prec_op(expr, tok_text(tokens));
         tok_next(tokens);
         var right *u8 = calc_primary(tokens);
         if right == nil { return nil; }
-
-        if op == TOK_STAR { left = ast_mul(left, right); }
-        else if op == TOK_SLASH { left = ast_div(left, right); }
-        else { left = ast_mod(left, right); }
+        prec_operand(expr, right);
     }
-    return left;
-}
-
-func calc_expr(tokens *Tokenizer) *u8 {
-    var left *u8 = calc_term(tokens);
-    if left == nil { return nil; }
-
-    while tok_kind(tokens) == TOK_PLUS || tok_kind(tokens) == TOK_MINUS {
-        var op i64 = tok_kind(tokens);
-        tok_next(tokens);
-        var right *u8 = calc_term(tokens);
-        if right == nil { return nil; }
-
-        if op == TOK_PLUS { left = ast_add(left, right); }
-        else { left = ast_sub(left, right); }
-    }
-    return left;
+    return prec_build(expr);
 }
 
 reader calc(text *u8) *u8 {
