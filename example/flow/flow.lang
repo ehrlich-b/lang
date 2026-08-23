@@ -39,34 +39,34 @@ include "std/prec.lang"
 #parser{
     flow_program  = flow_decl+
     flow_decl     = flow_gendecl | flow_funcdecl
-    flow_gendecl  = 'gen' symbol '(' flow_params ')' flow_block
-    flow_funcdecl = 'func' symbol '(' flow_params ')' flow_block
+    flow_gendecl  = 'gen' name:symbol '(' params:flow_params ')' body:flow_block
+    flow_funcdecl = 'func' name:symbol '(' params:flow_params ')' body:flow_block
     flow_params   = flow_paramitem*
     flow_paramitem = name:symbol | ','
-    flow_block    = '{' flow_stmt* '}'
+    flow_block    = '{' stmts:flow_stmt* '}'
     flow_stmt     = var:flow_var | yield:flow_yield | send:flow_send | return:flow_return | if:flow_if | while:flow_while | for:flow_forin | expr:flow_exprstmt
-    flow_var      = 'var' symbol '=' flow_expr ';'
-    flow_yield    = 'yield' flow_expr ';'
-    flow_send     = 'send' flow_expr ';'
-    flow_return   = 'return' flow_expr ';'
-    flow_if       = 'if' flow_expr flow_block flow_elses
+    flow_var      = 'var' name:symbol '=' value:flow_expr ';'
+    flow_yield    = 'yield' value:flow_expr ';'
+    flow_send     = 'send' value:flow_expr ';'
+    flow_return   = 'return' value:flow_expr ';'
+    flow_if       = 'if' cond:flow_expr then:flow_block elses:flow_elses
     flow_elses    = flow_elsepart*
-    flow_elsepart = 'else' flow_block
-    flow_while    = 'while' flow_expr flow_block
-    flow_forin    = 'for' symbol 'in' flow_call flow_block
-    flow_call     = symbol '(' flow_args ')'
-    flow_exprstmt = flow_expr ';'
+    flow_elsepart = 'else' body:flow_block
+    flow_while    = 'while' cond:flow_expr body:flow_block
+    flow_forin    = 'for' name:symbol 'in' call:flow_call body:flow_block
+    flow_call     = name:symbol '(' args:flow_args ')'
+    flow_exprstmt = value:flow_expr ';'
     flow_expr     = first:flow_unary rest:flow_oprest*
     flow_oprest   = op:operator right:flow_unary
     flow_unary    = neg:flow_neg | postfix:flow_postfix
-    flow_neg      = operator flow_postfix
-    flow_postfix  = flow_primary flow_callopt*
-    flow_callopt  = '(' flow_args ')'
+    flow_neg      = op:operator operand:flow_postfix
+    flow_postfix  = primary:flow_primary calls:flow_callopt*
+    flow_callopt  = '(' args:flow_args ')'
     flow_args     = flow_argitem*
     flow_argitem  = arg:flow_expr | ','
     flow_primary  = yieldexpr:flow_yieldexpr | num:number | sym:symbol | paren:flow_paren
-    flow_yieldexpr = 'yield' flow_expr
-    flow_paren    = '(' flow_expr ')'
+    flow_yieldexpr = 'yield' value:flow_expr
+    flow_paren    = '(' inner:flow_expr ')'
 }
 
 // PNode kinds: 1=number, 2=symbol, 4=list/seq, 5=operator, 0=literal marker
@@ -132,9 +132,9 @@ func fl_unhandled(what *u8, node *PNode) *u8 {
 // flow_unary = neg:flow_neg | postfix:flow_postfix. The grammar says which
 // alternative matched, so lowering never has to sniff kinds or child order.
 func fl_emit_operand(node *PNode) *u8 {
-    if pnode_is(node, "neg") {                   // flow_neg = [op, postfix]
-        var op *PNode = vec_get(node.children, 0);
-        return ast_unop(op.text, fl_emit_postfix(vec_get(node.children, 1)));
+    if pnode_is(node, "neg") {
+        var op *PNode = pnode_require(node, "op");
+        return ast_unop(op.text, fl_emit_postfix(pnode_require(node, "operand")));
     }
     if pnode_is(node, "postfix") { return fl_emit_postfix(node); }
     return fl_unhandled("operand", node);
@@ -142,14 +142,13 @@ func fl_emit_operand(node *PNode) *u8 {
 
 // flow_postfix = flow_primary flow_callopt*  ->  fold calls left-to-right.
 func fl_emit_postfix(pf *PNode) *u8 {
-    var primary *PNode = vec_get(pf.children, 0);
-    var ops *PNode = vec_get(pf.children, 1);
-    var base *u8 = fl_emit_primary(primary);
+    var base *u8 = fl_emit_primary(pnode_require(pf, "primary"));
+    var ops *PNode = pnode_require(pf, "calls");
     var n i64 = vec_len(ops.children);
     var i i64 = 0;
     while i < n {
-        var op *PNode = vec_get(ops.children, i);     // flow_callopt = ['(', args, ')']
-        base = ast_call(base, fl_emit_args(vec_get(op.children, 1)));
+        var op *PNode = vec_get(ops.children, i);
+        base = ast_call(base, fl_emit_args(pnode_require(op, "args")));
         i = i + 1;
     }
     return base;
@@ -158,12 +157,12 @@ func fl_emit_postfix(pf *PNode) *u8 {
 func fl_emit_primary(p *PNode) *u8 {
     if pnode_is(p, "num") { return ast_number(p.text); }
     if pnode_is(p, "sym") { return ast_ident(p.text); }
-    if pnode_is(p, "yieldexpr") {   // ['yield', expr]
+    if pnode_is(p, "yieldexpr") {
         // yield as an expression: its value is what the driver resumed with.
-        return ast_perform1("Yield", fl_emit_expr(vec_get(p.children, 1)));
+        return ast_perform1("Yield", fl_emit_expr(pnode_require(p, "value")));
     }
-    if pnode_is(p, "paren") {       // ['(', expr, ')']
-        return fl_emit_expr(vec_get(p.children, 1));
+    if pnode_is(p, "paren") {
+        return fl_emit_expr(pnode_require(p, "inner"));
     }
     return fl_unhandled("expression", p);
 }
@@ -199,7 +198,7 @@ func fl_gensym(prefix *u8, node *PNode) *u8 {
 // `send` nested inside an if/while still targets the right driver's resume value.
 func fl_emit_block(block *PNode, send_target *u8) *u8 {
     var stmts *u8 = ast_vec();
-    var sl *PNode = vec_get(block.children, 1);    // ['{', stmt*, '}']
+    var sl *PNode = pnode_require(block, "stmts");
     var n i64 = vec_len(sl.children);
     var i i64 = 0;
     while i < n {
@@ -210,42 +209,38 @@ func fl_emit_block(block *PNode, send_target *u8) *u8 {
 }
 
 func fl_emit_stmt(s *PNode, send_target *u8) *u8 {
-    if pnode_is(s, "var") {          // ['var', name, '=', expr, ';']
-        var name *PNode = vec_get(s.children, 1);
-        return ast_var(name.text, ast_type_i64(), fl_emit_expr(vec_get(s.children, 3)));
+    if pnode_is(s, "var") {
+        var name *PNode = pnode_require(s, "name");
+        return ast_var(name.text, ast_type_i64(), fl_emit_expr(pnode_require(s, "value")));
     }
-    if pnode_is(s, "yield") {        // ['yield', expr, ';'] -> perform Yield(expr)
-        return ast_expr_stmt(ast_perform1("Yield", fl_emit_expr(vec_get(s.children, 1))));
+    if pnode_is(s, "yield") {        // perform Yield(expr)
+        return ast_expr_stmt(ast_perform1("Yield", fl_emit_expr(pnode_require(s, "value"))));
     }
-    if pnode_is(s, "send") {         // ['send', expr, ';'] -> set the resume value
-        var sexpr *u8 = fl_emit_expr(vec_get(s.children, 1));
+    if pnode_is(s, "send") {         // set the resume value
+        var sexpr *u8 = fl_emit_expr(pnode_require(s, "value"));
         if send_target == nil {
             return ast_expr_stmt(sexpr);   // defensive: `send` outside a for-in body
         }
         return ast_assign(ast_ident(send_target), sexpr);
     }
-    if pnode_is(s, "return") {       // ['return', expr, ';']
-        return ast_return(fl_emit_expr(vec_get(s.children, 1)));
-    }
-    if pnode_is(s, "if") {           // ['if', cond, block, elses]
-        var cond *u8 = fl_emit_expr(vec_get(s.children, 1));
-        var then_b *u8 = fl_emit_block(vec_get(s.children, 2), send_target);
-        var elses *PNode = vec_get(s.children, 3);
+    if pnode_is(s, "return") { return ast_return(fl_emit_expr(pnode_require(s, "value"))); }
+    if pnode_is(s, "if") {
+        var cond *u8 = fl_emit_expr(pnode_require(s, "cond"));
+        var then_b *u8 = fl_emit_block(pnode_require(s, "then"), send_target);
+        var elses *PNode = pnode_require(s, "elses");
         var else_b *u8 = nil;
         if vec_len(elses.children) > 0 {
-            var ep *PNode = vec_get(elses.children, 0);   // ['else', block]
-            else_b = fl_emit_block(vec_get(ep.children, 1), send_target);
+            var ep *PNode = vec_get(elses.children, 0);
+            else_b = fl_emit_block(pnode_require(ep, "body"), send_target);
         }
         return ast_if(cond, then_b, else_b);
     }
-    if pnode_is(s, "while") {        // ['while', cond, block]
-        return ast_while(fl_emit_expr(vec_get(s.children, 1)),
-                         fl_emit_block(vec_get(s.children, 2), send_target));
+    if pnode_is(s, "while") {
+        return ast_while(fl_emit_expr(pnode_require(s, "cond")),
+                         fl_emit_block(pnode_require(s, "body"), send_target));
     }
     if pnode_is(s, "for") { return fl_emit_forin(s); }
-    if pnode_is(s, "expr") {         // ['flow_expr', ';']
-        return fl_emit_exprstmt(vec_get(s.children, 0));
-    }
+    if pnode_is(s, "expr") { return fl_emit_exprstmt(pnode_require(s, "value")); }
     return fl_unhandled("statement", s);
 }
 
@@ -273,14 +268,13 @@ func fl_emit_exprstmt(e *PNode) *u8 {
 // __send starts at 0 each value and is overwritten by any `send E;` in the body,
 // so it flows back as the result of the generator's `yield` expression - making
 // the channel bidirectional (a one-way generator simply never sends, resuming 0).
-//   flow_forin = ['for', X, 'in', flow_call, block]
 func fl_emit_forin(s *PNode) *u8 {
-    var xvar *PNode = vec_get(s.children, 1);
-    var call *PNode = vec_get(s.children, 3);    // flow_call = [name, '(', args, ')']
-    var block *PNode = vec_get(s.children, 4);
+    var xvar *PNode = pnode_require(s, "name");
+    var call *PNode = pnode_require(s, "call");
+    var block *PNode = pnode_require(s, "body");
 
-    var gname *PNode = vec_get(call.children, 0);
-    var gcall *u8 = ast_call_named(gname.text, fl_emit_args(vec_get(call.children, 2)));
+    var gname *PNode = pnode_require(call, "name");
+    var gcall *u8 = ast_call_named(gname.text, fl_emit_args(pnode_require(call, "args")));
 
     var kname *u8 = fl_gensym("__k", s);
     var rvname *u8 = fl_gensym("__rv", s);
@@ -290,7 +284,7 @@ func fl_emit_forin(s *PNode) *u8 {
     // targeting this loop's register), then resume the generator with it.
     var hstmts *u8 = ast_vec();
     ast_push(hstmts, ast_var(sname, ast_type_i64(), ast_int(0)));
-    var sl *PNode = vec_get(block.children, 1);
+    var sl *PNode = pnode_require(block, "stmts");
     var n i64 = vec_len(sl.children);
     var i i64 = 0;
     while i < n {
@@ -339,11 +333,12 @@ func fl_ends_in_return(sl *PNode) i64 {
 // and a `func` body uses `for-in`, but the lowering is identical. A trailing
 // `return 0` is appended when the body doesn't end in a return (a generator just
 // yields and falls off the end; its return value is the handle's ignored result).
+// `gen` and `func` declare the same shape, so one lowering serves both: the two
+// rules name their parts identically and flow_decl leaves them unlabeled.
 func fl_emit_func(d *PNode) *u8 {
-    var name *PNode = vec_get(d.children, 1);
-    var params *PNode = vec_get(d.children, 3);
-    var block *PNode = vec_get(d.children, 5);
-    var sl *PNode = vec_get(block.children, 1);
+    var name *PNode = pnode_require(d, "name");
+    var params *PNode = pnode_require(d, "params");
+    var sl *PNode = pnode_require(pnode_require(d, "body"), "stmts");
     var stmts *u8 = ast_vec();
     var n i64 = vec_len(sl.children);
     var i i64 = 0;

@@ -61,11 +61,11 @@ include "std/ast.lang"
 #parser{
     fo_program   = fo_def+
     fo_def       = word:fo_worddef | extern:fo_externdef | comment:fo_effect
-    fo_worddef   = ':' fo_name fo_effect fo_body ';'
-    fo_externdef = 'extern' fo_name fo_effect ';'
-    fo_name      = symbol fo_qmark*
+    fo_worddef   = ':' name:fo_name effect:fo_effect body:fo_body ';'
+    fo_externdef = 'extern' name:fo_name effect:fo_effect ';'
+    fo_name      = sym:symbol marks:fo_qmark*
     fo_qmark     = '?'
-    fo_effect    = '(' fo_eitem* ')'
+    fo_effect    = '(' items:fo_eitem* ')'
     fo_eitem     = sym:symbol | op:operator | num:number
     fo_body      = fo_word*
     fo_word      = name:fo_name | num:number | op:operator | comment:fo_effect | dot:'.'
@@ -137,8 +137,8 @@ func fo_sanitize_comments(text *u8) *u8 {
 // fo_name = symbol fo_qmark*. Forth loves `?` in names (`prime?`); lang has no
 // such identifier, so each trailing `?` becomes `_p`.
 func fo_name_text(n *PNode) *u8 {
-    var sym *PNode = vec_get(n.children, 0);
-    var qs *PNode = vec_get(n.children, 1);
+    var sym *PNode = pnode_require(n, "sym");
+    var qs *PNode = pnode_require(n, "marks");
     var nq i64 = vec_len(qs.children);
     if nq == 0 { return sym.text; }
     var sb *StringBuilder = sb_new();
@@ -163,7 +163,7 @@ func fo_word_at(items *u8, i i64) *u8 {
 // `( a b -- s )` -> push "a","b" onto pnames, return the result count. The `--`
 // arrives as a single 2-char operator atom (the tokenizer lexes it for C's `--`).
 func fo_effect_split(eff *PNode, pnames *u8) i64 {
-    var star *PNode = vec_get(eff.children, 1);
+    var star *PNode = pnode_require(eff, "items");
     var items *u8 = star.children;
     var n i64 = vec_len(items);
     var past i64 = 0;
@@ -210,8 +210,8 @@ func fo_collect_sigs(prog *PNode) *u8 {
             i = i + 1;
             continue;
         }
-        var namen *PNode = vec_get(d.children, 1);
-        var eff *PNode = vec_get(d.children, 2);
+        var namen *PNode = pnode_require(d, "name");
+        var eff *PNode = pnode_require(d, "effect");
         var pnames *u8 = vec_new(8);
         var nres i64 = fo_effect_split(eff, pnames);
         vec_push(sigs, fo_name_text(namen));
@@ -604,10 +604,10 @@ func fo_emit_word(w *u8, node *PNode, items *u8, ip *i64, stack *u8, stmts *u8, 
 // result. Every word is i64, which is the ABI the other polyglot languages
 // speak, so a Forth word is directly callable from C, Lisp, flow and lang.
 func fo_emit_worddef(d *PNode, sigs *u8) *u8 {
-    var namen *PNode = vec_get(d.children, 1);
+    var namen *PNode = pnode_require(d, "name");
     var wname *u8 = fo_name_text(namen);
-    var eff *PNode = vec_get(d.children, 2);
-    var body *PNode = vec_get(d.children, 3);
+    var eff *PNode = pnode_require(d, "effect");
+    var body *PNode = pnode_require(d, "body");
 
     var pnames *u8 = vec_new(8);
     var nres i64 = fo_effect_split(eff, pnames);

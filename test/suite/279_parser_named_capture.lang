@@ -10,6 +10,15 @@ include "std/parser_reader.lang"
     values = items:number+
     chain = head:number tail:chain?
     repeated = (item:number)*
+    plain    = kw:symbol body:number
+    padded   = kw:symbol ',' body:number
+}
+
+// The point of naming the parts: one lowering reads two rules that differ by an
+// inserted literal. Positional access could not - `body` is child 1 in one and
+// child 2 in the other - and that renumbering is silent.
+func read_body(node *PNode) *u8 {
+    return pnode_require(node, "body").text;
 }
 
 func main() i64 {
@@ -66,5 +75,13 @@ func main() i64 {
     var middle *PNode = vec_get(matches, 1);
     if !streq(middle.text, "5") { return 18; }
     if vec_len(pnode_get_all(repeated, "missing")) != 0 { return 19; }
+
+    var plain_tokens *Tokenizer = tok_new("go 7");
+    var plain *PNode = parse_plain(plain_tokens);
+    if plain == nil || !tok_eof(plain_tokens) { return 20; }
+    var padded_tokens *Tokenizer = tok_new("go , 7");
+    var padded *PNode = parse_padded(padded_tokens);
+    if padded == nil || !tok_eof(padded_tokens) { return 21; }
+    if !streq(read_body(plain), "7") || !streq(read_body(padded), "7") { return 22; }
     return 0;
 }

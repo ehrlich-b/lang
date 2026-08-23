@@ -46,8 +46,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 29. ✓ Reject field access the compiler cannot type
 30. ✓ Reject a call with the wrong number of arguments
 31. ✓ Cash the reader toolkit in on the biggest reader
-32. → **Name the parts of a sequence, not their positions** ← current
-33. Capture more languages only when it improves the reader toolkit
+32. ✓ Name the parts of a sequence, not their positions
+33. → **Capture a sixth language, and only fix the toolkit it breaks** ← current
 
 ---
 
@@ -339,43 +339,64 @@ only thing that reports it.
 
 ---
 
-## Next: Name the parts of a sequence, not their positions
+## Next: Capture a sixth language, and only fix the toolkit it breaks
 
-Labeled alternatives fixed *dispatch*: a reader no longer asks what kind of node
-this is. Sequence *structure* is still positional, and that is where the same
-fragility lives. The C reader reads its `if` statement as children 2, 4 and 5:
+Milestones 22-32 were eleven straight toolkit milestones, and the last two spent
+that toolkit on the readers that predated it. There is nothing left that a
+shipped reader is asking for: every one dispatches on grammar labels, reads its
+parts by name, and shares one precedence table. The next honest test is whether
+the next language is actually cheap, which only writing one can answer.
 
-```lang
-c_ifstmt = 'if' '(' c_expr ')' c_stmt c_elses
-var cond   *u8   = emit_expr_str(vec_get(s.children, 2));
-var then_b *u8   = emit_stmt_as_block(vec_get(s.children, 4));
-var elses  *PNode = vec_get(s.children, 5);
-```
+- [ ] Pick a language whose hard part is *not* one of the five already solved.
+      Another C-like brace language would prove nothing. Candidates worth
+      weighing: a Scheme with `define-syntax` (macro expansion at read time),
+      a stack language with mutation (see forth round 2 - `variable`/`!`/`@`
+      break the compile-time-stack assumption), or an ML fragment with pattern
+      matching, which the kernel already has `match` and `enum` for.
+- [ ] Write it against the toolkit as it stands, and keep a friction log while
+      writing rather than after. Every workaround is a toolkit finding.
+- [ ] Fix only what the reader actually needed. Eleven milestones of toolkit
+      work were justified by the readers that asked for them; speculative
+      additions are how a toolkit gets big instead of good.
+- [ ] Guard it natively and in the browser, and add it to the polyglot if it has
+      something to say there - not because six is a better number than five.
 
-Adding one literal to that rule silently renumbers three lines in the converter,
-which is exactly the failure milestone 22 set out to remove. Named captures were
-built then and the big readers never adopted them: C has **70 positional child
-accesses to 15 named**, Flow 32 to 7, forth 8 to 0, minilisp 1 to 0.
+Two known gaps still waiting for a third caller, from milestone 31:
 
-- [ ] Convert C and Flow's rules to named captures, keeping the grammar readable
-      - a rule where every element is named is worse than one where the parts
-      that lowering actually reaches are.
-- [ ] Find out why the toolkit was not adopted where it was needed most. If
-      naming every element is too noisy to be worth it, that is a toolkit
-      finding, not a reader finding.
-- [ ] Guard native and browser reader pipelines, as a refactor should.
+- `std/prec.lang` is binary-infix only. C peels `=` and filters postfix
+  `++`/`--` by hand; Flow peels `=`. A third reader that does the same is the
+  signal to fold prefix/postfix/assignment into the table.
+- A labeled alternative cannot resolve to another labeled choice. Leaving the
+  outer one unlabeled works and reads well (C's `c_switchitem`); a case where it
+  does not has not appeared.
 
-Two more gaps found while migrating, both worth their own milestone if they
-recur:
+---
 
-- `std/prec.lang` handles binary infix only. C peels `=` and filters postfix
-  `++`/`--` out of the operand stream by hand; Flow peels `=` the same way. Two
-  of three readers doing the same thing by hand is the shape of a missing
-  feature, but the third case has not appeared yet.
-- A labeled alternative cannot resolve to another labeled choice, so a grammar
-  cannot say both "this is a switch item of kind statement" and "this statement
-  is a return". Leaving the outer one unlabeled works and reads well; a case
-  where it does not has not appeared.
+## Completed: Name the parts of a sequence, not their positions
+
+Labeled alternatives fixed *dispatch*. Sequence structure was still positional,
+and that is where the same fragility lived: adding one literal to a rule
+silently renumbered the converter, which is exactly what milestone 22 built
+named captures to prevent - and then the big readers never adopted them.
+
+There was no technical blocker. C simply predates milestone 22, and nothing ever
+went back.
+
+| reader | positional before | after | named after |
+|--------|------------------|-------|-------------|
+| C      | 70 | 11 | 78 |
+| Flow   | 32 | 2  | 36 |
+| forth  | 8  | 0  | 8  |
+| minilisp | 1 | 0  | 1  |
+
+- [x] Every structural access in all four `#parser{}` readers is by name. What
+      remains is `vec_get(<star>.children, 0)` - the first element of a
+      repetition, which is iteration, not sequence position, and which an
+      inserted literal cannot renumber.
+- [x] `279_parser_named_capture` now states the property directly: one lowering
+      function reads two rules that differ by an inserted literal, where `body`
+      is child 1 in one and child 2 in the other.
+- [x] All four gates, including the browser pipeline running every reader.
 
 ---
 

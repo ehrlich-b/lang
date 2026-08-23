@@ -31,7 +31,7 @@ include "std/ast.lang"
 // #parser{} generates a recursive descent parser from this grammar
 #parser{
     sexp = num:number | sym:symbol | op:operator | list:list
-    list = '(' sexp* ')'
+    list = '(' items:sexp* ')'
 }
 
 // PNODE kinds: 1=number, 2=symbol, 4=list, 5=operator
@@ -41,7 +41,7 @@ include "std/ast.lang"
 // ============================================================
 
 func list_inner(node *PNode) *PNode {
-    return vec_get(node.children, 1);
+    return pnode_require(node, "items");
 }
 
 func list_get(node *PNode, i i64) *PNode {
