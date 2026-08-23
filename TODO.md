@@ -48,7 +48,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 31. ✓ Cash the reader toolkit in on the biggest reader
 32. ✓ Name the parts of a sequence, not their positions
 33. ✓ Make every reader's errors fatal
-34. → **Capture a sixth language, and only fix the toolkit it breaks** ← current
+34. ✓ Let a reader supply its own tokens
+35. → **Fold prefix and assignment operators into the precedence table** ← current
 
 ---
 
@@ -362,36 +363,79 @@ in milestones 28 and 31.
 
 ---
 
-## Next: Capture a sixth language, and only fix the toolkit it breaks
+## Next: Fold prefix and assignment operators into the precedence table
 
-Milestones 22-32 were eleven straight toolkit milestones, and the last two spent
-that toolkit on the readers that predated it. There is nothing left that a
-shipped reader is asking for: every one dispatches on grammar labels, reads its
-parts by name, and shares one precedence table. The next honest test is whether
-the next language is actually cheap, which only writing one can answer.
+`std/prec.lang` is binary-infix only, and three readers now work around it. C
+peels `=` and filters postfix `++`/`--` by hand, Flow peels `=`, and minipy
+hand-layers `or`/`and`/`not` above the table because Python's `not` is a PREFIX
+operator that binds looser than the comparisons - a flat operand list cannot say
+where that binds, so seven of minipy's ten levels come from the table and three
+are written out. That is the third caller, which is the bar this project has
+used for every toolkit milestone so far.
 
-- [ ] Pick a language whose hard part is *not* one of the five already solved.
-      Another C-like brace language would prove nothing. Candidates worth
-      weighing: a Scheme with `define-syntax` (macro expansion at read time),
-      a stack language with mutation (see forth round 2 - `variable`/`!`/`@`
-      break the compile-time-stack assumption), or an ML fragment with pattern
-      matching, which the kernel already has `match` and `enum` for.
-- [ ] Write it against the toolkit as it stands, and keep a friction log while
-      writing rather than after. Every workaround is a toolkit finding.
-- [ ] Fix only what the reader actually needed. Eleven milestones of toolkit
-      work were justified by the readers that asked for them; speculative
-      additions are how a toolkit gets big instead of good.
-- [ ] Guard it natively and in the browser, and add it to the polyglot if it has
-      something to say there - not because six is a better number than five.
+- [ ] Prefix operators with their own level (`prec_prefix`), so `not a == b`
+      parses as Python means it without a hand-written tier.
+- [ ] Assignment, which is right-associative and lowest, so C and Flow stop
+      peeling it off before they build.
+- [ ] Re-fold the three readers onto the table and delete what the fix replaces;
+      a toolkit addition nothing adopts is a toolkit addition that was wrong.
 
-Two known gaps still waiting for a third caller, from milestone 31:
+---
 
-- `std/prec.lang` is binary-infix only. C peels `=` and filters postfix
-  `++`/`--` by hand; Flow peels `=`. A third reader that does the same is the
-  signal to fold prefix/postfix/assignment into the table.
-- A labeled alternative cannot resolve to another labeled choice. Leaving the
-  outer one unlabeled works and reads well (C's `c_switchitem`); a case where it
-  does not has not appeared.
+## Completed: Let a reader supply its own tokens
+
+The question was not which language to capture next - it was what a reader still
+cannot do. The answer was one seam: a generated parser only ever asks a
+Tokenizer for the current token's kind, text and span, and for a mark it can
+rewind to, but `Tokenizer` was a character scanner, so the only way a reader
+could influence tokenization was to rewrite the source text first.
+
+Four callers had already hit it. minipy - at 945 lines the largest reader in the
+repo - could not use `#parser{}` at all and hand-wrote its lexer AND its parser;
+forth rewrites source text so the scanner will not choke inside `( ... )`;
+minipy strips `#` comments the same way; and the C typedef lexer hack, deferred
+in this file, needs parse decisions to feed back into tokenization.
+
+Eleven consecutive toolkit milestones (22-33) had never touched minipy, because
+it could not reach them.
+
+- [x] `tok_new_stream(input, toks)`: a Tokenizer reads a reader-supplied token
+      vector instead of scanning. A token is `(kind, start, len, text)`, the
+      span pointing into the same source, so error locations and AST spans stay
+      exact for tokens the source does not literally contain. Marks become token
+      indices; every generated parser reads a stream unchanged.
+- [x] `<name>` in a grammar matches `TOK_NAME`, a kind the reader declares from
+      `TOK_USER` up. The built-in scanner never produces one, so a grammar can
+      only match what a reader deliberately supplied, and an undeclared `<foo>`
+      is an ordinary undefined-identifier error.
+- [x] minipy ported onto the toolkit. Its layout pass now emits a token stream;
+      the parser is a 58-line grammar plus `std/prec.lang`.
+
+| | before | after |
+|---|---|---|
+| token-index threading (`*ip`) | 135 | 0 |
+| raw token-kind comparisons | 37 | 0 |
+| keyword text sniffs | 38 | 10 |
+| lines | 945 | 847 |
+
+The ten remaining `streq` calls are `True`/`False`/`None` and the six
+comparison operators - value checks, not dispatch. The three remaining
+positional accesses are `range`'s arguments, which are positional in Python.
+
+Two things the port fixed for free. The negative-literal trap (`n -1` lexing as
+`n` then `-1`, which every infix reader had to undo downstream) is now undone in
+the lexer, where minipy splits the token back apart and nothing after that line
+hears about it. And every minipy diagnostic gained a column: `minipy:2:21:
+expected ':', found end of line` where it used to say `minipy: line 2:`.
+
+Still open, and now with a second caller each:
+
+- The shared scanner's comment syntax is not configurable. minipy still rewrites
+  source text to blank `#` comments and defuse `//`, and forth still sanitizes
+  `( ... )`. The token-stream seam does not help: both happen before scanning.
+- `test/run_wasm_suite.sh` can miscount its own results - a parallel job's
+  "Wrote ..." line interleaves with a `PASS` line and the summary drops it. The
+  run is correct; the count is not always.
 
 ---
 

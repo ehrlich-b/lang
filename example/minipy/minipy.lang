@@ -30,6 +30,14 @@
 // CPython's tokenizer hands to its parser. Nothing shared was touched, so
 // nothing else could break: layout is a plugin too.
 //
+// What py_lex hands over is a TOKEN STREAM, not a private token array: the
+// grammar below is an ordinary #parser{} grammar that names the layout tokens
+// in angle brackets, and the generated parser reads the reader's tokens exactly
+// as it would read a scan of the source. Until a reader could supply its own
+// tokens, minipy had to hand-write its parser - which is why it carried its own
+// copy of the precedence ladder and its own statement dispatch long after the
+// toolkit had both.
+//
 // Two consequences of layout that the token stream then handles for free:
 // a newline inside `( ... )` continues the line (bracket depth suppresses the
 // rule), and a blank or comment-only line has no tokens at all, so it cannot
@@ -53,17 +61,22 @@
 // declaration of any kind - the i64 ABI is the whole interface.
 //
 // Converter helpers are py_-prefixed so minipy composes with the other readers
-// in one binary (no symbol collisions).
+// in one binary (no symbol collisions), and so are its token kinds.
 
 include "std/core.lang"
 include "std/ast.lang"
-include "std/tok.lang"
+include "std/parser_reader.lang"
+include "std/prec.lang"
 
 // Synthetic token kinds, above anything std/tok.lang produces. These are the
-// layout algorithm's entire output: the structure of the program.
-var PY_NEWLINE i64 = 200;
-var PY_INDENT i64 = 201;
-var PY_DEDENT i64 = 202;
+// layout algorithm's entire output: the structure of the program. The grammar
+// names them <newline>, <indent> and <dedent>, and a generated parser puts that
+// spelling straight into "expected ..." - so these are named for how they should
+// read in a diagnostic, not with minipy's usual py_ prefix. A second layout
+// reader in the same binary would collide, loudly, at compile time.
+var TOK_NEWLINE i64 = 200;
+var TOK_INDENT i64 = 201;
+var TOK_DEDENT i64 = 202;
 
 // ============================================================
 // Source pre-pass
@@ -117,34 +130,8 @@ func py_strip_comments(text *u8) *u8 {
 }
 
 // ============================================================
-// The token stream
+// The offside rule
 // ============================================================
-//
-// Tokens are a flat vec of (kind, text, line, col) quadruples. A reader's own
-// struct declarations are a road less travelled, and four parallel slots cost
-// nothing next to that risk.
-
-func py_emit(toks *u8, kind i64, text *u8, line i64, col i64) void {
-    vec_push(toks, kind);
-    vec_push(toks, text);
-    vec_push(toks, line);
-    vec_push(toks, col);
-}
-
-func py_k(toks *u8, i i64) i64 {
-    if i * 4 >= vec_len(toks) { return TOK_EOF; }
-    return vec_get(toks, i * 4);
-}
-
-func py_txt(toks *u8, i i64) *u8 {
-    if i * 4 + 1 >= vec_len(toks) { return ""; }
-    return vec_get(toks, i * 4 + 1);
-}
-
-func py_line(toks *u8, i i64) i64 {
-    if i * 4 + 2 >= vec_len(toks) { return 0; }
-    return vec_get(toks, i * 4 + 2);
-}
 
 // Offset of the first byte of the line containing `off`.
 func py_line_start(text *u8, off i64) i64 {
@@ -159,30 +146,33 @@ func py_top(indents *u8) i64 {
     return vec_get(indents, vec_len(indents) - 1);
 }
 
-// The offside rule. Walks the ordinary token stream and inserts NEWLINE where a
-// logical line ends and INDENT/DEDENT where the left margin moves.
+// The source the reader was handed, for diagnostics that carry a parse node
+// rather than a tokenizer.
+var py_src *u8 = nil;
+
+// Walks the ordinary token stream and inserts NEWLINE where a logical line ends
+// and INDENT/DEDENT where the left margin moves.
 //
 // The base indent is taken from the FIRST token rather than assumed to be
 // column 0, so a `#minipy{ ... }` block may sit at whatever indentation the
 // host file uses - only the columns relative to that first line matter.
+//
+// Every token keeps its real span into `text`, synthetic ones included, so a
+// parse error reports the line and column a reader of the source would point
+// at, and so does every AST node built from the tree.
 func py_lex(text *u8) *u8 {
     var t *Tokenizer = tok_new(text);
-    var toks *u8 = vec_new(256);
+    var toks *u8 = tok_stream_new();
     var indents *u8 = vec_new(16);
     vec_push(indents, 0);
 
     var depth i64 = 0;
     var prev_ls i64 = 0 - 1;
     var started i64 = 0;
-    var line i64 = 1;
-    var scanned i64 = 0;
+    var last i64 = 0;
 
     while tok_kind(t) != TOK_EOF {
         var start i64 = t.tok_start;
-        while scanned < start {
-            if *(text + scanned) == 10 { line = line + 1; }
-            scanned = scanned + 1;
-        }
         var ls i64 = py_line_start(text, start);
         var col i64 = start - ls;
 
@@ -191,19 +181,22 @@ func py_lex(text *u8) *u8 {
             if started == 0 {
                 vec_set(indents, 0, col);
             } else {
-                py_emit(toks, PY_NEWLINE, "", line, col);
+                // A NEWLINE stands at the END of the line it terminates, which
+                // is where a reader of the source would point at a statement
+                // that never finished; INDENT/DEDENT describe the NEXT line's
+                // column and stand there.
+                tok_stream_push(toks, TOK_NEWLINE, last, 0, "end of line");
                 if col > py_top(indents) {
                     vec_push(indents, col);
-                    py_emit(toks, PY_INDENT, "", line, col);
+                    tok_stream_push(toks, TOK_INDENT, start, 0, "an indented block");
                 } else {
                     while col < py_top(indents) {
                         vec_pop(indents);
-                        py_emit(toks, PY_DEDENT, "", line, col);
+                        tok_stream_push(toks, TOK_DEDENT, start, 0, "a dedent");
                     }
                     if col != py_top(indents) {
-                        eprint("minipy: line ");
-                        eprint_i64(line);
-                        eprint(": dedent does not match any enclosing block\n");
+                        py_fail_at("dedent does not match any enclosing block",
+                                   start);
                     }
                 }
             }
@@ -218,301 +211,288 @@ func py_lex(text *u8) *u8 {
         if k == TOK_RPAREN || k == TOK_RBRACKET || k == TOK_RBRACE {
             if depth > 0 { depth = depth - 1; }
         }
-        // A string's text is its VALUE (unquoted, unescaped); the kind is what
-        // says it was quoted, so nothing downstream needs to re-parse it.
         if k == TOK_STRING {
-            py_emit(toks, k, tok_string_value(t), line, col);
+            // A string's text is its VALUE (unquoted, unescaped); the kind is
+            // what says it was quoted, so nothing downstream re-parses it. The
+            // span still covers the quotes, so errors point at the literal.
+            tok_stream_push(toks, k, start, t.tok_len, tok_string_value(t));
+        } else if k == TOK_NUMBER && *(text + start) == 45 {
+            // The shared tokenizer folds a `-` straight into a following digit,
+            // so `n -1` arrives as `n` and the single number `-1`. Every infix
+            // reader used to have to undo that downstream; owning the stream,
+            // minipy splits the token back apart here and nothing after this
+            // line ever hears about it. `-1` at the head of an expression is
+            // then an ordinary unary minus, which the grammar already has.
+            tok_stream_push(toks, TOK_MINUS, start, 1, nil);
+            tok_stream_push(toks, TOK_NUMBER, start + 1, t.tok_len - 1, nil);
         } else {
-            py_emit(toks, k, tok_text(t), line, col);
+            tok_stream_push(toks, k, start, t.tok_len, nil);
         }
+        last = start + t.tok_len;
         tok_next(t);
     }
 
-    if started == 1 { py_emit(toks, PY_NEWLINE, "", line, 0); }
+    if started == 1 { tok_stream_push(toks, TOK_NEWLINE, last, 0, "end of line"); }
     while vec_len(indents) > 1 {
         vec_pop(indents);
-        py_emit(toks, PY_DEDENT, "", line, 0);
+        tok_stream_push(toks, TOK_DEDENT, last, 0, "a dedent");
     }
-    py_emit(toks, TOK_EOF, "", line, 0);
     return toks;
 }
 
 // ============================================================
-// Token predicates
+// Grammar
+// ============================================================
+//
+// `or`, `and` and `not` are layered by hand rather than declared in the
+// precedence table: `not` is a PREFIX operator sitting between `and` and the
+// comparisons, and std/prec.lang is binary-infix only, so a flat operand list
+// cannot say where it binds. Everything below it - comparison, bitwise, shift,
+// additive, multiplicative - is one flat list and one table.
+
+#parser{
+    py_program   = defs:py_def*
+
+    py_def       = 'def' name:symbol '(' params:py_param* ')' body:py_suite
+    py_param     = name:symbol ','?
+
+    py_suite     = ':' body:py_suitebody
+    py_suitebody = block:py_indented | inline:py_line
+    py_indented  = <newline> <indent> stmts:py_stmt* <dedent>
+    py_line      = first:py_simple rest:py_moreline* <newline>
+    py_moreline  = ';' stmt:py_simple
+
+    py_stmt      = nested:py_def | bad:py_badword | if:py_if | while:py_while
+                 | for:py_for | line:py_line
+    py_badword   = 'class' | 'import' | 'from' | 'lambda' | 'try' | 'with'
+                 | 'yield' | 'global' | 'nonlocal' | 'assert' | 'del'
+                 | 'raise' | 'def'
+
+    py_if        = 'if' cond:py_expr then:py_suite tail:py_iftail?
+    py_iftail    = elif:py_elif | else:py_else
+    py_elif      = 'elif' cond:py_expr then:py_suite tail:py_iftail?
+    py_else      = 'else' body:py_suite
+    py_while     = 'while' cond:py_expr body:py_suite
+    py_for       = 'for' name:symbol 'in' 'range' '(' args:py_rangearg* ')'
+                   body:py_suite
+    py_rangearg  = value:py_expr ','?
+
+    py_simple    = pass:'pass' | brk:'break' | cont:'continue' | ret:py_return
+                 | show:py_print | aug:py_augassign | set:py_assign
+                 | expr:py_expr
+    py_return    = 'return' value:py_expr?
+    py_print     = 'print' '(' args:py_printarg* ')'
+    py_printarg  = str:py_printstr | val:py_printval
+    py_printstr  = text:string ','?
+    py_printval  = value:py_expr ','?
+    py_assign    = name:symbol '=' value:py_expr
+    py_augassign = name:symbol op:py_augop value:py_expr
+    py_augop     = '+=' | '-=' | '*=' | '/=' | '%='
+
+    py_expr      = first:py_conj rest:py_orrest*
+    py_orrest    = 'or' right:py_conj
+    py_conj      = first:py_nottest rest:py_andrest*
+    py_andrest   = 'and' right:py_nottest
+    py_nottest   = not:py_notexpr | cmp:py_flat
+    py_notexpr   = 'not' value:py_nottest
+    py_flat      = first:py_unary rest:py_oprest*
+    py_oprest    = op:operator right:py_unary
+
+    py_unary     = neg:py_neg | pos:py_pos | inv:py_inv | py_postfix
+    py_neg       = '-' value:py_unary
+    py_pos       = '+' value:py_unary
+    py_inv       = '~' value:py_unary
+    py_postfix   = call:py_call | py_primary
+    py_call      = name:symbol '(' args:py_callarg* ')'
+    py_callarg   = value:py_expr ','?
+    py_primary   = num:number | str:string | name:symbol | paren:py_paren
+    py_paren     = '(' value:py_expr ')'
+}
+
+// Python's ladder from the comparisons down, loosest level first.
+func py_table() *PrecTable {
+    var t *PrecTable = prec_new();
+    prec_left(t, "== != < <= > >=");
+    prec_left(t, "|");
+    prec_left(t, "^");
+    prec_left(t, "&");
+    prec_left(t, "<< >>");
+    prec_left(t, "+ -");
+    prec_left(t, "* / %");
+    return t;
+}
+
+// ============================================================
+// Diagnostics
 // ============================================================
 
-func py_is_kw(toks *u8, i i64, kw *u8) i64 {
-    if py_k(toks, i) != TOK_IDENT { return 0; }
-    if streq(py_txt(toks, i), kw) { return 1; }
+// A reader that reports a syntax error and then hands back a program anyway is
+// how a bad parse turns into a mystery further down the pipeline - most often a
+// function that simply isn't there. Every error here is fatal.
+func py_fail_at(msg *u8, off i64) void {
+    eprint("minipy:");
+    if py_src != nil {
+        var line i64 = 1;
+        var col i64 = 1;
+        var i i64 = 0;
+        while i < off {
+            if *(py_src + i) == 10 { line = line + 1; col = 1; }
+            else { col = col + 1; }
+            i = i + 1;
+        }
+        eprint_i64(line);
+        eprint(":");
+        eprint_i64(col);
+        eprint(":");
+    }
+    eprint(" ");
+    eprintln(msg);
+    exit(1);
+}
+
+func py_fail(msg *u8, node *PNode) void {
+    py_fail_at(msg, node.start);
+}
+
+// An alternative the grammar can produce and lowering forgot. Names the branch
+// rather than guessing, so a grammar edit cannot silently lose a case.
+func py_unhandled(what *u8, node *PNode) void {
+    eprint("minipy: internal: unhandled ");
+    eprint(what);
+    eprint(" branch '");
+    var b *u8 = pnode_branch(node);
+    if b == nil { eprint("<none>"); } else { eprint(b); }
+    eprintln("'");
+    exit(1);
+}
+
+// ============================================================
+// Expressions
+// ============================================================
+
+func py_is_cmp(op *u8) i64 {
+    if streq(op, "==") { return 1; }
+    if streq(op, "!=") { return 1; }
+    if streq(op, "<") { return 1; }
+    if streq(op, "<=") { return 1; }
+    if streq(op, ">") { return 1; }
+    if streq(op, ">=") { return 1; }
     return 0;
 }
 
-// Operators arrive as a kind plus their text, so `<`, `<=` and `<<` all share
-// TOK_LT and are told apart here.
-func py_is_op(toks *u8, i i64, kind i64, text *u8) i64 {
-    if py_k(toks, i) != kind { return 0; }
-    if streq(py_txt(toks, i), text) { return 1; }
-    return 0;
+func py_expr_of(node *PNode) *u8 {
+    var first *u8 = py_conj_of(pnode_require(node, "first"));
+    var rest *PNode = pnode_require(node, "rest");
+    var n i64 = vec_len(rest.children);
+    var i i64 = 0;
+    while i < n {
+        var item *PNode = vec_get(rest.children, i);
+        first = ast_binop("||", first, py_conj_of(pnode_require(item, "right")));
+        i = i + 1;
+    }
+    return first;
 }
 
-var py_errors i64 = 0;
-
-// Line numbers are relative to the `#minipy{` block, which is the only origin
-// the reader is given.
-func py_err(toks *u8, i i64, msg *u8) void {
-    py_errors = py_errors + 1;
-    eprint("minipy: line ");
-    eprint_i64(py_line(toks, i));
-    eprint(": ");
-    eprint(msg);
-    eprint("\n");
+func py_conj_of(node *PNode) *u8 {
+    var first *u8 = py_nottest_of(pnode_require(node, "first"));
+    var rest *PNode = pnode_require(node, "rest");
+    var n i64 = vec_len(rest.children);
+    var i i64 = 0;
+    while i < n {
+        var item *PNode = vec_get(rest.children, i);
+        first = ast_binop("&&", first, py_nottest_of(pnode_require(item, "right")));
+        i = i + 1;
+    }
+    return first;
 }
 
-func py_expect(toks *u8, ip *i64, kind i64, what *u8) void {
-    if py_k(toks, *ip) == kind {
-        *ip = *ip + 1;
-        return;
+func py_nottest_of(node *PNode) *u8 {
+    if pnode_is(node, "not") {
+        return ast_not(py_nottest_of(pnode_require(node, "value")));
     }
-    py_err(toks, *ip, what);
-}
-
-func py_expect_kw(toks *u8, ip *i64, kw *u8, what *u8) void {
-    if py_is_kw(toks, *ip, kw) == 1 {
-        *ip = *ip + 1;
-        return;
-    }
-    py_err(toks, *ip, what);
-}
-
-// ============================================================
-// Expressions - the Python precedence ladder
-// ============================================================
-
-func py_expr(toks *u8, ip *i64) *u8 {
-    return py_or(toks, ip);
-}
-
-func py_or(toks *u8, ip *i64) *u8 {
-    var e *u8 = py_and(toks, ip);
-    while py_is_kw(toks, *ip, "or") == 1 {
-        *ip = *ip + 1;
-        e = ast_binop("||", e, py_and(toks, ip));
-    }
-    return e;
-}
-
-func py_and(toks *u8, ip *i64) *u8 {
-    var e *u8 = py_not(toks, ip);
-    while py_is_kw(toks, *ip, "and") == 1 {
-        *ip = *ip + 1;
-        e = ast_binop("&&", e, py_not(toks, ip));
-    }
-    return e;
-}
-
-func py_not(toks *u8, ip *i64) *u8 {
-    if py_is_kw(toks, *ip, "not") == 1 {
-        *ip = *ip + 1;
-        return ast_not(py_not(toks, ip));
-    }
-    return py_cmp(toks, ip);
-}
-
-// The comparison operator at i, or nil. `<<` and `>>` are shifts, not
-// comparisons, and are filtered out here by their text.
-func py_cmp_op(toks *u8, i i64) *u8 {
-    var k i64 = py_k(toks, i);
-    var s *u8 = py_txt(toks, i);
-    if k == TOK_LT {
-        if streq(s, "<") { return "<"; }
-        if streq(s, "<=") { return "<="; }
-        return nil;
-    }
-    if k == TOK_GT {
-        if streq(s, ">") { return ">"; }
-        if streq(s, ">=") { return ">="; }
-        return nil;
-    }
-    if k == TOK_EQ {
-        if streq(s, "==") { return "=="; }
-        return nil;
-    }
-    if k == TOK_BANG {
-        if streq(s, "!=") { return "!="; }
-        return nil;
-    }
+    if pnode_is(node, "cmp") { return py_flat_of(node); }
+    py_unhandled("py_nottest", node);
     return nil;
 }
 
 // Python's `a < b < c` means `a < b and b < c`, not `(a < b) < c`. Rather than
-// quietly compile the wrong program, refuse it.
-func py_cmp(toks *u8, ip *i64) *u8 {
-    var e *u8 = py_bitor(toks, ip);
-    var op *u8 = py_cmp_op(toks, *ip);
-    if op == nil { return e; }
-    *ip = *ip + 1;
-    var rhs *u8 = py_bitor(toks, ip);
-    if py_cmp_op(toks, *ip) != nil {
-        py_err(toks, *ip, "chained comparison (a < b < c) is not supported");
-    }
-    return ast_binop(op, e, rhs);
-}
-
-func py_bitor(toks *u8, ip *i64) *u8 {
-    var e *u8 = py_bitxor(toks, ip);
-    while py_is_op(toks, *ip, TOK_PIPE, "|") == 1 {
-        *ip = *ip + 1;
-        e = ast_binop("|", e, py_bitxor(toks, ip));
-    }
-    return e;
-}
-
-func py_bitxor(toks *u8, ip *i64) *u8 {
-    var e *u8 = py_bitand(toks, ip);
-    while py_is_op(toks, *ip, TOK_CARET, "^") == 1 {
-        *ip = *ip + 1;
-        e = ast_binop("^", e, py_bitand(toks, ip));
-    }
-    return e;
-}
-
-func py_bitand(toks *u8, ip *i64) *u8 {
-    var e *u8 = py_shift(toks, ip);
-    while py_is_op(toks, *ip, TOK_AMP, "&") == 1 {
-        *ip = *ip + 1;
-        e = ast_binop("&", e, py_shift(toks, ip));
-    }
-    return e;
-}
-
-func py_shift(toks *u8, ip *i64) *u8 {
-    var e *u8 = py_add(toks, ip);
-    var go i64 = 1;
-    while go == 1 {
-        if py_is_op(toks, *ip, TOK_LT, "<<") == 1 {
-            *ip = *ip + 1;
-            e = ast_binop("<<", e, py_add(toks, ip));
-        } else if py_is_op(toks, *ip, TOK_GT, ">>") == 1 {
-            *ip = *ip + 1;
-            e = ast_binop(">>", e, py_add(toks, ip));
-        } else {
-            go = 0;
+// quietly compile the wrong program, refuse it. A flat operator list makes that
+// one count instead of a lookahead in the middle of the climb.
+func py_flat_of(node *PNode) *u8 {
+    var e *PrecExpr = prec_expr(py_table());
+    prec_operand(e, py_unary_of(pnode_require(node, "first")));
+    var rest *PNode = pnode_require(node, "rest");
+    var n i64 = vec_len(rest.children);
+    var cmps i64 = 0;
+    var i i64 = 0;
+    while i < n {
+        var item *PNode = vec_get(rest.children, i);
+        var op *PNode = pnode_require(item, "op");
+        if py_is_cmp(op.text) == 1 {
+            cmps = cmps + 1;
+            if cmps > 1 {
+                py_fail("chained comparison (a < b < c) is not supported", op);
+            }
         }
+        prec_op(e, op.text);
+        prec_operand(e, py_unary_of(pnode_require(item, "right")));
+        i = i + 1;
     }
-    return e;
+    var built *u8 = prec_build(e);
+    if built == nil { py_fail("this operator is not in the minipy subset", node); }
+    return built;
 }
 
-// The shared tokenizer folds a `-` straight into a following digit, so `n -1`
-// arrives as `n` and the single number `-1` with no operator between them.
-// Every infix reader has to undo that; forth's answer was to ban `-5` outright,
-// which is not an option for a language people expect to write `i-1` in.
-func py_neg_number(toks *u8, i i64) i64 {
-    if py_k(toks, i) != TOK_NUMBER { return 0; }
-    if *py_txt(toks, i) == 45 { return 1; }
-    return 0;
+func py_unary_of(node *PNode) *u8 {
+    if pnode_is(node, "neg") {
+        return ast_neg(py_unary_of(pnode_require(node, "value")));
+    }
+    if pnode_is(node, "pos") {
+        return py_unary_of(pnode_require(node, "value"));
+    }
+    if pnode_is(node, "inv") {
+        return ast_binop("^", py_unary_of(pnode_require(node, "value")),
+                         ast_neg(ast_int(1)));
+    }
+    // py_unary's last alternative is left unlabeled: py_postfix labels its own,
+    // and one node carries one branch name.
+    return py_postfix_of(node);
 }
 
-func py_add(toks *u8, ip *i64) *u8 {
-    var e *u8 = py_term(toks, ip);
-    var go i64 = 1;
-    while go == 1 {
-        if py_is_op(toks, *ip, TOK_PLUS, "+") == 1 {
-            *ip = *ip + 1;
-            e = ast_binop("+", e, py_term(toks, ip));
-        } else if py_is_op(toks, *ip, TOK_MINUS, "-") == 1 {
-            *ip = *ip + 1;
-            e = ast_binop("-", e, py_term(toks, ip));
-        } else if py_neg_number(toks, *ip) == 1 {
-            var t *u8 = py_txt(toks, *ip);
-            *ip = *ip + 1;
-            e = ast_binop("-", e, ast_number(t + 1));
-        } else {
-            go = 0;
+func py_postfix_of(node *PNode) *u8 {
+    if pnode_is(node, "call") {
+        var name *PNode = pnode_require(node, "name");
+        var args *PNode = pnode_require(node, "args");
+        var out *u8 = ast_vec();
+        var n i64 = vec_len(args.children);
+        var i i64 = 0;
+        while i < n {
+            var arg *PNode = vec_get(args.children, i);
+            ast_push(out, py_expr_of(pnode_require(arg, "value")));
+            i = i + 1;
         }
-    }
-    return e;
-}
-
-func py_term(toks *u8, ip *i64) *u8 {
-    var e *u8 = py_unary(toks, ip);
-    var go i64 = 1;
-    while go == 1 {
-        if py_is_op(toks, *ip, TOK_STAR, "*") == 1 {
-            *ip = *ip + 1;
-            e = ast_binop("*", e, py_unary(toks, ip));
-        } else if py_is_op(toks, *ip, TOK_SLASH, "/") == 1 {
-            *ip = *ip + 1;
-            e = ast_binop("/", e, py_unary(toks, ip));
-        } else if py_is_op(toks, *ip, TOK_PERCENT, "%") == 1 {
-            *ip = *ip + 1;
-            e = ast_binop("%", e, py_unary(toks, ip));
-        } else {
-            go = 0;
-        }
-    }
-    return e;
-}
-
-func py_unary(toks *u8, ip *i64) *u8 {
-    if py_is_op(toks, *ip, TOK_MINUS, "-") == 1 {
-        *ip = *ip + 1;
-        return ast_neg(py_unary(toks, ip));
-    }
-    if py_is_op(toks, *ip, TOK_PLUS, "+") == 1 {
-        *ip = *ip + 1;
-        return py_unary(toks, ip);
-    }
-    if py_is_op(toks, *ip, TOK_TILDE, "~") == 1 {
-        *ip = *ip + 1;
-        return ast_binop("^", py_unary(toks, ip), ast_neg(ast_int(1)));
-    }
-    return py_atom(toks, ip);
-}
-
-func py_args(toks *u8, ip *i64) *u8 {
-    var args *u8 = ast_vec();
-    py_expect(toks, ip, TOK_LPAREN, "expected '(' in call");
-    while py_k(toks, *ip) != TOK_RPAREN && py_k(toks, *ip) != TOK_EOF {
-        ast_push(args, py_expr(toks, ip));
-        if py_k(toks, *ip) == TOK_COMMA { *ip = *ip + 1; }
-    }
-    py_expect(toks, ip, TOK_RPAREN, "unclosed call argument list");
-    return args;
-}
-
-func py_atom(toks *u8, ip *i64) *u8 {
-    var k i64 = py_k(toks, *ip);
-    if k == TOK_NUMBER {
-        var n *u8 = py_txt(toks, *ip);
-        *ip = *ip + 1;
-        return ast_number(n);
-    }
-    if k == TOK_STRING {
-        py_err(toks, *ip, "a string may only be an argument to print in this subset");
-        *ip = *ip + 1;
-        return ast_int(0);
-    }
-    if k == TOK_LPAREN {
-        *ip = *ip + 1;
-        var e *u8 = py_expr(toks, ip);
-        py_expect(toks, ip, TOK_RPAREN, "unclosed parenthesis");
-        return e;
-    }
-    if k == TOK_IDENT {
-        var name *u8 = py_txt(toks, *ip);
-        if streq(name, "True")  { *ip = *ip + 1; return ast_int(1); }
-        if streq(name, "False") { *ip = *ip + 1; return ast_int(0); }
-        if streq(name, "None")  { *ip = *ip + 1; return ast_int(0); }
-        *ip = *ip + 1;
         // Any name, defined here or in any other language in the binary.
-        if py_k(toks, *ip) == TOK_LPAREN {
-            return ast_call_named(name, py_args(toks, ip));
-        }
-        return ast_ident(name);
+        return ast_call_named(name.text, out);
     }
-    py_err(toks, *ip, "expected an expression");
-    *ip = *ip + 1;
-    return ast_int(0);
+    return py_primary_of(node);
+}
+
+func py_primary_of(node *PNode) *u8 {
+    if pnode_is(node, "num") { return ast_number(node.text); }
+    if pnode_is(node, "str") {
+        py_fail("a string may only be an argument to print in this subset", node);
+    }
+    if pnode_is(node, "name") {
+        if streq(node.text, "True")  { return ast_int(1); }
+        if streq(node.text, "False") { return ast_int(0); }
+        if streq(node.text, "None")  { return ast_int(0); }
+        return ast_ident(node.text);
+    }
+    if pnode_is(node, "paren") {
+        return py_expr_of(pnode_require(node, "value"));
+    }
+    py_unhandled("py_primary", node);
+    return nil;
 }
 
 // ============================================================
@@ -534,7 +514,7 @@ func py_note_local(locals *u8, name *u8) void {
     if py_name_in(locals, name) == 0 { vec_push(locals, name); }
 }
 
-// A per-token-unique name for a compiler-introduced temp.
+// A per-node-unique name for a compiler-introduced temp.
 func py_gensym(prefix *u8, idx i64) *u8 {
     var sb *StringBuilder = sb_new();
     sb_str(sb, prefix);
@@ -542,159 +522,157 @@ func py_gensym(prefix *u8, idx i64) *u8 {
     return sb_finish(sb);
 }
 
-// The augmented-assignment operator at i, or nil.
-func py_aug_op(toks *u8, i i64) *u8 {
-    var k i64 = py_k(toks, i);
-    var s *u8 = py_txt(toks, i);
-    if k == TOK_PLUS && streq(s, "+=") { return "+"; }
-    if k == TOK_MINUS && streq(s, "-=") { return "-"; }
-    if k == TOK_STAR && streq(s, "*=") { return "*"; }
-    if k == TOK_SLASH && streq(s, "/=") { return "/"; }
-    if k == TOK_PERCENT && streq(s, "%=") { return "%"; }
-    return nil;
-}
-
 // `print(a, "b", c)` -> py_int(a); py_space(); py_str("b"); ... ; py_nl().
 // Which call an argument becomes is decided from its syntax right here, which
 // is how a variadic polymorphic builtin survives lowering into a language that
 // has neither.
-func py_print(toks *u8, ip *i64, stmts *u8) void {
-    *ip = *ip + 1;
-    py_expect(toks, ip, TOK_LPAREN, "expected '(' after print");
-    var n i64 = 0;
-    while py_k(toks, *ip) != TOK_RPAREN && py_k(toks, *ip) != TOK_EOF {
-        if n > 0 { ast_push(stmts, ast_expr_stmt(ast_call_named0("py_space"))); }
-        if py_k(toks, *ip) == TOK_STRING {
-            var s *u8 = py_txt(toks, *ip);
-            *ip = *ip + 1;
-            ast_push(stmts, ast_expr_stmt(ast_call_named1("py_str", ast_string(s))));
+func py_print_into(node *PNode, stmts *u8) void {
+    var args *PNode = pnode_require(node, "args");
+    var n i64 = vec_len(args.children);
+    var i i64 = 0;
+    while i < n {
+        if i > 0 { ast_push(stmts, ast_expr_stmt(ast_call_named0("py_space"))); }
+        var arg *PNode = vec_get(args.children, i);
+        if pnode_is(arg, "str") {
+            var text *PNode = pnode_require(arg, "text");
+            ast_push(stmts, ast_expr_stmt(
+                ast_call_named1("py_str", ast_string(text.text))));
+        } else if pnode_is(arg, "val") {
+            ast_push(stmts, ast_expr_stmt(ast_call_named1(
+                "py_int", py_expr_of(pnode_require(arg, "value")))));
         } else {
-            ast_push(stmts, ast_expr_stmt(ast_call_named1("py_int", py_expr(toks, ip))));
+            py_unhandled("py_printarg", arg);
         }
-        n = n + 1;
-        if py_k(toks, *ip) == TOK_COMMA { *ip = *ip + 1; }
+        i = i + 1;
     }
-    py_expect(toks, ip, TOK_RPAREN, "unclosed print");
     ast_push(stmts, ast_expr_stmt(ast_call_named0("py_nl")));
 }
 
 // Statements that cannot contain a block.
-func py_simple(toks *u8, ip *i64, stmts *u8, locals *u8) void {
-    if py_k(toks, *ip) == TOK_IDENT {
-        var w *u8 = py_txt(toks, *ip);
-        if streq(w, "pass") { *ip = *ip + 1; return; }
-        if streq(w, "break") {
-            *ip = *ip + 1;
-            ast_push(stmts, ast_break(nil));
-            return;
-        }
-        if streq(w, "continue") {
-            *ip = *ip + 1;
-            ast_push(stmts, ast_continue(nil));
-            return;
-        }
-        if streq(w, "return") {
-            *ip = *ip + 1;
-            if py_k(toks, *ip) == PY_NEWLINE || py_k(toks, *ip) == TOK_SEMI {
-                ast_push(stmts, ast_return(ast_int(0)));
-            } else {
-                ast_push(stmts, ast_return(py_expr(toks, ip)));
-            }
-            return;
-        }
-        if streq(w, "print") {
-            if py_k(toks, *ip + 1) == TOK_LPAREN {
-                py_print(toks, ip, stmts);
-                return;
-            }
-        }
-        if py_is_op(toks, *ip + 1, TOK_EQ, "=") == 1 {
-            py_note_local(locals, w);
-            *ip = *ip + 2;
-            ast_push(stmts, ast_assign(ast_ident(w), py_expr(toks, ip)));
-            return;
-        }
-        var aug *u8 = py_aug_op(toks, *ip + 1);
-        if aug != nil {
-            py_note_local(locals, w);
-            *ip = *ip + 2;
-            var rhs *u8 = py_expr(toks, ip);
-            ast_push(stmts, ast_assign(ast_ident(w), ast_binop(aug, ast_ident(w), rhs)));
-            return;
-        }
+func py_simple_into(node *PNode, stmts *u8, locals *u8) void {
+    if pnode_is(node, "pass") { return; }
+    if pnode_is(node, "brk") { ast_push(stmts, ast_break(nil)); return; }
+    if pnode_is(node, "cont") { ast_push(stmts, ast_continue(nil)); return; }
+    if pnode_is(node, "ret") {
+        var value *PNode = pnode_get(node, "value");
+        if value == nil { ast_push(stmts, ast_return(ast_int(0))); }
+        else { ast_push(stmts, ast_return(py_expr_of(value))); }
+        return;
     }
-    ast_push(stmts, ast_expr_stmt(py_expr(toks, ip)));
+    if pnode_is(node, "show") { py_print_into(node, stmts); return; }
+    if pnode_is(node, "aug") {
+        var name *PNode = pnode_require(node, "name");
+        var op *PNode = pnode_require(node, "op");
+        py_note_local(locals, name.text);
+        // `+=` is one token; the lang operator is its first character.
+        var optext *u8 = op.text;
+        var bin *u8 = alloc(2);
+        *bin = *optext;
+        *(bin + 1) = 0;
+        ast_push(stmts, ast_assign(ast_ident(name.text),
+            ast_binop(bin, ast_ident(name.text),
+                      py_expr_of(pnode_require(node, "value")))));
+        return;
+    }
+    if pnode_is(node, "set") {
+        var name *PNode = pnode_require(node, "name");
+        py_note_local(locals, name.text);
+        ast_push(stmts, ast_assign(ast_ident(name.text),
+                                   py_expr_of(pnode_require(node, "value"))));
+        return;
+    }
+    if pnode_is(node, "expr") {
+        ast_push(stmts, ast_expr_stmt(py_expr_of(node)));
+        return;
+    }
+    py_unhandled("py_simple", node);
+}
+
+func py_line_into(node *PNode, stmts *u8, locals *u8) void {
+    py_simple_into(pnode_require(node, "first"), stmts, locals);
+    var rest *PNode = pnode_require(node, "rest");
+    var n i64 = vec_len(rest.children);
+    var i i64 = 0;
+    while i < n {
+        var item *PNode = vec_get(rest.children, i);
+        py_simple_into(pnode_require(item, "stmt"), stmts, locals);
+        i = i + 1;
+    }
 }
 
 // `:` followed by either an indented block or a one-line suite. Statements are
-// appended to the caller's vec so a desugaring can wrap them (see py_for).
-func py_block_into(toks *u8, ip *i64, stmts *u8, locals *u8) void {
-    py_expect(toks, ip, TOK_COLON, "expected ':' to open a block");
-    if py_k(toks, *ip) != PY_NEWLINE {
-        py_simple(toks, ip, stmts, locals);
-        while py_k(toks, *ip) == TOK_SEMI {
-            *ip = *ip + 1;
-            py_simple(toks, ip, stmts, locals);
+// appended to the caller's vec so a desugaring can wrap them (see py_for_into).
+func py_suite_into(node *PNode, stmts *u8, locals *u8) void {
+    var body *PNode = pnode_require(node, "body");
+    if pnode_is(body, "inline") { py_line_into(body, stmts, locals); return; }
+    if pnode_is(body, "block") {
+        var lines *PNode = pnode_require(body, "stmts");
+        var n i64 = vec_len(lines.children);
+        var i i64 = 0;
+        while i < n {
+            py_stmt_into(vec_get(lines.children, i), stmts, locals);
+            i = i + 1;
         }
-        if py_k(toks, *ip) == PY_NEWLINE { *ip = *ip + 1; }
         return;
     }
-    *ip = *ip + 1;
-    if py_k(toks, *ip) != PY_INDENT {
-        py_err(toks, *ip, "expected an indented block");
-        return;
-    }
-    *ip = *ip + 1;
-    while py_k(toks, *ip) != PY_DEDENT && py_k(toks, *ip) != TOK_EOF {
-        py_stmt(toks, ip, stmts, locals);
-    }
-    if py_k(toks, *ip) == PY_DEDENT { *ip = *ip + 1; }
+    py_unhandled("py_suitebody", body);
 }
 
-func py_block(toks *u8, ip *i64, locals *u8) *u8 {
+func py_suite_block(node *PNode, locals *u8) *u8 {
     var stmts *u8 = ast_vec();
-    py_block_into(toks, ip, stmts, locals);
+    py_suite_into(node, stmts, locals);
     return ast_block(stmts);
 }
 
-// `elif` is just an `if` in the else branch, so the keyword is skipped by the
-// same line that skips `if`.
-func py_if(toks *u8, ip *i64, stmts *u8, locals *u8) void {
-    *ip = *ip + 1;
-    var cond *u8 = py_expr(toks, ip);
-    var then_b *u8 = py_block(toks, ip, locals);
+// `elif` is just an `if` in the else branch, so both spellings lower here.
+func py_if_into(node *PNode, stmts *u8, locals *u8) void {
+    var cond *u8 = py_expr_of(pnode_require(node, "cond"));
+    var then_b *u8 = py_suite_block(pnode_require(node, "then"), locals);
     var else_b *u8 = nil;
-    if py_is_kw(toks, *ip, "elif") == 1 {
-        var eb *u8 = ast_vec();
-        py_if(toks, ip, eb, locals);
-        else_b = ast_block(eb);
-    } else if py_is_kw(toks, *ip, "else") == 1 {
-        *ip = *ip + 1;
-        else_b = py_block(toks, ip, locals);
+    var tail *PNode = pnode_get(node, "tail");
+    if tail != nil {
+        if pnode_is(tail, "elif") {
+            var eb *u8 = ast_vec();
+            py_if_into(tail, eb, locals);
+            else_b = ast_block(eb);
+        } else if pnode_is(tail, "else") {
+            else_b = py_suite_block(pnode_require(tail, "body"), locals);
+        } else {
+            py_unhandled("py_iftail", tail);
+        }
     }
     ast_push(stmts, ast_if(cond, then_b, else_b));
 }
 
-func py_while(toks *u8, ip *i64, stmts *u8, locals *u8) void {
-    *ip = *ip + 1;
-    var cond *u8 = py_expr(toks, ip);
-    ast_push(stmts, ast_while(cond, py_block(toks, ip, locals)));
+func py_while_into(node *PNode, stmts *u8, locals *u8) void {
+    var cond *u8 = py_expr_of(pnode_require(node, "cond"));
+    ast_push(stmts, ast_while(cond,
+        py_suite_block(pnode_require(node, "body"), locals)));
 }
 
 // A literal integer, optionally negated - the only form `range`'s step may
 // take, because the direction of the loop test has to be known at read time.
-func py_step_literal(toks *u8, ip *i64) i64 {
+func py_no_step(node *PNode) void {
+    py_fail("range's step must be an integer literal", node);
+}
+
+func py_flat_only(node *PNode) *PNode {
+    if vec_len(pnode_require(node, "rest").children) != 0 { py_no_step(node); }
+    return pnode_require(node, "first");
+}
+
+func py_step_literal(node *PNode) i64 {
+    var conj *PNode = py_flat_only(node);
+    var nottest *PNode = py_flat_only(conj);
+    if !pnode_is(nottest, "cmp") { py_no_step(node); }
+    var unary *PNode = py_flat_only(nottest);
     var neg i64 = 0;
-    if py_is_op(toks, *ip, TOK_MINUS, "-") == 1 {
+    if pnode_is(unary, "neg") {
         neg = 1;
-        *ip = *ip + 1;
+        unary = pnode_require(unary, "value");
     }
-    if py_k(toks, *ip) != TOK_NUMBER {
-        py_err(toks, *ip, "range's step must be an integer literal");
-        return 1;
-    }
-    var v i64 = py_str_to_int(py_txt(toks, *ip));
-    *ip = *ip + 1;
+    if !pnode_is(unary, "num") { py_no_step(node); }
+    var v i64 = py_str_to_int(unary.text);
     if neg == 1 { return 0 - v; }
     return v;
 }
@@ -728,115 +706,59 @@ func py_str_to_int(s *u8) i64 {
 // bottom increment would be skipped, turning a Python `continue` into a hang.
 // Biasing the initial value by one step is what buys that placement. Both range
 // bounds are evaluated exactly once, as in Python.
-func py_for(toks *u8, ip *i64, stmts *u8, locals *u8) void {
-    var idx i64 = *ip;
-    *ip = *ip + 1;
-    if py_k(toks, *ip) != TOK_IDENT {
-        py_err(toks, *ip, "expected a loop variable after 'for'");
-        return;
-    }
-    var vname *u8 = py_txt(toks, *ip);
+func py_for_into(node *PNode, stmts *u8, locals *u8) void {
+    var vnode *PNode = pnode_require(node, "name");
+    var vname *u8 = vnode.text;
     py_note_local(locals, vname);
-    *ip = *ip + 1;
-    py_expect_kw(toks, ip, "in", "expected 'in' after the loop variable");
-    if py_is_kw(toks, *ip, "range") == 0 {
-        py_err(toks, *ip, "for may only iterate range(...) in this subset");
-        return;
-    }
-    *ip = *ip + 1;
-    py_expect(toks, ip, TOK_LPAREN, "expected '(' after range");
 
-    var first *u8 = py_expr(toks, ip);
+    var args *PNode = pnode_require(node, "args");
+    var nargs i64 = vec_len(args.children);
+    if nargs < 1 || nargs > 3 {
+        py_fail("range takes one, two or three arguments", node);
+    }
     var start *u8 = ast_int(0);
-    var limit *u8 = first;
+    var limit *u8 = nil;
     var step i64 = 1;
-    if py_k(toks, *ip) == TOK_COMMA {
-        *ip = *ip + 1;
-        start = first;
-        limit = py_expr(toks, ip);
-        if py_k(toks, *ip) == TOK_COMMA {
-            *ip = *ip + 1;
-            step = py_step_literal(toks, ip);
+    var first *PNode = pnode_require(vec_get(args.children, 0), "value");
+    if nargs == 1 {
+        limit = py_expr_of(first);
+    } else {
+        start = py_expr_of(first);
+        limit = py_expr_of(pnode_require(vec_get(args.children, 1), "value"));
+        if nargs == 3 {
+            step = py_step_literal(pnode_require(vec_get(args.children, 2), "value"));
         }
     }
-    py_expect(toks, ip, TOK_RPAREN, "unclosed range");
-    if step == 0 {
-        py_err(toks, idx, "range's step may not be zero");
-        step = 1;
-    }
+    if step == 0 { py_fail("range's step may not be zero", node); }
 
-    var lim_name *u8 = py_gensym("__py_lim", idx);
+    var lim_name *u8 = py_gensym("__py_lim", node.start);
     ast_push(stmts, ast_var(lim_name, ast_type_i64(), limit));
-    ast_push(stmts, ast_assign(ast_ident(vname), ast_binop("-", start, ast_int(step))));
+    ast_push(stmts, ast_assign(ast_ident(vname),
+                               ast_binop("-", start, ast_int(step))));
 
     var body *u8 = ast_vec();
-    ast_push(body, ast_assign(ast_ident(vname), ast_binop("+", ast_ident(vname), ast_int(step))));
+    ast_push(body, ast_assign(ast_ident(vname),
+                              ast_binop("+", ast_ident(vname), ast_int(step))));
     var cmp *u8 = ">=";
     if step < 0 { cmp = "<="; }
     ast_push(body, ast_if(ast_binop(cmp, ast_ident(vname), ast_ident(lim_name)),
                           ast_block1(ast_break(nil)), nil));
-    py_block_into(toks, ip, body, locals);
+    py_suite_into(pnode_require(node, "body"), body, locals);
     ast_push(stmts, ast_while(ast_int(1), ast_block(body)));
 }
 
-// Keywords that would otherwise fall through to an expression statement and
-// compile to something quietly unrelated to what they mean in Python.
-func py_unsupported_kw(w *u8) i64 {
-    if streq(w, "class") { return 1; }
-    if streq(w, "import") { return 1; }
-    if streq(w, "from") { return 1; }
-    if streq(w, "lambda") { return 1; }
-    if streq(w, "try") { return 1; }
-    if streq(w, "with") { return 1; }
-    if streq(w, "yield") { return 1; }
-    if streq(w, "global") { return 1; }
-    if streq(w, "nonlocal") { return 1; }
-    if streq(w, "assert") { return 1; }
-    if streq(w, "del") { return 1; }
-    if streq(w, "raise") { return 1; }
-    return 0;
-}
-
-func py_stmt(toks *u8, ip *i64, stmts *u8, locals *u8) void {
-    var k i64 = py_k(toks, *ip);
-    if k == PY_NEWLINE {
-        *ip = *ip + 1;
-        return;
+func py_stmt_into(node *PNode, stmts *u8, locals *u8) void {
+    if pnode_is(node, "nested") {
+        py_fail("nested functions are not supported", node);
     }
-    if k == TOK_IDENT {
-        var w *u8 = py_txt(toks, *ip);
-        if streq(w, "if") { py_if(toks, ip, stmts, locals); return; }
-        if streq(w, "while") { py_while(toks, ip, stmts, locals); return; }
-        if streq(w, "for") { py_for(toks, ip, stmts, locals); return; }
-        if streq(w, "def") {
-            py_err(toks, *ip, "nested functions are not supported");
-            py_skip_line(toks, ip);
-            return;
-        }
-        if py_unsupported_kw(w) == 1 {
-            py_err(toks, *ip, "this statement is not in the minipy subset");
-            py_skip_line(toks, ip);
-            return;
-        }
+    if pnode_is(node, "bad") {
+        py_fail("this statement is not in the minipy subset", node);
     }
-    py_simple(toks, ip, stmts, locals);
-    while py_k(toks, *ip) == TOK_SEMI {
-        *ip = *ip + 1;
-        py_simple(toks, ip, stmts, locals);
-    }
-    if py_k(toks, *ip) == PY_NEWLINE {
-        *ip = *ip + 1;
-    } else {
-        py_err(toks, *ip, "unexpected token after a statement");
-        py_skip_line(toks, ip);
-    }
-}
-
-func py_skip_line(toks *u8, ip *i64) void {
-    while py_k(toks, *ip) != PY_NEWLINE && py_k(toks, *ip) != TOK_EOF {
-        *ip = *ip + 1;
-    }
-    if py_k(toks, *ip) == PY_NEWLINE { *ip = *ip + 1; }
+    if pnode_is(node, "if") { py_if_into(node, stmts, locals); return; }
+    if pnode_is(node, "while") { py_while_into(node, stmts, locals); return; }
+    if pnode_is(node, "for") { py_for_into(node, stmts, locals); return; }
+    if pnode_is(node, "line") { py_line_into(node, stmts, locals); return; }
+    py_unhandled("py_stmt", node);
 }
 
 func py_starts(s *u8, p *u8) i64 {
@@ -857,37 +779,30 @@ func py_starts(s *u8, p *u8) i64 {
 //
 // Python scopes a name to the whole function no matter which branch assigns it;
 // lang scopes a `var` to its enclosing block. Every assigned name is therefore
-// collected while the body is parsed and declared once at the top, so an
+// collected while the body is lowered and declared once at the top, so an
 // assignment inside an `if` is still visible after it - which is exactly the
 // mismatch that would otherwise make a faithful-looking program fail to compile.
-func py_def(toks *u8, ip *i64) *u8 {
-    *ip = *ip + 1;
-    if py_k(toks, *ip) != TOK_IDENT {
-        py_err(toks, *ip, "expected a function name after 'def'");
-        return nil;
-    }
-    var name *u8 = py_txt(toks, *ip);
-    *ip = *ip + 1;
-    py_expect(toks, ip, TOK_LPAREN, "expected '(' after the function name");
-
+func py_def_of(node *PNode) *u8 {
+    var name *PNode = pnode_require(node, "name");
     var params *u8 = ast_vec();
     var pnames *u8 = vec_new(8);
-    while py_k(toks, *ip) == TOK_IDENT {
-        var pn *u8 = py_txt(toks, *ip);
-        ast_push(params, ast_param(pn, ast_type_i64()));
-        vec_push(pnames, pn);
-        *ip = *ip + 1;
-        if py_k(toks, *ip) == TOK_COMMA { *ip = *ip + 1; }
+    var plist *PNode = pnode_require(node, "params");
+    var np i64 = vec_len(plist.children);
+    var i i64 = 0;
+    while i < np {
+        var p *PNode = pnode_require(vec_get(plist.children, i), "name");
+        ast_push(params, ast_param(p.text, ast_type_i64()));
+        vec_push(pnames, p.text);
+        i = i + 1;
     }
-    py_expect(toks, ip, TOK_RPAREN, "unclosed parameter list");
 
     var locals *u8 = vec_new(16);
     var body *u8 = ast_vec();
-    py_block_into(toks, ip, body, locals);
+    py_suite_into(pnode_require(node, "body"), body, locals);
 
     var all *u8 = ast_vec();
     var nl i64 = vec_len(locals);
-    var i i64 = 0;
+    i = 0;
     while i < nl {
         var ln *u8 = vec_get(locals, i);
         if py_name_in(pnames, ln) == 0 {
@@ -908,38 +823,25 @@ func py_def(toks *u8, ip *i64) *u8 {
     }
     if tail_returns == 0 { ast_push(all, ast_return(ast_int(0))); }
 
-    return ast_func(name, params, ast_type_i64(), ast_block(all));
-}
-
-func py_program(toks *u8) *u8 {
-    var decls *u8 = ast_vec();
-    var ip i64 = 0;
-    while py_k(toks, ip) != TOK_EOF {
-        var k i64 = py_k(toks, ip);
-        if k == PY_NEWLINE || k == PY_INDENT || k == PY_DEDENT {
-            ip = ip + 1;
-        } else if py_is_kw(toks, ip, "def") == 1 {
-            var f *u8 = py_def(toks, &ip);
-            if f != nil { ast_push(decls, f); }
-        } else {
-            py_err(toks, ip, "only 'def' is allowed at the top level");
-            py_skip_line(toks, &ip);
-        }
-    }
-    return ast_program(decls);
+    return ast_func(name.text, params, ast_type_i64(), ast_block(all));
 }
 
 reader minipy(text *u8) *u8 {
     var src *u8 = py_strip_comments(text);
-    var prog *u8 = py_program(py_lex(src));
-    // A reader that reports a syntax error and then hands back a program anyway
-    // is how a bad parse turns into a mystery further down the pipeline - most
-    // often a function that simply isn't there. Refuse to emit one.
-    if py_errors > 0 {
-        eprint("minipy: ");
-        eprint_i64(py_errors);
-        eprint(" error(s); not emitting a program\n");
+    py_src = src;
+    var t *Tokenizer = tok_new_stream(src, py_lex(src));
+    var tree *PNode = parse_py_program(t);
+    if tree == nil || !tok_eof(t) {
+        tok_print_error(t, "minipy");
         exit(1);
     }
-    return prog;
+    var decls *u8 = ast_vec();
+    var defs *PNode = pnode_require(tree, "defs");
+    var n i64 = vec_len(defs.children);
+    var i i64 = 0;
+    while i < n {
+        ast_push(decls, py_def_of(vec_get(defs.children, i)));
+        i = i + 1;
+    }
+    return ast_program(decls);
 }
