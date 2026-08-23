@@ -43,7 +43,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 26. ✓ Make capture cardinality explicit
 27. ✓ Make expression precedence reusable
 28. ✓ Make choice branches self-identifying
-29. Capture more languages only when it improves the reader toolkit
+29. → **Reject field access the compiler cannot type** ← current
+30. Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -332,6 +333,33 @@ return type with the LLVM backend, so a generated rule that referenced a later
 one was called as if it returned `i64`. Native tolerated the mismatch; wasm
 trapped on it. Same class as the closure-env ABI bug - the wasm target is the
 only thing that reports it.
+
+---
+
+## Next: Reject field access the compiler cannot type
+
+`vec_get` returns `i64`, so `vec_get(items, i).name` has no struct type to
+resolve. The compiler emits an unchecked load anyway and the program dies with
+no diagnostic and no location:
+
+```lang
+var it *Item = vec_get(v, 0);   // works
+if streq(it.name, "seven")      // works
+if streq(vec_get(v, 0).name, "seven")   // crashes, silently
+```
+
+Every reader in `example/` threads parse nodes through vectors, so this is one
+keystroke away in normal reader code - and the workaround (a typed local before
+every access) is currently folklore, not a diagnostic. Segfaults come first:
+
+- [ ] Report a source-located error when `.field` is applied to an expression
+      with no struct type, instead of emitting the load.
+- [ ] Name the expression's type in the message and point at the typed-local
+      form, so the fix is in the diagnostic rather than in a memory of it.
+- [ ] Keep every legal access working: struct pointers, nested fields, and the
+      typed-local pattern the readers already use.
+- [ ] Guard native and browser paths; a crash reachable in one line of reader
+      code should be a diagnostic in both.
 
 ---
 
