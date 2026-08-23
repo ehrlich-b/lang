@@ -30,7 +30,7 @@ include "std/ast.lang"
 
 // #parser{} generates a recursive descent parser from this grammar
 #parser{
-    sexp = number | symbol | operator | list
+    sexp = num:number | sym:symbol | op:operator | list:list
     list = '(' sexp* ')'
 }
 
@@ -54,7 +54,7 @@ func list_len(node *PNode) i64 {
 
 func is_sym(node *PNode, name *u8) bool {
     if node == nil { return false; }
-    if node.kind != 2 { return false; }
+    if !pnode_is(node, "sym") { return false; }
     return streq(node.text, name);
 }
 
@@ -173,17 +173,17 @@ func lisp_list_from(node *PNode, i i64, count i64) *u8 {
 // cons chains. (quote (a (b 2))) -> (cons sym-a (cons (cons sym-b (cons 2 nil)) nil))
 func lisp_quote(node *PNode) *u8 {
     if node == nil { return ast_call_named0("lisp_nil"); }
-    if node.kind == 1 {                                       // number -> boxed int
+    if pnode_is(node, "num") {                                // number -> boxed int
         return ast_call_named1("lisp_int", ast_number(node.text));
     }
-    if node.kind == 2 {                                       // symbol
+    if pnode_is(node, "sym") {
         if streq(node.text, "nil") { return ast_call_named0("lisp_nil"); }
         return ast_call_named1("lisp_sym", ast_string(node.text));
     }
-    if node.kind == 5 {                                       // operator symbol, e.g. '+
+    if pnode_is(node, "op") {                                 // operator symbol, e.g. '+
         return ast_call_named1("lisp_sym", ast_string(node.text));
     }
-    if node.kind == 4 {                                       // list -> cons chain
+    if pnode_is(node, "list") {                               // list -> cons chain
         return lisp_quote_list(node, 0, list_len(node));
     }
     return ast_call_named0("lisp_nil");
@@ -209,7 +209,7 @@ func lisp_runtime_call(fnname *u8, node *PNode, count i64) *u8 {
 // Emit a body in return (tail) position. A tail `if` becomes real control flow
 // with a return in each branch, so recursive base cases actually stop.
 func lisp_return(node *PNode) *u8 {
-    if node != nil && node.kind == 4 {
+    if node != nil && pnode_is(node, "list") {
         var first *PNode = list_get(node, 0);
         if is_sym(first, "if") {
             return ast_if(ast_call_named1("lisp_truthy", lisp_expr(list_get(node, 1))),
@@ -226,22 +226,22 @@ func lisp_return(node *PNode) *u8 {
 func lisp_expr(node *PNode) *u8 {
     if node == nil { return ast_call_named0("lisp_nil"); }
 
-    if node.kind == 1 {                              // number literal -> boxed int
+    if pnode_is(node, "num") {                       // number literal -> boxed int
         return ast_call_named1("lisp_int", ast_number(node.text));
     }
-    if node.kind == 2 {                              // symbol
+    if pnode_is(node, "sym") {
         if streq(node.text, "nil") { return ast_call_named0("lisp_nil"); }
         return ast_ident(node.text);
     }
-    if node.kind == 5 { return ast_call_named0("lisp_nil"); }   // bare operator (n/a)
-    if node.kind != 4 { return ast_call_named0("lisp_nil"); }   // only lists remain
+    if pnode_is(node, "op") { return ast_call_named0("lisp_nil"); }   // bare operator (n/a)
+    if !pnode_is(node, "list") { return ast_call_named0("lisp_nil"); } // only lists remain
 
     var count i64 = list_len(node);
     if count == 0 { return ast_call_named0("lisp_nil"); }
     var first *PNode = list_get(node, 0);
 
     // Operator-headed: arithmetic (foldable) or comparison (binary).
-    if first.kind == 5 {
+    if pnode_is(first, "op") {
         var op *u8 = first.text;
         var af *u8 = arith_fn(op);
         if af != nil {
@@ -326,12 +326,12 @@ func lisp_expr(node *PNode) *u8 {
     if is_sym(first, "list") { return lisp_list_from(node, 1, count); }
 
     // Head is itself an expression, e.g. ((lambda (x) ...) 5) -> apply its value.
-    if first.kind == 4 {
+    if pnode_is(first, "list") {
         return ast_call_named2("lisp_apply", lisp_expr(first), lisp_list_from(node, 1, count));
     }
 
     // Function call: (f a b) -> (call (ident f) a b)
-    if first.kind == 2 {
+    if pnode_is(first, "sym") {
         var args *u8 = ast_vec();
         var ai i64 = 1;
         while ai < count {

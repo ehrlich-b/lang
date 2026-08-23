@@ -45,8 +45,9 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 28. ✓ Make choice branches self-identifying
 29. ✓ Reject field access the compiler cannot type
 30. ✓ Reject a call with the wrong number of arguments
-31. → **Cash the reader toolkit in on the biggest reader** ← current
-32. Capture more languages only when it improves the reader toolkit
+31. ✓ Cash the reader toolkit in on the biggest reader
+32. → **Name the parts of a sequence, not their positions** ← current
+33. Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -338,30 +339,69 @@ only thing that reports it.
 
 ---
 
-## Next: Cash the reader toolkit in on the biggest reader
+## Next: Name the parts of a sequence, not their positions
+
+Labeled alternatives fixed *dispatch*: a reader no longer asks what kind of node
+this is. Sequence *structure* is still positional, and that is where the same
+fragility lives. The C reader reads its `if` statement as children 2, 4 and 5:
+
+```lang
+c_ifstmt = 'if' '(' c_expr ')' c_stmt c_elses
+var cond   *u8   = emit_expr_str(vec_get(s.children, 2));
+var then_b *u8   = emit_stmt_as_block(vec_get(s.children, 4));
+var elses  *PNode = vec_get(s.children, 5);
+```
+
+Adding one literal to that rule silently renumbers three lines in the converter,
+which is exactly the failure milestone 22 set out to remove. Named captures were
+built then and the big readers never adopted them: C has **70 positional child
+accesses to 15 named**, Flow 32 to 7, forth 8 to 0, minilisp 1 to 0.
+
+- [ ] Convert C and Flow's rules to named captures, keeping the grammar readable
+      - a rule where every element is named is worse than one where the parts
+      that lowering actually reaches are.
+- [ ] Find out why the toolkit was not adopted where it was needed most. If
+      naming every element is too noisy to be worth it, that is a toolkit
+      finding, not a reader finding.
+- [ ] Guard native and browser reader pipelines, as a refactor should.
+
+Two more gaps found while migrating, both worth their own milestone if they
+recur:
+
+- `std/prec.lang` handles binary infix only. C peels `=` and filters postfix
+  `++`/`--` out of the operand stream by hand; Flow peels `=` the same way. Two
+  of three readers doing the same thing by hand is the shape of a missing
+  feature, but the third case has not appeared yet.
+- A labeled alternative cannot resolve to another labeled choice, so a grammar
+  cannot say both "this is a switch item of kind statement" and "this statement
+  is a return". Leaving the outer one unlabeled works and reads well; a case
+  where it does not has not appeared.
+
+---
+
+## Completed: Cash the reader toolkit in on the biggest reader
 
 Milestones 22-28 built the toolkit - named captures, cardinality, grammar
 diagnostics, tree dumps, a shared precedence table, labeled branches - and
-proved each one on Calc and Flow, the two smallest readers. The C reader is 841
-lines with its own precedence ladder, its own climber, and 23 `kind ==` sniffs;
-minilisp has 11 and forth 8. If the toolkit does not make the big one shorter
-and more explicit, it is not finished, and no new language should be captured on
-top of it.
+proved each one on Calc and Flow, the two smallest readers. This spent it on the
+three that had never been touched.
 
-- [ ] C: replace `prec` and `climb` with `std/prec.lang`. Keep the exceptions
-      reader-local, as milestone 27 said: `=` is peeled as an assignment and
-      postfix `++`/`--` carry no right operand, so they come out of the operand
-      stream before the table sees it.
-- [ ] C, minilisp, forth: label the alternatives that lowering currently
-      identifies by child `kind` or by a marker's text, and dispatch with
-      `pnode_is`. A sniff that survives must be one the grammar genuinely cannot
-      express, and must say why.
-- [ ] Replace what silent fallbacks remain (`return ast_int(0)` for an
-      unrecognized node) with a named diagnostic, the way Flow's was.
-- [ ] Every shipped reader keeps working natively and in the browser: this is a
-      refactor, and the reader gates are what say so.
-- [ ] Report what the toolkit still cannot express. That list is the input to
-      the next toolkit milestone, and is worth more than the line count.
+- [x] C dropped its own `prec` ladder and its own `climb` for `std/prec.lang`.
+      The exceptions stayed reader-local as milestone 27 said: `=` and the
+      compound assignments are peeled as statements, and a postfix `++`/`--`,
+      which the grammar allows to carry no right operand, comes out of the
+      operand stream rather than being given a binding power it does not have.
+- [x] **Zero `kind ==` sniffs left in any shipped reader** - C went from 23 to 0,
+      forth 8 to 0, minilisp 11 to 0. C is 841 lines to 806.
+- [x] The sniffs that mattered were not the small ones. `emit_stmt` decided
+      between a declaration and an expression statement by how deep a `struct`
+      keyword sat under the first child; `emit_program` decided function vs
+      global by whether a `(` marker led the tail. Both are now one question the
+      grammar answers.
+- [x] Silent placeholders replaced by `c_unhandled`, which names the branch and
+      stops, as Flow's does.
+- [x] All four gates: 225 native checks, the wasm suite, direct wasm, and the
+      browser pipeline running every shipped reader.
 
 ---
 

@@ -60,15 +60,15 @@ include "std/ast.lang"
 // expression grammar: nesting is meaning assigned later by the reader.
 #parser{
     fo_program   = fo_def+
-    fo_def       = fo_worddef | fo_externdef | fo_effect
+    fo_def       = word:fo_worddef | extern:fo_externdef | comment:fo_effect
     fo_worddef   = ':' fo_name fo_effect fo_body ';'
     fo_externdef = 'extern' fo_name fo_effect ';'
     fo_name      = symbol fo_qmark*
     fo_qmark     = '?'
     fo_effect    = '(' fo_eitem* ')'
-    fo_eitem     = symbol | operator | number
+    fo_eitem     = sym:symbol | op:operator | num:number
     fo_body      = fo_word*
-    fo_word      = fo_name | number | operator | fo_effect | '.'
+    fo_word      = name:fo_name | num:number | op:operator | comment:fo_effect | dot:'.'
 }
 
 // PNode kinds: 0=literal marker (carries its text), 1=number, 2=symbol,
@@ -156,9 +156,7 @@ func fo_name_text(n *PNode) *u8 {
 func fo_word_at(items *u8, i i64) *u8 {
     if i >= vec_len(items) { return nil; }
     var it *PNode = vec_get(items, i);
-    if it.kind != 4 { return nil; }
-    var head *PNode = vec_get(it.children, 0);
-    if head.kind != 2 { return nil; }
+    if !pnode_is(it, "name") { return nil; }
     return fo_name_text(it);
 }
 
@@ -173,9 +171,9 @@ func fo_effect_split(eff *PNode, pnames *u8) i64 {
     var i i64 = 0;
     while i < n {
         var it *PNode = vec_get(items, i);
-        if it.kind == 5 {
+        if pnode_is(it, "op") {
             if streq(it.text, "--") { past = 1; }
-        } else if it.kind == 2 {
+        } else if pnode_is(it, "sym") {
             if past == 1 {
                 nres = nres + 1;
             } else {
@@ -193,10 +191,9 @@ func fo_effect_split(eff *PNode, pnames *u8) i64 {
 // A top-level item is a `:` definition (1), an `extern` declaration (2), or a
 // bare ( ... ) comment between definitions (0).
 func fo_def_kind(d *PNode) i64 {
-    var head *PNode = vec_get(d.children, 0);
-    if head.kind == 2 { return 2; }             // the 'extern' keyword
-    if streq(head.text, ":") == 1 { return 1; }
-    return 0;
+    if pnode_is(d, "extern") { return 2; }
+    if pnode_is(d, "word") { return 1; }
+    return 0;                                   // comment:fo_effect
 }
 
 // Signatures are a flat vec of (name, nparams, nresults) triples, collected in a
@@ -356,7 +353,7 @@ func fo_emit_operator(items *u8, ip *i64, stack *u8) void {
         var nxt *PNode = nil;
         if *ip < vec_len(items) { nxt = vec_get(items, *ip); }
         if nxt != nil {
-            if nxt.kind == 5 {
+            if pnode_is(nxt, "op") {
                 if streq(nxt.text, ">") {
                     *ip = *ip + 1;
                     fo_binary(stack, "!=");
@@ -547,27 +544,24 @@ func fo_emit_seq(items *u8, ip *i64, stack *u8, stmts *u8, sigs *u8, selfname *u
     var n i64 = vec_len(items);
     while *ip < n {
         var it *PNode = vec_get(items, *ip);
-        if it.kind == 1 {
+        if pnode_is(it, "num") {
             vec_push(stack, ast_number(it.text));
             *ip = *ip + 1;
-        } else if it.kind == 5 {
+        } else if pnode_is(it, "op") {
             fo_emit_operator(items, ip, stack);
-        } else if it.kind == 0 {
+        } else if pnode_is(it, "dot") {
             // `.` - print the top of stack (with Forth's trailing space)
             fo_flush(stack, stmts, it);
             ast_push(stmts, ast_expr_stmt(ast_call_named1("forth_dot", fo_pop(stack))));
             *ip = *ip + 1;
+        } else if pnode_is(it, "comment") {
+            *ip = *ip + 1;                          // an inline ( ... ) comment
         } else {
-            var head *PNode = vec_get(it.children, 0);
-            if head.kind == 0 {
-                *ip = *ip + 1;                      // an inline ( ... ) comment
-            } else {
-                var w *u8 = fo_name_text(it);
-                if streq(w, "else") == 1 { return; }
-                if streq(w, "then") == 1 { return; }
-                *ip = *ip + 1;
-                fo_emit_word(w, it, items, ip, stack, stmts, sigs, selfname);
-            }
+            var w *u8 = fo_name_text(it);
+            if streq(w, "else") == 1 { return; }
+            if streq(w, "then") == 1 { return; }
+            *ip = *ip + 1;
+            fo_emit_word(w, it, items, ip, stack, stmts, sigs, selfname);
         }
     }
 }

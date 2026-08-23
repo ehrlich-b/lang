@@ -32,15 +32,16 @@ require "std/core"
 require "std/tok"
 include "std/parser_reader.lang"
 include "std/ast.lang"
+include "std/prec.lang"
 
 // All rules are c_-prefixed: bare names like program/type/block/primary would
 // generate parse_program/parse_type/... which COLLIDE with the compiler's own
 // parser functions (pulled in transitively via lang_reader).
 #parser{
     c_program    = c_topdecl+
-    c_topdecl    = c_structdef | c_enumdef | c_topvar
+    c_topdecl    = struct:c_structdef | enum:c_enumdef | var:c_topvar
     c_topvar     = c_rettype symbol c_topvartail
-    c_topvartail = c_functail | c_globaltail
+    c_topvartail = func:c_functail | global:c_globaltail
     c_functail   = '(' c_params ')' c_block
     c_globaltail = c_arrdim c_initopt ';'
     c_structdef  = 'struct' symbol '{' c_fields '}' ';'
@@ -50,26 +51,26 @@ include "std/ast.lang"
     c_enumtag    = c_tagname*
     c_tagname    = symbol
     c_enumitems  = c_enumitem*
-    c_enumitem   = c_enummember | ','
+    c_enumitem   = member:c_enummember | ','
     c_enummember = symbol c_enumvalopt
     c_enumvalopt = c_enumval*
     c_enumval    = '=' number
     c_rettype    = c_basetype c_stars
     c_ptype      = c_anytype c_stars
-    c_anytype    = c_basetype | c_structtype | c_enumtype
+    c_anytype    = base:c_basetype | struct:c_structtype | enum:c_enumtype
     c_basetype   = 'int' | 'char' | 'void'
     c_structtype = 'struct' symbol
     c_enumtype   = 'enum' symbol
     c_stars      = c_star*
     c_star       = '*'
     c_params     = c_paramitem*
-    c_paramitem  = c_param | ','
+    c_paramitem  = param:c_param | ','
     c_param      = c_ptype symbol
     c_block     = '{' c_stmt* '}'
-    c_stmt      = c_retstmt | c_ifstmt | c_whilestmt | c_forstmt | c_switchstmt | c_breakstmt | c_continuestmt | c_decl | c_block | c_exprstmt
+    c_stmt      = ret:c_retstmt | if:c_ifstmt | while:c_whilestmt | for:c_forstmt | switch:c_switchstmt | break:c_breakstmt | continue:c_continuestmt | decl:c_decl | block:c_block | expr:c_exprstmt
     c_switchstmt = 'switch' '(' c_expr ')' '{' c_switchitems '}'
     c_switchitems = c_switchitem*
-    c_switchitem = c_caseval | c_defaultlabel | c_stmt
+    c_switchitem = case:c_caseval | default:c_defaultlabel | c_stmt
     c_caseval    = 'case' c_expr ':'
     c_defaultlabel = 'default' ':'
     c_breakstmt = 'break' ';'
@@ -80,7 +81,7 @@ include "std/ast.lang"
     c_elsepart  = 'else' c_stmt
     c_whilestmt = 'while' '(' c_expr ')' c_stmt
     c_forstmt   = 'for' '(' c_forinit c_expr ';' c_expr ')' c_stmt
-    c_forinit   = c_decl | c_exprstmt
+    c_forinit   = decl:c_decl | expr:c_exprstmt
     c_decl      = c_ptype symbol c_arrdim c_initopt ';'
     c_arrdim    = c_dim*
     c_dim       = '[' number ']'
@@ -89,18 +90,18 @@ include "std/ast.lang"
     c_exprstmt  = c_expr ';'
     c_expr      = c_binexpr c_terntail*
     c_terntail  = '?' c_expr ':' c_expr
-    c_binexpr   = c_unary c_oprest*
-    c_oprest    = operator c_unary?
-    c_unary     = c_neg | c_postfix
+    c_binexpr   = first:c_unary rest:c_oprest*
+    c_oprest    = op:operator right:c_unary?
+    c_unary     = neg:c_neg | postfix:c_postfix
     c_neg       = operator c_postfix
     c_postfix   = c_primary c_postfixop*
-    c_postfixop = c_callargs | c_member | c_index
+    c_postfixop = call:c_callargs | member:c_member | index:c_index
     c_callargs  = '(' c_args ')'
     c_member    = '.' symbol | '->' symbol
     c_index     = '[' c_expr ']'
     c_args      = c_argitem*
-    c_argitem   = c_expr | ','
-    c_primary   = number | string | symbol | c_parenexpr
+    c_argitem   = arg:c_expr | ','
+    c_primary   = num:number | str:string | sym:symbol | paren:c_parenexpr
     c_parenexpr = '(' c_expr ')'
 }
 
@@ -110,58 +111,65 @@ include "std/ast.lang"
 // Operator precedence (higher binds tighter)
 // ============================================================
 
-// C precedence ladder (low binds loosest). The tokenizer already lexes the
-// 2-char operators (==, !=, <=, >=, &&, ||) and carries their text, so they just
-// need a precedence here. '=' is prec 0: it's peeled off as an assignment
-// statement, never climbed as a binop.
-func prec(op *u8) i64 {
-    if streq(op, "||") { return 1; }
-    if streq(op, "&&") { return 2; }
-    if streq(op, "|") { return 3; }                                  // bitwise or
-    if streq(op, "^") { return 4; }                                  // bitwise xor
-    if streq(op, "&") { return 5; }                                  // bitwise and
-    if streq(op, "==") || streq(op, "!=") { return 6; }
-    if streq(op, "<") || streq(op, ">") || streq(op, "<=") || streq(op, ">=") { return 7; }
-    if streq(op, "<<") || streq(op, ">>") { return 8; }              // shifts
-    if streq(op, "+") || streq(op, "-") { return 9; }
-    if streq(op, "*") || streq(op, "/") || streq(op, "%") { return 10; }
-    return 0;
+// C's binary ladder, loosest level first. The tokenizer already lexes the
+// 2-char operators (==, !=, <=, >=, &&, ||, <<, >>) and carries their text, so
+// they only need a level here. '=' and the compound assignments are absent on
+// purpose: they are peeled off as statements, never climbed, and an operator
+// with no declared level is refused rather than guessed at.
+func c_table() *PrecTable {
+    var t *PrecTable = prec_new();
+    prec_left(t, "||");
+    prec_left(t, "&&");
+    prec_left(t, "|");
+    prec_left(t, "^");
+    prec_left(t, "&");
+    prec_left(t, "== !=");
+    prec_left(t, "< > <= >=");
+    prec_left(t, "<< >>");
+    prec_left(t, "+ -");
+    prec_left(t, "* / %");
+    return t;
 }
 
 // ============================================================
 // Expression emission (precedence climbing over a flat operand/op list)
 // ============================================================
 
-// Split a c_binexpr (= c_unary c_oprest*) into parallel operand/op vecs
-// (operands[i] is followed by ops[i]). Shared by expression emission and
-// assignment detection. (The ternary tail, if any, is handled by the caller.)
-func flatten_expr(e *PNode, operands *u8, ops *u8) void {
-    vec_push(operands, vec_get(e.children, 0));
-    var star *PNode = vec_get(e.children, 1);
-    var m i64 = vec_len(star.children);
-    var i i64 = 0;
-    while i < m {
-        var orn *PNode = vec_get(star.children, i);  // oprest = [op_atom, postfix]
-        vec_push(ops, vec_get(orn.children, 0));
-        // A trailing postfix ++/-- has no right operand (the grammar makes it
-        // optional), so the oprest is just [op]; leave operands one shorter.
-        if vec_len(orn.children) > 1 {
-            vec_push(operands, vec_get(orn.children, 1));
+// c_binexpr = first:c_unary rest:c_oprest*. Push operands and operators in
+// source order and let the table shape the tree; `from` lets the assignment
+// path start past the leading '='.
+//
+// One thing cannot go into the table: a postfix ++/-- in value position. The
+// grammar makes c_oprest's right operand optional so `i++` can be a statement,
+// and an operator with no right operand is not a binary operator. It is dropped
+// here, its side effect honoured only at statement level, rather than given a
+// binding power it does not have.
+func c_emit_flat(first *PNode, rest *PNode, from i64) *u8 {
+    var expr *PrecExpr = prec_expr(c_table());
+    prec_operand(expr, emit_operand_str(first));
+
+    var n i64 = vec_len(rest.children);
+    var i i64 = from;
+    while i < n {
+        var item *PNode = vec_get(rest.children, i);
+        var right *PNode = pnode_get(item, "right");
+        if right != nil {
+            var op *PNode = pnode_require(item, "op");
+            prec_op(expr, op.text);
+            prec_operand(expr, emit_operand_str(right));
         }
         i = i + 1;
     }
+    return prec_build(expr);
 }
 
 // A c_expr is `c_binexpr c_terntail*`: emit the binexpr value, then fold any
-// ternary tail around it. (A flat binexpr is children[0]; the star is children[1].)
+// ternary tail around it.
 func emit_expr_str(e *PNode) *u8 {
     var binexpr *PNode = vec_get(e.children, 0);
     var terntail *PNode = vec_get(e.children, 1);
-    var operands *u8 = vec_new(8);
-    var ops *u8 = vec_new(8);
-    flatten_expr(binexpr, operands, ops);
-    var pos i64 = 0;
-    var base *u8 = climb(operands, ops, &pos, 0);
+    var base *u8 = c_emit_flat(pnode_require(binexpr, "first"),
+                               pnode_require(binexpr, "rest"), 0);
     if vec_len(terntail.children) > 0 {
         return emit_ternary(base, vec_get(terntail.children, 0));
     }
@@ -199,59 +207,54 @@ func emit_ternary(cond *u8, tt *PNode) *u8 {
     return ast_block_expr(stmts, ast_ident(t));
 }
 
-// Standard precedence climbing. operands[pos] aligns with ops[pos].
-func climb(operands *u8, ops *u8, posptr *i64, minprec i64) *u8 {
-    if *posptr >= vec_len(operands) { return ast_int(0); }   // defensive (dangling postfix op)
-    var left *u8 = emit_operand_str(vec_get(operands, *posptr));
-    var nops i64 = vec_len(ops);
-    while *posptr < nops {
-        var opnode *PNode = vec_get(ops, *posptr);
-        // A postfix ++/-- in value position (not a statement) has no right operand
-        // and is unsupported: skip it (side effect honored only at statement level).
-        if streq(opnode.text, "++") || streq(opnode.text, "--") {
-            *posptr = *posptr + 1;
-        } else {
-            var p i64 = prec(opnode.text);
-            if p < minprec { return left; }
-            *posptr = *posptr + 1;                               // consume operator
-            var right *u8 = climb(operands, ops, posptr, p + 1); // left-associative
-            left = ast_binop(opnode.text, left, right);
-        }
+// A branch the grammar can produce but this converter does not handle is a
+// reader bug. Name it and stop: emitting a placeholder is how a reader turns its
+// own gap into a mystery in the generated program.
+func c_unhandled(what *u8, node *PNode) *u8 {
+    eprint("c: unhandled ");
+    eprint(what);
+    var label *u8 = pnode_branch(node);
+    if label == nil {
+        eprintln(" (the grammar left this alternative unlabeled)");
+    } else {
+        eprint(" branch '");
+        eprint(label);
+        eprintln("'");
     }
-    return left;
+    exit(1);
+    return nil;
 }
 
-// An operand is a c_unary = c_neg | c_postfix. The CHOICE returns the chosen
-// node directly, so we tell them apart by their first child: c_neg leads with an
-// operator atom (kind 5), c_postfix leads with a primary (kind 1/2/4).
+// c_unary = neg:c_neg | postfix:c_postfix. The grammar names the alternative
+// that matched, so lowering asks it instead of inspecting the first child's kind.
 func emit_operand_str(node *PNode) *u8 {
-    var f *PNode = vec_get(node.children, 0);
-    if f.kind == 5 {                          // c_neg = [op_atom, postfix]
+    if pnode_is(node, "neg") {                // c_neg = [op_atom, postfix]
+        var f *PNode = vec_get(node.children, 0);
         var operand *u8 = emit_postfix_str(vec_get(node.children, 1));
         if streq(f.text, "~") {               // ~x == x ^ -1 (kernel has no unary ~)
             return ast_binop("^", operand, ast_unop("-", ast_int(1)));
         }
         return ast_unop(f.text, operand);
     }
-    return emit_postfix_str(node);            // c_postfix
+    if pnode_is(node, "postfix") { return emit_postfix_str(node); }
+    return c_unhandled("operand", node);
 }
 
 // If `primary` is a parenthesized lone deref `(*X)`, return the c_postfix node X
 // being dereferenced; else nil. Used to peel C's explicit deref before a member
 // access (see emit_postfix_str).
 func deref_paren_inner(primary *PNode) *PNode {
-    if primary.kind != 4 { return nil; }              // parenexpr is a list node
-    var c0 *PNode = vec_get(primary.children, 0);
-    if c0.kind != 0 { return nil; }                   // ...leading with a '(' marker
+    if !pnode_is(primary, "paren") { return nil; }    // c_parenexpr = ['(', expr, ')']
     var inner *PNode = vec_get(primary.children, 1);  // the c_expr = [c_binexpr, terntail*]
     var terntail *PNode = vec_get(inner.children, 1);
     if vec_len(terntail.children) != 0 { return nil; } // a ternary is not a lone deref
-    var binexpr *PNode = vec_get(inner.children, 0);  // c_binexpr = [c_unary, c_oprest*]
-    var orest *PNode = vec_get(binexpr.children, 1);  // c_oprest*
+    var binexpr *PNode = vec_get(inner.children, 0);  // c_binexpr
+    var orest *PNode = pnode_require(binexpr, "rest");
     if vec_len(orest.children) != 0 { return nil; }   // must be a lone unary
-    var u *PNode = vec_get(binexpr.children, 0);      // c_unary
+    var u *PNode = pnode_require(binexpr, "first");
+    if !pnode_is(u, "neg") { return nil; }
     var u0 *PNode = vec_get(u.children, 0);
-    if u0.kind == 5 && streq(u0.text, "*") {          // c_neg with '*'
+    if streq(u0.text, "*") {                          // c_neg with '*'
         return vec_get(u.children, 1);                // the c_postfix being deref'd
     }
     return nil;
@@ -272,9 +275,7 @@ func emit_postfix_str(pf *PNode) *u8 {
     var base *u8 = nil;
     var peeled *PNode = nil;
     if nops > 0 {
-        var op0 *PNode = vec_get(ops.children, 0);
-        var op0second *PNode = vec_get(op0.children, 1);
-        if op0second.kind == 2 {                   // first op is a member
+        if pnode_is(vec_get(ops.children, 0), "member") {
             peeled = deref_paren_inner(primary);
         }
     }
@@ -288,28 +289,25 @@ func emit_postfix_str(pf *PNode) *u8 {
     while oi < nops {
         var op *PNode = vec_get(ops.children, oi);
         var second *PNode = vec_get(op.children, 1);
-        if second.kind == 2 {                     // c_member = ['.', name] -> (field base name)
+        if pnode_is(op, "member") {               // c_member = ['.', name] -> (field base name)
             base = ast_field(base, second.text);
-        } else {
-            // call and index both have a kind-4 second child; distinguish by the
-            // leading marker's text ('(' vs '[' - markers carry their text).
-            var marker *PNode = vec_get(op.children, 0);
-            if streq(marker.text, "[") {          // c_index = ['[', expr, ']'] -> (index base idx)
-                base = ast_index(base, emit_expr_str(second));
-            } else {                              // c_callargs -> (call base args...)
-                var args *u8 = ast_vec();
-                var items *u8 = second.children;
-                var n i64 = vec_len(items);
-                var i i64 = 0;
-                while i < n {
-                    var it *PNode = vec_get(items, i);
-                    if it.kind != 0 {            // skip ',' markers; args are expr nodes
-                        ast_push(args, emit_expr_str(it));
-                    }
-                    i = i + 1;
+        } else if pnode_is(op, "index") {         // c_index = ['[', expr, ']'] -> (index base idx)
+            base = ast_index(base, emit_expr_str(second));
+        } else if pnode_is(op, "call") {          // c_callargs -> (call base args...)
+            var args *u8 = ast_vec();
+            var items *u8 = second.children;
+            var n i64 = vec_len(items);
+            var i i64 = 0;
+            while i < n {
+                var it *PNode = vec_get(items, i);
+                if pnode_is(it, "arg") {          // ',' separators carry no label
+                    ast_push(args, emit_expr_str(it));
                 }
-                base = ast_call(base, args);
+                i = i + 1;
             }
+            base = ast_call(base, args);
+        } else {
+            return c_unhandled("postfix operator", op);
         }
         oi = oi + 1;
     }
@@ -317,22 +315,18 @@ func emit_postfix_str(pf *PNode) *u8 {
 }
 
 func emit_primary_str(p *PNode) *u8 {
-    if p.kind == 1 {               // number
-        return ast_number(p.text);
-    }
-    if p.kind == 2 {               // symbol -> ident
-        return ast_ident(p.text);
-    }
-    if p.kind == 3 {               // TOK_STRING: "..." string OR '...' char literal
-        if *(p.text) == 39 {       // leading ' -> C char literal, an integer value
+    if pnode_is(p, "num") { return ast_number(p.text); }
+    if pnode_is(p, "sym") { return ast_ident(p.text); }
+    if pnode_is(p, "str") {         // one token covers "..." and '...'
+        if *(p.text) == 39 {        // leading ' -> C char literal, an integer value
             return ast_int(char_literal_value(p.text));
         }
         return ast_string_raw(p.text);  // "..." string; text keeps its quotes for the kernel
     }
-    if p.kind == 4 {               // parenexpr = ['(', expr, ')']
+    if pnode_is(p, "paren") {       // c_parenexpr = ['(', expr, ')']
         return emit_expr_str(vec_get(p.children, 1));
     }
-    return ast_int(0);
+    return c_unhandled("primary", p);
 }
 
 // Value of a C char literal token (text includes the single quotes, e.g. 'a' or
@@ -356,60 +350,43 @@ func char_literal_value(text *u8) i64 {
 // Statement emission
 // ============================================================
 
+// c_stmt names its alternatives, so the statement says what it is. This used to
+// be re-derived from a leading keyword's text and, for the two keyword-less
+// forms, from how deep a 'struct' sat under the first child - which is how
+// telling a declaration from an expression statement ended up being a question
+// about parse-tree shape rather than about C.
+//
+// c_forinit labels its two alternatives `decl` and `expr` as well, so a for
+// loop's initializer arrives here answering the same two questions.
 func emit_stmt(s *PNode) *u8 {
-    var first *PNode = vec_get(s.children, 0);
-
-    if first.kind == 0 {           // block: leading '{' marker
-        return emit_block(s);
+    if pnode_is(s, "block") { return emit_block(s); }
+    if pnode_is(s, "break") { return ast_break(nil); }
+    if pnode_is(s, "continue") { return ast_continue(nil); }
+    if pnode_is(s, "ret") {                    // ['return', expr, ';']
+        return ast_return(emit_expr_str(vec_get(s.children, 1)));
     }
-
-    if first.kind == 2 {
-        if streq(first.text, "break") { return ast_break(nil); }
-        if streq(first.text, "continue") { return ast_continue(nil); }
-        if streq(first.text, "return") {       // ['return', expr, ';']
-            return ast_return(emit_expr_str(vec_get(s.children, 1)));
+    if pnode_is(s, "if") {                     // ['if', '(', expr, ')', stmt, elses]
+        var cond *u8 = emit_expr_str(vec_get(s.children, 2));
+        var then_b *u8 = emit_stmt_as_block(vec_get(s.children, 4));
+        var elses *PNode = vec_get(s.children, 5);   // c_elses = c_elsepart*
+        var else_b *u8 = nil;
+        if vec_len(elses.children) > 0 {
+            var elsepart *PNode = vec_get(elses.children, 0);  // ['else', stmt]
+            else_b = emit_stmt_as_block(vec_get(elsepart.children, 1));
         }
-        if streq(first.text, "if") {           // ['if', '(', expr, ')', stmt, elses]
-            var cond *u8 = emit_expr_str(vec_get(s.children, 2));
-            var then_b *u8 = emit_stmt_as_block(vec_get(s.children, 4));
-            var elses *PNode = vec_get(s.children, 5);   // c_elses = c_elsepart*
-            var else_b *u8 = nil;
-            if vec_len(elses.children) > 0 {
-                var elsepart *PNode = vec_get(elses.children, 0);  // ['else', stmt]
-                else_b = emit_stmt_as_block(vec_get(elsepart.children, 1));
-            }
-            return ast_if(cond, then_b, else_b);
-        }
-        if streq(first.text, "while") {        // ['while', '(', expr, ')', stmt]
-            return ast_while(emit_expr_str(vec_get(s.children, 2)),
-                             emit_stmt_as_block(vec_get(s.children, 4)));
-        }
-        if streq(first.text, "for") {
-            return emit_for(s);
-        }
-        if streq(first.text, "switch") {
-            return emit_switch(s);
-        }
+        return ast_if(cond, then_b, else_b);
     }
-
-    // first is a kind-4 list: a c_decl leads with a c_ptype, whose first child
-    // (the anytype) is either a base-type keyword (kind 2: int/char/void) or a
-    // c_structtype = ['struct', Name] (kind 4). A c_exprstmt leads with a c_expr,
-    // whose first child is a c_unary (kind 4) - never a 'struct'-led structtype.
-    var f0 *PNode = vec_get(first.children, 0);
-    if f0.kind == 2 {
-        if streq(f0.text, "int") || streq(f0.text, "char") || streq(f0.text, "void") {
-            return emit_decl(s);
-        }
+    if pnode_is(s, "while") {                  // ['while', '(', expr, ')', stmt]
+        return ast_while(emit_expr_str(vec_get(s.children, 2)),
+                         emit_stmt_as_block(vec_get(s.children, 4)));
     }
-    if f0.kind == 4 {
-        var g0 *PNode = vec_get(f0.children, 0);
-        if g0.kind == 2 {
-            if streq(g0.text, "struct") { return emit_decl(s); }   // struct-typed local
-            if streq(g0.text, "enum") { return emit_decl(s); }     // enum-typed local
-        }
+    if pnode_is(s, "for") { return emit_for(s); }
+    if pnode_is(s, "switch") { return emit_switch(s); }
+    if pnode_is(s, "decl") { return emit_decl(s); }
+    if pnode_is(s, "expr") {
+        return emit_exprstmt_from_expr(vec_get(s.children, 0));
     }
-    return emit_exprstmt_from_expr(first);
+    return c_unhandled("statement", s);
 }
 
 // Base operator for a compound-assignment op ("+=" -> "+", ...); nil otherwise.
@@ -440,20 +417,20 @@ func emit_incdec(lvnode *PNode, base *u8) *u8 {
 // Returns the assign string if handled, else nil. ++/-- in value position is NOT
 // handled here (see climb).
 func try_incdec(expr *PNode) *u8 {
-    var u *PNode = vec_get(expr.children, 0);        // c_unary
-    var star *PNode = vec_get(expr.children, 1);     // c_oprest*
+    var u *PNode = pnode_require(expr, "first");
+    var star *PNode = pnode_require(expr, "rest");
     var ns i64 = vec_len(star.children);
     if ns == 1 {                                     // postfix: lvalue ++ / --
         var orn *PNode = vec_get(star.children, 0);
-        if vec_len(orn.children) == 1 {              // bare op, no right operand
-            var opn *PNode = vec_get(orn.children, 0);
+        if pnode_get(orn, "right") == nil {          // bare op, no right operand
+            var opn *PNode = pnode_require(orn, "op");
             var base *u8 = incdec_base(opn.text);
             if base != nil { return emit_incdec(u, base); }
         }
     }
     if ns == 0 {                                     // prefix: ++ / -- lvalue
-        var u0 *PNode = vec_get(u.children, 0);
-        if u0.kind == 5 {
+        if pnode_is(u, "neg") {
+            var u0 *PNode = vec_get(u.children, 0);
             var base *u8 = incdec_base(u0.text);
             if base != nil { return emit_incdec(vec_get(u.children, 1), base); }
         }
@@ -473,30 +450,27 @@ func emit_exprstmt_from_expr(expr *PNode) *u8 {
         var inc *u8 = try_incdec(binexpr);
         if inc != nil { return inc; }
     }
-    var operands *u8 = vec_new(8);
-    var ops *u8 = vec_new(8);
-    flatten_expr(binexpr, operands, ops);
-    if vec_len(ops) > 0 {
-        var op0 *PNode = vec_get(ops, 0);
+    var lv *PNode = pnode_require(binexpr, "first");
+    var rest *PNode = pnode_require(binexpr, "rest");
+    if vec_len(rest.children) > 0 {
+        // The leading operator decides the statement. Both assignment forms peel
+        // it off and climb what follows, so '=' and '+=' never reach the table.
+        var item0 *PNode = vec_get(rest.children, 0);
+        var op0 *PNode = pnode_require(item0, "op");
         if streq(op0.text, "=") {
-            var lv *PNode = vec_get(operands, 0);
-            var rpos i64 = 1;
-            var rhs *u8 = climb(operands, ops, &rpos, 1);         // value right of '=' ...
+            var rhs *u8 = c_emit_flat(pnode_require(item0, "right"), rest, 1);
             if ntt > 0 { rhs = emit_ternary(rhs, vec_get(terntail.children, 0)); }  // ... incl. ?:
             return ast_assign(emit_operand_str(lv), rhs);
         }
         var cbase *u8 = compound_base(op0.text);                  // x op= rhs -> x = x op (rhs)
         if cbase != nil {
-            var lv *PNode = vec_get(operands, 0);
             var lvs *u8 = emit_operand_str(lv);
-            var cpos i64 = 1;
-            var rhs *u8 = climb(operands, ops, &cpos, 1);
+            var rhs *u8 = c_emit_flat(pnode_require(item0, "right"), rest, 1);
             if ntt > 0 { rhs = emit_ternary(rhs, vec_get(terntail.children, 0)); }
             return ast_assign(lvs, ast_binop(cbase, lvs, rhs));
         }
     }
-    var epos i64 = 0;
-    var base *u8 = climb(operands, ops, &epos, 0);
+    var base *u8 = c_emit_flat(lv, rest, 0);
     if ntt > 0 { base = emit_ternary(base, vec_get(terntail.children, 0)); }
     return ast_expr_stmt(base);
 }
@@ -520,21 +494,17 @@ func emit_for(s *PNode) *u8 {
 }
 
 // A c_switchitem is a 'case' label, a 'default' label, or a statement. Return
-// 1=case, 2=default, 0=statement (by the item's leading atom).
+// 1=case, 2=default, 0=statement. The statement alternative is deliberately
+// unlabeled: c_stmt labels its own alternatives, and one node cannot carry two
+// branch names - so a statement arrives here still answering to its own label.
 func switch_label_kind(it *PNode) i64 {
-    var h *PNode = vec_get(it.children, 0);
-    if h.kind == 2 {
-        if streq(h.text, "case") { return 1; }
-        if streq(h.text, "default") { return 2; }
-    }
+    if pnode_is(it, "case") { return 1; }
+    if pnode_is(it, "default") { return 2; }
     return 0;
 }
 
 func switch_is_break(it *PNode) i64 {
-    var h *PNode = vec_get(it.children, 0);
-    if h.kind == 2 {
-        if streq(h.text, "break") { return 1; }
-    }
+    if pnode_is(it, "break") { return 1; }
     return 0;
 }
 
@@ -647,10 +617,7 @@ func emit_decl(d *PNode) *u8 {
 
 // A control-flow body must be a block; wrap a single statement if needed.
 func emit_stmt_as_block(s *PNode) *u8 {
-    var first *PNode = vec_get(s.children, 0);
-    if first.kind == 0 {           // already a block
-        return emit_block(s);
-    }
+    if pnode_is(s, "block") { return emit_block(s); }
     return ast_block1(emit_stmt(s));
 }
 
@@ -673,23 +640,20 @@ func emit_block(block *PNode) *u8 {
 // ============================================================
 
 // c_ptype/c_rettype = anytype c_stars  ->  children [anytype, stars_star]. Each
-// star wraps the base in a (type_ptr ...). anytype is either a base-type keyword
-// atom (kind 2) or a c_structtype = ['struct', Name] (kind 4). char -> u8 so
-// `char*` is `*u8` (lang's string type); int -> i64; void -> void; struct N -> N.
+// star wraps the base in a (type_ptr ...). c_anytype names which of its three
+// alternatives matched. char -> u8 so `char*` is `*u8` (lang's string type);
+// int -> i64; void -> void; struct N -> N; `enum Name` is just an int.
 func emit_type(t *PNode) *u8 {
     if t == nil { return ast_type("i64"); }
     var anytype *PNode = vec_get(t.children, 0);
     var stars *PNode = vec_get(t.children, 1);
     var n i64 = vec_len(stars.children);
     var base *u8 = nil;
-    if anytype.kind == 4 {                        // c_structtype or c_enumtype = [kw, Name]
-        var head *PNode = vec_get(anytype.children, 0);
-        if streq(head.text, "enum") {
-            base = ast_type("i64");               // `enum Name` is just an int
-        } else {                                  // c_structtype = ['struct', Name]
-            var nm *PNode = vec_get(anytype.children, 1);
-            base = ast_type(nm.text);
-        }
+    if pnode_is(anytype, "enum") {                // c_enumtype = ['enum', Name]
+        base = ast_type("i64");
+    } else if pnode_is(anytype, "struct") {       // c_structtype = ['struct', Name]
+        var nm *PNode = vec_get(anytype.children, 1);
+        base = ast_type(nm.text);
     } else if streq(anytype.text, "void") {
         base = ast_type("void");
     } else if streq(anytype.text, "char") {
@@ -731,7 +695,7 @@ func emit_params(params *PNode) *u8 {
     var i i64 = 0;
     while i < n {
         var it *PNode = vec_get(items, i);
-        if it.kind == 4 {                  // a param (kind-0 = ',' marker)
+        if pnode_is(it, "param") {         // ',' separators carry no label
             var pkids *u8 = it.children;
             var pname *PNode = vec_get(pkids, 1);   // bind before .text: vec_get is *u8
             var ptype *PNode = vec_get(pkids, 0);
@@ -767,8 +731,8 @@ func emit_enumdef(d *PNode, decls *u8) void {
     var counter i64 = 0;
     var i i64 = 0;
     while i < n {
-        var it *PNode = vec_get(items.children, i);   // c_enumitem = member | ','
-        if it.kind == 4 {                              // a member (',' is a kind-0 marker)
+        var it *PNode = vec_get(items.children, i);   // c_enumitem = member:... | ','
+        if pnode_is(it, "member") {
             var namep *PNode = vec_get(it.children, 0);    // bind before .text: vec_get is *u8
             var valopt *PNode = vec_get(it.children, 1);   // c_enumvalopt = c_enumval*
             var value i64 = counter;
@@ -802,10 +766,9 @@ func emit_structdef(sd *PNode) *u8 {
     return ast_struct(name.text, fv);
 }
 
-// program = topdecl+ ; topdecl = structdef | topvar. A structdef leads with the
-// 'struct' keyword (kind-2 atom); a topvar leads with its c_rettype (kind-4 list).
-// A topvar's tail picks func vs global: c_functail leads with a '(' marker
-// (kind 0), c_globaltail leads with c_arrdim (a kind-4 star list).
+// program = topdecl+. c_topdecl names struct/enum/var, and a var's c_topvartail
+// names func/global - the two questions that used to be answered by whether a
+// keyword sat at children[0] and whether the tail began with a '(' marker.
 func emit_program(prog *PNode) *u8 {
     var decls *u8 = ast_vec();
     if prog != nil {
@@ -814,19 +777,21 @@ func emit_program(prog *PNode) *u8 {
         var i i64 = 0;
         while i < n {
             var d *PNode = vec_get(dl, i);
-            var head *PNode = vec_get(d.children, 0);
-            if head.kind == 2 && streq(head.text, "struct") {
+            if pnode_is(d, "struct") {
                 ast_push(decls, emit_structdef(d));
-            } else if head.kind == 2 && streq(head.text, "enum") {
+            } else if pnode_is(d, "enum") {
                 emit_enumdef(d, decls);                     // pushes one global per member
-            } else {
+            } else if pnode_is(d, "var") {
                 var tail *PNode = vec_get(d.children, 2);   // c_topvartail
-                var t0 *PNode = vec_get(tail.children, 0);
-                if t0.kind == 0 {                           // '(' marker -> function
+                if pnode_is(tail, "func") {
                     ast_push(decls, emit_func(d));
-                } else {                                    // c_arrdim -> global var
+                } else if pnode_is(tail, "global") {
                     ast_push(decls, emit_global(d));
+                } else {
+                    return c_unhandled("top-level declarator", tail);
                 }
+            } else {
+                return c_unhandled("top-level declaration", d);
             }
             i = i + 1;
         }

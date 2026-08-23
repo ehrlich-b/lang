@@ -160,6 +160,16 @@ branch. A labeled alternative may not resolve to a rule that labels its own
 alternatives — one node cannot carry two branch names — and that is rejected at
 the grammar, not at lowering.
 
+That restriction is usually not a loss: leave the outer alternative unlabeled
+and the inner label still answers. The C reader's switch body does exactly this,
+because a switch item is either a `case`/`default` label or an ordinary
+statement, and a statement already says what kind it is:
+
+```lang
+c_stmt       = ret:c_retstmt | if:c_ifstmt | ... | expr:c_exprstmt
+c_switchitem = case:c_caseval | default:c_defaultlabel | c_stmt
+```
+
 ## Alternatives and errors
 
 Alternatives are ordered and transactional. If a branch fails after consuming
