@@ -3132,6 +3132,131 @@ func get_expr_type(expr *u8) *u8 {
 }
 
 // ============================================================
+// Field access resolution
+// ============================================================
+
+// Render a type the way it was written, for diagnostics. ast_emit's printer is
+// S-expression shaped and is dead-stripped out of standalone readers, so the
+// one place that has to name a type in an error message carries its own.
+func cg_eprint_type(t *u8) void {
+    if t == nil { eprint("<unknown>"); return; }
+    var kind i64 = node_kind(t);
+    if kind == TYPE_PTR {
+        eprint("*");
+        cg_eprint_type(ptr_type_elem(t));
+        return;
+    }
+    if kind == TYPE_ARRAY {
+        eprint("[");
+        eprint_i64(array_type_size(t));
+        eprint("]");
+        cg_eprint_type(array_type_elem(t));
+        return;
+    }
+    if kind == TYPE_FUNC { eprint("fn(...)"); return; }
+    if kind == TYPE_CLOSURE { eprint("closure(...)"); return; }
+    if kind == TYPE_BASE {
+        eprint_buf(base_type_name(t), base_type_name_len(t));
+        return;
+    }
+    eprint("<unknown>");
+}
+
+// Point a field diagnostic at the access itself. A base expression that came
+// from a call or from a reader often carries no origin of its own, and the
+// stale fallback location is worse than the base's when it has one.
+func cg_field_error_prefix(field_node *u8, base_expr *u8) void {
+    if node_origin_source(field_node) != nil {
+        cg_error_prefix_at(field_node);
+        return;
+    }
+    cg_error_prefix_at(base_expr);
+}
+
+// Resolve the struct a `.field` access reads through, or say why it cannot.
+// Every access path used to give up silently here - reads emitted a literal 0
+// and assignments emitted nothing - so `vec_get(v, 0).name`, whose base type is
+// the *u8 the vector returns, compiled clean and died at run time with no
+// message and no location. Both backends and all four paths share this, so an
+// untypable access reads the same wherever it is written.
+// Returns the struct declaration, or nil after reporting. *is_ptr_out is 1 when
+// the base is a pointer to that struct rather than the struct itself.
+func cg_field_struct(field_node *u8, is_ptr_out *i64) *u8 {
+    *is_ptr_out = 0;
+    var base_expr *u8 = field_expr_expr(field_node);
+    var field_name *u8 = field_expr_field(field_node);
+    var field_len i64 = field_expr_field_len(field_node);
+    var base_type *u8 = get_expr_type(base_expr);
+    var struct_name *u8 = nil;
+    var struct_name_len i64 = 0;
+    if base_type != nil {
+        if type_kind(base_type) == TYPE_BASE {
+            struct_name = base_type_name(base_type);
+            struct_name_len = base_type_name_len(base_type);
+        } else if type_kind(base_type) == TYPE_PTR {
+            var pointed *u8 = ptr_type_elem(base_type);
+            if pointed != nil && type_kind(pointed) == TYPE_BASE {
+                struct_name = base_type_name(pointed);
+                struct_name_len = base_type_name_len(pointed);
+                *is_ptr_out = 1;
+            }
+        }
+    }
+
+    var struct_decl *u8 = nil;
+    if struct_name != nil {
+        struct_decl = find_struct(struct_name, struct_name_len);
+    }
+
+    if struct_decl == nil {
+        cg_field_no_struct_error(field_node, base_expr, base_type);
+        return nil;
+    }
+
+    if get_field_offset(struct_decl, field_name, field_len) < 0 {
+        cg_field_unknown_error(field_node, base_expr, struct_name, struct_name_len);
+        return nil;
+    }
+
+    return struct_decl;
+}
+
+// The two failure messages live apart from the resolver because the direct
+// wasm backend infers types its own way but must say the same thing.
+func cg_field_no_struct_error(field_node *u8, base_expr *u8, base_type *u8) void {
+    cg_field_error_prefix(field_node, base_expr);
+    var field_name *u8 = field_expr_field(field_node);
+    var field_len i64 = field_expr_field_len(field_node);
+    eprint("cannot access field '");
+    eprint_buf(field_name, field_len);
+    eprint("' of ");
+    if base_type == nil {
+        eprint("an expression with no type");
+    } else {
+        eprint("type ");
+        cg_eprint_type(base_type);
+    }
+    eprintln("");
+    eprint("  note: only a struct, or a pointer to one, has fields; ");
+    eprintln("bind the value to a typed local first, as in");
+    eprint("  note:   var it *Item = <expr>;  then  it.");
+    eprint_buf(field_name, field_len);
+    eprintln("");
+    cg_had_error = 1;
+}
+
+func cg_field_unknown_error(field_node *u8, base_expr *u8,
+                            struct_name *u8, struct_name_len i64) void {
+    cg_field_error_prefix(field_node, base_expr);
+    eprint("struct '");
+    eprint_buf(struct_name, struct_name_len);
+    eprint("' has no field '");
+    eprint_buf(field_expr_field(field_node), field_expr_field_len(field_node));
+    eprintln("'");
+    cg_had_error = 1;
+}
+
+// ============================================================
 // Constant evaluation (for global initializers)
 // ============================================================
 

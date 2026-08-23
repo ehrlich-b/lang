@@ -3018,6 +3018,15 @@ func parse_postfix() *u8 {
             *pn = tok_lexeme(name_tok);
             var pl *i64 = node + 24;
             *pl = tok_lexeme_len(name_tok);
+            // Origins are a linear side table, not a per-node field, so they
+            // stay rare. A `.field` on a plain identifier is already located
+            // well enough by its declaration; one on a computed base - a call
+            // result, an index, a deref, another field - is the form that can
+            // turn out to have no struct type at all, and codegen has no way
+            // to recover where it was written.
+            if expr != nil && node_kind(expr) != NODE_IDENT_EXPR {
+                node_set_origin(node, parse_source_name, tok_line(name_tok), tok_col(name_tok));
+            }
             expr = node;
         } else {
             done = 1;

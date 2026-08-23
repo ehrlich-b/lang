@@ -207,6 +207,39 @@ func main() i64 { return 0; }
       throw new Error(`browser ${name} grammar diagnostic mismatch: ${badGrammarCompile.stderr}`);
     }
   }
+  // `.field` on a value with no struct type is a located error here too. The
+  // browser compiles with the direct wasm backend, which infers types its own
+  // way, so it needs its own guard rather than trusting the native one.
+  const badFields = [
+    ['untyped-base', `struct Item { name i64; }
+func pick(i i64) i64 { return i; }
+func main() i64 {
+    if pick(0).name != 0 { return 1; }
+    return 0;
+}
+`, "bad-field-untyped-base.lang:4:16: error: cannot access field 'name' of type i64"],
+    ['misspelled', `struct Item { name i64; }
+func head(it *Item) i64 { return it.nmae; }
+func main() i64 { var it *Item = 0; return head(it); }
+`, "error: struct 'Item' has no field 'nmae'"],
+  ];
+  for (const [name, source, expected] of badFields) {
+    const sourceName = `bad-field-${name}.lang`;
+    const badFieldCompile = await runLangCompiler(
+      fs.readFileSync(compilerPath),
+      [sourceName, '-o', `bad-field-${name}.wasm`],
+      { [sourceName]: source },
+      undefined,
+      { LANGBE: 'wasm' },
+    );
+    if (badFieldCompile.exit === 0 || !badFieldCompile.stderr.includes(expected)) {
+      throw new Error(`browser ${name} field diagnostic mismatch: ${badFieldCompile.stderr}`);
+    }
+    if (name === 'untyped-base' &&
+        !badFieldCompile.stderr.includes('note:   var it *Item = <expr>;  then  it.name')) {
+      throw new Error(`browser field note missing: ${badFieldCompile.stderr}`);
+    }
+  }
   const generatedSource = fs.readFileSync('test/direct_wasm_parser_reader.lang', 'utf8');
   const generatedBad = await runReaderSource(
     generatedSource, 'parser_tiny', 'bad\nmissing',

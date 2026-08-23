@@ -277,6 +277,100 @@ BADASTREADER
 }
 reader_authoring_failures_e2e
 
+# `.field` on an expression with no struct type used to emit an unchecked load
+# and die at run time with no message and no location. It is one keystroke away
+# in any reader - every one of them threads parse nodes through vectors - so it
+# has to be a located compile error on every path that can spell it.
+field_access_diagnostics_e2e() {
+    local name=field_access_diagnostics_e2e
+    local tmp=$(mktemp -d)
+    local ok=1
+
+    field_must_fail() {
+        local case=$1
+        local want=$2
+        LANG_CACHE="$tmp/cache-$case" LANGBE=llvm $COMPILER \
+            "$tmp/$case.lang" -o "$tmp/$case.ll" >"$tmp/$case.out" 2>&1 && ok=0
+        test ! -e "$tmp/$case.ll" || ok=0
+        grep -Fq "$want" "$tmp/$case.out" || ok=0
+    }
+
+    # Reading a field of a call result: the shape that crashed.
+    cat > "$tmp/read.lang" <<'FIELDREAD'
+include "std/core.lang"
+struct Item { name *u8; }
+func main() i64 {
+    var v *u8 = vec_new(4);
+    if streq(vec_get(v, 0).name, "x") { return 1; }
+    return 0;
+}
+FIELDREAD
+    field_must_fail read "read.lang:5:28: error: cannot access field 'name' of type i64"
+    grep -Fq "note: only a struct, or a pointer to one, has fields" "$tmp/read.out" || ok=0
+    grep -Fq "var it *Item = <expr>;  then  it.name" "$tmp/read.out" || ok=0
+
+    # Assigning through one used to store nothing at all, just as silently.
+    cat > "$tmp/write.lang" <<'FIELDWRITE'
+include "std/core.lang"
+struct Item { name *u8; }
+func main() i64 {
+    var v *u8 = vec_new(4);
+    vec_get(v, 0).name = "x";
+    return 0;
+}
+FIELDWRITE
+    field_must_fail write "write.lang:5:19: error: cannot access field 'name' of type i64"
+
+    # And taking its address produced no address.
+    cat > "$tmp/addr.lang" <<'FIELDADDR'
+include "std/core.lang"
+struct Item { name *u8; }
+func main() i64 {
+    var v *u8 = vec_new(4);
+    var slot **u8 = &vec_get(v, 0).name;
+    return 0;
+}
+FIELDADDR
+    field_must_fail addr "addr.lang:5:36: error: cannot access field 'name' of type i64"
+
+    # A real struct with the field misspelled names the struct, not the type.
+    cat > "$tmp/misspelled.lang" <<'FIELDMISSPELLED'
+struct Item { name *u8; }
+func head(it *Item) *u8 { return it.nmae; }
+func main() i64 { return 0; }
+FIELDMISSPELLED
+    field_must_fail misspelled "struct 'Item' has no field 'nmae'"
+
+    # The type is named even when it is a pointer to a non-struct.
+    cat > "$tmp/pointer.lang" <<'FIELDPOINTER'
+struct Item { name *u8; }
+func main() i64 {
+    var raw *u8 = 0;
+    if raw.name != 0 { return 1; }
+    return 0;
+}
+FIELDPOINTER
+    field_must_fail pointer "cannot access field 'name' of type *u8"
+
+    # The rejection must stay narrow: every legal shape still compiles and runs.
+    LANG_CACHE="$tmp/cache-legal" LANGBE=llvm $COMPILER \
+        test/suite/282_field_access_typed.lang -o "$tmp/legal.ll" \
+        >"$tmp/legal.out" 2>&1 || ok=0
+    if [ -e "$tmp/legal.ll" ]; then
+        do_timeout 5 lli "$tmp/legal.ll" >/dev/null 2>&1 || ok=0
+    else
+        ok=0
+    fi
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+field_access_diagnostics_e2e
+
 negative_compile_e2e() {
     local name=$1; local file=$2
     local tmp=$(mktemp -d)

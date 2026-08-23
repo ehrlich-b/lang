@@ -695,10 +695,29 @@ func wasm_emit_address(expr *u8, out *WasmBuf) *u8 {
     }
     if node_kind(expr) == NODE_FIELD_EXPR {
         var base *u8 = field_expr_expr(expr);
-        var decl *u8 = wasm_struct_for_type(wasm_expr_type(base));
+        var base_type *u8 = wasm_expr_type(base);
+        var decl *u8 = wasm_struct_for_type(base_type);
+        // Same two failures as the LLVM path, worded the same way: this
+        // backend infers types itself, so it cannot share the resolver, only
+        // the message.
+        if decl == nil {
+            if node_origin_source(expr) != nil { cg_diagnostic_node = expr; }
+            else if node_origin_source(cg_diagnostic_node) == nil {
+                cg_diagnostic_node = wasm_current_decl;
+            }
+            cg_field_no_struct_error(expr, base, base_type);
+            wasm_had_error = 1;
+            return nil;
+        }
         var offset i64 = wasm_field_offset(decl, field_expr_field(expr), field_expr_field_len(expr));
         if offset < 0 {
-            wasm_error("unknown struct field in direct wasm");
+            if node_origin_source(expr) != nil { cg_diagnostic_node = expr; }
+            else if node_origin_source(cg_diagnostic_node) == nil {
+                cg_diagnostic_node = wasm_current_decl;
+            }
+            cg_field_unknown_error(expr, base,
+                                   struct_decl_name(decl), struct_decl_name_len(decl));
+            wasm_had_error = 1;
             return nil;
         }
         wasm_emit_expr(base, out);

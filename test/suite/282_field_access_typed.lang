@@ -1,0 +1,61 @@
+// expect: 0
+// Field access must keep working through every shape that HAS a struct type.
+// The diagnostic added beside this test rejects the shapes that do not, so this
+// is the half that proves the rejection stayed narrow.
+
+include "std/core.lang"
+
+struct Point { x i64; y i64; }
+struct Line  { a Point; b Point; name *u8; }
+struct Node  { value i64; next *Node; }
+
+func point_sum(p *Point) i64 {
+    return p.x + p.y;
+}
+
+func main() i64 {
+    // Pointer to struct.
+    var p *Point = alloc(16);
+    p.x = 3;
+    p.y = 4;
+    if point_sum(p) != 7 { return 1; }
+
+    // Struct held by value in a local.
+    var direct Point;
+    direct.x = 10;
+    direct.y = 20;
+    if direct.x + direct.y != 30 { return 2; }
+
+    // A struct field that is itself a struct: the base of `.x` is a field.
+    var line *Line = alloc(40);
+    line.a.x = 1;
+    line.a.y = 2;
+    line.b.x = 5;
+    line.b.y = 6;
+    line.name = "diag";
+    if line.a.x + line.b.y != 7 { return 3; }
+    if !streq(line.name, "diag") { return 4; }
+
+    // Address of a field, and a write through it.
+    var slot *i64 = &line.b.x;
+    *slot = 9;
+    if line.b.x != 9 { return 5; }
+
+    // A pointer field walked through several links.
+    var n1 *Node = alloc(16);
+    var n2 *Node = alloc(16);
+    n1.value = 1;
+    n1.next = n2;
+    n2.value = 2;
+    n2.next = nil;
+    if n1.next.value != 2 { return 6; }
+    if n1.next.next != nil { return 7; }
+
+    // The typed local: the form the diagnostic tells reader authors to use.
+    var v *u8 = vec_new(4);
+    vec_push(v, p);
+    var got *Point = vec_get(v, 0);
+    if got.x != 3 { return 8; }
+
+    return 0;
+}

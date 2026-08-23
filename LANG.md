@@ -351,6 +351,18 @@ func main() i64 {
 - All fields are 8 bytes (aligned to 8-byte boundary)
 - Field access works on both direct struct variables and pointers to structs
 
+The value on the left of `.` must have a type that names a struct. A call
+result does not, even when the pointer it returns really is a struct - the
+declared return type is what the compiler has to go on:
+
+```lang
+var it *Item = vec_get(v, 0);   // bind it, then read
+if streq(it.name, "seven") { }
+
+if streq(vec_get(v, 0).name, "seven") { }
+// error: cannot access field 'name' of type i64
+```
+
 ## Macros
 
 Compile-time code generation with quote/unquote:

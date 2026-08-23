@@ -43,8 +43,9 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 26. ✓ Make capture cardinality explicit
 27. ✓ Make expression precedence reusable
 28. ✓ Make choice branches self-identifying
-29. → **Reject field access the compiler cannot type** ← current
-30. Capture more languages only when it improves the reader toolkit
+29. ✓ Reject field access the compiler cannot type
+30. → **Cash the reader toolkit in on the biggest reader** ← current
+31. Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -336,30 +337,43 @@ only thing that reports it.
 
 ---
 
-## Next: Reject field access the compiler cannot type
+## Completed: Reject field access the compiler cannot type
 
-`vec_get` returns `i64`, so `vec_get(items, i).name` has no struct type to
-resolve. The compiler emits an unchecked load anyway and the program dies with
-no diagnostic and no location:
+`vec_get` returns `i64`, so `vec_get(items, i).name` had no struct type to
+resolve. Every access path gave up silently at that point - reads emitted a
+literal `0`, assignments emitted nothing - and the program died with no message
+and no location:
 
 ```lang
 var it *Item = vec_get(v, 0);   // works
 if streq(it.name, "seven")      // works
-if streq(vec_get(v, 0).name, "seven")   // crashes, silently
+if streq(vec_get(v, 0).name, "seven")   // used to crash, silently
 ```
 
-Every reader in `example/` threads parse nodes through vectors, so this is one
-keystroke away in normal reader code - and the workaround (a typed local before
-every access) is currently folklore, not a diagnostic. Segfaults come first:
+- [x] One resolver (`cg_field_struct`) behind reads, assignments, and `&`;
+      failing to resolve is a diagnostic, never a fallback value.
+- [x] The message names the failing type and shows the typed-local form, so the
+      fix is in the diagnostic rather than in a memory of it.
+- [x] Field accesses on a computed base carry a source origin, so the error
+      points at the access rather than at the enclosing function. Origins are a
+      linear side table, so a `.field` on a plain identifier still reports at
+      its declaration - the base that resolves does not need locating.
+- [x] The direct wasm backend infers types its own way, so it shares the two
+      messages rather than the resolver, and says the same thing in the browser.
+- [x] Guarded on both: `282_field_access_typed` runs every legal shape,
+      `field_access_diagnostics_e2e` rejects five illegal ones and re-runs the
+      legal file, and the browser compiler gate checks two of them.
 
-- [ ] Report a source-located error when `.field` is applied to an expression
-      with no struct type, instead of emitting the load.
-- [ ] Name the expression's type in the message and point at the typed-local
-      form, so the fix is in the diagnostic rather than in a memory of it.
-- [ ] Keep every legal access working: struct pointers, nested fields, and the
-      typed-local pattern the readers already use.
-- [ ] Guard native and browser paths; a crash reachable in one line of reader
-      code should be a diagnostic in both.
+Found and fixed en route: **`&outer.inner.field` wrote to the wrong address.**
+The address path handled a named local and a pointer-to-struct base, and fell
+out of the branch with nothing emitted for any other struct-valued base - so
+`&line.b.x` yielded whatever the previous expression had left behind. A
+struct-valued expression already evaluates to its own address, which is what
+that case needed all along.
+
+Left alone: the frozen x86 backend has the same ten silent field sites. It is
+an emergency bootstrap fallback, it cannot be tested from macOS, and the freeze
+says no.
 
 ---
 

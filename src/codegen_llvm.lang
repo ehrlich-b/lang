@@ -839,6 +839,16 @@ func llvm_func_returns_f64(name *u8, len i64) i64 {
 
 // Set llvm_expr_result to "%t{n}"
 // Use simple sprintf-like approach: build string from scratch
+// A temp's name as its own string, for the places that must hold one address
+// across an emit rather than leave it in llvm_expr_result.
+func llvm_temp_name(n i64) *u8 {
+    var buf *u8 = alloc(32);
+    *buf = 37;        // '%'
+    *(buf + 1) = 116; // 't'
+    itoa(n, buf + 2);
+    return buf;
+}
+
 func llvm_set_result_temp(n i64) void {
     // Build "%tN" where N is the number
     var buf *u8 = llvm_expr_result;
@@ -1423,6 +1433,7 @@ func llvm_emit_expr(expr *u8) void {
                         eprint("' has no variant '");
                         eprint_buf(field_name, field_len);
                         eprintln("'");
+                        cg_had_error = 1;
                         return;
                     }
 
@@ -2795,90 +2806,82 @@ func llvm_emit_expr(expr *u8) void {
                 var field_name *u8 = field_expr_field(inner);
                 var field_len i64 = field_expr_field_len(inner);
 
-                // Get type of base to find struct
-                var base_type *u8 = get_expr_type(base_expr);
-                var struct_name *u8 = nil;
-                var struct_name_len i64 = 0;
+                // Resolve the struct once; an untypable base is reported in
+                // cg_field_struct instead of silently producing no address.
                 var is_pointer i64 = 0;
+                var struct_decl *u8 = cg_field_struct(inner, &is_pointer);
+                if struct_decl != nil {
+                    var field_offset i64 = get_field_offset(struct_decl, field_name, field_len);
+                    var struct_size i64 = get_struct_size(struct_decl);
 
-                if base_type != nil {
-                    if type_kind(base_type) == TYPE_BASE {
-                        struct_name = base_type_name(base_type);
-                        struct_name_len = base_type_name_len(base_type);
-                    } else if type_kind(base_type) == TYPE_PTR {
-                        var pointed_type *u8 = ptr_type_elem(base_type);
-                        if pointed_type != nil && type_kind(pointed_type) == TYPE_BASE {
-                            struct_name = base_type_name(pointed_type);
-                            struct_name_len = base_type_name_len(pointed_type);
-                            is_pointer = 1;
-                        }
-                    }
-                }
+                    if is_pointer != 0 {
+                        // Pointer to struct - evaluate to get pointer
+                        llvm_emit_expr(base_expr);
+                        var ptr_val *u8 = str_dup(llvm_expr_result);
 
-                if struct_name != nil {
-                    var struct_decl *u8 = find_struct(struct_name, struct_name_len);
-                    if struct_decl != nil {
-                        var field_offset i64 = get_field_offset(struct_decl, field_name, field_len);
-                        var struct_size i64 = get_struct_size(struct_decl);
-
-                        if is_pointer != 0 {
-                            // Pointer to struct - evaluate to get pointer
-                            llvm_emit_expr(base_expr);
-                            var ptr_val *u8 = str_dup(llvm_expr_result);
-
-                            // Add field offset
-                            if field_offset > 0 {
-                                var offset_temp i64 = llvm_next_temp();
-                                llvm_emit_str("    %t");
-                                llvm_emit_int(offset_temp);
-                                llvm_emit_str(" = add i64 ");
-                                llvm_emit_str(ptr_val);
-                                llvm_emit_str(", ");
-                                llvm_emit_int(field_offset);
-                                llvm_emit_char(10);
-                                llvm_set_result_temp(offset_temp);
-                            } else {
-                                llvm_set_result_str(ptr_val);
-                            }
+                        // Add field offset
+                        if field_offset > 0 {
+                            var offset_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(offset_temp);
+                            llvm_emit_str(" = add i64 ");
+                            llvm_emit_str(ptr_val);
+                            llvm_emit_str(", ");
+                            llvm_emit_int(field_offset);
+                            llvm_emit_char(10);
+                            llvm_set_result_temp(offset_temp);
                         } else {
-                            // Direct struct - get address of local variable
-                            if node_kind(base_expr) == NODE_IDENT_EXPR {
-                                var name *u8 = ident_expr_name(base_expr);
-                                var name_len i64 = ident_expr_name_len(base_expr);
+                            llvm_set_result_str(ptr_val);
+                        }
+                    } else {
+                        // Direct struct. A named local is addressed by name; any
+                        // other struct-valued expression already evaluates TO its
+                        // own address, which is how the inner struct of
+                        // `&outer.inner.field` is reached. That second case used
+                        // to fall out of this branch with nothing emitted, so the
+                        // address was whatever the previous expression left
+                        // behind - `&line.b.x` wrote to line.a.x.
+                        var base_addr *u8 = nil;
+                        if node_kind(base_expr) == NODE_IDENT_EXPR {
+                            var name *u8 = ident_expr_name(base_expr);
+                            var name_len i64 = ident_expr_name_len(base_expr);
 
-                                var actual_name *u8 = name;
-                                var actual_name_len i64 = name_len;
-                                var let_entry *u8 = llvm_find_let_binding(name, name_len);
-                                if let_entry != nil {
-                                    actual_name = llvm_let_unique_name(let_entry);
-                                    actual_name_len = llvm_let_unique_len(let_entry);
-                                }
-
-                                // ptrtoint the local variable address
-                                var addr_temp i64 = llvm_next_temp();
-                                llvm_emit_str("    %t");
-                                llvm_emit_int(addr_temp);
-                                llvm_emit_str(" = ptrtoint [");
-                                llvm_emit_int(struct_size);
-                                llvm_emit_str(" x i8]* %");
-                                llvm_emit_n(actual_name, actual_name_len);
-                                llvm_emit_line(" to i64");
-
-                                // Add field offset
-                                if field_offset > 0 {
-                                    var offset_temp i64 = llvm_next_temp();
-                                    llvm_emit_str("    %t");
-                                    llvm_emit_int(offset_temp);
-                                    llvm_emit_str(" = add i64 %t");
-                                    llvm_emit_int(addr_temp);
-                                    llvm_emit_str(", ");
-                                    llvm_emit_int(field_offset);
-                                    llvm_emit_char(10);
-                                    llvm_set_result_temp(offset_temp);
-                                } else {
-                                    llvm_set_result_temp(addr_temp);
-                                }
+                            var actual_name *u8 = name;
+                            var actual_name_len i64 = name_len;
+                            var let_entry *u8 = llvm_find_let_binding(name, name_len);
+                            if let_entry != nil {
+                                actual_name = llvm_let_unique_name(let_entry);
+                                actual_name_len = llvm_let_unique_len(let_entry);
                             }
+
+                            // ptrtoint the local variable address
+                            var addr_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(addr_temp);
+                            llvm_emit_str(" = ptrtoint [");
+                            llvm_emit_int(struct_size);
+                            llvm_emit_str(" x i8]* %");
+                            llvm_emit_n(actual_name, actual_name_len);
+                            llvm_emit_line(" to i64");
+                            base_addr = llvm_temp_name(addr_temp);
+                        } else {
+                            llvm_emit_expr(base_expr);
+                            base_addr = str_dup(llvm_expr_result);
+                        }
+
+                        // Add field offset
+                        if field_offset > 0 {
+                            var offset_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(offset_temp);
+                            llvm_emit_str(" = add i64 ");
+                            llvm_emit_str(base_addr);
+                            llvm_emit_str(", ");
+                            llvm_emit_int(field_offset);
+                            llvm_emit_char(10);
+                            llvm_set_result_temp(offset_temp);
+                        } else {
+                            llvm_set_result_str(base_addr);
                         }
                     }
                 }
@@ -3217,6 +3220,7 @@ func llvm_emit_expr(expr *u8) void {
                     eprint("' has no variant '");
                     eprint_buf(field_name, field_len);
                     eprintln("'");
+                    cg_had_error = 1;
                     return;
                 }
 
@@ -3288,47 +3292,13 @@ func llvm_emit_expr(expr *u8) void {
             }
         }
 
-        // Get type of base expression to find struct
-        var base_type *u8 = get_expr_type(base_expr);
-        if base_type == nil {
-            llvm_set_result_int(0);
-            return;
-        }
-
-        var struct_name *u8 = nil;
-        var struct_name_len i64 = 0;
         var is_pointer i64 = 0;
-
-        // Check if base is a direct struct or pointer to struct
-        if type_kind(base_type) == TYPE_BASE {
-            struct_name = base_type_name(base_type);
-            struct_name_len = base_type_name_len(base_type);
-        } else if type_kind(base_type) == TYPE_PTR {
-            var pointed_type *u8 = ptr_type_elem(base_type);
-            if pointed_type != nil && type_kind(pointed_type) == TYPE_BASE {
-                struct_name = base_type_name(pointed_type);
-                struct_name_len = base_type_name_len(pointed_type);
-                is_pointer = 1;
-            }
-        }
-
-        if struct_name == nil {
-            llvm_set_result_int(0);
-            return;
-        }
-
-        // Find struct and get field offset
-        var struct_decl *u8 = find_struct(struct_name, struct_name_len);
+        var struct_decl *u8 = cg_field_struct(expr, &is_pointer);
         if struct_decl == nil {
             llvm_set_result_int(0);
             return;
         }
-
         var field_offset i64 = get_field_offset(struct_decl, field_name, field_len);
-        if field_offset < 0 {
-            llvm_set_result_int(0);
-            return;
-        }
 
         // Check if field type is itself a struct (not a pointer to struct)
         // If so, we return the address (for nested field access), not load a value
@@ -5567,395 +5537,373 @@ func llvm_emit_stmt(stmt *u8) void {
             var field_name *u8 = field_expr_field(target);
             var field_len i64 = field_expr_field_len(target);
 
-            // Get type of base expression to find struct
-            var base_type *u8 = get_expr_type(base_expr);
-            if base_type != nil {
-                var struct_name *u8 = nil;
-                var struct_name_len i64 = 0;
-                var is_pointer i64 = 0;
+            // Resolve the struct once; an untypable base is reported in
+            // cg_field_struct instead of silently storing nothing.
+            var is_pointer i64 = 0;
+            var struct_decl *u8 = cg_field_struct(target, &is_pointer);
+            if struct_decl != nil {
+                var field_offset i64 = get_field_offset(struct_decl, field_name, field_len);
+                // Get base address
+                if is_pointer != 0 {
+                    // Pointer to struct - evaluate to get address
+                    llvm_emit_expr(base_expr);
+                    var ptr_val *u8 = str_dup(llvm_expr_result);
 
-                // Check if base is a direct struct or pointer to struct
-                if type_kind(base_type) == TYPE_BASE {
-                    struct_name = base_type_name(base_type);
-                    struct_name_len = base_type_name_len(base_type);
-                } else if type_kind(base_type) == TYPE_PTR {
-                    var pointed_type *u8 = ptr_type_elem(base_type);
-                    if pointed_type != nil && type_kind(pointed_type) == TYPE_BASE {
-                        struct_name = base_type_name(pointed_type);
-                        struct_name_len = base_type_name_len(pointed_type);
-                        is_pointer = 1;
+                    // Add offset if needed
+                    var addr_val *u8 = ptr_val;
+                    if field_offset > 0 {
+                        var offset_temp i64 = llvm_next_temp();
+                        llvm_emit_str("    %t");
+                        llvm_emit_int(offset_temp);
+                        llvm_emit_str(" = add i64 ");
+                        llvm_emit_str(ptr_val);
+                        llvm_emit_str(", ");
+                        llvm_emit_int(field_offset);
+                        llvm_emit_char(10);
+                        var buf *u8 = alloc(32);
+                        *buf = 37; *(buf+1) = 116;  // "%t"
+                        itoa(offset_temp, buf + 2);
+                        addr_val = buf;
                     }
-                }
 
-                if struct_name != nil {
-                    var struct_decl *u8 = find_struct(struct_name, struct_name_len);
-                    if struct_decl != nil {
-                        var field_offset i64 = get_field_offset(struct_decl, field_name, field_len);
-                        if field_offset >= 0 {
-                            // Get base address
-                            if is_pointer != 0 {
-                                // Pointer to struct - evaluate to get address
-                                llvm_emit_expr(base_expr);
-                                var ptr_val *u8 = str_dup(llvm_expr_result);
+                    // Check if field is an aggregate type (struct/enum)
+                    var field_type *u8 = get_field_type(struct_decl, field_name, field_len);
+                    var field_is_aggregate i64 = 0;
+                    var field_agg_size i64 = 0;
+                    if field_type != nil && type_kind(field_type) == TYPE_BASE {
+                        var ft_name *u8 = base_type_name(field_type);
+                        var ft_name_len i64 = base_type_name_len(field_type);
+                        var ft_struct *u8 = find_struct(ft_name, ft_name_len);
+                        if ft_struct != nil {
+                            field_is_aggregate = 1;
+                            field_agg_size = get_struct_size(ft_struct);
+                        } else {
+                            var ft_enum *u8 = find_enum(ft_name, ft_name_len);
+                            if ft_enum != nil {
+                                field_is_aggregate = 1;
+                                field_agg_size = get_enum_size(ft_enum);
+                            }
+                        }
+                    }
 
-                                // Add offset if needed
-                                var addr_val *u8 = ptr_val;
-                                if field_offset > 0 {
-                                    var offset_temp i64 = llvm_next_temp();
-                                    llvm_emit_str("    %t");
-                                    llvm_emit_int(offset_temp);
-                                    llvm_emit_str(" = add i64 ");
-                                    llvm_emit_str(ptr_val);
-                                    llvm_emit_str(", ");
-                                    llvm_emit_int(field_offset);
-                                    llvm_emit_char(10);
-                                    var buf *u8 = alloc(32);
-                                    *buf = 37; *(buf+1) = 116;  // "%t"
-                                    itoa(offset_temp, buf + 2);
-                                    addr_val = buf;
-                                }
+                    if field_is_aggregate != 0 {
+                        // Copy aggregate bytes from source to field
+                        var copy_i i64 = 0;
+                        while copy_i < field_agg_size {
+                            // Source ptr
+                            var src_off_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(src_off_temp);
+                            llvm_emit_str(" = add i64 ");
+                            llvm_emit_str(val);
+                            llvm_emit_str(", ");
+                            llvm_emit_int(copy_i);
+                            llvm_emit_char(10);
 
-                                // Check if field is an aggregate type (struct/enum)
-                                var field_type *u8 = get_field_type(struct_decl, field_name, field_len);
-                                var field_is_aggregate i64 = 0;
-                                var field_agg_size i64 = 0;
-                                if field_type != nil && type_kind(field_type) == TYPE_BASE {
-                                    var ft_name *u8 = base_type_name(field_type);
-                                    var ft_name_len i64 = base_type_name_len(field_type);
-                                    var ft_struct *u8 = find_struct(ft_name, ft_name_len);
-                                    if ft_struct != nil {
-                                        field_is_aggregate = 1;
-                                        field_agg_size = get_struct_size(ft_struct);
-                                    } else {
-                                        var ft_enum *u8 = find_enum(ft_name, ft_name_len);
-                                        if ft_enum != nil {
-                                            field_is_aggregate = 1;
-                                            field_agg_size = get_enum_size(ft_enum);
-                                        }
-                                    }
-                                }
+                            var src_ptr_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(src_ptr_temp);
+                            llvm_emit_str(" = inttoptr i64 %t");
+                            llvm_emit_int(src_off_temp);
+                            llvm_emit_line(" to i64*");
 
-                                if field_is_aggregate != 0 {
-                                    // Copy aggregate bytes from source to field
-                                    var copy_i i64 = 0;
-                                    while copy_i < field_agg_size {
-                                        // Source ptr
-                                        var src_off_temp i64 = llvm_next_temp();
-                                        llvm_emit_str("    %t");
-                                        llvm_emit_int(src_off_temp);
-                                        llvm_emit_str(" = add i64 ");
-                                        llvm_emit_str(val);
-                                        llvm_emit_str(", ");
-                                        llvm_emit_int(copy_i);
-                                        llvm_emit_char(10);
+                            var load_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(load_temp);
+                            llvm_emit_str(" = load i64, i64* %t");
+                            llvm_emit_int(src_ptr_temp);
+                            llvm_emit_char(10);
 
-                                        var src_ptr_temp i64 = llvm_next_temp();
-                                        llvm_emit_str("    %t");
-                                        llvm_emit_int(src_ptr_temp);
-                                        llvm_emit_str(" = inttoptr i64 %t");
-                                        llvm_emit_int(src_off_temp);
-                                        llvm_emit_line(" to i64*");
+                            // Dst ptr
+                            var dst_off_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(dst_off_temp);
+                            llvm_emit_str(" = add i64 ");
+                            llvm_emit_str(addr_val);
+                            llvm_emit_str(", ");
+                            llvm_emit_int(copy_i);
+                            llvm_emit_char(10);
 
-                                        var load_temp i64 = llvm_next_temp();
-                                        llvm_emit_str("    %t");
-                                        llvm_emit_int(load_temp);
-                                        llvm_emit_str(" = load i64, i64* %t");
-                                        llvm_emit_int(src_ptr_temp);
-                                        llvm_emit_char(10);
+                            var dst_ptr_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(dst_ptr_temp);
+                            llvm_emit_str(" = inttoptr i64 %t");
+                            llvm_emit_int(dst_off_temp);
+                            llvm_emit_line(" to i64*");
 
-                                        // Dst ptr
-                                        var dst_off_temp i64 = llvm_next_temp();
-                                        llvm_emit_str("    %t");
-                                        llvm_emit_int(dst_off_temp);
-                                        llvm_emit_str(" = add i64 ");
-                                        llvm_emit_str(addr_val);
-                                        llvm_emit_str(", ");
-                                        llvm_emit_int(copy_i);
-                                        llvm_emit_char(10);
+                            llvm_emit_str("    store i64 %t");
+                            llvm_emit_int(load_temp);
+                            llvm_emit_str(", i64* %t");
+                            llvm_emit_int(dst_ptr_temp);
+                            llvm_emit_char(10);
 
-                                        var dst_ptr_temp i64 = llvm_next_temp();
-                                        llvm_emit_str("    %t");
-                                        llvm_emit_int(dst_ptr_temp);
-                                        llvm_emit_str(" = inttoptr i64 %t");
-                                        llvm_emit_int(dst_off_temp);
-                                        llvm_emit_line(" to i64*");
+                            copy_i = copy_i + 8;
+                        }
+                    } else {
+                        // Store value to field
+                        var ptr_temp i64 = llvm_next_temp();
+                        llvm_emit_str("    %t");
+                        llvm_emit_int(ptr_temp);
+                        llvm_emit_str(" = inttoptr i64 ");
+                        llvm_emit_str(addr_val);
+                        llvm_emit_line(" to i64*");
 
-                                        llvm_emit_str("    store i64 %t");
-                                        llvm_emit_int(load_temp);
-                                        llvm_emit_str(", i64* %t");
-                                        llvm_emit_int(dst_ptr_temp);
-                                        llvm_emit_char(10);
+                        llvm_emit_str("    store i64 ");
+                        llvm_emit_str(val);
+                        llvm_emit_str(", i64* %t");
+                        llvm_emit_int(ptr_temp);
+                        llvm_emit_char(10);
+                    }
+                } else {
+                    // Direct struct - base is the local variable
+                    if node_kind(base_expr) == NODE_IDENT_EXPR {
+                        var name *u8 = ident_expr_name(base_expr);
+                        var name_len i64 = ident_expr_name_len(base_expr);
 
-                                        copy_i = copy_i + 8;
-                                    }
-                                } else {
-                                    // Store value to field
-                                    var ptr_temp i64 = llvm_next_temp();
-                                    llvm_emit_str("    %t");
-                                    llvm_emit_int(ptr_temp);
-                                    llvm_emit_str(" = inttoptr i64 ");
-                                    llvm_emit_str(addr_val);
-                                    llvm_emit_line(" to i64*");
+                        // Check for let binding (unique name for aggregate vars)
+                        var actual_name *u8 = name;
+                        var actual_name_len i64 = name_len;
+                        var let_entry *u8 = llvm_find_let_binding(name, name_len);
+                        if let_entry != nil {
+                            actual_name = llvm_let_unique_name(let_entry);
+                            actual_name_len = llvm_let_unique_len(let_entry);
+                        }
 
-                                    llvm_emit_str("    store i64 ");
-                                    llvm_emit_str(val);
-                                    llvm_emit_str(", i64* %t");
-                                    llvm_emit_int(ptr_temp);
-                                    llvm_emit_char(10);
-                                }
+                        // Get address of struct
+                        var addr_temp i64 = llvm_next_temp();
+                        llvm_emit_str("    %t");
+                        llvm_emit_int(addr_temp);
+                        llvm_emit_str(" = ptrtoint [");
+                        var struct_size i64 = get_struct_size(struct_decl);
+                        llvm_emit_int(struct_size);
+                        llvm_emit_str(" x i8]* %");
+                        llvm_emit_n(actual_name, actual_name_len);
+                        llvm_emit_line(" to i64");
+
+                        // Add offset
+                        var addr_val *u8 = nil;
+                        if field_offset > 0 {
+                            var offset_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(offset_temp);
+                            llvm_emit_str(" = add i64 %t");
+                            llvm_emit_int(addr_temp);
+                            llvm_emit_str(", ");
+                            llvm_emit_int(field_offset);
+                            llvm_emit_char(10);
+                            var buf *u8 = alloc(32);
+                            *buf = 37; *(buf+1) = 116;  // "%t"
+                            itoa(offset_temp, buf + 2);
+                            addr_val = buf;
+                        } else {
+                            var buf *u8 = alloc(32);
+                            *buf = 37; *(buf+1) = 116;  // "%t"
+                            itoa(addr_temp, buf + 2);
+                            addr_val = buf;
+                        }
+
+                        // Check if field is an aggregate type (struct/enum)
+                        var field_type2 *u8 = get_field_type(struct_decl, field_name, field_len);
+                        var field_is_agg2 i64 = 0;
+                        var field_agg_size2 i64 = 0;
+                        if field_type2 != nil && type_kind(field_type2) == TYPE_BASE {
+                            var ft_name2 *u8 = base_type_name(field_type2);
+                            var ft_name_len2 i64 = base_type_name_len(field_type2);
+                            var ft_struct2 *u8 = find_struct(ft_name2, ft_name_len2);
+                            if ft_struct2 != nil {
+                                field_is_agg2 = 1;
+                                field_agg_size2 = get_struct_size(ft_struct2);
                             } else {
-                                // Direct struct - base is the local variable
-                                if node_kind(base_expr) == NODE_IDENT_EXPR {
-                                    var name *u8 = ident_expr_name(base_expr);
-                                    var name_len i64 = ident_expr_name_len(base_expr);
-
-                                    // Check for let binding (unique name for aggregate vars)
-                                    var actual_name *u8 = name;
-                                    var actual_name_len i64 = name_len;
-                                    var let_entry *u8 = llvm_find_let_binding(name, name_len);
-                                    if let_entry != nil {
-                                        actual_name = llvm_let_unique_name(let_entry);
-                                        actual_name_len = llvm_let_unique_len(let_entry);
-                                    }
-
-                                    // Get address of struct
-                                    var addr_temp i64 = llvm_next_temp();
-                                    llvm_emit_str("    %t");
-                                    llvm_emit_int(addr_temp);
-                                    llvm_emit_str(" = ptrtoint [");
-                                    var struct_size i64 = get_struct_size(struct_decl);
-                                    llvm_emit_int(struct_size);
-                                    llvm_emit_str(" x i8]* %");
-                                    llvm_emit_n(actual_name, actual_name_len);
-                                    llvm_emit_line(" to i64");
-
-                                    // Add offset
-                                    var addr_val *u8 = nil;
-                                    if field_offset > 0 {
-                                        var offset_temp i64 = llvm_next_temp();
-                                        llvm_emit_str("    %t");
-                                        llvm_emit_int(offset_temp);
-                                        llvm_emit_str(" = add i64 %t");
-                                        llvm_emit_int(addr_temp);
-                                        llvm_emit_str(", ");
-                                        llvm_emit_int(field_offset);
-                                        llvm_emit_char(10);
-                                        var buf *u8 = alloc(32);
-                                        *buf = 37; *(buf+1) = 116;  // "%t"
-                                        itoa(offset_temp, buf + 2);
-                                        addr_val = buf;
-                                    } else {
-                                        var buf *u8 = alloc(32);
-                                        *buf = 37; *(buf+1) = 116;  // "%t"
-                                        itoa(addr_temp, buf + 2);
-                                        addr_val = buf;
-                                    }
-
-                                    // Check if field is an aggregate type (struct/enum)
-                                    var field_type2 *u8 = get_field_type(struct_decl, field_name, field_len);
-                                    var field_is_agg2 i64 = 0;
-                                    var field_agg_size2 i64 = 0;
-                                    if field_type2 != nil && type_kind(field_type2) == TYPE_BASE {
-                                        var ft_name2 *u8 = base_type_name(field_type2);
-                                        var ft_name_len2 i64 = base_type_name_len(field_type2);
-                                        var ft_struct2 *u8 = find_struct(ft_name2, ft_name_len2);
-                                        if ft_struct2 != nil {
-                                            field_is_agg2 = 1;
-                                            field_agg_size2 = get_struct_size(ft_struct2);
-                                        } else {
-                                            var ft_enum2 *u8 = find_enum(ft_name2, ft_name_len2);
-                                            if ft_enum2 != nil {
-                                                field_is_agg2 = 1;
-                                                field_agg_size2 = get_enum_size(ft_enum2);
-                                            }
-                                        }
-                                    }
-
-                                    if field_is_agg2 != 0 {
-                                        // Copy aggregate bytes from source to field
-                                        var copy_j i64 = 0;
-                                        while copy_j < field_agg_size2 {
-                                            // Source ptr
-                                            var soff_temp i64 = llvm_next_temp();
-                                            llvm_emit_str("    %t");
-                                            llvm_emit_int(soff_temp);
-                                            llvm_emit_str(" = add i64 ");
-                                            llvm_emit_str(val);
-                                            llvm_emit_str(", ");
-                                            llvm_emit_int(copy_j);
-                                            llvm_emit_char(10);
-
-                                            var sptr_temp i64 = llvm_next_temp();
-                                            llvm_emit_str("    %t");
-                                            llvm_emit_int(sptr_temp);
-                                            llvm_emit_str(" = inttoptr i64 %t");
-                                            llvm_emit_int(soff_temp);
-                                            llvm_emit_line(" to i64*");
-
-                                            var ld_temp i64 = llvm_next_temp();
-                                            llvm_emit_str("    %t");
-                                            llvm_emit_int(ld_temp);
-                                            llvm_emit_str(" = load i64, i64* %t");
-                                            llvm_emit_int(sptr_temp);
-                                            llvm_emit_char(10);
-
-                                            // Dst ptr
-                                            var doff_temp i64 = llvm_next_temp();
-                                            llvm_emit_str("    %t");
-                                            llvm_emit_int(doff_temp);
-                                            llvm_emit_str(" = add i64 ");
-                                            llvm_emit_str(addr_val);
-                                            llvm_emit_str(", ");
-                                            llvm_emit_int(copy_j);
-                                            llvm_emit_char(10);
-
-                                            var dptr_temp i64 = llvm_next_temp();
-                                            llvm_emit_str("    %t");
-                                            llvm_emit_int(dptr_temp);
-                                            llvm_emit_str(" = inttoptr i64 %t");
-                                            llvm_emit_int(doff_temp);
-                                            llvm_emit_line(" to i64*");
-
-                                            llvm_emit_str("    store i64 %t");
-                                            llvm_emit_int(ld_temp);
-                                            llvm_emit_str(", i64* %t");
-                                            llvm_emit_int(dptr_temp);
-                                            llvm_emit_char(10);
-
-                                            copy_j = copy_j + 8;
-                                        }
-                                    } else {
-                                        // Store value to field
-                                        var ptr_temp i64 = llvm_next_temp();
-                                        llvm_emit_str("    %t");
-                                        llvm_emit_int(ptr_temp);
-                                        llvm_emit_str(" = inttoptr i64 ");
-                                        llvm_emit_str(addr_val);
-                                        llvm_emit_line(" to i64*");
-
-                                        llvm_emit_str("    store i64 ");
-                                        llvm_emit_str(val);
-                                        llvm_emit_str(", i64* %t");
-                                        llvm_emit_int(ptr_temp);
-                                        llvm_emit_char(10);
-                                    }
-                                } else {
-                                    // Nested field access (e.g., r.origin.x = 10)
-                                    // base_expr returns the address of the intermediate struct
-                                    llvm_emit_expr(base_expr);
-                                    var base_val *u8 = str_dup(llvm_expr_result);
-
-                                    // Add field offset
-                                    var addr_val *u8 = base_val;
-                                    if field_offset > 0 {
-                                        var offset_temp i64 = llvm_next_temp();
-                                        llvm_emit_str("    %t");
-                                        llvm_emit_int(offset_temp);
-                                        llvm_emit_str(" = add i64 ");
-                                        llvm_emit_str(base_val);
-                                        llvm_emit_str(", ");
-                                        llvm_emit_int(field_offset);
-                                        llvm_emit_char(10);
-                                        var buf *u8 = alloc(32);
-                                        *buf = 37; *(buf+1) = 116;  // "%t"
-                                        itoa(offset_temp, buf + 2);
-                                        addr_val = buf;
-                                    }
-
-                                    // Check if field is an aggregate type (struct/enum)
-                                    var field_type3 *u8 = get_field_type(struct_decl, field_name, field_len);
-                                    var field_is_agg3 i64 = 0;
-                                    var field_agg_size3 i64 = 0;
-                                    if field_type3 != nil && type_kind(field_type3) == TYPE_BASE {
-                                        var ft_name3 *u8 = base_type_name(field_type3);
-                                        var ft_name_len3 i64 = base_type_name_len(field_type3);
-                                        var ft_struct3 *u8 = find_struct(ft_name3, ft_name_len3);
-                                        if ft_struct3 != nil {
-                                            field_is_agg3 = 1;
-                                            field_agg_size3 = get_struct_size(ft_struct3);
-                                        } else {
-                                            var ft_enum3 *u8 = find_enum(ft_name3, ft_name_len3);
-                                            if ft_enum3 != nil {
-                                                field_is_agg3 = 1;
-                                                field_agg_size3 = get_enum_size(ft_enum3);
-                                            }
-                                        }
-                                    }
-
-                                    if field_is_agg3 != 0 {
-                                        // Copy aggregate bytes from source to field
-                                        var copy_k i64 = 0;
-                                        while copy_k < field_agg_size3 {
-                                            // Source ptr
-                                            var s3off i64 = llvm_next_temp();
-                                            llvm_emit_str("    %t");
-                                            llvm_emit_int(s3off);
-                                            llvm_emit_str(" = add i64 ");
-                                            llvm_emit_str(val);
-                                            llvm_emit_str(", ");
-                                            llvm_emit_int(copy_k);
-                                            llvm_emit_char(10);
-
-                                            var s3ptr i64 = llvm_next_temp();
-                                            llvm_emit_str("    %t");
-                                            llvm_emit_int(s3ptr);
-                                            llvm_emit_str(" = inttoptr i64 %t");
-                                            llvm_emit_int(s3off);
-                                            llvm_emit_line(" to i64*");
-
-                                            var l3tmp i64 = llvm_next_temp();
-                                            llvm_emit_str("    %t");
-                                            llvm_emit_int(l3tmp);
-                                            llvm_emit_str(" = load i64, i64* %t");
-                                            llvm_emit_int(s3ptr);
-                                            llvm_emit_char(10);
-
-                                            // Dst ptr
-                                            var d3off i64 = llvm_next_temp();
-                                            llvm_emit_str("    %t");
-                                            llvm_emit_int(d3off);
-                                            llvm_emit_str(" = add i64 ");
-                                            llvm_emit_str(addr_val);
-                                            llvm_emit_str(", ");
-                                            llvm_emit_int(copy_k);
-                                            llvm_emit_char(10);
-
-                                            var d3ptr i64 = llvm_next_temp();
-                                            llvm_emit_str("    %t");
-                                            llvm_emit_int(d3ptr);
-                                            llvm_emit_str(" = inttoptr i64 %t");
-                                            llvm_emit_int(d3off);
-                                            llvm_emit_line(" to i64*");
-
-                                            llvm_emit_str("    store i64 %t");
-                                            llvm_emit_int(l3tmp);
-                                            llvm_emit_str(", i64* %t");
-                                            llvm_emit_int(d3ptr);
-                                            llvm_emit_char(10);
-
-                                            copy_k = copy_k + 8;
-                                        }
-                                    } else {
-                                        // Store value to field
-                                        var ptr_temp i64 = llvm_next_temp();
-                                        llvm_emit_str("    %t");
-                                        llvm_emit_int(ptr_temp);
-                                        llvm_emit_str(" = inttoptr i64 ");
-                                        llvm_emit_str(addr_val);
-                                        llvm_emit_line(" to i64*");
-
-                                        llvm_emit_str("    store i64 ");
-                                        llvm_emit_str(val);
-                                        llvm_emit_str(", i64* %t");
-                                        llvm_emit_int(ptr_temp);
-                                        llvm_emit_char(10);
-                                    }
+                                var ft_enum2 *u8 = find_enum(ft_name2, ft_name_len2);
+                                if ft_enum2 != nil {
+                                    field_is_agg2 = 1;
+                                    field_agg_size2 = get_enum_size(ft_enum2);
                                 }
                             }
-                            return;
+                        }
+
+                        if field_is_agg2 != 0 {
+                            // Copy aggregate bytes from source to field
+                            var copy_j i64 = 0;
+                            while copy_j < field_agg_size2 {
+                                // Source ptr
+                                var soff_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(soff_temp);
+                                llvm_emit_str(" = add i64 ");
+                                llvm_emit_str(val);
+                                llvm_emit_str(", ");
+                                llvm_emit_int(copy_j);
+                                llvm_emit_char(10);
+
+                                var sptr_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(sptr_temp);
+                                llvm_emit_str(" = inttoptr i64 %t");
+                                llvm_emit_int(soff_temp);
+                                llvm_emit_line(" to i64*");
+
+                                var ld_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(ld_temp);
+                                llvm_emit_str(" = load i64, i64* %t");
+                                llvm_emit_int(sptr_temp);
+                                llvm_emit_char(10);
+
+                                // Dst ptr
+                                var doff_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(doff_temp);
+                                llvm_emit_str(" = add i64 ");
+                                llvm_emit_str(addr_val);
+                                llvm_emit_str(", ");
+                                llvm_emit_int(copy_j);
+                                llvm_emit_char(10);
+
+                                var dptr_temp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(dptr_temp);
+                                llvm_emit_str(" = inttoptr i64 %t");
+                                llvm_emit_int(doff_temp);
+                                llvm_emit_line(" to i64*");
+
+                                llvm_emit_str("    store i64 %t");
+                                llvm_emit_int(ld_temp);
+                                llvm_emit_str(", i64* %t");
+                                llvm_emit_int(dptr_temp);
+                                llvm_emit_char(10);
+
+                                copy_j = copy_j + 8;
+                            }
+                        } else {
+                            // Store value to field
+                            var ptr_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(ptr_temp);
+                            llvm_emit_str(" = inttoptr i64 ");
+                            llvm_emit_str(addr_val);
+                            llvm_emit_line(" to i64*");
+
+                            llvm_emit_str("    store i64 ");
+                            llvm_emit_str(val);
+                            llvm_emit_str(", i64* %t");
+                            llvm_emit_int(ptr_temp);
+                            llvm_emit_char(10);
+                        }
+                    } else {
+                        // Nested field access (e.g., r.origin.x = 10)
+                        // base_expr returns the address of the intermediate struct
+                        llvm_emit_expr(base_expr);
+                        var base_val *u8 = str_dup(llvm_expr_result);
+
+                        // Add field offset
+                        var addr_val *u8 = base_val;
+                        if field_offset > 0 {
+                            var offset_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(offset_temp);
+                            llvm_emit_str(" = add i64 ");
+                            llvm_emit_str(base_val);
+                            llvm_emit_str(", ");
+                            llvm_emit_int(field_offset);
+                            llvm_emit_char(10);
+                            var buf *u8 = alloc(32);
+                            *buf = 37; *(buf+1) = 116;  // "%t"
+                            itoa(offset_temp, buf + 2);
+                            addr_val = buf;
+                        }
+
+                        // Check if field is an aggregate type (struct/enum)
+                        var field_type3 *u8 = get_field_type(struct_decl, field_name, field_len);
+                        var field_is_agg3 i64 = 0;
+                        var field_agg_size3 i64 = 0;
+                        if field_type3 != nil && type_kind(field_type3) == TYPE_BASE {
+                            var ft_name3 *u8 = base_type_name(field_type3);
+                            var ft_name_len3 i64 = base_type_name_len(field_type3);
+                            var ft_struct3 *u8 = find_struct(ft_name3, ft_name_len3);
+                            if ft_struct3 != nil {
+                                field_is_agg3 = 1;
+                                field_agg_size3 = get_struct_size(ft_struct3);
+                            } else {
+                                var ft_enum3 *u8 = find_enum(ft_name3, ft_name_len3);
+                                if ft_enum3 != nil {
+                                    field_is_agg3 = 1;
+                                    field_agg_size3 = get_enum_size(ft_enum3);
+                                }
+                            }
+                        }
+
+                        if field_is_agg3 != 0 {
+                            // Copy aggregate bytes from source to field
+                            var copy_k i64 = 0;
+                            while copy_k < field_agg_size3 {
+                                // Source ptr
+                                var s3off i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(s3off);
+                                llvm_emit_str(" = add i64 ");
+                                llvm_emit_str(val);
+                                llvm_emit_str(", ");
+                                llvm_emit_int(copy_k);
+                                llvm_emit_char(10);
+
+                                var s3ptr i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(s3ptr);
+                                llvm_emit_str(" = inttoptr i64 %t");
+                                llvm_emit_int(s3off);
+                                llvm_emit_line(" to i64*");
+
+                                var l3tmp i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(l3tmp);
+                                llvm_emit_str(" = load i64, i64* %t");
+                                llvm_emit_int(s3ptr);
+                                llvm_emit_char(10);
+
+                                // Dst ptr
+                                var d3off i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(d3off);
+                                llvm_emit_str(" = add i64 ");
+                                llvm_emit_str(addr_val);
+                                llvm_emit_str(", ");
+                                llvm_emit_int(copy_k);
+                                llvm_emit_char(10);
+
+                                var d3ptr i64 = llvm_next_temp();
+                                llvm_emit_str("    %t");
+                                llvm_emit_int(d3ptr);
+                                llvm_emit_str(" = inttoptr i64 %t");
+                                llvm_emit_int(d3off);
+                                llvm_emit_line(" to i64*");
+
+                                llvm_emit_str("    store i64 %t");
+                                llvm_emit_int(l3tmp);
+                                llvm_emit_str(", i64* %t");
+                                llvm_emit_int(d3ptr);
+                                llvm_emit_char(10);
+
+                                copy_k = copy_k + 8;
+                            }
+                        } else {
+                            // Store value to field
+                            var ptr_temp i64 = llvm_next_temp();
+                            llvm_emit_str("    %t");
+                            llvm_emit_int(ptr_temp);
+                            llvm_emit_str(" = inttoptr i64 ");
+                            llvm_emit_str(addr_val);
+                            llvm_emit_line(" to i64*");
+
+                            llvm_emit_str("    store i64 ");
+                            llvm_emit_str(val);
+                            llvm_emit_str(", i64* %t");
+                            llvm_emit_int(ptr_temp);
+                            llvm_emit_char(10);
                         }
                     }
                 }
+                return;
             }
         }
 
