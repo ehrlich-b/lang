@@ -44,8 +44,9 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 27. ✓ Make expression precedence reusable
 28. ✓ Make choice branches self-identifying
 29. ✓ Reject field access the compiler cannot type
-30. → **Cash the reader toolkit in on the biggest reader** ← current
-31. Capture more languages only when it improves the reader toolkit
+30. → **Reject a call with the wrong number of arguments** ← current
+31. Cash the reader toolkit in on the biggest reader
+32. Capture more languages only when it improves the reader toolkit
 
 ---
 
@@ -334,6 +335,34 @@ return type with the LLVM backend, so a generated rule that referenced a later
 one was called as if it returned `i64`. Native tolerated the mismatch; wasm
 trapped on it. Same class as the closure-env ABI bug - the wasm target is the
 only thing that reports it.
+
+---
+
+## Next: Reject a call with the wrong number of arguments
+
+The LLVM backend emits any call it can name, whatever the argument count. A
+missing argument reads whatever the register held; an extra one is dropped:
+
+```lang
+func two(a i64, b i64) i64 { return a + b; }
+func main() i64 { return two(1); }   // compiles; returned 49 today
+```
+
+The direct wasm backend already refuses this - a wasm module with a mismatched
+call will not validate, so it had no choice. That is the same asymmetry the
+reader-generated return-type bug had in milestone 28: the target that cannot
+tolerate a mismatch is the only one reporting it, and the native path silently
+miscompiles. It cost real time tonight - a test called `vec_new()` on a
+one-parameter function and crashed inside the vector instead of at the call:
+
+- [ ] Report a source-located error naming the function, the count it declares,
+      and the count written, on the native path.
+- [ ] Exempt what is genuinely variadic; an `extern` with no declared parameter
+      list is not a wrong-arity call.
+- [ ] Match direct wasm's wording so a reader author sees one message, and fix
+      its "unknown function" mislabel where the name exists but the arity does not.
+- [ ] Guard native and browser; the compiler, the stdlib, and every shipped
+      reader must still build, since nothing has been checking until now.
 
 ---
 
