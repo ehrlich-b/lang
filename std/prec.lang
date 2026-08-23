@@ -2,13 +2,15 @@
 //
 // Every reader whose language spells `a + b * c` needs the same climb. The
 // only things that differ are which operators exist, how tightly each binds,
-// and which way it associates - so put those three facts in a table and the
-// climb stops being reader code.
+// which way each associates, and whether an operator takes a left operand at
+// all - so put those facts in a table and the climb stops being reader code.
 //
 //   func calc_table() *PrecTable {
 //       var t *PrecTable = prec_new();
-//       prec_left(t, "+ -");        // loosest level first
-//       prec_left(t, "* / %");      // each call binds tighter than the last
+//       prec_assign(t, "= += -=");  // loosest level first
+//       prec_left(t, "+ -");        // each call binds tighter than the last
+//       prec_prefix(t, "!");        // takes no left operand
+//       prec_left(t, "* / %");
 //       return t;
 //   }
 //
@@ -23,40 +25,66 @@
 //
 // That order is what a hand-written parser and a flat generated grammar
 // (`expr = first:unary rest:(op:operator right:unary)*`) both already walk, so
-// neither has to build parallel vectors or carry its own climber.
+// neither has to build parallel vectors or carry its own climber. An operator
+// pushed where an operand was expected is a PREFIX operator - position is what
+// says which, so a language with `not a == b` pushes `not` and `a` in the order
+// it read them and the table decides that `not` wraps the comparison.
+//
+// Assignment is a statement in the shared AST, not an expression, so it has its
+// own build:
+//
+//   prec_build(e)        // an expression; an assignment operator is refused
+//   prec_build_stmt(e)   // a statement: (assign ...) or (expr_stmt ...)
+//
+// That is what makes `f(a = b)` an error in a reader whose statements assign,
+// instead of a tree the kernel cannot lower.
 //
 // prec_build refuses an operator with no level rather than guessing one: an
 // unlisted operator is a hole in the ladder, not a reason to emit something.
 
 include "std/ast.lang"
 
+// What an operator does with the operands around it.
+var PREC_INFIX i64 = 0;
+var PREC_ASSIGN i64 = 1;
+var PREC_PREFIX i64 = 2;
+
+// What a pushed item is. Operands and operators share one list because their
+// ORDER is the only thing that says whether an operator is prefix or infix.
+var PREC_OPERAND i64 = 0;
+var PREC_OP i64 = 1;
+
 struct PrecOp {
     text *u8;
     level i64;      // 1 = loosest; higher binds tighter
     right i64;      // 1 = right-associative
+    kind i64;       // PREC_INFIX | PREC_ASSIGN | PREC_PREFIX
 }
 
 struct PrecTable {
-    ops *u8;        // vec of *PrecOp
+    ops *u8;        // vec of *PrecOp: operators that take a left operand
+    prefixes *u8;   // vec of *PrecOp: operators that take none
     levels i64;     // levels declared so far
 }
 
 struct PrecExpr {
     table *PrecTable;
-    operands *u8;   // vec of AST *u8
-    ops *u8;        // vec of operator text *u8
+    items *u8;      // vec of *u8: operand AST or operator text, in source order
+    kinds *u8;      // vec of PREC_OPERAND / PREC_OP, parallel to items
+    assigned i64;   // 1 when the node built last was an assignment
 }
 
 pub func prec_new() *PrecTable {
-    var t *PrecTable = alloc(16);
+    var t *PrecTable = alloc(24);
     t.ops = vec_new(16);
+    t.prefixes = vec_new(4);
     t.levels = 0;
     return t;
 }
 
 // Declare one level from a space-separated operator list. Levels are handed
 // out in call order, so the first call is the loosest.
-func prec_level(t *PrecTable, ops *u8, right i64) void {
+func prec_level(t *PrecTable, ops *u8, right i64, kind i64) void {
     t.levels = t.levels + 1;
     var p *u8 = ops;
     while *p != 0 {
@@ -79,20 +107,44 @@ func prec_level(t *PrecTable, ops *u8, right i64) void {
         }
         *(text + len) = 0;
 
-        var op *PrecOp = alloc(24);
+        var op *PrecOp = alloc(32);
         op.text = text;
         op.level = t.levels;
         op.right = right;
-        vec_push(t.ops, op);
+        op.kind = kind;
+        if kind == PREC_PREFIX {
+            vec_push(t.prefixes, op);
+        } else {
+            vec_push(t.ops, op);
+        }
     }
 }
 
 pub func prec_left(t *PrecTable, ops *u8) void {
-    prec_level(t, ops, 0);
+    prec_level(t, ops, 0, PREC_INFIX);
 }
 
 pub func prec_right(t *PrecTable, ops *u8) void {
-    prec_level(t, ops, 1);
+    prec_level(t, ops, 1, PREC_INFIX);
+}
+
+// Operators that take no left operand and wrap what follows them. A prefix
+// level binds everything TIGHTER than itself, which is how Python's `not`
+// ends up looser than the comparisons it wraps.
+pub func prec_prefix(t *PrecTable, ops *u8) void {
+    prec_level(t, ops, 0, PREC_PREFIX);
+}
+
+// Assignment, its own kind because the shared AST spells it (assign target
+// value), not (binop = target value). Declare it first - it is the loosest thing
+// in every language that has it.
+//
+// Its right operand is an EXPRESSION, and the shared AST has no assignment
+// expression, so `a = b = c` is refused rather than lowered to a tree the kernel
+// cannot emit. The level is right-associative so the second operator lands in
+// the first one's right operand, which is where that refusal reads correctly.
+pub func prec_assign(t *PrecTable, ops *u8) void {
+    prec_level(t, ops, 1, PREC_ASSIGN);
 }
 
 func prec_find(t *PrecTable, op *u8) *PrecOp {
@@ -107,75 +159,193 @@ func prec_find(t *PrecTable, op *u8) *PrecOp {
     return nil;
 }
 
-// Binding power of an operator, or 0 when the table does not list it. A
-// token-driven reader uses this to decide whether the next token continues
-// the expression at all.
+func prec_find_prefix(t *PrecTable, op *u8) *PrecOp {
+    if op == nil { return nil; }
+    var count i64 = vec_len(t.prefixes);
+    var i i64 = 0;
+    while i < count {
+        var entry *PrecOp = vec_get(t.prefixes, i);
+        if streq(entry.text, op) { return entry; }
+        i = i + 1;
+    }
+    return nil;
+}
+
+// Binding power of an operator in infix position, or 0 when the table does not
+// list it there. A token-driven reader uses this to decide whether the next
+// token continues the expression at all.
 pub func prec_of(t *PrecTable, op *u8) i64 {
     var entry *PrecOp = prec_find(t, op);
     if entry == nil { return 0; }
     return entry.level;
 }
 
+// Whether an operator assigns. A reader whose grammar carries a tail its
+// language binds tighter than assignment (C's `?:`) asks this to find where
+// that tail belongs.
+pub func prec_is_assign(t *PrecTable, op *u8) i64 {
+    var entry *PrecOp = prec_find(t, op);
+    if entry == nil { return 0; }
+    if entry.kind == PREC_ASSIGN { return 1; }
+    return 0;
+}
+
 pub func prec_expr(t *PrecTable) *PrecExpr {
-    var e *PrecExpr = alloc(24);
+    var e *PrecExpr = alloc(32);
     e.table = t;
-    e.operands = vec_new(8);
-    e.ops = vec_new(8);
+    e.items = vec_new(8);
+    e.kinds = vec_new(8);
+    e.assigned = 0;
     return e;
 }
 
 pub func prec_operand(e *PrecExpr, value *u8) void {
-    vec_push(e.operands, value);
+    vec_push(e.items, value);
+    vec_push(e.kinds, PREC_OPERAND);
 }
 
 pub func prec_op(e *PrecExpr, op *u8) void {
-    vec_push(e.ops, op);
+    vec_push(e.items, op);
+    vec_push(e.kinds, PREC_OP);
 }
 
-func prec_climb(e *PrecExpr, posptr *i64, minlevel i64) *u8 {
-    var left *u8 = vec_get(e.operands, *posptr);
-    var nops i64 = vec_len(e.ops);
-    while *posptr < nops {
-        var op *u8 = vec_get(e.ops, *posptr);
+func prec_undeclared(op *u8) void {
+    eprint("reader lowering error: no precedence declared for operator '");
+    eprint(op);
+    eprintln("'");
+}
+
+// `x += y` means `x = x + y`. An assignment operator spelled as a declared
+// operator followed by '=' reads, applies and writes back; anything else is a
+// plain assignment, so a language whose assignment is ':=' or '<-' says so
+// without inheriting C's compound forms.
+func prec_assign_node(t *PrecTable, op *u8, target *u8, value *u8) *u8 {
+    var len i64 = strlen(op);
+    if len > 1 && *(op + len - 1) == '=' {
+        var base *u8 = alloc(len);
+        var i i64 = 0;
+        while i < len - 1 {
+            *(base + i) = *(op + i);
+            i = i + 1;
+        }
+        *(base + len - 1) = 0;
+        if prec_find(t, base) != nil {
+            return ast_assign(target, ast_binop(base, target, value));
+        }
+    }
+    return ast_assign(target, value);
+}
+
+// One Pratt pass over the item list. An operator in operand position is a
+// prefix operator; an operator in operator position takes the tree built so
+// far as its left operand. Either way the table is asked, never guessed at.
+func prec_parse(e *PrecExpr, posptr *i64, minlevel i64, assignable i64) *u8 {
+    var n i64 = vec_len(e.items);
+    if *posptr >= n {
+        eprintln("reader lowering error: expression has an operator without both operands");
+        return nil;
+    }
+
+    var left *u8 = nil;
+    var lead i64 = vec_get(e.kinds, *posptr);
+    if lead == PREC_OP {
+        var pre_op *u8 = vec_get(e.items, *posptr);
+        var pre *PrecOp = prec_find_prefix(e.table, pre_op);
+        if pre == nil {
+            if prec_find(e.table, pre_op) == nil {
+                prec_undeclared(pre_op);
+            } else {
+                eprint("reader lowering error: operator '");
+                eprint(pre_op);
+                eprintln("' has no left operand");
+            }
+            return nil;
+        }
+        if pre.level < minlevel {
+            eprint("reader lowering error: operator '");
+            eprint(pre_op);
+            eprintln("' binds too loosely to be an operand here");
+            return nil;
+        }
+        *posptr = *posptr + 1;
+        // A prefix operator's operand is everything that binds at least as
+        // tightly as the operator itself, so `not a == b` is `!(a == b)`.
+        var operand *u8 = prec_parse(e, posptr, pre.level, 0);
+        if operand == nil { return nil; }
+        left = ast_unop(pre_op, operand);
+        e.assigned = 0;
+    } else {
+        left = vec_get(e.items, *posptr);
+        *posptr = *posptr + 1;
+    }
+
+    while *posptr < n {
+        var kind i64 = vec_get(e.kinds, *posptr);
+        if kind != PREC_OP {
+            eprintln("reader lowering error: expression has two operands with no operator between them");
+            return nil;
+        }
+        var op *u8 = vec_get(e.items, *posptr);
         var entry *PrecOp = prec_find(e.table, op);
+        if entry == nil {
+            if prec_find_prefix(e.table, op) == nil {
+                prec_undeclared(op);
+            } else {
+                eprint("reader lowering error: operator '");
+                eprint(op);
+                eprintln("' takes no left operand");
+            }
+            return nil;
+        }
         if entry.level < minlevel { return left; }
+        if entry.kind == PREC_ASSIGN && assignable == 0 {
+            eprint("reader lowering error: assignment operator '");
+            eprint(op);
+            eprintln("' is not an expression");
+            return nil;
+        }
         *posptr = *posptr + 1;
 
         // Left-associative levels stop at the same power on the right, so the
         // next operator of equal power folds around the tree built so far.
         var next i64 = entry.level + 1;
         if entry.right != 0 { next = entry.level; }
-        var right *u8 = prec_climb(e, posptr, next);
-        left = ast_binop(op, left, right);
+        var rhs_assignable i64 = assignable;
+        if entry.kind == PREC_ASSIGN { rhs_assignable = 0; }
+        var right *u8 = prec_parse(e, posptr, next, rhs_assignable);
+        if right == nil { return nil; }
+        if entry.kind == PREC_ASSIGN {
+            left = prec_assign_node(e.table, op, left, right);
+            e.assigned = 1;
+        } else {
+            left = ast_binop(op, left, right);
+            e.assigned = 0;
+        }
     }
     return left;
 }
 
-pub func prec_build(e *PrecExpr) *u8 {
-    var noperands i64 = vec_len(e.operands);
-    var nops i64 = vec_len(e.ops);
-
-    if noperands == 0 {
+// The climb builds every node after its children, so the last node built is the
+// outermost one - which is what `assigned` ends up describing.
+func prec_climb_all(e *PrecExpr, assignable i64) *u8 {
+    e.assigned = 0;
+    if vec_len(e.items) == 0 {
         eprintln("reader lowering error: expression has no operands");
         return nil;
     }
-    if noperands != nops + 1 {
-        eprintln("reader lowering error: expression has an operator without both operands");
-        return nil;
-    }
-
-    var i i64 = 0;
-    while i < nops {
-        var op *u8 = vec_get(e.ops, i);
-        if prec_find(e.table, op) == nil {
-            eprint("reader lowering error: no precedence declared for operator '");
-            eprint(op);
-            eprintln("'");
-            return nil;
-        }
-        i = i + 1;
-    }
-
     var pos i64 = 0;
-    return prec_climb(e, &pos, 1);
+    return prec_parse(e, &pos, 1, assignable);
+}
+
+pub func prec_build(e *PrecExpr) *u8 {
+    return prec_climb_all(e, 0);
+}
+
+// The same expression in statement position, where an assignment is legal: a
+// top-level assignment becomes (assign ...), anything else (expr_stmt ...).
+pub func prec_build_stmt(e *PrecExpr) *u8 {
+    var value *u8 = prec_climb_all(e, 1);
+    if value == nil { return nil; }
+    if e.assigned != 0 { return value; }
+    return ast_expr_stmt(value);
 }

@@ -116,10 +116,15 @@ child's kind; `pnode_branch(node)` names a branch the converter does not handle.
 A reader can also parse however it wants.
 
 Operator precedence is shared rather than rewritten per reader: declare the
-ladder with `std/prec.lang` (`prec_left`/`prec_right`, loosest level first),
-push operands and operators in source order, and let `prec_build` shape the
-tree. It works the same from a hand-written parser and from a flat `#parser{}`
-rule, and it refuses an operator the table never declared. Start here:
+ladder with `std/prec.lang` (`prec_assign`/`prec_left`/`prec_right`/
+`prec_prefix`, loosest level first), push operands and operators in source
+order, and let `prec_build` shape the tree. Operands and operators go into one
+list, so position says which is which: an operator pushed where an operand was
+expected is a prefix operator, which is how Python's `not`—looser than the
+comparisons it wraps—needs no hand-written tier. Assignment is a statement in
+the shared AST, so `prec_build_stmt` builds one and `prec_build` refuses it. It
+works the same from a hand-written parser and from a flat `#parser{}` rule, and
+it refuses an operator the table never declared. Start here:
 
 - [`tiny`](../example/tiny/tiny.lang): one grammar rule, one function
 - [`calc`](../example/calc/calc.lang): recursive descent and a precedence table

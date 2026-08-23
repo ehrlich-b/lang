@@ -1,6 +1,7 @@
 // expect: 0
 // A precedence table replaces a hand-written climb: levels bind in declaration
-// order, associativity is per level, and an unlisted operator is an error.
+// order, associativity is per level, an operator with no left operand is a
+// prefix, assignment is a statement, and an unlisted operator is an error.
 
 include "std/prec.lang"
 
@@ -9,6 +10,18 @@ func ladder() *PrecTable {
     prec_left(t, "+ -");
     prec_left(t, "* / %");
     prec_right(t, "^");
+    return t;
+}
+
+// The shape a language with word operators has: assignment loosest, a prefix
+// operator between the conjunction and the comparisons, arithmetic below.
+func py_ladder() *PrecTable {
+    var t *PrecTable = prec_new();
+    prec_assign(t, "= += <<=");
+    prec_left(t, "&&");
+    prec_prefix(t, "!");
+    prec_left(t, "== <");
+    prec_left(t, "+");
     return t;
 }
 
@@ -78,5 +91,130 @@ func main() i64 {
     if prec_build(ragged) != nil { return 16; }
 
     if prec_build(prec_expr(t)) != nil { return 17; }
+
+    var doubled *PrecExpr = prec_expr(t);
+    prec_operand(doubled, ast_number("1"));
+    prec_operand(doubled, ast_number("2"));
+    if prec_build(doubled) != nil { return 18; }
+
+    // ---- prefix operators ----
+    var p *PrecTable = py_ladder();
+
+    // A prefix binds everything TIGHTER than itself, so `!` declared above the
+    // comparisons wraps the whole comparison rather than its left operand.
+    var notcmp *PrecExpr = prec_expr(p);
+    prec_op(notcmp, "!");
+    prec_operand(notcmp, ast_ident("a"));
+    prec_op(notcmp, "==");
+    prec_operand(notcmp, ast_ident("b"));
+    var nc *u8 = prec_build(notcmp);
+    if nc == nil { return 20; }
+    if !streq(nc, "(unop ! (binop == (ident a) (ident b)))") { return 21; }
+
+    // ... and stops at an operator looser than itself.
+    var andnot *PrecExpr = prec_expr(p);
+    prec_op(andnot, "!");
+    prec_operand(andnot, ast_ident("a"));
+    prec_op(andnot, "&&");
+    prec_operand(andnot, ast_ident("b"));
+    var an *u8 = prec_build(andnot);
+    if an == nil { return 22; }
+    if !streq(an, "(binop && (unop ! (ident a)) (ident b))") { return 23; }
+
+    // Prefixes stack.
+    var twice *PrecExpr = prec_expr(p);
+    prec_op(twice, "!");
+    prec_op(twice, "!");
+    prec_operand(twice, ast_ident("a"));
+    var tw *u8 = prec_build(twice);
+    if tw == nil { return 24; }
+    if !streq(tw, "(unop ! (unop ! (ident a)))") { return 25; }
+
+    // A prefix that binds looser than the position it appears in is refused:
+    // `a == not b` is not an expression, it is a mistake.
+    var toolate *PrecExpr = prec_expr(p);
+    prec_operand(toolate, ast_ident("a"));
+    prec_op(toolate, "==");
+    prec_op(toolate, "!");
+    prec_operand(toolate, ast_ident("b"));
+    if prec_build(toolate) != nil { return 26; }
+
+    // Position decides which table an operator is looked up in, so using one
+    // in the position it was not declared for is an error, not a guess.
+    var nolhs *PrecExpr = prec_expr(p);
+    prec_operand(nolhs, ast_ident("a"));
+    prec_op(nolhs, "!");
+    prec_operand(nolhs, ast_ident("b"));
+    if prec_build(nolhs) != nil { return 27; }
+
+    var noprefix *PrecExpr = prec_expr(p);
+    prec_op(noprefix, "+");
+    prec_operand(noprefix, ast_ident("a"));
+    if prec_build(noprefix) != nil { return 28; }
+
+    // ---- assignment ----
+    if prec_is_assign(p, "=") != 1 { return 30; }
+    if prec_is_assign(p, "+") != 0 { return 31; }
+
+    // Assignment is a statement in the shared AST, so prec_build refuses it and
+    // prec_build_stmt is where a reader says it is in statement position.
+    if prec_build(assign3(p, "a", "=", "b")) != nil { return 32; }
+
+    var set *u8 = prec_build_stmt(assign3(p, "a", "=", "b"));
+    if set == nil { return 33; }
+    if !streq(set, "(assign (ident a) (ident b))") { return 34; }
+
+    // `x += y` is `x = x + y`: an assignment operator spelled as a declared
+    // operator followed by '=' reads, applies and writes back.
+    var aug *u8 = prec_build_stmt(assign3(p, "a", "+=", "b"));
+    if aug == nil { return 35; }
+    if !streq(aug, "(assign (ident a) (binop + (ident a) (ident b)))") { return 36; }
+
+    // '<<' is not on this ladder, so '<<=' has no base to apply and is a plain
+    // assignment rather than a guess at what '<<' would have meant.
+    var raw *u8 = prec_build_stmt(assign3(p, "a", "<<=", "b"));
+    if raw == nil { return 37; }
+    if !streq(raw, "(assign (ident a) (ident b))") { return 38; }
+
+    // Assignment binds looser than everything, so the whole rest of the
+    // statement is its value.
+    var whole *PrecExpr = prec_expr(p);
+    prec_operand(whole, ast_ident("a"));
+    prec_op(whole, "=");
+    prec_operand(whole, ast_ident("b"));
+    prec_op(whole, "+");
+    prec_operand(whole, ast_ident("c"));
+    var wh *u8 = prec_build_stmt(whole);
+    if wh == nil { return 39; }
+    if !streq(wh, "(assign (ident a) (binop + (ident b) (ident c)))") { return 40; }
+
+    // The right operand of an assignment is an expression, and the shared AST
+    // has no assignment expression - so `a = b = c` is refused, not lowered to
+    // something the kernel cannot emit.
+    var chain *PrecExpr = prec_expr(p);
+    prec_operand(chain, ast_ident("a"));
+    prec_op(chain, "=");
+    prec_operand(chain, ast_ident("b"));
+    prec_op(chain, "=");
+    prec_operand(chain, ast_ident("c"));
+    if prec_build_stmt(chain) != nil { return 43; }
+
+    // Anything that is not an assignment is an expression statement.
+    var bare *PrecExpr = prec_expr(p);
+    prec_operand(bare, ast_ident("a"));
+    prec_op(bare, "+");
+    prec_operand(bare, ast_ident("b"));
+    var br *u8 = prec_build_stmt(bare);
+    if br == nil { return 41; }
+    if !streq(br, "(expr_stmt (binop + (ident a) (ident b)))") { return 42; }
+
     return 0;
+}
+
+func assign3(t *PrecTable, a *u8, op *u8, b *u8) *PrecExpr {
+    var e *PrecExpr = prec_expr(t);
+    prec_operand(e, ast_ident(a));
+    prec_op(e, op);
+    prec_operand(e, ast_ident(b));
+    return e;
 }

@@ -48,6 +48,27 @@ def logic(a, b):
         return 2
     return 3
 
+# `not` is a PREFIX operator that binds looser than the comparisons and tighter
+# than `and`. Both facts live in the precedence table, which a flat operand list
+# can only express because an operator pushed where an operand was expected is a
+# prefix: `not a == b` is `not (a == b)`, never `(not a) == b`.
+def notprec(a, b):
+    if not a == b:
+        return 1
+    return 0
+
+def notand(a, b):
+    if not a and not b:
+        return 1
+    return 0
+
+# Chained comparison (a < b < c) is refused, but an operator looser than a
+# comparison ends the chain: these are two comparisons, not one chain.
+def orchain(a, b, c):
+    if a < b or b < c:
+        return 1
+    return 0
+
 # --- indentation IS the block structure ---
 def collatz(n):
     steps = 0
@@ -187,6 +208,12 @@ func main() i64 {
     bad = bad + check("logic10", logic(1, 0), 1);
     bad = bad + check("logic01", logic(0, 1), 2);
     bad = bad + check("logic00", logic(0, 0), 3);
+    bad = bad + check("notprec1", notprec(1, 2), 1);
+    bad = bad + check("notprec0", notprec(2, 2), 0);
+    bad = bad + check("notand1", notand(0, 0), 1);
+    bad = bad + check("notand0", notand(1, 0), 0);
+    bad = bad + check("orchain1", orchain(1, 2, 3), 1);
+    bad = bad + check("orchain0", orchain(3, 2, 1), 0);
     bad = bad + check("collatz", collatz(27), 111);
     bad = bad + check("gcd", gcd(48, 18), 6);
     bad = bad + check("sign+", sign(5), 1);

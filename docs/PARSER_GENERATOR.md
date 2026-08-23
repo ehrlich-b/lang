@@ -277,9 +277,33 @@ whether the next token continues the expression at all. `prec_build` refuses an
 undeclared operator, and refuses an operator missing an operand, rather than
 choosing a binding power for you.
 
+Operands and operators go into one list in source order, so their position is
+what says which is which. An operator pushed where an operand was expected is a
+**prefix** operator, declared with `prec_prefix`:
+
+```lang
+#parser{
+    expr   = pre:preop* first:unary rest:oprest*
+    oprest = op:operator pre:preop* right:unary
+    preop  = 'not'
+}
+```
+
+A prefix level binds everything tighter than itself, so declaring `not` above
+the comparisons makes `not a == b` mean `not (a == b)` with no hand-written
+tier—and makes `a == not b`, where it would bind too loosely, an error.
+
+`prec_assign` declares assignment: right-associative, its own kind because the
+shared AST spells it `(assign target value)` rather than `(binop = ...)`, and
+`<op>=` lowers to `lv = lv <op> rhs` when `<op>` is declared on the same table.
+Because assignment is a statement and not an expression, `prec_build_stmt`
+builds one—returning `(assign ...)` or `(expr_stmt ...)`—and `prec_build`
+refuses one, which is what makes `f(a = b)` a diagnostic rather than a tree the
+backend cannot emit.
+
 The helper owns the ladder and the climb. Walking your own parse tree and
 emitting operands stays reader-local, which is where language-specific
-exceptions—postfix operators, assignment peeled off as a statement—belong.
+exceptions—postfix operators, a ternary tail—belong.
 
 The grammar itself is checked before code generation. Missing `=`, groups or
 capture elements, trailing `|`, duplicate rules or captures, undefined rules,

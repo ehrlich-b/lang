@@ -111,13 +111,15 @@ include "std/prec.lang"
 // Operator precedence (higher binds tighter)
 // ============================================================
 
-// C's binary ladder, loosest level first. The tokenizer already lexes the
-// 2-char operators (==, !=, <=, >=, &&, ||, <<, >>) and carries their text, so
-// they only need a level here. '=' and the compound assignments are absent on
-// purpose: they are peeled off as statements, never climbed, and an operator
-// with no declared level is refused rather than guessed at.
+// C's ladder, loosest level first. The tokenizer already lexes the 2-char
+// operators (==, !=, <=, >=, &&, ||, <<, >>) and carries their text, so they
+// only need a level here. Assignment leads: it is the loosest thing C has, it
+// associates to the right, and each `<op>=` lowers to `lv = lv <op> rhs`
+// because `<op>` is declared below. An operator with no declared level is
+// refused rather than guessed at.
 func c_table() *PrecTable {
     var t *PrecTable = prec_new();
+    prec_assign(t, "= += -= *= /= %=");
     prec_left(t, "||");
     prec_left(t, "&&");
     prec_left(t, "|");
@@ -135,41 +137,75 @@ func c_table() *PrecTable {
 // Expression emission (precedence climbing over a flat operand/op list)
 // ============================================================
 
-// c_binexpr = first:c_unary rest:c_oprest*. Push operands and operators in
-// source order and let the table shape the tree; `from` lets the assignment
-// path start past the leading '='.
-//
-// One thing cannot go into the table: a postfix ++/-- in value position. The
-// grammar makes c_oprest's right operand optional so `i++` can be a statement,
-// and an operator with no right operand is not a binary operator. It is dropped
-// here, its side effect honoured only at statement level, rather than given a
-// binding power it does not have.
-func c_emit_flat(first *PNode, rest *PNode, from i64) *u8 {
-    var expr *PrecExpr = prec_expr(c_table());
-    prec_operand(expr, emit_operand_str(first));
+// std/prec.lang already named the operator it refused, so this only has to stop.
+func c_checked(value *u8) *u8 {
+    if value == nil {
+        eprintln("c: this expression is not in the C subset");
+        exit(1);
+    }
+    return value;
+}
 
+func c_refused(what *u8, op *PNode) void {
+    eprint("c: '");
+    eprint(op.text);
+    eprint("' ");
+    eprintln(what);
+    exit(1);
+}
+
+// One c_oprest = op:operator right:c_unary?. The right operand is optional so a
+// postfix `i++` can be a whole statement (see try_incdec); anywhere else an
+// operator with no right operand is not a binary operator and has no value, so
+// refuse it. Dropping it is how `x = i++` used to compile as `x = i`.
+func c_push_oprest(expr *PrecExpr, item *PNode) void {
+    var op *PNode = pnode_require(item, "op");
+    var right *PNode = pnode_get(item, "right");
+    if right == nil {
+        c_refused("has no value here; use it as a statement of its own", op);
+    }
+    prec_op(expr, op.text);
+    prec_operand(expr, emit_operand_str(right));
+}
+
+// c_binexpr = first:c_unary rest:c_oprest*. Push operands and operators in
+// source order from rest[from] on, and let the table shape the tree.
+func c_push_flat(expr *PrecExpr, first *PNode, rest *PNode, from i64) void {
+    prec_operand(expr, emit_operand_str(first));
     var n i64 = vec_len(rest.children);
     var i i64 = from;
     while i < n {
         var item *PNode = vec_get(rest.children, i);
-        var right *PNode = pnode_get(item, "right");
-        if right != nil {
-            var op *PNode = pnode_require(item, "op");
-            prec_op(expr, op.text);
-            prec_operand(expr, emit_operand_str(right));
-        }
+        c_push_oprest(expr, item);
         i = i + 1;
     }
-    return prec_build(expr);
 }
 
-// A c_expr is `c_binexpr c_terntail*`: emit the binexpr value, then fold any
-// ternary tail around it.
+// Index of the last assignment operator in rest, or -1. `?:` binds tighter than
+// assignment, so this is where a ternary tail belongs.
+func c_last_assign(table *PrecTable, rest *PNode) i64 {
+    var n i64 = vec_len(rest.children);
+    var at i64 = 0 - 1;
+    var i i64 = 0;
+    while i < n {
+        var item *PNode = vec_get(rest.children, i);
+        var op *PNode = pnode_require(item, "op");
+        if prec_is_assign(table, op.text) != 0 { at = i; }
+        i = i + 1;
+    }
+    return at;
+}
+
+// A c_expr is `c_binexpr c_terntail*`: build the binexpr value, then fold any
+// ternary tail around it. In value position an assignment operator has no tree
+// to lower to, and prec_build says so instead of building one.
 func emit_expr_str(e *PNode) *u8 {
     var binexpr *PNode = pnode_require(e, "bin");
     var terntail *PNode = pnode_require(e, "tern");
-    var base *u8 = c_emit_flat(pnode_require(binexpr, "first"),
-                               pnode_require(binexpr, "rest"), 0);
+    var expr *PrecExpr = prec_expr(c_table());
+    c_push_flat(expr, pnode_require(binexpr, "first"),
+                pnode_require(binexpr, "rest"), 0);
+    var base *u8 = c_checked(prec_build(expr));
     if vec_len(terntail.children) > 0 {
         return emit_ternary(base, vec_get(terntail.children, 0));
     }
@@ -384,16 +420,6 @@ func emit_stmt(s *PNode) *u8 {
     return c_unhandled("statement", s);
 }
 
-// Base operator for a compound-assignment op ("+=" -> "+", ...); nil otherwise.
-func compound_base(op *u8) *u8 {
-    if streq(op, "+=") { return "+"; }
-    if streq(op, "-=") { return "-"; }
-    if streq(op, "*=") { return "*"; }
-    if streq(op, "/=") { return "/"; }
-    if streq(op, "%=") { return "%"; }
-    return nil;
-}
-
 // Base operator for an increment/decrement op ("++" -> "+", "--" -> "-"); nil otherwise.
 func incdec_base(op *u8) *u8 {
     if streq(op, "++") { return "+"; }
@@ -432,10 +458,15 @@ func try_incdec(expr *PNode) *u8 {
     return nil;
 }
 
-// Lower a bare c_expr as a statement: ++/-- desugar to an assignment, a leading
-// '=' is a plain assignment, a leading compound op (+=, ...) desugars to
-// `lv = lv op rhs`, otherwise an expression statement. Shared by exprstmt and the
+// Lower a bare c_expr as a statement, which is the one position where C's
+// assignment operators are legal. ++/-- on a bare lvalue still desugars here -
+// it is a statement, not an operator with a value. Shared by exprstmt and the
 // for-loop step (a bare expr with no trailing ';').
+//
+// The one thing the table cannot see is the ternary tail, which the grammar
+// keeps outside c_binexpr. `?:` binds tighter than assignment, so it wraps
+// everything after the assignment operator: `a = b + c ? d : e` is
+// `a = ((b + c) ? d : e)`, and that wrapped value is the assignment's operand.
 func emit_exprstmt_from_expr(expr *PNode) *u8 {
     var binexpr *PNode = pnode_require(expr, "bin");
     var terntail *PNode = pnode_require(expr, "tern");
@@ -444,29 +475,38 @@ func emit_exprstmt_from_expr(expr *PNode) *u8 {
         var inc *u8 = try_incdec(binexpr);
         if inc != nil { return inc; }
     }
-    var lv *PNode = pnode_require(binexpr, "first");
+
+    var table *PrecTable = c_table();
+    var first *PNode = pnode_require(binexpr, "first");
     var rest *PNode = pnode_require(binexpr, "rest");
-    if vec_len(rest.children) > 0 {
-        // The leading operator decides the statement. Both assignment forms peel
-        // it off and climb what follows, so '=' and '+=' never reach the table.
-        var item0 *PNode = vec_get(rest.children, 0);
-        var op0 *PNode = pnode_require(item0, "op");
-        if streq(op0.text, "=") {
-            var rhs *u8 = c_emit_flat(pnode_require(item0, "right"), rest, 1);
-            if ntt > 0 { rhs = emit_ternary(rhs, vec_get(terntail.children, 0)); }  // ... incl. ?:
-            return ast_assign(emit_operand_str(lv), rhs);
-        }
-        var cbase *u8 = compound_base(op0.text);                  // x op= rhs -> x = x op (rhs)
-        if cbase != nil {
-            var lvs *u8 = emit_operand_str(lv);
-            var rhs *u8 = c_emit_flat(pnode_require(item0, "right"), rest, 1);
-            if ntt > 0 { rhs = emit_ternary(rhs, vec_get(terntail.children, 0)); }
-            return ast_assign(lvs, ast_binop(cbase, lvs, rhs));
-        }
+    var at i64 = 0 - 1;
+    if ntt > 0 { at = c_last_assign(table, rest); }
+
+    if at < 0 {
+        var whole *PrecExpr = prec_expr(table);
+        c_push_flat(whole, first, rest, 0);
+        if ntt == 0 { return c_checked(prec_build_stmt(whole)); }
+        return ast_expr_stmt(emit_ternary(c_checked(prec_build(whole)),
+                                          vec_get(terntail.children, 0)));
     }
-    var base *u8 = c_emit_flat(lv, rest, 0);
-    if ntt > 0 { base = emit_ternary(base, vec_get(terntail.children, 0)); }
-    return ast_expr_stmt(base);
+
+    var last *PNode = vec_get(rest.children, at);
+    var tail *PrecExpr = prec_expr(table);
+    c_push_flat(tail, pnode_require(last, "right"), rest, at + 1);
+    var value *u8 = emit_ternary(c_checked(prec_build(tail)),
+                                 vec_get(terntail.children, 0));
+
+    var head *PrecExpr = prec_expr(table);
+    prec_operand(head, emit_operand_str(first));
+    var i i64 = 0;
+    while i < at {
+        var item *PNode = vec_get(rest.children, i);
+        c_push_oprest(head, item);
+        i = i + 1;
+    }
+    prec_op(head, pnode_require(last, "op").text);
+    prec_operand(head, value);
+    return c_checked(prec_build_stmt(head));
 }
 
 // c_forstmt = 'for' '(' c_forinit c_expr ';' c_expr ')' c_stmt

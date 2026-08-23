@@ -75,10 +75,13 @@ include "std/prec.lang"
 // Expressions (a flat operand/op list resolved by std/prec.lang)
 // ============================================================
 
-// Loosest level first. `=` is deliberately absent: it is peeled off as an
-// assignment statement below, never climbed as a binop.
+// Loosest level first. `=` leads, because assignment binds looser than every
+// operator and associates to the right; prec_build refuses it outside statement
+// position, which is what makes `f(a = b)` an error rather than a tree the
+// kernel cannot lower.
 func fl_table() *PrecTable {
     var t *PrecTable = prec_new();
+    prec_assign(t, "=");
     prec_left(t, "||");
     prec_left(t, "&&");
     prec_left(t, "== !=");
@@ -89,14 +92,13 @@ func fl_table() *PrecTable {
 }
 
 // flow_expr = first:flow_unary rest:flow_oprest*. Push operands and operators
-// in source order; the table decides the shape of the tree. `first` is the
-// operand before rest[from], so the assignment path can start past the '='.
-func fl_emit_flat(first *PNode, rest *PNode, from i64) *u8 {
-    var expr *PrecExpr = prec_expr(fl_table());
-    prec_operand(expr, fl_emit_operand(first));
+// in source order; the table decides the shape of the tree.
+func fl_push_flat(expr *PrecExpr, e *PNode) void {
+    prec_operand(expr, fl_emit_operand(pnode_require(e, "first")));
 
+    var rest *PNode = pnode_require(e, "rest");
     var n i64 = vec_len(rest.children);
-    var i i64 = from;
+    var i i64 = 0;
     while i < n {
         var item *PNode = vec_get(rest.children, i);   // op:operator right:flow_unary
         var op *PNode = pnode_require(item, "op");
@@ -104,11 +106,22 @@ func fl_emit_flat(first *PNode, rest *PNode, from i64) *u8 {
         prec_operand(expr, fl_emit_operand(pnode_require(item, "right")));
         i = i + 1;
     }
-    return prec_build(expr);
+}
+
+// std/prec.lang already named the operator it refused; a reader that carried on
+// would turn that into a mystery further down the pipeline.
+func fl_checked(value *u8) *u8 {
+    if value == nil {
+        eprintln("flow: this expression is not in the flow subset");
+        exit(1);
+    }
+    return value;
 }
 
 func fl_emit_expr(e *PNode) *u8 {
-    return fl_emit_flat(pnode_require(e, "first"), pnode_require(e, "rest"), 0);
+    var expr *PrecExpr = prec_expr(fl_table());
+    fl_push_flat(expr, e);
+    return fl_checked(prec_build(expr));
 }
 
 // A branch the grammar can produce but this converter does not handle is a
@@ -244,18 +257,12 @@ func fl_emit_stmt(s *PNode, send_target *u8) *u8 {
     return fl_unhandled("statement", s);
 }
 
-// Bare expression statement: peel a leading '=' as an assignment, else expr_stmt.
+// A bare expression statement is the one place assignment is legal, so it is
+// the one place that builds the same flat list as a statement.
 func fl_emit_exprstmt(e *PNode) *u8 {
-    var rest *PNode = pnode_require(e, "rest");
-    if vec_len(rest.children) > 0 {
-        var item0 *PNode = vec_get(rest.children, 0);
-        var op0 *PNode = pnode_require(item0, "op");
-        if streq(op0.text, "=") {
-            var lhs *u8 = fl_emit_operand(pnode_require(e, "first"));
-            return ast_assign(lhs, fl_emit_flat(pnode_require(item0, "right"), rest, 1));
-        }
-    }
-    return ast_expr_stmt(fl_emit_expr(e));
+    var expr *PrecExpr = prec_expr(fl_table());
+    fl_push_flat(expr, e);
+    return fl_checked(prec_build_stmt(expr));
 }
 
 // for X in GEN(args) { body }  ->  drive the generator with a handle:

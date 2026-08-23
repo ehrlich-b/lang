@@ -191,6 +191,12 @@ include "example/c/c.lang"
     int tsign(int x) { return x > 0 ? 1 : x < 0 ? 0 - 1 : 0; }
     int tpick(int a, int b) { int m = a > b ? a : b; return m; }
 
+    // round 7: assignment is a level on the shared table rather than something
+    // peeled off the front of a statement, and `?:` - which the grammar keeps
+    // outside the operator list - still binds tighter than it does.
+    int tassign(int n) { int x; x = n > 0 ? n * 2 : 0 - n; return x; }
+    int taug(int n) { int x; x = 1; x += n > 0 ? 10 : 20; return x; }
+
     // round 5: bitwise-not ~ (~x + 1 == -x in two's complement)
     int bnot(int x) { return ~x; }
     int negn(int x) { return ~x + 1; }
@@ -249,6 +255,10 @@ func main() i64 {
     print("tmax(3,7)     = "); print_int(tmax(3, 7));    print("\n");
     print("tsign(-4)     = "); print_int(tsign(0 - 4));  print("\n");
     print("tpick(9,2)    = "); print_int(tpick(9, 2));   print("\n");
+    print("tassign(3)/-3 = "); print_int(tassign(3)); print(" ");
+    print_int(tassign(0 - 3)); print("\n");
+    print("taug(1)/-1    = "); print_int(taug(1)); print(" ");
+    print_int(taug(0 - 1)); print("\n");
     print("bnot(5)       = "); print_int(bnot(5));       print("\n");
     print("negn(7)       = "); print_int(negn(7));       print("\n");
     print("SPADES        = "); print_int(SPADES);        print("\n");
@@ -292,6 +302,10 @@ func main() i64 {
     if tsign(0) != 0 { return 1; }
     if tsign(6) != 1 { return 1; }
     if tpick(9, 2) != 9 { return 1; }
+    if tassign(3) != 6 { return 1; }
+    if tassign(0 - 3) != 3 { return 1; }
+    if taug(1) != 11 { return 1; }
+    if taug(0 - 1) != 21 { return 1; }
     if bnot(5) != 0 - 6 { return 1; }
     if bnot(0) != 0 - 1 { return 1; }
     if negn(7) != 0 - 7 { return 1; }

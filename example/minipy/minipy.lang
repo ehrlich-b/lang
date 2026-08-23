@@ -244,11 +244,11 @@ func py_lex(text *u8) *u8 {
 // Grammar
 // ============================================================
 //
-// `or`, `and` and `not` are layered by hand rather than declared in the
-// precedence table: `not` is a PREFIX operator sitting between `and` and the
-// comparisons, and std/prec.lang is binary-infix only, so a flat operand list
-// cannot say where it binds. Everything below it - comparison, bitwise, shift,
-// additive, multiplicative - is one flat list and one table.
+// The whole of Python's expression ladder - `or`, `and`, `not`, comparison,
+// bitwise, shift, additive, multiplicative - is one flat operand/operator list
+// and one table. `not` is a PREFIX operator sitting between `and` and the
+// comparisons, which a flat list can say because an operator pushed where an
+// operand was expected is a prefix operator: the position is the declaration.
 
 #parser{
     py_program   = defs:py_def*
@@ -289,14 +289,10 @@ func py_lex(text *u8) *u8 {
     py_augassign = name:symbol op:py_augop value:py_expr
     py_augop     = '+=' | '-=' | '*=' | '/=' | '%='
 
-    py_expr      = first:py_conj rest:py_orrest*
-    py_orrest    = 'or' right:py_conj
-    py_conj      = first:py_nottest rest:py_andrest*
-    py_andrest   = 'and' right:py_nottest
-    py_nottest   = not:py_notexpr | cmp:py_flat
-    py_notexpr   = 'not' value:py_nottest
-    py_flat      = first:py_unary rest:py_oprest*
-    py_oprest    = op:operator right:py_unary
+    py_expr      = pre:py_notop* first:py_unary rest:py_oprest*
+    py_oprest    = op:py_binop pre:py_notop* right:py_unary
+    py_binop     = operator | 'and' | 'or'
+    py_notop     = 'not'
 
     py_unary     = neg:py_neg | pos:py_pos | inv:py_inv | py_postfix
     py_neg       = '-' value:py_unary
@@ -309,9 +305,13 @@ func py_lex(text *u8) *u8 {
     py_paren     = '(' value:py_expr ')'
 }
 
-// Python's ladder from the comparisons down, loosest level first.
+// Python's whole ladder, loosest level first. `not` is the prefix level, so it
+// wraps the comparison to its right instead of one operand of it.
 func py_table() *PrecTable {
     var t *PrecTable = prec_new();
+    prec_left(t, "||");
+    prec_left(t, "&&");
+    prec_prefix(t, "!");
     prec_left(t, "== != < <= > >=");
     prec_left(t, "|");
     prec_left(t, "^");
@@ -370,57 +370,40 @@ func py_unhandled(what *u8, node *PNode) void {
 // Expressions
 // ============================================================
 
-func py_is_cmp(op *u8) i64 {
-    if streq(op, "==") { return 1; }
-    if streq(op, "!=") { return 1; }
-    if streq(op, "<") { return 1; }
-    if streq(op, "<=") { return 1; }
-    if streq(op, ">") { return 1; }
-    if streq(op, ">=") { return 1; }
-    return 0;
+// Python spells three of its operators as words; the kernel spells them with
+// symbols. Only the AST sees the kernel's spelling - the parse tree and every
+// diagnostic keep the one the source used.
+func py_op_ast(op *u8) *u8 {
+    if streq(op, "or") { return "||"; }
+    if streq(op, "and") { return "&&"; }
+    if streq(op, "not") { return "!"; }
+    return op;
 }
 
-func py_expr_of(node *PNode) *u8 {
-    var first *u8 = py_conj_of(pnode_require(node, "first"));
-    var rest *PNode = pnode_require(node, "rest");
-    var n i64 = vec_len(rest.children);
+// `not` is an operator pushed where an operand belongs, which is what tells the
+// table it is a prefix. Any number may stack up: `not not x`.
+func py_push_prefix(e *PrecExpr, pre *PNode) void {
+    var n i64 = vec_len(pre.children);
     var i i64 = 0;
     while i < n {
-        var item *PNode = vec_get(rest.children, i);
-        first = ast_binop("||", first, py_conj_of(pnode_require(item, "right")));
+        var op *PNode = vec_get(pre.children, i);
+        prec_op(e, py_op_ast(op.text));
         i = i + 1;
     }
-    return first;
 }
 
-func py_conj_of(node *PNode) *u8 {
-    var first *u8 = py_nottest_of(pnode_require(node, "first"));
-    var rest *PNode = pnode_require(node, "rest");
-    var n i64 = vec_len(rest.children);
-    var i i64 = 0;
-    while i < n {
-        var item *PNode = vec_get(rest.children, i);
-        first = ast_binop("&&", first, py_nottest_of(pnode_require(item, "right")));
-        i = i + 1;
-    }
-    return first;
-}
-
-func py_nottest_of(node *PNode) *u8 {
-    if pnode_is(node, "not") {
-        return ast_not(py_nottest_of(pnode_require(node, "value")));
-    }
-    if pnode_is(node, "cmp") { return py_flat_of(node); }
-    py_unhandled("py_nottest", node);
-    return nil;
-}
-
+// One flat operand/operator list for the whole ladder, resolved by the table.
+//
 // Python's `a < b < c` means `a < b and b < c`, not `(a < b) < c`. Rather than
-// quietly compile the wrong program, refuse it. A flat operator list makes that
-// one count instead of a lookahead in the middle of the climb.
-func py_flat_of(node *PNode) *u8 {
-    var e *PrecExpr = prec_expr(py_table());
+// quietly compile the wrong program, refuse it - and count per chain, since any
+// operator looser than a comparison ends one: `a < b or c < d` is two chains.
+func py_expr_of(node *PNode) *u8 {
+    var t *PrecTable = py_table();
+    var cmp_level i64 = prec_of(t, "==");
+    var e *PrecExpr = prec_expr(t);
+    py_push_prefix(e, pnode_require(node, "pre"));
     prec_operand(e, py_unary_of(pnode_require(node, "first")));
+
     var rest *PNode = pnode_require(node, "rest");
     var n i64 = vec_len(rest.children);
     var cmps i64 = 0;
@@ -428,13 +411,18 @@ func py_flat_of(node *PNode) *u8 {
     while i < n {
         var item *PNode = vec_get(rest.children, i);
         var op *PNode = pnode_require(item, "op");
-        if py_is_cmp(op.text) == 1 {
+        var spelled *u8 = py_op_ast(op.text);
+        var level i64 = prec_of(t, spelled);
+        if level == cmp_level {
             cmps = cmps + 1;
             if cmps > 1 {
                 py_fail("chained comparison (a < b < c) is not supported", op);
             }
+        } else if level < cmp_level {
+            cmps = 0;
         }
-        prec_op(e, op.text);
+        prec_op(e, spelled);
+        py_push_prefix(e, pnode_require(item, "pre"));
         prec_operand(e, py_unary_of(pnode_require(item, "right")));
         i = i + 1;
     }
@@ -656,16 +644,10 @@ func py_no_step(node *PNode) void {
     py_fail("range's step must be an integer literal", node);
 }
 
-func py_flat_only(node *PNode) *PNode {
-    if vec_len(pnode_require(node, "rest").children) != 0 { py_no_step(node); }
-    return pnode_require(node, "first");
-}
-
 func py_step_literal(node *PNode) i64 {
-    var conj *PNode = py_flat_only(node);
-    var nottest *PNode = py_flat_only(conj);
-    if !pnode_is(nottest, "cmp") { py_no_step(node); }
-    var unary *PNode = py_flat_only(nottest);
+    if vec_len(pnode_require(node, "pre").children) != 0 { py_no_step(node); }
+    if vec_len(pnode_require(node, "rest").children) != 0 { py_no_step(node); }
+    var unary *PNode = pnode_require(node, "first");
     var neg i64 = 0;
     if pnode_is(unary, "neg") {
         neg = 1;

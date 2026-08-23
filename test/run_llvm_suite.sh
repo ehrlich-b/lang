@@ -504,6 +504,90 @@ LISPBAD
 }
 reader_errors_are_fatal_e2e
 
+# Prefix and assignment operators live in the shared precedence table now, so
+# the positions an operator may NOT appear in are the table's to refuse - one
+# message, from one place, for every reader that declares the operator.
+reader_operator_positions_e2e() {
+    local name=reader_operator_positions_e2e
+    local tmp=$(mktemp -d)
+    local ok=1
+
+    position_must_fail() {
+        local case=$1
+        local want=$2
+        LANG_CACHE="$tmp/cache-$case" LANGBE=llvm $COMPILER \
+            "$tmp/$case.lang" -o "$tmp/$case.ll" >"$tmp/$case.out" 2>&1 && ok=0
+        test ! -e "$tmp/$case.ll" || ok=0
+        grep -Fq "$want" "$tmp/$case.out" || ok=0
+    }
+
+    # `x = i++` used to compile as `x = i`: the ++ had no right operand, so the
+    # flat walk dropped it and honoured the side effect nowhere.
+    cat > "$tmp/cincdec.lang" <<'CINCDEC'
+include "example/c/c.lang"
+#c{
+    int bad(int n) { int x; x = n++; return x; }
+}
+func main() i64 { return 0; }
+CINCDEC
+    position_must_fail cincdec "c: '++' has no value here"
+
+    # Assignment is a statement in the shared AST; there is no assignment
+    # expression to lower `f(a = b)` to.
+    cat > "$tmp/cassignexpr.lang" <<'CASSIGNEXPR'
+include "example/c/c.lang"
+#c{
+    int id(int n) { return n; }
+    int bad(int n) { int a; return id(a = n); }
+}
+func main() i64 { return 0; }
+CASSIGNEXPR
+    position_must_fail cassignexpr "assignment operator '=' is not an expression"
+
+    # ... which is also what makes `a = b = c` an error rather than a tree the
+    # backend cannot emit.
+    cat > "$tmp/cchain.lang" <<'CCHAIN'
+include "example/c/c.lang"
+#c{
+    int bad(int n) { int a; int b; a = b = n; return a; }
+}
+func main() i64 { return 0; }
+CCHAIN
+    position_must_fail cchain "assignment operator '=' is not an expression"
+
+    # Python's `not` binds looser than a comparison, so it cannot be one's
+    # right operand: `a == not b` is a mistake, not an expression.
+    cat > "$tmp/pynot.lang" <<'PYNOT'
+include "example/minipy/minipy.lang"
+#minipy{
+def bad(a, b):
+    return a == not b
+}
+func main() i64 { return 0; }
+PYNOT
+    position_must_fail pynot "binds too loosely"
+
+    # A chained comparison still means something else in Python than what a
+    # left-folded climb would build.
+    cat > "$tmp/pychain.lang" <<'PYCHAIN'
+include "example/minipy/minipy.lang"
+#minipy{
+def bad(a, b, c):
+    return a < b < c
+}
+func main() i64 { return 0; }
+PYCHAIN
+    position_must_fail pychain "chained comparison"
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_operator_positions_e2e
+
 negative_compile_e2e() {
     local name=$1; local file=$2
     local tmp=$(mktemp -d)

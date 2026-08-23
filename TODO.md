@@ -49,7 +49,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 32. ✓ Name the parts of a sequence, not their positions
 33. ✓ Make every reader's errors fatal
 34. ✓ Let a reader supply its own tokens
-35. → **Fold prefix and assignment operators into the precedence table** ← current
+35. ✓ Fold prefix and assignment operators into the precedence table
+36. → **Let a reader say what a comment is** ← current
 
 ---
 
@@ -363,22 +364,68 @@ in milestones 28 and 31.
 
 ---
 
-## Next: Fold prefix and assignment operators into the precedence table
+## Next: Let a reader say what a comment is
 
-`std/prec.lang` is binary-infix only, and three readers now work around it. C
-peels `=` and filters postfix `++`/`--` by hand, Flow peels `=`, and minipy
-hand-layers `or`/`and`/`not` above the table because Python's `not` is a PREFIX
-operator that binds looser than the comparisons - a flat operand list cannot say
-where that binds, so seven of minipy's ten levels come from the table and three
-are written out. That is the third caller, which is the bar this project has
-used for every toolkit milestone so far.
+The last place a reader still has to rewrite its own source text before the
+shared scanner sees it. `std/tok.lang` hard-codes lang's `//`, so minipy blanks
+`#` comments AND defuses `//` (length-preservingly, because byte offsets ARE its
+block structure), and forth sanitizes `( ... )` the same way. The token-stream
+seam from milestone 34 does not reach it: both happen before scanning.
 
-- [ ] Prefix operators with their own level (`prec_prefix`), so `not a == b`
-      parses as Python means it without a hand-written tier.
-- [ ] Assignment, which is right-associative and lowest, so C and Flow stop
-      peeling it off before they build.
-- [ ] Re-fold the three readers onto the table and delete what the fix replaces;
-      a toolkit addition nothing adopts is a toolkit addition that was wrong.
+- [ ] Let a Tokenizer be told its line- and block-comment syntax, defaulting to
+      lang's.
+- [ ] Delete minipy's and forth's source pre-passes and check their spans are
+      still exact - blanking was only ever a way to keep offsets.
+- [ ] A reader that declares no comment syntax must still get lang's, so every
+      existing reader is untouched.
+
+---
+
+## Completed: Fold prefix and assignment operators into the precedence table
+
+`std/prec.lang` was binary-infix only, and three readers worked around it: C
+peeled `=`, desugared `+=` and dropped a postfix `++`; Flow peeled `=`; and
+minipy hand-layered `or`/`and`/`not` above the table, because Python's `not` is
+a PREFIX operator binding looser than the comparisons and two parallel vectors
+of operands and operators cannot say where that binds.
+
+One list can. Operands and operators now go into the same list, in source order,
+and their POSITION is the declaration: an operator pushed where an operand was
+expected is a prefix operator. Nothing about the pushing API changed.
+
+- [x] `prec_prefix`, a level whose operators take no left operand and wrap
+      everything tighter than themselves. `not a == b` is `!(a == b)`; `a and
+      not b` is `a && !b`; `a == not b` is refused, because a prefix cannot
+      appear where it would bind looser than its position.
+- [x] `prec_assign`, its own kind because the shared AST spells assignment
+      `(assign target value)`, not `(binop = ...)`. `<op>=` lowers to
+      `lv = lv <op> rhs` when `<op>` is declared on the same table, so a
+      language with `:=` and no compounds does not inherit C's.
+- [x] `prec_build` refuses an assignment operator and `prec_build_stmt` accepts
+      one, which is what makes `f(a = b)` an error with a message instead of a
+      tree the backend cannot emit. `a = b = c` is refused for the same reason:
+      the shared AST has no assignment expression.
+- [x] All three readers re-folded. C's `compound_base` and both peel branches,
+      Flow's peel, and minipy's `py_expr_of`/`py_conj_of`/`py_nottest_of`/
+      `py_is_cmp` and four grammar rules are gone.
+
+Fixed en route, and the reason this milestone was worth more than its diff: C's
+flat walk silently DROPPED an operator with no right operand, so `x = i++`
+compiled as `x = i`. It is now a refusal that names the operator.
+
+| | before | after |
+|---|---|---|
+| minipy: expression-lowering functions | 5 | 3 |
+| minipy: grammar rules for the ladder | 8 | 4 |
+| minipy: `streq` sniffs | 10 | 7 |
+| C: silently dropped operators | 1 | 0 |
+
+Two things stayed reader-local on purpose. C's ternary tail sits outside the
+operator list in its grammar, and `?:` binds tighter than assignment, so C
+splits at the assignment operator and hands the wrapped value back as its
+operand - a ternary level in the table would be one caller. And minipy maps
+`or`/`and`/`not` to the kernel's spellings at the push site, three lines, so the
+parse tree and every diagnostic keep the word the source used.
 
 ---
 
