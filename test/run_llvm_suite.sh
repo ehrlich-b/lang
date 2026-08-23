@@ -440,6 +440,70 @@ ARITYSTDLIB
 }
 call_arity_diagnostics_e2e
 
+# A reader that reports an error must not also produce a program. minipy has
+# been guarded since it was the one that surfaced `cg_had_error`; forth and
+# minilisp were still printing a complaint and building anyway.
+reader_errors_are_fatal_e2e() {
+    local name=reader_errors_are_fatal_e2e
+    local tmp=$(mktemp -d)
+    local ok=1
+
+    reader_must_fail() {
+        local case=$1
+        local want=$2
+        LANG_CACHE="$tmp/cache-$case" LANGBE=llvm $COMPILER \
+            "$tmp/$case.lang" -o "$tmp/$case.ll" >"$tmp/$case.out" 2>&1 && ok=0
+        test ! -e "$tmp/$case.ll" || ok=0
+        grep -Fq "$want" "$tmp/$case.out" || ok=0
+    }
+
+    # `+` with nothing on the stack used to print four underflows and build.
+    cat > "$tmp/forth.lang" <<'FORTHBAD'
+include "example/forth/forth.lang"
+#forth{
+: bad ( -- n ) + ;
+}
+func main() i64 { return bad(); }
+FORTHBAD
+    reader_must_fail forth "forth: stack underflow"
+
+    # A word that is never declared cannot be called.
+    cat > "$tmp/forthword.lang" <<'FORTHWORD'
+include "example/forth/forth.lang"
+#forth{
+: bad ( n -- n ) nosuchword ;
+}
+func main() i64 { return bad(1); }
+FORTHWORD
+    reader_must_fail forthword "forth: undefined word"
+
+    # A list headed by a number is not a call; it used to become nil silently.
+    cat > "$tmp/lisp.lang" <<'LISPBAD'
+include "example/minilisp/minilisp.lang"
+include "example/minilisp/lisp_runtime.lang"
+#minilisp{
+(defun bad () (+ 1 (2 3)))
+}
+func main() i64 { return 0; }
+LISPBAD
+    reader_must_fail lisp "minilisp: a call's head must be a symbol"
+
+    # The readers still build what they always did.
+    for good in example/forth/test_forth.lang example/minilisp/test_minilisp.lang; do
+        LANG_CACHE="$tmp/cache-good" LANGBE=llvm $COMPILER "$good" \
+            -o "$tmp/good.ll" >/dev/null 2>&1 || ok=0
+        rm -f "$tmp/good.ll"
+    done
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_errors_are_fatal_e2e
+
 negative_compile_e2e() {
     local name=$1; local file=$2
     local tmp=$(mktemp -d)

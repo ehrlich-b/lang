@@ -52,6 +52,22 @@ func list_len(node *PNode) i64 {
     return vec_len(list_inner(node).children);
 }
 
+// A form the reader does not recognize is a reader bug or a program bug, and
+// either way `lisp_nil` is the wrong answer: `(+ 1 (2 3))` used to compile clean
+// and evaluate the inner call to nil.
+func ml_fail(what *u8, node *PNode) *u8 {
+    eprint("minilisp: ");
+    eprint(what);
+    if node != nil && node.text != nil {
+        eprint(" '");
+        eprint(node.text);
+        eprint("'");
+    }
+    eprintln("");
+    exit(1);
+    return nil;
+}
+
 func is_sym(node *PNode, name *u8) bool {
     if node == nil { return false; }
     if !pnode_is(node, "sym") { return false; }
@@ -186,7 +202,7 @@ func lisp_quote(node *PNode) *u8 {
     if pnode_is(node, "list") {                               // list -> cons chain
         return lisp_quote_list(node, 0, list_len(node));
     }
-    return ast_call_named0("lisp_nil");
+    return ml_fail("unquotable form", node);
 }
 
 func lisp_quote_list(node *PNode, i i64, count i64) *u8 {
@@ -233,8 +249,10 @@ func lisp_expr(node *PNode) *u8 {
         if streq(node.text, "nil") { return ast_call_named0("lisp_nil"); }
         return ast_ident(node.text);
     }
-    if pnode_is(node, "op") { return ast_call_named0("lisp_nil"); }   // bare operator (n/a)
-    if !pnode_is(node, "list") { return ast_call_named0("lisp_nil"); } // only lists remain
+    // Lisp-2: an operator names a function, so it is only meaningful at the head
+    // of a call. Everything that is not an atom is a list.
+    if pnode_is(node, "op") { return ml_fail("operator used as a value", node); }
+    if !pnode_is(node, "list") { return ml_fail("unrecognized form", node); }
 
     var count i64 = list_len(node);
     if count == 0 { return ast_call_named0("lisp_nil"); }
@@ -254,7 +272,7 @@ func lisp_expr(node *PNode) *u8 {
         if cf != nil {
             return ast_call_named2(cf, lisp_expr(list_get(node, 1)), lisp_expr(list_get(node, 2)));
         }
-        return ast_call_named0("lisp_nil");
+        return ml_fail("unknown operator", first);
     }
 
     // (defun name (params) body) -> (program (func name (params) i64 (block ...)))
@@ -341,7 +359,7 @@ func lisp_expr(node *PNode) *u8 {
         return ast_call_named(first.text, args);
     }
 
-    return ast_call_named0("lisp_nil");
+    return ml_fail("a call's head must be a symbol, an operator, or a list", first);
 }
 
 reader minilisp(text *u8) *u8 {

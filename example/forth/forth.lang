@@ -183,7 +183,7 @@ func fo_effect_split(eff *PNode, pnames *u8) i64 {
         i = i + 1;
     }
     if past == 0 {
-        eprint("forth: stack effect is missing '--'; treating every name as a parameter\n");
+        eprint("forth: warning: stack effect is missing '--'; treating every name as a parameter\n");
     }
     return nres;
 }
@@ -237,10 +237,24 @@ func fo_sig_find(sigs *u8, name *u8) i64 {
 // The compile-time stack (of AST nodes)
 // ============================================================
 
+// A reported error must end the build. It used not to: `: bad ( -- n ) + ;`
+// printed "stack underflow" four times and then wrote a working-looking program
+// whose word returned whatever `ast_int(0)` stood in for.
+func fo_fail(msg *u8, what *u8) void {
+    eprint("forth: ");
+    eprint(msg);
+    if what != nil {
+        eprint(" '");
+        eprint(what);
+        eprint("'");
+    }
+    eprintln("");
+    exit(1);
+}
+
 func fo_pop(stack *u8) *u8 {
     if vec_len(stack) == 0 {
-        eprint("forth: stack underflow\n");
-        return ast_int(0);
+        fo_fail("stack underflow", nil);
     }
     return vec_pop(stack);
 }
@@ -364,10 +378,7 @@ func fo_emit_operator(items *u8, ip *i64, stack *u8) void {
     }
     var lop *u8 = fo_binop_for(text);
     if lop == nil {
-        eprint("forth: unknown operator word '");
-        eprint(text);
-        eprint("'\n");
-        return;
+        fo_fail("unknown operator word", text);
     }
     fo_binary(stack, lop);
 }
@@ -377,17 +388,17 @@ func fo_shuffle(w *u8, stack *u8, stmts *u8, node *PNode) i64 {
     fo_flush(stack, stmts, node);
     var n i64 = vec_len(stack);
     if streq(w, "dup") {
-        if n < 1 { eprint("forth: dup on an empty stack\n"); return 1; }
+        if n < 1 { fo_fail("dup on an empty stack", nil); }
         vec_push(stack, vec_get(stack, n - 1));
         return 1;
     }
     if streq(w, "drop") {
-        if n < 1 { eprint("forth: drop on an empty stack\n"); return 1; }
+        if n < 1 { fo_fail("drop on an empty stack", nil); }
         vec_pop(stack);
         return 1;
     }
     if streq(w, "swap") {
-        if n < 2 { eprint("forth: swap needs two values\n"); return 1; }
+        if n < 2 { fo_fail("swap needs two values", nil); }
         var a *u8 = vec_get(stack, n - 2);
         var b *u8 = vec_get(stack, n - 1);
         vec_set(stack, n - 2, b);
@@ -395,19 +406,19 @@ func fo_shuffle(w *u8, stack *u8, stmts *u8, node *PNode) i64 {
         return 1;
     }
     if streq(w, "over") {
-        if n < 2 { eprint("forth: over needs two values\n"); return 1; }
+        if n < 2 { fo_fail("over needs two values", nil); }
         vec_push(stack, vec_get(stack, n - 2));
         return 1;
     }
     if streq(w, "nip") {
-        if n < 2 { eprint("forth: nip needs two values\n"); return 1; }
+        if n < 2 { fo_fail("nip needs two values", nil); }
         var top *u8 = vec_get(stack, n - 1);
         vec_pop(stack);
         vec_set(stack, n - 2, top);
         return 1;
     }
     if streq(w, "rot") {
-        if n < 3 { eprint("forth: rot needs three values\n"); return 1; }
+        if n < 3 { fo_fail("rot needs three values", nil); }
         var x *u8 = vec_get(stack, n - 3);
         var y *u8 = vec_get(stack, n - 2);
         var z *u8 = vec_get(stack, n - 1);
@@ -423,11 +434,8 @@ func fo_shuffle(w *u8, stack *u8, stmts *u8, node *PNode) i64 {
 func fo_emit_call(name *u8, stack *u8, stmts *u8, sigs *u8, node *PNode) void {
     var si i64 = fo_sig_find(sigs, name);
     if si < 0 {
-        eprint("forth: undefined word '");
-        eprint(name);
-        eprint("' (declare host functions with `extern name ( a -- r ) ;`)\n");
-        vec_push(stack, ast_int(0));
-        return;
+        fo_fail("undefined word (declare host functions with `extern name ( a -- r ) ;`)",
+                name);
     }
     var np i64 = vec_get(sigs, si + 1);
     var nr i64 = vec_get(sigs, si + 2);
@@ -452,7 +460,7 @@ func fo_emit_call(name *u8, stack *u8, stmts *u8, sigs *u8, node *PNode) void {
         ast_push(stmts, ast_expr_stmt(call));
     } else {
         if nr > 1 {
-            eprint("forth: word '");
+            eprint("forth: warning: word '");
             eprint(name);
             eprint("' declares more than one result; only the first is kept\n");
         }
@@ -495,19 +503,19 @@ func fo_emit_if(node *PNode, items *u8, ip *i64, stack *u8, stmts *u8, sigs *u8,
 
     var w2 *u8 = fo_word_at(items, *ip);
     if w2 == nil {
-        eprint("forth: `if` without a closing `then`\n");
+        fo_fail("`if` without a closing `then`", nil);
     } else {
         if streq(w2, "then") {
             *ip = *ip + 1;
         } else {
-            eprint("forth: `if` without a closing `then`\n");
+            fo_fail("`if` without a closing `then`", nil);
         }
     }
 
     var dt i64 = vec_len(then_stack);
     var de i64 = vec_len(else_stack);
     if dt != de {
-        eprint("forth: if/else leave different stack depths; using the shallower one\n");
+        eprint("forth: warning: if/else leave different stack depths; using the shallower one\n");
     }
     var d i64 = dt;
     if de < d { d = de; }
@@ -638,10 +646,7 @@ func fo_emit_worddef(d *PNode, sigs *u8) *u8 {
         if depth > 0 {
             ast_push(stmts, ast_return(vec_get(stack, depth - 1)));
         } else {
-            eprint("forth: '");
-            eprint(wname);
-            eprint("' promises a result but leaves an empty stack\n");
-            ast_push(stmts, ast_return(ast_int(0)));
+            fo_fail("word promises a result but leaves an empty stack", wname);
         }
     } else {
         ast_push(stmts, ast_return(ast_int(0)));

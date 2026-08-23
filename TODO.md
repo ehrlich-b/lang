@@ -47,7 +47,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 30. ✓ Reject a call with the wrong number of arguments
 31. ✓ Cash the reader toolkit in on the biggest reader
 32. ✓ Name the parts of a sequence, not their positions
-33. → **Capture a sixth language, and only fix the toolkit it breaks** ← current
+33. ✓ Make every reader's errors fatal
+34. → **Capture a sixth language, and only fix the toolkit it breaks** ← current
 
 ---
 
@@ -336,6 +337,28 @@ return type with the LLVM backend, so a generated rule that referenced a later
 one was called as if it returned `i64`. Native tolerated the mismatch; wasm
 trapped on it. Same class as the closure-env ABI bug - the wasm target is the
 only thing that reports it.
+
+---
+
+## Completed: Make every reader's errors fatal
+
+The `cg_had_error` fix in 2026-08-02 made the *compiler* stop building after it
+reported an error. Two readers were still doing the old thing:
+
+- **forth** printed `stack underflow` four times for `: bad ( -- n ) + ;` and
+  then wrote a working-looking program whose word returned whatever `ast_int(0)`
+  stood in for. Eleven error sites, none fatal. Now one `fo_fail` that exits, and
+  the three genuinely lenient ones say `warning:` so they read as the choice
+  they are.
+- **minilisp** turned any form it did not recognize into `lisp_nil`, so
+  `(+ 1 (2 3))` compiled clean and evaluated the inner call to nothing. Now
+  `ml_fail` names the form and stops.
+
+tiny, calc, minipy, flow and C were already fatal - flow's and C's were made so
+in milestones 28 and 31.
+
+- [x] Guarded by `reader_errors_are_fatal_e2e`: three rejections plus a rebuild
+      of both readers' real test programs.
 
 ---
 
