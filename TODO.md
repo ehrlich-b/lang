@@ -338,6 +338,33 @@ only thing that reports it.
 
 ---
 
+## Next: Cash the reader toolkit in on the biggest reader
+
+Milestones 22-28 built the toolkit - named captures, cardinality, grammar
+diagnostics, tree dumps, a shared precedence table, labeled branches - and
+proved each one on Calc and Flow, the two smallest readers. The C reader is 841
+lines with its own precedence ladder, its own climber, and 23 `kind ==` sniffs;
+minilisp has 11 and forth 8. If the toolkit does not make the big one shorter
+and more explicit, it is not finished, and no new language should be captured on
+top of it.
+
+- [ ] C: replace `prec` and `climb` with `std/prec.lang`. Keep the exceptions
+      reader-local, as milestone 27 said: `=` is peeled as an assignment and
+      postfix `++`/`--` carry no right operand, so they come out of the operand
+      stream before the table sees it.
+- [ ] C, minilisp, forth: label the alternatives that lowering currently
+      identifies by child `kind` or by a marker's text, and dispatch with
+      `pnode_is`. A sniff that survives must be one the grammar genuinely cannot
+      express, and must say why.
+- [ ] Replace what silent fallbacks remain (`return ast_int(0)` for an
+      unrecognized node) with a named diagnostic, the way Flow's was.
+- [ ] Every shipped reader keeps working natively and in the browser: this is a
+      refactor, and the reader gates are what say so.
+- [ ] Report what the toolkit still cannot express. That list is the input to
+      the next toolkit milestone, and is worth more than the line count.
+
+---
+
 ## Completed: Reject a call with the wrong number of arguments
 
 The LLVM backend emitted any call it could name, whatever the argument count. A
