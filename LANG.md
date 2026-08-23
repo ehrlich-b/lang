@@ -93,6 +93,17 @@ extern func malloc(size i64) *u8;
 extern func write(fd i64, buf *u8, count i64) i64;
 ```
 
+There are no variadic functions and no default arguments, so a call must pass
+exactly as many arguments as the declaration takes:
+
+```lang
+func two(a i64, b i64) i64 { return a + b; }
+two(1);   // error: function 'two' takes 2 arguments, called with 1
+```
+
+A call through a function-pointer variable is checked by the variable's type
+instead, and a local of the same name as a function wins over it.
+
 ### Variables
 ```lang
 var name Type;           // declaration (initialized to 0)

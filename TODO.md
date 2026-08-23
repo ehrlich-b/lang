@@ -44,8 +44,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 27. ✓ Make expression precedence reusable
 28. ✓ Make choice branches self-identifying
 29. ✓ Reject field access the compiler cannot type
-30. → **Reject a call with the wrong number of arguments** ← current
-31. Cash the reader toolkit in on the biggest reader
+30. ✓ Reject a call with the wrong number of arguments
+31. → **Cash the reader toolkit in on the biggest reader** ← current
 32. Capture more languages only when it improves the reader toolkit
 
 ---
@@ -338,31 +338,40 @@ only thing that reports it.
 
 ---
 
-## Next: Reject a call with the wrong number of arguments
+## Completed: Reject a call with the wrong number of arguments
 
-The LLVM backend emits any call it can name, whatever the argument count. A
-missing argument reads whatever the register held; an extra one is dropped:
+The LLVM backend emitted any call it could name, whatever the argument count. A
+missing argument read whatever the register held; an extra one was dropped:
 
 ```lang
 func two(a i64, b i64) i64 { return a + b; }
-func main() i64 { return two(1); }   // compiles; returned 49 today
+func main() i64 { return two(1); }   // compiled; returned 49
 ```
 
-The direct wasm backend already refuses this - a wasm module with a mismatched
-call will not validate, so it had no choice. That is the same asymmetry the
-reader-generated return-type bug had in milestone 28: the target that cannot
-tolerate a mismatch is the only one reporting it, and the native path silently
-miscompiles. It cost real time tonight - a test called `vec_new()` on a
-one-parameter function and crashed inside the vector instead of at the call:
+Direct wasm always refused it - a mismatched call will not validate, so it had
+no choice. Same asymmetry as milestone 28's reader return-type bug: the target
+that cannot tolerate a mismatch is the only one reporting it. It cost real time
+in milestone 29, where a test called `vec_new()` on a one-parameter function and
+crashed inside the vector rather than at the call.
 
-- [ ] Report a source-located error naming the function, the count it declares,
-      and the count written, on the native path.
-- [ ] Exempt what is genuinely variadic; an `extern` with no declared parameter
-      list is not a wrong-arity call.
-- [ ] Match direct wasm's wording so a reader author sees one message, and fix
-      its "unknown function" mislabel where the name exists but the arity does not.
-- [ ] Guard native and browser; the compiler, the stdlib, and every shipped
-      reader must still build, since nothing has been checking until now.
+- [x] The call shape picks the declaration (`find_func_arity`), and a name that
+      matches no arity is an error naming the function and both counts.
+- [x] Both backends share the message; direct wasm no longer calls a known
+      function unknown, which it did because a wrong-arity call never marked its
+      callee reachable and the pruner then removed the evidence.
+- [x] Lang has no variadics and no default arguments, so there is nothing to
+      exempt. Externs are ordinary declarations.
+- [x] Calls through a function-pointer variable are still checked by the
+      variable's type. **A local named like a function now wins**, which is a
+      behavior fix, not only a diagnostic: the call used to go to the function.
+- [x] `283_call_arity` covers the legal shapes and fails on the pre-fix
+      compiler; `call_arity_diagnostics_e2e` covers four rejections plus the
+      wasm wording, and the browser gate covers one.
+
+Not done: the error reports at the enclosing declaration, because calls carry no
+origin of their own and the origin table is a linear scan - see milestone 29 for
+why only computed field bases got one. The message names the callee and both
+counts, which is enough to find it.
 
 ---
 

@@ -371,6 +371,75 @@ FIELDPOINTER
 }
 field_access_diagnostics_e2e
 
+# The argument count went unchecked on the native path: a missing argument read
+# whatever the register held, an extra one was dropped. Direct wasm always
+# refused, because a mismatched call will not validate - the same asymmetry that
+# hid the reader-generated return-type bug.
+call_arity_diagnostics_e2e() {
+    local name=call_arity_diagnostics_e2e
+    local tmp=$(mktemp -d)
+    local ok=1
+
+    arity_must_fail() {
+        local case=$1
+        local want=$2
+        LANG_CACHE="$tmp/cache-$case" LANGBE=llvm $COMPILER \
+            "$tmp/$case.lang" -o "$tmp/$case.ll" >"$tmp/$case.out" 2>&1 && ok=0
+        test ! -e "$tmp/$case.ll" || ok=0
+        grep -Fq "$want" "$tmp/$case.out" || ok=0
+    }
+
+    cat > "$tmp/few.lang" <<'ARITYFEW'
+func two(a i64, b i64) i64 { return a + b; }
+func main() i64 { return two(1); }
+ARITYFEW
+    arity_must_fail few "error: function 'two' takes 2 arguments, called with 1"
+
+    cat > "$tmp/many.lang" <<'ARITYMANY'
+func one(a i64) i64 { return a; }
+func main() i64 { return one(1, 2, 3); }
+ARITYMANY
+    arity_must_fail many "error: function 'one' takes 1 argument, called with 3"
+
+    cat > "$tmp/none.lang" <<'ARITYNONE'
+func two(a i64, b i64) i64 { return a + b; }
+func main() i64 { return two(); }
+ARITYNONE
+    arity_must_fail none "error: function 'two' takes 2 arguments, called with 0"
+
+    # A stdlib call is a declaration like any other; this is the shape that cost
+    # real time before the check existed.
+    cat > "$tmp/stdlib.lang" <<'ARITYSTDLIB'
+include "std/core.lang"
+func main() i64 { var v *u8 = vec_new(); return 0; }
+ARITYSTDLIB
+    arity_must_fail stdlib "error: function 'vec_new' takes 1 argument, called with 0"
+
+    # The direct wasm backend has always refused these; it must now say the same
+    # thing rather than calling the function unknown.
+    LANG_CACHE="$tmp/cache-wasm" LANGBE=wasm $COMPILER \
+        "$tmp/few.lang" -o "$tmp/few.wasm" >"$tmp/few-wasm.out" 2>&1 && ok=0
+    grep -Fq "error: function 'two' takes 2 arguments, called with 1" \
+        "$tmp/few-wasm.out" || ok=0
+
+    # And the legal shapes still compile and run.
+    LANG_CACHE="$tmp/cache-legal" LANGBE=llvm $COMPILER \
+        test/suite/283_call_arity.lang -o "$tmp/legal.ll" >"$tmp/legal.out" 2>&1 || ok=0
+    if [ -e "$tmp/legal.ll" ]; then
+        do_timeout 5 lli "$tmp/legal.ll" >/dev/null 2>&1 || ok=0
+    else
+        ok=0
+    fi
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+call_arity_diagnostics_e2e
+
 negative_compile_e2e() {
     local name=$1; local file=$2
     local tmp=$(mktemp -d)

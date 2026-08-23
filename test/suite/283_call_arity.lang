@@ -1,0 +1,41 @@
+// expect: 0
+// The argument count is now checked, so the shapes that were always legal have
+// to keep compiling: forward references, zero arguments, externs, calls through
+// a function-pointer variable, and a local that shares a function's name.
+
+include "std/core.lang"
+
+func none() i64 { return 5; }
+func one(a i64) i64 { return a * 2; }
+func three(a i64, b i64, c i64) i64 { return a + b + c; }
+
+// Defined below what calls it: declarations are collected before codegen.
+func early() i64 { return late() + 1; }
+func late() i64 { return 9; }
+
+func apply(f fn(i64) i64, v i64) i64 { return f(v); }
+
+func main() i64 {
+    if none() != 5 { return 1; }
+    if one(3) != 6 { return 2; }
+    if three(1, 2, 3) != 6 { return 3; }
+    if early() != 10 { return 4; }
+
+    // Indirect calls carry their arity in the variable's type, not in a
+    // declaration the call site can be checked against.
+    var f fn(i64) i64 = &one;
+    if f(4) != 8 { return 5; }
+    if apply(&one, 5) != 10 { return 6; }
+
+    // An extern is a declaration like any other.
+    var buf *u8 = malloc(8);
+    if buf == nil { return 7; }
+    free(buf);
+
+    // A local named like a function wins, and is called through. This used to
+    // call the function instead - the arity did not match, but nothing looked.
+    var three fn(i64) i64 = &one;
+    if three(6) != 12 { return 8; }
+
+    return 0;
+}

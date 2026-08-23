@@ -222,6 +222,11 @@ func main() i64 {
 func head(it *Item) i64 { return it.nmae; }
 func main() i64 { var it *Item = 0; return head(it); }
 `, "error: struct 'Item' has no field 'nmae'"],
+    // A wrong argument count was always refused here - a mismatched call will
+    // not validate - but it used to be reported as an unknown function.
+    ['wrong-arity', `func two(a i64, b i64) i64 { return a + b; }
+func main() i64 { return two(1); }
+`, "error: function 'two' takes 2 arguments, called with 1"],
   ];
   for (const [name, source, expected] of badFields) {
     const sourceName = `bad-field-${name}.lang`;

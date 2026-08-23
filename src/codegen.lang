@@ -2036,6 +2036,46 @@ func find_func(name *u8, name_len i64) *u8 {
     return nil;
 }
 
+// Both backends report a wrong-arity call, so they say it the same way. The
+// caller has already set cg_diagnostic_node.
+func cg_arity_error(name *u8, name_len i64, declared i64, actual i64) void {
+    cg_error_prefix();
+    eprint("function '");
+    eprint_buf(name, name_len);
+    eprint("' takes ");
+    eprint_i64(declared);
+    eprint(" argument");
+    if declared != 1 { eprint("s"); }
+    eprint(", called with ");
+    eprint_i64(actual);
+    eprintln("");
+    cg_had_error = 1;
+}
+
+// A name can be declared more than once at different arities on purpose - a
+// one-parameter reader named `read` coexists with libc's three-parameter one -
+// so the call shape, not the name alone, picks the declaration.
+func find_func_arity(name *u8, name_len i64, arity i64) *u8 {
+    var i i64 = 0;
+    while i < cg_func_count {
+        var entry *u8 = cg_funcs + (i * 24);
+
+        var np **u8 = entry;
+        var fname *u8 = *np;
+
+        var nl *i64 = entry + 8;
+        var flen i64 = *nl;
+
+        if flen == name_len && memcmp(fname, name, name_len) {
+            var dp **u8 = entry + 16;
+            var decl *u8 = *dp;
+            if func_decl_param_count(decl) == arity { return decl; }
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
 // Find function index by name (returns -1 if not found)
 func find_func_index(name *u8, name_len i64) i64 {
     var i i64 = 0;

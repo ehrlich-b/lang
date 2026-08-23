@@ -1607,8 +1607,11 @@ func llvm_emit_expr(expr *u8) void {
                 return;
             }
 
-            // Check if it's a known function
-            known_func = find_func(func_name, func_name_len);
+            // Check if it's a known function. The call shape picks the
+            // declaration: one name can be declared at two arities on purpose,
+            // and until now a mismatch was emitted anyway - a missing argument
+            // read whatever the register held, an extra one was dropped.
+            known_func = find_func_arity(func_name, func_name_len, arg_count);
             if known_func != nil {
                 // Check visibility - can only call non-pub functions from same module
                 check_func_visibility(func_name, func_name_len);
@@ -1620,6 +1623,20 @@ func llvm_emit_expr(expr *u8) void {
                     is_indirect = 1;
                 } else if llvm_is_global(func_name, func_name_len) {
                     is_indirect = 2;  // 2 = global indirect
+                }
+            }
+
+            // The name is a function and this is not a call through a variable,
+            // so no declaration matching the written argument count means the
+            // call is wrong. It used to be emitted anyway.
+            if known_func == nil && is_indirect == 0 {
+                var by_name *u8 = find_func(func_name, func_name_len);
+                if by_name != nil {
+                    cg_arity_error(func_name, func_name_len,
+                                   func_decl_param_count(by_name), arg_count);
+                    *(llvm_expr_result) = 48;
+                    *(llvm_expr_result + 1) = 0;
+                    return;
                 }
             }
 

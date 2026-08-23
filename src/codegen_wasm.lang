@@ -959,8 +959,20 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         );
         if index < 0 {
             if node_origin_source(expr) != nil { cg_diagnostic_node = expr; }
-            if wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee)) >= 0 {
-                wasm_error("wrong argument count in direct wasm call");
+            var by_name i64 = wasm_find_func(
+                ident_expr_name(callee), ident_expr_name_len(callee)
+            );
+            if by_name >= 0 {
+                var decl *u8 = wasm_import_get(by_name);
+                if by_name >= wasm_import_count {
+                    decl = wasm_func_get(by_name - wasm_import_count);
+                }
+                if node_origin_source(cg_diagnostic_node) == nil {
+                    cg_diagnostic_node = wasm_current_decl;
+                }
+                cg_arity_error(ident_expr_name(callee), ident_expr_name_len(callee),
+                               func_decl_param_count(decl), call_expr_arg_count(expr));
+                wasm_had_error = 1;
             } else {
                 wasm_error("unknown function in direct wasm call");
             }
@@ -1312,6 +1324,12 @@ func wasm_mark_expr(expr *u8) void {
             var index i64 = wasm_find_func_arity(
                 ident_expr_name(callee), ident_expr_name_len(callee), call_expr_arg_count(expr)
             );
+            if index < 0 {
+                // This call matches no declaration and is about to be an error.
+                // Keep the name reachable so the diagnostic can say which
+                // function it meant rather than calling it unknown.
+                index = wasm_find_func(ident_expr_name(callee), ident_expr_name_len(callee));
+            }
             if index >= 0 { wasm_mark_function(index); }
         }
         var args *u8 = call_expr_args(expr);
