@@ -34,6 +34,19 @@ func main() i64 {
     if lisp_to_int(#minilisp{ (let ((x 3) (y 4)) (+ (* x x) (* y y))) }) != 25 { return 1; }
     if lisp_to_int(#minilisp{ (funcall (lambda (a b) (* a b)) 6 7) }) != 42 { return 1; }
 
+    // A Lisp you can comment. `;` runs to the end of the line, and the reader
+    // said so - the shared scanner used to know only lang's `//`.
+    print("commented let         = "); print_int(lisp_to_int(#minilisp{
+        ; the classic: a sum of squares
+        (let ((x 3)    ; the first leg
+              (y 4))   ; the second
+          (+ (* x x) (* y y)))
+    })); print("\n");
+    if lisp_to_int(#minilisp{
+        ; every one of these lines is gone before the parser sees it
+        (+ 1 2)
+    }) != 3 { return 1; }
+
     print("\nPASS\n");
     return 0;
 }

@@ -79,57 +79,6 @@ var TOK_INDENT i64 = 201;
 var TOK_DEDENT i64 = 202;
 
 // ============================================================
-// Source pre-pass
-// ============================================================
-
-// Blank out `#` comments and defuse `//`, without moving a single byte.
-//
-// Byte positions ARE the block structure here, so this pass must be
-// length-preserving: a comment becomes spaces rather than disappearing, which
-// also makes a comment-only line indistinguishable from a blank one - Python's
-// rule, for free. `//` (floor division) has to be neutered because the shared
-// tokenizer would eat the rest of the line as a lang comment; rewriting it to
-// `/ ` keeps the length, and integer division is what `/` already means when
-// every value is an i64.
-func py_strip_comments(text *u8) *u8 {
-    var sb *StringBuilder = sb_new();
-    var p *u8 = text;
-    var quote i64 = 0;
-    while *p != 0 {
-        var c i64 = *p;
-        if quote != 0 {
-            sb_char(sb, c);
-            if c == 92 {
-                if *(p + 1) != 0 {
-                    p = p + 1;
-                    sb_char(sb, *p);
-                }
-            } else if c == quote {
-                quote = 0;
-            }
-        } else if c == 34 || c == 39 {
-            quote = c;
-            sb_char(sb, c);
-        } else if c == 35 {
-            while *p != 0 && *p != 10 {
-                sb_char(sb, 32);
-                p = p + 1;
-            }
-            if *p == 0 { return sb_finish(sb); }
-            sb_char(sb, 10);
-        } else if c == 47 && *(p + 1) == 47 {
-            sb_char(sb, 47);
-            sb_char(sb, 32);
-            p = p + 1;
-        } else {
-            sb_char(sb, c);
-        }
-        p = p + 1;
-    }
-    return sb_finish(sb);
-}
-
-// ============================================================
 // The offside rule
 // ============================================================
 
@@ -161,7 +110,11 @@ var py_src *u8 = nil;
 // parse error reports the line and column a reader of the source would point
 // at, and so does every AST node built from the tree.
 func py_lex(text *u8) *u8 {
-    var t *Tokenizer = tok_new(text);
+    // Python's comment is `#`, and `//` is floor division rather than the start
+    // of one. Saying so is the whole of what minipy used to do by rewriting its
+    // own source text before scanning it - a pass that had to be
+    // length-preserving, because byte offsets ARE this language's blocks.
+    var t *Tokenizer = tok_new_comments(text, "#", nil, nil);
     var toks *u8 = tok_stream_new();
     var indents *u8 = vec_new(16);
     vec_push(indents, 0);
@@ -211,11 +164,19 @@ func py_lex(text *u8) *u8 {
         if k == TOK_RPAREN || k == TOK_RBRACKET || k == TOK_RBRACE {
             if depth > 0 { depth = depth - 1; }
         }
+        var used i64 = t.tok_len;
         if k == TOK_STRING {
             // A string's text is its VALUE (unquoted, unescaped); the kind is
             // what says it was quoted, so nothing downstream re-parses it. The
             // span still covers the quotes, so errors point at the literal.
             tok_stream_push(toks, k, start, t.tok_len, tok_string_value(t));
+        } else if k == TOK_SLASH && *(text + start + 1) == 47 {
+            // Floor division arrives as two slashes, since minipy told the
+            // scanner `//` is not a comment. Every value here is an i64, so one
+            // `/` already means what `//` means.
+            tok_stream_push(toks, TOK_SLASH, start, 2, nil);
+            tok_next(t);
+            used = 2;
         } else if k == TOK_NUMBER && *(text + start) == 45 {
             // The shared tokenizer folds a `-` straight into a following digit,
             // so `n -1` arrives as `n` and the single number `-1`. Every infix
@@ -228,7 +189,7 @@ func py_lex(text *u8) *u8 {
         } else {
             tok_stream_push(toks, k, start, t.tok_len, nil);
         }
-        last = start + t.tok_len;
+        last = start + used;
         tok_next(t);
     }
 
@@ -370,13 +331,15 @@ func py_unhandled(what *u8, node *PNode) void {
 // Expressions
 // ============================================================
 
-// Python spells three of its operators as words; the kernel spells them with
-// symbols. Only the AST sees the kernel's spelling - the parse tree and every
-// diagnostic keep the one the source used.
+// Python spells four of its operators differently from the kernel. Only the AST
+// sees the kernel's spelling - the parse tree and every diagnostic keep the one
+// the source used. `//` is floor division, and every value here is an i64, so
+// `/` already means it.
 func py_op_ast(op *u8) *u8 {
     if streq(op, "or") { return "||"; }
     if streq(op, "and") { return "&&"; }
     if streq(op, "not") { return "!"; }
+    if streq(op, "//") { return "/"; }
     return op;
 }
 
@@ -809,9 +772,8 @@ func py_def_of(node *PNode) *u8 {
 }
 
 reader minipy(text *u8) *u8 {
-    var src *u8 = py_strip_comments(text);
-    py_src = src;
-    var t *Tokenizer = tok_new_stream(src, py_lex(src));
+    py_src = text;
+    var t *Tokenizer = tok_new_stream(text, py_lex(text));
     var tree *PNode = parse_py_program(t);
     if tree == nil || !tok_eof(t) {
         tok_print_error(t, "minipy");

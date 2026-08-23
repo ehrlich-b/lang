@@ -50,7 +50,8 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 33. ✓ Make every reader's errors fatal
 34. ✓ Let a reader supply its own tokens
 35. ✓ Fold prefix and assignment operators into the precedence table
-36. → **Let a reader say what a comment is** ← current
+36. ✓ Let a reader say what a comment is
+37. → **Give every reader's own errors a location** ← current
 
 ---
 
@@ -364,20 +365,51 @@ in milestones 28 and 31.
 
 ---
 
-## Next: Let a reader say what a comment is
+## Next: Give every reader's own errors a location
 
-The last place a reader still has to rewrite its own source text before the
-shared scanner sees it. `std/tok.lang` hard-codes lang's `//`, so minipy blanks
-`#` comments AND defuses `//` (length-preservingly, because byte offsets ARE its
-block structure), and forth sanitizes `( ... )` the same way. The token-stream
-seam from milestone 34 does not reach it: both happen before scanning.
+The compiler reports semantic errors at the exact span in custom-language source
+(milestone 12), and a generated parser reports syntax errors at line and column.
+A reader's OWN errors - "range's step must be an integer literal", "stack
+underflow", "a call's head must be a symbol" - get neither, unless the reader
+hand-rolls it. One did: minipy carries `py_fail_at`, which walks the source
+counting newlines. C, flow, forth and minilisp all print a bare sentence, and
+every `PNode` has been carrying the span that would fix it since milestone 12.
 
-- [ ] Let a Tokenizer be told its line- and block-comment syntax, defaulting to
-      lang's.
-- [ ] Delete minipy's and forth's source pre-passes and check their spans are
-      still exact - blanking was only ever a way to keep offsets.
-- [ ] A reader that declares no comment syntax must still get lang's, so every
-      existing reader is untouched.
+- [ ] One shared way to report a reader error at a `PNode`, given the source the
+      reader was handed.
+- [ ] Adopt it in all five readers and delete minipy's copy.
+- [ ] Guard that each reader's own diagnostics carry a line and column, the way
+      the parse errors beside them already do.
+
+---
+
+## Completed: Let a reader say what a comment is
+
+The last place a reader had to rewrite its own source text before the shared
+scanner saw it. `std/tok.lang` hard-coded lang's `//` and `/* */`, so minipy
+blanked `#` comments AND defused `//` - length-preservingly, because byte offsets
+ARE its block structure - and minilisp had no comment syntax at all, because `;`
+would have derailed its parse. The token-stream seam from milestone 34 does not
+reach this: comment skipping happens before any token exists.
+
+- [x] `tok_new_comments(text, line, open, close)` - a tokenizer told how the
+      language it is reading spells a comment. nil is a form the language does
+      not have; a block comment needs both delimiters. A reader that says
+      nothing still gets lang's, so nothing else moved.
+- [x] minipy's source pre-pass is gone. `#` comments are the scanner's business,
+      a `#` inside a string is inside a token and never reaches it, and `//`
+      arrives as two slashes which the token stream merges into the one `/` that
+      already means floor division over i64.
+- [x] minilisp gained `;` and forth gained `\`, so three readers now spell
+      comments three different ways over one scanner.
+- [x] Spans are exact with nothing rewritten: a chained comparison two comment
+      lines down reports `minipy:5:18`, guarded in the suite.
+
+forth's `fo_sanitize_comments` stays, and the milestone was wrong to expect
+otherwise: in this Forth a parenthesized group is not a comment. The stack effect
+`( a b -- s )` wears the same parentheses and the grammar parses it, so what
+forth needs is not comment skipping but "do not tokenize the interior" - a
+different gap, and one round 2 (`variable`/`!`/`@`) would have to face anyway.
 
 ---
 

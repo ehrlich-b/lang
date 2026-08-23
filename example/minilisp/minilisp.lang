@@ -363,7 +363,10 @@ func lisp_expr(node *PNode) *u8 {
 }
 
 reader minilisp(text *u8) *u8 {
-    var t *Tokenizer = tok_new(text);
+    // Lisp's comment is `;`. Until a reader could say so, minilisp had none at
+    // all - it inherited lang's `//`, which is not a thing anyone writes in a
+    // Lisp, and `;` would have derailed the parse.
+    var t *Tokenizer = tok_new_comments(text, ";", nil, nil);
     var node *PNode = parse_sexp(t);
     return lisp_expr(node);
 }

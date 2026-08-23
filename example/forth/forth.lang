@@ -95,7 +95,7 @@ func fo_word_char(c i64) i64 {
 // characters. A comment can then say what it likes, while a stack effect - just
 // names plus the `--` separator - still reads exactly as before.
 //
-// `//` line comments are passed through untouched (the tokenizer strips them),
+// `\\` line comments are passed through untouched (the tokenizer strips them),
 // so a `(` inside one can't be mistaken for the start of a Forth comment.
 func fo_sanitize_comments(text *u8) *u8 {
     var sb *StringBuilder = sb_new();
@@ -115,7 +115,7 @@ func fo_sanitize_comments(text *u8) *u8 {
         } else if c == 40 {                     // (
             depth = 1;
             sb_char(sb, c);
-        } else if c == 47 && *(p + 1) == 47 {   // //
+        } else if c == 92 {                     // \ to end of line
             while *p != 0 && *p != 10 {
                 sb_char(sb, *p);
                 p = p + 1;
@@ -673,7 +673,11 @@ func fo_emit_program(prog *PNode) *u8 {
 }
 
 reader forth(text *u8) *u8 {
-    var t *Tokenizer = tok_new(fo_sanitize_comments(text));
+    // Forth's line comment is `\\`, which the shared scanner can now be told.
+    // `( ... )` stays a source pre-pass, because in THIS Forth a parenthesized
+    // group is not a comment: the stack effect wears the same parentheses and
+    // the grammar parses it (see fo_sanitize_comments).
+    var t *Tokenizer = tok_new_comments(fo_sanitize_comments(text), "\\", nil, nil);
     var prog *PNode = parse_fo_program(t);
     return fo_emit_program(prog);
 }

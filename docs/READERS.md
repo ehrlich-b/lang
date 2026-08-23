@@ -115,6 +115,14 @@ with `pnode_is(node, "assign")` instead of sniffing a leading keyword or a
 child's kind; `pnode_branch(node)` names a branch the converter does not handle.
 A reader can also parse however it wants.
 
+A reader tells the scanner how its language spells a comment when it makes the
+tokenizer—`tok_new_comments(text, line, open, close)`, nil for a form the
+language does not have. minipy declares `#` and no block form, which also says
+`//` is floor division; minilisp declares `;`; forth declares `\`. A reader that
+says nothing gets lang's `//` and `/* */`. Comments are skipped between tokens,
+which is why the syntax has to be settled before the first one is scanned—and
+why a reader used to have to rewrite its own source text instead.
+
 Operator precedence is shared rather than rewritten per reader: declare the
 ladder with `std/prec.lang` (`prec_assign`/`prec_left`/`prec_right`/
 `prec_prefix`, loosest level first), push operands and operators in source

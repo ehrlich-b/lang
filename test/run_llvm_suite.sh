@@ -588,6 +588,90 @@ PYCHAIN
 }
 reader_operator_positions_e2e
 
+# A reader says how its language spells a comment; the shared scanner does the
+# skipping. Before this, a reader had to rewrite its own source text first -
+# which minipy could only do length-preservingly, because its byte offsets ARE
+# its block structure.
+reader_comment_syntax_e2e() {
+    local name=reader_comment_syntax_e2e
+    local tmp=$(mktemp -d)
+    local ok=1
+
+    # Python's `#`, with `//` still floor division and `#` inside a string still
+    # a character.
+    cat > "$tmp/py.lang" <<'PYCOMMENT'
+include "std/core.lang"
+include "example/minipy/minipy.lang"
+#minipy{
+# a whole-line comment
+def half(n):        # and a trailing one
+    return n // 2   # `//` is division here, not the start of a comment
+}
+func main() i64 { return half(85); }
+PYCOMMENT
+    LANG_CACHE="$tmp/cache-py" LANGBE=llvm $COMPILER "$tmp/py.lang" -o "$tmp/py.ll" \
+        >/dev/null 2>&1 || ok=0
+    lli "$tmp/py.ll" >/dev/null 2>&1
+    test $? = 42 || ok=0
+
+    # Lisp's `;`, which minilisp simply did not have.
+    cat > "$tmp/lisp.lang" <<'LISPCOMMENT'
+include "std/core.lang"
+include "example/minilisp/lisp_runtime.lang"
+include "example/minilisp/minilisp.lang"
+func main() i64 {
+    return lisp_to_int(#minilisp{
+        ; a comment, at last
+        (+ 40 2)   ; and a trailing one
+    });
+}
+LISPCOMMENT
+    LANG_CACHE="$tmp/cache-lisp" LANGBE=llvm $COMPILER "$tmp/lisp.lang" -o "$tmp/lisp.ll" \
+        >/dev/null 2>&1 || ok=0
+    lli "$tmp/lisp.ll" >/dev/null 2>&1
+    test $? = 42 || ok=0
+
+    # Forth's `\`. Its `( ... )` stays a pre-pass: there the parentheses are
+    # grammar, because the stack effect wears the same ones.
+    cat > "$tmp/forth.lang" <<'FORTHCOMMENT'
+include "std/core.lang"
+include "example/forth/forth.lang"
+#forth{
+    \ a line comment: this one is skipped by the scanner
+    : answer ( -- n ) 6 7 * ;   \ and this one
+}
+func main() i64 { return answer(); }
+FORTHCOMMENT
+    LANG_CACHE="$tmp/cache-forth" LANGBE=llvm $COMPILER "$tmp/forth.lang" -o "$tmp/forth.ll" \
+        >/dev/null 2>&1 || ok=0
+    lli "$tmp/forth.ll" >/dev/null 2>&1
+    test $? = 42 || ok=0
+
+    # Nothing rewrites the source any more, so a location past two comment lines
+    # is the location a reader of the file would point at.
+    cat > "$tmp/span.lang" <<'SPANCOMMENT'
+include "example/minipy/minipy.lang"
+#minipy{
+# a comment line that used to be blanked out to keep byte offsets valid
+# and another
+def bad(a, b, c):
+    return a < b < c
+}
+func main() i64 { return 0; }
+SPANCOMMENT
+    LANG_CACHE="$tmp/cache-span" LANGBE=llvm $COMPILER "$tmp/span.lang" \
+        -o "$tmp/span.ll" >"$tmp/span.out" 2>&1 && ok=0
+    grep -Fq "minipy:5:18: chained comparison" "$tmp/span.out" || ok=0
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_comment_syntax_e2e
+
 negative_compile_e2e() {
     local name=$1; local file=$2
     local tmp=$(mktemp -d)

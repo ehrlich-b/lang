@@ -26,6 +26,8 @@ func noisy(n i64) i64 {
     extern host_triple ( n -- t ) ;
     extern noisy       ( n -- v ) ;
 
+    \ Forth's line comment, which the reader now declares. `( ... )` stays
+    \ grammar here: the stack effect wears the same parentheses.
     ( --- arithmetic and stack shuffling --- )
     : square ( n -- n2 )  dup * ;
     : sumsq  ( a b -- s ) square swap square + ;
