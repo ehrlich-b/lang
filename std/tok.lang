@@ -48,6 +48,11 @@ var TOK_QUESTION i64 = 26;  // ? (ternary)
 var TOK_TILDE i64 = 27;     // ~ (bitwise not)
 var TOK_UNKNOWN i64 = 99;
 
+// Kinds a reader invents for its own token stream start here. The built-in
+// scanner never produces one, so a grammar referring to a custom kind can only
+// match a token some reader put there deliberately.
+var TOK_USER i64 = 100;
+
 // ============================================================
 // Tokenizer State
 // ============================================================
@@ -63,10 +68,14 @@ struct Tokenizer {
     error_expected *u8;  // "number or '('", capped at 511 bytes
     error_expected_len i64;
     error_found *u8;     // token text captured at error_pos
+    stream *u8;          // reader-supplied token stream, or nil to scan input
+    stream_index i64;    // index of the current token within that stream
+    stream_count i64;    // number of tokens in it
+    stream_text *u8;     // text override for the current token, or nil
 }
 
-pub func tok_new(input *u8) *Tokenizer {
-    var t *Tokenizer = alloc(80);  // 10 fields * 8 bytes
+func tok_new_state(input *u8) *Tokenizer {
+    var t *Tokenizer = alloc(112);  // 14 fields * 8 bytes
     t.input = input;
     t.pos = 0;
     t.len = strlen(input);
@@ -77,8 +86,84 @@ pub func tok_new(input *u8) *Tokenizer {
     t.error_expected = alloc(512);
     t.error_expected_len = 0;
     t.error_found = nil;
+    t.stream = nil;
+    t.stream_index = 0;
+    t.stream_count = 0;
+    t.stream_text = nil;
+    return t;
+}
+
+pub func tok_new(input *u8) *Tokenizer {
+    var t *Tokenizer = tok_new_state(input);
     tok_next(t);  // prime the tokenizer
     return t;
+}
+
+// ============================================================
+// Reader-supplied token streams
+// ============================================================
+//
+// A generated parser only ever asks a Tokenizer for the current token's kind,
+// text and span, and for a mark it can rewind to. None of that requires the
+// tokenizer to be the thing that produced the token. A reader whose language is
+// not a straight left-to-right scan - layout, a preprocessing pass, a lexer that
+// needs to know something the parser already decided - can therefore lex the
+// source its own way and hand the result over, and every generated parser reads
+// it unchanged.
+//
+// A token is (kind, start, len, text): a kind, a half-open byte span into the
+// SAME input string, and an optional text override. Spans stay real even for
+// tokens the source does not literally contain, which is what keeps error
+// locations and AST spans honest in a language nobody can parse by reading
+// characters in order.
+
+pub func tok_stream_new() *u8 {
+    return vec_new(64);
+}
+
+// `text` is nil for a token that reads as the bytes it spans. A synthetic token
+// - an INDENT standing for a column, say - spans zero bytes at the position it
+// was inferred from, and names itself through `text` so that a parse error can
+// still say what it found.
+pub func tok_stream_push(toks *u8, kind i64, start i64, len i64, text *u8) void {
+    vec_push(toks, kind);
+    vec_push(toks, start);
+    vec_push(toks, len);
+    vec_push(toks, text);
+}
+
+pub func tok_stream_count(toks *u8) i64 {
+    return vec_len(toks) / 4;
+}
+
+pub func tok_new_stream(input *u8, toks *u8) *Tokenizer {
+    var t *Tokenizer = tok_new_state(input);
+    t.stream = toks;
+    t.stream_count = tok_stream_count(toks);
+    tok_stream_load(t, 0);
+    return t;
+}
+
+// Position on token `index`. Past the end is EOF at the end of the input, which
+// is where a parser that wanted more will report having run out.
+func tok_stream_load(t *Tokenizer, index i64) void {
+    if index < 0 { index = 0; }
+    if index > t.stream_count { index = t.stream_count; }
+    t.stream_index = index;
+    if index >= t.stream_count {
+        t.tok_kind = TOK_EOF;
+        t.tok_start = t.len;
+        t.tok_len = 0;
+        t.stream_text = nil;
+        t.pos = t.len;
+        return;
+    }
+    var base i64 = index * 4;
+    t.tok_kind = vec_get(t.stream, base);
+    t.tok_start = vec_get(t.stream, base + 1);
+    t.tok_len = vec_get(t.stream, base + 2);
+    t.stream_text = vec_get(t.stream, base + 3);
+    t.pos = t.tok_start + t.tok_len;
 }
 
 // ============================================================
@@ -154,6 +239,10 @@ pub func tok_skip_whitespace(t *Tokenizer) void {
 }
 
 pub func tok_next(t *Tokenizer) void {
+    if t.stream != nil {
+        tok_stream_load(t, t.stream_index + 1);
+        return;
+    }
     tok_skip_whitespace(t);
 
     t.tok_start = t.pos;
@@ -360,10 +449,12 @@ pub func tok_eof(t *Tokenizer) bool {
 
 // Returns the raw text of the current token (not null-terminated!)
 pub func tok_text_ptr(t *Tokenizer) *u8 {
+    if t.stream_text != nil { return t.stream_text; }
     return t.input + t.tok_start;
 }
 
 pub func tok_text_len(t *Tokenizer) i64 {
+    if t.stream_text != nil { return strlen(t.stream_text); }
     return t.tok_len;
 }
 
@@ -377,6 +468,7 @@ pub func tok_end_offset(t *Tokenizer) i64 {
 
 // Returns a null-terminated copy of the token text
 pub func tok_text(t *Tokenizer) *u8 {
+    if t.stream_text != nil { return t.stream_text; }
     var buf *u8 = alloc(t.tok_len + 1);
     var i i64 = 0;
     while i < t.tok_len {
@@ -391,10 +483,12 @@ pub func tok_text(t *Tokenizer) *u8 {
 // lexing again also handles whitespace/comments between the previous token and
 // this one, while leaving furthest-error tracking intact across alternatives.
 pub func tok_mark(t *Tokenizer) i64 {
+    if t.stream != nil { return t.stream_index; }
     return t.tok_start;
 }
 
 pub func tok_reset(t *Tokenizer, mark i64) void {
+    if t.stream != nil { tok_stream_load(t, mark); return; }
     if mark < 0 { mark = 0; }
     if mark > t.len { mark = t.len; }
     t.pos = mark;
@@ -506,8 +600,8 @@ pub func tok_print_error(t *Tokenizer, label *u8) void {
 
 // Parse the current number token as i64
 pub func tok_number(t *Tokenizer) i64 {
-    var ptr *u8 = t.input + t.tok_start;
-    var len i64 = t.tok_len;
+    var ptr *u8 = tok_text_ptr(t);
+    var len i64 = tok_text_len(t);
     var neg i64 = 0;
     var i i64 = 0;
 

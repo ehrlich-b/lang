@@ -1,0 +1,78 @@
+// expect: 0
+// A reader can lex its own way and hand the parser a token stream. Generated
+// parsers ask a Tokenizer only for kinds, text, spans and marks, so they read a
+// supplied stream exactly as they read a scan of the source.
+
+include "std/parser_reader.lang"
+
+var TOK_INDENT i64 = 100;   // TOK_USER + 0
+var TOK_DEDENT i64 = 101;
+
+#parser{
+    chunk   = 'block' body:number+
+    pick    = long:pair | short:number
+    pair    = number number
+}
+
+// "block 1 2" lexed by hand, spans pointing at the real source text.
+func stream_for(src *u8) *u8 {
+    var toks *u8 = tok_stream_new();
+    tok_stream_push(toks, TOK_IDENT, 0, 5, nil);   // block
+    tok_stream_push(toks, TOK_NUMBER, 6, 1, nil);  // 1
+    tok_stream_push(toks, TOK_NUMBER, 8, 1, nil);  // 2
+    return toks;
+}
+
+func main() i64 {
+    var src *u8 = "block 1 2";
+
+    // A generated parser reads the supplied stream with no change to its code.
+    var t *Tokenizer = tok_new_stream(src, stream_for(src));
+    var tree *PNode = parse_chunk(t);
+    if tree == nil || !tok_eof(t) { return 1; }
+    var body *PNode = pnode_require(tree, "body");
+    if body == nil || vec_len(body.children) != 2 { return 2; }
+    var second *PNode = vec_get(body.children, 1);
+    if !streq(second.text, "2") { return 3; }
+
+    // Spans survive: they index the original source, not the stream.
+    if second.start != 8 || second.end != 9 { return 4; }
+
+    // Backtracking rewinds the stream, not a byte offset. `pick` tries the two
+    // number form first; on one number it must rewind and take the short arm.
+    var one *u8 = tok_stream_new();
+    tok_stream_push(one, TOK_NUMBER, 6, 1, nil);
+    var t2 *Tokenizer = tok_new_stream(src, one);
+    var picked *PNode = parse_pick(t2);
+    if picked == nil || !tok_eof(t2) { return 5; }
+    if !pnode_is(picked, "short") { return 6; }
+
+    var two *u8 = tok_stream_new();
+    tok_stream_push(two, TOK_NUMBER, 6, 1, nil);
+    tok_stream_push(two, TOK_NUMBER, 8, 1, nil);
+    var t3 *Tokenizer = tok_new_stream(src, two);
+    var both *PNode = parse_pick(t3);
+    if both == nil || !tok_eof(t3) { return 7; }
+    if !pnode_is(both, "long") { return 8; }
+
+    // A synthetic token spans no source but still names itself, so a reader
+    // that invents INDENT/DEDENT can report what it found.
+    var layout *u8 = tok_stream_new();
+    tok_stream_push(layout, TOK_INDENT, 6, 0, "indent");
+    tok_stream_push(layout, TOK_DEDENT, 9, 0, "dedent");
+    var t4 *Tokenizer = tok_new_stream(src, layout);
+    if tok_kind(t4) != TOK_INDENT { return 9; }
+    if !streq(tok_text(t4), "indent") { return 10; }
+    if tok_start_offset(t4) != 6 || tok_end_offset(t4) != 6 { return 11; }
+    tok_next(t4);
+    if tok_kind(t4) != TOK_DEDENT { return 12; }
+    tok_next(t4);
+    if !tok_eof(t4) { return 13; }
+
+    // Scanning still works, unchanged, in the same program.
+    var scan *Tokenizer = tok_new("block 1 2");
+    var scanned *PNode = parse_chunk(scan);
+    if scanned == nil || !tok_eof(scan) { return 14; }
+    if vec_len(pnode_require(scanned, "body").children) != 2 { return 15; }
+    return 0;
+}
