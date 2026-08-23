@@ -609,6 +609,43 @@ reader_prec_ladder_e2e() {
 }
 reader_prec_ladder_e2e
 
+# A labeled choice tells lowering which alternative matched. A branch the
+# converter does not handle must name itself and stop, not emit a placeholder
+# node that turns a reader gap into a mystery in the generated program.
+reader_choice_branch_e2e() {
+    local name=reader_choice_branch_e2e
+    local tmp=$(mktemp -d)
+    local compiler_path=$COMPILER
+    case "$compiler_path" in
+        /*) ;;
+        ./*) compiler_path="$REPO_ROOT/${compiler_path#./}" ;;
+        *) compiler_path="$REPO_ROOT/$compiler_path" ;;
+    esac
+    local ok=1
+
+    LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        "$compiler_path" read test/branch_unhandled_reader.lang \
+        test/branch_unhandled_source.bunhandled \
+        >"$tmp/unhandled.ast" 2>"$tmp/unhandled.err" && ok=0
+    grep -Fxqf test/branch_unhandled.expected "$tmp/unhandled.err" || ok=0
+    test ! -s "$tmp/unhandled.ast" || ok=0
+
+    # The handled branch of the same grammar still reads.
+    printf '7\n' >"$tmp/handled.bunhandled"
+    LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
+        "$compiler_path" read test/branch_unhandled_reader.lang \
+        "$tmp/handled.bunhandled" >"$tmp/handled.ast" 2>/dev/null || ok=0
+    grep -Fq '(number 7)' "$tmp/handled.ast" || ok=0
+
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_choice_branch_e2e
+
 # Grammar author errors belong at the token in #parser{}, not at a later
 # undefined generated function or reader-wrapper link step.
 parser_grammar_diagnostics_e2e() {
@@ -685,6 +722,13 @@ include "std/parser_reader.lang"
     thing = prefix thing | number
 }
 BAD_GRAMMAR
+    cat >"$tmp/nested_branch_label.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    outer = a:inner | b:number
+    inner = p:symbol | q:string
+}
+BAD_GRAMMAR
 
     local cases=(
         "missing_equals|expected '=', found number"
@@ -697,6 +741,7 @@ BAD_GRAMMAR
         "direct_left_recursion|expected non-left-recursive rule, found thing"
         "indirect_left_recursion|expected non-left-recursive rule, found thing"
         "nullable_left_recursion|expected non-left-recursive rule, found thing"
+        "nested_branch_label|expected branch label on a rule that does not label its own alternatives, found a"
     )
     local spec case_name expected
     for spec in "${cases[@]}"; do

@@ -66,6 +66,7 @@ struct PNode {
     children *u8;   // Vec of *PNode for sequences/repetitions
     start i64;      // zero-based byte start in reader input
     end i64;        // exclusive byte end
+    branch *u8;     // label of the alternative that built it, or nil
 }
 ```
 
@@ -86,8 +87,9 @@ pnode_dump(tree);
 ```
 
 `pnode_dump` writes only to stderr, leaving a reader's AST output untouched. It
-shows every node's kind, quoted token text, capture wrapper, and byte span with
-two-space nesting, so native and browser runs produce the same diffable tree.
+shows every node's kind, `<branch>` label, quoted token text, capture wrapper,
+and byte span with two-space nesting, so native and browser runs produce the
+same diffable tree.
 
 ## Named captures
 
@@ -123,6 +125,40 @@ grammar that has no captures. `pnode_child` transparently unwraps them, so a
 rule can migrate one element at a time without renumbering its positional
 children. Code that opts into captures should prefer the helpers over walking
 the raw `children` vector at captured edges.
+
+## Labeled alternatives
+
+Name a whole alternative to say which one matched. Without that, lowering has to
+re-derive it from a leading keyword's text or from a child's `kind`, which
+couples converters to grammar order:
+
+```lang
+#parser{
+    stmt    = assign:assignment | call:callexpr | ret:returnstmt
+    primary = num:number | sym:symbol | paren:parenexpr
+}
+
+if pnode_is(node, "assign") { ... }
+if pnode_is(node, "num") { return ast_number(node.text); }
+```
+
+A label on a whole alternative records the name **on** the chosen node instead
+of wrapping it. That is what makes it survive: `pnode_child`, `pnode_get`, and
+`pnode_require` all unwrap captures, so a wrapper would vanish exactly where
+lowering wants to ask. Nothing is inserted into the tree, so positional access
+and existing grammars are unaffected.
+
+`pnode_branch(node)` returns the label itself, or `nil` when the grammar left
+the alternative unlabeled. Use it to report a branch the converter does not
+handle — a reader that emits a placeholder for an alternative it forgot turns
+its own gap into a mystery in the generated program.
+
+From the parent, a labeled alternative answers to `pnode_get`/`pnode_require`
+like any other name, so `(value:number | value:symbol)` still yields one
+`value`. Alternatives may share a label; a label may occur only once on any one
+branch. A labeled alternative may not resolve to a rule that labels its own
+alternatives — one node cannot carry two branch names — and that is rejected at
+the grammar, not at lowering.
 
 ## Alternatives and errors
 

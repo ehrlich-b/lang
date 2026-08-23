@@ -1,0 +1,24 @@
+include "std/parser_reader.lang"
+include "std/ast.lang"
+
+#parser{
+    bu_expr = num:number | sym:symbol
+}
+
+// The grammar can produce either branch; this converter handles only one, the
+// way a real reader looks before it grows. Naming the branch it met beats
+// emitting a placeholder node and losing the input further down the pipeline.
+reader bunhandled(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    var tree *PNode = parse_bu_expr(tokens);
+    if tree == nil || !tok_eof(tokens) {
+        tok_print_error(tokens, "source.bunhandled");
+        return nil;
+    }
+    if pnode_is(tree, "num") { return ast_main_i64(ast_number(tree.text)); }
+
+    eprint("bunhandled: unhandled branch '");
+    eprint(pnode_branch(tree));
+    eprintln("'");
+    return nil;
+}

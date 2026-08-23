@@ -2,21 +2,23 @@ include "std/parser_runtime.lang"
 include "std/ast.lang"
 
 #parser{
-    answer_program = (command:'answer' value:number) | (command:'bad' value:symbol)
+    answer_program = good:('answer' value:number) | bad:('bad' value:symbol)
 }
 
 reader parser_tiny(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
     var tree *PNode = parse_answer_program(tokens);
     if tree == nil || !tok_eof(tokens) { return nil; }
-    var command *PNode = pnode_require(tree, "command");
     var value *PNode = pnode_require(tree, "value");
-    if command == nil || value == nil { return nil; }
+    if value == nil { return nil; }
+    // The labeled alternative says which form matched; no keyword text to sniff.
     var result *u8 = nil;
-    if streq(command.text, "bad") {
+    if pnode_is(tree, "bad") {
         result = ast_call0(value.text);
-    } else {
+    } else if pnode_is(tree, "good") {
         result = ast_number(value.text);
+    } else {
+        return nil;
     }
     result = ast_span(result, value.start, value.end);
     var body *u8 = ast_block1(ast_return(result));

@@ -1,0 +1,89 @@
+// expect: 0
+// A labeled choice alternative names the node it produced, so lowering asks
+// which branch matched instead of sniffing kinds and child order.
+
+include "std/parser_reader.lang"
+
+#parser{
+    stmt     = set:setstmt | out:outstmt
+    setstmt  = 'set' symbol number
+    outstmt  = 'out' inner:number
+    trap     = wrapped:sub | inner:number
+    sub      = 'sub' inner:number
+    plain    = number | symbol
+    solo     = only:number
+    grouped  = (value:number | symbol) tail:symbol
+    repeated = (item:number | item:symbol)+
+    shared   = atom:number | atom:symbol
+}
+
+func main() i64 {
+    var set_tokens *Tokenizer = tok_new("set x 5");
+    var set *PNode = parse_stmt(set_tokens);
+    if set == nil || !tok_eof(set_tokens) { return 1; }
+    if !pnode_is(set, "set") || pnode_is(set, "out") { return 2; }
+    if !streq(pnode_branch(set), "set") { return 3; }
+
+    // Nothing is inserted into the tree, so positional access is untouched.
+    var keyword *PNode = vec_get(set.children, 0);
+    if !streq(keyword.text, "set") { return 4; }
+    var value *PNode = pnode_child(set, 2);
+    if value == nil || !streq(value.text, "5") { return 5; }
+
+    var out_tokens *Tokenizer = tok_new("out 7");
+    var out *PNode = parse_stmt(out_tokens);
+    if out == nil || !tok_eof(out_tokens) { return 6; }
+    if !pnode_is(out, "out") || pnode_is(out, "set") { return 7; }
+    var inner *PNode = pnode_require(out, "inner");
+    if inner == nil || !streq(inner.text, "7") { return 8; }
+
+    // A label used inside the chosen branch must not answer for the branch.
+    var trap_tokens *Tokenizer = tok_new("sub 9");
+    var trap *PNode = parse_trap(trap_tokens);
+    if trap == nil || !tok_eof(trap_tokens) { return 9; }
+    if !pnode_is(trap, "wrapped") || pnode_is(trap, "inner") { return 10; }
+
+    // The other alternative of that same choice is a bare token.
+    var bare_tokens *Tokenizer = tok_new("11");
+    var bare *PNode = parse_trap(bare_tokens);
+    if bare == nil || !tok_eof(bare_tokens) { return 11; }
+    if !pnode_is(bare, "inner") || pnode_is(bare, "wrapped") { return 12; }
+
+    // An unlabeled alternative has no branch to report.
+    var plain_tokens *Tokenizer = tok_new("42");
+    var plain *PNode = parse_plain(plain_tokens);
+    if plain == nil || !tok_eof(plain_tokens) { return 13; }
+    if pnode_branch(plain) != nil || pnode_is(plain, "anything") { return 14; }
+
+    // One alternative is not a choice, so `only:` stays an ordinary capture.
+    var solo_tokens *Tokenizer = tok_new("3");
+    var solo *PNode = parse_solo(solo_tokens);
+    if solo == nil || !tok_eof(solo_tokens) { return 15; }
+    if pnode_require(solo, "only") == nil { return 16; }
+    if pnode_branch(solo) != nil { return 17; }
+
+    // A labeled alternative inside a group is still found by name from its
+    // parent, exactly as the capture wrapper it replaced was.
+    var grouped_tokens *Tokenizer = tok_new("4 tail");
+    var grouped *PNode = parse_grouped(grouped_tokens);
+    if grouped == nil || !tok_eof(grouped_tokens) { return 18; }
+    var picked *PNode = pnode_require(grouped, "value");
+    if picked == nil || !streq(picked.text, "4") { return 19; }
+    if !pnode_is(picked, "value") { return 20; }
+    if pnode_require(grouped, "tail") == nil { return 21; }
+
+    // Alternatives may share one label; repeated ones stay explicitly plural.
+    var repeated_tokens *Tokenizer = tok_new("1 two 3");
+    var repeated *PNode = parse_repeated(repeated_tokens);
+    if repeated == nil || !tok_eof(repeated_tokens) { return 22; }
+    var items *u8 = pnode_get_all(repeated, "item");
+    if vec_len(items) != 3 { return 23; }
+    var middle *PNode = vec_get(items, 1);
+    if !streq(middle.text, "two") { return 24; }
+
+    var shared_tokens *Tokenizer = tok_new("name");
+    var shared *PNode = parse_shared(shared_tokens);
+    if shared == nil || !tok_eof(shared_tokens) { return 25; }
+    if !pnode_is(shared, "atom") { return 26; }
+    return 0;
+}

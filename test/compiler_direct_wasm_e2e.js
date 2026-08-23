@@ -181,6 +181,8 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
       'expected capture name used once per branch, found value'],
     ['left-recursive', 'bad = prefix bad | number\nprefix = number?',
       'expected non-left-recursive rule, found bad'],
+    ['nested-branch-label', 'bad = a:inner | b:number\ninner = p:symbol | q:string',
+      'expected branch label on a rule that does not label its own alternatives, found a'],
   ];
   for (const [name, grammar, expected] of badGrammars) {
     const sourceName = `bad-grammar-${name}.lang`;

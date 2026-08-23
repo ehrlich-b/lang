@@ -5,7 +5,7 @@
 // Takes a Grammar and generates lang parser functions.
 //
 // Generated parsers return a simple AST:
-//   struct PNode { kind, text, children, start, end }
+//   struct PNode { kind, text, children, start, end, branch }
 //
 // Generated functions:
 //   parse_<rule>(t *Tokenizer) *PNode
@@ -123,7 +123,8 @@ func genwork_new(node *GNode, result_var *u8) *GenWork {
 }
 
 func rdgen_can_be_absent(node *GNode) i64 {
-    while node != nil && node.kind == GNODE_CAPTURE { node = node.child; }
+    while node != nil && (node.kind == GNODE_CAPTURE ||
+                          node.kind == GNODE_BRANCH) { node = node.child; }
     if node != nil && node.kind == GNODE_OPT { return 1; }
     return 0;
 }
@@ -295,6 +296,26 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
                 sb_str(rd.sb, "\", ");
                 sb_str(rd.sb, result_var);
                 sb_str(rd.sb, "); }");
+                rdgen_newline(rd);
+            }
+        }
+
+        // BRANCH: label the node a choice alternative produced. Unlike a
+        // capture this stamps the node itself, so the label survives every
+        // accessor that unwraps captures.
+        else if kind == GNODE_BRANCH {
+            if phase == 0 {
+                work.phase = 1;
+                vec_push(stack, work);
+                vec_push(stack, genwork_new(node.child, result_var));
+            }
+            else {
+                rdgen_indent(rd);
+                sb_str(rd.sb, "pnode_set_branch(");
+                sb_str(rd.sb, result_var);
+                sb_str(rd.sb, ", \"");
+                rdgen_strn(rd, node.name, node.name_len);
+                sb_str(rd.sb, "\");");
                 rdgen_newline(rd);
             }
         }

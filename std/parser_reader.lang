@@ -45,6 +45,12 @@
 //   fallback:expr?        Optional capture (pnode_get returns nil)
 //   One name per branch; alternatives may reuse the same names.
 //
+// LABELED ALTERNATIVES:
+//   stmt = assign:assignment | ret:returnstmt
+//   A label on a WHOLE alternative names the chosen node instead of wrapping
+//   it, so lowering asks pnode_is(node, "assign") rather than sniffing a
+//   keyword or a child kind. pnode_branch(node) reports an unhandled branch.
+//
 // LITERALS (single characters):
 //   '('       Matches left paren
 //   ')'       Matches right paren
@@ -89,6 +95,7 @@
 //       children *u8;   // Vec of *PNode (for lists/sequences)
 //       start i64;      // zero-based byte start in reader input
 //       end i64;        // exclusive byte end
+//       branch *u8;     // label of the alternative that built it, or nil
 //   }
 //
 // HELPER FUNCTIONS:
@@ -97,6 +104,8 @@
 //   func pnode_list(children *u8) *PNode
 //   func pnode_dump(node *PNode) void  // tree + labels + spans to stderr
 //   func pnode_get_all(node *PNode, name *u8) *u8  // Vec for repeated labels
+//   func pnode_is(node *PNode, name *u8) bool      // which alternative matched
+//   func pnode_branch(node *PNode) *u8             // that label, or nil
 //
 // PARSER FUNCTIONS (one per rule):
 //   func parse_<rule>(t *Tokenizer) *PNode

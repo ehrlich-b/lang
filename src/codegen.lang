@@ -2154,6 +2154,13 @@ func read_file_contents(path *u8, path_len i64, buf *u8, buf_cap i64) i64 {
 
 // Process a single declaration (first pass) - handles includes recursively
 // Note: This function must be defined before process_include_first_pass uses it
+// Functions produced by a declaration-level reader macro during the first pass.
+// A backend that keeps its own signature table drains this after expanding: it
+// only sees the reader expression, not the declarations behind it, and a call
+// to an unregistered function falls back to an i64 return. Native tolerates
+// that mismatch; wasm traps on it.
+var cg_generated_funcs *u8 = nil;
+
 func process_decl_first_pass(decl *u8) void {
     cg_diagnostic_node = decl;
     var k i64 = node_kind(decl);
@@ -2179,6 +2186,7 @@ func process_decl_first_pass(decl *u8) void {
     }
     if k == NODE_FUNC_DECL {
         add_func(decl);
+        if cg_generated_funcs != nil { vec_push(cg_generated_funcs, decl); }
         return;
     }
     // Reader macro at declaration level - expand to declarations

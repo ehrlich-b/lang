@@ -42,7 +42,7 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 25. ✓ Make generated parse trees inspectable
 26. ✓ Make capture cardinality explicit
 27. ✓ Make expression precedence reusable
-28. → **Make choice branches self-identifying** ← current
+28. ✓ Make choice branches self-identifying
 29. Capture more languages only when it improves the reader toolkit
 
 ---
@@ -305,23 +305,33 @@ the ladder and the climb; walking a parse tree stays reader-local:
 
 ---
 
-## Next: Make choice branches self-identifying
+## Completed: Make choice branches self-identifying
 
-A generated choice returns the node its winning alternative built and nothing
-that says which alternative won. Lowering re-derives it: `flow_stmt` and
-`c_stmt` dispatch on the leading keyword's text, and `flow_unary`/`c_unary`
-tell a negation from a postfix by asking whether the first child is an operator
-atom. Named captures removed that coupling for sequences; choices still tie
-lowering to grammar order and `PNode` kinds, and a branch nobody recognized
-falls through to a default node instead of failing.
+A generated choice returned the node its winning alternative built and nothing
+that said which alternative won, so lowering re-derived it from a leading
+keyword's text or a child's `kind`. Labeling a whole alternative now answers
+that directly:
 
-- [ ] Let a grammar name its alternatives and let lowering ask which one
-      matched, without changing `PNode` layout or existing grammars.
-- [ ] Keep the answer one cheap lookup; do not make reader authors re-declare
-      their grammar as a tagged union.
-- [ ] Convert Flow's statement and operand dispatch as the proof, and replace
-      its silent `ast_int(0)` fallback with a diagnostic.
-- [ ] Guard native and browser reader pipelines before capturing another syntax.
+- [x] `name:alternative` records the label ON the chosen node instead of
+      wrapping it - every `PNode` accessor unwraps captures, so a wrapper would
+      vanish exactly where lowering asks. Nothing is inserted into the tree, so
+      positional access and existing grammars are unaffected.
+- [x] `pnode_is(node, name)` is one field compare; `pnode_branch(node)` names
+      an unhandled branch. From the parent, a labeled alternative still answers
+      to `pnode_get`, so `(value:number | value:symbol)` behaves as before.
+- [x] Reject a labeled alternative that resolves to another labeled choice at
+      the grammar: one node cannot carry two branch names.
+- [x] Flow converted: zero `kind ==` checks left, and its silent `ast_int(0)`
+      fallback is now a named diagnostic.
+- [x] Guard the labels, the leak-proofing, the grammar rejection, and the
+      unhandled-branch failure natively, through `lang read`, and in the
+      browser's generated-reader pipeline.
+
+Found and fixed en route: a reader-generated function never registered its
+return type with the LLVM backend, so a generated rule that referenced a later
+one was called as if it returned `i64`. Native tolerated the mismatch; wasm
+trapped on it. Same class as the closure-env ABI bug - the wasm target is the
+only thing that reports it.
 
 ---
 

@@ -15,6 +15,7 @@ struct PNode {
     children *u8;   // vec of *PNode (for lists/sequences)
     start i64;      // zero-based byte start in reader input, or -1
     end i64;        // exclusive byte end in reader input, or -1
+    branch *u8;     // label of the choice alternative that built this, or nil
 }
 
 var PNODE_NUMBER i64 = 1;
@@ -25,12 +26,13 @@ var PNODE_OPERATOR i64 = 5;
 var PNODE_CAPTURE i64 = 6;
 
 pub func pnode_new(kind i64) *PNode {
-    var n *PNode = alloc(40);
+    var n *PNode = alloc(48);
     n.kind = kind;
     n.text = nil;
     n.children = nil;
     n.start = -1;
     n.end = -1;
+    n.branch = nil;
     return n;
 }
 
@@ -124,6 +126,15 @@ func pnode_first_capture_chain(node *PNode, name *u8) *PNode {
     return nil;
 }
 
+// A labeled alternative names its node instead of wrapping it, so a child that
+// carries the label answers the same question a capture wrapper used to.
+func pnode_branch_matches(node *PNode, name *u8) i64 {
+    node = pnode_unwrap(node);
+    if node == nil || node.branch == nil { return 0; }
+    if streq(node.branch, name) { return 1; }
+    return 0;
+}
+
 func pnode_visible_capture_count(node *PNode, name *u8) i64 {
     var total i64 = pnode_count_capture_chain(node, name);
     node = pnode_unwrap(node);
@@ -131,8 +142,9 @@ func pnode_visible_capture_count(node *PNode, name *u8) i64 {
     var count i64 = vec_len(node.children);
     var i i64 = 0;
     while i < count {
-        total = total + pnode_count_capture_chain(
-            vec_get(node.children, i), name);
+        var child *PNode = vec_get(node.children, i);
+        total = total + pnode_count_capture_chain(child, name);
+        total = total + pnode_branch_matches(child, name);
         i = i + 1;
     }
     return total;
@@ -146,8 +158,10 @@ func pnode_first_visible_capture(node *PNode, name *u8) *PNode {
     var count i64 = vec_len(node.children);
     var i i64 = 0;
     while i < count {
-        found = pnode_first_capture_chain(vec_get(node.children, i), name);
+        var child *PNode = vec_get(node.children, i);
+        found = pnode_first_capture_chain(child, name);
         if found != nil { return found; }
+        if pnode_branch_matches(child, name) != 0 { return pnode_unwrap(child); }
         i = i + 1;
     }
     return nil;
@@ -165,7 +179,11 @@ pub func pnode_get_all(node *PNode, name *u8) *u8 {
     var count i64 = vec_len(node.children);
     var i i64 = 0;
     while i < count {
-        pnode_collect_capture_chain(vec_get(node.children, i), name, matches);
+        var child *PNode = vec_get(node.children, i);
+        pnode_collect_capture_chain(child, name, matches);
+        if pnode_branch_matches(child, name) != 0 {
+            vec_push(matches, pnode_unwrap(child));
+        }
         i = i + 1;
     }
     return matches;
@@ -197,6 +215,31 @@ pub func pnode_get(node *PNode, name *u8) *PNode {
 
 pub func pnode_require(node *PNode, name *u8) *PNode {
     return pnode_lookup_one(node, name, 1);
+}
+
+// A labeled choice alternative (`name:element` as a whole alternative) records
+// its name ON the chosen node rather than wrapping it. That is what makes the
+// label survive: pnode_child, pnode_get, and pnode_require all unwrap, so a
+// wrapper would vanish exactly where lowering needs to ask which branch it got.
+// Positional access and existing grammars are unaffected - nothing is inserted
+// into the tree.
+pub func pnode_set_branch(node *PNode, name *u8) void {
+    if node == nil { return; }
+    node.branch = name;
+}
+
+// Which alternative built this node? Sole dispatch primitive for a labeled
+// choice; kinds and child order stay out of it.
+pub func pnode_is(node *PNode, name *u8) bool {
+    if node == nil || node.branch == nil { return false; }
+    return streq(node.branch, name);
+}
+
+// The label itself, for reporting a branch the reader does not handle. Returns
+// nil when the grammar left the alternative unlabeled.
+pub func pnode_branch(node *PNode) *u8 {
+    if node == nil { return nil; }
+    return node.branch;
 }
 
 func pnode_kind_name(kind i64) *u8 {
@@ -241,6 +284,11 @@ func pnode_dump_at(node *PNode, depth i64) void {
     }
 
     eprint(pnode_kind_name(node.kind));
+    if node.branch != nil {
+        eprint(" <");
+        eprint(node.branch);
+        eprint(">");
+    }
     if node.text != nil {
         eprint(" ");
         pnode_dump_text(node.text);

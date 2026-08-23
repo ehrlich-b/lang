@@ -109,8 +109,11 @@ error context; its [quick reference](./PARSER_GENERATOR.md) documents the
 notation and limits. Name lowering inputs in the grammar (`value:number`) and
 use `pnode_require(tree, "value")` instead of coupling converters to child
 indexes. Singular lookup rejects multiple visible matches; use
-`pnode_get_all(tree, "item")` only when repeated captures are deliberate. A
-reader can also parse however it wants.
+`pnode_get_all(tree, "item")` only when repeated captures are deliberate. Label
+whole alternatives (`stmt = assign:assignment | ret:returnstmt`) and dispatch
+with `pnode_is(node, "assign")` instead of sniffing a leading keyword or a
+child's kind; `pnode_branch(node)` names a branch the converter does not handle.
+A reader can also parse however it wants.
 
 Operator precedence is shared rather than rewritten per reader: declare the
 ladder with `std/prec.lang` (`prec_left`/`prec_right`, loosest level first),

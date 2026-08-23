@@ -39,6 +39,7 @@ var GNODE_STAR i64 = 8;       // * (zero or more)
 var GNODE_PLUS i64 = 9;       // + (one or more)
 var GNODE_OPT i64 = 10;       // ? (optional)
 var GNODE_CAPTURE i64 = 11;   // name:element (named lowering capture)
+var GNODE_BRANCH i64 = 12;    // name:alternative (labeled choice branch)
 
 // ============================================================
 // Grammar Node Structure
@@ -321,6 +322,17 @@ func gp_parse_choice(gp *GrammarParser) *GNode {
         return vec_get(alts, 0);
     }
 
+    // A capture that IS a whole alternative labels the branch instead of
+    // wrapping it: lowering has to ask which alternative matched, and every
+    // PNode accessor unwraps, so a wrapper would not survive to be asked.
+    var count i64 = vec_len(alts);
+    var i i64 = 0;
+    while i < count {
+        var alt *GNode = vec_get(alts, i);
+        if alt.kind == GNODE_CAPTURE { alt.kind = GNODE_BRANCH; }
+        i = i + 1;
+    }
+
     var choice *GNode = gnode_new(GNODE_CHOICE);
     choice.children = alts;
     choice.start = first.start;
@@ -411,7 +423,7 @@ func grammar_validate_captures(gp *GrammarParser, node *GNode,
                                captures *u8) i64 {
     if node == nil { return 1; }
 
-    if node.kind == GNODE_CAPTURE {
+    if node.kind == GNODE_CAPTURE || node.kind == GNODE_BRANCH {
         if grammar_capture_index(captures, node) >= 0 {
             tok_reset(gp.t, node.start);
             gp_fail(gp, "capture name used once per branch");
@@ -465,11 +477,63 @@ func grammar_validate_captures(gp *GrammarParser, node *GNode,
     return 1;
 }
 
+// Does this element resolve to a choice that labels its own alternatives?
+func grammar_labels_branch(g *Grammar, node *GNode, visited *u8) i64 {
+    if node == nil { return 0; }
+    if node.kind == GNODE_CHOICE {
+        var count i64 = vec_len(node.children);
+        var i i64 = 0;
+        while i < count {
+            var alt *GNode = vec_get(node.children, i);
+            if alt.kind == GNODE_BRANCH { return 1; }
+            i = i + 1;
+        }
+        return 0;
+    }
+    if node.kind == GNODE_REF {
+        if map_get_n(visited, node.name, node.name_len) != 0 { return 0; }
+        map_set_n(visited, node.name, node.name_len, 1);
+        var rule *GNode = grammar_get_rule(g, node.name, node.name_len);
+        if rule == nil { return 0; }
+        return grammar_labels_branch(g, rule.child, visited);
+    }
+    return 0;
+}
+
+// A branch label lives on the chosen node, so an alternative that resolves to
+// another labeled choice would overwrite that node's label and leave one of the
+// two dispatches silently answering for the other. Reject it at the grammar.
+func grammar_validate_branches(g *Grammar, gp *GrammarParser,
+                               node *GNode) i64 {
+    if node == nil { return 1; }
+    if node.kind == GNODE_BRANCH &&
+       grammar_labels_branch(g, node.child, map_new()) != 0 {
+        tok_reset(gp.t, node.start);
+        gp_fail(gp,
+                "branch label on a rule that does not label its own alternatives");
+        return 0;
+    }
+    if node.children != nil {
+        var count i64 = vec_len(node.children);
+        var i i64 = 0;
+        while i < count {
+            if grammar_validate_branches(g, gp, vec_get(node.children, i)) == 0 {
+                return 0;
+            }
+            i = i + 1;
+        }
+    }
+    if node.child != nil {
+        return grammar_validate_branches(g, gp, node.child);
+    }
+    return 1;
+}
+
 func grammar_node_nullable(g *Grammar, node *GNode, nullable *u8) i64 {
     if node == nil { return 0; }
     if node.kind == GNODE_OPT || node.kind == GNODE_STAR { return 1; }
-    if node.kind == GNODE_CAPTURE || node.kind == GNODE_PLUS ||
-       node.kind == GNODE_RULE {
+    if node.kind == GNODE_CAPTURE || node.kind == GNODE_BRANCH ||
+       node.kind == GNODE_PLUS || node.kind == GNODE_RULE {
         return grammar_node_nullable(g, node.child, nullable);
     }
     if node.kind == GNODE_REF {
@@ -565,8 +629,9 @@ func grammar_left_reference(g *Grammar, node *GNode,
         }
         return nil;
     }
-    if node.kind == GNODE_CAPTURE || node.kind == GNODE_OPT ||
-       node.kind == GNODE_STAR || node.kind == GNODE_PLUS {
+    if node.kind == GNODE_CAPTURE || node.kind == GNODE_BRANCH ||
+       node.kind == GNODE_OPT || node.kind == GNODE_STAR ||
+       node.kind == GNODE_PLUS {
         return grammar_left_reference(g, node.child, target, nullable, visited);
     }
     return nil;
@@ -627,6 +692,7 @@ func grammar_parse(text *u8) *Grammar {
         if grammar_validate_node(g, gp, rule.child) == 0 { return nil; }
         if grammar_validate_captures(
                gp, rule.child, vec_new(4)) == 0 { return nil; }
+        if grammar_validate_branches(g, gp, rule.child) == 0 { return nil; }
         i = i + 1;
     }
 

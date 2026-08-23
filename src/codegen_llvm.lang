@@ -7040,7 +7040,23 @@ func llvm_register_decl(decl *u8) void {
         // (like #parser{}'s PNode) during codegen. Without this, field access on
         // such a struct in the host program bails to (number 0). Reuses the
         // shared first-pass expander, which recurses through the generated decls.
+        // Collect the functions it produces: their return types have to reach
+        // the call-site table before any of them is emitted, or a generated
+        // rule that references a later one is called as if it returned i64.
+        var saved_generated *u8 = cg_generated_funcs;
+        cg_generated_funcs = vec_new(16);
         process_decl_first_pass(decl);
+        var generated *u8 = cg_generated_funcs;
+        cg_generated_funcs = saved_generated;
+
+        var gcount i64 = vec_len(generated);
+        var gi i64 = 0;
+        while gi < gcount {
+            var gfunc *u8 = vec_get(generated, gi);
+            llvm_register_func(func_decl_name(gfunc), func_decl_name_len(gfunc),
+                               func_decl_ret_type(gfunc));
+            gi = gi + 1;
+        }
     } else if k == NODE_INCLUDE_DECL {
         // Recursively process included file
         var path *u8 = include_decl_path(decl);
