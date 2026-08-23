@@ -1,0 +1,64 @@
+// expect: 0
+// A reader can say how its language spells a comment. The scanner skips
+// comments between tokens, so the syntax has to be settled when the tokenizer
+// is made - which is exactly why a reader used to have to rewrite its own
+// source text before scanning it.
+
+include "std/core.lang"
+include "std/emit.lang"
+include "std/tok.lang"
+
+// The token kinds in order, as one string of single letters, so a whole scan
+// is one comparison: n=number, s=symbol, /=slash, *=star, #=anything else.
+func scan(t *Tokenizer) *u8 {
+    var sb *StringBuilder = sb_new();
+    while !tok_eof(t) {
+        var k i64 = tok_kind(t);
+        if k == TOK_NUMBER { sb_char(sb, 'n'); }
+        else if k == TOK_IDENT { sb_char(sb, 's'); }
+        else if k == TOK_SLASH { sb_char(sb, '/'); }
+        else if k == TOK_STAR { sb_char(sb, '*'); }
+        else { sb_char(sb, '#'); }
+        tok_next(t);
+    }
+    return sb_finish(sb);
+}
+
+func main() i64 {
+    // A tokenizer nobody told anything still reads lang's comments.
+    if !streq(scan(tok_new("1 // two\n3 /* four */ 5")), "nnn") { return 1; }
+
+    // Python's: `#` starts a comment and `//` is floor division, which no
+    // amount of rewriting the shared scanner's mind could say before.
+    var py *Tokenizer = tok_new_comments("1 # two\n3 // 4", "#", nil, nil);
+    if !streq(scan(py), "nn//n") { return 2; }
+
+    // Lisp's, and a block form spelled with something other than a slash.
+    if !streq(scan(tok_new_comments("1 ; two\n3", ";", nil, nil)), "nn") { return 3; }
+    if !streq(scan(tok_new_comments("1 {- two -} 3", nil, "{-", "-}")), "nn") {
+        return 4;
+    }
+
+    // A language with no comments at all sees every character it wrote.
+    if !streq(scan(tok_new_comments("1 // 2", nil, nil, nil)), "n//n") { return 5; }
+
+    // An opener with no closer declares no block comment rather than swallowing
+    // the rest of the file.
+    if !streq(scan(tok_new_comments("1 {- 2", nil, "{-", nil)), "n##n") { return 6; }
+
+    // A comment leaves no trace in a span: `x` is at its real offset, not one
+    // shifted by however long the comment was.
+    var spanned *Tokenizer = tok_new_comments("# a long comment\nx", "#", nil, nil);
+    if tok_kind(spanned) != TOK_IDENT { return 7; }
+    if spanned.tok_start != 17 { return 8; }
+
+    // An unterminated block comment ends at the end of input.
+    if !streq(scan(tok_new_comments("1 /* 2", nil, "/*", "*/")), "n") { return 9; }
+
+    // The line comment's newline survives it, so a layout reader can still see
+    // where the line ended.
+    var layout *Tokenizer = tok_new_comments("# gone\n  y", "#", nil, nil);
+    if layout.tok_start != 9 { return 10; }
+
+    return 0;
+}

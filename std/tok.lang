@@ -72,10 +72,13 @@ struct Tokenizer {
     stream_index i64;    // index of the current token within that stream
     stream_count i64;    // number of tokens in it
     stream_text *u8;     // text override for the current token, or nil
+    comment_line *u8;    // line-comment prefix, or nil if the language has none
+    comment_open *u8;    // block-comment opener, or nil
+    comment_close *u8;   // block-comment closer, or nil
 }
 
 func tok_new_state(input *u8) *Tokenizer {
-    var t *Tokenizer = alloc(112);  // 14 fields * 8 bytes
+    var t *Tokenizer = alloc(136);  // 17 fields * 8 bytes
     t.input = input;
     t.pos = 0;
     t.len = strlen(input);
@@ -90,12 +93,33 @@ func tok_new_state(input *u8) *Tokenizer {
     t.stream_index = 0;
     t.stream_count = 0;
     t.stream_text = nil;
+    t.comment_line = "//";
+    t.comment_open = "/*";
+    t.comment_close = "*/";
     return t;
 }
 
 pub func tok_new(input *u8) *Tokenizer {
     var t *Tokenizer = tok_new_state(input);
     tok_next(t);  // prime the tokenizer
+    return t;
+}
+
+// The same scanner, told how the language it is reading spells a comment.
+//
+// A reader has to say this when it MAKES the tokenizer: comments are skipped
+// between tokens, so the syntax has to be settled before the first one is
+// scanned. nil means the language does not have that form - which is how minipy
+// says `//` is floor division and not the start of a comment, and the reason a
+// reader no longer has to rewrite its own source text before scanning it.
+//
+// A block comment needs both delimiters; giving only an opener declares none.
+pub func tok_new_comments(input *u8, line *u8, open *u8, close *u8) *Tokenizer {
+    var t *Tokenizer = tok_new_state(input);
+    t.comment_line = line;
+    t.comment_open = open;
+    t.comment_close = close;
+    tok_next(t);
     return t;
 }
 
@@ -210,6 +234,27 @@ pub func tok_advance_char(t *Tokenizer) void {
     }
 }
 
+// Length of `s` when the input matches it at the cursor, else 0. A nil marker
+// never matches, which is how a language that has no such comment says so.
+func tok_marker_at(t *Tokenizer, s *u8) i64 {
+    if s == nil { return 0; }
+    var i i64 = 0;
+    while *(s + i) != 0 {
+        if t.pos + i >= t.len { return 0; }
+        if *(t.input + t.pos + i) != *(s + i) { return 0; }
+        i = i + 1;
+    }
+    return i;
+}
+
+func tok_skip_marker(t *Tokenizer, n i64) void {
+    var i i64 = 0;
+    while i < n {
+        tok_advance_char(t);
+        i = i + 1;
+    }
+}
+
 pub func tok_skip_whitespace(t *Tokenizer) void {
     var again i64 = 1;
     while again == 1 {
@@ -217,23 +262,25 @@ pub func tok_skip_whitespace(t *Tokenizer) void {
         while t.pos < t.len && tok_is_space(tok_peek_char(t)) {
             tok_advance_char(t);
         }
-        // Line comment: // ... to end of line
-        if tok_peek_char(t) == 47 && tok_peek_char_at(t, 1) == 47 {
+        // Line comment: <marker> ... to end of line. The newline is left for
+        // the whitespace pass, so a layout reader can still see where it was.
+        if tok_marker_at(t, t.comment_line) > 0 {
             while t.pos < t.len && tok_peek_char(t) != 10 {
                 tok_advance_char(t);
             }
             again = 1;
         }
-        // Block comment: /* ... */
-        if tok_peek_char(t) == 47 && tok_peek_char_at(t, 1) == 42 {
-            tok_advance_char(t);
-            tok_advance_char(t);
-            while t.pos < t.len && (tok_peek_char(t) != 42 || tok_peek_char_at(t, 1) != 47) {
-                tok_advance_char(t);
+        // Block comment: <open> ... <close>, both required.
+        if t.comment_close != nil {
+            var open i64 = tok_marker_at(t, t.comment_open);
+            if open > 0 {
+                tok_skip_marker(t, open);
+                while t.pos < t.len && tok_marker_at(t, t.comment_close) == 0 {
+                    tok_advance_char(t);
+                }
+                tok_skip_marker(t, tok_marker_at(t, t.comment_close));
+                again = 1;
             }
-            tok_advance_char(t);
-            tok_advance_char(t);
-            again = 1;
         }
     }
 }
