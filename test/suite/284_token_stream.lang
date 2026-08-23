@@ -12,6 +12,7 @@ var TOK_DEDENT i64 = 101;
     chunk   = 'block' body:number+
     pick    = long:pair | short:number
     pair    = number number
+    suite   = <indent> inner:number+ <dedent>
 }
 
 // "block 1 2" lexed by hand, spans pointing at the real source text.
@@ -68,6 +69,30 @@ func main() i64 {
     if tok_kind(t4) != TOK_DEDENT { return 12; }
     tok_next(t4);
     if !tok_eof(t4) { return 13; }
+
+    // A grammar names a reader's own token kinds in angle brackets, and only a
+    // supplied stream can contain one.
+    var nested *u8 = tok_stream_new();
+    tok_stream_push(nested, TOK_INDENT, 6, 0, "indent");
+    tok_stream_push(nested, TOK_NUMBER, 6, 1, nil);
+    tok_stream_push(nested, TOK_DEDENT, 9, 0, "dedent");
+    var t5 *Tokenizer = tok_new_stream(src, nested);
+    var suite *PNode = parse_suite(t5);
+    if suite == nil || !tok_eof(t5) { return 16; }
+    var opener *PNode = vec_get(suite.children, 0);
+    if opener.kind != PNODE_TOKEN { return 17; }
+    if !streq(opener.text, "indent") { return 18; }
+    if opener.start != 6 || opener.end != 6 { return 19; }
+    if vec_len(pnode_require(suite, "inner").children) != 1 { return 20; }
+
+    // A stream that stops early reports the kinds the grammar wanted by name.
+    var truncated *u8 = tok_stream_new();
+    tok_stream_push(truncated, TOK_INDENT, 6, 0, "indent");
+    tok_stream_push(truncated, TOK_NUMBER, 6, 1, nil);
+    var t6 *Tokenizer = tok_new_stream(src, truncated);
+    if parse_suite(t6) != nil { return 21; }
+    if !streq(tok_error_expected(t6), "number or dedent") { return 22; }
+    if !streq(tok_error_found(t6), "end of input") { return 23; }
 
     // Scanning still works, unchanged, in the same program.
     var scan *Tokenizer = tok_new("block 1 2");

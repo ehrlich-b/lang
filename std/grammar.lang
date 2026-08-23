@@ -17,6 +17,7 @@ include "std/tok.lang"
 //   ident   - matches TOK_IDENT (alias)
 //   string  - matches TOK_STRING
 //   'x'     - matches specific character token
+//   <name>  - matches TOK_NAME, a kind the reader defined and supplied
 //   name    - references another rule
 //
 // Modifiers:
@@ -40,6 +41,7 @@ var GNODE_PLUS i64 = 9;       // + (one or more)
 var GNODE_OPT i64 = 10;       // ? (optional)
 var GNODE_CAPTURE i64 = 11;   // name:element (named lowering capture)
 var GNODE_BRANCH i64 = 12;    // name:alternative (labeled choice branch)
+var GNODE_USERTOK i64 = 13;   // <name> (a token kind the reader defines)
 
 // ============================================================
 // Grammar Node Structure
@@ -192,6 +194,27 @@ func gp_parse_element(gp *GrammarParser) *GNode {
     else if gp_is_keyword(gp, "operator") {
         node = gnode_with_name(GNODE_TOKTYPE, "operator", 8);
         node.start = tok_start_offset(gp.t);
+        tok_next(gp.t);
+    }
+    // Reader-defined token: <indent>. The built-in scanner never produces one,
+    // so this can only match a token a reader put into a supplied stream. The
+    // kind is the reader's own TOK_INDENT, which is a plain undefined-identifier
+    // error if the reader never declared it.
+    else if tok_kind(gp.t) == TOK_LT {
+        var angle_start i64 = tok_start_offset(gp.t);
+        tok_next(gp.t);
+        if tok_kind(gp.t) != TOK_IDENT {
+            gp_fail(gp, "token name");
+            return nil;
+        }
+        node = gnode_with_name(GNODE_USERTOK, tok_text_ptr(gp.t),
+                               tok_text_len(gp.t));
+        node.start = angle_start;
+        tok_next(gp.t);
+        if tok_kind(gp.t) != TOK_GT {
+            gp_fail(gp, "'>'");
+            return nil;
+        }
         tok_next(gp.t);
     }
     // Rule reference: name (but stop if this ident is followed by '=' - that's a new rule)

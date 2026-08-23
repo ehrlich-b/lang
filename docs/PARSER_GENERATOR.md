@@ -49,11 +49,46 @@ item  = symbol value?                    optional
 atom  = (number | symbol)                grouping
 stmt  = 'return' value ';'               keyword and punctuation literals
 decl  = 'var' name:symbol '=' value:expr  named captures for lowering
+suite = <indent> stmt+ <dedent>          a token kind the reader supplies
 ```
 
 Built-in token names are `number`, `symbol`/`ident`, `string`, and `operator`.
 Quoted literals match exact token text: `'return'` matches a keyword and `'=='`,
 `'->'`, or `'++'` match multi-character operators.
+
+## Supplying your own tokens
+
+A generated parser asks the tokenizer only for the current token's kind, text
+and span, and for a mark it can rewind to. Nothing requires the tokenizer to be
+what produced the token, so a language that cannot be parsed by scanning
+left to right — layout, a preprocessing pass, a lexer that needs to know what
+the parser already decided — can lex itself and hand the result over:
+
+```lang
+var TOK_INDENT i64 = TOK_USER;
+var TOK_DEDENT i64 = 101;
+
+#parser{
+    suite = <indent> body:stmt+ <dedent>
+}
+
+var toks *u8 = tok_stream_new();
+tok_stream_push(toks, TOK_INDENT, offset, 0, "indent");   // synthetic
+tok_stream_push(toks, TOK_NUMBER, start, len, nil);       // spans real source
+var t *Tokenizer = tok_new_stream(source, toks);
+var tree *PNode = parse_suite(t);
+```
+
+A token is `(kind, start, len, text)`. The span points into the same source
+string the reader was given, so error locations and AST spans stay exact even
+for tokens the source does not literally contain; `text` is `nil` for a token
+that reads as the bytes it spans, and names one that spans none. Custom kinds
+start at `TOK_USER`, which the built-in scanner never produces — a grammar
+writing `<indent>` can therefore only match a token a reader put there. An
+undeclared `<foo>` is an ordinary undefined-identifier error for `TOK_FOO`.
+
+Everything else is unchanged: `tok_new` still scans, backtracking still rewinds,
+and the two can appear in the same program.
 
 ## Parse tree
 

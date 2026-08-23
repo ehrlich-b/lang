@@ -64,6 +64,17 @@ func rdgen_strn(rd *RDGen, s *u8, len i64) void {
     }
 }
 
+// A reader spells its token kinds TOK_INDENT; a grammar spells them <indent>.
+func rdgen_upper(rd *RDGen, s *u8, len i64) void {
+    var i i64 = 0;
+    while i < len {
+        var c i64 = *(s + i);
+        if c >= 97 && c <= 122 { c = c - 32; }
+        sb_char(rd.sb, c);
+        i = i + 1;
+    }
+}
+
 func rdgen_int(rd *RDGen, n i64) void {
     sb_int(rd.sb, n);
 }
@@ -262,6 +273,28 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
             rdgen_indent(rd);
             sb_str(rd.sb, "} else { tok_note_expected(t, \"");
             rdgen_strn(rd, name, name_len);
+            sb_str(rd.sb, "\"); }");
+            rdgen_newline(rd);
+        }
+
+        // USERTOK: <indent>, a token kind the reader defined and supplied
+        else if kind == GNODE_USERTOK {
+            rdgen_indent(rd);
+            sb_str(rd.sb, "if tok_kind(t) == TOK_");
+            rdgen_upper(rd, node.name, node.name_len);
+            sb_str(rd.sb, " {");
+            rdgen_newline(rd);
+
+            rd.indent = rd.indent + 1;
+            rdgen_indent(rd);
+            sb_str(rd.sb, result_var);
+            sb_str(rd.sb, " = pnode_atom_span(7, tok_text(t), tok_start_offset(t), tok_end_offset(t));");
+            rdgen_newline(rd);
+            rdgen_line(rd, "tok_next(t);");
+            rd.indent = rd.indent - 1;
+            rdgen_indent(rd);
+            sb_str(rd.sb, "} else { tok_note_expected(t, \"");
+            rdgen_strn(rd, node.name, node.name_len);
             sb_str(rd.sb, "\"); }");
             rdgen_newline(rd);
         }

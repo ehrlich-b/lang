@@ -73,6 +73,27 @@
 //   string    Matches TOK_STRING (quoted strings)
 //   operator  Matches +, -, *, / (for operator-first grammars like Lisp)
 //
+// READER-DEFINED TOKENS:
+//   <indent>  Matches a token of kind TOK_INDENT, which the reader declares
+//             (`var TOK_INDENT i64 = TOK_USER;`) and puts into a token stream
+//             it builds itself. The built-in scanner never produces one, so a
+//             grammar can only match what a reader deliberately supplied.
+//
+//   A reader whose language is not a straight left-to-right scan - layout, a
+//   preprocessing pass, a lexer that needs to know what the parser decided -
+//   lexes the source its own way and calls tok_new_stream instead of tok_new:
+//
+//       var toks *u8 = tok_stream_new();
+//       tok_stream_push(toks, TOK_INDENT, offset, 0, "indent");
+//       ...
+//       var t *Tokenizer = tok_new_stream(source, toks);
+//       var tree *PNode = parse_suite(t);
+//
+//   Each token is (kind, start, len, text) with the span pointing into the
+//   original source, so error locations and AST spans stay exact. `text` is
+//   nil for a token that reads as the bytes it spans, and names a synthetic
+//   token that spans none. See std/tok.lang for the full stream API.
+//
 // RULE REFERENCES:
 //   list = '(' expr ')   // references the 'expr' rule
 //   Undefined/duplicate rules and left recursion fail at the offending token.
@@ -117,6 +138,7 @@
 //   4 = PNODE_LIST     (sequence or list)
 //   5 = PNODE_OPERATOR (operator token: + - * /)
 //   6 = PNODE_CAPTURE  (internal wrapper; use pnode_get/pnode_require)
+//   7 = PNODE_TOKEN    (a <name> token kind the reader defined)
 //
 // ============================================================
 // EXAMPLE: S-EXPRESSION PARSER

@@ -949,6 +949,18 @@ include "std/parser_reader.lang"
     thing = prefix thing | number
 }
 BAD_GRAMMAR
+    cat >"$tmp/unnamed_token.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    thing = <
+}
+BAD_GRAMMAR
+    cat >"$tmp/unclosed_token.lang" <<'BAD_GRAMMAR'
+include "std/parser_reader.lang"
+#parser{
+    thing = <indent number
+}
+BAD_GRAMMAR
     cat >"$tmp/nested_branch_label.lang" <<'BAD_GRAMMAR'
 include "std/parser_reader.lang"
 #parser{
@@ -968,6 +980,8 @@ BAD_GRAMMAR
         "direct_left_recursion|expected non-left-recursive rule, found thing"
         "indirect_left_recursion|expected non-left-recursive rule, found thing"
         "nullable_left_recursion|expected non-left-recursive rule, found thing"
+        "unnamed_token|expected token name, found end of input"
+        "unclosed_token|expected '>', found number"
         "nested_branch_label|expected branch label on a rule that does not label its own alternatives, found a"
     )
     local spec case_name expected
