@@ -271,7 +271,8 @@ bootstrap:
 	@echo "│ STAGE 7: ARCHIVE + PROMOTE                                     │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
 	@# Archive current bootstrap to GitHub release + local cache
-	@OLD_COMMIT=$$(cat bootstrap/current/COMMIT 2>/dev/null || echo ""); \
+	@set -e; \
+	OLD_COMMIT=$$(cat bootstrap/current/COMMIT 2>/dev/null || echo ""); \
 	if [ "$$OLD_COMMIT" = "$(VERSION)" ] && \
 	   { ! cmp -s bootstrap/current/compiler_linux.ll /tmp/bootstrap_verify/compiler_linux.ll || \
 	     ! cmp -s bootstrap/current/compiler_macos.ll /tmp/bootstrap_verify/compiler_macos.ll || \
@@ -314,12 +315,12 @@ bootstrap:
 			echo "ERROR: bootstrap/archive/$$OLD_COMMIT.tar.gz already exists; refusing an ambiguous duplicate."; \
 			exit 1; \
 		else \
-			mkdir bootstrap/archive/$$OLD_COMMIT; \
+			mkdir -p bootstrap/archive/$$OLD_COMMIT; \
 			cp -r bootstrap/current/* bootstrap/archive/$$OLD_COMMIT/; \
 			echo "  Saved bootstrap/archive/$$OLD_COMMIT/"; \
 		fi; \
 		echo "  Managing local archive (target: 10 folders, 10 tarballs)..."; \
-		cd bootstrap/archive && \
+		cd bootstrap/archive || { echo "ERROR: cannot enter bootstrap/archive; refusing archive cleanup."; exit 1; }; \
 		remote_archive_exists() { \
 			IDENTITY="$$1"; \
 			[ "$(PUBLISH_BOOTSTRAP)" = "1" ] && \

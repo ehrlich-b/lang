@@ -278,23 +278,16 @@ function readerName(source) {
 
 function focusDiagnostic(message) {
   const match = message.match(
-    /(?:^|\n)(reader\.lang|source\.read|runtime\.lang):(\d+):(\d+):\s*(?:error|warning)/,
+    /(?:^|\n)(reader\.lang|source\.read|runtime\.lang|c|flow|forth|minilisp|minipy):(\d+):(\d+):\s*(?:error|warning|expected)/,
   );
   if (!match) return;
   const target = match[1] === 'reader.lang'
     ? reader
-    : match[1] === 'source.read' ? customSource : runtime;
+    : match[1] === 'runtime.lang' ? runtime : customSource;
   if (target === runtime) target.closest('details').open = true;
   const line = Number(match[2]);
   const column = Number(match[3]);
-  const lines = target.value.split('\n');
-  let start = 0;
-  for (let i = 1; i < line && i <= lines.length; i++) start += lines[i - 1].length + 1;
-  start += Math.max(0, column - 1);
-  start = Math.min(start, target.value.length);
-  let end = start;
-  while (end < target.value.length && /[A-Za-z0-9_]/.test(target.value[end])) end++;
-  if (end === start) end = Math.min(start + 1, target.value.length);
+  const { start, end } = diagnosticSelection(target.value, line, column);
   target.focus();
   target.setSelectionRange(start, end);
 }

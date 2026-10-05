@@ -1,0 +1,188 @@
+// Compile-time polynomial IR and symbolic differentiation. No solver state.
+// Algebraic simplification is over finite real polynomial inputs, rather than
+// a promise to preserve the overflow behavior of an unreduced IEEE expression.
+struct HMExpr {
+    kind i64; left *HMExpr; right *HMExpr;
+    ast *u8; index i64; exponent i64;
+    constant i64; value f64; source *PNode;
+}
+var hm_nodes i64 = 0;
+
+func hm_node(kind i64, source *PNode) *HMExpr {
+    hm_nodes = hm_nodes + 1;
+    if hm_nodes > 8192 { hm_fail(source, "polynomial and derivatives exceed 8192 IR nodes"); }
+    var e *HMExpr = alloc(72); e.kind = kind; e.left = nil; e.right = nil;
+    e.ast = nil; e.index = 0; e.exponent = 0; e.constant = 0; e.value = 0.0; e.source = source;
+    return e;
+}
+
+func hm_literal(ast *u8, value f64, source *PNode) *HMExpr {
+    var e *HMExpr = hm_node(0, source); e.ast = ast; e.constant = 1; e.value = value; return e;
+}
+func hm_zero(source *PNode) *HMExpr { return hm_literal(ast_number("0.0"), 0.0, source); }
+func hm_one(source *PNode) *HMExpr { return hm_literal(ast_number("1.0"), 1.0, source); }
+func hm_is(e *HMExpr, value f64) i64 { return e.constant && e.value == value; }
+
+// Kinds: literal=0, coordinate=1, +=2, -=3, *=4, power=5, neg=6, /=7.
+func hm_binary(kind i64, left *HMExpr, right *HMExpr, source *PNode) *HMExpr {
+    if kind == 2 {
+        if hm_is(left, 0.0) { return right; } if hm_is(right, 0.0) { return left; }
+    }
+    if kind == 3 && hm_is(right, 0.0) { return left; }
+    if kind == 4 {
+        if hm_is(left, 0.0) || hm_is(right, 0.0) { return hm_zero(source); }
+        if hm_is(left, 1.0) { return right; } if hm_is(right, 1.0) { return left; }
+    }
+    if kind == 7 {
+        if right.constant == 0 { hm_fail(source, "division requires a state-independent constant denominator"); }
+        if right.value == 0.0 { hm_fail(source, "constant denominator must be nonzero"); }
+        if hm_is(right, 1.0) { return left; }
+    }
+    var e *HMExpr = hm_node(kind, source); e.left = left; e.right = right;
+    e.constant = left.constant && right.constant;
+    if e.constant {
+        if kind == 2 { e.value = left.value + right.value; }
+        if kind == 3 { e.value = left.value - right.value; }
+        if kind == 4 { e.value = left.value * right.value; }
+        if kind == 7 { e.value = left.value / right.value; }
+        if !(e.value - e.value == 0.0) { hm_fail(source, "constant expression must be finite"); }
+    }
+    return e;
+}
+
+func hm_power(base *HMExpr, exponent i64, source *PNode) *HMExpr {
+    if exponent == 0 { return hm_one(source); }
+    if exponent == 1 { return base; }
+    var e *HMExpr = hm_node(5, source); e.left = base; e.exponent = exponent; e.constant = base.constant;
+    if e.constant {
+        e.value = 1.0; var i i64 = 0;
+        while i < exponent { e.value = e.value * base.value; i = i + 1; }
+        if !(e.value - e.value == 0.0) { hm_fail(source, "constant expression must be finite"); }
+    }
+    return e;
+}
+func hm_negate(value *HMExpr, source *PNode) *HMExpr {
+    if hm_is(value, 0.0) { return value; }
+    if value.kind == 6 { return value.left; }
+    var e *HMExpr = hm_node(6, source); e.left = value;
+    e.constant = value.constant; e.value = 0.0 - value.value; return e;
+}
+
+func hm_operand(model *HMModel, node *PNode) *HMExpr {
+    if pnode_is(node, "negative") {
+        return hm_negate(hm_operand(model, pnode_require(node, "value")), node);
+    }
+    var power *PNode = node;
+    var base *PNode = pnode_require(power, "base");
+    var e *HMExpr = nil;
+    if pnode_is(base, "literal") {
+        var number *PNode = base;
+        e = hm_literal(ast_number(hm_decimal(number.text)), hm_real(number.text, number), number);
+    } else if pnode_is(base, "name") {
+        var name *PNode = base;
+        var index i64 = hm_pair_index(model, name.text);
+        if index >= 0 { e = hm_node(1, name); e.index = index; }
+        else {
+            var value *HMConstant = hm_find_constant(model, name.text);
+            if value == nil { hm_fail(name, "unknown symbol; potential may reference coordinates and constant parameters only"); }
+            e = hm_literal(value.text, value.value, name);
+        }
+    } else {
+        e = hm_expression(model, pnode_require(base, "value"));
+    }
+    var powers *PNode = pnode_require(power, "powers");
+    if vec_len(powers.children) > 1 { hm_fail(powers, "chained powers require explicit parentheses"); }
+    if vec_len(powers.children) == 1 {
+        var exponent *PNode = pnode_require(vec_get(powers.children, 0), "value");
+        e = hm_power(e, hm_integer(exponent, 0, 8), exponent);
+    }
+    return e;
+}
+
+func hm_table() *PrecTable {
+    var table *PrecTable = prec_new(); prec_left(table, "+ -"); prec_left(table, "* /"); return table;
+}
+
+// Reduce the flat generated parse tree with the same precedence table readers
+// use for ordinary ASTs. Polynomial nodes remain inspectable before lowering.
+func hm_expression(model *HMModel, node *PNode) *HMExpr {
+    var values *u8 = vec_new(16); var ops *u8 = vec_new(16);
+    vec_push(values, hm_operand(model, pnode_require(node, "first")));
+    var table *PrecTable = hm_table(); var rest *PNode = pnode_require(node, "rest");
+    var i i64 = 0;
+    while i <= vec_len(rest.children) {
+        var op *PNode = nil; var level i64 = 0;
+        if i < vec_len(rest.children) {
+            op = pnode_require(vec_get(rest.children, i), "op"); level = prec_of(table, op.text);
+            if level == 0 { hm_fail(op, "unsupported polynomial operator; use +, -, *, / or bounded integer powers"); }
+        }
+        while vec_len(ops) > 0 {
+            var previous *PNode = vec_get(ops, vec_len(ops) - 1);
+            if prec_of(table, previous.text) < level { break; }
+            vec_pop(ops);
+            var right *HMExpr = vec_pop(values); var left *HMExpr = vec_pop(values);
+            var kind i64 = 2;
+            if streq(previous.text, "-") { kind = 3; }
+            if streq(previous.text, "*") { kind = 4; }
+            if streq(previous.text, "/") { kind = 7; }
+            vec_push(values, hm_binary(kind, left, right, previous));
+        }
+        if op != nil { vec_push(ops, op); vec_push(values, hm_operand(model, pnode_require(vec_get(rest.children, i), "right"))); }
+        i = i + 1;
+    }
+    return vec_get(values, 0);
+}
+
+func hm_derivative(e *HMExpr, index i64) *HMExpr {
+    if e.constant { return hm_zero(e.source); }
+    if e.kind == 1 { if e.index == index { return hm_one(e.source); } return hm_zero(e.source); }
+    var dleft *HMExpr = hm_derivative(e.left, index);
+    if e.kind == 6 { return hm_negate(dleft, e.source); }
+    if e.kind == 5 {
+        var coefficient *u8 = alloc(32); itoa(e.exponent, coefficient);
+        var count *HMExpr = hm_literal(ast_number(hm_decimal(coefficient)), cast(f64, e.exponent), e.source);
+        return hm_binary(4, hm_binary(4, count, hm_power(e.left, e.exponent - 1, e.source), e.source), dleft, e.source);
+    }
+    if e.kind == 7 { return hm_binary(7, dleft, e.right, e.source); }
+    var dright *HMExpr = hm_derivative(e.right, index);
+    if e.kind == 4 {
+        return hm_binary(2, hm_binary(4, dleft, e.right, e.source), hm_binary(4, e.left, dright, e.source), e.source);
+    }
+    return hm_binary(e.kind, dleft, dright, e.source);
+}
+
+var hm_emit_nodes i64 = 0;
+func hm_expanded_cost(e *HMExpr) i64 {
+    var cost i64 = 1;
+    if e.kind == 0 && str_eq_n(e.ast, 5, "(unop", 5) { cost = 2; }
+    if e.left != nil { cost = cost + hm_expanded_cost(e.left); }
+    if e.right != nil { cost = cost + hm_expanded_cost(e.right); }
+    if e.kind == 5 { cost = (cost - 1) * e.exponent + e.exponent - 1; }
+    if cost > 65536 { hm_fail(e.source, "expanded potential and forces exceed 65536 AST nodes"); }
+    return cost;
+}
+func hm_emit_expression(model *HMModel, e *HMExpr) *u8 {
+    // Count textual expansion BEFORE building strings. Nested powers reuse IR
+    // nodes but duplicate emitted subtrees, so an IR-node budget alone is not
+    // a bound on reader memory or output size.
+    hm_emit_nodes = hm_emit_nodes + hm_expanded_cost(e);
+    if hm_emit_nodes > 65536 { hm_fail(e.source, "expanded potential and forces exceed 65536 AST nodes"); }
+    return hm_expr_ast(model, e);
+}
+func hm_expr_ast(model *HMModel, e *HMExpr) *u8 {
+    if e.kind == 0 { return e.ast; }
+    if e.kind == 1 {
+        var pair *HMPair = vec_get(model.pairs, e.index); return ast_ident(hm_name("q_", pair.name));
+    }
+    var left *u8 = hm_expr_ast(model, e.left);
+    if e.kind == 6 { return ast_neg(left); }
+    if e.kind == 5 {
+        var out *u8 = left; var i i64 = 1;
+        while i < e.exponent { out = ast_mul(out, left); i = i + 1; } return out;
+    }
+    var right *u8 = hm_expr_ast(model, e.right);
+    if e.kind == 2 { return ast_add(left, right); }
+    if e.kind == 3 { return ast_sub(left, right); }
+    if e.kind == 4 { return ast_mul(left, right); }
+    return ast_div(left, right);
+}

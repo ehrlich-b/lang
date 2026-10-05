@@ -89,6 +89,16 @@ func parse_sexpr(t *Tokenizer) *PNode {
 
     // number
     if kind == TOK_NUMBER {
+        // AST emitters preserve native decimal literals verbatim. The shared
+        // reader tokenizer deliberately scans integers; extend only this AST
+        // token, before advancing, so `1.25` and `-0.125` survive roundtrips
+        // without changing the lexical contract of existing surface readers.
+        if t.stream == nil && tok_peek_char(t) == '.' &&
+           tok_is_digit(tok_peek_char_at(t, 1)) {
+            tok_advance_char(t);
+            while tok_is_digit(tok_peek_char(t)) { tok_advance_char(t); }
+            t.tok_len = t.pos - t.tok_start;
+        }
         var text *u8 = tok_text(t);
         tok_next(t);
         return pnode_atom(PNODE_NUMBER, text);

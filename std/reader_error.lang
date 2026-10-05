@@ -1,0 +1,54 @@
+// Source diagnostics for reader lowering. Begin each invocation with the ORIGINAL
+// input: a reader may normalize its tokens, but their spans still name those bytes.
+include "std/pnode.lang"
+
+// Kept in the included toolkit so native reader extraction retains this state.
+// Readers run synchronously; begin replaces the context for every invocation.
+var reader_error_source *u8 = nil;
+var reader_error_label *u8 = nil;
+
+pub func reader_error_begin(source *u8, label *u8) void {
+    reader_error_source = source;
+    reader_error_label = label;
+}
+
+// Offsets and columns are bytes, like Tokenizer and PNode spans. Missing spans
+// stay unlocated; offsets beyond input stop at EOF instead of reading past it.
+pub func reader_print_error_prefix(source *u8, label *u8, offset i64) void {
+    if label != nil && *label != 0 { eprint(label); eprint(":"); }
+    if source != nil && offset >= 0 {
+        var line i64 = 1;
+        var column i64 = 1;
+        var i i64 = 0;
+        while i < offset && *(source + i) != 0 {
+            if *(source + i) == 10 { line = line + 1; column = 1; }
+            else { column = column + 1; }
+            i = i + 1;
+        }
+        eprint_i64(line); eprint(":");
+        eprint_i64(column); eprint(":");
+    }
+    eprint(" error: ");
+}
+
+pub func reader_print_error_at(source *u8, label *u8, offset i64, message *u8) void {
+    reader_print_error_prefix(source, label, offset);
+    eprintln(message);
+}
+
+pub func reader_error_prefix(node *PNode) void {
+    var offset i64 = 0 - 1;
+    if node != nil { offset = node.start; }
+    reader_print_error_prefix(reader_error_source, reader_error_label, offset);
+}
+
+// Printing and termination are separate so hosts and readers choose their own
+// failure policy. The shipped readers terminate immediately after reporting.
+pub func reader_error_at(offset i64, message *u8) void {
+    reader_print_error_at(reader_error_source, reader_error_label, offset, message);
+}
+
+pub func reader_error(node *PNode, message *u8) void {
+    reader_error_prefix(node);
+    eprintln(message);
+}

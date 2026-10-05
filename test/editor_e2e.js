@@ -2,7 +2,7 @@
 'use strict';
 
 const assert = require('assert');
-const { codeEdit } = require('../web/editor.js');
+const { codeEdit, diagnosticSelection } = require('../web/editor.js');
 
 function apply(value, start, end, key, shiftKey = false) {
   const edit = codeEdit(value, start, end, key, shiftKey);
@@ -23,5 +23,12 @@ assert.deepStrictEqual(
 );
 assert.strictEqual(apply('    if ready:', 13, 13, 'Enter').value, '    if ready:\n        ');
 assert.strictEqual(codeEdit('x', 0, 0, 'Escape', false), null);
+
+for (const test of require('./reader_diagnostics_cases.json')) {
+  const { start, end } = diagnosticSelection(test.source, test.line, test.column);
+  assert.strictEqual(test.source.slice(start, end), test.token, test.name);
+}
+assert.deepStrictEqual(diagnosticSelection('abc', 1, 100), { start: 3, end: 3 });
+assert.deepStrictEqual(diagnosticSelection('🐈', 1, 1), { start: 0, end: 2 });
 
 console.log('PASS editor_e2e');

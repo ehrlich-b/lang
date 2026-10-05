@@ -1,0 +1,182 @@
+[
+  {
+    "name": "forth-plus",
+    "reader": "forth",
+    "source": ": bad ( -- n )\n    +\n;\n",
+    "line": 2,
+    "column": 5,
+    "message": "stack underflow",
+    "token": "+"
+  },
+  {
+    "name": "forth-dup",
+    "reader": "forth",
+    "source": ": bad ( -- n )\n    dup\n;\n",
+    "line": 2,
+    "column": 5,
+    "message": "dup on an empty stack",
+    "token": "dup"
+  },
+  {
+    "name": "forth-drop",
+    "reader": "forth",
+    "source": ": bad ( -- )\n    drop\n;\n",
+    "line": 2,
+    "column": 5,
+    "message": "drop on an empty stack",
+    "token": "drop"
+  },
+  {
+    "name": "forth-swap",
+    "reader": "forth",
+    "source": ": bad ( -- )\n    swap\n;\n",
+    "line": 2,
+    "column": 5,
+    "message": "swap needs two values",
+    "token": "swap"
+  },
+  {
+    "name": "forth-over",
+    "reader": "forth",
+    "source": ": bad ( -- )\n    over\n;\n",
+    "line": 2,
+    "column": 5,
+    "message": "over needs two values",
+    "token": "over"
+  },
+  {
+    "name": "forth-nip",
+    "reader": "forth",
+    "source": ": bad ( -- )\n    nip\n;\n",
+    "line": 2,
+    "column": 5,
+    "message": "nip needs two values",
+    "token": "nip"
+  },
+  {
+    "name": "forth-rot",
+    "reader": "forth",
+    "source": ": bad ( -- )\n    rot\n;\n",
+    "line": 2,
+    "column": 5,
+    "message": "rot needs three values",
+    "token": "rot"
+  },
+  {
+    "name": "forth-word",
+    "reader": "forth",
+    "source": ": bad ( -- n )\n    nosuchword\n;\n",
+    "line": 2,
+    "column": 5,
+    "message": "undefined word",
+    "token": "nosuchword"
+  },
+  {
+    "name": "forth-call",
+    "reader": "forth",
+    "source": "extern foo ( n -- n ) ;\n: bad ( -- n )\n    foo\n;\n",
+    "line": 3,
+    "column": 5,
+    "message": "stack underflow",
+    "token": "foo"
+  },
+  {
+    "name": "forth-if",
+    "reader": "forth",
+    "source": ": bad ( -- n )\n    if 1 then\n;\n",
+    "line": 2,
+    "column": 5,
+    "message": "stack underflow",
+    "token": "if"
+  },
+  {
+    "name": "forth-then",
+    "reader": "forth",
+    "source": ": bad ( -- n )\n    1 if 2\n;\n",
+    "line": 2,
+    "column": 7,
+    "message": "without a closing",
+    "token": "if"
+  },
+  {
+    "name": "forth-result",
+    "reader": "forth",
+    "source": ": bad ( -- n ) ;\n",
+    "line": 1,
+    "column": 3,
+    "message": "word promises a result",
+    "token": "bad"
+  },
+  {
+    "name": "forth-comment",
+    "reader": "forth",
+    "source": ": bad ( -- n )\n    ( café 🐈\n      a comment ) + ;\n",
+    "line": 3,
+    "column": 19,
+    "message": "stack underflow",
+    "token": "+"
+  },
+  {
+    "name": "forth-unicode",
+    "reader": "forth",
+    "source": ": bad ( -- n ) ( café 🐈 ) + ;\n",
+    "line": 1,
+    "column": 31,
+    "message": "stack underflow",
+    "token": "+"
+  },
+  {
+    "name": "minilisp-head",
+    "reader": "minilisp",
+    "source": "; a comment\n(+ 1\n    (2 3))\n",
+    "line": 3,
+    "column": 6,
+    "message": "a call's head must be a symbol",
+    "token": "2"
+  },
+  {
+    "name": "c-postfix",
+    "reader": "c",
+    "source": "int bad(int n) {\n    return n++;\n}\n",
+    "line": 2,
+    "column": 13,
+    "message": "'++' has no value here",
+    "token": "+"
+  },
+  {
+    "name": "flow-assign",
+    "reader": "flow",
+    "source": "func bad(n) {\n    return n = 1;\n}\n",
+    "line": 2,
+    "column": 12,
+    "message": "this expression is not in the flow subset",
+    "token": "n"
+  },
+  {
+    "name": "minipy-chain",
+    "reader": "minipy",
+    "source": "def bad(a, b, c):\n    # keep the original source\n    return a < b < c\n",
+    "line": 3,
+    "column": 18,
+    "message": "chained comparison",
+    "token": "<"
+  },
+  {
+    "name": "minipy-layout",
+    "reader": "minipy",
+    "source": "def bad():\n    if 1:\n        return 1\n  return 0\n",
+    "line": 4,
+    "column": 3,
+    "message": "dedent does not match",
+    "token": "return"
+  },
+  {
+    "name": "minilisp-trailing",
+    "reader": "minilisp",
+    "source": "(+ 1 2) (2 3)",
+    "line": 1,
+    "column": 9,
+    "message": "expected end of input",
+    "token": "("
+  }
+]

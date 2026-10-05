@@ -53,6 +53,7 @@ include "std/core.lang"
 include "std/tok.lang"
 include "std/parser_reader.lang"
 include "std/ast.lang"
+include "std/reader_error.lang"
 
 // The grammar is almost nothing - which is the point. A body is a FLAT word
 // list; `if`/`else`/`then` are ordinary words that the converter gives meaning
@@ -107,7 +108,7 @@ func fo_sanitize_comments(text *u8) *u8 {
             if c == 41 {                        // )
                 depth = 0;
                 sb_char(sb, c);
-            } else if fo_word_char(c) == 1 {
+            } else if fo_word_char(c) == 1 || c == 10 || c == 13 {
                 sb_char(sb, c);
             } else {
                 sb_char(sb, 32);
@@ -240,8 +241,8 @@ func fo_sig_find(sigs *u8, name *u8) i64 {
 // A reported error must end the build. It used not to: `: bad ( -- n ) + ;`
 // printed "stack underflow" four times and then wrote a working-looking program
 // whose word returned whatever `ast_int(0)` stood in for.
-func fo_fail(msg *u8, what *u8) void {
-    eprint("forth: ");
+func fo_fail(msg *u8, what *u8, node *PNode) void {
+    reader_error_prefix(node);
     eprint(msg);
     if what != nil {
         eprint(" '");
@@ -252,9 +253,9 @@ func fo_fail(msg *u8, what *u8) void {
     exit(1);
 }
 
-func fo_pop(stack *u8) *u8 {
+func fo_pop(stack *u8, node *PNode) *u8 {
     if vec_len(stack) == 0 {
-        fo_fail("stack underflow", nil);
+        fo_fail("stack underflow", nil, node);
     }
     return vec_pop(stack);
 }
@@ -352,9 +353,9 @@ func fo_binop_for(op *u8) *u8 {
 
 // ( a b -- a OP b ). No flush: operands are popped in Forth's own order, and
 // lang evaluates a binop left-to-right, so the order already matches.
-func fo_binary(stack *u8, op *u8) void {
-    var b *u8 = fo_pop(stack);
-    var a *u8 = fo_pop(stack);
+func fo_binary(stack *u8, op *u8, node *PNode) void {
+    var b *u8 = fo_pop(stack, node);
+    var a *u8 = fo_pop(stack, node);
     vec_push(stack, ast_binop(op, a, b));
 }
 
@@ -370,7 +371,7 @@ func fo_emit_operator(items *u8, ip *i64, stack *u8) void {
             if pnode_is(nxt, "op") {
                 if streq(nxt.text, ">") {
                     *ip = *ip + 1;
-                    fo_binary(stack, "!=");
+                    fo_binary(stack, "!=", op);
                     return;
                 }
             }
@@ -378,9 +379,9 @@ func fo_emit_operator(items *u8, ip *i64, stack *u8) void {
     }
     var lop *u8 = fo_binop_for(text);
     if lop == nil {
-        fo_fail("unknown operator word", text);
+        fo_fail("unknown operator word", text, op);
     }
-    fo_binary(stack, lop);
+    fo_binary(stack, lop, op);
 }
 
 // dup/over duplicate a node, so what they duplicate must already be a value.
@@ -388,17 +389,17 @@ func fo_shuffle(w *u8, stack *u8, stmts *u8, node *PNode) i64 {
     fo_flush(stack, stmts, node);
     var n i64 = vec_len(stack);
     if streq(w, "dup") {
-        if n < 1 { fo_fail("dup on an empty stack", nil); }
+        if n < 1 { fo_fail("dup on an empty stack", nil, node); }
         vec_push(stack, vec_get(stack, n - 1));
         return 1;
     }
     if streq(w, "drop") {
-        if n < 1 { fo_fail("drop on an empty stack", nil); }
+        if n < 1 { fo_fail("drop on an empty stack", nil, node); }
         vec_pop(stack);
         return 1;
     }
     if streq(w, "swap") {
-        if n < 2 { fo_fail("swap needs two values", nil); }
+        if n < 2 { fo_fail("swap needs two values", nil, node); }
         var a *u8 = vec_get(stack, n - 2);
         var b *u8 = vec_get(stack, n - 1);
         vec_set(stack, n - 2, b);
@@ -406,19 +407,19 @@ func fo_shuffle(w *u8, stack *u8, stmts *u8, node *PNode) i64 {
         return 1;
     }
     if streq(w, "over") {
-        if n < 2 { fo_fail("over needs two values", nil); }
+        if n < 2 { fo_fail("over needs two values", nil, node); }
         vec_push(stack, vec_get(stack, n - 2));
         return 1;
     }
     if streq(w, "nip") {
-        if n < 2 { fo_fail("nip needs two values", nil); }
+        if n < 2 { fo_fail("nip needs two values", nil, node); }
         var top *u8 = vec_get(stack, n - 1);
         vec_pop(stack);
         vec_set(stack, n - 2, top);
         return 1;
     }
     if streq(w, "rot") {
-        if n < 3 { fo_fail("rot needs three values", nil); }
+        if n < 3 { fo_fail("rot needs three values", nil, node); }
         var x *u8 = vec_get(stack, n - 3);
         var y *u8 = vec_get(stack, n - 2);
         var z *u8 = vec_get(stack, n - 1);
@@ -435,7 +436,7 @@ func fo_emit_call(name *u8, stack *u8, stmts *u8, sigs *u8, node *PNode) void {
     var si i64 = fo_sig_find(sigs, name);
     if si < 0 {
         fo_fail("undefined word (declare host functions with `extern name ( a -- r ) ;`)",
-                name);
+                name, node);
     }
     var np i64 = vec_get(sigs, si + 1);
     var nr i64 = vec_get(sigs, si + 2);
@@ -446,7 +447,7 @@ func fo_emit_call(name *u8, stack *u8, stmts *u8, sigs *u8, node *PNode) void {
     var popped *u8 = vec_new(8);
     var k i64 = 0;
     while k < np {
-        vec_push(popped, fo_pop(stack));
+        vec_push(popped, fo_pop(stack, node));
         k = k + 1;
     }
     var args *u8 = ast_vec();
@@ -479,7 +480,7 @@ func fo_emit_call(name *u8, stack *u8, stmts *u8, sigs *u8, node *PNode) void {
 //
 // *ip points just past `if` on entry, and just past `then` on exit.
 func fo_emit_if(node *PNode, items *u8, ip *i64, stack *u8, stmts *u8, sigs *u8, selfname *u8) void {
-    var cond *u8 = fo_pop(stack);
+    var cond *u8 = fo_pop(stack, node);
     fo_flush(stack, stmts, node);
     var saved *u8 = fo_stack_copy(stack);
 
@@ -503,12 +504,12 @@ func fo_emit_if(node *PNode, items *u8, ip *i64, stack *u8, stmts *u8, sigs *u8,
 
     var w2 *u8 = fo_word_at(items, *ip);
     if w2 == nil {
-        fo_fail("`if` without a closing `then`", nil);
+        fo_fail("`if` without a closing `then`", nil, node);
     } else {
         if streq(w2, "then") {
             *ip = *ip + 1;
         } else {
-            fo_fail("`if` without a closing `then`", nil);
+            fo_fail("`if` without a closing `then`", nil, node);
         }
     }
 
@@ -560,7 +561,7 @@ func fo_emit_seq(items *u8, ip *i64, stack *u8, stmts *u8, sigs *u8, selfname *u
         } else if pnode_is(it, "dot") {
             // `.` - print the top of stack (with Forth's trailing space)
             fo_flush(stack, stmts, it);
-            ast_push(stmts, ast_expr_stmt(ast_call_named1("forth_dot", fo_pop(stack))));
+            ast_push(stmts, ast_expr_stmt(ast_call_named1("forth_dot", fo_pop(stack, it))));
             *ip = *ip + 1;
         } else if pnode_is(it, "comment") {
             *ip = *ip + 1;                          // an inline ( ... ) comment
@@ -581,16 +582,16 @@ func fo_emit_word(w *u8, node *PNode, items *u8, ip *i64, stack *u8, stmts *u8, 
         return;
     }
     if fo_shuffle(w, stack, stmts, node) == 1 { return; }
-    if streq(w, "mod") == 1 { fo_binary(stack, "%"); return; }
-    if streq(w, "and") == 1 { fo_binary(stack, "&"); return; }
-    if streq(w, "or") == 1  { fo_binary(stack, "|"); return; }
-    if streq(w, "xor") == 1 { fo_binary(stack, "^"); return; }
+    if streq(w, "mod") == 1 { fo_binary(stack, "%", node); return; }
+    if streq(w, "and") == 1 { fo_binary(stack, "&", node); return; }
+    if streq(w, "or") == 1  { fo_binary(stack, "|", node); return; }
+    if streq(w, "xor") == 1 { fo_binary(stack, "^", node); return; }
     if streq(w, "negate") == 1 {
-        vec_push(stack, ast_neg(fo_pop(stack)));
+        vec_push(stack, ast_neg(fo_pop(stack, node)));
         return;
     }
     if streq(w, "invert") == 1 {                    // lang has no unary `~`
-        vec_push(stack, ast_binop("^", fo_pop(stack), ast_neg(ast_int(1))));
+        vec_push(stack, ast_binop("^", fo_pop(stack, node), ast_neg(ast_int(1))));
         return;
     }
     if streq(w, "cr") == 1 {
@@ -646,7 +647,7 @@ func fo_emit_worddef(d *PNode, sigs *u8) *u8 {
         if depth > 0 {
             ast_push(stmts, ast_return(vec_get(stack, depth - 1)));
         } else {
-            fo_fail("word promises a result but leaves an empty stack", wname);
+            fo_fail("word promises a result but leaves an empty stack", wname, pnode_require(d, "name"));
         }
     } else {
         ast_push(stmts, ast_return(ast_int(0)));
@@ -673,11 +674,17 @@ func fo_emit_program(prog *PNode) *u8 {
 }
 
 reader forth(text *u8) *u8 {
+    reader_error_begin(text, "forth");
     // Forth's line comment is `\\`, which the shared scanner can now be told.
     // `( ... )` stays a source pre-pass, because in THIS Forth a parenthesized
     // group is not a comment: the stack effect wears the same parentheses and
     // the grammar parses it (see fo_sanitize_comments).
     var t *Tokenizer = tok_new_comments(fo_sanitize_comments(text), "\\", nil, nil);
     var prog *PNode = parse_fo_program(t);
+    if !tok_eof(t) { tok_note_expected(t, "end of input"); }
+    if prog == nil || !tok_eof(t) {
+        tok_print_error(t, "forth");
+        exit(1);
+    }
     return fo_emit_program(prog);
 }

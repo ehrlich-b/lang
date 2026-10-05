@@ -1,0 +1,18 @@
+// expect: 100
+// Reader-built decimals pass through the root AST parser and f64 call ABI.
+include "std/ast.lang"
+
+reader fractional(text *u8) *u8 {
+    if streq(text, "negative") { return ast_number("-0.125"); }
+    return ast_number("1.25");
+}
+
+func affine(x f64, scale f64) f64 { return x * scale + 0.5; }
+
+func main() i64 {
+    var x f64 = #fractional{positive};
+    var y f64 = #fractional{negative};
+    var value f64 = affine(x, y);
+    if value > 0.343749999 { if value < 0.343750001 { return 100; } }
+    return 1;
+}

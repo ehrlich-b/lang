@@ -107,6 +107,27 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
 }
 
 (async () => {
+  const diagnosticModules = new Map();
+  const { diagnosticSelection } = require('../web/editor.js');
+  for (const test of require('./reader_diagnostics_cases.json')) {
+    if (!diagnosticModules.has(test.reader)) {
+      diagnosticModules.set(test.reader, await compileReaderModule(
+        fs.readFileSync(`example/${test.reader}/${test.reader}.lang`, 'utf8'), test.reader,
+      ));
+    }
+    const rejected = await runReaderModule(diagnosticModules.get(test.reader), test.source);
+    if (rejected.ast !== null || rejected.readerRun.exit !== 1 ||
+        !rejected.readerRun.stderr.includes(`${test.reader}:${test.line}:${test.column}:`) ||
+        !rejected.readerRun.stderr.includes(test.message)) {
+      throw new Error(`browser ${test.name} reader diagnostic mismatch: ${rejected.readerRun.stderr}`);
+    }
+    const { start, end } = diagnosticSelection(test.source, test.line, test.column);
+    if (test.source.slice(start, end) !== test.token) {
+      throw new Error(`browser ${test.name} diagnostic selects the wrong source`);
+    }
+  }
+  console.log(`PASS browser_reader_diagnostics (${require('./reader_diagnostics_cases.json').length} rejections across five readers, exact editor selections)`);
+
   const arithmetic = await compileAndRun('test/direct_wasm_e2e.lang');
   if (Number(arithmetic.value) !== 42) throw new Error(`expected 42, got ${arithmetic.value}`);
 

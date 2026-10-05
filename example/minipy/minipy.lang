@@ -65,6 +65,7 @@
 
 include "std/core.lang"
 include "std/ast.lang"
+include "std/reader_error.lang"
 include "std/parser_reader.lang"
 include "std/prec.lang"
 
@@ -94,10 +95,6 @@ func py_line_start(text *u8, off i64) i64 {
 func py_top(indents *u8) i64 {
     return vec_get(indents, vec_len(indents) - 1);
 }
-
-// The source the reader was handed, for diagnostics that carry a parse node
-// rather than a tokenizer.
-var py_src *u8 = nil;
 
 // Walks the ordinary token stream and inserts NEWLINE where a logical line ends
 // and INDENT/DEDENT where the left margin moves.
@@ -291,34 +288,19 @@ func py_table() *PrecTable {
 // how a bad parse turns into a mystery further down the pipeline - most often a
 // function that simply isn't there. Every error here is fatal.
 func py_fail_at(msg *u8, off i64) void {
-    eprint("minipy:");
-    if py_src != nil {
-        var line i64 = 1;
-        var col i64 = 1;
-        var i i64 = 0;
-        while i < off {
-            if *(py_src + i) == 10 { line = line + 1; col = 1; }
-            else { col = col + 1; }
-            i = i + 1;
-        }
-        eprint_i64(line);
-        eprint(":");
-        eprint_i64(col);
-        eprint(":");
-    }
-    eprint(" ");
-    eprintln(msg);
+    reader_error_at(off, msg);
     exit(1);
 }
 
 func py_fail(msg *u8, node *PNode) void {
-    py_fail_at(msg, node.start);
+    reader_error(node, msg);
+    exit(1);
 }
 
-// An alternative the grammar can produce and lowering forgot. Names the branch
-// rather than guessing, so a grammar edit cannot silently lose a case.
+// An alternative the grammar can produce and lowering forgot.
 func py_unhandled(what *u8, node *PNode) void {
-    eprint("minipy: internal: unhandled ");
+    reader_error_prefix(node);
+    eprint("internal: unhandled ");
     eprint(what);
     eprint(" branch '");
     var b *u8 = pnode_branch(node);
@@ -772,7 +754,7 @@ func py_def_of(node *PNode) *u8 {
 }
 
 reader minipy(text *u8) *u8 {
-    py_src = text;
+    reader_error_begin(text, "minipy");
     var t *Tokenizer = tok_new_stream(text, py_lex(text));
     var tree *PNode = parse_py_program(t);
     if tree == nil || !tok_eof(t) {

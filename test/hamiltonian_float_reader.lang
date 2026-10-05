@@ -1,0 +1,16 @@
+// Explicit read -> AST file -> LLVM -> native floating ABI gate.
+include "std/ast.lang"
+
+reader probe(text *u8) *u8 {
+    var params *u8 = ast_vec();
+    ast_push(params, ast_param("x", ast_type("f64")));
+    ast_push(params, ast_param("scale", ast_type("f64")));
+    var value *u8 = ast_add(ast_mul(ast_ident("x"), ast_ident("scale")), ast_number("0.5"));
+    var decls *u8 = ast_vec();
+    ast_push(decls, ast_func("affine", params, ast_type("f64"), ast_block1(ast_return(value))));
+    var body *u8 = ast_vec();
+    ast_push(body, ast_expr_stmt(ast_call2("printf", ast_string("%.17g\n"), ast_call2("affine", ast_number("1.25"), ast_number("-0.125")))));
+    ast_push(body, ast_return(ast_int(0)));
+    ast_push(decls, ast_func("main", ast_vec(), ast_type_i64(), ast_block(body)));
+    return ast_program(decls);
+}

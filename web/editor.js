@@ -61,4 +61,22 @@ function installCodeEditor(editor, onChange) {
   });
 }
 
-if (typeof module !== 'undefined') module.exports = { codeEdit, installCodeEditor };
+// Compiler columns count UTF-8 bytes; textarea selections count UTF-16 units.
+function diagnosticSelection(value, line, column) {
+  const lines = value.split('\n');
+  const row = Math.max(0, Math.min(line - 1, lines.length - 1));
+  let start = lines.slice(0, row).reduce((size, text) => size + text.length + 1, 0);
+  let bytes = 0;
+  for (const character of lines[row]) {
+    const width = new TextEncoder().encode(character).length;
+    if (bytes + width > column - 1) break;
+    bytes += width;
+    start += character.length;
+  }
+  let end = start;
+  while (end < value.length && /[A-Za-z0-9_]/.test(value[end])) end++;
+  if (end === start) end = Math.min(start + (value.codePointAt(start) > 65535 ? 2 : 1), value.length);
+  return { start, end };
+}
+
+if (typeof module !== 'undefined') module.exports = { codeEdit, installCodeEditor, diagnosticSelection };

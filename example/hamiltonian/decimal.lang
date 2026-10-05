@@ -1,0 +1,25 @@
+// Native, correctly rounded binary64 conversion shared by the reader and
+// inspection runtime. Validation freezes our syntax before calling libc;
+// strtod's exponent, hexadecimal, NaN and infinity forms remain unsupported.
+include "std/core.lang"
+extern func strtod(text *u8, endptr **u8) f64;
+
+func ham_decimal_valid(text *u8) bool {
+    if strlen(text) > 128 { return false; }
+    var i i64 = 0; if *text == '-' { i = 1; }
+    var digits i64 = 0; var fraction i64 = 0;
+    while *(text + i) != 0 {
+        var ch i64 = *(text + i);
+        if ch == '.' && fraction == 0 && digits > 0 {
+            fraction = 1;
+            var next i64 = *(text + i + 1);
+            if next < '0' || next > '9' { return false; }
+        } else {
+            if ch < '0' || ch > '9' { return false; }
+            digits = digits + 1;
+        }
+        i = i + 1;
+    }
+    return digits > 0;
+}
+func ham_decimal_value(text *u8) f64 { return strtod(text, nil); }

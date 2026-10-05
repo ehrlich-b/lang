@@ -1007,6 +1007,13 @@ func llvm_get_expr_type(expr *u8) *u8 {
         return llvm_get_expr_type(group_expr_expr(expr));
     }
 
+    if k == NODE_FIELD_EXPR {
+        var is_pointer i64 = 0;
+        var decl *u8 = cg_field_struct(expr, &is_pointer);
+        if decl != nil { return get_field_type(decl, field_expr_field(expr), field_expr_field_len(expr)); }
+        return nil;
+    }
+
     if k == NODE_CALL_EXPR {
         var fn_expr *u8 = call_expr_func(expr);
         if node_kind(fn_expr) == NODE_IDENT_EXPR {
@@ -2745,8 +2752,12 @@ func llvm_emit_expr(expr *u8) void {
                 var name *u8 = ident_expr_name(inner);
                 var len i64 = ident_expr_name_len(inner);
 
-                // Check if it's a function name
-                var func_decl *u8 = find_func(name, len);
+                // Address lookup follows value lookup: a local/parameter can
+                // shadow a function (notably eprint_i64's byte `c` in reader c).
+                var func_decl *u8 = nil;
+                if find_local(name, len) < 0 && llvm_find_let_binding(name, len) == nil {
+                    func_decl = find_func(name, len);
+                }
                 if func_decl != nil {
                     // Function address: ptrtoint func_type* @funcname to i64
                     // Get function parameter count for type signature
@@ -2918,7 +2929,11 @@ func llvm_emit_expr(expr *u8) void {
         if op == 26 {  // TOKEN_MINUS (negation)
             llvm_emit_str("    %t");
             llvm_emit_int(temp);
-            llvm_emit_str(" = sub i64 0, ");
+            var neg_type *u8 = llvm_get_expr_type(inner);
+            if neg_type != nil && llvm_is_float_type(neg_type) {
+                llvm_emit_str(" = fneg "); llvm_emit_type(neg_type); llvm_emit_str(" ");
+                llvm_expr_is_float = 1;
+            } else { llvm_emit_str(" = sub i64 0, "); }
             llvm_emit_str(inner_val);
             llvm_emit_char(10);
             llvm_set_result_temp(temp);
@@ -3320,6 +3335,23 @@ func llvm_emit_expr(expr *u8) void {
         // Check if field type is itself a struct (not a pointer to struct)
         // If so, we return the address (for nested field access), not load a value
         var field_type *u8 = get_field_type(struct_decl, field_name, field_len);
+        if field_type != nil && llvm_is_float_type(field_type) {
+            // Reuse &field's address calculation for pointer, local, and
+            // nested aggregates, but load using the declared scalar type.
+            var address *u8 = unary_expr_alloc();
+            unary_expr_set_op(address, TOKEN_AMP); unary_expr_set_expr(address, expr);
+            llvm_emit_expr(address);
+            var addr *u8 = str_dup(llvm_expr_result);
+            var ptr_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t"); llvm_emit_int(ptr_temp);
+            llvm_emit_str(" = inttoptr i64 "); llvm_emit_str(addr); llvm_emit_str(" to ");
+            llvm_emit_type(field_type); llvm_emit_line("*");
+            var load_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t"); llvm_emit_int(load_temp); llvm_emit_str(" = load ");
+            llvm_emit_type(field_type); llvm_emit_str(", "); llvm_emit_type(field_type);
+            llvm_emit_str("* %t"); llvm_emit_int(ptr_temp); llvm_emit_char(10);
+            llvm_set_result_temp(load_temp); llvm_expr_is_float = 1; return;
+        }
         var field_is_struct i64 = 0;
         if field_type != nil && type_kind(field_type) == TYPE_BASE {
             var ft_name *u8 = base_type_name(field_type);
@@ -5559,6 +5591,21 @@ func llvm_emit_stmt(stmt *u8) void {
             var is_pointer i64 = 0;
             var struct_decl *u8 = cg_field_struct(target, &is_pointer);
             if struct_decl != nil {
+                var scalar_type *u8 = get_field_type(struct_decl, field_name, field_len);
+                if scalar_type != nil && llvm_is_float_type(scalar_type) {
+                    var address *u8 = unary_expr_alloc();
+                    unary_expr_set_op(address, TOKEN_AMP); unary_expr_set_expr(address, target);
+                    llvm_emit_expr(address);
+                    var addr *u8 = str_dup(llvm_expr_result);
+                    var ptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t"); llvm_emit_int(ptr_temp);
+                    llvm_emit_str(" = inttoptr i64 "); llvm_emit_str(addr); llvm_emit_str(" to ");
+                    llvm_emit_type(scalar_type); llvm_emit_line("*");
+                    llvm_emit_str("    store "); llvm_emit_type(scalar_type);
+                    llvm_emit_str(" "); llvm_emit_str(val); llvm_emit_str(", ");
+                    llvm_emit_type(scalar_type); llvm_emit_str("* %t");
+                    llvm_emit_int(ptr_temp); llvm_emit_char(10); return;
+                }
                 var field_offset i64 = get_field_offset(struct_decl, field_name, field_len);
                 // Get base address
                 if is_pointer != 0 {

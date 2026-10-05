@@ -1,0 +1,45 @@
+// Embedded in the minted compiler; generated simulations need no source tree.
+include "std/core.lang"
+include "example/hamiltonian/decimal.lang"
+
+func ham_finite(value f64) void {
+    if !(value - value == 0.0) {
+        eprintln("hamiltonian runtime: nonfinite trajectory or energy"); exit(3);
+    }
+}
+
+func ham_cell(value f64, last i64) void {
+    ham_finite(value);
+    if last != 0 { printf("%.17g\n", value); }
+    else { printf("%.17g,", value); }
+}
+func ham_real_integer(value i64) f64 { return cast(f64, value); }
+
+// JSON numbers use the same roundtrippable binary64 representation as CSV.
+// A failed run leaves incomplete output; callers must check the exit status.
+func ham_json_number(value f64) void {
+    ham_finite(value);
+    // `-0` is parsed as an integer by common JSON readers. Keep the decimal
+    // point so the emitted binary64 signed zero survives a JSON roundtrip.
+    if value == 0.0 { printf("%.1f", value); }
+    else { printf("%.17g", value); }
+}
+func ham_json_integer(value i64) void {
+    // Run metadata and step indices are bounded to 1,000,000: this conversion
+    // is exact and fits the existing printf(f64) runtime interface.
+    printf("%.0f", cast(f64, value));
+}
+
+func ham_mode(argc i64, argv **u8, pairs i64) i64 {
+    if argc == 1 { return 0; }
+    if argc == 2 && streq(*(argv + 1), "--reverse") { return 1; }
+    if argc == 2 && streq(*(argv + 1), "--json") { return 3; }
+    if argc == pairs + 2 && streq(*(argv + 1), "--forces") { return 2; }
+    eprintln("usage: experiment [--json | --reverse | --forces Q1 ... Qn]"); exit(2); return 0;
+}
+
+// Same restricted decimal input as model literals, for force inspection only.
+func ham_argument(text *u8) f64 {
+    if !ham_decimal_valid(text) { eprintln("hamiltonian runtime: invalid decimal coordinate"); exit(2); }
+    var value f64 = ham_decimal_value(text); ham_finite(value); return value;
+}

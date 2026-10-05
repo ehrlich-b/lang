@@ -15,6 +15,7 @@ const paths = [
   'std/prec.lang',
   'std/tok.lang',
   'std/pnode.lang',
+  'std/reader_error.lang',
   'std/parser_runtime.lang',
   'example/tiny/tiny.lang',
   'example/calc/calc.lang',
