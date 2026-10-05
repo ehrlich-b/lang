@@ -597,6 +597,10 @@ func scan_reader_macro() *u8 {
     }
     var name_end i64 = lex_current;
     var name_len i64 = name_end - name_start;
+    // #parser has a known literal/comment syntax. Other readers may use an
+    // apostrophe as quotation rather than a paired string delimiter (Lisp),
+    // so their source must retain the existing generic boundary policy.
+    var parser_grammar bool = str_eq_n(lex_source + name_start, name_len, "parser", 6);
 
     // Expect '{'
     if lex_peek() != 123 {  // '{'
@@ -611,7 +615,12 @@ func scan_reader_macro() *u8 {
     while !lex_is_at_end() && brace_depth > 0 {
         var c u8 = lex_peek();
 
-        if c == 123 {  // '{'
+        if parser_grammar && c == 47 &&
+           (lex_peek_next() == 47 || lex_peek_next() == 42) {
+            // Move over grammar comments without changing their raw content.
+            // Quotes/braces inside them do not delimit the enclosing macro.
+            skip_whitespace();
+        } else if c == 123 {  // '{'
             brace_depth = brace_depth + 1;
             lex_advance();
         } else if c == 125 {  // '}'
@@ -619,9 +628,10 @@ func scan_reader_macro() *u8 {
             if brace_depth > 0 {
                 lex_advance();
             }
-        } else if c == 34 {  // '"' - skip strings to not count braces inside
+        } else if c == 34 || (parser_grammar && c == 39) {
+            // Skip a quoted literal so embedded quotes/braces remain data.
             lex_advance();  // consume opening quote
-            while !lex_is_at_end() && lex_peek() != 34 {
+            while !lex_is_at_end() && lex_peek() != c {
                 if lex_peek() == 92 && lex_peek_next() != 0 {  // escape
                     lex_advance();
                 }

@@ -1,0 +1,142 @@
+// Explicit, bounded recovery for readers that parse independent source items.
+// Generated parsers remain transactional. The reader decides which boundary
+// is safe to resume at and must refuse lowering when the session has errors.
+include "std/parser_runtime.lang"
+
+struct ParseDiagnostic {
+    offset i64;
+    line i64;
+    column i64;
+    expected *u8;
+    found *u8;
+}
+
+struct ParseSession {
+    tokens *Tokenizer;
+    diagnostics *u8;  // Vec of immutable *ParseDiagnostic snapshots
+    limit i64;
+}
+
+var PARSE_SYNC_EOF i64 = 0;
+var PARSE_SYNC_FOUND i64 = 1;
+var PARSE_SYNC_LIMIT i64 = -1;
+
+pub func parse_session_new(tokens *Tokenizer, limit i64) *ParseSession {
+    var s *ParseSession = alloc(24);
+    s.tokens = tokens;
+    s.diagnostics = vec_new(4);
+    if limit < 1 { limit = 1; }
+    if limit > 256 { limit = 256; }
+    s.limit = limit;
+    return s;
+}
+
+pub func parse_diagnostic_count(s *ParseSession) i64 {
+    return vec_len(s.diagnostics);
+}
+
+pub func parse_has_errors(s *ParseSession) bool {
+    return parse_diagnostic_count(s) != 0;
+}
+
+pub func parse_error_at(s *ParseSession, index i64) *ParseDiagnostic {
+    if index < 0 || index >= parse_diagnostic_count(s) { return nil; }
+    return vec_get(s.diagnostics, index);
+}
+
+// Clear speculative failures before each independent item, not before a branch.
+// Clearing inside a choice would discard its useful furthest-error context.
+pub func parse_begin(s *ParseSession) bool {
+    if parse_diagnostic_count(s) >= s.limit { return false; }
+    var t *Tokenizer = s.tokens;
+    t.error_pos = -1;
+    t.error_expected_len = 0;
+    *t.error_expected = 0;
+    t.error_found = nil;
+    return true;
+}
+
+func parse_copy_text(text *u8) *u8 {
+    var length i64 = strlen(text);
+    var copy *u8 = alloc(length + 1);
+    memcpy(copy, text, length + 1);
+    return copy;
+}
+
+// Snapshot before recovery mutates the tokenizer. Expected text belongs to the
+// tokenizer's scratch buffer, so storing its pointer would corrupt old errors.
+pub func parse_report(s *ParseSession) *ParseDiagnostic {
+    if parse_diagnostic_count(s) >= s.limit { return nil; }
+    var t *Tokenizer = s.tokens;
+    if tok_error_offset(t) < 0 { tok_note_expected(t, "valid input"); }
+    var d *ParseDiagnostic = alloc(40);
+    d.offset = tok_error_offset(t);
+    d.line = tok_error_line(t);
+    d.column = tok_error_column(t);
+    d.expected = parse_copy_text(tok_error_expected(t));
+    d.found = parse_copy_text(tok_error_found(t));
+    vec_push(s.diagnostics, d);
+    return d;
+}
+
+// Advance from the failed parser's rewound position to an exact token text.
+// This is panic synchronization, not delimiter balancing or token insertion.
+// `consume` includes the boundary; otherwise its owner must consume it before
+// retrying the same item. At most `budget` non-boundary tokens are discarded.
+pub func parse_sync_text(s *ParseSession, boundary *u8,
+                         consume bool, budget i64) i64 {
+    if boundary == nil || *boundary == 0 || budget < 1 || budget > 65536 {
+        return PARSE_SYNC_LIMIT;
+    }
+    var t *Tokenizer = s.tokens;
+    var length i64 = strlen(boundary);
+    var discarded i64 = 0;
+    while !tok_eof(t) {
+        if str_eq_n(tok_text_ptr(t), tok_text_len(t), boundary, length) {
+            if consume { tok_next(t); }
+            return PARSE_SYNC_FOUND;
+        }
+        if discarded >= budget { return PARSE_SYNC_LIMIT; }
+        tok_next(t);
+        discarded = discarded + 1;
+    }
+    return PARSE_SYNC_EOF;
+}
+
+// Token kinds support layout and other reader-supplied streams with zero-width
+// synthetic boundaries. Their token index, rather than byte offset, advances.
+pub func parse_sync_kind(s *ParseSession, kind i64,
+                         consume bool, budget i64) i64 {
+    if kind <= TOK_EOF || budget < 1 || budget > 65536 {
+        return PARSE_SYNC_LIMIT;
+    }
+    var t *Tokenizer = s.tokens;
+    var discarded i64 = 0;
+    while !tok_eof(t) {
+        if tok_kind(t) == kind {
+            if consume { tok_next(t); }
+            return PARSE_SYNC_FOUND;
+        }
+        if discarded >= budget { return PARSE_SYNC_LIMIT; }
+        tok_next(t);
+        discarded = discarded + 1;
+    }
+    return PARSE_SYNC_EOF;
+}
+
+pub func parse_print_diagnostics(s *ParseSession, label *u8) void {
+    var count i64 = parse_diagnostic_count(s);
+    var i i64 = 0;
+    while i < count {
+        var d *ParseDiagnostic = parse_error_at(s, i);
+        if label != nil && *label != 0 { eprint(label); eprint(":"); }
+        eprint_i64(d.line);
+        eprint(":");
+        eprint_i64(d.column);
+        eprint(": expected ");
+        eprint(d.expected);
+        eprint(", found ");
+        eprintln(d.found);
+        i = i + 1;
+    }
+}

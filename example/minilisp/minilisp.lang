@@ -27,6 +27,7 @@ include "std/core.lang"
 include "std/tok.lang"
 include "std/parser_reader.lang"
 include "std/ast.lang"
+include "std/reader_error.lang"
 
 // #parser{} generates a recursive descent parser from this grammar
 #parser{
@@ -56,7 +57,7 @@ func list_len(node *PNode) i64 {
 // either way `lisp_nil` is the wrong answer: `(+ 1 (2 3))` used to compile clean
 // and evaluate the inner call to nil.
 func ml_fail(what *u8, node *PNode) *u8 {
-    eprint("minilisp: ");
+    reader_error_prefix(node);
     eprint(what);
     if node != nil && node.text != nil {
         eprint(" '");
@@ -363,10 +364,16 @@ func lisp_expr(node *PNode) *u8 {
 }
 
 reader minilisp(text *u8) *u8 {
+    reader_error_begin(text, "minilisp");
     // Lisp's comment is `;`. Until a reader could say so, minilisp had none at
     // all - it inherited lang's `//`, which is not a thing anyone writes in a
     // Lisp, and `;` would have derailed the parse.
     var t *Tokenizer = tok_new_comments(text, ";", nil, nil);
     var node *PNode = parse_sexp(t);
+    if !tok_eof(t) { tok_note_expected(t, "end of input"); }
+    if node == nil || !tok_eof(t) {
+        tok_print_error(t, "minilisp");
+        exit(1);
+    }
     return lisp_expr(node);
 }

@@ -1,0 +1,23 @@
+// Direct-Wasm scalar constants, default values and f32 arithmetic.
+var scale f64 = -0.30000000000000004;
+var narrow f32 = cast(f32, 0.375);
+func default_float() f64 { var value f64; return value; }
+func float32_add(x f32, y f32) f32 { return x + y; }
+func main() i64 {
+    if scale != -0.30000000000000004 { return 1; }
+    if narrow != cast(f32, 0.375) { return 2; }
+    scale = scale + 1.0;
+    narrow = float32_add(narrow, cast(f32, 0.125));
+    if scale != 0.7 || cast(f64, narrow) != 0.5 { return 3; }
+    var zero f64;
+    var zero32 f32;
+    if zero != 0.0 || cast(f64, zero32) != 0.0 || default_float() != 0.0 { return 4; }
+    if 0.0 { return 5; }
+    if !0.25 { return 6; }
+    if cast(i64, cast(f32, -2.75)) != -2 { return 7; }
+    if cast(u64, cast(f32, 2.75)) != 2 { return 8; }
+    if cast(u64, 2.75) != 2 { return 9; }
+    if narrow + 1 != cast(f32, 1.5) { return 10; }
+    if !cast(bool, 2) || cast(i64, cast(bool, 3)) != 1 { return 11; }
+    return 100;
+}

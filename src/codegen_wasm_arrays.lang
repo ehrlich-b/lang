@@ -1,0 +1,285 @@
+// Fixed arrays use the same i64 address representation as Lang pointers.
+// Mutable global storage is deliberately separate from interned string data:
+// equal initializers must never make two arrays alias each other or a string.
+// This slice admits scalar/pointer elements, not aggregate values or copying.
+
+var wasm_array_segments *u8 = nil;  // [bytes:8][len:8][offset:8][decl:8]
+var wasm_array_segment_count i64 = 0;
+var wasm_array_static_floor i64 = 0;
+
+func wasm_array_reset() void {
+    wasm_array_segments = alloc(LIMIT_GLOBALS * 32);
+    wasm_array_segment_count = 0;
+    wasm_array_static_floor = 0;
+}
+
+func wasm_array_is_type(t *u8) i64 {
+    return t != nil && type_kind(t) == TYPE_ARRAY;
+}
+
+func wasm_array_size(t *u8) i64 {
+    if wasm_array_is_type(t) == 0 { return 0; }
+    var count i64 = array_type_size(t);
+    var elem *u8 = array_type_elem(t);
+    if wasm_type_is_value(elem) == 0 {
+        wasm_error("direct wasm arrays require scalar or pointer elements");
+        return 0;
+    }
+    // Bound both generated element stores and memory extents before multiplying.
+    if count < 1 || count > 8192 {
+        wasm_error("direct wasm array length must be between 1 and 8192");
+        return 0;
+    }
+    var bytes i64 = count * wasm_type_size(elem);
+    if bytes > 65536 {
+        wasm_error("direct wasm array storage exceeds 65536 bytes");
+        return 0;
+    }
+    return bytes;
+}
+
+func wasm_array_spill_size(t *u8) i64 {
+    if wasm_array_is_type(t) == 0 { return 8; }
+    return (wasm_array_size(t) + 7) / 8 * 8;
+}
+
+// Called before the scalar-local check. Array locals retain an unused i64
+// value-local index, while their actual value lives in a per-call spill frame.
+func wasm_array_collect_local(stmt *u8) i64 {
+    var t *u8 = var_decl_type(stmt);
+    if wasm_array_is_type(t) == 0 { return 0; }
+    cg_diagnostic_node = stmt;
+    var local i64 = wasm_local_add(var_decl_name(stmt), var_decl_name_len(stmt), t, stmt);
+    if local >= 0 { wasm_mark_local_spilled(local); }
+    wasm_array_size(t);
+    return 1;
+}
+
+func wasm_array_literal_valid(t *u8, init *u8) i64 {
+    if init == nil { return 1; }
+    if node_kind(init) != NODE_ARRAY_LITERAL {
+        wasm_error("direct wasm array initializer must be an array literal");
+        return 0;
+    }
+    if array_literal_count(init) < 0 || array_literal_count(init) > array_type_size(t) {
+        wasm_error("direct wasm array literal has more elements than its declared length");
+        return 0;
+    }
+    return 1;
+}
+
+func wasm_array_literal_element(init *u8, index i64) *u8 {
+    if init == nil || index >= array_literal_count(init) { return nil; }
+    var slot **u8 = array_literal_elems(init) + index * 8;
+    return *slot;
+}
+
+func wasm_array_emit_local_init(local i64, stmt *u8, out *WasmBuf) void {
+    var t *u8 = wasm_local_type(local);
+    cg_diagnostic_node = stmt;
+    if wasm_array_size(t) == 0 { return; }
+    var init *u8 = var_decl_init(stmt);
+    if wasm_array_literal_valid(t, init) == 0 { return; }
+    var elem *u8 = array_type_elem(t);
+    var elem_size i64 = wasm_type_size(elem);
+    var i i64 = 0;
+    while i < array_type_size(t) {
+        wasm_emit_spill_pointer(local, out, 0);
+        if i > 0 {
+            wasm_put(out, 66); wasm_put_sleb(out, i * elem_size);
+            wasm_put(out, 124);  // i64.add
+        }
+        wasm_put(out, 167);  // i32.wrap_i64, memory address
+        var value *u8 = wasm_array_literal_element(init, i);
+        if value != nil { wasm_emit_typed_expr(value, elem, out); }
+        else { wasm_emit_zero(elem, out); }
+        wasm_emit_store(elem, out);
+        i = i + 1;
+    }
+}
+
+func wasm_array_element_type(t *u8) *u8 {
+    if t == nil { return nil; }
+    if type_kind(t) == TYPE_PTR { return ptr_type_elem(t); }
+    if type_kind(t) == TYPE_ARRAY { return array_type_elem(t); }
+    return nil;
+}
+
+func wasm_array_index_valid(index *u8) i64 {
+    var t *u8 = wasm_expr_type(index);
+    if t != nil && (wasm_value_type(t) != 126 || type_kind(t) != TYPE_BASE) {
+        cg_diagnostic_node = index;
+        wasm_error("direct wasm array index must be an integer");
+        return 0;
+    }
+    return 1;
+}
+
+// wasm_emit_address has already emitted an i32 memory address here. An array
+// expression decays to that address; loading eight bytes would read element 0.
+func wasm_array_emit_address_value(t *u8, out *WasmBuf) i64 {
+    if wasm_array_is_type(t) == 0 { return 0; }
+    wasm_put(out, 173);  // i64.extend_i32_u
+    return 1;
+}
+
+func wasm_array_reject_assignment(t *u8) i64 {
+    if wasm_array_is_type(t) == 0 { return 0; }
+    wasm_error("direct wasm whole-array assignment is unsupported; assign elements instead");
+    return 1;
+}
+
+func wasm_array_put_integer(data *u8, offset i64, size i64, bits i64) void {
+    var byte i64 = 0;
+    while byte < size {
+        *(data + offset + byte) = bits & 255;
+        bits = bits >> 8;
+        byte = byte + 1;
+    }
+}
+
+// Integer array constants deliberately share the scalar constant subset.
+// Reject fractional literals rather than feeding them to the integer scanner.
+func wasm_array_const_integer(expr *u8) i64 {
+    if expr == nil || node_kind(expr) == NODE_NIL_EXPR { return 0; }
+    var kind i64 = node_kind(expr);
+    if kind == NODE_NUMBER_EXPR {
+        if wasm_number_is_float(expr) != 0 {
+            wasm_error("direct wasm integer array initializer requires an integer constant");
+            return 0;
+        }
+        return wasm_parse_integer(number_expr_value(expr), number_expr_value_len(expr));
+    }
+    if kind == NODE_BOOL_EXPR { return bool_expr_value(expr); }
+    if kind == NODE_STRING_EXPR {
+        return wasm_add_string(string_expr_value(expr), string_expr_value_len(expr));
+    }
+    if kind == NODE_GROUP_EXPR { return wasm_array_const_integer(group_expr_expr(expr)); }
+    if kind == NODE_UNARY_EXPR && unary_expr_op(expr) == TOKEN_MINUS {
+        return 0 - wasm_array_const_integer(unary_expr_expr(expr));
+    }
+    wasm_error("global array initializer is not constant in direct wasm");
+    return 0;
+}
+
+func wasm_array_prepare_globals() void {
+    var global i64 = 0;
+    while global < wasm_global_count {
+        var decl *u8 = wasm_global_get(global);
+        var t *u8 = var_decl_type(decl);
+        if wasm_array_is_type(t) != 0 {
+            wasm_current_decl = decl;
+            cg_diagnostic_node = decl;
+            var bytes i64 = wasm_array_size(t);
+            var init *u8 = var_decl_init(decl);
+            if bytes == 0 || wasm_array_literal_valid(t, init) == 0 { return; }
+            var data *u8 = alloc(bytes);
+            var elem *u8 = array_type_elem(t);
+            var elem_size i64 = wasm_type_size(elem);
+            var i i64 = 0;
+            while i < array_type_size(t) {
+                var value *u8 = wasm_array_literal_element(init, i);
+                var bits i64 = 0;
+                if value != nil {
+                    if wasm_value_type(elem) == 124 {
+                        bits = bitcast(i64, wasm_const_float(value));
+                    } else if wasm_value_type(elem) == 125 {
+                        // The preceding bootstrap root does not yet widen an
+                        // f32->i32 bitcast expression into Lang's i64 carrier.
+                        // Use its verified addressable-f32 path instead.
+                        var narrow f32 = cast(f32, wasm_const_float(value));
+                        var narrow_bytes *u8 = &narrow;
+                        var byte i64 = 0;
+                        while byte < 4 {
+                            bits = bits | (cast(i64, *(narrow_bytes + byte)) << (byte * 8));
+                            byte = byte + 1;
+                        }
+                    } else {
+                        bits = wasm_array_const_integer(value);
+                        if type_kind(elem) == TYPE_BASE &&
+                           wasm_name_eq(base_type_name(elem), base_type_name_len(elem), "bool", 4) != 0 {
+                            if bits != 0 { bits = 1; }
+                        }
+                    }
+                }
+                wasm_array_put_integer(data, i * elem_size, elem_size, bits);
+                i = i + 1;
+            }
+            if wasm_had_error != 0 { return; }
+            // Strings referenced by pointer elements were allocated above.
+            // Reserve this distinct mutable segment afterwards, with alignment.
+            var offset i64 = (wasm_data_end + 7) / 8 * 8;
+            if bytes >= 1024 * 1024 - offset {
+                wasm_error("direct wasm static array data exceeds the 1 MiB stack boundary");
+                return;
+            }
+            var entry *u8 = wasm_array_segments + wasm_array_segment_count * 32;
+            var data_slot **u8 = entry; *data_slot = data;
+            var len_slot *i64 = entry + 8; *len_slot = bytes;
+            var offset_slot *i64 = entry + 16; *offset_slot = offset;
+            var decl_slot **u8 = entry + 24; *decl_slot = decl;
+            wasm_array_segment_count = wasm_array_segment_count + 1;
+            wasm_data_end = offset + bytes;
+        }
+        global = global + 1;
+    }
+}
+
+func wasm_array_global_offset(decl *u8) i64 {
+    var i i64 = 0;
+    while i < wasm_array_segment_count {
+        var entry *u8 = wasm_array_segments + i * 32;
+        var decl_slot **u8 = entry + 24;
+        if *decl_slot == decl {
+            var offset_slot *i64 = entry + 16;
+            return *offset_slot;
+        }
+        i = i + 1;
+    }
+    wasm_error("direct wasm array global was not prepared");
+    return 0;
+}
+
+func wasm_array_emit_data_segments(out *WasmBuf) void {
+    var i i64 = 0;
+    while i < wasm_array_segment_count {
+        var entry *u8 = wasm_array_segments + i * 32;
+        var data_slot **u8 = entry;
+        var len_slot *i64 = entry + 8;
+        var offset_slot *i64 = entry + 16;
+        wasm_put(out, 0);  // active segment, memory 0
+        wasm_put(out, 65); wasm_put_sleb(out, *offset_slot); wasm_put(out, 11);
+        wasm_put_uleb(out, *len_slot);
+        wasm_put_bytes(out, *data_slot, *len_slot);
+        i = i + 1;
+    }
+}
+
+// All reachable strings and global arrays must be prepared before this call.
+// The guard compares before subtraction, so recursion cannot wrap the stack
+// pointer or enter mutable globals/string data. A trap leaves the SP intact.
+func wasm_array_finalize_static_layout() void {
+    wasm_array_static_floor = (wasm_data_end + 7) / 8 * 8;
+    if wasm_array_static_floor >= 1024 * 1024 {
+        wasm_error("direct wasm static data leaves no space for the spill stack");
+    }
+}
+
+func wasm_array_emit_stack_guard(out *WasmBuf) void {
+    if wasm_spill_frame_size == 0 { return; }
+    if wasm_array_static_floor == 0 {
+        wasm_error("direct wasm static layout must be prepared before spill frames");
+        return;
+    }
+    wasm_put(out, 35); wasm_put_uleb(out, wasm_global_count + 1);
+    wasm_put(out, 66); wasm_put_sleb(out, wasm_spill_frame_size + wasm_array_static_floor);
+    wasm_put(out, 84);  // i64.lt_u
+    wasm_put(out, 4); wasm_put(out, 64);  // if (void)
+    wasm_put(out, 0); wasm_put(out, 11);  // unreachable; end
+}
+
+func wasm_array_check_static_layout() void {
+    if wasm_data_end > wasm_array_static_floor {
+        wasm_error("direct wasm static data changed after spill-frame layout");
+    }
+}

@@ -1,0 +1,55 @@
+// expect: 0
+// Exercise the real statement-buffer boundary without code-generating 1024
+// locals or relying on another backend's unrelated local capacity.
+include "std/core.lang"
+include "src/parser.lang"
+
+func block_source(prefix *u8, count i64, suffix *u8) *u8 {
+    var text *u8 = alloc(32768);
+    var position i64 = strlen(prefix);
+    memcpy(text, prefix, position);
+    var i i64 = 0;
+    while i < count {
+        memcpy(text + position, "0;\n", 3);
+        position = position + 3;
+        i = i + 1;
+    }
+    memcpy(text + position, suffix, strlen(suffix) + 1);
+    return text;
+}
+
+func main() i64 {
+    var maximum *u8 = block_source("func main() i64 {\n", 1023, "return 42;\n}");
+    var accepted *u8 = parse_program_from_named_string(maximum, "statement-max");
+    if accepted == nil { return 1; }
+    var main_decl *u8 = get_decl(program_decls(accepted), 0);
+    if block_stmt_count(func_decl_body(main_decl)) != 1024 { return 2; }
+    var overflow *u8 = block_source("func main() i64 {\n", 1024, "return 42;\n}");
+    if parse_program_from_named_string(overflow, "statement-overflow") != nil { return 3; }
+    var nested *u8 = block_source("func main() i64 {\n", 1024, "{ 0; { 0; } }\nreturn 42;\n}");
+    if parse_program_from_named_string(nested, "statement-nested-overflow") != nil { return 4; }
+
+    // A tail value uses its own slot; 1024 preceding statements remain legal.
+    parser_set_source_name("expression-max");
+    parser_tokenize(block_source("{\n", 1024, "42\n}"));
+    var expression *u8 = parse_block_expr();
+    if parse_error_count != 0 || block_expr_count(expression) != 1024 ||
+       block_expr_tail(expression) == nil || !parse_is_at_end() { return 5; }
+    parser_set_source_name("expression-overflow");
+    parser_tokenize(block_source("{\n", 1025, "42\n}"));
+    expression = parse_block_expr();
+    if parse_error_count != 1 || block_expr_count(expression) != 1024 ||
+       !parse_is_at_end() { return 6; }
+
+    parser_set_source_name("handle-max");
+    parser_tokenize(block_source("handle {\n", 1024, "42\n} with { return(v) => v }"));
+    var handled *u8 = parse_expression();
+    if parse_error_count != 0 || block_expr_count(handle_expr_body(handled)) != 1024 ||
+       block_expr_tail(handle_expr_body(handled)) == nil || !parse_is_at_end() { return 7; }
+    parser_set_source_name("handle-overflow");
+    parser_tokenize(block_source("handle {\n", 1025, "42\n} with { return(v) => v }"));
+    handled = parse_expression();
+    if parse_error_count != 1 || block_expr_count(handle_expr_body(handled)) != 1024 ||
+       !parse_is_at_end() { return 8; }
+    return 0;
+}

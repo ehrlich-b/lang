@@ -1,0 +1,1002 @@
+// Portable one-shot deep effects, lowered to ordinary AST before codegen.
+// Suspended locals live in heap environments; the native/Wasm call stack is
+// never captured. Every transition has an ordinary branch/call/return edge.
+// The runtime trampoline dispatches generated functions, not source AST.
+
+struct EffBinding { name *u8; len i64; typ *u8; depth i64; offset i64; }
+struct EffBlock { id i64; stmts *u8; closed i64; }
+struct EffFunction {
+    decl *u8; id i64; marked i64; replacement *u8;
+    bindings *u8; blocks *u8; cursor *EffBlock; bytes i64;
+    loops *u8; synthetic i64; origin *u8;
+}
+struct EffLoop { name *u8; len i64; stop *EffBlock; again *EffBlock; }
+
+var effects_decls *u8 = nil;
+var effects_functions *u8 = nil;
+var effects_extras *u8 = nil;
+var effects_had_error i64 = 0;
+var effects_i64 *u8 = nil;
+var effects_byte_ptr *u8 = nil;
+var effects_frame_ptr *u8 = nil;
+var effects_handler_ptr *u8 = nil;
+var effects_next_id i64 = 1;
+
+func eff_eq(a *u8, an i64, b *u8, bn i64) i64 {
+    if an != bn { return 0; }
+    var i i64 = 0;
+    while i < an { if *(a+i) != *(b+i) { return 0; } i = i+1; }
+    return 1;
+}
+func eff_type(name *u8) *u8 {
+    var t *u8 = base_type_alloc();
+    base_type_set_name(t, name); base_type_set_name_len(t, strlen(name));
+    return t;
+}
+func eff_ptr(t *u8) *u8 { var p *u8 = ptr_type_alloc(); ptr_type_set_elem(p,t); return p; }
+func eff_ident(name *u8) *u8 {
+    var n *u8 = ident_expr_alloc(); ident_expr_set_name(n,name);
+    ident_expr_set_name_len(n,strlen(name)); return n;
+}
+func eff_num(v i64) *u8 {
+    var text *u8 = alloc(32); itoa(v,text);
+    var n *u8 = number_expr_alloc(); number_expr_set_value(n,text);
+    number_expr_set_value_len(n,strlen(text)); return n;
+}
+func eff_bin(op i64, a *u8, b *u8) *u8 {
+    var n *u8 = binary_expr_alloc(); binary_expr_set_op(n,op);
+    binary_expr_set_left(n,a); binary_expr_set_right(n,b); return n;
+}
+func eff_un(op i64, a *u8) *u8 {
+    var n *u8 = unary_expr_alloc(); unary_expr_set_op(n,op); unary_expr_set_expr(n,a); return n;
+}
+func eff_cast(t *u8, a *u8) *u8 {
+    var n *u8 = cast_expr_alloc(); cast_expr_set_type(n,t); cast_expr_set_expr(n,a); return n;
+}
+func eff_field(base *u8, name *u8) *u8 {
+    var n *u8 = alloc(32); node_set_kind(n,NODE_FIELD_EXPR);
+    var p **u8=n+8; *p=base; p=n+16; *p=name;
+    var len *i64=n+24; *len=strlen(name); return n;
+}
+func eff_f(name *u8) *u8 { return eff_field(eff_ident("__eff_f"),name); }
+func eff_call(name *u8, args *u8) *u8 {
+    var n *u8 = call_expr_alloc(); call_expr_set_func(n,eff_ident(name));
+    var data *u8 = alloc(vec_len(args)*8); var i i64 = 0;
+    while i < vec_len(args) { var p **u8 = data+i*8; *p=vec_get(args,i); i=i+1; }
+    call_expr_set_args(n,data); call_expr_set_arg_count(n,vec_len(args)); return n;
+}
+func eff_args1(a *u8) *u8 { var v *u8=vec_new(1); vec_push(v,a); return v; }
+func eff_args2(a *u8,b *u8) *u8 { var v *u8=eff_args1(a); vec_push(v,b); return v; }
+func eff_args3(a *u8,b *u8,c *u8) *u8 { var v *u8=eff_args2(a,b); vec_push(v,c); return v; }
+func eff_assign(a *u8,b *u8) *u8 {
+    var n *u8=assign_stmt_alloc(); assign_stmt_set_target(n,a); assign_stmt_set_value(n,b); return n;
+}
+func eff_expr_stmt(a *u8) *u8 { var n *u8=expr_stmt_alloc(); expr_stmt_set_expr(n,a); return n; }
+func eff_return(a *u8) *u8 { var n *u8=return_stmt_alloc(); return_stmt_set_value(n,a); return n; }
+func eff_block(v *u8) *u8 {
+    var n *u8=block_stmt_alloc(); var data *u8=alloc(vec_len(v)*8); var i i64=0;
+    while i<vec_len(v) { var p **u8=data+i*8; *p=vec_get(v,i); i=i+1; }
+    block_stmt_set_stmts(n,data); block_stmt_set_count(n,vec_len(v)); return n;
+}
+func eff_if(c *u8,a *u8,b *u8) *u8 {
+    if a!=nil && node_kind(a)!=NODE_BLOCK_STMT { a=eff_block(eff_args1(a)); }
+    if b!=nil && node_kind(b)!=NODE_BLOCK_STMT { b=eff_block(eff_args1(b)); }
+    var n *u8=if_stmt_alloc(); if_stmt_set_cond(n,c); if_stmt_set_then(n,a); if_stmt_set_else(n,b); return n;
+}
+func eff_var(name *u8,t *u8,value *u8) *u8 {
+    var n *u8=var_decl_alloc(); var_decl_set_name(n,name); var_decl_set_name_len(n,strlen(name));
+    var_decl_set_type(n,t); var_decl_set_init(n,value); return n;
+}
+func eff_name(prefix *u8,id i64) *u8 { var text *u8=alloc(32); itoa(id,text); return str_concat(prefix,text); }
+func eff_func(name *u8,params *u8,count i64,ret *u8,body *u8) *u8 {
+    var n *u8=func_decl_alloc(); func_decl_set_name(n,name); func_decl_set_name_len(n,strlen(name));
+    func_decl_set_params(n,params); func_decl_set_param_count(n,count);
+    func_decl_set_ret_type(n,ret); func_decl_set_body(n,body); return n;
+}
+func eff_param(name *u8,t *u8) *u8 {
+    var p *u8=alloc(24); param_set_name(p,name); param_set_name_len(p,strlen(name)); param_set_type(p,t); return p;
+}
+func eff_error(f *EffFunction,node *u8,message *u8) void {
+    if effects_had_error==0 {
+        cg_diagnostic_node=node;
+        if node_origin_source(node)==nil && f!=nil { cg_diagnostic_node=f.origin; }
+        cg_error_prefix(); eprintln(message);
+    }
+    effects_had_error=1;
+}
+func effects_init() void {
+    effects_decls=vec_new(128); effects_functions=vec_new(64); effects_extras=vec_new(64);
+    effects_had_error=0; effects_next_id=1;
+    effects_i64=eff_type("i64"); effects_byte_ptr=eff_ptr(eff_type("u8"));
+    effects_frame_ptr=eff_ptr(eff_type("__EffFrame"));
+    effects_handler_ptr=eff_ptr(eff_type("__EffHandler"));
+}
+func effects_add_decl(decl *u8) void {
+    if decl==nil { return; }
+    var i i64=0;
+    while i<vec_len(effects_decls) { if vec_get(effects_decls,i)==decl { return; } i=i+1; }
+    vec_push(effects_decls,decl);
+    if node_kind(decl)==NODE_FUNC_DECL && func_decl_is_extern(decl)==0 {
+        var f *EffFunction=alloc(96);
+        f.decl=decl; f.id=0; f.marked=0; f.replacement=nil;
+        f.bindings=nil; f.blocks=nil; f.cursor=nil; f.bytes=8;
+        f.loops=nil; f.synthetic=0; f.origin=decl;
+        vec_push(effects_functions,f);
+    }
+}
+func eff_find_func(name *u8,len i64,arity i64) *EffFunction {
+    var i i64=0;
+    while i<vec_len(effects_functions) {
+        var f *EffFunction=vec_get(effects_functions,i);
+        if f.decl!=nil && eff_eq(name,len,func_decl_name(f.decl),func_decl_name_len(f.decl))!=0 &&
+           func_decl_param_count(f.decl)==arity { return f; }
+        i=i+1;
+    }
+    return nil;
+}
+func eff_marked_name(name *u8,len i64) i64 {
+    var i i64=0;
+    while i<vec_len(effects_functions) {
+        var f *EffFunction=vec_get(effects_functions,i);
+        if f.decl!=nil && f.marked!=0 && eff_eq(name,len,func_decl_name(f.decl),func_decl_name_len(f.decl))!=0 { return 1; }
+        i=i+1;
+    }
+    return 0;
+}
+func eff_shadowed(names *u8,name *u8,len i64) i64 {
+    var i i64=vec_len(names)-1;
+    while i>=0 { var n *u8=vec_get(names,i); if eff_eq(name,len,ident_expr_name(n),ident_expr_name_len(n))!=0 { return 1; } i=i-1; }
+    return 0;
+}
+func eff_shadow(names *u8,name *u8,len i64) void { vec_push(names,eff_ident(str_dup_n(name,len))); }
+func eff_unshadow(names *u8,count i64) void { while vec_len(names)>count { vec_pop(names); } }
+func eff_find_decl(kind i64,name *u8,len i64) *u8 {
+    var i i64=0;
+    while i<vec_len(effects_decls) {
+        var d *u8=vec_get(effects_decls,i); var dn *u8=nil; var dl i64=0;
+        if node_kind(d)==kind {
+            if kind==NODE_VAR_DECL { dn=var_decl_name(d); dl=var_decl_name_len(d); }
+            if kind==NODE_FUNC_DECL { dn=func_decl_name(d); dl=func_decl_name_len(d); }
+            if kind==NODE_EFFECT_DECL { dn=effect_decl_name(d); dl=effect_decl_name_len(d); }
+            if kind==NODE_STRUCT_DECL { dn=struct_decl_name(d); dl=struct_decl_name_len(d); }
+            if kind==NODE_ENUM_DECL { dn=enum_decl_name(d); dl=enum_decl_name_len(d); }
+            if dn!=nil && eff_eq(name,len,dn,dl)!=0 { return d; }
+        }
+        i=i+1;
+    }
+    return nil;
+}
+
+// This scanner intentionally crosses every expression/statement edge, so a
+// yield in an argument, short-circuit operand, or loop condition is visible.
+func eff_scan(node *u8,names *u8) i64 {
+    if node==nil { return 0; }
+    var k i64=node_kind(node);
+    if k==NODE_PERFORM_EXPR || k==NODE_HANDLE_EXPR || k==NODE_RESUME_EXPR { return 1; }
+    // Mark bridges that take an effectful function's address as well as direct
+    // callers. The value lowering below rejects that unsupported escape, so a
+    // callback bridge cannot silently call a wrapper with no dynamic handler.
+    if k==NODE_IDENT_EXPR { return eff_shadowed(names,ident_expr_name(node),ident_expr_name_len(node))==0 && eff_marked_name(ident_expr_name(node),ident_expr_name_len(node))!=0; }
+    if k==NODE_BLOCK_STMT {
+        var saved i64=vec_len(names); var i i64=0; while i<block_stmt_count(node) {
+            var p **u8=block_stmt_stmts(node)+i*8; if eff_scan(*p,names)!=0 { return 1; } i=i+1;
+        }
+        eff_unshadow(names,saved);
+    }
+    if k==NODE_VAR_DECL {
+        var need i64=eff_scan(var_decl_init(node),names); eff_shadow(names,var_decl_name(node),var_decl_name_len(node)); return need;
+    }
+    if k==NODE_IF_STMT { return eff_scan(if_stmt_cond(node),names) || eff_scan(if_stmt_then(node),names) || eff_scan(if_stmt_else(node),names); }
+    if k==NODE_WHILE_STMT { return eff_scan(while_stmt_cond(node),names) || eff_scan(while_stmt_body(node),names); }
+    if k==NODE_RETURN_STMT { return eff_scan(return_stmt_value(node),names); }
+    if k==NODE_EXPR_STMT { return eff_scan(expr_stmt_expr(node),names); }
+    if k==NODE_ASSIGN_STMT { return eff_scan(assign_stmt_target(node),names) || eff_scan(assign_stmt_value(node),names); }
+    if k==NODE_BINARY_EXPR { return eff_scan(binary_expr_left(node),names) || eff_scan(binary_expr_right(node),names); }
+    if k==NODE_UNARY_EXPR { return eff_scan(unary_expr_expr(node),names); }
+    if k==NODE_GROUP_EXPR { return eff_scan(group_expr_expr(node),names); }
+    if k==NODE_CAST_EXPR { return eff_scan(cast_expr_expr(node),names); }
+    if k==NODE_BITCAST_EXPR { return eff_scan(bitcast_expr_expr(node),names); }
+    if k==NODE_FIELD_EXPR { return eff_scan(field_expr_expr(node),names); }
+    if k==NODE_INDEX_EXPR { return eff_scan(index_expr_base(node),names) || eff_scan(index_expr_index(node),names); }
+    if k==NODE_CALL_EXPR {
+        var callee *u8=call_expr_func(node);
+        if node_kind(callee)==NODE_IDENT_EXPR && eff_shadowed(names,ident_expr_name(callee),ident_expr_name_len(callee))==0 {
+            var f *EffFunction=eff_find_func(ident_expr_name(callee),ident_expr_name_len(callee),call_expr_arg_count(node));
+            if f!=nil && f.marked!=0 { return 1; }
+        }
+        if eff_scan(callee,names)!=0 { return 1; }
+        var i i64=0; while i<call_expr_arg_count(node) {
+            var p **u8=call_expr_args(node)+i*8; if eff_scan(*p,names)!=0 { return 1; } i=i+1;
+        }
+    }
+    if k==NODE_LET_EXPR {
+        if eff_scan(let_expr_init(node),names)!=0 { return 1; }
+        var saved i64=vec_len(names); eff_shadow(names,let_expr_name(node),let_expr_name_len(node));
+        var need i64=eff_scan(let_expr_body(node),names); eff_unshadow(names,saved); return need;
+    }
+    if k==NODE_LAMBDA_EXPR {
+        var saved i64=vec_len(names); var i i64=0;
+        while i<lambda_expr_param_count(node) { var p *u8=lambda_expr_params(node)+i*24; eff_shadow(names,param_name(p),param_name_len(p)); i=i+1; }
+        var need i64=eff_scan(lambda_expr_body(node),names); eff_unshadow(names,saved); return need;
+    }
+    if k==NODE_BLOCK_EXPR {
+        var saved i64=vec_len(names); var i i64=0; while i<block_expr_count(node) {
+            var p **u8=block_expr_stmts(node)+i*8; if eff_scan(*p,names)!=0 { return 1; } i=i+1;
+        }
+        var need i64=eff_scan(block_expr_tail(node),names); eff_unshadow(names,saved); return need;
+    }
+    if k==NODE_MATCH_EXPR {
+        if eff_scan(match_expr_scrutinee(node),names)!=0 { return 1; }
+        var i i64=0; while i<match_expr_arm_count(node) {
+            var arm *u8=get_match_arm(match_expr_arms(node),i); var pat *u8=match_arm_pattern(arm); var saved i64=vec_len(names);
+            if node_kind(pat)==NODE_PATTERN_VARIANT && pattern_variant_binding_len(pat)>0 { eff_shadow(names,pattern_variant_binding(pat),pattern_variant_binding_len(pat)); }
+            var need i64=eff_scan(match_arm_body(arm),names); eff_unshadow(names,saved); if need!=0 { return 1; } i=i+1;
+        }
+    }
+    if k==NODE_ARRAY_LITERAL {
+        var i i64=0; while i<array_literal_count(node) {
+            var p **u8=array_literal_elems(node)+i*8; if eff_scan(*p,names)!=0 { return 1; } i=i+1;
+        }
+    }
+    return 0;
+}
+
+func eff_needs(node *u8) i64 { return eff_scan(node,vec_new(8)); }
+func eff_function_needs(d *u8) i64 {
+    var names *u8=vec_new(8); var i i64=0;
+    while i<func_decl_param_count(d) { var p *u8=func_decl_params(d)+i*24; eff_shadow(names,param_name(p),param_name_len(p)); i=i+1; }
+    return eff_scan(func_decl_body(d),names);
+}
+
+func eff_new_block(f *EffFunction) *EffBlock {
+    var b *EffBlock=alloc(24); b.id=vec_len(f.blocks); b.stmts=vec_new(8); b.closed=0;
+    if b.id>=8192 { eff_error(f,f.origin,"portable effects exceeded 8192 control states in one function"); }
+    vec_push(f.blocks,b); return b;
+}
+func eff_append(f *EffFunction,s *u8) void { if f.cursor.closed==0 { vec_push(f.cursor.stmts,s); } }
+func eff_jump(f *EffFunction,to *EffBlock) void {
+    eff_append(f,eff_assign(eff_f("pc"),eff_num(to.id)));
+    eff_append(f,eff_return(eff_ident("__eff_f"))); f.cursor.closed=1;
+}
+func eff_finish(f *EffFunction,value *u8) void {
+    eff_append(f,eff_return(eff_call("__eff_finish",eff_args2(eff_ident("__eff_f"),eff_cast(effects_i64,value)))));
+    f.cursor.closed=1;
+}
+func eff_setup(f *EffFunction) void {
+    f.bindings=vec_new(32); f.blocks=vec_new(16); f.loops=vec_new(8); f.bytes=8;
+    f.cursor=eff_new_block(f);
+}
+func eff_bind(f *EffFunction,name *u8,len i64,t *u8) *EffBinding {
+    if (len>=6 && eff_eq(name,6,"__eff_",6)!=0) || (len>=5 && eff_eq(name,5,"__Eff",5)!=0) {
+        eff_error(f,f.origin,"names beginning __eff_ or __Eff are reserved in a module using effects");
+    }
+    var b *EffBinding=alloc(40); b.name=name; b.len=len; b.typ=t; b.depth=0; b.offset=f.bytes;
+    f.bytes=f.bytes+((eff_size(t,0)+7)/8)*8;
+    if f.bytes>65536 { eff_error(f,f.origin,"portable effects exceeded 65536 bytes of lexical frame storage"); }
+    vec_push(f.bindings,b); return b;
+}
+func eff_lookup(f *EffFunction,name *u8,len i64) *EffBinding {
+    var i i64=vec_len(f.bindings)-1;
+    while i>=0 { var b *EffBinding=vec_get(f.bindings,i); if eff_eq(name,len,b.name,b.len)!=0 { return b; } i=i-1; }
+    return nil;
+}
+func eff_env(depth i64) *u8 {
+    var env *u8=eff_f("env"); var i i64=0;
+    while i<depth { env=eff_un(TOKEN_STAR,eff_cast(eff_ptr(effects_byte_ptr),env)); i=i+1; }
+    return env;
+}
+func eff_cell(b *EffBinding) *u8 {
+    if eff_aggregate(b.typ)!=0 { return eff_aggregate_value(b); }
+    var storage *u8=b.typ;
+    // Lang's integral local/parameter ABI stores a whole i64 even for i8/bool.
+    // Preserve that representation; explicit casts and pointed memory retain
+    // their existing width behavior. Pointer cells retain their pointer type.
+    if storage!=nil && type_kind(storage)==TYPE_BASE && eff_scalar(storage)!=0 { storage=effects_i64; }
+    return eff_un(TOKEN_STAR,eff_cast(eff_ptr(storage),eff_bin(TOKEN_PLUS,eff_env(b.depth),eff_num(b.offset))));
+}
+func eff_scalar(t *u8) i64 {
+    if t==nil { return 1; }
+    if type_kind(t)==TYPE_PTR || type_kind(t)==TYPE_FUNC || type_kind(t)==TYPE_CLOSURE { return 1; }
+    if type_kind(t)!=TYPE_BASE { return 0; }
+    var n *u8=base_type_name(t); var len i64=base_type_name_len(t);
+    if eff_eq(n,len,"bool",4)!=0 || eff_eq(n,len,"void",4)!=0 { return 1; }
+    if eff_eq(n,len,"i8",2)!=0 || eff_eq(n,len,"u8",2)!=0 ||
+       eff_eq(n,len,"i16",3)!=0 || eff_eq(n,len,"u16",3)!=0 ||
+       eff_eq(n,len,"i32",3)!=0 || eff_eq(n,len,"u32",3)!=0 ||
+       eff_eq(n,len,"i64",3)!=0 || eff_eq(n,len,"u64",3)!=0 { return 1; }
+    return 0;
+}
+func eff_aggregate(t *u8) i64 {
+    if t==nil { return 0; }
+    if type_kind(t)==TYPE_ARRAY { return 1; }
+    if type_kind(t)!=TYPE_BASE { return 0; }
+    return eff_find_decl(NODE_STRUCT_DECL,base_type_name(t),base_type_name_len(t))!=nil ||
+           eff_find_decl(NODE_ENUM_DECL,base_type_name(t),base_type_name_len(t))!=nil;
+}
+func eff_size(t *u8,depth i64) i64 {
+    if t==nil { return 8; }
+    if depth>=32 { eff_error(nil,nil,"portable effect frame type nesting exceeds 32"); return 8; }
+    if type_kind(t)==TYPE_ARRAY {
+        var count i64=array_type_size(t); var stride i64=eff_size(array_type_elem(t),depth+1);
+        if count<=0 || stride<=0 || stride>65536 || count>65536/stride {
+            eff_error(nil,t,"portable effect arrays require positive extents and at most 65536 bytes"); return 8;
+        }
+        return count*stride;
+    }
+    if type_kind(t)!=TYPE_BASE { return 8; }
+    var name *u8=base_type_name(t); var len i64=base_type_name_len(t);
+    var s *u8=eff_find_decl(NODE_STRUCT_DECL,name,len);
+    if s!=nil {
+        var bytes i64=0; var i i64=0;
+        while i<struct_decl_field_count(s) {
+            var size i64=eff_size(struct_field_type(get_struct_field(struct_decl_fields(s),i)),depth+1);
+            if size>1 { bytes=((bytes+7)/8)*8; }
+            if size<0 || size>65536-bytes { eff_error(nil,s,"portable effect struct layout exceeds 65536 bytes"); return 8; }
+            bytes=bytes+size; i=i+1;
+        }
+        return ((bytes+7)/8)*8;
+    }
+    var e *u8=eff_find_decl(NODE_ENUM_DECL,name,len);
+    if e!=nil {
+        var max i64=8; var i i64=0;
+        while i<enum_decl_variant_count(e) {
+            var v *u8=get_enum_variant(enum_decl_variants(e),i); var sz i64=0;
+            if enum_variant_type(v)!=nil { sz=eff_size(enum_variant_type(v),depth+1); }
+            if sz>max { max=sz; } i=i+1;
+        }
+        if max>65528 { eff_error(nil,e,"portable effect enum layout exceeds 65536 bytes"); return 8; }
+        return 8+max;
+    }
+    if eff_eq(name,len,"i8",2)!=0 || eff_eq(name,len,"u8",2)!=0 || eff_eq(name,len,"bool",4)!=0 { return 1; }
+    if eff_eq(name,len,"i16",3)!=0 || eff_eq(name,len,"u16",3)!=0 { return 2; }
+    if eff_eq(name,len,"i32",3)!=0 || eff_eq(name,len,"u32",3)!=0 || eff_eq(name,len,"f32",3)!=0 { return 4; }
+    return 8;
+}
+func eff_address(b *EffBinding) *u8 { return eff_bin(TOKEN_PLUS,eff_env(b.depth),eff_num(b.offset)); }
+func eff_aggregate_value(b *EffBinding) *u8 {
+    var t *u8=b.typ; if type_kind(t)==TYPE_ARRAY { t=array_type_elem(t); }
+    return eff_cast(eff_ptr(t),eff_address(b));
+}
+func eff_store(f *EffFunction,b *EffBinding,value *u8) void {
+    if eff_aggregate(b.typ)!=0 {
+        eff_append(f,eff_expr_stmt(eff_call("memcpy",eff_args3(eff_address(b),value,eff_num(eff_size(b.typ,0))))));
+    } else { eff_append(f,eff_assign(eff_cell(b),value)); }
+}
+func eff_void(t *u8) i64 { return t==nil || (type_kind(t)==TYPE_BASE && eff_eq(base_type_name(t),base_type_name_len(t),"void",4)!=0); }
+func eff_expr_type(f *EffFunction,n *u8) *u8 {
+    if n==nil { return effects_i64; }
+    var k i64=node_kind(n);
+    if k==NODE_IDENT_EXPR {
+        var b *EffBinding=eff_lookup(f,ident_expr_name(n),ident_expr_name_len(n)); if b!=nil { return b.typ; }
+        var d *u8=eff_find_decl(NODE_VAR_DECL,ident_expr_name(n),ident_expr_name_len(n)); if d!=nil { return var_decl_type(d); }
+    }
+    if k==NODE_GROUP_EXPR { return eff_expr_type(f,group_expr_expr(n)); }
+    if k==NODE_CAST_EXPR { return cast_expr_type(n); }
+    if k==NODE_BITCAST_EXPR { return bitcast_expr_type(n); }
+    if k==NODE_CALL_EXPR {
+        var c *u8=call_expr_func(n);
+        if node_kind(c)==NODE_IDENT_EXPR {
+            var b *EffBinding=eff_lookup(f,ident_expr_name(c),ident_expr_name_len(c));
+            if b!=nil && (type_kind(b.typ)==TYPE_FUNC || type_kind(b.typ)==TYPE_CLOSURE) { return func_type_ret(b.typ); }
+            var found *EffFunction=eff_find_func(ident_expr_name(c),ident_expr_name_len(c),call_expr_arg_count(n));
+            if found!=nil { return func_decl_ret_type(found.decl); }
+            var d *u8=eff_find_decl(NODE_FUNC_DECL,ident_expr_name(c),ident_expr_name_len(c));
+            if d!=nil { return func_decl_ret_type(d); }
+        }
+        if node_kind(c)==NODE_FIELD_EXPR && node_kind(field_expr_expr(c))==NODE_IDENT_EXPR {
+            var en *u8=field_expr_expr(c);
+            if eff_find_decl(NODE_ENUM_DECL,ident_expr_name(en),ident_expr_name_len(en))!=nil { return eff_type(str_dup_n(ident_expr_name(en),ident_expr_name_len(en))); }
+        }
+        var ct *u8=eff_expr_type(f,c);
+        if type_kind(ct)==TYPE_FUNC || type_kind(ct)==TYPE_CLOSURE { return func_type_ret(ct); }
+    }
+    if k==NODE_UNARY_EXPR {
+        var t *u8=eff_expr_type(f,unary_expr_expr(n)); var op i64=unary_expr_op(n);
+        if op==TOKEN_AMP { return eff_ptr(t); }
+        if op==TOKEN_STAR && type_kind(t)==TYPE_PTR { return ptr_type_elem(t); }
+        return t;
+    }
+    if k==NODE_BINARY_EXPR {
+        var op i64=binary_expr_op(n);
+        if op==TOKEN_EQEQ || op==TOKEN_BANGEQ || op==TOKEN_LT || op==TOKEN_GT || op==TOKEN_LTEQ || op==TOKEN_GTEQ || op==TOKEN_AMPAMP || op==TOKEN_PIPEPIPE { return eff_type("bool"); }
+        return eff_expr_type(f,binary_expr_left(n));
+    }
+    if k==NODE_STRING_EXPR || k==NODE_NIL_EXPR { return effects_byte_ptr; }
+    if k==NODE_NUMBER_EXPR {
+        var text *u8=number_expr_value(n); var i i64=0;
+        while i<number_expr_value_len(n) { if *(text+i)=='.' { return eff_type("f64"); } i=i+1; }
+    }
+    if k==NODE_LAMBDA_EXPR {
+        var params *u8=vec_new(8); var i i64=0;
+        while i<lambda_expr_param_count(n) { var p *u8=lambda_expr_params(n)+i*24; vec_push(params,param_type(p)); i=i+1; }
+        var t *u8=closure_type_alloc(); closure_type_set_params(t,params);
+        closure_type_set_param_count(t,lambda_expr_param_count(n)); closure_type_set_ret(t,lambda_expr_ret_type(n)); return t;
+    }
+    if k==NODE_FIELD_EXPR {
+        var base *u8=field_expr_expr(n);
+        if node_kind(base)==NODE_IDENT_EXPR && eff_lookup(f,ident_expr_name(base),ident_expr_name_len(base))==nil {
+            if eff_find_decl(NODE_ENUM_DECL,ident_expr_name(base),ident_expr_name_len(base))!=nil { return eff_type(str_dup_n(ident_expr_name(base),ident_expr_name_len(base))); }
+        }
+        var t *u8=eff_expr_type(f,field_expr_expr(n)); if type_kind(t)==TYPE_PTR { t=ptr_type_elem(t); }
+        if type_kind(t)==TYPE_BASE {
+            var d *u8=eff_find_decl(NODE_STRUCT_DECL,base_type_name(t),base_type_name_len(t));
+            if d!=nil {
+                var i i64=0; while i<struct_decl_field_count(d) {
+                    var p *u8=get_struct_field(struct_decl_fields(d),i);
+                    if eff_eq(struct_field_name(p),struct_field_name_len(p),field_expr_field(n),field_expr_field_len(n))!=0 { return struct_field_type(p); }
+                    i=i+1;
+                }
+            }
+        }
+    }
+    if k==NODE_INDEX_EXPR {
+        var t *u8=eff_expr_type(f,index_expr_base(n));
+        if type_kind(t)==TYPE_PTR { return ptr_type_elem(t); }
+        if type_kind(t)==TYPE_ARRAY { return array_type_elem(t); }
+    }
+    if k==NODE_MATCH_EXPR && match_expr_arm_count(n)>0 { return eff_expr_type(f,match_arm_body(get_match_arm(match_expr_arms(n),0))); }
+    if k==NODE_ARRAY_LITERAL {
+        var t *u8=array_type_alloc(); array_type_set_size(t,array_literal_count(n));
+        var elem *u8=effects_i64; if array_literal_count(n)>0 { var p **u8=array_literal_elems(n); elem=eff_expr_type(f,*p); }
+        array_type_set_elem(t,elem); return t;
+    }
+    return effects_i64;
+}
+func eff_materialize(f *EffFunction,n *u8,t *u8) *u8 {
+    if eff_void(t)!=0 { eff_append(f,eff_expr_stmt(n)); return eff_num(0); }
+    if eff_aggregate(t)!=0 {
+        var b *EffBinding=eff_bind(f,"",0,t); eff_store(f,b,n); return eff_cell(b);
+    }
+    if eff_scalar(t)==0 { eff_error(f,n,"portable effects currently require scalar/pointer values across suspension"); return eff_num(0); }
+    var b *EffBinding=eff_bind(f,"",0,t); eff_append(f,eff_assign(eff_cell(b),n)); return eff_cell(b);
+}
+func eff_capture(dst *EffFunction,src *EffFunction) void {
+    var i i64=0; while i<vec_len(src.bindings) {
+        var old *EffBinding=vec_get(src.bindings,i); var b *EffBinding=alloc(40);
+        b.name=old.name; b.len=old.len; b.typ=old.typ; b.depth=old.depth+1; b.offset=old.offset;
+        vec_push(dst.bindings,b); i=i+1;
+    }
+}
+func eff_synthetic(parent *EffFunction) *EffFunction {
+    var f *EffFunction=alloc(96); f.decl=nil; f.id=effects_next_id; effects_next_id=effects_next_id+1;
+    f.marked=1; f.replacement=nil; f.synthetic=1; f.origin=parent.origin;
+    eff_setup(f); eff_capture(f,parent); vec_push(effects_functions,f); return f;
+}
+func eff_suspend(f *EffFunction,target *u8,next *EffBlock) void {
+    eff_append(f,eff_assign(eff_f("pc"),eff_num(next.id))); eff_append(f,eff_return(target));
+    f.cursor.closed=1; f.cursor=next;
+}
+func eff_make_call(id i64,outer *u8,parent *u8,dest i64,handlers *u8) *u8 {
+    var args *u8=eff_args3(eff_num(id),outer,parent); vec_push(args,eff_num(dest)); vec_push(args,handlers);
+    return eff_call("__eff_make",args);
+}
+func eff_handle(f *EffFunction,node *u8) *u8 {
+    var body *EffFunction=eff_synthetic(f);
+    var body_value *u8=eff_compile_body(body,handle_expr_body(node)); eff_finish(body,body_value);
+    var body_type *u8=eff_expr_type(body,body_value);
+    var ret *EffFunction=eff_synthetic(f);
+    var rb *EffBinding=eff_bind(ret,handle_expr_ret_bind(node),handle_expr_ret_bind_len(node),body_type);
+    var ret_value *u8=eff_compile_body(ret,handle_expr_ret_body(node)); eff_finish(ret,ret_value);
+    var result_type *u8=eff_expr_type(ret,ret_value);
+    var count i64=handle_expr_case_count(node); var table *u8=eff_materialize(f,eff_call("alloc",eff_args1(eff_num(count*16))),effects_byte_ptr);
+    var i i64=0;
+    while i<count {
+        var c *u8=handle_expr_cases(node)+i*56;
+        var ed *u8=eff_find_decl(NODE_EFFECT_DECL,effect_case_name(c),effect_case_name_len(c));
+        if ed==nil { eff_error(f,node,"handler names an undeclared effect"); return eff_num(0); }
+        var arity i64=effect_decl_param_type_count(ed);
+        var payload_type *u8=effects_i64;
+        if arity==1 { var p **u8=effect_decl_param_types(ed); payload_type=*p; }
+        if arity>1 || eff_scalar(payload_type)==0 || eff_scalar(effect_decl_return_type(ed))==0 { eff_error(f,node,"portable effects require zero/one integral or pointer argument and integral/pointer resume type"); return eff_num(0); }
+        var clause *EffFunction=eff_synthetic(f);
+        var bn *u8=effect_case_binding(c); var bl i64=effect_case_binding_len(c);
+        var kn *u8=effect_case_k(c); var kl i64=effect_case_k_len(c);
+        if arity==0 && kl==0 { kn=bn; kl=bl; bn=""; bl=0; }
+        var vb *EffBinding=eff_bind(clause,bn,bl,payload_type);
+        var kb *EffBinding=eff_bind(clause,kn,kl,effects_i64);
+        var cv *u8=eff_compile_body(clause,effect_case_body(c)); eff_finish(clause,cv);
+        eff_append(f,eff_expr_stmt(eff_call("__eff_put",eff_args3(table,eff_num(i*16),eff_num(eff_effect_id(ed))))));
+        eff_append(f,eff_expr_stmt(eff_call("__eff_put",eff_args3(table,eff_num(i*16+8),eff_num(clause.id)))));
+        i=i+1;
+    }
+    var result *EffBinding=eff_bind(f,"",0,result_type); var next *EffBlock=eff_new_block(f);
+    var args *u8=eff_args3(eff_ident("__eff_f"),eff_num(body.id),eff_num(ret.id));
+    vec_push(args,eff_num(result.offset)); vec_push(args,table); vec_push(args,eff_num(count));
+    eff_suspend(f,eff_call("__eff_handle",args),next); return eff_cell(result);
+}
+func eff_effect_id(decl *u8) i64 {
+    var i i64=0; var id i64=1;
+    while i<vec_len(effects_decls) {
+        var d *u8=vec_get(effects_decls,i); if node_kind(d)==NODE_EFFECT_DECL { if d==decl { return id; } id=id+1; }
+        i=i+1;
+    }
+    return 0;
+}
+func eff_lvalue(f *EffFunction,node *u8) *u8 {
+    var k i64=node_kind(node);
+    if k==NODE_IDENT_EXPR {
+        var b *EffBinding=eff_lookup(f,ident_expr_name(node),ident_expr_name_len(node)); if b!=nil { return eff_cell(b); } return node;
+    }
+    if k==NODE_UNARY_EXPR && unary_expr_op(node)==TOKEN_STAR { return eff_un(TOKEN_STAR,eff_compile_expr(f,unary_expr_expr(node))); }
+    if k==NODE_FIELD_EXPR {
+        var base *u8=field_expr_expr(node); var value *u8=nil;
+        if eff_aggregate(eff_expr_type(f,base))!=0 { value=eff_lvalue(f,base); } else { value=eff_compile_expr(f,base); }
+        return eff_field(value,str_dup_n(field_expr_field(node),field_expr_field_len(node)));
+    }
+    if k==NODE_INDEX_EXPR {
+        var source *u8=index_expr_base(node); var base *u8=nil;
+        if eff_aggregate(eff_expr_type(f,source))!=0 { base=eff_lvalue(f,source); } else { base=eff_compile_expr(f,source); }
+        var idx *u8=eff_compile_expr(f,index_expr_index(node)); var n *u8=index_expr_alloc(); index_expr_set_base(n,base); index_expr_set_index(n,idx); return n;
+    }
+    eff_error(f,node,"portable effects cannot preserve this assignment target"); return node;
+}
+func eff_assign_value(f *EffFunction,target *u8,value *u8,t *u8) void {
+    if eff_aggregate(t)!=0 {
+        var address *u8=target;
+        if node_kind(target)==NODE_UNARY_EXPR && unary_expr_op(target)==TOKEN_STAR { address=unary_expr_expr(target); }
+        if node_kind(target)==NODE_FIELD_EXPR || node_kind(target)==NODE_INDEX_EXPR { address=eff_un(TOKEN_AMP,target); }
+        eff_append(f,eff_expr_stmt(eff_call("memcpy",eff_args3(address,value,eff_num(eff_size(t,0))))));
+    } else { eff_append(f,eff_assign(target,value)); }
+}
+func eff_enum_decl(node *u8) *u8 {
+    if node==nil || node_kind(node)!=NODE_FIELD_EXPR { return nil; }
+    var base *u8=field_expr_expr(node); if node_kind(base)!=NODE_IDENT_EXPR { return nil; }
+    return eff_find_decl(NODE_ENUM_DECL,ident_expr_name(base),ident_expr_name_len(base));
+}
+func eff_enum_value(f *EffFunction,node *u8,args *u8) *u8 {
+    var d *u8=eff_enum_decl(node); var i i64=0;
+    while i<enum_decl_variant_count(d) {
+        var v *u8=get_enum_variant(enum_decl_variants(d),i);
+        if eff_eq(enum_variant_name(v),enum_variant_name_len(v),field_expr_field(node),field_expr_field_len(node))!=0 {
+            var payload *u8=enum_variant_type(v); var count i64=0; if payload!=nil { count=1; }
+            if vec_len(args)!=count { eff_error(f,node,"enum constructor argument count does not match the variant"); return eff_num(0); }
+            var t *u8=eff_type(str_dup_n(enum_decl_name(d),enum_decl_name_len(d))); var b *EffBinding=eff_bind(f,"",0,t);
+            eff_append(f,eff_expr_stmt(eff_call("__eff_put",eff_args3(eff_address(b),eff_num(0),eff_num(i)))));
+            if count!=0 {
+                if eff_aggregate(payload)!=0 { eff_append(f,eff_expr_stmt(eff_call("memcpy",eff_args3(eff_bin(TOKEN_PLUS,eff_address(b),eff_num(8)),vec_get(args,0),eff_num(eff_size(payload,0)))))); }
+                else {
+                    if eff_scalar(payload)==0 { eff_error(f,node,"portable effect enum payloads require integral/pointer values"); }
+                    eff_append(f,eff_expr_stmt(eff_call("__eff_put",eff_args3(eff_address(b),eff_num(8),eff_cast(effects_i64,vec_get(args,0))))));
+                }
+            }
+            return eff_cell(b);
+        }
+        i=i+1;
+    }
+    eff_error(f,node,"enum constructor names an unknown variant"); return eff_num(0);
+}
+func eff_match(f *EffFunction,node *u8) *u8 {
+    var source *u8=match_expr_scrutinee(node); var t *u8=eff_expr_type(f,source);
+    if type_kind(t)==TYPE_PTR { t=ptr_type_elem(t); }
+    var d *u8=nil; if type_kind(t)==TYPE_BASE { d=eff_find_decl(NODE_ENUM_DECL,base_type_name(t),base_type_name_len(t)); }
+    if d==nil { eff_error(f,node,"portable effect match requires an enum scrutinee"); return eff_num(0); }
+    var value *u8=eff_compile_expr(f,source); var result *EffBinding=eff_bind(f,"",0,eff_expr_type(f,node));
+    var done *EffBlock=eff_new_block(f); var i i64=0;
+    while i<match_expr_arm_count(node) {
+        var arm *u8=get_match_arm(match_expr_arms(node),i); var pat *u8=match_arm_pattern(arm);
+        var branch *EffBlock=eff_new_block(f); var next *EffBlock=eff_new_block(f); var payload *u8=nil; var tag i64=0-1;
+        if node_kind(pat)==NODE_PATTERN_VARIANT {
+            if eff_eq(enum_decl_name(d),enum_decl_name_len(d),pattern_variant_enum_name(pat),pattern_variant_enum_len(pat))==0 { eff_error(f,pat,"match pattern names a different enum"); return eff_num(0); }
+            var j i64=0; while j<enum_decl_variant_count(d) {
+                var v *u8=get_enum_variant(enum_decl_variants(d),j);
+                if eff_eq(enum_variant_name(v),enum_variant_name_len(v),pattern_variant_name(pat),pattern_variant_name_len(pat))!=0 { tag=j; payload=enum_variant_type(v); }
+                j=j+1;
+            }
+            if tag<0 { eff_error(f,pat,"match pattern names an unknown enum variant"); return eff_num(0); }
+            eff_append(f,eff_if(eff_bin(TOKEN_EQEQ,eff_call("__eff_get",eff_args2(value,eff_num(0))),eff_num(tag)),eff_assign(eff_f("pc"),eff_num(branch.id)),eff_assign(eff_f("pc"),eff_num(next.id))));
+            eff_append(f,eff_return(eff_ident("__eff_f"))); f.cursor.closed=1;
+        } else if node_kind(pat)==NODE_PATTERN_WILDCARD { eff_jump(f,branch); }
+        else { eff_error(f,pat,"portable effect match requires variant or wildcard patterns"); return eff_num(0); }
+        var saved i64=vec_len(f.bindings); f.cursor=branch;
+        if node_kind(pat)==NODE_PATTERN_VARIANT && pattern_variant_binding_len(pat)>0 {
+            if payload==nil { eff_error(f,pat,"a unit enum variant has no payload to bind"); return eff_num(0); }
+            var b *EffBinding=eff_bind(f,pattern_variant_binding(pat),pattern_variant_binding_len(pat),payload);
+            var p *u8=eff_bin(TOKEN_PLUS,value,eff_num(8));
+            if eff_aggregate(payload)==0 { p=eff_cast(payload,eff_call("__eff_get",eff_args2(value,eff_num(8)))); }
+            eff_store(f,b,p);
+        }
+        var out *u8=eff_compile_body(f,match_arm_body(arm)); eff_store(f,result,out); eff_jump(f,done);
+        while vec_len(f.bindings)>saved { vec_pop(f.bindings); }
+        f.cursor=next; i=i+1;
+    }
+    eff_jump(f,done); f.cursor=done; return eff_cell(result);
+}
+func eff_lambda(f *EffFunction,node *u8) *u8 {
+    var names *u8=vec_new(16); var i i64=0;
+    while i<vec_len(f.bindings) { var b *EffBinding=vec_get(f.bindings,i); if b.len>0 { eff_shadow(names,b.name,b.len); } i=i+1; }
+    if eff_scan(node,names)!=0 { eff_error(f,node,"effectful closures are unsupported; use a direct named function"); return eff_num(0); }
+    // Snapshot source bindings into ordinary locals at closure construction.
+    // The backend's existing closure boxing then captures values, not the
+    // mutable lexical environment used by suspended frames.
+    i=0; while i<vec_len(f.bindings) {
+        var b *EffBinding=vec_get(f.bindings,i);
+        if b.len>0 && eff_lookup(f,b.name,b.len)==b { eff_append(f,eff_var(str_dup_n(b.name,b.len),b.typ,eff_cell(b))); }
+        i=i+1;
+    }
+    var name *u8=eff_name("__eff_closure_",f.bytes); var t *u8=eff_expr_type(f,node);
+    eff_append(f,eff_var(name,t,node)); return eff_materialize(f,eff_ident(name),t);
+}
+func eff_compile_expr(f *EffFunction,node *u8) *u8 {
+    if node==nil { return eff_num(0); }
+    var k i64=node_kind(node); var typ *u8=eff_expr_type(f,node);
+    if k==NODE_IDENT_EXPR {
+        if eff_lookup(f,ident_expr_name(node),ident_expr_name_len(node))==nil && eff_marked_name(ident_expr_name(node),ident_expr_name_len(node))!=0 {
+            eff_error(f,node,"effectful function values are unsupported; call the function directly"); return eff_num(0);
+        }
+        return eff_materialize(f,eff_lvalue(f,node),typ);
+    }
+    if k==NODE_NUMBER_EXPR || k==NODE_STRING_EXPR || k==NODE_BOOL_EXPR || k==NODE_NIL_EXPR { return eff_materialize(f,node,typ); }
+    if k==NODE_GROUP_EXPR { return eff_compile_expr(f,group_expr_expr(node)); }
+    if k==NODE_HANDLE_EXPR { return eff_handle(f,node); }
+    if k==NODE_PERFORM_EXPR {
+        var ed *u8=eff_find_decl(NODE_EFFECT_DECL,perform_expr_name(node),perform_expr_name_len(node));
+        if ed==nil { eff_error(f,node,"perform names an undeclared effect"); return eff_num(0); }
+        if perform_expr_arg_count(node)!=effect_decl_param_type_count(ed) || perform_expr_arg_count(node)>1 {
+            eff_error(f,node,"portable effects require declared zero/one argument arity"); return eff_num(0);
+        }
+        var payload_type *u8=effects_i64;
+        if effect_decl_param_type_count(ed)==1 { var p **u8=effect_decl_param_types(ed); payload_type=*p; }
+        if eff_scalar(payload_type)==0 || eff_scalar(effect_decl_return_type(ed))==0 {
+            eff_error(f,node,"portable effects require integral/pointer payload and resume types"); return eff_num(0);
+        }
+        var arg *u8=eff_num(0);
+        if perform_expr_arg_count(node)==1 { var p **u8=perform_expr_args(node); arg=eff_compile_expr(f,*p); }
+        var result *EffBinding=eff_bind(f,"",0,effect_decl_return_type(ed));
+        var next *EffBlock=eff_new_block(f);
+        var args *u8=eff_args3(eff_ident("__eff_f"),eff_num(eff_effect_id(ed)),eff_cast(effects_i64,arg)); vec_push(args,eff_num(result.offset));
+        eff_suspend(f,eff_call("__eff_perform",args),next); return eff_cell(result);
+    }
+    if k==NODE_RESUME_EXPR {
+        var continuation *u8=eff_compile_expr(f,resume_expr_k(node)); var value *u8=eff_compile_expr(f,resume_expr_value(node));
+        var result *EffBinding=eff_bind(f,"",0,effects_i64); var next *EffBlock=eff_new_block(f);
+        var args *u8=eff_args3(eff_ident("__eff_f"),continuation,eff_cast(effects_i64,value)); vec_push(args,eff_num(result.offset));
+        eff_suspend(f,eff_call("__eff_resume",args),next); return eff_cell(result);
+    }
+    if k==NODE_BINARY_EXPR {
+        var op i64=binary_expr_op(node);
+        if op==TOKEN_EQ || op==TOKEN_PLUSEQ || op==TOKEN_MINUSEQ || op==TOKEN_STAREQ || op==TOKEN_SLASHEQ {
+            var target *u8=eff_lvalue(f,binary_expr_left(node));
+            var old *u8=nil; if op!=TOKEN_EQ { old=eff_materialize(f,target,typ); }
+            var value *u8=eff_compile_expr(f,binary_expr_right(node));
+            if op==TOKEN_PLUSEQ { value=eff_bin(TOKEN_PLUS,old,value); }
+            if op==TOKEN_MINUSEQ { value=eff_bin(TOKEN_MINUS,old,value); }
+            if op==TOKEN_STAREQ { value=eff_bin(TOKEN_STAR,old,value); }
+            if op==TOKEN_SLASHEQ { value=eff_bin(TOKEN_SLASH,old,value); }
+            if eff_aggregate(typ)!=0 && op!=TOKEN_EQ { eff_error(f,node,"compound assignment to an aggregate is unsupported"); return eff_num(0); }
+            eff_assign_value(f,target,value,typ); return eff_materialize(f,target,typ);
+        }
+        var left *u8=eff_compile_expr(f,binary_expr_left(node));
+        if op==TOKEN_AMPAMP || op==TOKEN_PIPEPIPE {
+            var result *EffBinding=eff_bind(f,"",0,effects_i64);
+            var right_block *EffBlock=eff_new_block(f); var short_block *EffBlock=eff_new_block(f); var done *EffBlock=eff_new_block(f);
+            var a *u8=eff_assign(eff_f("pc"),eff_num(right_block.id)); var b *u8=eff_assign(eff_f("pc"),eff_num(short_block.id));
+            if op==TOKEN_PIPEPIPE { var swap *u8=a; a=b; b=swap; }
+            eff_append(f,eff_if(left,a,b)); eff_append(f,eff_return(eff_ident("__eff_f"))); f.cursor.closed=1;
+            f.cursor=right_block; var right *u8=eff_compile_expr(f,binary_expr_right(node));
+            eff_append(f,eff_assign(eff_cell(result),eff_bin(TOKEN_BANGEQ,right,eff_num(0)))); eff_jump(f,done);
+            f.cursor=short_block; var val i64=0; if op==TOKEN_PIPEPIPE { val=1; }
+            eff_append(f,eff_assign(eff_cell(result),eff_num(val))); eff_jump(f,done); f.cursor=done; return eff_cell(result);
+        }
+        var right *u8=eff_compile_expr(f,binary_expr_right(node)); return eff_materialize(f,eff_bin(op,left,right),typ);
+    }
+    if k==NODE_UNARY_EXPR {
+        if unary_expr_op(node)==TOKEN_AMP {
+            var source *u8=unary_expr_expr(node);
+            if node_kind(source)==NODE_IDENT_EXPR && eff_lookup(f,ident_expr_name(source),ident_expr_name_len(source))==nil && eff_marked_name(ident_expr_name(source),ident_expr_name_len(source))!=0 {
+                eff_error(f,node,"taking an effectful function address is unsupported; call the function directly"); return eff_num(0);
+            }
+            if node_kind(source)==NODE_IDENT_EXPR {
+                var b *EffBinding=eff_lookup(f,ident_expr_name(source),ident_expr_name_len(source));
+                if b!=nil && eff_aggregate(b.typ)!=0 { return eff_materialize(f,eff_cast(eff_ptr(b.typ),eff_address(b)),typ); }
+            }
+            var target *u8=eff_lvalue(f,unary_expr_expr(node));
+            if node_kind(target)==NODE_UNARY_EXPR && unary_expr_op(target)==TOKEN_STAR { return eff_materialize(f,unary_expr_expr(target),typ); }
+            return eff_materialize(f,eff_un(TOKEN_AMP,target),typ);
+        }
+        return eff_materialize(f,eff_un(unary_expr_op(node),eff_compile_expr(f,unary_expr_expr(node))),typ);
+    }
+    if k==NODE_CAST_EXPR { return eff_materialize(f,eff_cast(cast_expr_type(node),eff_compile_expr(f,cast_expr_expr(node))),typ); }
+    if k==NODE_BITCAST_EXPR {
+        var n *u8=bitcast_expr_alloc(); bitcast_expr_set_type(n,bitcast_expr_type(node)); bitcast_expr_set_expr(n,eff_compile_expr(f,bitcast_expr_expr(node)));
+        return eff_materialize(f,n,typ);
+    }
+    if k==NODE_FIELD_EXPR && eff_enum_decl(node)!=nil { return eff_enum_value(f,node,vec_new(1)); }
+    if k==NODE_FIELD_EXPR || k==NODE_INDEX_EXPR { return eff_materialize(f,eff_lvalue(f,node),typ); }
+    if k==NODE_CALL_EXPR {
+        var callee *u8=call_expr_func(node); var target *EffFunction=nil; var dynamic *u8=nil; var dynamic_type *u8=nil;
+        if node_kind(callee)==NODE_IDENT_EXPR && eff_lookup(f,ident_expr_name(callee),ident_expr_name_len(callee))==nil {
+            target=eff_find_func(ident_expr_name(callee),ident_expr_name_len(callee),call_expr_arg_count(node));
+        } else if eff_enum_decl(callee)==nil {
+            var ct *u8=eff_expr_type(f,callee);
+            if type_kind(ct)!=TYPE_FUNC && type_kind(ct)!=TYPE_CLOSURE { eff_error(f,node,"indirect call requires a typed pure function or closure"); return eff_num(0); }
+            if eff_scalar(func_type_ret(ct))==0 { eff_error(f,node,"portable effect indirect calls require integral/pointer return types"); return eff_num(0); }
+            var j i64=0; while j<func_type_param_count(ct) {
+                if eff_scalar(vec_get(func_type_params(ct),j))==0 { eff_error(f,node,"portable effect indirect calls require integral/pointer parameters"); return eff_num(0); }
+                j=j+1;
+            }
+            dynamic=eff_compile_expr(f,callee); dynamic_type=ct;
+        }
+        var args *u8=vec_new(8); var i i64=0;
+        while i<call_expr_arg_count(node) { var p **u8=call_expr_args(node)+i*8; vec_push(args,eff_compile_expr(f,*p)); i=i+1; }
+        if eff_enum_decl(callee)!=nil { return eff_enum_value(f,callee,args); }
+        if target!=nil && target.marked!=0 {
+            var result *EffBinding=eff_bind(f,"",0,func_decl_ret_type(target.decl));
+            var child *u8=eff_materialize(f,eff_make_call(target.id,nil_expr_alloc(),eff_ident("__eff_f"),result.offset,eff_f("handlers")),effects_frame_ptr);
+            var offset i64=8; i=0; while i<vec_len(args) {
+                var p *u8=func_decl_params(target.decl)+i*24; var pt *u8=param_type(p);
+                if eff_aggregate(pt)!=0 { eff_append(f,eff_expr_stmt(eff_call("memcpy",eff_args3(eff_bin(TOKEN_PLUS,eff_field(child,"env"),eff_num(offset)),vec_get(args,i),eff_num(eff_size(pt,0)))))); }
+                else { eff_append(f,eff_expr_stmt(eff_call("__eff_put",eff_args3(eff_field(child,"env"),eff_num(offset),eff_cast(effects_i64,vec_get(args,i)))))); }
+                offset=offset+((eff_size(pt,0)+7)/8)*8; i=i+1;
+            }
+            var next *EffBlock=eff_new_block(f); eff_suspend(f,child,next);
+            if eff_void(func_decl_ret_type(target.decl))!=0 { return eff_num(0); } return eff_cell(result);
+        }
+        var call *u8=eff_call("",args);
+        if dynamic!=nil {
+            var name *u8=eff_name("__eff_call_",f.bytes); eff_append(f,eff_var(name,dynamic_type,dynamic)); call_expr_set_func(call,eff_ident(name));
+        } else { call_expr_set_func(call,callee); }
+        return eff_materialize(f,call,typ);
+    }
+    if k==NODE_MATCH_EXPR { return eff_match(f,node); }
+    if k==NODE_LAMBDA_EXPR { return eff_lambda(f,node); }
+    if k==NODE_ARRAY_LITERAL {
+        var b *EffBinding=eff_bind(f,"",0,typ); var elem *u8=array_type_elem(typ); var i i64=0;
+        while i<array_literal_count(node) {
+            var p **u8=array_literal_elems(node)+i*8; var value *u8=eff_compile_expr(f,*p);
+            var target *u8=eff_un(TOKEN_STAR,eff_cast(eff_ptr(elem),eff_bin(TOKEN_PLUS,eff_address(b),eff_num(i*eff_size(elem,0)))));
+            eff_assign_value(f,target,value,elem); i=i+1;
+        }
+        return eff_cell(b);
+    }
+    if k==NODE_LET_EXPR {
+        var count i64=vec_len(f.bindings); var init *u8=eff_compile_expr(f,let_expr_init(node));
+        var t *u8=let_expr_type(node); if t==nil { t=eff_expr_type(f,let_expr_init(node)); }
+        var binding *EffBinding=eff_bind(f,let_expr_name(node),let_expr_name_len(node),t);
+        eff_store(f,binding,init); var result *u8=eff_compile_expr(f,let_expr_body(node));
+        while vec_len(f.bindings)>count { vec_pop(f.bindings); } return result;
+    }
+    if k==NODE_BLOCK_EXPR {
+        var count i64=vec_len(f.bindings); var i i64=0; var result *u8=eff_num(0);
+        while i<block_expr_count(node) { var p **u8=block_expr_stmts(node)+i*8; result=eff_compile_stmt(f,*p); i=i+1; }
+        if block_expr_tail(node)!=nil { result=eff_compile_expr(f,block_expr_tail(node)); }
+        while vec_len(f.bindings)>count { vec_pop(f.bindings); } return result;
+    }
+    eff_error(f,node,"expression is not supported in portable effectful functions yet"); return eff_num(0);
+}
+func eff_compile_stmt(f *EffFunction,node *u8) *u8 {
+    if node==nil || f.cursor.closed!=0 { return eff_num(0); }
+    var k i64=node_kind(node);
+    if k==NODE_BLOCK_STMT {
+        var count i64=vec_len(f.bindings); var last *u8=eff_num(0); var i i64=0;
+        while i<block_stmt_count(node) { var p **u8=block_stmt_stmts(node)+i*8; last=eff_compile_stmt(f,*p); i=i+1; }
+        while vec_len(f.bindings)>count { vec_pop(f.bindings); } return last;
+    }
+    if k==NODE_VAR_DECL {
+        var t *u8=var_decl_type(node);
+        if eff_scalar(t)==0 && eff_aggregate(t)==0 { eff_error(f,node,"portable effect locals require integral/pointer/aggregate types"); return eff_num(0); }
+        var value *u8=eff_num(0); if var_decl_init(node)!=nil { value=eff_compile_expr(f,var_decl_init(node)); }
+        var b *EffBinding=eff_bind(f,var_decl_name(node),var_decl_name_len(node),t);
+        if var_decl_init(node)!=nil || eff_aggregate(t)==0 { eff_store(f,b,value); }
+        else { eff_append(f,eff_expr_stmt(eff_call("memset",eff_args3(eff_address(b),eff_num(0),eff_num(eff_size(t,0)))))); }
+        return eff_num(0);
+    }
+    if k==NODE_EXPR_STMT { return eff_compile_expr(f,expr_stmt_expr(node)); }
+    if k==NODE_ASSIGN_STMT {
+        var target *u8=eff_lvalue(f,assign_stmt_target(node)); var value *u8=eff_compile_expr(f,assign_stmt_value(node));
+        eff_assign_value(f,target,value,eff_expr_type(f,assign_stmt_target(node))); return value;
+    }
+    if k==NODE_RETURN_STMT {
+        var value *u8=eff_compile_expr(f,return_stmt_value(node));
+        if f.synthetic!=0 {
+            eff_append(f,eff_return(eff_call("__eff_escape",eff_args2(eff_ident("__eff_f"),eff_cast(effects_i64,value)))));
+            f.cursor.closed=1;
+        } else { eff_finish(f,value); }
+        return value;
+    }
+    if k==NODE_IF_STMT {
+        var cond *u8=eff_compile_expr(f,if_stmt_cond(node)); var a *EffBlock=eff_new_block(f); var b *EffBlock=eff_new_block(f); var done *EffBlock=eff_new_block(f);
+        eff_append(f,eff_if(cond,eff_assign(eff_f("pc"),eff_num(a.id)),eff_assign(eff_f("pc"),eff_num(b.id))));
+        eff_append(f,eff_return(eff_ident("__eff_f"))); f.cursor.closed=1;
+        f.cursor=a; eff_compile_stmt(f,if_stmt_then(node)); eff_jump(f,done);
+        f.cursor=b; eff_compile_stmt(f,if_stmt_else(node)); eff_jump(f,done);
+        f.cursor=done; return eff_num(0);
+    }
+    if k==NODE_WHILE_STMT {
+        var again *EffBlock=eff_new_block(f); var body *EffBlock=eff_new_block(f); var done *EffBlock=eff_new_block(f); eff_jump(f,again);
+        f.cursor=again; var cond *u8=eff_compile_expr(f,while_stmt_cond(node));
+        eff_append(f,eff_if(cond,eff_assign(eff_f("pc"),eff_num(body.id)),eff_assign(eff_f("pc"),eff_num(done.id))));
+        eff_append(f,eff_return(eff_ident("__eff_f"))); f.cursor.closed=1;
+        var loop *EffLoop=alloc(32); loop.name=while_stmt_label(node); loop.len=while_stmt_label_len(node); loop.stop=done; loop.again=again; vec_push(f.loops,loop);
+        f.cursor=body; eff_compile_stmt(f,while_stmt_body(node)); eff_jump(f,again); vec_pop(f.loops);
+        f.cursor=done; return eff_num(0);
+    }
+    if k==NODE_BREAK_STMT || k==NODE_CONTINUE_STMT {
+        var name *u8=nil; var len i64=0;
+        if k==NODE_BREAK_STMT { name=break_stmt_label(node); len=break_stmt_label_len(node); }
+        else { name=continue_stmt_label(node); len=continue_stmt_label_len(node); }
+        var i i64=vec_len(f.loops)-1;
+        while i>=0 {
+            var loop *EffLoop=vec_get(f.loops,i);
+            if len==0 || eff_eq(name,len,loop.name,loop.len)!=0 { if k==NODE_BREAK_STMT { eff_jump(f,loop.stop); } else { eff_jump(f,loop.again); } return eff_num(0); }
+            i=i-1;
+        }
+        eff_error(f,node,"break/continue has no matching loop in portable effects"); return eff_num(0);
+    }
+    eff_error(f,node,"statement is not supported in portable effectful functions yet"); return eff_num(0);
+}
+func eff_compile_body(f *EffFunction,node *u8) *u8 {
+    if node!=nil && node_kind(node)==NODE_BLOCK_STMT { return eff_compile_stmt(f,node); }
+    return eff_compile_expr(f,node);
+}
+
+func eff_build_step(f *EffFunction) *u8 {
+    var stmts *u8=vec_new(16); var i i64=0;
+    while i<vec_len(f.blocks) {
+        var b *EffBlock=vec_get(f.blocks,i);
+        vec_push(stmts,eff_if(eff_bin(TOKEN_EQEQ,eff_f("pc"),eff_num(b.id)),eff_block(b.stmts),nil)); i=i+1;
+    }
+    vec_push(stmts,eff_return(eff_call("__eff_fault",eff_args1(eff_num(1)))));
+    var n *u8=eff_func(eff_name("__eff_step_",f.id),eff_param("__eff_f",effects_frame_ptr),1,effects_frame_ptr,eff_block(stmts));
+    node_copy_origin(n,f.origin); return n;
+}
+func eff_build_wrapper(f *EffFunction) *u8 {
+    var d *u8=f.decl; var stmts *u8=vec_new(8);
+    vec_push(stmts,eff_var("__eff_f",effects_frame_ptr,eff_make_call(f.id,nil_expr_alloc(),nil_expr_alloc(),0,nil_expr_alloc())));
+    var offset i64=8; var i i64=0; while i<func_decl_param_count(d) {
+        var p *u8=func_decl_params(d)+i*24;
+        var pt *u8=param_type(p); var value *u8=eff_ident(str_dup_n(param_name(p),param_name_len(p)));
+        if eff_aggregate(pt)!=0 { vec_push(stmts,eff_expr_stmt(eff_call("memcpy",eff_args3(eff_bin(TOKEN_PLUS,eff_f("env"),eff_num(offset)),value,eff_num(eff_size(pt,0)))))); }
+        else { vec_push(stmts,eff_expr_stmt(eff_call("__eff_put",eff_args3(eff_f("env"),eff_num(offset),eff_cast(effects_i64,value))))); }
+        offset=offset+((eff_size(pt,0)+7)/8)*8; i=i+1;
+    }
+    var run *u8=eff_call("__eff_run",eff_args1(eff_ident("__eff_f")));
+    if eff_void(func_decl_ret_type(d))!=0 { vec_push(stmts,eff_expr_stmt(run)); vec_push(stmts,eff_return(nil)); }
+    else { vec_push(stmts,eff_return(eff_cast(func_decl_ret_type(d),run))); }
+    var n *u8=eff_func(str_dup_n(func_decl_name(d),func_decl_name_len(d)),func_decl_params(d),func_decl_param_count(d),func_decl_ret_type(d),eff_block(stmts));
+    func_decl_set_is_pub(n,func_decl_is_pub(d)); node_copy_origin(n,d); return n;
+}
+func eff_build_dispatchers() void {
+    var source *u8=parse_program_from_named_string("func __eff_make(id i64, outer *u8, parent *__EffFrame, dest i64, h *__EffHandler) *__EffFrame { return nil; } func __eff_dispatch(__eff_f *__EffFrame) *__EffFrame { return nil; }","<effects-runtime>");
+    var make *u8=get_decl(program_decls(source),0); var dispatch *u8=get_decl(program_decls(source),1);
+    var ms *u8=vec_new(16); var ds *u8=vec_new(16); var i i64=0;
+    while i<vec_len(effects_functions) {
+        var f *EffFunction=vec_get(effects_functions,i);
+        if f.marked!=0 {
+            var args *u8=eff_args3(eff_num(f.id),eff_num(f.bytes),eff_ident("outer"));
+            vec_push(args,eff_ident("parent")); vec_push(args,eff_ident("dest")); vec_push(args,eff_ident("h"));
+            vec_push(ms,eff_if(eff_bin(TOKEN_EQEQ,eff_ident("id"),eff_num(f.id)),eff_return(eff_call("__eff_new",args)),nil));
+            vec_push(ds,eff_if(eff_bin(TOKEN_EQEQ,eff_f("id"),eff_num(f.id)),eff_return(eff_call(eff_name("__eff_step_",f.id),eff_args1(eff_ident("__eff_f")))),nil));
+        }
+        i=i+1;
+    }
+    vec_push(ms,eff_return(eff_call("__eff_fault",eff_args1(eff_num(2)))));
+    vec_push(ds,eff_return(eff_call("__eff_fault",eff_args1(eff_num(3)))));
+    func_decl_set_body(make,eff_block(ms)); func_decl_set_body(dispatch,eff_block(ds)); vec_push(effects_extras,make); vec_push(effects_extras,dispatch);
+}
+func effects_prepare() void {
+    var changed i64=1; var count i64=vec_len(effects_functions); var i i64=0;
+    while changed!=0 {
+        changed=0; i=0; while i<count {
+            var f *EffFunction=vec_get(effects_functions,i);
+            if f.marked==0 && eff_function_needs(f.decl)!=0 { f.marked=1; changed=1; }
+            i=i+1;
+        }
+    }
+    var active i64=0; i=0;
+    while i<count { var f *EffFunction=vec_get(effects_functions,i); if f.marked!=0 { f.id=effects_next_id; effects_next_id=effects_next_id+1; active=1; } i=i+1; }
+    if active==0 { return; }
+    // Generated frames use a compiler-owned namespace. Reject collisions
+    // before rewriting so an original global cannot become the frame pointer.
+    i=0; while i<vec_len(effects_decls) {
+        var d *u8=vec_get(effects_decls,i); var name *u8=nil; var len i64=0;
+        if node_kind(d)==NODE_FUNC_DECL { name=func_decl_name(d); len=func_decl_name_len(d); }
+        if node_kind(d)==NODE_VAR_DECL { name=var_decl_name(d); len=var_decl_name_len(d); }
+        if node_kind(d)==NODE_STRUCT_DECL { name=struct_decl_name(d); len=struct_decl_name_len(d); }
+        if node_kind(d)==NODE_ENUM_DECL { name=enum_decl_name(d); len=enum_decl_name_len(d); }
+        if name!=nil && ((len>=6 && eff_eq(name,6,"__eff_",6)!=0) || (len>=5 && eff_eq(name,5,"__Eff",5)!=0)) {
+            eff_error(nil,d,"names beginning __eff_ or __Eff are reserved in a module using effects");
+        }
+        i=i+1;
+    }
+    i=0; while i<count {
+        var f *EffFunction=vec_get(effects_functions,i);
+        if f.marked!=0 {
+            eff_setup(f);
+            if eff_scalar(func_decl_ret_type(f.decl))==0 { eff_error(f,f.decl,"portable effects require scalar/pointer function returns"); }
+            var j i64=0; while j<func_decl_param_count(f.decl) {
+                var p *u8=func_decl_params(f.decl)+j*24;
+                if eff_scalar(param_type(p))==0 && eff_aggregate(param_type(p))==0 { eff_error(f,f.decl,"portable effect function parameters require integral/pointer/aggregate types"); }
+                var binding *EffBinding=eff_bind(f,param_name(p),param_name_len(p),param_type(p)); j=j+1;
+            }
+            eff_compile_stmt(f,func_decl_body(f.decl)); eff_finish(f,eff_num(0));
+            f.replacement=eff_build_wrapper(f);
+        }
+        i=i+1;
+    }
+    if effects_had_error!=0 { return; }
+    var rt *u8=parse_program_from_named_string(eff_runtime_source(),"<effects-runtime>");
+    if rt==nil { eff_error(nil,nil,"cannot parse compiler-owned effects runtime"); return; }
+    i=0; while i<program_decl_count(rt) { vec_push(effects_extras,get_decl(program_decls(rt),i)); i=i+1; }
+    i=0; while i<vec_len(effects_functions) { var f *EffFunction=vec_get(effects_functions,i); if f.marked!=0 { vec_push(effects_extras,eff_build_step(f)); } i=i+1; }
+    eff_build_dispatchers();
+}
+func effects_replacement(decl *u8) *u8 {
+    if node_kind(decl)!=NODE_FUNC_DECL { return decl; }
+    var f *EffFunction=eff_find_func(func_decl_name(decl),func_decl_name_len(decl),func_decl_param_count(decl));
+    if f!=nil && f.replacement!=nil { return f.replacement; } return decl;
+}
+func effects_extra_decls() *u8 { return effects_extras; }
+
+// Embedded source makes minted compilers self-contained. The runtime is parsed
+// once only for a module that actually uses effects; it performs no AST eval.
+func eff_runtime_source() *u8 {
+    return "
+struct __EffFrame { id i64; pc i64; env *u8; parent *__EffFrame; dest i64; handlers *__EffHandler; boundary *__EffHandler; value i64; lexical *__EffFrame; done i64; }
+struct __EffHandler { previous *__EffHandler; target *__EffFrame; dest i64; body *__EffFrame; return_id i64; cases *u8; count i64; env *u8; lexical *__EffFrame; }
+struct __EffContinuation { top *__EffFrame; handler *__EffHandler; dest i64; used i64; next *__EffContinuation; }
+var __eff_continuations *__EffContinuation=nil;
+func __eff_fault(code i64) *__EffFrame {
+    if code==4 { eprintln(\"effect runtime: unhandled effect\"); }
+    else { if code==5 { eprintln(\"effect runtime: invalid continuation\"); }
+    else { if code==6 { eprintln(\"effect runtime: one-shot continuation already resumed\"); }
+    else { if code==7 { eprintln(\"effect runtime: return crosses an inactive lexical function\"); }
+    else { eprint(\"effect runtime: invalid generated state \" ); eprint_i64(code); eprintln(\"\"); } } } }
+    exit(3); return nil;
+}
+func __eff_put(env *u8, offset i64, value i64) void { var p *i64=env+offset; *p=value; }
+func __eff_get(env *u8, offset i64) i64 { var p *i64=env+offset; return *p; }
+func __eff_new(id i64, bytes i64, outer *u8, parent *__EffFrame, dest i64, h *__EffHandler) *__EffFrame {
+    var f *__EffFrame=alloc(80); f.id=id; f.pc=0; f.env=alloc(bytes);
+    var i i64=0; while i<bytes { __eff_put(f.env,i,0); i=i+8; }
+    __eff_put(f.env,0,cast(i64,outer)); f.parent=parent; f.dest=dest; f.handlers=h; f.boundary=nil; f.value=0; f.lexical=f; f.done=0; return f;
+}
+func __eff_finish(f *__EffFrame,value i64) *__EffFrame {
+    f.done=1;
+    if f.boundary!=nil {
+        var h *__EffHandler=f.boundary;
+        var r *__EffFrame=__eff_make(h.return_id,h.env,h.target,h.dest,h.previous);
+        r.lexical=h.lexical; __eff_put(r.env,8,value); return r;
+    }
+    if f.parent==nil { f.pc=0-1; f.value=value; return f; }
+    __eff_put(f.parent.env,f.dest,value); return f.parent;
+}
+func __eff_escape(f *__EffFrame,value i64) *__EffFrame {
+    var target *__EffFrame=f.lexical;
+    if target.done!=0 { return __eff_fault(7); }
+    return __eff_finish(target,value);
+}
+func __eff_handle(f *__EffFrame,body_id i64,return_id i64,dest i64,cases *u8,count i64) *__EffFrame {
+    var h *__EffHandler=alloc(72); h.previous=f.handlers; h.target=f; h.dest=dest;
+    h.return_id=return_id; h.cases=cases; h.count=count; h.env=f.env; h.lexical=f.lexical;
+    var body *__EffFrame=__eff_make(body_id,f.env,f,dest,h); h.body=body; body.boundary=h; body.lexical=f.lexical; return body;
+}
+func __eff_perform(f *__EffFrame,effect_id i64,value i64,dest i64) *__EffFrame {
+    var h *__EffHandler=f.handlers; var case_id i64=0;
+    while h!=nil && case_id==0 {
+        var i i64=0; while i<h.count {
+            if __eff_get(h.cases,i*16)==effect_id { case_id=__eff_get(h.cases,i*16+8); }
+            i=i+1;
+        }
+        if case_id==0 { h=h.previous; }
+    }
+    if h==nil { return __eff_fault(4); }
+    var k *__EffContinuation=alloc(40); k.top=f; k.handler=h; k.dest=dest; k.used=0;
+    k.next=__eff_continuations; __eff_continuations=k;
+    var clause *__EffFrame=__eff_make(case_id,h.env,h.target,h.dest,h.previous);
+    clause.lexical=h.lexical;
+    __eff_put(clause.env,8,value); __eff_put(clause.env,16,cast(i64,k)); return clause;
+}
+func __eff_resume(f *__EffFrame,continuation i64,value i64,dest i64) *__EffFrame {
+    var k *__EffContinuation=__eff_continuations;
+    while k!=nil && cast(i64,k)!=continuation { k=k.next; }
+    if k==nil { return __eff_fault(5); }
+    if k.used!=0 { return __eff_fault(6); }
+    k.used=1; k.handler.target=f; k.handler.dest=dest;
+    __eff_put(k.top.env,k.dest,value); return k.top;
+}
+func __eff_run(f *__EffFrame) i64 {
+    while f.pc!=(0-1) { f=__eff_dispatch(f); }
+    return f.value;
+}
+";
+}

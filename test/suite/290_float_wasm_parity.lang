@@ -1,0 +1,36 @@
+// expect: 100
+// Scientific scalar ABI, typed pointer fields and addressed floating locals.
+include "std/core.lang"
+
+struct NumericState { marker i64; q f64; p f64; narrow f32; }
+func numeric_force(q f64, scale f64) f64 { return -scale * q; }
+func numeric_identity(value f32) f32 { return value; }
+func numeric_read(value *f64) f64 { return *value; }
+func main() i64 {
+    var state *NumericState = alloc(32);
+    state.marker = 37;
+    state.q = -1.25;
+    state.p = 0.125;
+    state.narrow = cast(f32, 0.375);
+    var force f64 = numeric_force(state.q, 0.3);
+    if force < 0.37499999999999 || force > 0.37500000000001 { return 1; }
+    state.p = state.p + 0.5 * force;
+    state.q = state.q + 0.25 * state.p;
+    if state.q < -1.17187500000001 || state.q > -1.17187499999999 { return 2; }
+    if state.marker != 37 { return 3; }
+    var fraction f64 = -0.30000000000000004;
+    if numeric_read(&fraction) != fraction { return 4; }
+    var narrow f32 = numeric_identity(state.narrow);
+    if cast(f64, narrow) != 0.375 { return 5; }
+    if cast(i64, -2.875) != -2 { return 6; }
+    if cast(f64, cast(u8, 258)) != 2.0 { return 7; }
+    if cast(f64, cast(i8, 255)) != -1.0 { return 8; }
+    var bits i64 = bitcast(i64, fraction);
+    if bitcast(f64, bits) != fraction { return 9; }
+    var negative_zero f64 = -0.0;
+    if bitcast(i64, negative_zero) >= 0 { return 10; }
+    // Lang's LLVM comparisons are ordered, including !=: NaNs compare false.
+    var invalid f64 = 0.0 / 0.0;
+    if invalid == invalid || invalid != 0.0 { return 11; }
+    return 100;
+}

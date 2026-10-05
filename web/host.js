@@ -41,6 +41,14 @@ async function runLangWasm(wasmBytes, onWrite) {
 
   class ExitTrap { constructor(code) { this.code = Number(BigInt(code) & 255n); } }
 
+  const numericLibrary = typeof module !== 'undefined'
+    ? require('./numeric_host.js') : globalThis.LangNumericHost;
+  const numeric = numericLibrary.createNumericHost({
+    memory: () => instance.exports.memory,
+    cstr,
+    emit: (text, isError) => onWrite(text, isError),
+  });
+
   const env = {
     read: () => 0n,
     write: (fd, buf, count) => {
@@ -60,17 +68,10 @@ async function runLangWasm(wasmBytes, onWrite) {
     getpid: () => 1n,
     getppid: () => 0n,
     getenv: () => 0,
-    printf: (fmt, argbuf) => {
-      const dv = new DataView(instance.exports.memory.buffer);
-      let off = Number(argbuf);
-      const s = cstr(Number(fmt)).replace(/%l?[dfg]/g, (spec) => {
-        const v = spec.endsWith('d') ? dv.getBigInt64(off, true) : dv.getFloat64(off, true);
-        off += 8;
-        return String(v);
-      });
-      onWrite(s, false);
-      return BigInt(s.length);
-    },
+    printf: numeric.printfBuffer,
+    strtod: numeric.strtod,
+    fmod: numeric.fmod,
+    fmodf: numeric.fmodf,
     fork: () => -1n,
     execve: () => -1n,
     waitpid: () => -1n,

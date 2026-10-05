@@ -32,6 +32,7 @@ require "std/core"
 require "std/tok"
 include "std/parser_reader.lang"
 include "std/ast.lang"
+include "std/reader_error.lang"
 include "std/prec.lang"
 
 // All rules are c_-prefixed: bare names like program/type/block/primary would
@@ -138,16 +139,17 @@ func c_table() *PrecTable {
 // ============================================================
 
 // std/prec.lang already named the operator it refused, so this only has to stop.
-func c_checked(value *u8) *u8 {
+func c_checked(value *u8, node *PNode) *u8 {
     if value == nil {
-        eprintln("c: this expression is not in the C subset");
+        reader_error(node, "this expression is not in the C subset");
         exit(1);
     }
     return value;
 }
 
 func c_refused(what *u8, op *PNode) void {
-    eprint("c: '");
+    reader_error_prefix(op);
+    eprint("'");
     eprint(op.text);
     eprint("' ");
     eprintln(what);
@@ -205,7 +207,7 @@ func emit_expr_str(e *PNode) *u8 {
     var expr *PrecExpr = prec_expr(c_table());
     c_push_flat(expr, pnode_require(binexpr, "first"),
                 pnode_require(binexpr, "rest"), 0);
-    var base *u8 = c_checked(prec_build(expr));
+    var base *u8 = c_checked(prec_build(expr), e);
     if vec_len(terntail.children) > 0 {
         return emit_ternary(base, vec_get(terntail.children, 0));
     }
@@ -247,7 +249,8 @@ func emit_ternary(cond *u8, tt *PNode) *u8 {
 // reader bug. Name it and stop: emitting a placeholder is how a reader turns its
 // own gap into a mystery in the generated program.
 func c_unhandled(what *u8, node *PNode) *u8 {
-    eprint("c: unhandled ");
+    reader_error_prefix(node);
+    eprint("unhandled ");
     eprint(what);
     var label *u8 = pnode_branch(node);
     if label == nil {
@@ -485,15 +488,15 @@ func emit_exprstmt_from_expr(expr *PNode) *u8 {
     if at < 0 {
         var whole *PrecExpr = prec_expr(table);
         c_push_flat(whole, first, rest, 0);
-        if ntt == 0 { return c_checked(prec_build_stmt(whole)); }
-        return ast_expr_stmt(emit_ternary(c_checked(prec_build(whole)),
+        if ntt == 0 { return c_checked(prec_build_stmt(whole), expr); }
+        return ast_expr_stmt(emit_ternary(c_checked(prec_build(whole), expr),
                                           vec_get(terntail.children, 0)));
     }
 
     var last *PNode = vec_get(rest.children, at);
     var tail *PrecExpr = prec_expr(table);
     c_push_flat(tail, pnode_require(last, "right"), rest, at + 1);
-    var value *u8 = emit_ternary(c_checked(prec_build(tail)),
+    var value *u8 = emit_ternary(c_checked(prec_build(tail), expr),
                                  vec_get(terntail.children, 0));
 
     var head *PrecExpr = prec_expr(table);
@@ -506,7 +509,7 @@ func emit_exprstmt_from_expr(expr *PNode) *u8 {
     }
     prec_op(head, pnode_require(last, "op").text);
     prec_operand(head, value);
-    return c_checked(prec_build_stmt(head));
+    return c_checked(prec_build_stmt(head), expr);
 }
 
 // c_forstmt = 'for' '(' c_forinit c_expr ';' c_expr ')' c_stmt
@@ -826,7 +829,13 @@ func emit_program(prog *PNode) *u8 {
 }
 
 reader c(text *u8) *u8 {
+    reader_error_begin(text, "c");
     var t *Tokenizer = tok_new(text);
     var prog *PNode = parse_c_program(t);
+    if !tok_eof(t) { tok_note_expected(t, "end of input"); }
+    if prog == nil || !tok_eof(t) {
+        tok_print_error(t, "c");
+        exit(1);
+    }
     return emit_program(prog);
 }

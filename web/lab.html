@@ -3,24 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lang — browser compiler</title>
+<title>lang — language workshop</title>
 <style>
   :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#c9d1d9; --dim:#8b949e; --green:#7ee787; --blue:#79c0ff; --warn:#ffa657; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
-  main { max-width:1120px; margin:auto; padding:1.5rem 1rem; }
+  main { max-width:1280px; margin:auto; padding:1.5rem 1rem; }
   a { color:var(--blue); }
   h1 { color:var(--green); margin:.5rem 0 0; font-size:1.8rem; }
   p { color:var(--dim); margin:.3rem 0 1.2rem; }
   .lab { display:grid; grid-template-columns:1.35fr .65fr; border:1px solid var(--border); border-radius:7px; overflow:hidden; background:var(--panel); }
+  .pane { min-width:0; }
   .pane + .pane { border-left:1px solid var(--border); }
-  .head { height:42px; display:flex; align-items:center; justify-content:space-between; padding:0 .8rem; border-bottom:1px solid var(--border); color:var(--dim); }
-  .tools, .downloads { display:flex; align-items:center; gap:.55rem; }
-  select { max-width:112px; border:1px solid var(--border); border-radius:4px; padding:.2rem .35rem; background:var(--bg); color:var(--text); font:12px inherit; }
-  textarea, pre { width:100%; height:350px; margin:0; padding:.8rem; border:0; background:var(--panel); color:var(--text); font:13px/1.45 inherit; resize:none; overflow:auto; tab-size:4; }
-  #reader { height:314px; }
-  #custom-source { height:82px; border-bottom:1px solid var(--border); }
-  #output { height:226px; white-space:pre-wrap; }
+  .head { min-height:42px; display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.4rem .8rem; border-bottom:1px solid var(--border); color:var(--dim); }
+  .tools, .downloads { display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; }
+  select, input { border:1px solid var(--border); border-radius:4px; padding:.3rem .4rem; background:var(--bg); color:var(--text); font:inherit; }
+  #preset { max-width:190px; font-size:12px; }
+  textarea, pre { width:100%; height:350px; margin:0; padding:.8rem; border:0; background:var(--panel); color:var(--text); font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; resize:none; overflow:auto; tab-size:4; }
+  #reader { height:420px; }
+  #custom-source { height:144px; border-bottom:1px solid var(--border); }
+  .inspection { height:276px; white-space:pre-wrap; }
   details.runtime { border-top:1px solid var(--border); color:var(--dim); }
   details.runtime summary { height:36px; padding:.45rem .8rem; cursor:pointer; font-size:.85rem; }
   #runtime { height:150px; border-top:1px solid var(--border); }
@@ -28,27 +30,83 @@
   pre { white-space:pre; }
   button { border:0; border-radius:5px; padding:.3rem .8rem; color:#04260f; background:var(--green); font:inherit; font-weight:bold; cursor:pointer; }
   button:disabled { opacity:.5; cursor:wait; }
+  button.secondary { border:1px solid var(--border); background:var(--panel); color:var(--blue); font-weight:normal; }
+  .workspace-bar { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin:1rem 0 .6rem; }
+  .workspace-bar strong { color:var(--green); max-width:100%; overflow-wrap:anywhere; }
+  #draft-status { color:var(--dim); font-size:.8rem; margin-left:auto; }
+  .pipeline { list-style:none; display:grid; grid-template-columns:repeat(4,1fr); padding:0; margin:.8rem 0; border:1px solid var(--border); border-radius:6px; }
+  .pipeline li { padding:.6rem .8rem; color:var(--dim); font-size:.8rem; }
+  .pipeline li + li { border-left:1px solid var(--border); }
+  .pipeline li[data-state="running"] { color:var(--blue); }
+  .pipeline li[data-state="done"] { color:var(--green); }
+  .pipeline li[data-state="error"] { color:var(--warn); }
+  .pipeline small { display:block; color:inherit; font-size:.7rem; }
+  .inspection-tabs { display:flex; gap:.4rem; }
+  .inspection-tabs button { padding:.2rem .4rem; background:transparent; color:var(--dim); font-weight:normal; font-size:.75rem; }
+  .inspection-tabs button[aria-selected="true"] { color:var(--green); border-bottom:1px solid var(--green); border-radius:0; }
+  #error-help { border-top:1px solid var(--border); padding:.7rem .8rem; color:var(--warn); font-size:.8rem; }
+  #error-help p { margin:0 0 .4rem; color:inherit; }
+  #diagnostic-picker { max-width:100%; font-size:.8rem; }
+  .guide { margin:.7rem 0 1rem; padding:.8rem 1rem; border:1px solid var(--border); border-radius:6px; color:var(--dim); }
+  .guide summary { color:var(--blue); cursor:pointer; }
+  .guide ol { padding-left:1.5rem; }
+  .guide li { margin:.5rem 0; }
+  .guide code { color:var(--green); }
+  .guide button { font-size:.75rem; margin-left:.4rem; }
+  #preset-note { font-size:.8rem; margin:.4rem 0; }
+  dialog { max-width:440px; width:calc(100% - 2rem); padding:1.2rem; border:1px solid var(--border); border-radius:8px; background:var(--panel); color:var(--text); }
+  dialog::backdrop { background:#000a; }
+  dialog h2 { color:var(--green); font-size:1.2rem; margin:0 0 .8rem; }
+  dialog label { display:block; margin:.7rem 0; }
+  dialog label input, dialog label select { display:block; width:100%; margin-top:.3rem; }
+  dialog .tools { justify-content:flex-end; margin-top:1rem; }
   .download { font-size:.78rem; text-decoration:none; }
   .file-action { color:var(--blue); cursor:pointer; text-decoration:underline; }
   .ok { color:var(--green); } .bad { color:var(--warn); }
   .note { font-size:.85rem; margin-top:.8rem; }
-  @media (max-width:760px) { .lab { grid-template-columns:1fr; } .pane + .pane { border-left:0; border-top:1px solid var(--border); } #reader { height:264px; } }
+  @media (max-width:760px) { .lab { grid-template-columns:1fr; } .pane + .pane { border-left:0; border-top:1px solid var(--border); } #reader { height:350px; } .head { flex-wrap:wrap; } .pipeline { grid-template-columns:repeat(2,1fr); } .pipeline li:nth-child(3) { border-left:0; border-top:1px solid var(--border); } .pipeline li:nth-child(4) { border-top:1px solid var(--border); } #draft-status { margin-left:0; width:100%; } }
 </style>
 </head>
 <body><main>
   <a href="./">&larr; lang</a>
   <h1>write a language</h1>
-  <p>A compiler compiler turns your grammar and lowering into a compiler. Edit either; everything runs here.</p>
+  <p>Give your language a grammar, turn its parse tree into shared AST, then run the compiled program. Your work stays in this browser.</p>
+
+  <div class="workspace-bar">
+    <strong id="workspace-title">my reader</strong>
+    <button id="new-language" class="secondary" disabled>new language</button>
+    <button id="fork-language" class="secondary" disabled>fork this reader</button>
+    <span id="draft-status" role="status">draft loading…</span>
+  </div>
+  <details id="starter-guide" class="guide" open>
+    <summary>Make it yours in three edits</summary>
+    <ol>
+      <li>Change the keyword <code id="grammar-keyword">'answer'</code> in the grammar and in your source. <button id="find-grammar" class="secondary">find grammar</button></li>
+      <li>The capture <code>value:number</code> becomes <code>pnode_require(tree, "value")</code>. Open <b>parse tree</b> after a run to see its source spans.</li>
+      <li>Change the meaning: replace <code>ast_number(value.text)</code> with <code>ast_mul(ast_number(value.text), ast_number("2"))</code>. <button id="find-lowering" class="secondary">find lowering</button></li>
+    </ol>
+    <div>This starter scans integer <code>number</code> tokens and returns <code>i64</code>. Other literals and layouts can use reader-defined token streams.</div>
+    <div>Keep going: <a href="readers.html">reader toolkit and grammar examples</a> · <a href="science.html">compile an energy model</a>. Run with ⌘/Ctrl+Enter; export your workspace with ⌘/Ctrl+S. Tab indents, Shift+Tab outdents.</div>
+  </details>
+  <p id="preset-note">A small grammar and a complete lowering function, ready to change.</p>
+  <ol class="pipeline" aria-label="Compilation stages">
+    <li id="stage-reader-build" data-state="pending">1. build reader<small>grammar + lowering → Wasm</small></li>
+    <li id="stage-reader-run" data-state="pending">2. read source<small>your syntax → shared AST</small></li>
+    <li id="stage-ast-compile" data-state="pending">3. compile AST<small>shared AST → program Wasm</small></li>
+    <li id="stage-program-run" data-state="pending">4. run program<small>result + printed output</small></li>
+  </ol>
 
   <div class="lab">
     <section class="pane">
       <div class="head"><span>reader.lang</span><span class="tools">
-        <select id="preset" aria-label="Reader workspace">
+        <select id="preset" aria-label="Reader workspace" disabled>
           <option value="workspace">my reader</option>
+          <optgroup id="draft-options" label="your languages"></optgroup>
           <optgroup label="examples">
             <option value="starter">starter grammar</option>
             <option value="tiny">tiny</option>
             <option value="calc">calculator</option>
+            <option value="workshop">statements + recovery</option>
             <option value="c">C subset</option>
             <option value="forth">Forth</option>
             <option value="minilisp">Minilisp</option>
@@ -57,8 +115,9 @@
           </optgroup>
         </select>
         <button id="compile" disabled>build + run</button>
+        <button id="stop-build" class="secondary" hidden>stop</button>
       </span></div>
-      <textarea id="reader" aria-label="Reader source" spellcheck="false">include "std/parser_runtime.lang"
+      <textarea id="reader" aria-label="Reader source" spellcheck="false" readonly>include "std/parser_runtime.lang"
 include "std/ast.lang"
 #parser{
     answer_program = 'answer' value:number
@@ -66,9 +125,9 @@ include "std/ast.lang"
 reader read(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
     var tree *PNode = parse_answer_program(tokens);
-    if tree == nil || !tok_eof(tokens) {
-        tok_print_error(tokens, "source.read"); return nil;
-    }
+    if tree == nil { tok_print_error(tokens, "source.read"); return nil; }
+    if !tok_eof(tokens) { tok_note_expected(tokens, "end of input"); tok_print_error(tokens, "source.read"); return nil; }
+    pnode_dump(tree);
     var value *PNode = pnode_require(tree, "value");
     if value == nil { return nil; }
     return ast_main_i64(ast_span(ast_number(value.text), value.start, value.end));
@@ -76,30 +135,51 @@ reader read(text *u8) *u8 {
 </textarea>
       <details class="runtime">
         <summary id="runtime-label">target runtime (optional)</summary>
-        <textarea id="runtime" aria-label="Target runtime source" spellcheck="false" placeholder="Lang helpers called by the AST your reader emits"></textarea>
+        <textarea id="runtime" aria-label="Target runtime source" spellcheck="false" readonly placeholder="Lang helpers called by the AST your reader emits"></textarea>
       </details>
     </section>
     <section class="pane">
       <div class="head"><span>source.read</span><span id="status" aria-live="polite">loading…</span></div>
-      <textarea id="custom-source" aria-label="Source in your language" spellcheck="false">answer 42</textarea>
-      <div class="head"><span>result</span><span class="downloads">
+      <textarea id="custom-source" aria-label="Source in your language" spellcheck="false" readonly>answer 42</textarea>
+      <div class="head"><span class="inspection-tabs" role="tablist" aria-label="Inspect compilation">
+        <button id="tab-output" role="tab" aria-selected="true" aria-controls="output" tabindex="0">result</button>
+        <button id="tab-ast" role="tab" aria-selected="false" aria-controls="ast-output" tabindex="-1">AST</button>
+        <button id="tab-tree" role="tab" aria-selected="false" aria-controls="tree-output" tabindex="-1">parse tree</button>
+      </span><span class="downloads">
         <a class="download" id="download-reader" hidden>reader ↓</a>
         <a class="download" id="download-ast" hidden>AST ↓</a>
         <a class="download" id="download-program" hidden>program ↓</a>
       </span></div>
-      <pre id="output">Define a reader, then build + run.</pre>
+      <pre id="output" class="inspection" role="tabpanel" aria-labelledby="tab-output">Build + run the starter. Then change its grammar or meaning.</pre>
+      <pre id="ast-output" class="inspection" role="tabpanel" aria-labelledby="tab-ast" hidden>Run a reader to inspect the full AST.</pre>
+      <pre id="tree-output" class="inspection" role="tabpanel" aria-labelledby="tab-tree" hidden>The starter calls pnode_dump(tree). Add that call after a successful parse in another reader to inspect its tree here.</pre>
+      <div id="error-help" hidden><p id="error-hint"></p><select id="diagnostic-picker" aria-label="Diagnostic location" hidden></select> <button id="jump-error" class="secondary" hidden>jump to error</button></div>
     </section>
   </div>
-  <p class="note">local: reader → AST → wasm · <a id="save-workspace">save workspace</a> · <label class="file-action">open workspace<input id="open-workspace" type="file" accept=".json,application/json" hidden></label></p>
+  <p class="note">local: reader → AST → wasm · <a id="save-workspace" href="#">export workspace</a> · <label class="file-action">import workspace<input id="open-workspace" type="file" accept=".json,application/json" hidden disabled></label> · drafts save automatically in this browser · Esc stops a run; runs stop after 30 seconds. Source, generated AST and output are each limited to 1 MiB.</p>
+  <dialog id="language-dialog">
+    <form id="language-form">
+      <h2>Create a language</h2>
+      <label>Language name<input id="language-name" required maxlength="80" placeholder="My language" autocomplete="off"></label>
+      <label>Start from<select id="language-base"><option value="starter">small grammar + lowering</option><option value="current">current reader</option></select></label>
+      <label id="keyword-label">First keyword<input id="language-keyword" required value="answer" maxlength="32" pattern="[A-Za-z_][A-Za-z0-9_]*" title="Use a word containing letters, digits or underscores" autocomplete="off"></label>
+      <p>Your existing drafts stay available in the reader menu.</p>
+      <div class="tools"><button id="cancel-language" type="button" class="secondary">cancel</button><button type="submit">create language</button></div>
+    </form>
+  </dialog>
 </main>
-<script src="compiler_host.js?v=workbench10"></script>
-<script src="program_host.js?v=workbench10"></script>
-<script src="editor.js?v=workbench10"></script>
+<script src="numeric_host.js?v=workbench11"></script>
+<script src="compiler_host.js?v=workbench11"></script>
+<script src="program_host.js?v=workbench11"></script>
+<script src="editor.js?v=workbench11"></script>
 <script>
 let compilerBytes;
 let stdlibFiles;
-let cachedReaderSource;
-let cachedReaderProgram;
+let authoringWorker;
+let activeBuild;
+let buildSequence = 0;
+let buildTimer;
+let workspaceLoaded = false;
 let activePreset = 'workspace';
 let saveTimer;
 let readerDownloadUrl;
@@ -107,6 +187,7 @@ let astDownloadUrl;
 let programDownloadUrl;
 let workspaceDownloadUrl;
 const button = document.getElementById('compile');
+const stopButton = document.getElementById('stop-build');
 const preset = document.getElementById('preset');
 const reader = document.getElementById('reader');
 const runtime = document.getElementById('runtime');
@@ -119,43 +200,77 @@ const downloadAst = document.getElementById('download-ast');
 const downloadProgram = document.getElementById('download-program');
 const saveWorkspace = document.getElementById('save-workspace');
 const openWorkspace = document.getElementById('open-workspace');
+const astOutput = document.getElementById('ast-output');
+const treeOutput = document.getElementById('tree-output');
+const draftStatus = document.getElementById('draft-status');
+const workspaceTitle = document.getElementById('workspace-title');
+const draftOptions = document.getElementById('draft-options');
+const presetNote = document.getElementById('preset-note');
+const errorHelp = document.getElementById('error-help');
+const errorHint = document.getElementById('error-hint');
+const jumpError = document.getElementById('jump-error');
+const diagnosticPicker = document.getElementById('diagnostic-picker');
+const languageDialog = document.getElementById('language-dialog');
+const languageName = document.getElementById('language-name');
+const languageBase = document.getElementById('language-base');
+const languageKeyword = document.getElementById('language-keyword');
+const libraryKey = 'lang.lab.library.v1';
+const workspaceFileLimit = 20 * 1024 * 1024;
+let library = { version: 1, active: 'workspace', drafts: {} };
+let storageNotice = '';
 const starterReader = reader.value;
+const stageIds = { 'reader build': 'reader-build', 'reader run': 'reader-run', 'AST compile': 'ast-compile', 'program run': 'program-run' };
 
 const presets = {
-  workspace: { source: 'answer 42' },
-  starter: { source: 'answer 42' },
-  tiny: { reader: 'example/tiny/tiny.lang', source: 'answer 42' },
-  calc: { reader: 'example/calc/calc.lang', source: 'answer 1 + 2 * 3' },
+  workspace: { title: 'my reader', source: 'answer 42' },
+  starter: { title: 'starter grammar', source: 'answer 42' },
+  tiny: { title: 'tiny', reader: 'example/tiny/tiny.lang', source: 'answer 42', note: 'A handwritten tokenizer example. Fork it to keep your own version; the generated starter gives more complete parse diagnostics.' },
+  calc: { title: 'calculator', reader: 'example/calc/calc.lang', source: 'answer 1 + 2 * 3', note: 'An editable precedence ladder: + and − bind below multiplication. Write binary minus with spaces (1 - 2); the shared scanner treats -2 as a signed number. This reader builds expression AST directly rather than a PNode tree.' },
+  workshop: { title: 'statements + recovery', reader: 'example/workshop/workshop.lang', source: 'add 20;\nadd 22;', note: 'A language with repeated statements and bounded recovery. Try “add ;” and “add word;” on separate lines: both diagnostics appear, and no partial program runs.' },
   c: { reader: 'example/c/c.lang', source: 'int main() { return 42; }' },
   forth: { reader: 'example/forth/forth.lang', source: ': main ( -- n ) 42 ;' },
   minilisp: {
     reader: 'example/minilisp/minilisp.lang',
     source: '(defun main () 42)',
     runtime: 'example/minilisp/lisp_runtime.lang',
+    note: 'This reader uses boxed Lisp values and an included runtime. main() returns a pointer to a Lisp value; the result pane shows that raw return value. Inspect the AST or print through the runtime to see language-level values.',
   },
   minipy: { reader: 'example/minipy/minipy.lang', source: 'def main():\n    return 42\n' },
-  flow: { reader: 'example/flow/flow.lang', source: 'func main() { return 42; }' },
+  flow: { reader: 'example/flow/flow.lang', source: 'func main() { return 42; }', note: 'This example starts with an ordinary function. Generator support depends on the compiler backend; unsupported constructs produce compile diagnostics.' },
 };
 
+// Reopen complete local drafts even when compiler assets are offline. Editing
+// stays disabled until initialization so an early keystroke cannot replace a
+// draft library that has not been restored yet.
+restoreLibrary();
+refreshDraftOptions();
+const initialPreset = library.active || storageGet('lang.lab.active');
+if (initialPreset && (Object.hasOwn(presets, initialPreset) || Object.hasOwn(library.drafts, initialPreset)) &&
+    (library.drafts[initialPreset] || ['reader', 'source', 'runtime'].every(field => storageGet(`lang.lab.${initialPreset}.${field}`) !== null))) {
+  loadPreset(initialPreset);
+}
+status.textContent = 'loading compiler…';
+
 Promise.all([
-  fetch('compiler.wasm?v=workbench10').then(r => {
+  fetch('compiler.wasm?v=workbench11').then(r => {
     if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
     return r.arrayBuffer();
   }),
-  fetch('stdlib.json?v=workbench10').then(r => {
+  fetch('stdlib.json?v=workbench11').then(r => {
     if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
     return r.json();
   }),
 ]).then(([compiler, stdlib]) => {
   compilerBytes = compiler;
   stdlibFiles = stdlib;
-  const savedPreset = storageGet('lang.lab.active');
-  loadPreset(savedPreset && presets[savedPreset] ? savedPreset : 'workspace');
-  button.disabled = false;
+  const savedPreset = library.active || storageGet('lang.lab.active');
+  loadPreset(savedPreset && (Object.hasOwn(presets, savedPreset) || Object.hasOwn(library.drafts, savedPreset)) ? savedPreset : 'workspace');
+  setBuilding(false);
   status.innerHTML = '<span class="ok">ready</span>';
+  if (storageNotice) output.textContent = storageNotice;
 }).catch(error => {
   status.innerHTML = '<span class="bad">load failed</span>';
-  output.textContent = String(error);
+  output.textContent = `${String(error)}\nReload to retry. Saved local drafts remain available; a reopened draft can still be exported.`;
 });
 
 function storageGet(key) {
@@ -163,10 +278,55 @@ function storageGet(key) {
 }
 
 function storageSet(key, value) {
-  try { localStorage.setItem(key, value); } catch (_) {}
+  try { localStorage.setItem(key, value); return true; } catch (_) { return false; }
+}
+
+function validWorkspace(data) {
+  return data && typeof data === 'object' &&
+    typeof data.reader === 'string' && typeof data.source === 'string' &&
+    typeof data.runtime === 'string' &&
+    (data.title === undefined || (typeof data.title === 'string' && data.title.length <= 80));
+}
+
+function parseLibrary(raw) {
+  const data = JSON.parse(raw);
+  if (!data || data.version !== 1 || !data.drafts || typeof data.drafts !== 'object' ||
+      Array.isArray(data.drafts) || typeof data.active !== 'string') throw new Error('invalid draft library');
+  for (const [id, draft] of Object.entries(data.drafts)) {
+    if (!(Object.hasOwn(presets, id) || /^draft:[A-Za-z0-9-]+$/.test(id)) ||
+        !validWorkspace(draft) || typeof draft.title !== 'string') throw new Error('invalid saved draft');
+  }
+  return data;
+}
+
+function restoreLibrary() {
+  const raw = storageGet(libraryKey);
+  if (raw !== null) {
+    try { library = parseLibrary(raw); return; } catch (_) {}
+    try {
+      library = parseLibrary(storageGet(`${libraryKey}.backup`));
+      storageNotice = 'Recovered your draft library from its previous save. Export a workspace to keep a separate copy.';
+      return;
+    } catch (_) {
+      storageNotice = 'Saved drafts could not be read. Any older per-reader drafts are still available; you can also import an exported workspace.';
+    }
+  }
+  library.active = storageGet('lang.lab.active') || 'workspace';
+}
+
+function refreshDraftOptions() {
+  draftOptions.replaceChildren();
+  for (const [id, draft] of Object.entries(library.drafts)) {
+    if (!id.startsWith('draft:')) continue;
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = draft.title;
+    draftOptions.append(option);
+  }
 }
 
 function presetValue(name, field) {
+  if (library.drafts[name]) return library.drafts[name][field];
   const saved = storageGet(`lang.lab.${name}.${field}`);
   if (saved !== null) return saved;
   const spec = presets[name];
@@ -177,13 +337,29 @@ function presetValue(name, field) {
 }
 
 function saveDraft() {
-  storageSet(`lang.lab.${activePreset}.reader`, reader.value);
-  storageSet(`lang.lab.${activePreset}.source`, customSource.value);
-  storageSet(`lang.lab.${activePreset}.runtime`, runtime.value);
+  if (!workspaceLoaded) return false;
+  clearTimeout(saveTimer);
+  const old = library.drafts[activePreset];
+  library.drafts[activePreset] = {
+    title: old?.title || presets[activePreset]?.title || workspaceTitle.textContent,
+    reader: reader.value, source: customSource.value, runtime: runtime.value,
+  };
+  library.active = activePreset;
+  const previous = storageGet(libraryKey);
+  // One record keeps reader, source and runtime from different edits together.
+  if (previous !== null) {
+    try { parseLibrary(previous); storageSet(`${libraryKey}.backup`, previous); } catch (_) {}
+  }
+  const saved = storageSet(libraryKey, JSON.stringify(library));
   storageSet('lang.lab.active', activePreset);
+  draftStatus.textContent = saved ? 'saved in this browser' : 'autosave unavailable · export to keep a copy';
+  draftStatus.className = saved ? '' : 'bad';
+  return saved;
 }
 
 function queueSave() {
+  invalidateResults();
+  draftStatus.textContent = 'saving…';
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveDraft, 150);
 }
@@ -197,7 +373,17 @@ function loadPreset(name) {
   runtimeLabel.textContent = runtime.value.trim()
     ? 'target runtime (included)'
     : 'target runtime (optional)';
+  workspaceLoaded = true;
   storageSet('lang.lab.active', name);
+  workspaceTitle.textContent = library.drafts[name]?.title || presets[name]?.title || preset.selectedOptions[0]?.textContent;
+  presetNote.textContent = presets[name]?.note || (presets[name]?.runtime
+    ? 'This reader emits calls into the included target runtime. Both are part of your workspace.'
+    : 'Grammar captures identify source nodes; lowering gives them meaning. The starter prints its real parse tree for inspection.');
+  document.getElementById('starter-guide').open = reader.value.includes('answer_program');
+  const starterKeyword = reader.value.match(/answer_program\s*=\s*'([A-Za-z_][A-Za-z0-9_]*)'/);
+  document.getElementById('grammar-keyword').textContent = `'${starterKeyword?.[1] || 'answer'}'`;
+  draftStatus.textContent = library.drafts[name] ? 'saved draft reopened' : 'ready · edits save automatically';
+  invalidateResults();
 }
 
 preset.onchange = () => {
@@ -216,11 +402,99 @@ installCodeEditor(reader, queueSave);
 installCodeEditor(customSource, queueSave);
 installCodeEditor(runtime, queueSave);
 
-saveWorkspace.onclick = () => {
+function showInspection(name, focus = false) {
+  for (const view of ['output', 'ast', 'tree']) {
+    const tab = document.getElementById(`tab-${view}`);
+    tab.setAttribute('aria-selected', String(view === name));
+    tab.tabIndex = view === name ? 0 : -1;
+    document.getElementById(view === 'output' ? 'output' : `${view}-output`).hidden = view !== name;
+    if (focus && view === name) tab.focus();
+  }
+}
+for (const [index, name] of ['output', 'ast', 'tree'].entries()) {
+  const tab = document.getElementById(`tab-${name}`);
+  tab.onclick = () => showInspection(name);
+  tab.onkeydown = event => {
+    const views = ['output', 'ast', 'tree'];
+    let next;
+    if (event.key === 'ArrowRight') next = (index + 1) % views.length;
+    if (event.key === 'ArrowLeft') next = (index + views.length - 1) % views.length;
+    if (event.key === 'Home') next = 0;
+    if (event.key === 'End') next = views.length - 1;
+    if (next === undefined) return;
+    event.preventDefault();
+    showInspection(views[next], true);
+  };
+}
+
+function selectReaderPart(marker) {
+  const start = reader.value.indexOf(marker);
+  if (start < 0) {
+    presetNote.textContent = `This reader does not use ${marker}. Fork the starter for the guided grammar exercise.`;
+    return;
+  }
+  reader.focus();
+  reader.setSelectionRange(start, start + marker.length);
+}
+document.getElementById('find-grammar').onclick = () => selectReaderPart('#parser{');
+document.getElementById('find-lowering').onclick = () => selectReaderPart('ast_number(value.text)');
+
+function openLanguageDialog(base) {
+  languageName.value = '';
+  languageBase.value = base;
+  updateKeywordVisibility();
+  languageDialog.showModal();
+  languageName.focus();
+}
+function updateKeywordVisibility() {
+  document.getElementById('keyword-label').hidden = languageBase.value === 'current';
+  languageKeyword.disabled = languageBase.value === 'current';
+}
+document.getElementById('new-language').onclick = () => openLanguageDialog('starter');
+document.getElementById('fork-language').onclick = () => openLanguageDialog('current');
+document.getElementById('cancel-language').onclick = () => languageDialog.close();
+languageBase.onchange = updateKeywordVisibility;
+
+function addDraft(data) {
+  saveDraft();
+  const id = `draft:${crypto.randomUUID()}`;
+  library.drafts[id] = data;
+  refreshDraftOptions();
+  loadPreset(id);
+  saveDraft();
+  return id;
+}
+document.getElementById('language-form').onsubmit = event => {
+  event.preventDefault();
+  const title = languageName.value.trim();
+  if (!title) { languageName.setCustomValidity('Give your language a name.'); languageName.reportValidity(); return; }
+  languageName.setCustomValidity('');
+  const base = languageBase.value === 'current';
+  const keyword = languageKeyword.value;
+  addDraft({
+    title,
+    reader: base ? reader.value : starterReader.replace("'answer'", `'${keyword}'`),
+    source: base ? customSource.value : `${keyword} 42`,
+    runtime: base ? runtime.value : '',
+  });
+  languageDialog.close();
+  output.textContent = `${title} is ready. Build + run, then change the grammar or lowering.`;
+  reader.focus();
+};
+languageName.oninput = () => languageName.setCustomValidity('');
+
+saveWorkspace.onclick = event => {
+  if (!workspaceLoaded) {
+    event.preventDefault();
+    output.textContent = 'The workspace is still loading. Existing drafts remain saved; reload to retry if compiler assets failed to load.';
+    return;
+  }
+  saveDraft();
   if (workspaceDownloadUrl) URL.revokeObjectURL(workspaceDownloadUrl);
   const data = JSON.stringify({
     format: 'lang-reader-workspace',
     version: 1,
+    title: workspaceTitle.textContent,
     reader: reader.value,
     source: customSource.value,
     runtime: runtime.value,
@@ -229,74 +503,90 @@ saveWorkspace.onclick = () => {
     new Blob([`${data}\n`], { type: 'application/json' }),
   );
   saveWorkspace.href = workspaceDownloadUrl;
-  saveWorkspace.download = 'reader.lang-workspace.json';
+  saveWorkspace.download = `${workspaceTitle.textContent.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-|-$/g, '') || 'reader'}.lang-workspace.json`;
 };
 
 openWorkspace.onchange = async () => {
   const file = openWorkspace.files[0];
   if (!file) return;
+  status.textContent = 'opening…';
   try {
-    if (file.size > 1024 * 1024) throw new Error('workspace is larger than 1 MiB');
+    // JSON can use six bytes to escape one source byte. This container cap
+    // accommodates all three valid 1 MiB fields plus names and formatting.
+    if (file.size > workspaceFileLimit) throw new Error('workspace JSON is larger than 20 MiB');
     const data = JSON.parse(await file.text());
-    if (data.format !== 'lang-reader-workspace' || data.version !== 1 ||
-        typeof data.reader !== 'string' || typeof data.source !== 'string' ||
-        typeof data.runtime !== 'string') {
+    if (data.format !== 'lang-reader-workspace' || data.version !== 1 || !validWorkspace(data)) {
       throw new Error('not a Lang reader workspace');
     }
-    activePreset = 'workspace';
-    preset.value = activePreset;
-    reader.value = data.reader;
-    customSource.value = data.source;
-    runtime.value = data.runtime;
-    runtimeLabel.textContent = runtime.value.trim()
-      ? 'target runtime (included)'
-      : 'target runtime (optional)';
-    saveDraft();
-    clearDownloads();
+    for (const field of ['reader', 'source', 'runtime']) {
+      if (new TextEncoder().encode(data[field]).length > 1024 * 1024) {
+        throw new Error(`${field} exceeds the browser workspace limit of 1 MiB`);
+      }
+    }
+    addDraft({ title: data.title?.trim() || 'imported reader', reader: data.reader, source: data.source, runtime: data.runtime });
     output.textContent = 'Workspace loaded. Build + run when ready.';
     status.innerHTML = '<span class="ok">loaded</span>';
   } catch (error) {
     output.textContent = String(error).replace(/^Error: /, '');
     status.innerHTML = '<span class="bad">open failed</span>';
+    showInspection('output');
   }
   openWorkspace.value = '';
 };
 
-function readCString(instance, pointer) {
-  const memory = new Uint8Array(instance.exports.memory.buffer);
-  const start = Number(pointer);
-  let end = start;
-  while (end < memory.length && memory[end] !== 0) end++;
-  return new TextDecoder().decode(memory.subarray(start, end));
+function diagnosticMatches(message) {
+  return [...message.matchAll(/(?:^|\n)(reader\.lang|#parser|source\.read|runtime\.lang|[A-Za-z_][A-Za-z0-9_-]*):(\d+):(\d+):\s*(?:error|warning|expected)[^\n]*/g)];
 }
-
-function readerName(source) {
-  const matches = [...source.matchAll(/^\s*reader\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm)];
-  if (!matches.length) throw new Error('define a reader with `reader name(text *u8)`');
-  return matches[matches.length - 1][1];
-}
-
-function focusDiagnostic(message) {
-  const match = message.match(
-    /(?:^|\n)(reader\.lang|source\.read|runtime\.lang):(\d+):(\d+):\s*(?:error|warning)/,
-  );
-  if (!match) return;
-  const target = match[1] === 'reader.lang'
+function focusDiagnostic(message, index = 0) {
+  const match = diagnosticMatches(message)[index];
+  if (!match) return false;
+  const target = match[1] === 'reader.lang' || match[1] === '#parser'
     ? reader
-    : match[1] === 'source.read' ? customSource : runtime;
+    : match[1] === 'runtime.lang' ? runtime : customSource;
   if (target === runtime) target.closest('details').open = true;
-  const line = Number(match[2]);
-  const column = Number(match[3]);
-  const lines = target.value.split('\n');
-  let start = 0;
-  for (let i = 1; i < line && i <= lines.length; i++) start += lines[i - 1].length + 1;
-  start += Math.max(0, column - 1);
-  start = Math.min(start, target.value.length);
-  let end = start;
-  while (end < target.value.length && /[A-Za-z0-9_]/.test(target.value[end])) end++;
-  if (end === start) end = Math.min(start + 1, target.value.length);
+  let line = Number(match[2]);
+  let column = Number(match[3]);
+  // Generated-parser diagnostics use lines within the grammar body.
+  if (match[1] === '#parser') {
+    const grammars = [...reader.value.matchAll(/#parser\s*\{/g)];
+    // The compiler's #parser label has no block identity. Never select a
+    // plausible location in the wrong block when more than one is present.
+    if (grammars.length !== 1) return false;
+    const opening = grammars[0].index + grammars[0][0].length - 1;
+    if (line === 1) {
+      const rowStart = reader.value.lastIndexOf('\n', opening) + 1;
+      column += new TextEncoder().encode(reader.value.slice(rowStart, opening + 1)).length;
+    }
+    line += reader.value.slice(0, opening + 1).split('\n').length - 1;
+  }
+  const { start, end } = diagnosticSelection(target.value, line, column);
   target.focus();
   target.setSelectionRange(start, end);
+  return true;
+}
+
+function stageState(phase, state, detail) {
+  const stage = document.getElementById(`stage-${stageIds[phase]}`);
+  stage.dataset.state = state;
+  if (detail) stage.querySelector('small').textContent = detail;
+}
+function invalidateResults() {
+  clearDownloads();
+  for (const [phase, id] of Object.entries(stageIds)) stageState(phase, 'pending', {
+    'reader-build': 'grammar + lowering → Wasm', 'reader-run': 'your syntax → shared AST',
+    'ast-compile': 'shared AST → program Wasm', 'program-run': 'result + printed output',
+  }[id]);
+  output.textContent = 'Build + run to compile your current edits.';
+  astOutput.textContent = 'Run a reader to inspect the full AST.';
+  treeOutput.textContent = 'Call pnode_dump(tree) after a successful parse to inspect the real PNode tree here.';
+  errorHelp.hidden = true;
+  status.innerHTML = '<span class="ok">ready</span>';
+  showInspection('output');
+}
+function setBuilding(building) {
+  button.disabled = building;
+  for (const field of [reader, customSource, runtime]) field.readOnly = building;
+  for (const id of ['preset', 'new-language', 'fork-language', 'open-workspace']) document.getElementById(id).disabled = building;
 }
 
 function clearDownloads() {
@@ -319,111 +609,147 @@ function offerDownload(anchor, bytes, name, type = 'application/wasm') {
   return url;
 }
 
-async function compile(args, files) {
-  const result = await runLangCompiler(
-    compilerBytes, args, files, undefined, { LANGBE: 'wasm' },
-  );
-  if (result.exit !== 0) {
-    throw new Error(result.stderr || result.stdout || `compiler exit ${result.exit}`);
+function failBuild(phase, message) {
+  output.textContent = message;
+  showInspection('output');
+  jumpError.hidden = !focusDiagnostic(message);
+  const diagnostics = diagnosticMatches(message);
+  diagnosticPicker.replaceChildren();
+  for (const [index, diagnostic] of diagnostics.entries()) {
+    const option = document.createElement('option');
+    option.value = String(index);
+    option.textContent = diagnostic[0].trim();
+    diagnosticPicker.append(option);
   }
-  return result;
+  diagnosticPicker.hidden = diagnostics.length < 2;
+  diagnosticPicker.onchange = () => focusDiagnostic(message, Number(diagnosticPicker.value));
+  jumpError.onclick = () => focusDiagnostic(message, Number(diagnosticPicker.value || 0));
+  errorHelp.hidden = false;
+  errorHint.textContent = {
+    'reader build': 'Your reader is a Lang program. Check its grammar declarations and lowering code. Some type errors identify the containing function; the program has not read your custom source yet.',
+    'reader run': 'Your reader rejected this source. Check the expected token at the highlighted location, or inspect the reader log for a lowering error.',
+    'AST compile': 'The reader produced AST, but the kernel rejected it. Inspect the full AST and check its types, function calls and source spans.',
+    'program run': 'The compiled program failed while running. Check its inputs, runtime helpers and printed diagnostics.',
+  }[phase];
+  if (message.includes('non-left-recursive rule')) {
+    errorHint.textContent += ' Consume a token before recursing, or parse a flat operator sequence and resolve it with std/prec.lang.';
+  } else if (message.includes('expected defined rule')) {
+    errorHint.textContent += ' Define the referenced grammar rule, or use a built-in token such as number, symbol or string.';
+  } else if (message.includes('capture name used once per branch')) {
+    errorHint.textContent += ' Use a distinct capture name per branch. Capture a repetition once as items:rule* and read the captured list’s children.';
+  }
+  if (message.includes('#parser:') && [...reader.value.matchAll(/#parser\s*\{/g)].length !== 1) {
+    errorHint.textContent += ' Grammar coordinates are relative to a #parser block. This reader has multiple blocks, so automatic selection is unavailable.';
+  }
+  stageState(phase, 'error');
+  status.innerHTML = `<span class="bad">${phase} failed</span>`;
 }
 
-button.onclick = async () => {
-  if (!compilerBytes || !stdlibFiles) return;
-  button.disabled = true;
-  status.textContent = 'building reader…';
-  output.textContent = '';
+function finishBuild() {
+  clearTimeout(buildTimer);
+  activeBuild = undefined;
+  stopButton.hidden = true;
+  setBuilding(false);
+}
+
+function resetWorker() {
+  if (authoringWorker) authoringWorker.terminate();
+  authoringWorker = undefined;
+}
+
+function stopBuild(message = 'Stopped. Your edits are safe; build again when ready.') {
+  if (!activeBuild) return;
+  const phase = activeBuild.phase;
+  resetWorker();
   clearDownloads();
-  const started = performance.now();
-  let phase = 'reader build';
-  try {
-    const name = readerName(reader.value);
-    let readerProgram = cachedReaderProgram;
-    if (!readerProgram || cachedReaderSource !== reader.value) {
-      const harness = `include "std/core.lang"
-${reader.value}
-func main() *u8 {
-    var text *u8 = alloc(4194304);
-    var length i64 = 0;
-    var chunk i64 = file_read(0, text, 4194303);
-    while chunk > 0 {
-        length = length + chunk;
-        if length >= 4194303 { chunk = 0; }
-        else { chunk = file_read(0, text + length, 4194303 - length); }
-    }
-    if chunk < 0 { return nil; }
-    *(text + length) = 0;
-    return ${name}(text);
+  output.textContent = message;
+  showInspection('output');
+  stageState(phase, 'error', 'stopped · worker released');
+  status.innerHTML = '<span class="bad">stopped</span>';
+  finishBuild();
 }
-`;
-      const readerBuild = await compile(
-        ['reader.lang', '-o', 'reader.wasm'],
-        { ...stdlibFiles, 'reader.lang': harness },
-      );
-      readerProgram = readerBuild.files.get('reader.wasm');
-      if (!readerProgram) throw new Error('reader compiler wrote no module');
-      cachedReaderSource = reader.value;
-      cachedReaderProgram = readerProgram;
-    }
-    readerDownloadUrl = offerDownload(downloadReader, readerProgram, `${name}-reader.wasm`);
+stopButton.onclick = () => stopBuild();
 
-    phase = 'reader run';
-    status.textContent = `${phase}…`;
-    const readerRun = await runLangProgram(readerProgram, undefined, customSource.value);
-    if (readerRun.value === 0n) {
-      throw new Error(readerRun.stderr || readerRun.stdout || 'reader returned nil');
+function getWorker() {
+  if (authoringWorker) return authoringWorker;
+  authoringWorker = new Worker('lab_worker.js?v=workbench11');
+  authoringWorker.onmessage = event => {
+    const data = event.data;
+    if (!activeBuild || data.id !== activeBuild.id) return;
+    if (data.type === 'stage') {
+      activeBuild.phase = data.phase;
+      stageState(data.phase, data.state, data.detail);
+      if (data.state === 'running') status.textContent = `${data.phase}…`;
+    } else if (data.type === 'artifact') {
+      if (data.kind === 'reader') readerDownloadUrl = offerDownload(downloadReader, data.bytes, data.name);
+      if (data.kind === 'program') programDownloadUrl = offerDownload(downloadProgram, data.bytes, data.name);
+      if (data.kind === 'tree') treeOutput.textContent = data.text || 'This reader produced no parse-tree log. Add pnode_dump(tree) after parsing to inspect its PNode tree.';
+      if (data.kind === 'ast') {
+        astOutput.textContent = data.text;
+        astDownloadUrl = offerDownload(downloadAst, `${data.text}\n`, data.name, 'text/plain');
+      }
+    } else if (data.type === 'done') {
+      const elapsed = Math.round(performance.now() - activeBuild.started);
+      const printed = `${data.stdout}${data.stderr}`;
+      const result = data.didExit ? `program exited with status ${data.exit}` : `main() → ${data.value}`;
+      output.textContent = `${printed ? printed + '\n' : ''}${result}\n\nFull generated AST and the reader log are in the inspection tabs.`;
+      status.innerHTML = `<span class="ok">ran · ${elapsed}ms</span>`;
+      finishBuild();
+    } else if (data.type === 'error') {
+      failBuild(data.phase, data.message);
+      finishBuild();
     }
-    const ast = readCString(readerRun.instance, readerRun.value);
-    const formattedAst = formatLangAst(ast);
-    astDownloadUrl = offerDownload(
-      downloadAst, `${formattedAst}\n`, `${name}.ast`, 'text/plain',
-    );
+  };
+  authoringWorker.onerror = event => {
+    if (!activeBuild) return;
+    failBuild(activeBuild.phase, event.message || 'The compiler worker failed to load. Reload the workshop and try again.');
+    resetWorker();
+    finishBuild();
+  };
+  authoringWorker.postMessage({ type: 'init', compilerBytes, stdlibFiles });
+  return authoringWorker;
+}
 
-    phase = 'AST compile';
-    status.textContent = `${phase}…`;
-    const programArgs = ['program.ast', '--from-ast', '--ast-source', 'source.read'];
-    const programFiles = {
-      ...stdlibFiles,
-      'program.ast': formattedAst,
-      'source.read': customSource.value,
-    };
-    if (runtime.value.trim()) {
-      programArgs.push('--runtime', 'runtime.lang');
-      programFiles['runtime.lang'] = runtime.value;
-    }
-    programArgs.push('-o', 'program.wasm');
-    const programBuild = await compile(
-      programArgs,
-      programFiles,
-    );
-    const program = programBuild.files.get('program.wasm');
-    if (!program) throw new Error('kernel wrote no module');
-    programDownloadUrl = offerDownload(downloadProgram, program, `${name}-program.wasm`);
-    phase = 'program run';
-    status.textContent = `${phase}…`;
-    const ran = await runLangProgram(program);
-    const elapsed = Math.round(performance.now() - started);
-    const astPreview = formattedAst.length > 320
-      ? `${formattedAst.slice(0, 320)}…`
-      : formattedAst;
-    const printed = ran.stdout || ran.stderr;
-    output.textContent = `${printed ? printed + '\n' : ''}main() → ${ran.value}\n\nAST\n${astPreview}`;
-    status.innerHTML = `<span class="ok">ran · ${elapsed}ms</span>`;
+button.onclick = () => {
+  if (!compilerBytes || !stdlibFiles || button.disabled) return;
+  saveDraft();
+  invalidateResults();
+  setBuilding(true);
+  stopButton.hidden = false;
+  activeBuild = { id: ++buildSequence, phase: 'reader build', started: performance.now() };
+  stageState('reader build', 'running');
+  status.textContent = 'building reader…';
+  buildTimer = setTimeout(() => stopBuild('The 30-second limit was reached. The worker was stopped; your edits are safe. Check for an unbounded reader or program loop, then build again.'), 30000);
+  try {
+    getWorker().postMessage({
+      type: 'build', id: activeBuild.id,
+      reader: reader.value, source: customSource.value, runtime: runtime.value,
+    });
   } catch (error) {
-    const message = String(error).replace(/^Error: /, '');
-    output.textContent = message;
-    focusDiagnostic(message);
-    status.innerHTML = `<span class="bad">${phase} failed</span>`;
+    failBuild('reader build', String(error).replace(/^Error: /, ''));
+    resetWorker();
+    finishBuild();
   }
-  button.disabled = false;
 };
 
 document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && activeBuild) {
+    event.preventDefault();
+    stopBuild();
+  }
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
     event.preventDefault();
     button.click();
   }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault();
+    saveWorkspace.click();
+  }
+});
+window.addEventListener('pagehide', () => {
+  saveDraft();
+  if (activeBuild) stopBuild('Stopped when this page closed. Your draft is saved; build again when ready.');
+  resetWorker();
 });
 </script>
 </body>

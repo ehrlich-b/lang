@@ -1,0 +1,86 @@
+// expect: 42
+// Same source runs through LLVM/native and the direct Wasm backend.
+include "std/core.lang"
+
+var global64 [4]f64 = [0.3, -1.25, 2];
+var global32 [4]f32 = [0.3, -1.25, 2];
+var equal_a [2]u8 = [65, 0];
+var equal_b [2]u8 = [65, 0];
+var words [2]*u8 = ["alpha", "beta"];
+
+struct SampleBlock {
+    samples [2]f64;
+    tail i64;
+}
+
+func coefficient() f64 { return 4.5; }
+func coefficient32() f32 { return cast(f32, 0.3); }
+func same_pointer(value *i64) *i64 { return value; }
+
+func nested(depth i64) f64 {
+    var values [3]f64 = [cast(f64, depth), 0.3];
+    if depth == 0 { return values[1] + values[2]; }
+    var child f64 = nested(depth - 1);
+    if values[0] != cast(f64, depth) || values[1] != 0.3 || values[2] != 0.0 {
+        return -1000.0;
+    }
+    return values[0] + child;
+}
+
+func read_after_nested(values *f64, child f64) f64 { return values[0] + child; }
+
+func main() i64 {
+    if global64[0] != 0.3 || global64[1] != -1.25 || global64[2] != 2.0 || global64[3] != 0.0 {
+        return 1;
+    }
+    // Independent IEEE-754 encoding of nearest binary32 to decimal 0.3.
+    if bitcast(i32, global32[0]) != 1050253722 || global32[1] != cast(f32, -1.25) ||
+       global32[2] != cast(f32, 2.0) || global32[3] != cast(f32, 0.0) { return 2; }
+    var addressed *f64 = cast(*f64, &global64);
+    if addressed[1] != -1.25 { return 11; }
+    var base f64 = 0.3;
+    var local64 [4]f64 = [base, coefficient(), -base];
+    if local64[0] != 0.3 || local64[1] != 4.5 || local64[2] != -0.3 || local64[3] != 0.0 {
+        return 3;
+    }
+    var local32 [3]f32 = [0.3, coefficient32()];
+    if bitcast(i32, local32[0]) != 1050253722 || local32[1] != coefficient32() ||
+       local32[2] != cast(f32, 0.0) { return 4; }
+    var decayed *f64 = local64;
+    var next *f64 = decayed + 1;
+    *next = 6.5;
+    global64[2] = local64[1];
+    global32[2] = local32[0];
+    if local64[1] != 6.5 || global64[2] != 6.5 || bitcast(i32, global32[2]) != 1050253722 {
+        return 5;
+    }
+
+    // Equal mutable initializers must not alias one another or interned "A".
+    var text *u8 = "A";
+    var bytes *u8 = equal_a;
+    bytes[0] = 90;
+    if equal_a[0] != 90 || equal_b[0] != 65 || text[0] != 65 { return 6; }
+    if strlen(words[0]) != 5 || strlen(words[1]) != 4 { return 7; }
+
+    // Calls and addresses inside literals must survive reachability pruning
+    // and must make an otherwise scalar local addressable before emission.
+    var marker i64 = 9;
+    var references [2]*i64 = [&marker, same_pointer(&marker)];
+    *references[0] = 17;
+    if *references[1] != 17 || marker != 17 { return 8; }
+
+    var held [2]f64 = [10.0];
+    var combined f64 = read_after_nested(held, nested(8));
+    if combined < 46.2999999999999 || combined > 46.3000000000001 || held[0] != 10.0 {
+        return 9;
+    }
+    // An array-valued field denotes its storage, not a load of element zero.
+    var block *SampleBlock = alloc(24);
+    block.samples[0] = 2.5;
+    block.samples[1] = -0.75;
+    block.tail = 42;
+    var samples *f64 = block.samples;
+    samples[1] = samples[1] + 1.0;
+    if block.samples[0] != 2.5 || block.samples[1] != 0.25 || block.tail != 42 { return 10; }
+    return block.tail;
+}

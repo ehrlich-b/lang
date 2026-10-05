@@ -1,0 +1,85 @@
+// expect: 0
+// Multiple errors remain independent; recovery is bounded on real/synthetic tokens.
+include "std/parser_reader.lang"
+include "std/parse.lang"
+
+#parser{
+    recovery_stmt = 'let' target:symbol '=' value:number ';'
+}
+
+func main() i64 {
+    var t *Tokenizer = tok_new("let a = ;\nlet b = name;\nlet c = 42;");
+    var s *ParseSession = parse_session_new(t, 8);
+    var accepted i64 = 0;
+    while !tok_eof(t) && parse_begin(s) {
+        var tree *PNode = parse_recovery_stmt(t);
+        if tree == nil {
+            if parse_report(s) == nil { return 1; }
+            if parse_sync_text(s, ";", true, 128) == PARSE_SYNC_LIMIT { return 2; }
+        } else {
+            var value *PNode = pnode_require(tree, "value");
+            if value == nil || !streq(value.text, "42") { return 3; }
+            accepted = accepted + 1;
+        }
+    }
+    if accepted != 1 || parse_diagnostic_count(s) != 2 || !parse_has_errors(s) {
+        return 4;
+    }
+    var first *ParseDiagnostic = parse_error_at(s, 0);
+    var second *ParseDiagnostic = parse_error_at(s, 1);
+    if first.offset != 8 || first.line != 1 || first.column != 9 { return 5; }
+    if second.offset != 18 || second.line != 2 || second.column != 9 { return 6; }
+    if !streq(first.expected, "number") || !streq(first.found, ";") { return 7; }
+    if !streq(second.expected, "number") || !streq(second.found, "name") {
+        return 8;
+    }
+    if parse_error_at(s, -1) != nil || parse_error_at(s, 2) != nil { return 9; }
+
+    // A diagnostic limit stops the caller before another independent item.
+    var capped *ParseSession = parse_session_new(tok_new("; ;"), 1);
+    if !parse_begin(capped) { return 10; }
+    tok_note_expected(capped.tokens, "number");
+    if parse_report(capped) == nil || parse_begin(capped) { return 11; }
+    if parse_report(capped) != nil || parse_diagnostic_count(capped) != 1 { return 12; }
+    if parse_session_new(tok_new(""), 0).limit != 1 { return 13; }
+    if parse_session_new(tok_new(""), 999).limit != 256 { return 14; }
+
+    var bounded *ParseSession = parse_session_new(tok_new("one two three;"), 4);
+    if parse_sync_text(bounded, ";", true, 2) != PARSE_SYNC_LIMIT { return 15; }
+    if !streq(tok_text(bounded.tokens), "three") { return 16; }
+    if parse_sync_text(bounded, ";", false, 1) != PARSE_SYNC_FOUND { return 17; }
+    if tok_kind(bounded.tokens) != TOK_SEMI { return 18; }
+    if parse_sync_text(bounded, ";", true, 1) != PARSE_SYNC_FOUND { return 19; }
+    if !tok_eof(bounded.tokens) { return 20; }
+    if parse_sync_text(bounded, ";", true, 1) != PARSE_SYNC_EOF { return 21; }
+    if parse_sync_text(bounded, "", true, 1) != PARSE_SYNC_LIMIT { return 22; }
+    if parse_sync_text(bounded, ";", true, 65537) != PARSE_SYNC_LIMIT { return 23; }
+
+    // Identical byte offsets do not prevent synthetic token-index progress.
+    var stream *u8 = tok_stream_new();
+    tok_stream_push(stream, TOK_IDENT, 0, 1, "bad");
+    tok_stream_push(stream, TOK_USER, 0, 0, "newline");
+    tok_stream_push(stream, TOK_IDENT, 0, 1, "tail");
+    var synthetic *ParseSession = parse_session_new(tok_new_stream("x", stream), 4);
+    if parse_sync_kind(synthetic, TOK_USER, true, 1) != PARSE_SYNC_FOUND {
+        return 24;
+    }
+    if tok_mark(synthetic.tokens) != 2 ||
+       !streq(tok_text(synthetic.tokens), "tail") { return 25; }
+    if parse_sync_kind(synthetic, TOK_USER, true, 1) != PARSE_SYNC_EOF {
+        return 26;
+    }
+    if parse_sync_kind(synthetic, TOK_EOF, true, 1) != PARSE_SYNC_LIMIT {
+        return 27;
+    }
+
+    var missing *ParseSession = parse_session_new(tok_new("let last = 9"), 4);
+    if !parse_begin(missing) || parse_recovery_stmt(missing.tokens) != nil {
+        return 28;
+    }
+    var last *ParseDiagnostic = parse_report(missing);
+    if last == nil || !streq(last.expected, "';'") ||
+       !streq(last.found, "end of input") { return 29; }
+    if parse_sync_text(missing, ";", true, 128) != PARSE_SYNC_EOF { return 30; }
+    return 0;
+}

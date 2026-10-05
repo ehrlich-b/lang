@@ -72,6 +72,7 @@
 //   ident     Alias for symbol
 //   string    Matches TOK_STRING (quoted strings)
 //   operator  Matches +, -, *, / (for operator-first grammars like Lisp)
+//   eof       Asserts end of input; useful in `file = statement* eof`
 //
 // READER-DEFINED TOKENS:
 //   <indent>  Matches a token of kind TOK_INDENT, which the reader declares

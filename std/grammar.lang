@@ -16,6 +16,7 @@ include "std/tok.lang"
 //   symbol  - matches TOK_IDENT (user's symbols)
 //   ident   - matches TOK_IDENT (alias)
 //   string  - matches TOK_STRING
+//   eof     - matches the end of input without consuming a token
 //   'x'     - matches specific character token
 //   <name>  - matches TOK_NAME, a kind the reader defined and supplied
 //   name    - references another rule
@@ -165,6 +166,23 @@ func gp_parse_element(gp *GrammarParser) *GNode {
         var start i64 = tok_start_offset(gp.t);
         var text *u8 = tok_text_ptr(gp.t);
         var len i64 = tok_text_len(gp.t);
+        // The scanner reaches EOF on an unclosed string. Its last byte may
+        // still be an escaped quote, so matching the delimiter alone is not
+        // evidence of closure; an odd preceding slash run escapes that quote.
+        var slashes i64 = 0;
+        var previous i64 = len - 2;
+        while previous >= 1 && *(text + previous) == 92 {
+            slashes = slashes + 1;
+            previous = previous - 1;
+        }
+        if len < 2 || *(text + len - 1) != *text || slashes % 2 != 0 {
+            gp_fail(gp, "closed literal");
+            return nil;
+        }
+        if len == 2 {
+            gp_fail(gp, "nonempty literal (use eof for end of input)");
+            return nil;
+        }
         // Strip quotes: 'x' -> x
         node = gnode_with_name(GNODE_LITERAL, text + 1, len - 2);
         node.start = start;
@@ -193,6 +211,11 @@ func gp_parse_element(gp *GrammarParser) *GNode {
     }
     else if gp_is_keyword(gp, "operator") {
         node = gnode_with_name(GNODE_TOKTYPE, "operator", 8);
+        node.start = tok_start_offset(gp.t);
+        tok_next(gp.t);
+    }
+    else if gp_is_keyword(gp, "eof") {
+        node = gnode_with_name(GNODE_TOKTYPE, "eof", 3);
         node.start = tok_start_offset(gp.t);
         tok_next(gp.t);
     }
@@ -554,6 +577,11 @@ func grammar_validate_branches(g *Grammar, gp *GrammarParser,
 
 func grammar_node_nullable(g *Grammar, node *GNode, nullable *u8) i64 {
     if node == nil { return 0; }
+    // EOF is a zero-width assertion, not a token that advances the stream.
+    // Treat it as nullable for cycle detection even though it only succeeds
+    // at the end, or `thing = eof thing` recurses forever on empty input.
+    if node.kind == GNODE_TOKTYPE &&
+       str_eq_n(node.name, node.name_len, "eof", 3) { return 1; }
     if node.kind == GNODE_OPT || node.kind == GNODE_STAR { return 1; }
     if node.kind == GNODE_CAPTURE || node.kind == GNODE_BRANCH ||
        node.kind == GNODE_PLUS || node.kind == GNODE_RULE {

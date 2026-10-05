@@ -1,0 +1,25 @@
+// Real C varargs: the source val placeholder does not constrain the suffix.
+extern func printf(fmt *u8, val f64) i64;
+extern func open(path *u8, flags i64, mode i64) i64;
+extern func close(fd i64) i64;
+extern func fmod(x f64, y f64) f64;
+extern func fmodf(x f32, y f32) f32;
+var printing_byte u8 = 65;
+var printing_pointer *u8 = "global";
+var printing_fraction f64 = 0.375;
+func main() i64 {
+    var byte_pointer *u8 = &printing_byte;
+    var pointer_slot **u8 = &printing_pointer;
+    var fraction_pointer *f64 = &printing_fraction;
+    if *byte_pointer != 65 || (*pointer_slot)[0] != 103 || *fraction_pointer != 0.375 { return 3; }
+    var narrow f32 = cast(f32, 0.3);
+    printf("plain\n");
+    printf("%s %lld %.17g %.17g\n", "mixed", 37, -0.30000000000000004, narrow);
+    if fmod(5.5, 2.0) != 1.5 || fmodf(cast(f32, 5.5), cast(f32, 2.0)) != cast(f32, 1.5) {
+        return 1;
+    }
+    var fd i64 = open("/dev/null", 0);
+    if fd < 0 { return 2; }
+    close(fd);
+    return 42;
+}

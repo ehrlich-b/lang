@@ -11,6 +11,9 @@
 //   x86:  movq $42, %rax; ret
 //   LLVM: ret i64 42
 
+// Minted native compilers include this backend without the direct-Wasm file.
+include "std/numeric.lang"
+
 // ============================================================
 // Output buffer
 // ============================================================
@@ -173,6 +176,28 @@ func llvm_is_pointer_type(t *u8) i64 {
         return 0;
     }
     return type_kind(t) == TYPE_PTR;
+}
+
+// The frozen x86 size helper predates floating types. LLVM scalar/array
+// storage uses binary32's four-byte width while retaining Lang struct slots.
+func llvm_type_size(t *u8) i64 {
+    if t == nil { return 8; }
+    if type_kind(t) == TYPE_ARRAY {
+        return array_type_size(t) * llvm_type_size(array_type_elem(t));
+    }
+    if llvm_is_float_type(t) != 0 { return llvm_type_bits(t) / 8; }
+    return get_type_size(t);
+}
+
+func llvm_pointer_offset(value *u8, pointer_type *u8) *u8 {
+    var size i64 = llvm_type_size(ptr_type_elem(pointer_type));
+    if size <= 1 { return value; }
+    var scaled i64 = llvm_next_temp();
+    llvm_emit_str("    %t"); llvm_emit_int(scaled);
+    llvm_emit_str(" = mul i64 "); llvm_emit_str(value);
+    llvm_emit_str(", "); llvm_emit_int(size); llvm_emit_char(10);
+    llvm_set_result_temp(scaled);
+    return str_dup(llvm_expr_result);
 }
 
 // ============================================================
@@ -701,6 +726,90 @@ func llvm_f64_type() *u8 {
     return llvm_f64_type_cache;
 }
 
+var llvm_f32_type_cache *u8 = nil;
+func llvm_f32_type() *u8 {
+    if llvm_f32_type_cache == nil {
+        llvm_f32_type_cache = base_type_alloc();
+        base_type_set_name(llvm_f32_type_cache, "f32");
+        base_type_set_name_len(llvm_f32_type_cache, 3);
+    }
+    return llvm_f32_type_cache;
+}
+
+func llvm_float_common(a *u8, b *u8) *u8 {
+    if llvm_is_f64_type(a) || llvm_is_f64_type(b) { return llvm_f64_type(); }
+    if llvm_is_f32_type(a) || llvm_is_f32_type(b) { return llvm_f32_type(); }
+    return nil;
+}
+
+// Scalar integer and pointer expressions use i64 between operations. Float
+// boundaries retain their declared width instead of printing a mismatched SSA
+// type (notably f32 arithmetic and f64 arguments assigned to f32 storage).
+func llvm_coerce_scalar(value *u8, source_type *u8, target_type *u8) *u8 {
+    if llvm_is_bool_type(target_type) {
+        var cmp i64 = llvm_next_temp();
+        llvm_emit_truth_compare(value, source_type, 0, cmp);
+        var wide i64 = llvm_next_temp();
+        llvm_emit_str("    %t"); llvm_emit_int(wide);
+        llvm_emit_str(" = zext i1 %t"); llvm_emit_int(cmp); llvm_emit_line(" to i64");
+        return llvm_temp_name(wide);
+    }
+    var source_float i64 = llvm_is_float_type(source_type);
+    var target_float i64 = llvm_is_float_type(target_type);
+    if !source_float && !target_float { return value; }
+    if source_float && target_float && llvm_type_bits(source_type) == llvm_type_bits(target_type) {
+        return value;
+    }
+    var temp i64 = llvm_next_temp();
+    llvm_emit_str("    %t"); llvm_emit_int(temp); llvm_emit_str(" = ");
+    if source_float && target_float {
+        if llvm_type_bits(source_type) < llvm_type_bits(target_type) { llvm_emit_str("fpext "); }
+        else { llvm_emit_str("fptrunc "); }
+        llvm_emit_type(source_type);
+    } else if target_float {
+        if llvm_is_signed_int(source_type) || source_type == nil { llvm_emit_str("sitofp i64"); }
+        else { llvm_emit_str("uitofp i64"); }
+    } else {
+        if llvm_is_signed_int(target_type) { llvm_emit_str("fptosi "); }
+        else { llvm_emit_str("fptoui "); }
+        llvm_emit_type(source_type);
+    }
+    llvm_emit_str(" "); llvm_emit_str(value); llvm_emit_str(" to ");
+    if target_float { llvm_emit_type(target_type); }
+    else { llvm_emit_str("i64"); }
+    llvm_emit_char(10);
+    return llvm_temp_name(temp);
+}
+
+func llvm_emit_truth_compare(value *u8, value_type *u8, equal_zero i64, temp i64) void {
+    llvm_emit_str("    %t"); llvm_emit_int(temp); llvm_emit_str(" = ");
+    if llvm_is_float_type(value_type) {
+        // NaN is truthy; !NaN is false. Ordinary relational comparisons remain
+        // ordered, matching the existing kernel contract.
+        if equal_zero != 0 { llvm_emit_str("fcmp oeq "); }
+        else { llvm_emit_str("fcmp une "); }
+        llvm_emit_type(value_type); llvm_emit_str(" "); llvm_emit_str(value);
+        llvm_emit_line(", 0.0");
+    } else {
+        if equal_zero != 0 { llvm_emit_str("icmp eq i64 "); }
+        else { llvm_emit_str("icmp ne i64 "); }
+        llvm_emit_str(value); llvm_emit_line(", 0");
+    }
+}
+
+// These libc entry points already have special variadic LLVM declarations.
+// A source declaration's trailing placeholder describes no fixed C argument.
+// Ordinary Lang definitions with the same names retain their declared arity.
+func llvm_c_variadic_fixed_params(decl *u8) i64 {
+    if decl == nil || func_decl_is_extern(decl) == 0 { return 0 - 1; }
+    var name *u8 = func_decl_name(decl);
+    var len i64 = func_decl_name_len(decl);
+    if len == 6 && memcmp(name, "printf", 6) { return 1; }
+    if len == 4 && memcmp(name, "open", 4) { return 2; }
+    if len == 7 && memcmp(name, "syscall", 7) { return 1; }
+    return 0 - 1;
+}
+
 // Byte size of a struct/enum type, or 0 if the type isn't an aggregate.
 // Aggregates live in memory and are passed around as addresses.
 func llvm_aggregate_type_size(t *u8) i64 {
@@ -907,6 +1016,48 @@ func llvm_set_result_str(s *u8) void {
     *(dst + i) = 0;
 }
 
+// Resolve a reader invocation once, then retain its actual AST under the same
+// node/provenance. Scalar type inference must see the expansion rather than
+// interpreting an unknown reader result as an integer during width conversion.
+func llvm_expand_reader_expression(expr *u8) *u8 {
+    var name *u8 = reader_expr_name(expr);
+    var name_len i64 = reader_expr_name_len(expr);
+    var content *u8 = reader_expr_content(expr);
+    var content_len i64 = reader_expr_content_len(expr);
+    var output *u8 = nil;
+    var reader_func *u8 = find_embedded_reader_func(name, name_len);
+    if reader_func != nil {
+        output = reader_func(content, content_len);
+    } else {
+        var reader_decl *u8 = find_reader(name, name_len);
+        if reader_decl == nil {
+            cg_error_prefix_at(expr); eprint("reader macro '");
+            eprint_buf(name, name_len); eprintln("' not found");
+            cg_had_error = 1; return nil;
+        }
+        var exe_path *u8 = build_reader_cache_path(name, name_len);
+        output = alloc(4194304);
+        var n i64 = exec_capture(exe_path, content, content_len, output, 4194304);
+        if n < 0 {
+            cg_error_prefix_at(expr); eprint("reader '"); eprint_buf(name, name_len);
+            eprint("' exited with status "); eprint_i64(0 - n); eprintln("");
+            cg_had_error = 1; return nil;
+        }
+        if n == 0 {
+            cg_error_prefix_at(expr); eprint("reader '"); eprint_buf(name, name_len);
+            eprintln("' returned no AST"); cg_had_error = 1; return nil;
+        }
+    }
+    if output == nil { cg_had_error = 1; return nil; }
+    var expanded *u8 = parse_ast_expression_from_reader_string(output, node_origin_source(expr), content);
+    if expanded == nil { cg_had_error = 1; return nil; }
+    // ReaderExpr is 40 bytes, GroupExpr16; the source-origin side table is
+    // keyed by node address and survives this bounded wrapper replacement.
+    node_set_kind(expr, NODE_GROUP_EXPR);
+    group_expr_set_expr(expr, expanded);
+    return expanded;
+}
+
 // Get type of expression (mirrors get_expr_type from codegen.lang)
 func llvm_get_expr_type(expr *u8) *u8 {
     if expr == nil {
@@ -914,6 +1065,10 @@ func llvm_get_expr_type(expr *u8) *u8 {
     }
 
     var k i64 = node_kind(expr);
+
+    if k == NODE_READER_EXPR {
+        return llvm_get_expr_type(llvm_expand_reader_expression(expr));
+    }
 
     if k == NODE_NUMBER_EXPR {
         var text *u8 = number_expr_value(expr);
@@ -976,6 +1131,12 @@ func llvm_get_expr_type(expr *u8) *u8 {
 
     if k == NODE_UNARY_EXPR {
         var op i64 = unary_expr_op(expr);
+        if op == TOKEN_BANG { return llvm_i64_type(); }
+        if op == TOKEN_AMP {
+            var pointer_type *u8 = ptr_type_alloc();
+            ptr_type_set_elem(pointer_type, llvm_get_expr_type(unary_expr_expr(expr)));
+            return pointer_type;
+        }
         if op == TOKEN_STAR {
             var inner_type *u8 = llvm_get_expr_type(unary_expr_expr(expr));
             if inner_type != nil && type_kind(inner_type) == TYPE_PTR {
@@ -994,17 +1155,30 @@ func llvm_get_expr_type(expr *u8) *u8 {
         }
         var left_type *u8 = llvm_get_expr_type(binary_expr_left(expr));
         var right_type *u8 = llvm_get_expr_type(binary_expr_right(expr));
-        if (left_type != nil && llvm_is_float_type(left_type)) ||
-           (right_type != nil && llvm_is_float_type(right_type)) {
-            // Float arithmetic currently lowers through LLVM double values.
-            return llvm_f64_type();
-        }
+        if op == TOKEN_PLUS && llvm_is_pointer_type(right_type) != 0 { return right_type; }
+        var common *u8 = llvm_float_common(left_type, right_type);
+        if common != nil { return common; }
         if left_type != nil { return left_type; }
         return right_type;
     }
 
     if k == NODE_GROUP_EXPR {
         return llvm_get_expr_type(group_expr_expr(expr));
+    }
+
+    if k == NODE_FIELD_EXPR {
+        var base *u8 = field_expr_expr(expr);
+        if base != nil && node_kind(base) == NODE_IDENT_EXPR &&
+           find_enum(ident_expr_name(base), ident_expr_name_len(base)) != nil {
+            var enum_type *u8 = base_type_alloc();
+            base_type_set_name(enum_type, ident_expr_name(base));
+            base_type_set_name_len(enum_type, ident_expr_name_len(base));
+            return enum_type;
+        }
+        var is_pointer i64 = 0;
+        var decl *u8 = cg_field_struct(expr, &is_pointer);
+        if decl != nil { return get_field_type(decl, field_expr_field(expr), field_expr_field_len(expr)); }
+        return nil;
     }
 
     if k == NODE_CALL_EXPR {
@@ -1110,8 +1284,18 @@ func llvm_emit_array_addr(expr *u8) void {
         }
     }
 
-    // Fallback: treat as expression
+    // Array fields and grouped array expressions evaluate to Lang's i64
+    // address carrier. Indexing needs a typed element pointer at the GEP.
     llvm_emit_expr(expr);
+    var array_type *u8 = llvm_get_expr_type(expr);
+    if array_type != nil && type_kind(array_type) == TYPE_ARRAY {
+        var address *u8 = str_dup(llvm_expr_result);
+        var pointer_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t"); llvm_emit_int(pointer_temp);
+        llvm_emit_str(" = inttoptr i64 "); llvm_emit_str(address); llvm_emit_str(" to ");
+        llvm_emit_type(array_type_elem(array_type)); llvm_emit_line("*");
+        llvm_set_result_temp(pointer_temp);
+    }
 }
 
 // Emit expression, return the LLVM value reference (e.g., "%1" or "42")
@@ -1211,6 +1395,19 @@ func llvm_emit_expr(expr *u8) void {
     if k == NODE_IDENT_EXPR {
         var name *u8 = ident_expr_name(expr);
         var len i64 = ident_expr_name_len(expr);
+
+        // A fixed array value denotes its storage. Loading a word here would
+        // reinterpret element zero as an address when binding a typed pointer.
+        var array_type *u8 = llvm_get_expr_type(expr);
+        if array_type != nil && type_kind(array_type) == TYPE_ARRAY {
+            llvm_emit_array_addr(expr);
+            var array_address *u8 = str_dup(llvm_expr_result);
+            var address_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t"); llvm_emit_int(address_temp);
+            llvm_emit_str(" = ptrtoint "); llvm_emit_type(array_type_elem(array_type));
+            llvm_emit_str("* "); llvm_emit_str(array_address); llvm_emit_line(" to i64");
+            llvm_set_result_temp(address_temp); return;
+        }
 
         // Check for let binding first (SSA unique names)
         var let_entry *u8 = llvm_find_let_binding(name, len);
@@ -1632,12 +1829,29 @@ func llvm_emit_expr(expr *u8) void {
             if known_func == nil && is_indirect == 0 {
                 var by_name *u8 = find_func(func_name, func_name_len);
                 if by_name != nil {
-                    cg_arity_error(func_name, func_name_len,
-                                   func_decl_param_count(by_name), arg_count);
-                    *(llvm_expr_result) = 48;
-                    *(llvm_expr_result + 1) = 0;
-                    return;
+                    if llvm_c_variadic_fixed_params(by_name) >= 0 {
+                        known_func = by_name;
+                    } else {
+                        cg_arity_error(func_name, func_name_len,
+                                       func_decl_param_count(by_name), arg_count);
+                        *(llvm_expr_result) = 48;
+                        *(llvm_expr_result + 1) = 0;
+                        return;
+                    }
                 }
+            }
+
+            var variadic_minimum i64 = llvm_c_variadic_fixed_params(known_func);
+            if known_func == nil && is_indirect == 0 && func_name_len == 7 &&
+               memcmp(func_name, "syscall", 7) { variadic_minimum = 1; }
+            if variadic_minimum >= 0 && arg_count < variadic_minimum {
+                cg_error_prefix();
+                eprint("variadic function '"); eprint_buf(func_name, func_name_len);
+                eprint("' requires at least "); eprint_i64(variadic_minimum);
+                eprint(" argument"); if variadic_minimum != 1 { eprint("s"); }
+                eprint(", called with "); eprint_i64(arg_count); eprintln("");
+                cg_had_error = 1;
+                llvm_set_result_str("0"); return;
             }
 
             // Calls through variables are indirect. Every other identifier call
@@ -1671,12 +1885,30 @@ func llvm_emit_expr(expr *u8) void {
 
         // First, emit all argument expressions and collect their values
         var arg_vals **u8 = alloc(arg_count * 8);
+        var arg_types **u8 = alloc(arg_count * 8);
+        var variadic_fixed i64 = llvm_c_variadic_fixed_params(known_func);
+        if known_func == nil && is_indirect == 0 && func_name_len == 7 &&
+           memcmp(func_name, "syscall", 7) { variadic_fixed = 1; }
         var i i64 = 0;
         while i < arg_count {
             var arg_ptr *u8 = args + (i * 8);
             var arg **u8 = arg_ptr;
             llvm_emit_expr(*arg);
-            *(arg_vals + i) = str_dup(llvm_expr_result);
+            var argument_value *u8 = str_dup(llvm_expr_result);
+            var argument_type *u8 = llvm_get_expr_type(*arg);
+            if argument_type == nil && llvm_expr_is_float != 0 { argument_type = llvm_f64_type(); }
+            if known_func != nil && i < func_decl_param_count(known_func) &&
+               (variadic_fixed < 0 || i < variadic_fixed) {
+                var expected_type *u8 = param_type(func_decl_params(known_func) + i * 24);
+                argument_value = llvm_coerce_scalar(argument_value, argument_type, expected_type);
+                argument_type = expected_type;
+            } else if variadic_fixed >= 0 && llvm_is_f32_type(argument_type) {
+                // C's default argument promotion passes binary32 as binary64.
+                argument_value = llvm_coerce_scalar(argument_value, argument_type, llvm_f64_type());
+                argument_type = llvm_f64_type();
+            }
+            *(arg_vals + i) = argument_value;
+            *(arg_types + i) = argument_type;
             i = i + 1;
         }
 
@@ -1969,7 +2201,7 @@ func llvm_emit_expr(expr *u8) void {
 
         // Check if this is syscall (variadic)
         var is_syscall i64 = 0;
-        if func_name_len == 7 {
+        if func_name_len == 7 && (known_func == nil || func_decl_is_extern(known_func) != 0) {
             if memcmp(func_name, "syscall", 7) {
                 is_syscall = 1;
             }
@@ -1977,7 +2209,7 @@ func llvm_emit_expr(expr *u8) void {
 
         // Check if this is open() (variadic - mode is optional)
         var is_open i64 = 0;
-        if func_name_len == 4 {
+        if func_name_len == 4 && variadic_fixed == 2 {
             if memcmp(func_name, "open", 4) {
                 is_open = 1;
             }
@@ -1985,7 +2217,7 @@ func llvm_emit_expr(expr *u8) void {
 
         // Check if this is printf() (variadic)
         var is_printf i64 = 0;
-        if func_name_len == 6 {
+        if func_name_len == 6 && variadic_fixed == 1 {
             if memcmp(func_name, "printf", 6) {
                 is_printf = 1;
             }
@@ -2092,7 +2324,7 @@ func llvm_emit_expr(expr *u8) void {
 
         // Limit arg count to function's declared param count to handle main() with no params
         var emit_arg_count i64 = arg_count;
-        if known_func != nil {
+        if known_func != nil && variadic_fixed < 0 {
             var declared_param_count i64 = func_decl_param_count(known_func);
             if declared_param_count < emit_arg_count {
                 emit_arg_count = declared_param_count;
@@ -2113,17 +2345,15 @@ func llvm_emit_expr(expr *u8) void {
             // Check parameter type for proper emission
             var param_is_float i64 = 0;
             var param_is_ptr i64 = 0;
-            if func_params != nil {
-                var p *u8 = func_params + (i * 24);
-                var ptype *u8 = param_type(p);
+            if is_printf && i == 0 {
+                param_is_ptr = 1;
+                llvm_emit_str("i8* ");
+            } else if func_params != nil || variadic_fixed >= 0 {
+                var ptype *u8 = *(arg_types + i);
                 if ptype != nil && llvm_is_float_type(ptype) {
                     param_is_float = 1;
                     llvm_emit_type(ptype);
                     llvm_emit_str(" ");
-                } else if is_printf && i == 0 {
-                    // printf first arg is format string (i8*)
-                    param_is_ptr = 1;
-                    llvm_emit_str("i8* ");
                 }
             }
             if param_is_float == 0 && param_is_ptr == 0 {
@@ -2255,11 +2485,7 @@ func llvm_emit_expr(expr *u8) void {
 
             // Check left - if non-zero, evaluate right
             var l_bool i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(l_bool);
-            llvm_emit_str(" = icmp ne i64 ");
-            llvm_emit_str(left_val);
-            llvm_emit_line(", 0");
+            llvm_emit_truth_compare(left_val, llvm_get_expr_type(left), 0, l_bool);
             llvm_emit_str("    br i1 %t");
             llvm_emit_int(l_bool);
             llvm_emit_str(", label %L");
@@ -2276,11 +2502,7 @@ func llvm_emit_expr(expr *u8) void {
             var right_val *u8 = str_dup(llvm_expr_result);
             var r_bool i64 = llvm_next_temp();
             var r_ext i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(r_bool);
-            llvm_emit_str(" = icmp ne i64 ");
-            llvm_emit_str(right_val);
-            llvm_emit_line(", 0");
+            llvm_emit_truth_compare(right_val, llvm_get_expr_type(right), 0, r_bool);
             llvm_emit_str("    %t");
             llvm_emit_int(r_ext);
             llvm_emit_str(" = zext i1 %t");
@@ -2331,11 +2553,7 @@ func llvm_emit_expr(expr *u8) void {
 
             // Check left - if zero, evaluate right
             var l_bool i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(l_bool);
-            llvm_emit_str(" = icmp eq i64 ");  // eq 0 means false
-            llvm_emit_str(left_val);
-            llvm_emit_line(", 0");
+            llvm_emit_truth_compare(left_val, llvm_get_expr_type(left), 1, l_bool);
             llvm_emit_str("    br i1 %t");
             llvm_emit_int(l_bool);
             llvm_emit_str(", label %L");
@@ -2352,11 +2570,7 @@ func llvm_emit_expr(expr *u8) void {
             var right_val *u8 = str_dup(llvm_expr_result);
             var r_bool i64 = llvm_next_temp();
             var r_ext i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(r_bool);
-            llvm_emit_str(" = icmp ne i64 ");
-            llvm_emit_str(right_val);
-            llvm_emit_line(", 0");
+            llvm_emit_truth_compare(right_val, llvm_get_expr_type(right), 0, r_bool);
             llvm_emit_str("    %t");
             llvm_emit_int(r_ext);
             llvm_emit_str(" = zext i1 %t");
@@ -2398,32 +2612,35 @@ func llvm_emit_expr(expr *u8) void {
         var right_type *u8 = llvm_get_expr_type(right);
         var left_is_float i64 = left_type != nil && llvm_is_float_type(left_type);
         var right_is_float i64 = right_type != nil && llvm_is_float_type(right_type);
+        if (left_is_float || right_is_float) &&
+           ((left_type != nil && type_kind(left_type) == TYPE_PTR) ||
+            (right_type != nil && type_kind(right_type) == TYPE_PTR)) {
+            cg_error_prefix_at(expr);
+            eprintln("cannot combine a pointer with a floating operand");
+            cg_had_error = 1;
+            llvm_set_result_int(0);
+            return;
+        }
 
-        // Pointer arithmetic scaling: ptr + n -> ptr + (n * sizeof(*ptr))
-        if op == 25 || op == 26 {  // TOKEN_PLUS or TOKEN_MINUS
-            // left_type already computed above
-            if left_type != nil && type_kind(left_type) == TYPE_PTR {
-                var elem_type *u8 = ptr_type_elem(left_type);
-                var elem_size i64 = 8;  // default
-                if elem_type != nil {
-                    elem_size = get_type_size(elem_type);
+        // Scale the integer offset, never a pointer address. Both operand
+        // orders of addition preserve their source evaluation order.
+        if op == TOKEN_PLUS || op == TOKEN_MINUS {
+            var left_pointer i64 = llvm_is_pointer_type(left_type);
+            var right_pointer i64 = llvm_is_pointer_type(right_type);
+            if left_pointer != 0 && right_pointer != 0 {
+                cg_error_prefix_at(expr);
+                if op == TOKEN_MINUS { eprintln("pointer difference is unsupported; cast addresses to i64 for byte differences"); }
+                else { eprintln("cannot add two pointers"); }
+                cg_had_error = 1; llvm_set_result_int(0); return;
+            }
+            if left_pointer != 0 {
+                right_val = llvm_pointer_offset(right_val, left_type);
+            } else if right_pointer != 0 {
+                if op == TOKEN_MINUS {
+                    cg_error_prefix_at(expr); eprintln("cannot subtract a pointer from an integer");
+                    cg_had_error = 1; llvm_set_result_int(0); return;
                 }
-                if elem_size > 1 {
-                    // Multiply right operand by element size
-                    var scale_temp i64 = llvm_next_temp();
-                    llvm_emit_str("    %t");
-                    llvm_emit_int(scale_temp);
-                    llvm_emit_str(" = mul i64 ");
-                    llvm_emit_str(right_val);
-                    llvm_emit_str(", ");
-                    llvm_emit_int(elem_size);
-                    llvm_emit_char(10);
-                    // Replace right_val with scaled value
-                    var buf *u8 = alloc(32);
-                    *buf = 37; *(buf+1) = 116;  // "%t"
-                    itoa(scale_temp, buf + 2);
-                    right_val = buf;
-                }
+                left_val = llvm_pointer_offset(left_val, right_type);
             }
         }
 
@@ -2433,6 +2650,17 @@ func llvm_emit_expr(expr *u8) void {
 
         // Check if either operand is a float (via literal check OR tracked type)
         var is_float i64 = left_is_float || right_is_float || llvm_is_float_literal(left_val) || llvm_is_float_literal(right_val);
+        var common_float *u8 = llvm_float_common(left_type, right_type);
+        if is_float != 0 {
+            if !((op >= TOKEN_PLUS && op <= TOKEN_PERCENT) || is_cmp != 0) {
+                cg_error_prefix_at(expr); eprintln("unsupported floating operator");
+                cg_had_error = 1; llvm_set_result_int(0); return;
+            }
+            if common_float == nil { common_float = llvm_f64_type(); }
+            left_val = llvm_coerce_scalar(left_val, left_type, common_float);
+            right_val = llvm_coerce_scalar(right_val, right_type, common_float);
+            llvm_expr_is_float = 1 - is_cmp;
+        }
 
         // Allocate temp for result
         var temp i64 = llvm_next_temp();
@@ -2452,7 +2680,7 @@ func llvm_emit_expr(expr *u8) void {
                 else if op == 36 { llvm_emit_str("ogt"); }  // > (ordered greater than)
                 else if op == 37 { llvm_emit_str("ole"); }  // <= (ordered less or equal)
                 else if op == 38 { llvm_emit_str("oge"); }  // >= (ordered greater or equal)
-                llvm_emit_str(" double ");
+                llvm_emit_str(" "); llvm_emit_type(common_float); llvm_emit_str(" ");
             } else {
                 // Integer comparison
                 // Check if either operand is unsigned (or pointer - addresses are unsigned)
@@ -2509,7 +2737,7 @@ func llvm_emit_expr(expr *u8) void {
                 llvm_emit_str("fadd");  // Default
             }
 
-            llvm_emit_str(" double ");
+            llvm_emit_str(" "); llvm_emit_type(common_float); llvm_emit_str(" ");
             llvm_emit_str(left_val);
             llvm_emit_str(", ");
             llvm_emit_str(right_val);
@@ -2567,6 +2795,17 @@ func llvm_emit_expr(expr *u8) void {
         var target_type *u8 = cast_expr_type(expr);
         var src_expr *u8 = cast_expr_expr(expr);
 
+        if llvm_is_bool_type(target_type) {
+            llvm_emit_expr(src_expr);
+            var boolean_value *u8 = str_dup(llvm_expr_result);
+            var boolean_temp i64 = llvm_next_temp();
+            llvm_emit_truth_compare(boolean_value, llvm_get_expr_type(src_expr), 0, boolean_temp);
+            var wide_boolean i64 = llvm_next_temp();
+            llvm_emit_str("    %t"); llvm_emit_int(wide_boolean);
+            llvm_emit_str(" = zext i1 %t"); llvm_emit_int(boolean_temp); llvm_emit_line(" to i64");
+            llvm_set_result_temp(wide_boolean); llvm_expr_is_float = 0; return;
+        }
+
         // Emit source expression
         llvm_emit_expr(src_expr);
         var src_val *u8 = str_dup(llvm_expr_result);
@@ -2581,20 +2820,28 @@ func llvm_emit_expr(expr *u8) void {
         } else if src_type == nil {
             src_type = llvm_f64_type();
         }
+        var src_is_signed i64 = llvm_is_signed_int(src_type);
         // Non-float scalar expressions live in lang's i64 value model even
         // when their declared or cast type is narrower. Loads, params, and
         // prior narrowing casts have already widened them to i64, so describe
         // the SSA value we actually emitted rather than its source spelling.
-        if src_type != nil && src_was_float == 0 &&
-           llvm_is_float_type(src_type) == 0 && llvm_type_bits(src_type) < 64 {
+        // Pointers also evaluate to i64, including casts between pointer views.
+        // Describing them as i8* made identity casts emit illegal `add i8*`.
+        if src_type != nil && src_was_float == 0 && llvm_is_float_type(src_type) == 0 {
             src_type = llvm_i64_type();
         }
         var src_bits i64 = llvm_type_bits(src_type);
         var dst_bits i64 = llvm_type_bits(target_type);
         var src_is_float i64 = llvm_is_float_type(src_type);
         var dst_is_float i64 = llvm_is_float_type(target_type);
-        var src_is_signed i64 = llvm_is_signed_int(src_type);
         var dst_is_signed i64 = llvm_is_signed_int(target_type);
+        if dst_is_float == 0 && (type_kind(target_type) == TYPE_PTR ||
+           type_kind(target_type) == TYPE_FUNC || type_kind(target_type) == TYPE_CLOSURE) {
+            target_type = llvm_i64_type();
+        }
+        if src_is_float && dst_is_float && src_bits == dst_bits {
+            llvm_set_result_str(src_val); llvm_expr_is_float = 1; return;
+        }
 
         var temp i64 = llvm_next_temp();
         llvm_emit_str("    %t");
@@ -2712,25 +2959,53 @@ func llvm_emit_expr(expr *u8) void {
 
         // Get source type (same untyped-literal hole as cast above)
         var src_type *u8 = llvm_get_expr_type(src_expr);
-        if src_type == nil && bc_src_was_float == 0 {
+        if src_type == nil {
+            if bc_src_was_float != 0 { src_type = llvm_f64_type(); }
+            else { src_type = llvm_i64_type(); }
+        }
+        var source_bits i64 = llvm_type_bits(src_type);
+        var target_bits i64 = llvm_type_bits(target_type);
+        if source_bits != target_bits {
+            cg_error_prefix_at(expr); eprintln("bitcast requires equal-width scalar types");
+            cg_had_error = 1; llvm_set_result_int(0); return;
+        }
+        var source_float i64 = llvm_is_float_type(src_type);
+        var target_float i64 = llvm_is_float_type(target_type);
+        if source_float && target_float {
+            llvm_set_result_str(src_val); llvm_expr_is_float = 1; return;
+        }
+        if source_float == 0 {
+            // Narrow integer values have already widened to i64. Restore the
+            // bit width only for reinterpretation, then normalize its result.
             src_type = llvm_i64_type();
+            if source_bits < 64 {
+                var narrow_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t"); llvm_emit_int(narrow_temp);
+                llvm_emit_str(" = trunc i64 "); llvm_emit_str(src_val); llvm_emit_str(" to i");
+                llvm_emit_int(source_bits); llvm_emit_char(10);
+                src_val = llvm_temp_name(narrow_temp);
+            }
         }
-
-        var temp i64 = llvm_next_temp();
-        llvm_emit_str("    %t");
-        llvm_emit_int(temp);
-        llvm_emit_str(" = bitcast ");
-        llvm_emit_type(src_type);
-        llvm_emit_str(" ");
-        llvm_emit_str(src_val);
-        llvm_emit_str(" to ");
-        llvm_emit_type(target_type);
-        llvm_emit_char(10);
-
-        llvm_set_result_temp(temp);
-        if llvm_is_float_type(target_type) {
-            llvm_expr_is_float = 1;
+        var result_value *u8 = src_val;
+        if source_float || target_float {
+            var temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t"); llvm_emit_int(temp); llvm_emit_str(" = bitcast ");
+            if source_float { llvm_emit_type(src_type); }
+            else { llvm_emit_str("i"); llvm_emit_int(source_bits); }
+            llvm_emit_str(" "); llvm_emit_str(src_val); llvm_emit_str(" to ");
+            if target_float { llvm_emit_type(target_type); }
+            else { llvm_emit_str("i"); llvm_emit_int(target_bits); }
+            llvm_emit_char(10); result_value = llvm_temp_name(temp);
         }
+        if target_float == 0 && target_bits < 64 {
+            var wide_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t"); llvm_emit_int(wide_temp); llvm_emit_str(" = ");
+            if llvm_is_signed_int(target_type) { llvm_emit_str("sext i"); }
+            else { llvm_emit_str("zext i"); }
+            llvm_emit_int(target_bits); llvm_emit_str(" "); llvm_emit_str(result_value);
+            llvm_emit_line(" to i64"); result_value = llvm_temp_name(wide_temp);
+        }
+        llvm_set_result_str(result_value); llvm_expr_is_float = target_float;
         return;
     }
 
@@ -2745,8 +3020,13 @@ func llvm_emit_expr(expr *u8) void {
                 var name *u8 = ident_expr_name(inner);
                 var len i64 = ident_expr_name_len(inner);
 
-                // Check if it's a function name
-                var func_decl *u8 = find_func(name, len);
+                // Address lookup follows value lookup: a local/parameter can
+                // shadow a function (notably eprint_i64's byte `c` in reader c).
+                var func_decl *u8 = nil;
+                if find_local(name, len) < 0 && find_global(name, len) < 0 &&
+                   llvm_find_let_binding(name, len) == nil {
+                    func_decl = find_func(name, len);
+                }
                 if func_decl != nil {
                     // Function address: ptrtoint func_type* @funcname to i64
                     // Get function parameter count for type signature
@@ -2804,15 +3084,41 @@ func llvm_emit_expr(expr *u8) void {
                     }
 
                     // ptrtoint converts pointer to integer
+                    var is_global_address i64 = 0;
+                    if find_local(name, len) < 0 && let_entry == nil && find_global(name, len) >= 0 {
+                        is_global_address = 1;
+                    }
+                    if is_global_address != 0 && llvm_is_wasm != 0 &&
+                       inner_type != nil && type_kind(inner_type) == TYPE_PTR {
+                        // Relocated pointer globals are i32 on LLVM-Wasm,
+                        // while addressable Lang pointer slots are i64. The
+                        // host's endptr writes correctly target those 8-byte
+                        // slots and must not overwrite a 4-byte relocation.
+                        cg_error_prefix_at(expr);
+                        eprintln("taking an LLVM-Wasm pointer global address is unsupported: relocation storage is 4 bytes but Lang pointer slots are 8 bytes");
+                        cg_had_error = 1; llvm_set_result_int(0); return;
+                    }
                     llvm_emit_str("    %t");
                     llvm_emit_int(temp);
-                    if alloc_size > 8 {
+                    if is_global_address != 0 && llvm_is_float_type(inner_type) == 0 &&
+                       (inner_type == nil || type_kind(inner_type) != TYPE_ARRAY) {
+                        // Integer and native pointer globals use word storage
+                        // even when their source spelling is i8 or *u8.
+                        llvm_emit_str(" = ptrtoint i64* ");
+                    } else if inner_type != nil && type_kind(inner_type) == TYPE_ARRAY {
+                        llvm_emit_str(" = ptrtoint "); llvm_emit_type(inner_type); llvm_emit_str("* ");
+                    } else if alloc_size > 8 {
                         llvm_emit_str(" = ptrtoint [");
                         llvm_emit_int(alloc_size);
-                        llvm_emit_str(" x i8]* %");
+                        llvm_emit_str(" x i8]* ");
+                    } else if inner_type != nil && llvm_is_float_type(inner_type) {
+                        llvm_emit_str(" = ptrtoint ");
+                        llvm_emit_type(inner_type);
+                        llvm_emit_str("* ");
                     } else {
-                        llvm_emit_str(" = ptrtoint i64* %");
+                        llvm_emit_str(" = ptrtoint i64* ");
                     }
+                    if is_global_address != 0 { llvm_emit_str("@"); } else { llvm_emit_str("%"); }
                     llvm_emit_n(actual_name, actual_name_len);
                     llvm_emit_line(" to i64");
                     llvm_set_result_temp(temp);
@@ -2918,36 +3224,46 @@ func llvm_emit_expr(expr *u8) void {
         if op == 26 {  // TOKEN_MINUS (negation)
             llvm_emit_str("    %t");
             llvm_emit_int(temp);
-            llvm_emit_str(" = sub i64 0, ");
+            var neg_type *u8 = llvm_get_expr_type(inner);
+            if neg_type != nil && llvm_is_float_type(neg_type) {
+                llvm_emit_str(" = fneg "); llvm_emit_type(neg_type); llvm_emit_str(" ");
+                llvm_expr_is_float = 1;
+            } else { llvm_emit_str(" = sub i64 0, "); }
             llvm_emit_str(inner_val);
             llvm_emit_char(10);
             llvm_set_result_temp(temp);
         } else if op == 31 {  // TOKEN_BANG (logical not)
             // Compare to 0, result is 1 if equal (was false), 0 otherwise
             var cmp_temp i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(cmp_temp);
-            llvm_emit_str(" = icmp eq i64 ");
-            llvm_emit_str(inner_val);
-            llvm_emit_line(", 0");
+            llvm_emit_truth_compare(inner_val, llvm_get_expr_type(inner), 1, cmp_temp);
             llvm_emit_str("    %t");
             llvm_emit_int(temp);
             llvm_emit_str(" = zext i1 %t");
             llvm_emit_int(cmp_temp);
             llvm_emit_line(" to i64");
             llvm_set_result_temp(temp);
+            llvm_expr_is_float = 0;
         } else if op == 27 {  // TOKEN_STAR (dereference *p)
             // Get the type of what we're dereferencing
-            var ptr_type *u8 = get_expr_type(inner);
+            var ptr_type *u8 = llvm_get_expr_type(inner);
             var elem_type *u8 = get_pointed_type(ptr_type);
             var size i64 = 8;
             if elem_type != nil {
-                size = get_type_size(elem_type);
+                size = llvm_type_size(elem_type);
             }
 
             var ptr_temp i64 = llvm_next_temp();
 
-            if size == 1 {
+            if elem_type != nil && llvm_is_float_type(elem_type) {
+                llvm_emit_str("    %t"); llvm_emit_int(ptr_temp);
+                llvm_emit_str(" = inttoptr i64 "); llvm_emit_str(inner_val);
+                llvm_emit_str(" to "); llvm_emit_type(elem_type); llvm_emit_line("*");
+                llvm_emit_str("    %t"); llvm_emit_int(temp);
+                llvm_emit_str(" = load "); llvm_emit_type(elem_type);
+                llvm_emit_str(", "); llvm_emit_type(elem_type);
+                llvm_emit_str("* %t"); llvm_emit_int(ptr_temp); llvm_emit_char(10);
+                llvm_expr_is_float = 1;
+            } else if size == 1 {
                 // Load i8, then zext to i64
                 llvm_emit_str("    %t");
                 llvm_emit_int(ptr_temp);
@@ -3141,6 +3457,13 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_expr(base_expr);
         }
         var base_val *u8 = str_dup(llvm_expr_result);
+        if is_array == 0 {
+            var pointer_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t"); llvm_emit_int(pointer_temp);
+            llvm_emit_str(" = inttoptr i64 "); llvm_emit_str(base_val); llvm_emit_str(" to ");
+            if elem_type != nil { llvm_emit_type(elem_type); } else { llvm_emit_str("i64"); }
+            llvm_emit_line("*"); base_val = llvm_temp_name(pointer_temp);
+        }
 
         // Use getelementptr to compute address
         var gep_temp i64 = llvm_next_temp();
@@ -3187,7 +3510,7 @@ func llvm_emit_expr(expr *u8) void {
         // Convert result to i64 for uniform handling
         var elem_size i64 = 8;
         if elem_type != nil {
-            elem_size = get_type_size(elem_type);
+            elem_size = llvm_type_size(elem_type);
         }
 
         // If element is pointer type, convert to i64 with ptrtoint
@@ -3199,6 +3522,8 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_int(load_temp);
             llvm_emit_line(" to i64");
             llvm_set_result_temp(ptrtoint_temp);
+        } else if elem_type != nil && llvm_is_float_type(elem_type) {
+            llvm_set_result_temp(load_temp); llvm_expr_is_float = 1;
         } else if elem_size < 8 {
             // Zero-extend small types to i64
             var zext_temp i64 = llvm_next_temp();
@@ -3320,6 +3645,28 @@ func llvm_emit_expr(expr *u8) void {
         // Check if field type is itself a struct (not a pointer to struct)
         // If so, we return the address (for nested field access), not load a value
         var field_type *u8 = get_field_type(struct_decl, field_name, field_len);
+        if field_type != nil && type_kind(field_type) == TYPE_ARRAY {
+            var address *u8 = unary_expr_alloc();
+            unary_expr_set_op(address, TOKEN_AMP); unary_expr_set_expr(address, expr);
+            llvm_emit_expr(address); return;
+        }
+        if field_type != nil && llvm_is_float_type(field_type) {
+            // Reuse &field's address calculation for pointer, local, and
+            // nested aggregates, but load using the declared scalar type.
+            var address *u8 = unary_expr_alloc();
+            unary_expr_set_op(address, TOKEN_AMP); unary_expr_set_expr(address, expr);
+            llvm_emit_expr(address);
+            var addr *u8 = str_dup(llvm_expr_result);
+            var ptr_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t"); llvm_emit_int(ptr_temp);
+            llvm_emit_str(" = inttoptr i64 "); llvm_emit_str(addr); llvm_emit_str(" to ");
+            llvm_emit_type(field_type); llvm_emit_line("*");
+            var load_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t"); llvm_emit_int(load_temp); llvm_emit_str(" = load ");
+            llvm_emit_type(field_type); llvm_emit_str(", "); llvm_emit_type(field_type);
+            llvm_emit_str("* %t"); llvm_emit_int(ptr_temp); llvm_emit_char(10);
+            llvm_set_result_temp(load_temp); llvm_expr_is_float = 1; return;
+        }
         var field_is_struct i64 = 0;
         if field_type != nil && type_kind(field_type) == TYPE_BASE {
             var ft_name *u8 = base_type_name(field_type);
@@ -3496,71 +3843,8 @@ func llvm_emit_expr(expr *u8) void {
     }
 
     if k == NODE_READER_EXPR {
-        // Reader macro invocation
-        var name *u8 = reader_expr_name(expr);
-        var name_len i64 = reader_expr_name_len(expr);
-        var content *u8 = reader_expr_content(expr);
-        var content_len i64 = reader_expr_content_len(expr);
-
-        // First check for embedded reader function (composed compilers)
-        var reader_func *u8 = find_embedded_reader_func(name, name_len);
-        if reader_func != nil {
-            // Call embedded reader function directly
-            var output *u8 = reader_func(content, content_len);
-            if output != nil {
-                var expanded *u8 = parse_ast_expression_from_reader_string(
-                    output, node_origin_source(expr), content
-                );
-                if expanded != nil {
-                    llvm_emit_expr(expanded);
-                }
-            }
-            return;
-        }
-
-        // Fall back to external executable
-        var reader_decl *u8 = find_reader(name, name_len);
-        if reader_decl == nil {
-            cg_error_prefix();
-            eprint("reader macro '");
-            eprint_buf(name, name_len);
-            eprintln("' not found");
-            return;
-        }
-
-        // Build path to reader executable
-        var exe_path *u8 = build_reader_cache_path(name, name_len);
-
-        // Execute reader with content as input
-        var output *u8 = alloc(4194304);
-        var n i64 = exec_capture(exe_path, content, content_len, output, 4194304);
-
-        if n < 0 {
-            cg_error_prefix();
-            eprint("reader '");
-            eprint_buf(name, name_len);
-            eprint("' exited with status ");
-            eprint_i64(0 - n);
-            eprintln("");
-            cg_had_error = 1;
-            return;
-        }
-        if n == 0 {
-            cg_error_prefix();
-            eprint("reader '");
-            eprint_buf(name, name_len);
-            eprintln("' returned no AST");
-            cg_had_error = 1;
-            return;
-        }
-
-        // Parse the output as S-expr AST expression (readers MUST output AST)
-        var expanded *u8 = parse_ast_expression_from_reader_string(
-            output, node_origin_source(expr), content
-        );
-        if expanded != nil {
-            llvm_emit_expr(expanded);
-        }
+        var expanded *u8 = llvm_expand_reader_expression(expr);
+        if expanded != nil { llvm_emit_expr(expanded); }
         return;
     }
 
@@ -4727,6 +5011,7 @@ func llvm_emit_stmt(stmt *u8) void {
         } else {
             llvm_emit_expr(ret_expr);
             var val *u8 = str_dup(llvm_expr_result);
+            val = llvm_coerce_scalar(val, llvm_get_expr_type(ret_expr), llvm_current_ret_type);
 
             // If returning pointer type but value is i64, convert with inttoptr
             if llvm_is_pointer_type(llvm_current_ret_type) {
@@ -4796,11 +5081,7 @@ func llvm_emit_stmt(stmt *u8) void {
 
         // Convert to i1 (LLVM bool)
         var cmp_temp i64 = llvm_next_temp();
-        llvm_emit_str("    %t");
-        llvm_emit_int(cmp_temp);
-        llvm_emit_str(" = icmp ne i64 ");
-        llvm_emit_str(cond_val);
-        llvm_emit_line(", 0");
+        llvm_emit_truth_compare(cond_val, llvm_get_expr_type(cond), 0, cmp_temp);
 
         // Branch
         llvm_emit_str("    br i1 %t");
@@ -4886,11 +5167,7 @@ func llvm_emit_stmt(stmt *u8) void {
         var cond_val *u8 = str_dup(llvm_expr_result);
 
         var cmp_temp i64 = llvm_next_temp();
-        llvm_emit_str("    %t");
-        llvm_emit_int(cmp_temp);
-        llvm_emit_str(" = icmp ne i64 ");
-        llvm_emit_str(cond_val);
-        llvm_emit_line(", 0");
+        llvm_emit_truth_compare(cond_val, llvm_get_expr_type(cond), 0, cmp_temp);
 
         llvm_emit_str("    br i1 %t");
         llvm_emit_int(cmp_temp);
@@ -4996,7 +5273,7 @@ func llvm_emit_stmt(stmt *u8) void {
         if var_type != nil {
             if type_kind(var_type) == TYPE_ARRAY {
                 // Array type - allocate full array size
-                alloc_size = get_type_size(var_type);
+                alloc_size = llvm_type_size(var_type);
                 is_array = 1;
             } else if type_kind(var_type) == TYPE_BASE {
                 var type_name *u8 = base_type_name(var_type);
@@ -5060,6 +5337,12 @@ func llvm_emit_stmt(stmt *u8) void {
             llvm_emit_line(" x i8]");
         }
 
+        if init == nil && llvm_is_float_type(var_type) {
+            llvm_emit_str("    store "); llvm_emit_type(var_type);
+            llvm_emit_str(" 0.0, "); llvm_emit_type(var_type); llvm_emit_str("* %");
+            llvm_emit_n(actual_name, actual_name_len); llvm_emit_char(10); return;
+        }
+
         // Array literal initializer: store element-wise into the alloca.
         // The global path builds a constant aggregate; a local has to write
         // each slot. Without this the literal fell through to the generic
@@ -5088,9 +5371,11 @@ func llvm_emit_stmt(stmt *u8) void {
                 // Slots past the literal's end are zero-filled, matching the
                 // global path's trailing zeros.
                 var elem_val *u8 = nil;
+                var element_expr *u8 = nil;
                 if li < lit_count {
                     var lit_ptr **u8 = lit_elems + (li * 8);
-                    llvm_emit_expr(*lit_ptr);
+                    element_expr = *lit_ptr;
+                    llvm_emit_expr(element_expr);
                     elem_val = str_dup(llvm_expr_result);
                 } else {
                     elem_val = "0";
@@ -5112,8 +5397,16 @@ func llvm_emit_stmt(stmt *u8) void {
                 // Expressions are all i64 here, so narrow back to the element
                 // type on the way in - the mirror of what the index-read path
                 // does with ptrtoint/zext on the way out.
-                var elem_bytes i64 = get_type_size(lit_elem_type);
-                if type_kind(lit_elem_type) == TYPE_PTR {
+                var elem_bytes i64 = llvm_type_size(lit_elem_type);
+                if llvm_is_float_type(lit_elem_type) {
+                    if element_expr != nil {
+                        elem_val = llvm_coerce_scalar(elem_val, llvm_get_expr_type(element_expr), lit_elem_type);
+                    } else { elem_val = "0.0"; }
+                    llvm_emit_str("    store "); llvm_emit_type(lit_elem_type);
+                    llvm_emit_str(" "); llvm_emit_str(elem_val); llvm_emit_str(", ");
+                    llvm_emit_type(lit_elem_type); llvm_emit_str("* %t");
+                    llvm_emit_int(slot_temp); llvm_emit_char(10);
+                } else if type_kind(lit_elem_type) == TYPE_PTR {
                     var cast_temp i64 = llvm_next_temp();
                     llvm_emit_str("    %t");
                     llvm_emit_int(cast_temp);
@@ -5239,6 +5532,7 @@ func llvm_emit_stmt(stmt *u8) void {
             }
 
             if is_aggregate == 0 {
+                init_val = llvm_coerce_scalar(init_val, llvm_get_expr_type(init), var_type);
                 // Simple store for primitives - use proper type for floats
                 llvm_emit_str("    store ");
                 if var_type != nil && llvm_is_float_type(var_type) {
@@ -5343,11 +5637,11 @@ func llvm_emit_stmt(stmt *u8) void {
             if target_op == 27 {  // TOKEN_STAR (dereference)
                 // Get the pointer value and type info
                 var ptr_expr *u8 = unary_expr_expr(target);
-                var ptr_type *u8 = get_expr_type(ptr_expr);
+                var ptr_type *u8 = llvm_get_expr_type(ptr_expr);
                 var elem_type *u8 = get_pointed_type(ptr_type);
                 var size i64 = 8;
                 if elem_type != nil {
-                    size = get_type_size(elem_type);
+                    size = llvm_type_size(elem_type);
                 }
 
                 llvm_emit_expr(ptr_expr);
@@ -5355,7 +5649,15 @@ func llvm_emit_stmt(stmt *u8) void {
 
                 var ptr_temp i64 = llvm_next_temp();
 
-                if size == 1 {
+                if elem_type != nil && llvm_is_float_type(elem_type) {
+                    val = llvm_coerce_scalar(val, llvm_get_expr_type(value), elem_type);
+                    llvm_emit_str("    %t"); llvm_emit_int(ptr_temp);
+                    llvm_emit_str(" = inttoptr i64 "); llvm_emit_str(ptr_val);
+                    llvm_emit_str(" to "); llvm_emit_type(elem_type); llvm_emit_line("*");
+                    llvm_emit_str("    store "); llvm_emit_type(elem_type); llvm_emit_str(" ");
+                    llvm_emit_str(val); llvm_emit_str(", "); llvm_emit_type(elem_type);
+                    llvm_emit_str("* %t"); llvm_emit_int(ptr_temp); llvm_emit_char(10);
+                } else if size == 1 {
                     // Truncate value to i8 and store
                     var trunc_temp i64 = llvm_next_temp();
                     llvm_emit_str("    %t");
@@ -5458,6 +5760,13 @@ func llvm_emit_stmt(stmt *u8) void {
                 llvm_emit_expr(base_expr);
             }
             var base_val *u8 = str_dup(llvm_expr_result);
+            if is_array == 0 {
+                var pointer_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t"); llvm_emit_int(pointer_temp);
+                llvm_emit_str(" = inttoptr i64 "); llvm_emit_str(base_val); llvm_emit_str(" to ");
+                if elem_type != nil { llvm_emit_type(elem_type); } else { llvm_emit_str("i64"); }
+                llvm_emit_line("*"); base_val = llvm_temp_name(pointer_temp);
+            }
 
             // Use getelementptr to compute address
             var gep_temp i64 = llvm_next_temp();
@@ -5496,6 +5805,7 @@ func llvm_emit_stmt(stmt *u8) void {
                 llvm_emit_int(gep_temp);
                 llvm_emit_line("");
             } else if elem_type != nil && llvm_is_float_type(elem_type) {
+                val = llvm_coerce_scalar(val, llvm_get_expr_type(value), elem_type);
                 llvm_emit_str("    store ");
                 llvm_emit_type(elem_type);
                 llvm_emit_str(" ");
@@ -5505,7 +5815,7 @@ func llvm_emit_stmt(stmt *u8) void {
                 llvm_emit_str("* %t");
                 llvm_emit_int(gep_temp);
                 llvm_emit_line("");
-            } else if elem_type != nil && get_type_size(elem_type) < 8 {
+            } else if elem_type != nil && llvm_type_size(elem_type) < 8 {
                 // Array values use lang's i64 expression representation;
                 // narrow at the typed memory boundary just like *p = value.
                 var trunc_temp i64 = llvm_next_temp();
@@ -5559,6 +5869,22 @@ func llvm_emit_stmt(stmt *u8) void {
             var is_pointer i64 = 0;
             var struct_decl *u8 = cg_field_struct(target, &is_pointer);
             if struct_decl != nil {
+                var scalar_type *u8 = get_field_type(struct_decl, field_name, field_len);
+                if scalar_type != nil && llvm_is_float_type(scalar_type) {
+                    val = llvm_coerce_scalar(val, llvm_get_expr_type(value), scalar_type);
+                    var address *u8 = unary_expr_alloc();
+                    unary_expr_set_op(address, TOKEN_AMP); unary_expr_set_expr(address, target);
+                    llvm_emit_expr(address);
+                    var addr *u8 = str_dup(llvm_expr_result);
+                    var ptr_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t"); llvm_emit_int(ptr_temp);
+                    llvm_emit_str(" = inttoptr i64 "); llvm_emit_str(addr); llvm_emit_str(" to ");
+                    llvm_emit_type(scalar_type); llvm_emit_line("*");
+                    llvm_emit_str("    store "); llvm_emit_type(scalar_type);
+                    llvm_emit_str(" "); llvm_emit_str(val); llvm_emit_str(", ");
+                    llvm_emit_type(scalar_type); llvm_emit_str("* %t");
+                    llvm_emit_int(ptr_temp); llvm_emit_char(10); return;
+                }
                 var field_offset i64 = get_field_offset(struct_decl, field_name, field_len);
                 // Get base address
                 if is_pointer != 0 {
@@ -6032,6 +6358,7 @@ func llvm_emit_stmt(stmt *u8) void {
                 }
             } else {
                 // Primitive assignment
+                val = llvm_coerce_scalar(val, llvm_get_expr_type(value), assignment_type);
                 if llvm_is_wasm && llvm_is_global(name, len) &&
                    assignment_type != nil && type_kind(assignment_type) == TYPE_PTR {
                     var narrow_temp i64 = llvm_next_temp();
@@ -6134,6 +6461,8 @@ func llvm_emit_func(func_node *u8) void {
 
     // Skip extern functions - they're just declarations
     if func_decl_is_extern(func_node) {
+        // The intrinsic declaration is emitted once in the module prelude.
+        if name_len == 7 && memcmp(name, "syscall", 7) { return; }
         // Emit as external declaration (name, name_len already set above)
         llvm_emit_str("declare ");
         llvm_emit_type(ret_type);
@@ -6157,10 +6486,14 @@ func llvm_emit_func(func_node *u8) void {
             }
         }
 
-        // Parameters - use i64 for all types for consistency with call sites
+        // Variadic declarations describe their fixed C prefix independently
+        // of the source placeholder. Other scalar declarations retain floats
+        // at their actual ABI width; integer/pointer operands use Lang words.
         var params *u8 = func_decl_params(func_node);
         var param_count i64 = func_decl_param_count(func_node);
         var i i64 = 0;
+        if is_printf_extern { llvm_emit_str("i8*, ..."); i = param_count; }
+        else if is_open_extern { llvm_emit_str("i64, i64, ..."); i = param_count; }
         while i < param_count {
             if i > 0 {
                 llvm_emit_str(", ");
@@ -6176,7 +6509,9 @@ func llvm_emit_func(func_node *u8) void {
                     i = param_count;  // Skip remaining params
                 }
             } else {
-                llvm_emit_str("i64");
+                var ptype *u8 = param_type(params + i * 24);
+                if llvm_is_float_type(ptype) { llvm_emit_type(ptype); }
+                else { llvm_emit_str("i64"); }
                 i = i + 1;
             }
         }
@@ -6649,6 +6984,41 @@ func llvm_emit_global_init_value(init *u8) void {
     llvm_emit_str("0");
 }
 
+func llvm_global_float_value(init *u8) f64 {
+    if init == nil { return 0.0; }
+    var kind i64 = node_kind(init);
+    if kind == NODE_NUMBER_EXPR {
+        return strtod(str_dup_n(number_expr_value(init), number_expr_value_len(init)), nil);
+    }
+    if kind == NODE_GROUP_EXPR { return llvm_global_float_value(group_expr_expr(init)); }
+    if kind == NODE_UNARY_EXPR && unary_expr_op(init) == TOKEN_MINUS {
+        return -llvm_global_float_value(unary_expr_expr(init));
+    }
+    if kind == NODE_CAST_EXPR && llvm_is_float_type(cast_expr_type(init)) {
+        var value f64 = llvm_global_float_value(cast_expr_expr(init));
+        if llvm_is_f32_type(cast_expr_type(init)) { return cast(f64, cast(f32, value)); }
+        return value;
+    }
+    cg_error_prefix_at(init);
+    eprintln("floating global initializer must be a numeric literal, group, negation or floating cast");
+    cg_had_error = 1; return 0.0;
+}
+
+func llvm_emit_float_constant(value f64, value_type *u8) void {
+    if llvm_is_f32_type(value_type) { value = cast(f64, cast(f32, value)); }
+    // LLVM's float hex spelling contains the exactly expanded binary64 bits
+    // of the rounded binary32 value. Raw decimal text such as float 0.3 is not
+    // a valid LLVM constant when it cannot be represented exactly.
+    var bits i64 = bitcast(i64, value);
+    var digits *u8 = "0123456789ABCDEF";
+    llvm_emit_str("0x");
+    var shift i64 = 60;
+    while shift >= 0 {
+        llvm_emit_char(*(digits + ((bits >> shift) & 15)));
+        shift = shift - 4;
+    }
+}
+
 func llvm_emit_decl(decl *u8) void {
     if decl == nil {
         return;
@@ -6854,12 +7224,16 @@ func llvm_emit_decl(decl *u8) void {
                         var elem *u8 = *elem_ptr;
                         llvm_emit_type(elem_type);
                         llvm_emit_str(" ");
-                        llvm_emit_global_array_elem(elem, is_ptr_elem);
+                        if llvm_is_float_type(elem_type) {
+                            llvm_emit_float_constant(llvm_global_float_value(elem), elem_type);
+                        } else { llvm_emit_global_array_elem(elem, is_ptr_elem); }
                     } else {
                         // Emit zero/null for remaining elements
                         llvm_emit_type(elem_type);
                         if is_ptr_elem {
                             llvm_emit_str(" null");
+                        } else if llvm_is_float_type(elem_type) {
+                            llvm_emit_str(" 0.0");
                         } else {
                             llvm_emit_str(" 0");
                         }
@@ -6873,6 +7247,12 @@ func llvm_emit_decl(decl *u8) void {
             }
             llvm_emit_char(10);
             return;
+        }
+
+        if llvm_is_float_type(var_type) {
+            llvm_emit_type(var_type); llvm_emit_str(" ");
+            llvm_emit_float_constant(llvm_global_float_value(init), var_type);
+            llvm_emit_char(10); return;
         }
 
         // wasm relocations use its native i32 pointer width. Keep pointer

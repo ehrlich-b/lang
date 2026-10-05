@@ -1,0 +1,44 @@
+// Compile after promoting the eof grammar capability.
+// expect: 0
+include "std/parser_reader.lang"
+
+#parser{
+    complete_number = number eof
+    empty_file = eof
+    zero_width_repeat = eof*
+    zero_width_plus = eof+
+    guarded_choice = (number eof) | (number symbol eof)
+}
+
+func main() i64 {
+    var empty *Tokenizer = tok_new(" // nothing\n");
+    var end *PNode = parse_empty_file(empty);
+    if end == nil || end.start != 12 || end.end != 12 { return 1; }
+    if !tok_eof(empty) || !streq(end.text, "end of input") { return 2; }
+
+    var good *Tokenizer = tok_new("42");
+    if parse_complete_number(good) == nil || !tok_eof(good) { return 3; }
+    var bad *Tokenizer = tok_new("42 tail");
+    if parse_complete_number(bad) != nil || tok_mark(bad) != 0 { return 4; }
+    if tok_error_offset(bad) != 3 ||
+       !streq(tok_error_expected(bad), "end of input") { return 5; }
+
+    // eof succeeds without advancing, so repeated assertions stop safely.
+    var repeated *Tokenizer = tok_new("");
+    var many *PNode = parse_zero_width_repeat(repeated);
+    if many == nil || vec_len(many.children) != 0 { return 6; }
+    if tok_mark(repeated) != 0 { return 7; }
+
+    var one_or_more *PNode = parse_zero_width_plus(repeated);
+    if one_or_more == nil || vec_len(one_or_more.children) != 1 { return 10; }
+    if tok_mark(repeated) != 0 { return 11; }
+
+    var backtrack *Tokenizer = tok_new("42 tail");
+    if parse_guarded_choice(backtrack) == nil || !tok_eof(backtrack) { return 8; }
+
+    var stream *u8 = tok_stream_new();
+    tok_stream_push(stream, TOK_NUMBER, 0, 2, nil);
+    var custom *Tokenizer = tok_new_stream("42", stream);
+    if parse_complete_number(custom) == nil || !tok_eof(custom) { return 9; }
+    return 0;
+}

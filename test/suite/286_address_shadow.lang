@@ -1,0 +1,28 @@
+//exit 0
+// &name must choose the same local/parameter as an ordinary value lookup.
+func target() i64 { return 7; }
+
+func local_address() i64 {
+    var target i64 = 42;
+    var p *i64 = &target;
+    if *p != 42 { return 1; }
+    *p = 43;
+    if target != 43 { return 2; }
+    return 0;
+}
+
+func parameter_address(target i64) i64 {
+    var p *i64 = &target;
+    if *p != 42 { return 3; }
+    *p = 44;
+    if target != 44 { return 4; }
+    return 0;
+}
+
+func main() i64 {
+    if local_address() != 0 { return 1; }
+    if parameter_address(42) != 0 { return 2; }
+    var call fn() i64 = &target;
+    if call() != 7 { return 3; }
+    return 0;
+}

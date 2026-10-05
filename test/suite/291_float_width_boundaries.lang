@@ -1,0 +1,62 @@
+// expect: 100
+// Native/direct scalar widths, typed stores, casts and nonzero truth.
+include "std/core.lang"
+
+var width_global32 f32 = cast(f32, 0.3);
+var width_global64 f64 = -0.30000000000000004;
+struct WidthState { narrow f32; marker i32; wide f64; }
+func width_identity32(value f32) f32 { return cast(f32, value); }
+func width_identity64(value f64) f64 { return cast(f64, value); }
+func width_promote(value f32) f64 { return value; }
+func width_literal32() f32 { return 0.3; }
+func width_integer64() f64 { return 2; }
+func main() i64 {
+    if bitcast(i32, width_global32) != 1050253722 { return 1; }
+    if width_global64 != -0.30000000000000004 { return 2; }
+    var narrow f32 = width_identity32(0.3);
+    if bitcast(i32, narrow) != 1050253722 { return 3; }
+    if width_literal32() != narrow || width_integer64() != 2.0 { return 4; }
+    var wide f64 = width_promote(narrow);
+    if wide < 0.3000000119209289 || wide > 0.3000000119209290 { return 5; }
+    if width_identity64(wide) != wide { return 6; }
+    narrow = narrow + 1;
+    if narrow != cast(f32, 1.3) { return 7; }
+    width_global32 = 0.375;
+    width_global64 = width_global32;
+    if width_global64 != 0.375 { return 8; }
+
+    // Lang struct fields occupy aligned word slots: narrow@0, marker@8, wide@16.
+    var state *WidthState = alloc(24);
+    state.marker = 37;
+    state.narrow = 0.3;
+    state.wide = state.narrow;
+    if bitcast(i32, state.narrow) != 1050253722 || state.wide != wide { return 9; }
+    if state.marker != 37 { return 10; }
+    var memory32 *f32 = alloc(8);
+    memory32[0] = 0.3;
+    memory32[1] = 0.375;
+    if bitcast(i32, memory32[0]) != 1050253722 || *memory32 != state.narrow { return 11; }
+    *memory32 = 0.5;
+    if memory32[0] != cast(f32, 0.5) { return 12; }
+    var memory64 *f64 = alloc(8);
+    *memory64 = memory32[1];
+    var bytes *u8 = cast(*u8, memory64);
+    var recovered *f64 = cast(*f64, bytes);
+    if *recovered != 0.375 { return 13; }
+    var zero f32;
+    if zero != cast(f32, 0.0) { return 14; }
+
+    var count i64 = 0;
+    var remaining f64 = 2.0;
+    while remaining { count = count + 1; remaining = remaining - 1.0; }
+    if count != 2 || !0.25 || -0.0 { return 15; }
+    var invalid f64 = 0.0 / 0.0;
+    if !invalid || !cast(bool, invalid) || !cast(bool, 2.5) || !cast(bool, 2) { return 16; }
+    if cast(bool, -0.0) || cast(bool, 0) { return 17; }
+    var restored f32 = bitcast(f32, cast(i32, 1050253722));
+    if restored != state.narrow { return 18; }
+    var minus_zero f32 = cast(f32, -0.0);
+    if bitcast(i32, minus_zero) != -2147483648 { return 19; }
+    if bitcast(u32, minus_zero) != 2147483648 { return 20; }
+    return 100;
+}

@@ -118,11 +118,24 @@
     native/wasm backends. The result is a compiler for your language.
   </p>
   <p>
-    C, Lisp, flow, Forth, and minipy ship as source you can steal, not a closed
+    C, Lisp, Flow, Forth, minipy, and Hamiltonian models ship as source you can study, not a closed
     language list. The polyglot demo shows reader boundaries disappear in one
     wasm module &mdash; no VM, FFI, or glue.
   </p>
-  <p><a class="cta" href="lab.html">write a reader in your browser &rarr;</a></p>
+  <p><a class="cta" href="lab.html">create your language &rarr;</a>
+     <a class="cta" href="science.html">compile an energy model &rarr;</a></p>
+
+  <h2>an energy model becomes an experiment</h2>
+  <p>Write a nondimensional polynomial potential. The Hamiltonian reader derives
+     its forces at compile time, then builds a specialized f64 kick–drift–kick
+     experiment through the shared AST and WebAssembly backend. Change the
+     coupling or potential and recompile in your browser.</p>
+  <pre class="snip"><code>potential = k*(x^2+y^2)/2 + a*(x^4+y^4)/4 + b*x^2*y^2/2;</code></pre>
+  <p>Inspect the generated force functions, run harmonic and nonlinear models,
+     and export precise CSV. The first language is explicitly nondimensional:
+     positive constant masses, one to four canonical pairs, and bounded
+     polynomial expressions. Physical unit checking is future work.</p>
+  <p><a href="science.html">Open the scientific compiler &rarr;</a></p>
 
   <div class="tabs" id="tabs"></div>
   <div id="examples"></div>
@@ -210,7 +223,7 @@
 
   <footer>
     <p>
-      Read the <a href="readers.html">20-line guide</a>,
+      Read the <a href="readers.html">reader-building guide</a>,
       <a href="lab.html">write one in the browser</a>,
       open the <a href="https://github.com/ehrlich-b/lang/blob/main/docs/AST_BUILDERS.md">AST builder reference</a>,
       and teach lang a new syntax.
@@ -218,7 +231,8 @@
   </footer>
 </div>
 
-<script src="host.js"></script>
+<script src="numeric_host.js?v=science1"></script>
+<script src="host.js?v=science1"></script>
 <script>
 const EXAMPLES = [
   {
@@ -229,7 +243,7 @@ const EXAMPLES = [
   {
     id: 'fib',
     title: 'fib.lang',
-    desc: '<b>lang itself</b> — the bootstrap substrate the readers are written in: C-like, all-i64, self-hosted.',
+    desc: '<b>lang itself</b> — the bootstrap substrate the readers are written in: explicit types, self-hosted.',
   },
   {
     id: 'mandelbrot',

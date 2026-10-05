@@ -1,0 +1,7 @@
+include "std/core.lang"
+func main() i64 {
+    print_int(-12345); println("");
+    print_int(0); println("");
+    print_int(9223372036854775807); println("");
+    return 42;
+}

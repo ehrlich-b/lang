@@ -1,0 +1,44 @@
+// A small actual language: statements contribute values to a native/wasm result.
+// Includes independent malformed-item diagnostics without emitting partial AST.
+include "std/parser_reader.lang"
+include "std/parse.lang"
+include "std/ast.lang"
+
+#parser{
+    workshop_statement = 'add' value:number ';'
+    workshop_end = eof
+}
+
+reader workshop(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    var session *ParseSession = parse_session_new(tokens, 8);
+    var values *u8 = ast_vec();
+    while !tok_eof(tokens) && parse_begin(session) {
+        var item *PNode = parse_workshop_statement(tokens);
+        if item == nil {
+            parse_report(session);
+            if parse_sync_text(session, ";", true, 1024) == PARSE_SYNC_LIMIT {
+                break;
+            }
+        } else {
+            var value *PNode = pnode_require(item, "value");
+            if value == nil { return nil; }
+            ast_push(values, ast_span(ast_number(value.text), value.start, value.end));
+        }
+    }
+    if parse_has_errors(session) {
+        parse_print_diagnostics(session, "workshop");
+        return nil;
+    }
+    if parse_workshop_end(tokens) == nil {
+        tok_print_error(tokens, "workshop");
+        return nil;
+    }
+    var result *u8 = ast_int(0);
+    var i i64 = 0;
+    while i < ast_vec_len(values) {
+        result = ast_add(result, ast_vec_get(values, i));
+        i = i + 1;
+    }
+    return ast_main_i64(result);
+}

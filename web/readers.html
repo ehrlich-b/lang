@@ -21,11 +21,16 @@
 </head>
 <body><main>
   <a class="back" href="./">&larr; lang</a>
-  <h1>write a reader</h1>
+  <h1>make a language</h1>
   <p>
     A reader is a frontend: source text in, shared AST out. Wrap it around
     lang&rsquo;s kernel and you get a native compiler for your syntax.
   </p>
+
+  <p><a href="lab.html">Start a named language in the browser &rarr;</a>
+    The workshop starts with a small grammar, its lowering function, and source
+    you can change. Inspect the parse tree and shared AST, correct located errors,
+    then save or export the entire workspace. Compilation stays in the tab.</p>
 
   <pre class="command"><code>$ git clone \
   https://github.com/ehrlich-b/lang
@@ -79,5 +84,43 @@ $ ./tinyc example/tiny/answer.tiny -o answer.ll</code></pre>
     spells out that boundary. The
     shipped C, Lisp, Forth, flow, and minipy readers are examples, not a closed list.
   </p>
+
+  <h2>a grammar is only the beginning</h2>
+  <p>Generated parsers support named rules, ordered alternatives, sequences,
+    groups, optional/repeated items, labeled branches, named captures, exact
+    literals, custom token kinds and <code>eof</code>. Failed matches rewind.
+    Use <code>eof</code> when a whole file must be consumed. Left recursion is
+    rejected with a grammar location; use the precedence toolkit for expressions.</p>
+  <p>Recovery is an explicit reader decision: collect immutable diagnostics,
+    synchronize at a safe statement delimiter, and refuse a partial program.
+    The workshop demonstrates two errors in one source and correction through
+    the same compiled reader. The browser can inspect the parse tree as well as
+    the final AST.</p>
+
+  <h2>how this compares with yacc and ANTLR</h2>
+  <p>Bison/yacc generate LR-family parsers, with GLR and conflict-analysis tools
+    available in Bison. ANTLR combines lexer generation and adaptive parser
+    prediction, with supported left-recursive expression grammars, listeners and
+    visitors. Lang uses ordered recursive descent: the first successful branch
+    wins. It does not supply those algorithms, a generated regular-expression
+    lexer, lexer modes, ambiguity analysis or automatic token-insertion recovery.</p>
+  <p>Lang adds the other half of language building: lower your syntax to a typed
+    shared AST, compose readers, and mint a native compiler or compile a supported
+    program to Wasm in the browser. The capability contract is concrete examples
+    and executable acceptance tests, not a claim that every Bison or ANTLR grammar
+    transfers unchanged.</p>
+  <p><a href="reference/GRAMMAR_CAPABILITIES.md">Read the capability matrix and acceptance examples</a>.
+    <a href="reference/PARSER_GENERATOR.md">Parser syntax and recovery reference</a>.
+    <a href="https://www.gnu.org/software/bison/manual/">Bison manual</a>.
+    <a href="https://github.com/antlr/antlr4/blob/master/doc/index.md">ANTLR documentation</a>.</p>
+
+  <h2>a scientific language built this way</h2>
+  <p>The Hamiltonian reader takes a polynomial energy model, differentiates its
+    potential at compile time, and generates a specialized floating-point
+    experiment. Change a coupling, inspect the forces, run it, and export precise
+    trajectories. This first language is nondimensional; it does not infer or
+    check physical units.</p>
+  <p><a href="science.html">Open the Hamiltonian compiler &rarr;</a>
+    <a href="reference/HAMILTONIAN.md">Read its frozen model contract</a>.</p>
 </main></body>
 </html>

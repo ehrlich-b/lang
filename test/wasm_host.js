@@ -45,6 +45,11 @@ class ExitTrap { constructor(code) { this.code = code & 255; } }
 
 // lang declares externs all-i64 (pointers included), so scalar args arrive as
 // BigInt; pointer RETURNS are real i8* (i32 -> js number). Coerce explicitly.
+const numeric = require('../web/numeric_host.js').createNumericHost({
+  memory: () => instance.exports.memory,
+  cstr: ptr => cstr(Number(ptr)),
+  emit: (text, isError) => (isError ? process.stderr : process.stdout).write(text),
+});
 const env = {
   read: () => 0n,
   write: (fd, buf, count) => {
@@ -65,19 +70,10 @@ const env = {
   getpid: () => 1n,
   getppid: () => 0n,
   getenv: () => 0,
-  printf: (fmt, argbuf) => {
-    // printf is varargs; wasm lowers varargs to a pointer to an arg buffer.
-    // std/core print_float uses printf("%f\n", val) - read the f64 from there.
-    const dv = new DataView(instance.exports.memory.buffer);
-    let off = Number(argbuf);
-    const s = cstr(Number(fmt)).replace(/%l?[dfg]/g, (spec) => {
-      const v = spec.endsWith('d') ? dv.getBigInt64(off, true) : dv.getFloat64(off, true);
-      off += 8;
-      return String(v);
-    });
-    process.stdout.write(s);
-    return BigInt(s.length);
-  },
+  printf: numeric.printfBuffer,
+  strtod: numeric.strtod,
+  fmod: numeric.fmod,
+  fmodf: numeric.fmodf,
   fork: () => -1n,
   execve: () => -1n,
   waitpid: () => -1n,
@@ -98,6 +94,12 @@ const env = {
 // native wasm32 pointer signatures under env.
 const lang = {
   ...env,
+  printf: numeric.printf,
+  strtod: require('../web/numeric_host.js').createNumericHost({
+    memory: () => instance.exports.memory,
+    cstr: ptr => cstr(Number(ptr)),
+    emit: (text, isError) => (isError ? process.stderr : process.stdout).write(text),
+  }).strtod,
   mmap: (addr, len) => BigInt(bump(len)),
   malloc: (size) => BigInt(bump(size)),
   calloc: (n, size) => BigInt(bump(Number(n) * Number(size))),

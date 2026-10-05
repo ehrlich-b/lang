@@ -1,0 +1,14 @@
+// expect: 0
+// Actual generic-reader lowering remains valid alongside #parser quote repair.
+include "std/core.lang"
+include "example/minilisp/lisp_runtime.lang"
+include "example/minilisp/minilisp.lang"
+
+func main() i64 {
+    var quoted i64 = #minilisp{ (quote (40 (2))) };
+    var first i64 = lisp_to_int(lisp_car(quoted));
+    var nested i64 = lisp_car(lisp_cdr(quoted));
+    var second i64 = lisp_to_int(lisp_car(nested));
+    if first + second != 42 { return 1; }
+    return 0;
+}

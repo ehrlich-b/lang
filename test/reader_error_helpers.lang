@@ -1,0 +1,14 @@
+include "std/core.lang"
+include "std/reader_error.lang"
+
+func main() i64 {
+    reader_print_error_at("a\nb", "test", 2, "located");
+    reader_print_error_at("a\nb", "test", 999, "EOF");
+    reader_print_error_at("a\nb", "test", 0 - 1, "unknown span");
+    reader_print_error_at(nil, "test", 0, "unknown source");
+    reader_error_begin("one\ntwo", "first");
+    reader_error(pnode_atom_span(PNODE_SYMBOL, "two", 4, 7), "node");
+    reader_error_begin("x", "second");
+    reader_error(nil, "nil node");
+    return 0;
+}

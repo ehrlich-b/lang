@@ -1,0 +1,11 @@
+model quartic {
+    nondimensional;
+    param m = 1.3;
+    param k = 0.8;
+    param a = 0.6;
+    param b = 0.4;
+    pair x mass m position 0.7 momentum 0.2;
+    pair y mass m position -0.4 momentum 0.3;
+    potential = k*(x^2+y^2)/2 + a*(x^4+y^4)/4 + b*x^2*y^2/2;
+    run step 0.01 steps 368 sample 1;
+}

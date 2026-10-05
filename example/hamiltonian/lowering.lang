@@ -1,0 +1,292 @@
+// Specialized shared-AST lowering. Solver phases are whole-state snapshots.
+// No expression interpreter, force table, model recognition, or effects.
+
+func hm_q(pair *HMPair) *u8 { return ast_field(ast_ident("ham_state"), hm_name("q_", pair.name)); }
+func hm_p(pair *HMPair) *u8 { return ast_field(ast_ident("ham_state"), hm_name("p_", pair.name)); }
+
+func hm_params(model *HMModel, momentum i64) *u8 {
+    var params *u8 = ast_vec(); var i i64 = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        ast_push(params, ast_param(hm_name("q_", pair.name), ast_type("f64"))); i = i + 1;
+    }
+    if momentum != 0 {
+        i = 0;
+        while i < vec_len(model.pairs) {
+            var pair *HMPair = vec_get(model.pairs, i);
+            ast_push(params, ast_param(hm_name("p_", pair.name), ast_type("f64"))); i = i + 1;
+        }
+    }
+    return params;
+}
+
+func hm_state_call(model *HMModel, name *u8, momentum i64) *u8 {
+    var args *u8 = ast_vec(); var i i64 = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        ast_push(args, hm_q(pair)); i = i + 1;
+    }
+    if momentum != 0 {
+        i = 0;
+        while i < vec_len(model.pairs) {
+            var pair *HMPair = vec_get(model.pairs, i);
+            ast_push(args, hm_p(pair)); i = i + 1;
+        }
+    }
+    return ast_call_named(name, args);
+}
+
+func hm_cell(stmts *u8, value *u8, last i64) void {
+    ast_push(stmts, ast_expr_stmt(ast_call2("ham_cell", value, ast_int(last))));
+}
+
+func hm_header(model *HMModel, forces i64) *u8 {
+    var sb *StringBuilder = sb_new();
+    if forces == 0 { sb_str(sb, "step,time,"); }
+    var i i64 = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        sb_str(sb, "q_"); sb_str(sb, pair.name); sb_str(sb, ","); i = i + 1;
+    }
+    i = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        if forces == 0 { sb_str(sb, "p_"); } else { sb_str(sb, "force_"); }
+        sb_str(sb, pair.name); sb_str(sb, ","); i = i + 1;
+    }
+    if forces == 0 { sb_str(sb, "energy\n"); } else { sb_str(sb, "potential\n"); }
+    return ast_expr_stmt(ast_call1("print", ast_string(sb_finish(sb))));
+}
+
+func hm_row(model *HMModel) *u8 {
+    var stmts *u8 = ast_vec();
+    hm_cell(stmts, ast_call1("ham_real_integer", ast_ident("step")), 0);
+    hm_cell(stmts, ast_mul(ast_call1("ham_real_integer", ast_ident("step")), model.step), 0);
+    var i i64 = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        hm_cell(stmts, hm_q(pair), 0); i = i + 1;
+    }
+    i = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        hm_cell(stmts, hm_p(pair), 0); i = i + 1;
+    }
+    hm_cell(stmts, hm_state_call(model, "ham_energy", 1), 1);
+    return ast_func("ham_row", ast_vec_push_one(ast_param("step", ast_type_i64())), ast_type_void(), ast_block(stmts));
+}
+
+func hm_print(stmts *u8, text *u8) void {
+    // Keep punctuation and numbers on one buffered stdio stream. Mixing
+    // core's write-based print with printf would reorder redirected JSON.
+    ast_push(stmts, ast_expr_stmt(ast_call2("printf", ast_string(text), ast_number("0.0"))));
+}
+func hm_json_number(stmts *u8, value *u8) void {
+    ast_push(stmts, ast_expr_stmt(ast_call1("ham_json_number", value)));
+}
+
+func hm_json_header(model *HMModel) *u8 {
+    var stmts *u8 = ast_vec();
+    hm_print(stmts, "{\"schema\":\"lang.hamiltonian.trajectory.v1\",\"nondimensional\":true,\"method\":\"velocity-verlet\",\"coordinates\":[");
+    var i i64 = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        if i != 0 { hm_print(stmts, ","); }
+        // Coordinates are tokenizer symbols, hence contain no JSON quotes.
+        hm_print(stmts, hm_name(hm_name("\"", pair.name), "\"")); i = i + 1;
+    }
+    hm_print(stmts, "],\"masses\":["); i = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        if i != 0 { hm_print(stmts, ","); }
+        hm_json_number(stmts, pair.mass); i = i + 1;
+    }
+    hm_print(stmts, "],\"step_size\":"); hm_json_number(stmts, model.step);
+    hm_print(stmts, ",\"steps\":");
+    ast_push(stmts, ast_expr_stmt(ast_call1("ham_json_integer", ast_int(model.steps))));
+    hm_print(stmts, ",\"sample_stride\":");
+    ast_push(stmts, ast_expr_stmt(ast_call1("ham_json_integer", ast_int(model.sample))));
+    hm_print(stmts, ",\"samples\":[");
+    return ast_block(stmts);
+}
+
+func hm_json_row(model *HMModel) *u8 {
+    var stmts *u8 = ast_vec();
+    var comma *u8 = ast_vec(); hm_print(comma, ",");
+    ast_push(stmts, ast_if_then(ast_ne(ast_ident("step"), ast_int(0)), ast_block(comma)));
+    hm_print(stmts, "\n{\"step\":");
+    ast_push(stmts, ast_expr_stmt(ast_call1("ham_json_integer", ast_ident("step"))));
+    hm_print(stmts, ",\"time\":");
+    hm_json_number(stmts, ast_mul(ast_call1("ham_real_integer", ast_ident("step")), model.step));
+    hm_print(stmts, ",\"q\":["); var i i64 = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        if i != 0 { hm_print(stmts, ","); }
+        hm_json_number(stmts, hm_q(pair)); i = i + 1;
+    }
+    hm_print(stmts, "],\"p\":["); i = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        if i != 0 { hm_print(stmts, ","); }
+        hm_json_number(stmts, hm_p(pair)); i = i + 1;
+    }
+    hm_print(stmts, "],\"energy\":");
+    hm_json_number(stmts, hm_state_call(model, "ham_energy", 1)); hm_print(stmts, "}");
+    return ast_func("ham_json_row", ast_vec_push_one(ast_param("step", ast_type_i64())), ast_type_void(), ast_block(stmts));
+}
+
+func hm_output_row(step *u8) *u8 {
+    return ast_if(ast_eq(ast_ident("mode"), ast_int(3)),
+        ast_block1(ast_expr_stmt(ast_call1("ham_json_row", step))),
+        ast_block1(ast_expr_stmt(ast_call1("ham_row", step))));
+}
+
+func ast_vec_push_one(node *u8) *u8 { var out *u8 = ast_vec(); ast_push(out, node); return out; }
+
+func hm_step_function(model *HMModel) *u8 {
+    var stmts *u8 = ast_vec(); var i i64 = 0;
+    // Materialize ALL old forces before changing ANY coordinate.
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        ast_push(stmts, ast_var(hm_name("old_force_", pair.name), ast_type("f64"), hm_state_call(model, hm_name("ham_force_", pair.name), 0))); i = i + 1;
+    }
+    i = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        var kick *u8 = ast_mul(ast_mul(ast_number("0.5"), ast_ident("h")), ast_ident(hm_name("old_force_", pair.name)));
+        var momentum *u8 = hm_p(pair);
+        ast_push(stmts, ast_assign(momentum, ast_add(momentum, kick))); i = i + 1;
+    }
+    i = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        var drift *u8 = ast_div(ast_mul(ast_ident("h"), hm_p(pair)), pair.mass);
+        var position *u8 = hm_q(pair);
+        ast_push(stmts, ast_assign(position, ast_add(position, drift))); i = i + 1;
+    }
+    // Materialize ALL new forces after ALL drifts, before final kicks.
+    i = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        ast_push(stmts, ast_var(hm_name("new_force_", pair.name), ast_type("f64"), hm_state_call(model, hm_name("ham_force_", pair.name), 0))); i = i + 1;
+    }
+    i = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        var kick *u8 = ast_mul(ast_mul(ast_number("0.5"), ast_ident("h")), ast_ident(hm_name("new_force_", pair.name)));
+        var momentum *u8 = hm_p(pair);
+        ast_push(stmts, ast_assign(momentum, ast_add(momentum, kick))); i = i + 1;
+    }
+    ast_push(stmts, ast_return_void());
+    return ast_func("ham_step", ast_vec_push_one(ast_param("h", ast_type("f64"))), ast_type_void(), ast_block(stmts));
+}
+
+func hm_check_function(model *HMModel) *u8 {
+    var stmts *u8 = ast_vec(); var i i64 = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        ast_push(stmts, ast_expr_stmt(ast_call1("ham_finite", hm_q(pair))));
+        ast_push(stmts, ast_expr_stmt(ast_call1("ham_finite", hm_p(pair)))); i = i + 1;
+    }
+    ast_push(stmts, ast_expr_stmt(ast_call1("ham_finite", hm_state_call(model, "ham_energy", 1))));
+    ast_push(stmts, ast_return_void());
+    return ast_func("ham_check", ast_vec(), ast_type_void(), ast_block(stmts));
+}
+
+func hm_flip(model *HMModel) *u8 {
+    var stmts *u8 = ast_vec(); var i i64 = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        var p *u8 = hm_p(pair);
+        ast_push(stmts, ast_assign(p, ast_neg(p))); i = i + 1;
+    }
+    return ast_block(stmts);
+}
+
+func hm_main(model *HMModel) *u8 {
+    var stmts *u8 = ast_vec();
+    ast_push(stmts, ast_assign(ast_ident("ham_state"), ast_call1("alloc", ast_int(vec_len(model.pairs) * 16))));
+    var initial i64 = 0;
+    while initial < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, initial);
+        ast_push(stmts, ast_assign(hm_q(pair), pair.position));
+        ast_push(stmts, ast_assign(hm_p(pair), pair.momentum)); initial = initial + 1;
+    }
+    ast_push(stmts, ast_var("mode", ast_type_i64(), ast_call3("ham_mode", ast_ident("argc"), ast_ident("argv"), ast_int(vec_len(model.pairs)))));
+    var probe *u8 = ast_vec(); var i i64 = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        ast_push(probe, ast_assign(hm_q(pair), ast_call1("ham_argument", ast_deref(ast_add(ast_ident("argv"), ast_int(i + 2)))))); i = i + 1;
+    }
+    ast_push(probe, hm_header(model, 1));
+    i = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i); hm_cell(probe, hm_q(pair), 0); i = i + 1;
+    }
+    i = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i); hm_cell(probe, hm_state_call(model, hm_name("ham_force_", pair.name), 0), 0); i = i + 1;
+    }
+    hm_cell(probe, hm_state_call(model, "ham_potential", 0), 1);
+    ast_push(probe, ast_return(ast_int(0)));
+    ast_push(stmts, ast_if_then(ast_eq(ast_ident("mode"), ast_int(2)), ast_block(probe)));
+    ast_push(stmts, ast_expr_stmt(ast_call0("ham_check")));
+    ast_push(stmts, ast_if(ast_eq(ast_ident("mode"), ast_int(3)), hm_json_header(model), ast_block1(hm_header(model, 0))));
+    ast_push(stmts, hm_output_row(ast_int(0)));
+    ast_push(stmts, ast_var("step", ast_type_i64(), ast_int(0)));
+    var loop *u8 = ast_vec();
+    ast_push(loop, ast_expr_stmt(ast_call1("ham_step", model.step)));
+    ast_push(loop, ast_expr_stmt(ast_call0("ham_check")));
+    ast_push(loop, ast_assign(ast_ident("step"), ast_add(ast_ident("step"), ast_int(1))));
+    var sample *u8 = ast_binop("||", ast_eq(ast_mod(ast_ident("step"), ast_int(model.sample)), ast_int(0)), ast_eq(ast_ident("step"), ast_int(model.steps)));
+    ast_push(loop, ast_if_then(ast_binop("&&", ast_ne(ast_ident("mode"), ast_int(1)), sample), ast_block1(hm_output_row(ast_ident("step")))));
+    ast_push(stmts, ast_while(ast_lt(ast_ident("step"), ast_int(model.steps)), ast_block(loop)));
+    var reverse *u8 = ast_vec();
+    ast_push(reverse, hm_flip(model));
+    var back *u8 = ast_vec();
+    ast_push(back, ast_expr_stmt(ast_call1("ham_step", model.step)));
+    ast_push(back, ast_expr_stmt(ast_call0("ham_check")));
+    ast_push(back, ast_assign(ast_ident("step"), ast_add(ast_ident("step"), ast_int(1))));
+    ast_push(reverse, ast_while(ast_lt(ast_ident("step"), ast_int(model.steps * 2)), ast_block(back)));
+    ast_push(reverse, hm_flip(model));
+    ast_push(reverse, ast_expr_stmt(ast_call1("ham_row", ast_ident("step"))));
+    ast_push(stmts, ast_if_then(ast_eq(ast_ident("mode"), ast_int(1)), ast_block(reverse)));
+    var json_end *u8 = ast_vec(); hm_print(json_end, "\n]}\n");
+    ast_push(stmts, ast_if_then(ast_eq(ast_ident("mode"), ast_int(3)), ast_block(json_end)));
+    ast_push(stmts, ast_return(ast_int(0)));
+    var params *u8 = ast_vec(); ast_push(params, ast_param("argc", ast_type_i64()));
+    ast_push(params, ast_param("argv", ast_type_ptr(ast_type_ptr(ast_type_u8()))));
+    return ast_func("main", params, ast_type_i64(), ast_block(stmts));
+}
+
+func hm_emit_model(model *HMModel) *u8 {
+    hm_emit_nodes = 0;
+    var decls *u8 = ast_vec(); var fields *u8 = ast_vec(); var i i64 = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        ast_push(fields, ast_field_decl(hm_name("q_", pair.name), ast_type("f64")));
+        ast_push(fields, ast_field_decl(hm_name("p_", pair.name), ast_type("f64"))); i = i + 1;
+    }
+    ast_push(decls, ast_struct("HamState", fields));
+    ast_push(decls, ast_var("ham_state", ast_type_ptr(ast_type("HamState")), ast_nil()));
+    ast_push(decls, ast_func("ham_potential", hm_params(model, 0), ast_type("f64"), ast_block1(ast_return(ast_span(hm_emit_expression(model, model.potential), model.potential.source.start, model.potential.source.end)))));
+    i = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        var force *HMExpr = hm_negate(hm_derivative(model.potential, i), model.potential.source);
+        ast_push(decls, ast_func(hm_name("ham_force_", pair.name), hm_params(model, 0), ast_type("f64"), ast_block1(ast_return(ast_span(hm_emit_expression(model, force), force.source.start, force.source.end))))); i = i + 1;
+    }
+    var qargs *u8 = ast_vec(); i = 0;
+    var energy *u8 = ast_number("0.0");
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        ast_push(qargs, ast_ident(hm_name("q_", pair.name)));
+        var p *u8 = ast_ident(hm_name("p_", pair.name));
+        energy = ast_add(energy, ast_div(ast_mul(p, p), ast_mul(ast_number("2.0"), pair.mass))); i = i + 1;
+    }
+    energy = ast_add(energy, ast_call_named("ham_potential", qargs));
+    ast_push(decls, ast_func("ham_energy", hm_params(model, 1), ast_type("f64"), ast_block1(ast_return(energy))));
+    ast_push(decls, hm_step_function(model)); ast_push(decls, hm_check_function(model));
+    ast_push(decls, hm_row(model)); ast_push(decls, hm_json_row(model)); ast_push(decls, hm_main(model));
+    return ast_program(decls);
+}

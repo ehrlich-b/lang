@@ -49,8 +49,28 @@ syscall(60, 0);  // exit(0)
 | `u64`  | 8 bytes | Unsigned 64-bit integer                    |
 | `bool` | 1 byte  | Boolean (true/false)                       |
 | `void` | 0 bytes | No return value                            |
-| `f32`  | 4 bytes | 32-bit floating point (LLVM backend only)  |
-| `f64`  | 8 bytes | 64-bit floating point (LLVM backend only)  |
+| `f32`  | 4 bytes | IEEE 754 binary32 (LLVM/direct WebAssembly) |
+| `f64`  | 8 bytes | IEEE 754 binary64 (LLVM/direct WebAssembly) |
+
+LLVM and direct WebAssembly support floating literals, `+`, `-`, `*`, `/`, `%`, comparisons,
+typed locals, parameters and returns, scalar globals, pointer and struct-field
+loads/stores, numeric casts and equal-width bitcasts. Mixed floating arithmetic
+uses `f64` if either operand is `f64`, otherwise `f32`; typed assignments, calls
+and returns convert at the declared width. Floating `%` follows LLVM `frem`/C
+`fmod` semantics, including signed zero. Direct Wasm imports `fmod` or `fmodf`
+only when a reachable expression needs them. Bare floating conditions and casts
+to `bool` use nonzero truth: signed zero is false and NaN is true.
+Float-to-integer casts require finite values in the destination's representable
+range. Relational comparisons are ordered, including `!=`: comparisons with
+NaN return false. The focused checks are `test/direct_wasm_numeric.py` and
+suite tests `290`/`291`.
+
+Native addresses of integer/pointer globals refer to their i64 word storage;
+floating and array globals retain their declared storage types. LLVM-to-Wasm
+rejects taking the address of a pointer global: its four-byte relocation slot
+does not satisfy Lang's eight-byte addressable pointer-slot contract. Direct
+Wasm can address fixed-array globals; other scalar globals are Wasm globals
+and cannot currently have their address taken.
 
 ### Pointer Types
 - `*T` - pointer to type T
@@ -93,8 +113,8 @@ extern func malloc(size i64) *u8;
 extern func write(fd i64, buf *u8, count i64) i64;
 ```
 
-There are no variadic functions and no default arguments, so a call must pass
-exactly as many arguments as the declaration takes:
+Lang functions have no variadic parameter syntax or default arguments, so a call
+must pass exactly as many arguments as the declaration takes:
 
 ```lang
 func two(a i64, b i64) i64 { return a + b; }
@@ -103,6 +123,21 @@ two(1);   // error: function 'two' takes 2 arguments, called with 1
 
 A call through a function-pointer variable is checked by the variable's type
 instead, and a local of the same name as a function wins over it.
+
+The LLVM backend recognizes three existing C entry points as exceptions:
+extern `printf` needs at least its format argument, extern `open` needs its path
+and flags, and `syscall` needs its number. Their variadic suffix preserves every
+actual argument; `f32` suffix values promote to `f64`. Ordinary Lang definitions
+with these names keep their declared arity. Other floating extern parameters
+retain their declared `f32`/`f64` ABI widths.
+
+Lang integer and pointer expressions use i64 words. Use `%lld` (or `%ld` on the
+supported LP64 hosts) for 64-bit integer printing and `%.17g` for binary64
+round-trip precision. The browser formatter implements a bounded numeric/string
+subset, not all libc format flags or widths. Direct Wasm imports have explicit,
+fixed typed signatures; a mixed `printf` call needs a declaration matching its
+argument count and types. The stdlib's two-argument `printf` declaration describes
+a format pointer followed by one `f64` value.
 
 ### Variables
 ```lang
@@ -194,7 +229,8 @@ outer: while x < 10 {
 **Pointer**:
 - `&expr` - address of (returns pointer to expr)
 - `*expr` - dereference (reads value at pointer)
-- `ptr + n` - pointer arithmetic (adds n bytes for *u8, n*8 for *i64, etc.)
+- `ptr + n`, `n + ptr`, `ptr - n` - integer offsets scale by element size (`*f32` advances 4 bytes, `*f64` and `*i64` advance 8)
+- Pointer differences, adding two pointers, and integer-minus-pointer are rejected by LLVM and direct Wasm. Cast addresses to `i64` before taking a byte difference.
 
 **Assignment**:
 - `=` assignment (also returns the assigned value)
@@ -297,7 +333,7 @@ func println(s *u8) void;   // Print string + newline
 func eprint(s *u8) void;    // Print to stderr
 func eprintln(s *u8) void;  // Print to stderr + newline
 func print_int(n i64) void; // Print integer
-func print_f64(val f64) void; // Print float (LLVM backend only)
+func print_f64(val f64) void; // Print float (native and browser hosts)
 func exit(code i64) void;   // Exit program
 ```
 

@@ -158,6 +158,8 @@ reader_e2e reader_minilisp_e2e example/minilisp/test_defun.lang
 reader_e2e reader_c_e2e         example/c/test_c.lang
 reader_e2e reader_forth_e2e     example/forth/test_forth.lang
 reader_e2e reader_minipy_e2e    example/minipy/test_minipy.lang
+reader_e2e parser_array_length test/parser_array_length.lang
+reader_e2e parser_block_limit  test/parser_block_limit.lang
 
 # The order regression also guards wrapper scope: later dependencies belong in
 # the reader executable, unrelated host functions do not.
@@ -465,7 +467,7 @@ include "example/forth/forth.lang"
 }
 func main() i64 { return bad(); }
 FORTHBAD
-    reader_must_fail forth "forth: stack underflow"
+    reader_must_fail forth "error: stack underflow"
 
     # A word that is never declared cannot be called.
     cat > "$tmp/forthword.lang" <<'FORTHWORD'
@@ -475,7 +477,7 @@ include "example/forth/forth.lang"
 }
 func main() i64 { return bad(1); }
 FORTHWORD
-    reader_must_fail forthword "forth: undefined word"
+    reader_must_fail forthword "error: undefined word"
 
     # A list headed by a number is not a call; it used to become nil silently.
     cat > "$tmp/lisp.lang" <<'LISPBAD'
@@ -486,7 +488,7 @@ include "example/minilisp/lisp_runtime.lang"
 }
 func main() i64 { return 0; }
 LISPBAD
-    reader_must_fail lisp "minilisp: a call's head must be a symbol"
+    reader_must_fail lisp "error: a call's head must be a symbol"
 
     # The readers still build what they always did.
     for good in example/forth/test_forth.lang example/minilisp/test_minilisp.lang; do
@@ -503,6 +505,27 @@ LISPBAD
     rm -rf "$tmp"
 }
 reader_errors_are_fatal_e2e
+
+reader_diagnostics_log=$(mktemp)
+if node test/bootstrap_archive_e2e.js > "$reader_diagnostics_log" 2>&1; then
+    echo "PASS bootstrap_archive_e2e" >> "$results_file"
+else
+    cat "$reader_diagnostics_log"
+    echo "FAIL bootstrap_archive_e2e" >> "$results_file"
+fi
+if node test/reader_diagnostics_e2e.js "$COMPILER" > "$reader_diagnostics_log" 2>&1; then
+    echo "PASS reader_diagnostics_e2e" >> "$results_file"
+else
+    cat "$reader_diagnostics_log"
+    echo "FAIL reader_diagnostics_e2e" >> "$results_file"
+fi
+if python3 test/hamiltonian_e2e.py "$COMPILER" > "$reader_diagnostics_log" 2>&1; then
+    echo "PASS hamiltonian_e2e" >> "$results_file"
+else
+    cat "$reader_diagnostics_log"
+    echo "FAIL hamiltonian_e2e" >> "$results_file"
+fi
+rm -f "$reader_diagnostics_log"
 
 # Prefix and assignment operators live in the shared precedence table now, so
 # the positions an operator may NOT appear in are the table's to refuse - one
@@ -530,7 +553,7 @@ include "example/c/c.lang"
 }
 func main() i64 { return 0; }
 CINCDEC
-    position_must_fail cincdec "c: '++' has no value here"
+    position_must_fail cincdec "error: '++' has no value here"
 
     # Assignment is a statement in the shared AST; there is no assignment
     # expression to lower `f(a = b)` to.
@@ -661,7 +684,7 @@ func main() i64 { return 0; }
 SPANCOMMENT
     LANG_CACHE="$tmp/cache-span" LANGBE=llvm $COMPILER "$tmp/span.lang" \
         -o "$tmp/span.ll" >"$tmp/span.out" 2>&1 && ok=0
-    grep -Fq "minipy:5:18: chained comparison" "$tmp/span.out" || ok=0
+    grep -Fq "minipy:5:18: error: chained comparison" "$tmp/span.out" || ok=0
 
     if [ "$ok" = 1 ]; then
         echo "PASS $name" >> "$results_file"

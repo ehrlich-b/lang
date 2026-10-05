@@ -1,0 +1,32 @@
+// expect: 0
+// Exercise the host lexer directly, independent of an outer macro scanner.
+include "std/core.lang"
+include "src/lexer.lang"
+
+func check_macro(source *u8, content *u8) bool {
+    lexer_init(source);
+    var invocation *u8 = scan_token();
+    if tok_type(invocation) != TOKEN_READER_MACRO { return false; }
+    if !str_eq_n(tok_content(invocation), tok_content_len(invocation), content, strlen(content)) {
+        return false;
+    }
+    var after *u8 = scan_token();
+    return tok_type(after) == TOKEN_NUMBER &&
+        str_eq_n(tok_lexeme(after), tok_lexeme_len(after), "42", 2);
+}
+
+func main() i64 {
+    if !check_macro("#parser{token = '}' } 42", "token = '}' ") { return 1; }
+    if !check_macro("#parser{token = '{'} 42", "token = '{'") { return 2; }
+    if !check_macro("#parser{token = 'say\"hi'} 42", "token = 'say\"hi'") {
+        return 3;
+    }
+    if !check_macro("#parser{// don't count } \"\ntoken = 'x'\n} 42",
+                    "// don't count } \"\ntoken = 'x'\n") { return 4; }
+    if !check_macro("#parser{/* don't count { } \" */\ntoken = 'x'} 42",
+                    "/* don't count { } \" */\ntoken = 'x'") { return 5; }
+    // Generic readers retain unpaired apostrophe quotation, and double strings.
+    if !check_macro("#probe{'quote} 42", "'quote") { return 6; }
+    if !check_macro("#probe{\"}\"} 42", "\"}\"") { return 7; }
+    return 0;
+}

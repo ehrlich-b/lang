@@ -1,0 +1,13 @@
+include "std/core.lang"
+// Element widths affect both pointer arithmetic and the load/store opcode.
+func main() i64 {
+    var doubles *f64 = alloc(16);
+    doubles[0] = -0.125;
+    doubles[1] = 0.375;
+    var singles *f32 = alloc(8);
+    singles[0] = cast(f32, 0.25);
+    *(singles + 1) = cast(f32, -0.5);
+    if doubles[0] + *(doubles + 1) != 0.25 { return 1; }
+    if cast(f64, singles[0]) + cast(f64, singles[1]) != -0.25 { return 2; }
+    return 100;
+}

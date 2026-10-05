@@ -1,0 +1,43 @@
+// Compile after promoting exact-text literal generation.
+// expect: 0
+include "std/parser_reader.lang"
+
+#parser{
+    exact_characters = 'x' '0' '^' eof
+    exact_plus = '+' eof
+    literal_quote = 'say"hi' eof
+    literal_slash = 'path\\part' eof
+}
+
+func main() i64 {
+    var text *Tokenizer = tok_new("x 0 ^");
+    var parsed *PNode = parse_exact_characters(text);
+    if parsed == nil || !tok_eof(text) { return 1; }
+    if pnode_child(parsed, 0).kind != 0 { return 2; }
+
+    var prefix *Tokenizer = tok_new("xx 0 ^");
+    if parse_exact_characters(prefix) != nil { return 3; }
+    if !streq(tok_error_expected(prefix), "'x'") { return 4; }
+    var longer_number *Tokenizer = tok_new("x 01 ^");
+    if parse_exact_characters(longer_number) != nil { return 5; }
+    if !streq(tok_error_expected(longer_number), "'0'") { return 6; }
+    if parse_exact_plus(tok_new("+")) == nil { return 7; }
+    if parse_exact_plus(tok_new("++")) != nil { return 8; }
+
+    // Reader-supplied tokens can contain text the shared scanner would split.
+    // Quotes/backslashes must be data in both generated matching and errors.
+    var quote_tokens *u8 = tok_stream_new();
+    tok_stream_push(quote_tokens, TOK_USER, 0, 1, "say\"hi");
+    if parse_literal_quote(tok_new_stream("x", quote_tokens)) == nil { return 9; }
+    var mismatch *Tokenizer = tok_new("wrong");
+    if parse_literal_quote(mismatch) != nil { return 10; }
+    if !streq(tok_error_expected(mismatch), "'say\"hi'") { return 11; }
+
+    var slash_tokens *u8 = tok_stream_new();
+    tok_stream_push(slash_tokens, TOK_USER, 0, 1, "path\\\\part");
+    if parse_literal_slash(tok_new_stream("x", slash_tokens)) == nil { return 12; }
+    var slash_mismatch *Tokenizer = tok_new("wrong");
+    if parse_literal_slash(slash_mismatch) != nil { return 13; }
+    if !streq(tok_error_expected(slash_mismatch), "'path\\\\part'") { return 14; }
+    return 0;
+}

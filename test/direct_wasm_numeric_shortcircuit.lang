@@ -1,0 +1,11 @@
+var calls i64 = 0;
+func touched() f64 { calls = calls + 1; return 0.25; }
+func main() i64 {
+    if 0.0 && touched() { return 1; }
+    if 0.25 || touched() { } else { return 2; }
+    if calls != 0 { return 3; }
+    if 1.0 && touched() { } else { return 4; }
+    if 0.0 || touched() { } else { return 5; }
+    if calls != 2 { return 6; }
+    return 100;
+}

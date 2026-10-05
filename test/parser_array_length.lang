@@ -1,0 +1,34 @@
+// expect: 0
+// Parse type descriptors without allocating arrays of the described extent.
+include "std/core.lang"
+include "src/parser.lang"
+
+func valid_length(text *u8, expected i64) bool {
+    parser_tokenize(text);
+    var t *u8 = parse_type();
+    return parse_error_count == 0 && type_kind(t) == TYPE_ARRAY &&
+        array_type_size(t) == expected && parse_is_at_end();
+}
+
+func rejected_length(text *u8) bool {
+    parser_tokenize(text);
+    var t *u8 = parse_type();
+    return parse_error_count == 1 && type_kind(t) == TYPE_ARRAY &&
+        array_type_size(t) == 0 && parse_is_at_end();
+}
+
+func main() i64 {
+    parser_set_source_name("array-length");
+    if !valid_length("[15]i64", 15) { return 1; }
+    if !valid_length("[0015]f64", 15) { return 2; }
+    if !valid_length("[0]u8", 0) { return 3; }
+    if !valid_length("[9223372036854775807]u8", 9223372036854775807) { return 4; }
+    if !rejected_length("[1.5]i64") { return 5; }
+    if !rejected_length("[15.0]f64") { return 6; }
+    if !rejected_length("[-1]i64") { return 7; }
+    if !rejected_length("[size]i64") { return 8; }
+    if !rejected_length("[]i64") { return 9; }
+    if !rejected_length("[9223372036854775808]u8") { return 10; }
+    if !rejected_length("[18446744073709551631]u8") { return 11; }
+    return 0;
+}

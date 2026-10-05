@@ -1,0 +1,21 @@
+// expect: 0
+// Validate raw grammar bodies where an outer macro scanner cannot hide EOF.
+include "std/core.lang"
+include "std/grammar.lang"
+
+func main() i64 {
+    // One backslash escapes the final quote, so no closing delimiter exists.
+    if grammar_parse("bad = 'a\\'") != nil { return 1; }
+    // A missing quote that ends on another byte is rejected too.
+    if grammar_parse("bad = 'abc") != nil { return 2; }
+    // Two backslashes leave the final quote unescaped. Literal bytes stay raw.
+    var valid *Grammar = grammar_parse("good = 'a\\\\'");
+    if valid == nil { return 3; }
+    var rule *GNode = grammar_get_rule(valid, "good", 4);
+    if rule == nil { return 4; }
+    var literal *GNode = rule.child;
+    if literal.name_len != 3 || !str_eq_n(literal.name, 3, "a\\\\", 3) {
+        return 5;
+    }
+    return 0;
+}

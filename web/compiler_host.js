@@ -2,7 +2,7 @@
 // a tiny in-memory filesystem, then returns every file the compiler wrote.
 'use strict';
 
-async function runLangCompiler(wasmBytes, args, initialFiles, onWrite, environment) {
+async function runLangCompiler(wasmBytes, args, initialFiles, onWrite, environment, options = {}) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const files = new Map();
@@ -16,6 +16,11 @@ async function runLangCompiler(wasmBytes, args, initialFiles, onWrite, environme
   const fds = new Map();
   const output = { stdout: '', stderr: '' };
   const envStrings = new Map();
+  const maxMemoryBytes = options.maxMemoryBytes || 512 * 1024 * 1024;
+  const maxFileBytes = options.maxFileBytes || 16 * 1024 * 1024;
+  const maxOutputBytes = options.maxOutputBytes || 8 * 1024 * 1024;
+  let outputBytes = 0;
+  let fileBytesWritten = 0;
 
   const memory = () => instance.exports.memory;
   const bytes = () => new Uint8Array(memory().buffer);
@@ -31,13 +36,18 @@ async function runLangCompiler(wasmBytes, args, initialFiles, onWrite, environme
   }
 
   function bump(sizeValue) {
-    const size = number(sizeValue) + 512;
+    const requested = number(sizeValue);
+    if (!Number.isSafeInteger(requested) || requested < 0) {
+      throw new Error('compiler requested an invalid allocation size');
+    }
+    const size = requested + 512;
     if (heapTop === 0) {
       const heapBase = instance.exports.__heap_base;
       heapTop = heapBase ? Number(heapBase.value) : memory().buffer.byteLength;
     }
     const ptr = (heapTop + 15) & ~15;
     heapTop = ptr + size;
+    if (heapTop > maxMemoryBytes) throw new Error('compiler exceeded the memory limit');
     if (heapTop > memory().buffer.byteLength) {
       const pages = Math.ceil((heapTop - memory().buffer.byteLength) / 65536) + 16;
       memory().grow(pages);
@@ -54,6 +64,8 @@ async function runLangCompiler(wasmBytes, args, initialFiles, onWrite, environme
   }
 
   function appendFile(path, data) {
+    fileBytesWritten += data.length;
+    if (fileBytesWritten > maxFileBytes) throw new Error('compiler exceeded the generated-file limit');
     const old = files.get(path) || new Uint8Array();
     const joined = new Uint8Array(old.length + data.length);
     joined.set(old);
@@ -66,10 +78,18 @@ async function runLangCompiler(wasmBytes, args, initialFiles, onWrite, environme
   }
 
   const emit = (text, isErr) => {
+    outputBytes += encoder.encode(text).length;
+    if (outputBytes > maxOutputBytes) throw new Error('compiler exceeded the output limit');
     if (isErr) output.stderr += text;
     else output.stdout += text;
     if (onWrite) onWrite(text, isErr);
   };
+
+  const numericLibrary = typeof module !== 'undefined'
+    ? require('./numeric_host.js') : globalThis.LangNumericHost;
+  // Addressable Lang pointer slots are eight bytes even in LLVM-to-Wasm;
+  // wasm32 relocation storage for pointer globals is a separate kernel case.
+  const numeric = numericLibrary.createNumericHost({ memory, cstr, emit });
 
   const env = {
     read: (fdValue, ptrValue, countValue) => {
@@ -128,18 +148,10 @@ async function runLangCompiler(wasmBytes, args, initialFiles, onWrite, environme
       if (!envStrings.has(name)) envStrings.set(name, putString(values[name]));
       return envStrings.get(name);
     },
-    printf: (fmtValue, argbufValue) => {
-      let offset = number(argbufValue);
-      const text = cstr(fmtValue).replace(/%l?[dfg]/g, (spec) => {
-        const value = spec.endsWith('d')
-          ? view().getBigInt64(offset, true)
-          : view().getFloat64(offset, true);
-        offset += 8;
-        return String(value);
-      });
-      emit(text, false);
-      return BigInt(text.length);
-    },
+    printf: numeric.printfBuffer,
+    strtod: numeric.strtod,
+    fmod: numeric.fmod,
+    fmodf: numeric.fmodf,
     exit: (code) => { throw new ExitTrap(code); },
     _exit: (code) => { throw new ExitTrap(code); },
     getpid: () => 1n,

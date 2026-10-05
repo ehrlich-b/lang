@@ -1,0 +1,7 @@
+// Explicit direct-Wasm import signature; native C still has a variadic suffix.
+extern func printf(fmt *u8, label *u8, count i64, wide f64, narrow f32) i64;
+func main() i64 {
+    var narrow f32 = cast(f32, 0.3);
+    printf("%s %lld %.17g %.17g\n", "mixed", 37, -0.30000000000000004, narrow);
+    return 42;
+}

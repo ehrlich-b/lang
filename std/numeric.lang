@@ -1,0 +1,3 @@
+// Shared native numeric declarations. Include deduplication keeps one prototype
+// when a minted compiler combines its LLVM kernel with a scientific reader.
+extern func strtod(text *u8, endptr **u8) f64;

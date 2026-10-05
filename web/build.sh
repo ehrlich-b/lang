@@ -37,3 +37,10 @@ for e in $EXAMPLES; do
 done
 
 COMPILER="$COMPILER" WASM_CLANG="$WASM_CLANG" ./web/build_compiler.sh
+
+# Reference sources are part of the same deployment as the executable compiler.
+mkdir -p web/reference
+for doc in READERS AST_BUILDERS PARSER_GENERATOR GRAMMAR_CAPABILITIES HAMILTONIAN; do
+    cp "docs/$doc.md" "web/reference/$doc.md"
+done
+node web/site_manifest.js

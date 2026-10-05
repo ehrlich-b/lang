@@ -107,6 +107,27 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
 }
 
 (async () => {
+  const diagnosticModules = new Map();
+  const { diagnosticSelection } = require('../web/editor.js');
+  for (const test of require('./reader_diagnostics_cases.json')) {
+    if (!diagnosticModules.has(test.reader)) {
+      diagnosticModules.set(test.reader, await compileReaderModule(
+        fs.readFileSync(`example/${test.reader}/${test.reader}.lang`, 'utf8'), test.reader,
+      ));
+    }
+    const rejected = await runReaderModule(diagnosticModules.get(test.reader), test.source);
+    if (rejected.ast !== null || rejected.readerRun.exit !== 1 ||
+        !rejected.readerRun.stderr.includes(`${test.reader}:${test.line}:${test.column}:`) ||
+        !rejected.readerRun.stderr.includes(test.message)) {
+      throw new Error(`browser ${test.name} reader diagnostic mismatch: ${rejected.readerRun.stderr}`);
+    }
+    const { start, end } = diagnosticSelection(test.source, test.line, test.column);
+    if (test.source.slice(start, end) !== test.token) {
+      throw new Error(`browser ${test.name} diagnostic selects the wrong source`);
+    }
+  }
+  console.log(`PASS browser_reader_diagnostics (${require('./reader_diagnostics_cases.json').length} rejections across five readers, exact editor selections)`);
+
   const arithmetic = await compileAndRun('test/direct_wasm_e2e.lang');
   if (Number(arithmetic.value) !== 42) throw new Error(`expected 42, got ${arithmetic.value}`);
 
@@ -314,16 +335,26 @@ func main() i64 { return two(1); }
   }
   const inlineScripts = [...labHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   new Function(inlineScripts.at(-1)[1]);
+  const labWorker = fs.readFileSync('web/lab_worker.js', 'utf8');
+  const labImplementation = labHtml + labWorker;
   for (const marker of [
     'id="preset"', 'id="download-reader"', 'id="download-ast"', 'id="download-program"',
     'id="save-workspace"', 'id="open-workspace"',
-    'lang-reader-workspace', 'lang.lab.active', 'readerName(reader.value)',
+    'lang-reader-workspace', 'lang.lab.active', 'readerName(reader)',
     'focusDiagnostic(message)', "target.closest('details').open = true", "phase = 'AST compile'",
-    'cachedReaderSource !== reader.value', 'customSource.value)',
-    'editor.js?v=workbench10', 'formatLangAst(ast)', 'value:number',
+    'cachedReaderSource !== reader', 'source: customSource.value',
+    'editor.js?v=workbench11', 'formatLangAst(ast)', 'value:number',
     "'program.ast': formattedAst", 'installCodeEditor(reader, queueSave)',
   ]) {
-    if (!labHtml.includes(marker)) throw new Error(`lab workbench marker missing: ${marker}`);
+    if (!labImplementation.includes(marker)) throw new Error(`lab workbench marker missing: ${marker}`);
+  }
+  for (const marker of [
+    'id="new-language"', 'id="fork-language"', 'id="stage-reader-build"',
+    'id="ast-output"', 'id="tree-output"', 'id="diagnostic-picker"',
+    'lang.lab.library.v1', 'autosave unavailable', 'lab_worker.js?v=workbench11',
+    'authoringWorker.terminate()', 'id="stop-build"', '30000',
+  ]) {
+    if (!labHtml.includes(marker)) throw new Error(`lab authoring feature missing: ${marker}`);
   }
   const labSource = labHtml.match(/<textarea[^>]*\bid="reader"[^>]*>([\s\S]*?)<\/textarea>/);
   if (!labSource) throw new Error('could not find the reader source in web/lab.html');

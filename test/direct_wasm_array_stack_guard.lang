@@ -1,0 +1,13 @@
+// Direct-Wasm resource probe: trap before a recursive frame reaches globals.
+// The focused runner checks the two anchor bytes remain unchanged after trap.
+var anchor [2]u8 = [65, 66];
+
+func descend(depth i64) i64 {
+    var frame [8192]i64 = [17];
+    frame[8191] = depth;
+    if depth == 0 { return frame[0]; }
+    var child i64 = descend(depth - 1);
+    return child + frame[8191];
+}
+
+func main() i64 { return descend(20); }

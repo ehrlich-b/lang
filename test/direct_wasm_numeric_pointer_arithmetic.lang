@@ -1,0 +1,42 @@
+include "std/core.lang"
+
+func counted_offset(order *i64) i64 {
+    *order = *order * 10 + 1;
+    return 1;
+}
+func counted_pointer(order *i64, values *f32) *f32 {
+    *order = *order * 10 + 2;
+    return values;
+}
+
+func main() i64 {
+    var singles *f32 = alloc(16);
+    singles[0] = cast(f32, 0.25);
+    *(1 + singles) = cast(f32, -0.5);
+    var end *f32 = singles + 3;
+    *(end - 1) = cast(f32, 0.75);
+    *end = cast(f32, -1.0);
+    if singles[1] != cast(f32, -0.5) { return 1; }
+    if *((1 + singles) + 1) != cast(f32, 0.75) { return 2; }
+    if *(end + -2) != cast(f32, -0.5) { return 3; }
+    if cast(i64, singles + 1) - cast(i64, singles) != 4 { return 4; }
+    var cursor *f32 = singles;
+    cursor += 2;
+    cursor -= 1;
+    if *cursor != cast(f32, -0.5) { return 5; }
+    var order i64 = 0;
+    if *(counted_offset(&order) + counted_pointer(&order, singles)) != cast(f32, -0.5) { return 6; }
+    if order != 12 { return 7; }
+
+    var doubles *f64 = alloc(24);
+    *doubles = -0.125;
+    *(2 + doubles) = 0.375;
+    if *((doubles + 3) - 1) != 0.375 { return 8; }
+    if *(2 + doubles + -2) != -0.125 { return 9; }
+    if cast(i64, 1 + doubles) - cast(i64, doubles) != 8 { return 10; }
+    var words *i32 = alloc(8);
+    *(1 + words) = 37;
+    if words[1] != 37 { return 11; }
+    if cast(i64, words + 1) - cast(i64, words) != 4 { return 12; }
+    return 100;
+}

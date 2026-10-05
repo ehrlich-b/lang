@@ -1,0 +1,222 @@
+// Nondimensional separable Hamiltonians, compiled to native experiments.
+// The grammar produces a bounded polynomial IR, not executable host code.
+include "std/parser_reader.lang"
+include "std/prec.lang"
+include "std/reader_error.lang"
+include "example/hamiltonian/decimal.lang"
+include "example/hamiltonian/expression.lang"
+include "example/hamiltonian/lowering.lang"
+
+#parser{
+    hm_model = 'model' name:symbol '{' 'nondimensional' ';' decls:hm_decl* '}'
+    hm_decl = parameter:hm_parameter | pair:hm_pair | potential:hm_potential | run:hm_run
+    hm_parameter = 'param' name:symbol '=' value:hm_constant ';'
+    hm_pair = 'pair' name:symbol 'mass' mass:hm_constant 'position' position:hm_constant 'momentum' momentum:hm_constant ';'
+    hm_potential = 'potential' '=' value:hm_expr ';'
+    hm_run = 'run' 'step' step:hm_constant 'steps' count:number 'sample' stride:number ';'
+    hm_constant = negative:hm_negative_constant | literal:number | reference:symbol
+    hm_negative_constant = '-' value:hm_constant
+    hm_expr = first:hm_unary rest:hm_rest*
+    hm_rest = op:operator right:hm_unary
+    hm_unary = negative:hm_negative | power:hm_power
+    hm_negative = '-' value:hm_unary
+    hm_power = base:hm_primary powers:hm_exponent*
+    hm_exponent = <ham_power> value:number
+    hm_primary = literal:number | name:symbol | parens:hm_parens
+    hm_parens = '(' value:hm_expr ')'
+}
+
+var TOK_HAM_POWER i64 = 210;
+
+struct HMConstant { name *u8; text *u8; value f64; negative i64; literal *u8; }
+struct HMPair { name *u8; mass *u8; position *u8; momentum *u8; }
+struct HMModel {
+    constants *u8; pairs *u8; potential *HMExpr;
+    step *u8; steps i64; sample i64;
+}
+
+func hm_fail(node *PNode, message *u8) void {
+    reader_error(node, message); exit(1);
+}
+
+// Decimal syntax is deliberately local: integers, digits.digits, unary minus.
+// Split a scanner's negative integer so subtraction never depends on spaces.
+// Reuse its comments, token kinds and source offsets; keep floats out of the
+// integer-only lexical contract of unrelated readers.
+func hm_tokens(source *u8) *Tokenizer {
+    if strlen(source) > 65536 { reader_error_at(0, "model exceeds 65536 source bytes"); exit(1); }
+    var scan *Tokenizer = tok_new(source);
+    var stream *u8 = tok_stream_new();
+    var depth i64 = 0;
+    while !tok_eof(scan) {
+        var start i64 = tok_start_offset(scan);
+        var kind i64 = tok_kind(scan);
+        if kind == TOK_CARET { kind = TOK_HAM_POWER; }
+        if kind == TOK_LPAREN { depth = depth + 1; }
+        if kind == TOK_RPAREN { depth = depth - 1; }
+        if depth > 32 { reader_error_at(start, "parenthesis nesting exceeds 32"); exit(1); }
+        if kind == TOK_NUMBER {
+            if tok_peek_char(scan) == '.' && tok_is_digit(tok_peek_char_at(scan, 1)) {
+                tok_advance_char(scan);
+                while tok_is_digit(tok_peek_char(scan)) { tok_advance_char(scan); }
+                scan.tok_len = scan.pos - scan.tok_start;
+            }
+            if *tok_text_ptr(scan) == '-' {
+                tok_stream_push(stream, TOK_MINUS, start, 1, nil);
+                start = start + 1;
+            }
+        }
+        tok_stream_push(stream, kind, start, tok_end_offset(scan) - start, nil);
+        if tok_stream_count(stream) > 4096 { reader_error_at(start, "model exceeds 4096 tokens"); exit(1); }
+        tok_next(scan);
+    }
+    var index i64 = 0; var minuses i64 = 0;
+    while index < tok_stream_count(stream) {
+        if vec_get(stream, index * 4) == TOK_MINUS { minuses = minuses + 1; }
+        else { minuses = 0; }
+        if minuses > 32 { reader_error_at(vec_get(stream, index * 4 + 1), "consecutive unary minuses exceed 32"); exit(1); }
+        index = index + 1;
+    }
+    return tok_new_stream(source, stream);
+}
+
+func hm_name(prefix *u8, name *u8) *u8 {
+    var sb *StringBuilder = sb_new(); sb_str(sb, prefix); sb_str(sb, name); return sb_finish(sb);
+}
+
+func hm_find_constant(model *HMModel, name *u8) *HMConstant {
+    var i i64 = 0;
+    while i < vec_len(model.constants) {
+        var item *HMConstant = vec_get(model.constants, i);
+        if streq(item.name, name) { return item; }
+        i = i + 1;
+    }
+    return nil;
+}
+
+func hm_pair_index(model *HMModel, name *u8) i64 {
+    var i i64 = 0;
+    while i < vec_len(model.pairs) {
+        var pair *HMPair = vec_get(model.pairs, i);
+        if streq(pair.name, name) { return i; }
+        i = i + 1;
+    }
+    return 0 - 1;
+}
+
+func hm_real(text *u8, node *PNode) f64 {
+    if !ham_decimal_valid(text) { hm_fail(node, "expected a decimal constant of at most 128 bytes"); }
+    var result f64 = ham_decimal_value(text);
+    if !(result - result == 0.0) { hm_fail(node, "constant must be finite"); }
+    return result;
+}
+
+func hm_decimal(text *u8) *u8 {
+    var i i64 = 0;
+    while *(text + i) != 0 { if *(text + i) == '.' { return text; } i = i + 1; }
+    return hm_name(text, ".0");
+}
+
+func hm_constant(model *HMModel, node *PNode) *HMConstant {
+    var out *HMConstant = alloc(40); out.name = nil; out.negative = 0; out.literal = nil;
+    if pnode_is(node, "negative") {
+        var inner *HMConstant = hm_constant(model, pnode_require(node, "value"));
+        out.value = 0.0 - inner.value;
+        // Normalize signs across parameter aliases; otherwise a short source
+        // can hide a long prebuilt AST inside every repeated coefficient.
+        out.negative = 1 - inner.negative; out.literal = inner.literal;
+        out.text = out.literal;
+        if out.negative != 0 { out.text = ast_neg(out.literal); }
+        return out;
+    }
+    if pnode_is(node, "reference") {
+        var ref *PNode = node;
+        var found *HMConstant = hm_find_constant(model, ref.text);
+        if found == nil { hm_fail(ref, "unknown constant; parameters must be declared before use"); }
+        out.value = found.value; out.text = found.text;
+        out.negative = found.negative; out.literal = found.literal; return out;
+    }
+    var value *PNode = node;
+    out.value = hm_real(value.text, value);
+    out.literal = ast_number(hm_decimal(value.text)); out.text = out.literal; return out;
+}
+
+func hm_integer(node *PNode, low i64, high i64) i64 {
+    var i i64 = 0; var result i64 = 0;
+    while *(node.text + i) != 0 {
+        var ch i64 = *(node.text + i);
+        if ch < '0' || ch > '9' { hm_fail(node, "expected an integer in the documented range"); }
+        result = result * 10 + ch - '0';
+        if result > high { hm_fail(node, "integer exceeds the documented bound"); }
+        i = i + 1;
+    }
+    if result < low { hm_fail(node, "integer below the documented bound"); }
+    return result;
+}
+
+func hm_read_model(root *PNode) *HMModel {
+    var model *HMModel = alloc(48);
+    model.constants = vec_new(16); model.pairs = vec_new(4);
+    model.potential = nil; model.step = nil; model.steps = 0; model.sample = 0;
+    var decls *PNode = pnode_require(root, "decls");
+    var i i64 = 0;
+    // Resolve declarations in source order. Potential lowering waits until
+    // every pair is known, so a coefficient can never shadow a coordinate.
+    var potential *PNode = nil;
+    while i < vec_len(decls.children) {
+        var item *PNode = vec_get(decls.children, i);
+        if pnode_is(item, "parameter") {
+            var decl *PNode = item;
+            var name *PNode = pnode_require(decl, "name");
+            if hm_find_constant(model, name.text) != nil || hm_pair_index(model, name.text) >= 0 {
+                hm_fail(name, "duplicate parameter or coordinate name");
+            }
+            if vec_len(model.constants) >= 32 { hm_fail(name, "at most 32 parameters are supported"); }
+            var val *HMConstant = hm_constant(model, pnode_require(decl, "value"));
+            val.name = name.text; vec_push(model.constants, val);
+        } else if pnode_is(item, "pair") {
+            var decl *PNode = item;
+            var name *PNode = pnode_require(decl, "name");
+            if hm_find_constant(model, name.text) != nil || hm_pair_index(model, name.text) >= 0 {
+                hm_fail(name, "duplicate parameter or coordinate name");
+            }
+            if vec_len(model.pairs) >= 4 { hm_fail(name, "at most four canonical pairs are supported"); }
+            var mass_node *PNode = pnode_require(decl, "mass");
+            var mass *HMConstant = hm_constant(model, mass_node);
+            if mass.value <= 0.0 { hm_fail(mass_node, "mass must be a positive finite constant"); }
+            var position *HMConstant = hm_constant(model, pnode_require(decl, "position"));
+            var momentum *HMConstant = hm_constant(model, pnode_require(decl, "momentum"));
+            var pair *HMPair = alloc(32); pair.name = name.text; pair.mass = mass.text;
+            pair.position = position.text; pair.momentum = momentum.text;
+            vec_push(model.pairs, pair);
+        } else if pnode_is(item, "potential") {
+            if potential != nil { hm_fail(item, "exactly one potential is required"); }
+            potential = pnode_require(item, "value");
+        } else if pnode_is(item, "run") {
+            if model.step != nil { hm_fail(item, "exactly one run is required"); }
+            var decl *PNode = item;
+            var step_node *PNode = pnode_require(decl, "step");
+            var step *HMConstant = hm_constant(model, step_node);
+            if step.value <= 0.0 { hm_fail(step_node, "step must be a positive finite constant"); }
+            model.step = step.text;
+            model.steps = hm_integer(pnode_require(decl, "count"), 1, 1000000);
+            model.sample = hm_integer(pnode_require(decl, "stride"), 1, 1000000);
+            if model.sample > model.steps { hm_fail(decl, "sample stride must not exceed steps"); }
+        }
+        i = i + 1;
+    }
+    if vec_len(model.pairs) == 0 { hm_fail(root, "at least one canonical pair is required"); }
+    if potential == nil { hm_fail(root, "exactly one potential is required"); }
+    if model.step == nil { hm_fail(root, "exactly one run is required"); }
+    model.potential = hm_expression(model, potential);
+    return model;
+}
+
+reader ham(text *u8) *u8 {
+    reader_error_begin(text, "hamiltonian"); hm_nodes = 0;
+    var tokens *Tokenizer = hm_tokens(text);
+    var tree *PNode = parse_hm_model(tokens);
+    if !tok_eof(tokens) { tok_note_expected(tokens, "end of input"); }
+    if tree == nil || !tok_eof(tokens) { tok_print_error(tokens, "hamiltonian"); exit(1); }
+    return hm_emit_model(hm_read_model(tree));
+}

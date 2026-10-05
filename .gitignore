@@ -14,3 +14,7 @@ archive/boot-go/lang0
 .DS_Store
 .lang-cache/
 std/os.lang
+# Generated site receipts/reference copies and local Python bytecode.
+/web/asset-manifest.json
+/web/reference/
+/test/__pycache__/

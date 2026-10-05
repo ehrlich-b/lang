@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lang — energy models become experiments</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1117;--panel:#161b22;--border:#30363d;--text:#e6edf3;--dim:#9da7b3;--green:#7ee787;--blue:#79c0ff;--warn:#ffa657}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}main{max-width:1260px;padding:2rem 1.2rem 4rem;margin:auto}nav{display:flex;gap:1.4rem;font-size:.85rem;flex-wrap:wrap}a{color:var(--blue)}h1{font-size:clamp(1.5rem,4vw,2.4rem);line-height:1.25;margin:1.5rem 0 .6rem;color:var(--green)}h2{font-size:1rem;margin:0}p{max-width:85ch}.intro{color:var(--dim);margin:0 0 1.5rem}.equation{color:var(--text)}.grid{display:grid;grid-template-columns:minmax(320px,1fr) minmax(360px,1.1fr);gap:1rem}.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;min-width:0;overflow:hidden}.bar{padding:.8rem 1rem;display:flex;align-items:center;gap:.7rem;justify-content:space-between;flex-wrap:wrap;border-bottom:1px solid var(--border)}.controls{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}button,select,.download{font:inherit;font-size:.8rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);padding:.4rem .65rem;cursor:pointer;text-decoration:none}button.primary{background:var(--green);border-color:var(--green);color:#09250e;font-weight:700}button:disabled{opacity:.45;cursor:default}button:hover:enabled,.download:hover{border-color:var(--blue)}button:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:3px}textarea{display:block;width:100%;height:345px;resize:vertical;padding:1rem;border:0;background:var(--panel);color:var(--text);font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;tab-size:4;white-space:pre;overflow:auto}.hint{padding:.7rem 1rem;font-size:.8rem;color:var(--dim);border-top:1px solid var(--border)}.coupling{display:flex;gap:.7rem;align-items:center}.coupling input{width:130px;accent-color:var(--green)}.phases{display:flex;gap:.5rem;flex-wrap:wrap;font-size:.75rem;color:var(--dim);margin:1rem 0}.phases span{padding:.25rem .6rem;border:1px solid var(--border);border-radius:20px}.phases .active{border-color:var(--blue);color:var(--blue)}.phases .done{border-color:var(--green);color:var(--green)}#status{min-height:1.7rem;font-size:.85rem;color:var(--dim)}#status.error{color:var(--warn)}#status.success{color:var(--green)}#diagnostic{white-space:pre-wrap;color:var(--warn);padding:0 1rem;overflow:auto;max-height:240px}.plot{padding:.8rem 1rem}canvas{width:100%;height:260px;display:block}#legend{display:flex;gap:1rem;flex-wrap:wrap;font-size:.75rem;margin-top:.3rem}#stats{color:var(--dim);font-size:.8rem;margin:.7rem 0 0;min-height:2.5rem}.table-wrap{overflow:auto;max-height:220px}table{width:100%;border-collapse:collapse;font-size:.7rem}th,td{text-align:right;white-space:nowrap;padding:.4rem .65rem;border-bottom:1px solid var(--border)}th{color:var(--dim)}details{border-top:1px solid var(--border)}summary{cursor:pointer;padding:.8rem 1rem;color:var(--blue);font-size:.85rem}pre{white-space:pre;overflow:auto;padding:0 1rem 1rem;margin:0;max-height:420px;font-size:.75rem;line-height:1.6}.bottom{margin-top:1rem}.probe{padding:.8rem 1rem}.probe input{font:inherit;font-size:.85rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:.35rem .5rem;width:180px}#probe-output{font-size:.8rem;white-space:pre-wrap;word-break:break-word}.contract{font-size:.85rem;color:var(--dim);margin-top:2rem}.contract code{color:var(--text)}.empty{color:var(--dim)}[hidden]{display:none!important}@media(max-width:800px){.grid{grid-template-columns:1fr}main{padding:1.2rem .8rem 3rem}textarea{height:310px}canvas{height:235px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="index.html">lang</a><a href="lab.html">build a language</a><a href="readers.html">reader guide</a><a href="science.html" aria-current="page">scientific models</a></nav>
+<h1>Write the energy. Compile the experiment.</h1>
+<p class="intro">Change a potential and run it here. Lang differentiates it at compile time, generates force functions, and compiles a fixed-step solver to WebAssembly. <span class="equation">H = Σ p²/(2m) + V(q), F = −∂V/∂q.</span></p>
+<div class="grid">
+<section class="panel" aria-labelledby="model-title">
+  <div class="bar"><h2 id="model-title">Your model</h2><div class="controls"><label for="preset">Example</label><select id="preset"><option value="quartic">Coupled quartic</option><option value="harmonic">Harmonic limit</option><option value="double_well">Double well</option></select></div></div>
+  <textarea id="model" aria-label="Hamiltonian model source" spellcheck="false" autocomplete="off" autocapitalize="off" disabled></textarea>
+  <div class="hint controls"><span class="coupling" id="coupling-control" hidden><label for="coupling">Coupling b</label><input id="coupling" type="range" min="0" max="1" step="0.05"><output id="coupling-value" for="coupling"></output></span><button id="edit-potential" type="button">edit potential</button></div>
+  <div class="bar"><div class="controls"><button id="run" class="primary" disabled>compile + run</button><button id="stop" hidden>stop</button><button id="restart" hidden>restart compiler</button><button id="reset" disabled>reset example</button></div><span style="font-size:.75rem;color:var(--dim)">⌘/Ctrl + Enter</span></div>
+  <div class="hint controls"><button id="save-model" disabled>save model</button><button id="open-model">open model</button><input id="model-file" type="file" accept=".ham,.txt,text/plain" hidden><span>Edits stay in this browser.</span></div>
+  <pre id="diagnostic" role="alert" hidden></pre>
+</section>
+<section class="panel" aria-labelledby="trajectory-title">
+  <div class="bar"><h2 id="trajectory-title">Compiled trajectory</h2><select id="plot-mode" aria-label="Plot quantity"><option value="coordinates">coordinates vs time</option><option value="momenta">momenta vs time</option><option value="phase">coordinate phase plane</option><option value="energy">energy difference vs time</option></select></div>
+  <div class="plot"><canvas id="plot" role="img" aria-label="Run a model to plot the compiled trajectory"></canvas><div id="legend"></div><p id="stats">Your trajectory will appear here. The downloadable CSV preserves 17 significant digits.</p></div>
+  <div class="bar controls" id="exports"><a class="download" id="csv-download" hidden>CSV ↓</a><a class="download" id="json-download" hidden>JSON ↓</a><a class="download" id="wasm-download" hidden>solver Wasm ↓</a><a class="download" id="ast-download" hidden>AST ↓</a></div>
+  <div class="table-wrap"><table id="samples" aria-label="First and final trajectory samples"></table></div>
+  <details><summary>Inspect generated forces and solver</summary><pre id="forces">Compile a model to inspect the generated functions.</pre></details>
+  <details><summary>Inspect the complete shared AST</summary><pre id="ast">The reader's AST will appear here.</pre></details>
+</section>
+</div>
+<div class="phases" aria-label="Compiler stages"><span data-phase="build reader">reader</span><span data-phase="derive forces">differentiate</span><span data-phase="build solver">compile Wasm</span><span data-phase="run solver">run</span></div>
+<div id="status" role="status" aria-live="polite">Loading the scientific compiler…</div>
+<section class="panel bottom" aria-labelledby="probe-title">
+  <div class="bar"><h2 id="probe-title">Inspect a force or reverse the experiment</h2><span style="font-size:.75rem;color:var(--dim)">Runs the generated Wasm</span></div>
+  <div class="probe controls"><label for="probe">Coordinates, in pair order</label><input id="probe" value="0.7 -0.4" aria-describedby="probe-help"><button id="force-probe" disabled>evaluate forces</button><button id="reverse" disabled>time reversal check</button></div>
+  <div class="hint" id="probe-help">Space-separated decimals. Reversal runs N steps, flips every momentum, runs N more, and flips again.</div>
+  <pre id="probe-output"></pre>
+</section>
+<div class="contract" id="model-contract">
+<p><strong>Explicitly nondimensional.</strong> This compiler supports 1–4 canonical pairs with positive constant masses and polynomial potentials. Use <code>+ − * /</code>, parentheses, and integer powers 0–8; division requires a nonzero constant denominator. It rejects unknown symbols, unsupported expressions and invalid run parameters at their source locations. There is no physical-unit checking.</p>
+<p>The method is kick–drift–kick with binary64 arithmetic. Its step is fixed; a finite output is not an accuracy guarantee. Energy error is generally nonzero. The native and browser tests use independent analytic gradients, harmonic solutions and a refined RK4 reference. Charts display emitted samples and may downsample their lines; exports retain every emitted row. Browser output is capped at 8 MiB; increase <code>sample</code> for long runs.</p>
+<details><summary>Literal syntax, unsupported models and resource bounds</summary><p style="padding:0 1rem 1rem;margin:0">Decimals use digits or digits.digits and unary minus; exponent notation, NaN and infinity literals are rejected. Constant declarations can reference earlier constants. Potentials may reference all declared coordinates and parameters. Power binds before unary minus; <code>-x^2</code> means <code>-(x^2)</code>. Functions, state-dependent division, momentum-dependent potentials, alternative kinetics, constraints and dissipation are unsupported. Limits: 32 parameters, 65,536 source bytes, 4,096 tokens, 32 nested parentheses or consecutive unary minuses, 128 bytes per literal, 8,192 expression nodes and 65,536 expanded potential/force AST nodes. Steps and sample stride are integers from 1 to 1,000,000, with sample ≤ steps. Nonfinite trajectories fail explicitly; partial output is incomplete.</p></details>
+<p><a href="readers.html">See how readers generate a compiler</a> · <a href="lab.html">Build your own language</a></p>
+</div>
+</main>
+<script src="editor.js?v=science1"></script>
+<script src="science.js?v=science1"></script>
+</body>
+</html>

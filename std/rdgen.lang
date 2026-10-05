@@ -64,6 +64,21 @@ func rdgen_strn(rd *RDGen, s *u8, len i64) void {
     }
 }
 
+// Literal text is data, even when it contains quotes or backslashes. Escape
+// it when embedding it into generated Lang source, including expectations.
+func rdgen_escaped(rd *RDGen, s *u8, len i64) void {
+    var i i64 = 0;
+    while i < len {
+        var c i64 = *(s + i);
+        if c == 34 || c == 92 { sb_char(rd.sb, 92); sb_char(rd.sb, c); }
+        else if c == 10 { sb_str(rd.sb, "\\n"); }
+        else if c == 13 { sb_str(rd.sb, "\\r"); }
+        else if c == 9 { sb_str(rd.sb, "\\t"); }
+        else { sb_char(rd.sb, c); }
+        i = i + 1;
+    }
+}
+
 // A reader spells its token kinds TOK_INDENT; a grammar spells them <indent>.
 func rdgen_upper(rd *RDGen, s *u8, len i64) void {
     var i i64 = 0;
@@ -157,74 +172,41 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
         var phase i64 = work.phase;
         var kind i64 = node.kind;
 
-        // LITERAL: '(' or similar
+        // Literal matching depends on exact text, not an ASCII/token-kind
+        // coincidence. This also handles single-character keywords and digits.
         if kind == GNODE_LITERAL {
             var lit *u8 = node.name;
             var len i64 = node.name_len;
-            if len == 1 {
-                var c i64 = *lit;
-                rdgen_indent(rd);
-                sb_str(rd.sb, "if tok_kind(t) == ");
-                if c == 40 { sb_str(rd.sb, "TOK_LPAREN"); }
-                else if c == 41 { sb_str(rd.sb, "TOK_RPAREN"); }
-                else if c == 91 { sb_str(rd.sb, "TOK_LBRACKET"); }
-                else if c == 93 { sb_str(rd.sb, "TOK_RBRACKET"); }
-                else if c == 123 { sb_str(rd.sb, "TOK_LBRACE"); }
-                else if c == 125 { sb_str(rd.sb, "TOK_RBRACE"); }
-                else if c == 43 { sb_str(rd.sb, "TOK_PLUS"); }
-                else if c == 45 { sb_str(rd.sb, "TOK_MINUS"); }
-                else if c == 42 { sb_str(rd.sb, "TOK_STAR"); }
-                else if c == 47 { sb_str(rd.sb, "TOK_SLASH"); }
-                else if c == 44 { sb_str(rd.sb, "TOK_COMMA"); }
-                else if c == 46 { sb_str(rd.sb, "TOK_DOT"); }
-                else if c == 61 { sb_str(rd.sb, "TOK_EQ"); }
-                else if c == 59 { sb_str(rd.sb, "TOK_SEMI"); }
-                else if c == 58 { sb_str(rd.sb, "TOK_COLON"); }
-                else if c == 60 { sb_str(rd.sb, "TOK_LT"); }
-                else if c == 62 { sb_str(rd.sb, "TOK_GT"); }
-                else if c == 33 { sb_str(rd.sb, "TOK_BANG"); }
-                else if c == 37 { sb_str(rd.sb, "TOK_PERCENT"); }
-                else if c == 38 { sb_str(rd.sb, "TOK_AMP"); }
-                else if c == 124 { sb_str(rd.sb, "TOK_PIPE"); }
-                else if c == 63 { sb_str(rd.sb, "TOK_QUESTION"); }
-                else if c == 126 { sb_str(rd.sb, "TOK_TILDE"); }
-                else {
-                    sb_int(rd.sb, c);
-                }
-                sb_str(rd.sb, " && tok_text_len(t) == 1 { ");
-                sb_str(rd.sb, result_var);
-                // Marker keeps its matched text (kind stays 0, so `kind != 0`
-                // skip-checks are unaffected) so converters can tell '(' from '['.
-                sb_str(rd.sb, " = pnode_atom_span(0, tok_text(t), tok_start_offset(t), tok_end_offset(t)); tok_next(t); } else { tok_note_expected(t, \"'");
-                rdgen_strn(rd, lit, len);
-                sb_str(rd.sb, "'\"); }");
-                rdgen_newline(rd);
-            }
-            else {
-                // Multi-char literals match exact token text. This covers both
-                // keywords (`return`) and operators (`==`, `->`, `++`).
-                rdgen_indent(rd);
-                sb_str(rd.sb, "if str_eq_n(tok_text_ptr(t), tok_text_len(t), \"");
-                var ki i64 = 0;
-                while ki < len {
-                    sb_char(rd.sb, *(lit + ki));
-                    ki = ki + 1;
-                }
-                sb_str(rd.sb, "\", ");
-                sb_int(rd.sb, len);
-                sb_str(rd.sb, ") { ");
-                sb_str(rd.sb, result_var);
-                sb_str(rd.sb, " = pnode_atom_span(2, tok_text(t), tok_start_offset(t), tok_end_offset(t)); tok_next(t); } else { tok_note_expected(t, \"'");
-                rdgen_strn(rd, lit, len);
-                sb_str(rd.sb, "'\"); }");
-                rdgen_newline(rd);
-            }
+            rdgen_indent(rd);
+            sb_str(rd.sb, "if str_eq_n(tok_text_ptr(t), tok_text_len(t), \"");
+            rdgen_escaped(rd, lit, len);
+            sb_str(rd.sb, "\", ");
+            sb_int(rd.sb, len);
+            sb_str(rd.sb, ") { ");
+            sb_str(rd.sb, result_var);
+            // Preserve the existing tree convention: one-byte markers have
+            // kind 0; longer literals use the symbol kind expected by readers.
+            sb_str(rd.sb, " = pnode_atom_span(");
+            if len == 1 { sb_str(rd.sb, "0"); } else { sb_str(rd.sb, "2"); }
+            sb_str(rd.sb, ", tok_text(t), tok_start_offset(t), tok_end_offset(t)); tok_next(t); } else { tok_note_expected(t, \"'");
+            rdgen_escaped(rd, lit, len);
+            sb_str(rd.sb, "'\"); }");
+            rdgen_newline(rd);
         }
 
         // TOKTYPE: number, symbol, string
         else if kind == GNODE_TOKTYPE {
             var name *u8 = node.name;
             var name_len i64 = node.name_len;
+
+            if str_eq_n(name, name_len, "eof", 3) {
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if tok_eof(t) { ");
+                sb_str(rd.sb, result_var);
+                sb_str(rd.sb, " = pnode_atom_span(0, \"end of input\", tok_start_offset(t), tok_end_offset(t)); } else { tok_note_expected(t, \"end of input\"); }");
+                rdgen_newline(rd);
+                continue;
+            }
 
             rdgen_indent(rd);
             sb_str(rd.sb, "if tok_kind(t) == ");

@@ -2,10 +2,14 @@
 
 `#parser{}` turns a compact grammar into recursive-descent functions. It is a
 good fit for token grammars, including alternatives that share a prefix.
-Operator precedence stays out of the grammar: keep one flat rule and resolve it
-with the [precedence table](#operator-precedence). For contextual syntax or
-recovery, copy the manual recursive-descent pattern in
+For operator precedence, keep one flat rule and resolve it
+with the [precedence table](#operator-precedence). For contextual syntax, copy
+the manual recursive-descent pattern in
 [`example/calc/calc.lang`](../example/calc/calc.lang).
+For several independent errors in one source file, use the explicit
+[recovery session](#collecting-errors-and-recovering). The
+[capability comparison](./GRAMMAR_CAPABILITIES.md) explains where this toolkit
+differs from Bison/yacc and ANTLR.
 
 ## Smallest parser
 
@@ -13,13 +17,14 @@ recovery, copy the manual recursive-descent pattern in
 include "std/parser_reader.lang"
 
 #parser{
+    file = expr eof
     expr = number | symbol | list
     list = '(' items:expr* ')'
 }
 
 func main() i64 {
     var tokens *Tokenizer = tok_new("(add 1 2)");
-    var tree *PNode = parse_expr(tokens);
+    var tree *PNode = parse_file(tokens);
     if tree == nil || !tok_eof(tokens) { return 1; }
     var items *PNode = pnode_require(tree, "items");
     if items == nil || vec_len(items.children) != 3 { return 2; }
@@ -28,8 +33,9 @@ func main() i64 {
 ```
 
 Each rule creates `parse_<rule>(tokens)`. A parser returns `nil` when it does
-not match. Always check both the result and `tok_eof(tokens)` at the reader
-boundary; a successful prefix is not necessarily a complete program. Name the
+not match. Put `eof` in a whole-file rule, or check `tok_eof(tokens)` separately
+at the reader boundary; a successful prefix is not necessarily a complete
+program. Name the
 children used by lowering and retrieve them with `pnode_get` or
 `pnode_require`; `pnode_child(node, index)` remains available for old grammars.
 
@@ -50,11 +56,28 @@ atom  = (number | symbol)                grouping
 stmt  = 'return' value ';'               keyword and punctuation literals
 decl  = 'var' name:symbol '=' value:expr  named captures for lowering
 suite = <indent> stmt+ <dedent>          a token kind the reader supplies
+file  = stmt* eof                       require the complete input
 ```
 
 Built-in token names are `number`, `symbol`/`ident`, `string`, and `operator`.
+With the shared scanner, `number` contains integer digits and absorbs a minus
+directly followed by digits. Thus Calc accepts `answer 1 - 2`, while
+`answer 1-2` produces adjacent number tokens and is rejected. The Hamiltonian
+reader supplies a token stream that splits signed numbers into minus and digits
+and recognizes decimals, so its subtraction does not depend on spaces. Grammar
+notation alone does not change lexing.
+`eof` is a reserved zero-width assertion: it matches only at the end of input
+and creates a kind-0 marker with text `end of input` and an empty source span.
+It does not advance the tokenizer. Repeating it stops safely, and recursion
+through it is rejected like any other nullable-prefix cycle.
 Quoted literals match exact token text: `'return'` matches a keyword and `'=='`,
 `'->'`, or `'++'` match multi-character operators.
+Single-character text such as `'x'`, `'0'`, or `'^'` follows the same rule,
+independent of token kind. A literal must match one token; it does not ask the
+scanner to recognize a new spelling. Literal contents are raw bytes between
+the quotes, without escape decoding. Generated code safely quotes those bytes,
+including backslashes and double quotes. Empty literals are rejected; use `eof`
+for a zero-width end assertion or `?` for an optional element.
 
 ## Supplying your own tokens
 
@@ -88,7 +111,8 @@ writing `<indent>` can therefore only match a token a reader put there. An
 undeclared `<foo>` is an ordinary undefined-identifier error for `TOK_FOO`.
 
 Everything else is unchanged: `tok_new` still scans, backtracking still rewinds,
-and the two can appear in the same program.
+and the two can appear in the same program. `tok_new_stream` wraps a prebuilt
+token vector; it is not an incremental input-streaming interface.
 
 ## Parse tree
 
@@ -105,9 +129,10 @@ struct PNode {
 }
 ```
 
-Sequences, `*`, and `+` introduce list nodes. Literal markers remain in the
-tree with `kind == 0`; their `text` distinguishes `(` from `[` and similar
-syntax. Inspect [`example/minilisp/minilisp.lang`](../example/minilisp/minilisp.lang)
+Sequences, `*`, and `+` introduce list nodes. One-byte literal markers remain
+in the tree with `kind == 0`; longer literals use kind 2 for compatibility with
+existing readers. Their `text` distinguishes `(` from `[` and similar syntax.
+Inspect [`example/minilisp/minilisp.lang`](../example/minilisp/minilisp.lang)
 for helpers that unwrap this shape, then lower it with the
 [AST builders](./AST_BUILDERS.md). Terminal nodes carry their token range;
 composite nodes inherit the first and last child range. Pass either range to
@@ -236,16 +261,88 @@ Use the query functions when you want different wording or structured output.
 one-based. Expectations from alternatives failing at the same furthest token
 are combined (`number or string`).
 
-Choice remains ordered—the first successful branch wins. Direct, indirect, and
+Choice remains ordered—the first successful branch wins. A successful inner
+choice is not retried merely because a later element of its enclosing sequence
+fails: `part = number | number symbol` then `file = part eof` rejects `1 name`.
+Place the longer alternative first, or put the whole alternatives including
+their continuation in one choice. There is no global ambiguity analysis or
+packrat memoization.
+
+Direct, indirect, and
 nullable-prefix left recursion are rejected at the reference that closes the
 cycle; right recursion works. Use a hand-written parser when the grammar needs
-semantic lookahead or error recovery.
+semantic lookahead. Deep recursion and repeated shared-prefix exploration
+remain the reader author's performance responsibility.
+
+## Collecting errors and recovering
+
+Generated parsers return `nil` and rewind on a failed item. A reader may collect
+several independent errors with `std/parse.lang`, then refuse to lower the
+partially recognized source:
+
+```lang
+include "std/parser_reader.lang"
+include "std/parse.lang"
+
+#parser{
+    statement = 'add' value:number ';'
+}
+
+func recognize(text *u8) bool {
+    var tokens *Tokenizer = tok_new(text);
+    var session *ParseSession = parse_session_new(tokens, 8);
+    while !tok_eof(tokens) && parse_begin(session) {
+        var item *PNode = parse_statement(tokens);
+        if item == nil {
+            parse_report(session);
+            if parse_sync_text(session, ";", true, 1024) == PARSE_SYNC_LIMIT {
+                break;
+            }
+        }
+        // Store successful items here; lower them only after the error check.
+    }
+    if parse_has_errors(session) {
+        parse_print_diagnostics(session, "myreader");
+        return false;
+    }
+    return tok_eof(tokens);
+}
+```
+
+For `add ;` followed by `add word;`, this reports both located `expected number`
+errors. It can continue recognizing a later correct statement but still fails
+the whole reader invocation. The complete runnable example is
+[`example/workshop/workshop.lang`](../example/workshop/workshop.lang).
+
+`parse_begin` clears speculative expectations before each independent item;
+it returns false once the diagnostic limit is reached. Do not call it inside
+generated alternatives. `parse_report` copies offset, line, byte column,
+expected text and found text into an immutable `ParseDiagnostic`, available
+through `parse_diagnostic_count` and `parse_error_at`. Its limit is clamped to
+1–256. Clearing the tokenizer for the next item cannot mutate earlier errors.
+
+`parse_sync_text(session, boundary, consume, budget)` scans from the parser's
+rewound position to one exact token text. `parse_sync_kind` instead matches a
+token kind, including synthetic layout boundaries. The return value is
+`PARSE_SYNC_FOUND`, `PARSE_SYNC_EOF`, or `PARSE_SYNC_LIMIT`. A budget must be
+1–65536 and bounds the number of non-boundary tokens discarded. `consume=true`
+also advances past the boundary. With `false`, its enclosing parser must
+consume the boundary before retrying, to ensure progress.
+
+This is explicit panic synchronization, not automatic correction. It does not
+insert tokens, infer follow sets, balance nested delimiters, or guarantee every
+later error is independent. Pick boundaries appropriate to the language; a
+semicolon inside a nested construct may need a reader-specific nesting policy.
+Always reject output when the session has errors. Recovered trees are useful
+for diagnostics, not permission to emit a partially valid executable.
+The caps bound recovery diagnostics and discarded tokens, not source length,
+generated-parser recursion depth, or shared-prefix backtracking complexity.
 
 ## Operator precedence
 
-A precedence ladder written as grammar rules is left-recursive, so `#parser{}`
-rejects it. Write one flat rule instead and give the operators their binding
-powers in `std/prec.lang`:
+A left-recursive expression grammar is rejected by `#parser{}`. You can write
+a non-left-recursive ladder yourself, or keep one flat rule and give the
+operators their binding powers in `std/prec.lang`:
 
 ```lang
 #parser{

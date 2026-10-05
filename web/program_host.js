@@ -1,5 +1,5 @@
 // Runtime for modules emitted by codegen_wasm.lang. Direct-wasm imports use a
-// canonical i64 ABI in the "lang" namespace, including pointer values. The
+// typed scalar ABI in the "lang" namespace; pointers remain i64. The
 // optional third argument supplies UTF-8 stdin, used by reusable reader Wasm.
 'use strict';
 
@@ -132,12 +132,15 @@ function formatLangAst(source) {
   return output.join('');
 }
 
-async function runLangProgram(wasmBytes, onWrite, inputText) {
+async function runLangProgram(wasmBytes, onWrite, inputText, options = {}) {
   let instance = null;
   let heapTop = 0;
   let inputPos = 0;
   let stdout = '';
   let stderr = '';
+  let outputBytes = 0;
+  const maxOutputBytes = options.maxOutputBytes || 16 * 1024 * 1024;
+  const maxMemoryBytes = options.maxMemoryBytes || 256 * 1024 * 1024;
   const decoder = new TextDecoder();
   const input = typeof inputText === 'string'
     ? new TextEncoder().encode(inputText)
@@ -147,14 +150,34 @@ async function runLangProgram(wasmBytes, onWrite, inputText) {
   const bytes = () => new Uint8Array(memory().buffer);
   const number = (value) => Number(value);
 
+  function cstr(ptrValue) {
+    const start = number(ptrValue);
+    let end = start;
+    while (end < bytes().length && bytes()[end] !== 0) end++;
+    return decoder.decode(bytes().subarray(start, end));
+  }
+
+  function putString(text) {
+    const encoded = new TextEncoder().encode(text);
+    const ptr = bump(encoded.length + 1);
+    bytes().set(encoded, ptr);
+    bytes()[ptr + encoded.length] = 0;
+    return ptr;
+  }
+
   function bump(sizeValue) {
     if (heapTop === 0) {
       const base = instance.exports.__heap_base;
       heapTop = base ? Number(base.value) : 1024 * 1024;
     }
-    const size = number(sizeValue) + 16;
+    const requested = number(sizeValue);
+    if (!Number.isSafeInteger(requested) || requested < 0) {
+      throw new Error('program requested an invalid allocation size');
+    }
+    const size = requested + 16;
     const ptr = (heapTop + 15) & ~15;
     heapTop = ptr + size;
+    if (heapTop > maxMemoryBytes) throw new Error('program exceeded the memory limit');
     if (heapTop > memory().buffer.byteLength) {
       memory().grow(Math.ceil((heapTop - memory().buffer.byteLength) / 65536) + 1);
     }
@@ -166,10 +189,16 @@ async function runLangProgram(wasmBytes, onWrite, inputText) {
   }
 
   const emit = (text, isError) => {
+    outputBytes += new TextEncoder().encode(text).length;
+    if (outputBytes > maxOutputBytes) throw new Error('program exceeded the output limit');
     if (isError) stderr += text;
     else stdout += text;
     if (onWrite) onWrite(text, isError);
   };
+
+  const numericLibrary = typeof module !== 'undefined'
+    ? require('./numeric_host.js') : globalThis.LangNumericHost;
+  const numeric = numericLibrary.createNumericHost({ memory, cstr, emit });
 
   const lang = {
     read: (fdValue, ptrValue, countValue) => {
@@ -221,22 +250,38 @@ async function runLangProgram(wasmBytes, onWrite, inputText) {
       bytes().fill(number(value), number(dstValue), number(dstValue) + number(countValue));
       return dstValue;
     },
-    printf: () => 0n,
+    printf: numeric.printf,
+    strtod: numeric.strtod,
+    fmod: numeric.fmod,
+    fmodf: numeric.fmodf,
   };
 
   const built = await WebAssembly.instantiate(wasmBytes, { lang });
   instance = built.instance;
+  const argv = [options.programName || 'program', ...(options.args || [])];
+  const argvPtr = bump((argv.length + 1) * 8);
+  for (let i = 0; i < argv.length; i++) {
+    const ptr = putString(String(argv[i]));
+    new DataView(memory().buffer).setBigUint64(argvPtr + i * 8, BigInt(ptr), true);
+  }
+  new DataView(memory().buffer).setBigUint64(argvPtr + argv.length * 8, 0n, true);
   let value = 0n;
   let exit = 0;
+  let didExit = false;
   try {
-    const returned = instance.exports.main();
+    const returned = instance.exports.main(BigInt(argv.length), BigInt(argvPtr));
     value = returned === undefined ? 0n : returned;
-    exit = number(BigInt(value) & 255n);
+    // Wasm floating returns are JS numbers. Preserve the result, including
+    // IEEE nonfinite values; only the imported exit() signals a process exit.
+    // This byte is for integer-compatible callers, not floating ABI conversion.
+    exit = typeof value === 'number'
+      ? (Number.isFinite(value) ? Math.trunc(value) & 255 : 0)
+      : number(BigInt(value) & 255n);
   } catch (error) {
-    if (error instanceof ExitTrap) exit = error.code;
+    if (error instanceof ExitTrap) { exit = error.code; didExit = true; }
     else throw error;
   }
-  return { value, exit, stdout, stderr, instance };
+  return { value, exit, didExit, stdout, stderr, instance };
 }
 
 if (typeof module !== 'undefined') module.exports = { formatLangAst, runLangProgram };

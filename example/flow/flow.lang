@@ -34,6 +34,7 @@ include "std/core.lang"
 include "std/tok.lang"
 include "std/parser_reader.lang"
 include "std/ast.lang"
+include "std/reader_error.lang"
 include "std/prec.lang"
 
 #parser{
@@ -110,9 +111,9 @@ func fl_push_flat(expr *PrecExpr, e *PNode) void {
 
 // std/prec.lang already named the operator it refused; a reader that carried on
 // would turn that into a mystery further down the pipeline.
-func fl_checked(value *u8) *u8 {
+func fl_checked(value *u8, node *PNode) *u8 {
     if value == nil {
-        eprintln("flow: this expression is not in the flow subset");
+        reader_error(node, "this expression is not in the flow subset");
         exit(1);
     }
     return value;
@@ -121,14 +122,15 @@ func fl_checked(value *u8) *u8 {
 func fl_emit_expr(e *PNode) *u8 {
     var expr *PrecExpr = prec_expr(fl_table());
     fl_push_flat(expr, e);
-    return fl_checked(prec_build(expr));
+    return fl_checked(prec_build(expr), e);
 }
 
 // A branch the grammar can produce but this converter does not handle is a
 // reader bug. Name it and stop - emitting a placeholder is how a reader turns
 // its own gap into a mystery in the generated program.
 func fl_unhandled(what *u8, node *PNode) *u8 {
-    eprint("flow: unhandled ");
+    reader_error_prefix(node);
+    eprint("unhandled ");
     eprint(what);
     var label *u8 = pnode_branch(node);
     if label == nil {
@@ -262,7 +264,7 @@ func fl_emit_stmt(s *PNode, send_target *u8) *u8 {
 func fl_emit_exprstmt(e *PNode) *u8 {
     var expr *PrecExpr = prec_expr(fl_table());
     fl_push_flat(expr, e);
-    return fl_checked(prec_build_stmt(expr));
+    return fl_checked(prec_build_stmt(expr), e);
 }
 
 // for X in GEN(args) { body }  ->  drive the generator with a handle:
@@ -372,7 +374,13 @@ func fl_emit_program(prog *PNode) *u8 {
 }
 
 reader flow(text *u8) *u8 {
+    reader_error_begin(text, "flow");
     var t *Tokenizer = tok_new(text);
     var prog *PNode = parse_flow_program(t);
+    if !tok_eof(t) { tok_note_expected(t, "end of input"); }
+    if prog == nil || !tok_eof(t) {
+        tok_print_error(t, "flow");
+        exit(1);
+    }
     return fl_emit_program(prog);
 }

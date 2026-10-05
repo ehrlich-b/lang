@@ -90,6 +90,10 @@ an optional editable target runtime.
 
 ## The reader contract
 
+For a scientific reader that derives forces and generates a native experiment,
+see [the Hamiltonian model compiler](HAMILTONIAN.md). It includes a standalone
+compiler workflow and independent analytic/numerical acceptance evidence.
+
 ```lang
 reader name(text *u8) *u8 { ... }
 ```
@@ -185,6 +189,33 @@ can track tokens directly; generated parsers retain the furthest failure. Use
 `tok_print_error(tokens, "mylang")` before returning `nil` for a one-line parse
 diagnostic with the custom source's line, column, expected forms, and found
 token. Generated `PNode`s expose `start` and `end` byte offsets for semantic
-locations. Call `pnode_dump(tree)` after a successful generated parse to print
+locations. Include `std/reader_error.lang` to report a lowering failure at the
+node that caused it:
+
+```lang
+reader mylang(text *u8) *u8 {
+    reader_error_begin(text, "mylang");
+    // Parse and lower; when a form is invalid:
+    reader_error(bad_node, "this form has no value here");
+    exit(1);
+}
+```
+
+This prints `mylang:LINE:COLUMN: error: ...`. Pass the original input to
+`reader_error_begin`, even when tokens come from a normalized copy. Set the
+context at the beginning of every invocation; it is shared by synchronous
+readers. `reader_error_at(offset, message)` covers lexer/layout failures before
+a node exists. `reader_error_prefix(node)` lets a reader append names or other
+details itself. Printing does not terminate the reader; call `exit(1)` or return
+`nil` to stop the build. Unknown spans remain unlocated and oversized offsets
+stop at EOF. For code that should not use shared context,
+`reader_print_error_at(text, label, offset, message)` takes all inputs directly.
+
+Columns count UTF-8 bytes, matching tokens and AST spans. The browser lab maps
+the five shipped reader labels back to `source.read` and selects the failing
+token, including after non-ASCII comments. For a custom browser reader, use
+`"source.read"` as the label to get the same navigation.
+
+Call `pnode_dump(tree)` after a successful generated parse to print
 the complete tree—including named-capture wrappers and spans—to stderr without
 mixing debug output into `lang read`'s AST stdout.

@@ -1,0 +1,19 @@
+// Floating remainder follows C fmod/LLVM frem, including signed zero.
+func main() i64 {
+    if 5.5 % 2.0 != 1.5 || -5.5 % 2.0 != -1.5 { return 1; }
+    var a f32 = cast(f32, -5.5);
+    var b f32 = cast(f32, 2.0);
+    if a % b != cast(f32, -1.5) { return 2; }
+    var zero f64 = -4.0 % 2.0;
+    if bitcast(i64, zero) >= 0 { return 3; }
+    var zero32 f32 = cast(f32, -4.0) % b;
+    if bitcast(i32, zero32) != -2147483648 { return 4; }
+    var infinity f64 = 1.0 / 0.0;
+    if 5.5 % infinity != 5.5 { return 5; }
+    var invalid f64 = infinity % 2.0;
+    // Relational comparisons are ordered; truth conversion treats NaN as nonzero.
+    if invalid == invalid || invalid != 0.0 || !invalid { return 6; }
+    var by_zero f32 = a % cast(f32, 0.0);
+    if by_zero == by_zero || !by_zero { return 7; }
+    return 100;
+}
