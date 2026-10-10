@@ -71,6 +71,8 @@ include "std/prec.lang"
 
 // PNode kinds: 1=number, 2=symbol, 4=list/seq, 5=operator, 0=literal marker
 
+var fl_src *u8 = nil;
+
 // ============================================================
 // Expressions (a flat operand/op list resolved by std/prec.lang)
 // ============================================================
@@ -110,9 +112,9 @@ func fl_push_flat(expr *PrecExpr, e *PNode) void {
 
 // std/prec.lang already named the operator it refused; a reader that carried on
 // would turn that into a mystery further down the pipeline.
-func fl_checked(value *u8) *u8 {
+func fl_checked(value *u8, node *PNode) *u8 {
     if value == nil {
-        eprintln("flow: this expression is not in the flow subset");
+        pnode_print_error(node, fl_src, "flow", "this expression is not in the flow subset");
         exit(1);
     }
     return value;
@@ -121,23 +123,25 @@ func fl_checked(value *u8) *u8 {
 func fl_emit_expr(e *PNode) *u8 {
     var expr *PrecExpr = prec_expr(fl_table());
     fl_push_flat(expr, e);
-    return fl_checked(prec_build(expr));
+    return fl_checked(prec_build(expr), e);
 }
 
 // A branch the grammar can produce but this converter does not handle is a
 // reader bug. Name it and stop - emitting a placeholder is how a reader turns
 // its own gap into a mystery in the generated program.
 func fl_unhandled(what *u8, node *PNode) *u8 {
-    eprint("flow: unhandled ");
-    eprint(what);
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, "unhandled ");
+    sb_str(sb, what);
     var label *u8 = pnode_branch(node);
     if label == nil {
-        eprintln(" (the grammar left this alternative unlabeled)");
+        sb_str(sb, " (the grammar left this alternative unlabeled)");
     } else {
-        eprint(" branch '");
-        eprint(label);
-        eprintln("'");
+        sb_str(sb, " branch '");
+        sb_str(sb, label);
+        sb_str(sb, "'");
     }
+    pnode_print_error(node, fl_src, "flow", sb_finish(sb));
     exit(1);
     return nil;
 }
@@ -262,7 +266,7 @@ func fl_emit_stmt(s *PNode, send_target *u8) *u8 {
 func fl_emit_exprstmt(e *PNode) *u8 {
     var expr *PrecExpr = prec_expr(fl_table());
     fl_push_flat(expr, e);
-    return fl_checked(prec_build_stmt(expr));
+    return fl_checked(prec_build_stmt(expr), e);
 }
 
 // for X in GEN(args) { body }  ->  drive the generator with a handle:
@@ -372,6 +376,7 @@ func fl_emit_program(prog *PNode) *u8 {
 }
 
 reader flow(text *u8) *u8 {
+    fl_src = text;
     var t *Tokenizer = tok_new(text);
     var prog *PNode = parse_flow_program(t);
     return fl_emit_program(prog);

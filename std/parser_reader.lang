@@ -124,6 +124,8 @@
 //   func pnode_atom(kind i64, text *u8) *PNode
 //   func pnode_list(children *u8) *PNode
 //   func pnode_dump(node *PNode) void  // tree + labels + spans to stderr
+//   func pnode_print_error(node *PNode, source *u8, label *u8, message *u8) void
+//       // reader:line:column: message to stderr; the reader decides fatality
 //   func pnode_get_all(node *PNode, name *u8) *u8  // Vec for repeated labels
 //   func pnode_is(node *PNode, name *u8) bool      // which alternative matched
 //   func pnode_branch(node *PNode) *u8             // that label, or nil

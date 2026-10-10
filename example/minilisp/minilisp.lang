@@ -36,6 +36,8 @@ include "std/ast.lang"
 
 // PNODE kinds: 1=number, 2=symbol, 4=list, 5=operator
 
+var ml_src *u8 = nil;
+
 // ============================================================
 // Parse tree helpers
 // ============================================================
@@ -56,14 +58,14 @@ func list_len(node *PNode) i64 {
 // either way `lisp_nil` is the wrong answer: `(+ 1 (2 3))` used to compile clean
 // and evaluate the inner call to nil.
 func ml_fail(what *u8, node *PNode) *u8 {
-    eprint("minilisp: ");
-    eprint(what);
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, what);
     if node != nil && node.text != nil {
-        eprint(" '");
-        eprint(node.text);
-        eprint("'");
+        sb_str(sb, " '");
+        sb_str(sb, node.text);
+        sb_str(sb, "'");
     }
-    eprintln("");
+    pnode_print_error(node, ml_src, "minilisp", sb_finish(sb));
     exit(1);
     return nil;
 }
@@ -363,6 +365,7 @@ func lisp_expr(node *PNode) *u8 {
 }
 
 reader minilisp(text *u8) *u8 {
+    ml_src = text;
     // Lisp's comment is `;`. Until a reader could say so, minilisp had none at
     // all - it inherited lang's `//`, which is not a thing anyone writes in a
     // Lisp, and `;` would have derailed the parse.

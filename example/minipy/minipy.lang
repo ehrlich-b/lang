@@ -148,8 +148,8 @@ func py_lex(text *u8) *u8 {
                         tok_stream_push(toks, TOK_DEDENT, start, 0, "a dedent");
                     }
                     if col != py_top(indents) {
-                        py_fail_at("dedent does not match any enclosing block",
-                                   start);
+                        py_fail("dedent does not match any enclosing block",
+                                pnode_atom_span(PNODE_TOKEN, nil, start, start + t.tok_len));
                     }
                 }
             }
@@ -290,41 +290,22 @@ func py_table() *PrecTable {
 // A reader that reports a syntax error and then hands back a program anyway is
 // how a bad parse turns into a mystery further down the pipeline - most often a
 // function that simply isn't there. Every error here is fatal.
-func py_fail_at(msg *u8, off i64) void {
-    eprint("minipy:");
-    if py_src != nil {
-        var line i64 = 1;
-        var col i64 = 1;
-        var i i64 = 0;
-        while i < off {
-            if *(py_src + i) == 10 { line = line + 1; col = 1; }
-            else { col = col + 1; }
-            i = i + 1;
-        }
-        eprint_i64(line);
-        eprint(":");
-        eprint_i64(col);
-        eprint(":");
-    }
-    eprint(" ");
-    eprintln(msg);
-    exit(1);
-}
-
 func py_fail(msg *u8, node *PNode) void {
-    py_fail_at(msg, node.start);
+    pnode_print_error(node, py_src, "minipy", msg);
+    exit(1);
 }
 
 // An alternative the grammar can produce and lowering forgot. Names the branch
 // rather than guessing, so a grammar edit cannot silently lose a case.
 func py_unhandled(what *u8, node *PNode) void {
-    eprint("minipy: internal: unhandled ");
-    eprint(what);
-    eprint(" branch '");
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, "internal: unhandled ");
+    sb_str(sb, what);
+    sb_str(sb, " branch '");
     var b *u8 = pnode_branch(node);
-    if b == nil { eprint("<none>"); } else { eprint(b); }
-    eprintln("'");
-    exit(1);
+    if b == nil { sb_str(sb, "<none>"); } else { sb_str(sb, b); }
+    sb_str(sb, "'");
+    py_fail(sb_finish(sb), node);
 }
 
 // ============================================================
