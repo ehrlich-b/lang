@@ -314,12 +314,12 @@ bootstrap:
 			echo "ERROR: bootstrap/archive/$$OLD_COMMIT.tar.gz already exists; refusing an ambiguous duplicate."; \
 			exit 1; \
 		else \
-			mkdir bootstrap/archive/$$OLD_COMMIT; \
+			mkdir -p bootstrap/archive/$$OLD_COMMIT; \
 			cp -r bootstrap/current/* bootstrap/archive/$$OLD_COMMIT/; \
 			echo "  Saved bootstrap/archive/$$OLD_COMMIT/"; \
 		fi; \
 		echo "  Managing local archive (target: 10 folders, 10 tarballs)..."; \
-		cd bootstrap/archive && \
+		mkdir -p bootstrap/archive && cd bootstrap/archive || exit 1; \
 		remote_archive_exists() { \
 			IDENTITY="$$1"; \
 			[ "$(PUBLISH_BOOTSTRAP)" = "1" ] && \
