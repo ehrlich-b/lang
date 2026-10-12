@@ -2463,20 +2463,68 @@ var parse_max_errors i64 = 10;   // Stop after this many errors
 // start/end are byte offsets into reader source, or -1 for ordinary Lang nodes.
 var node_origins *u8 = nil;
 var node_origin_count i64 = 0;
+var node_origin_capacity i64 = 0;
+
+// A pointer-keyed index keeps expression provenance cheap even in the compiler
+// itself. Empty slots have a nil node; the table stays at most half full.
+func node_origin_slot(table *u8, capacity i64, node *u8) *u8 {
+    var key i64 = node;
+    key = key >> 3;
+    var index i64 = ((key ^ (key >> 16)) & 2147483647) % capacity;
+    while true {
+        var entry *u8 = table + index * 48;
+        var node_slot **u8 = entry;
+        if *node_slot == nil || *node_slot == node { return entry; }
+        index = (index + 1) % capacity;
+    }
+    return nil;
+}
+
+func node_origin_grow() void {
+    var capacity i64 = node_origin_capacity * 2;
+    if capacity == 0 { capacity = 1024; }
+    var table *u8 = alloc(capacity * 48);
+    var i i64 = 0;
+    while i < capacity {
+        var slot **u8 = table + i * 48;
+        *slot = nil;
+        i = i + 1;
+    }
+    i = 0;
+    while i < node_origin_capacity {
+        var old_entry *u8 = node_origins + i * 48;
+        var node_slot **u8 = old_entry;
+        if *node_slot != nil {
+            var entry *u8 = node_origin_slot(table, capacity, *node_slot);
+            var j i64 = 0;
+            while j < 48 {
+                var src *i64 = old_entry + j;
+                var dst *i64 = entry + j;
+                *dst = *src;
+                j = j + 8;
+            }
+        }
+        i = i + 1;
+    }
+    // Compiler allocations may be arena-backed on the raw-syscall OS layer.
+    node_origins = table;
+    node_origin_capacity = capacity;
+}
 
 func node_set_origin_full(node *u8, source_name *u8, line i64, column i64,
                           start i64, end i64) void {
-    if node == nil || source_name == nil || *source_name == 0 {
-        return;
-    }
-    if node_origins == nil {
-        node_origins = alloc(LIMIT_NODE_ORIGINS * 48);
-    }
-    if node_origin_count >= LIMIT_NODE_ORIGINS {
-        return;
-    }
-    var entry *u8 = node_origins + (node_origin_count * 48);
+    if node == nil || source_name == nil || *source_name == 0 { return; }
+    if node_origin_capacity == 0 { node_origin_grow(); }
+    var entry *u8 = node_origin_slot(node_origins, node_origin_capacity, node);
     var node_slot **u8 = entry;
+    if *node_slot == nil {
+        if (node_origin_count + 1) * 2 > node_origin_capacity {
+            node_origin_grow();
+            entry = node_origin_slot(node_origins, node_origin_capacity, node);
+            node_slot = entry;
+        }
+        node_origin_count = node_origin_count + 1;
+    }
     *node_slot = node;
     var source_slot **u8 = entry + 8;
     *source_slot = source_name;
@@ -2488,7 +2536,6 @@ func node_set_origin_full(node *u8, source_name *u8, line i64, column i64,
     *start_slot = start;
     var end_slot *i64 = entry + 40;
     *end_slot = end;
-    node_origin_count = node_origin_count + 1;
 }
 
 pub func node_set_origin(node *u8, source_name *u8, line i64, column i64) void {
@@ -2517,15 +2564,10 @@ pub func node_set_span(node *u8, source_name *u8, source *u8,
 }
 
 func node_origin_entry(node *u8) *u8 {
-    var i i64 = node_origin_count - 1;
-    while i >= 0 {
-        var entry *u8 = node_origins + (i * 48);
-        var node_slot **u8 = entry;
-        if *node_slot == node {
-            return entry;
-        }
-        i = i - 1;
-    }
+    if node == nil || node_origin_capacity == 0 { return nil; }
+    var entry *u8 = node_origin_slot(node_origins, node_origin_capacity, node);
+    var node_slot **u8 = entry;
+    if *node_slot == node { return entry; }
     return nil;
 }
 

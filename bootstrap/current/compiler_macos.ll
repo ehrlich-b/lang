@@ -19,7 +19,6 @@ declare i64 @syscall(i64, ...)
 @LIMIT_CALL_ARGS = global i64 16
 @LIMIT_FUNC_PARAMS = global i64 16
 @LIMIT_TOP_DECLS = global i64 4000
-@LIMIT_NODE_ORIGINS = global i64 32768
 @LIMIT_LOCALS = global i64 1024
 @LIMIT_GLOBALS = global i64 2000
 @LIMIT_STRINGS = global i64 6000
@@ -2740,7 +2739,7 @@ L2:
 @LANG_BUILD_OS = global i64 ptrtoint (i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str0, i64 0, i64 0) to i64)
 @LANG_BUILD_ARCH = global i64 ptrtoint (i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str19, i64 0, i64 0) to i64)
 @LANG_BUILD_LIBC = global i64 ptrtoint (i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str20, i64 0, i64 0) to i64)
-@LANG_BOOTSTRAP_FROM = global i64 ptrtoint (i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str21, i64 0, i64 0) to i64)
+@LANG_BOOTSTRAP_FROM = global i64 ptrtoint (i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str21, i64 0, i64 0) to i64)
 @TOKEN_EOF = global i64 0
 @TOKEN_ERROR = global i64 1
 @TOKEN_IDENT = global i64 2
@@ -12860,6 +12859,211 @@ L.entry:
 @parse_max_errors = global i64 10
 @node_origins = global i64 0
 @node_origin_count = global i64 0
+@node_origin_capacity = global i64 0
+define i8* @node_origin_slot(i64 %table.arg, i64 %capacity.arg, i64 %node.arg) {
+L.entry:
+    %table.0 = alloca i64
+    store i64 %table.arg, i64* %table.0
+    %capacity.1 = alloca i64
+    store i64 %capacity.arg, i64* %capacity.1
+    %node.2 = alloca i64
+    store i64 %node.arg, i64* %node.2
+    %key.3 = alloca i64
+    %t0 = load i64, i64* %node.2
+    store i64 %t0, i64* %key.3
+    %t1 = load i64, i64* %key.3
+    %t2 = ashr i64 %t1, 3
+    store i64 %t2, i64* %key.3
+    %index.4 = alloca i64
+    %t3 = load i64, i64* %key.3
+    %t4 = load i64, i64* %key.3
+    %t5 = ashr i64 %t4, 16
+    %t6 = xor i64 %t3, %t5
+    %t7 = and i64 %t6, 2147483647
+    %t8 = load i64, i64* %capacity.1
+    %t9 = srem i64 %t7, %t8
+    store i64 %t9, i64* %index.4
+    br label %L0
+L0:
+    %t10 = icmp ne i64 1, 0
+    br i1 %t10, label %L1, label %L2
+L1:
+    %entry.5 = alloca i64
+    %t11 = load i64, i64* %table.0
+    %t12 = load i64, i64* %index.4
+    %t13 = mul i64 %t12, 48
+    %t14 = add i64 %t11, %t13
+    store i64 %t14, i64* %entry.5
+    %node_slot.6 = alloca i64
+    %t15 = load i64, i64* %entry.5
+    store i64 %t15, i64* %node_slot.6
+    %t16 = alloca i64
+    store i64 1, i64* %t16
+    %t17 = load i64, i64* %node_slot.6
+    %t19 = inttoptr i64 %t17 to i64*
+    %t18 = load i64, i64* %t19
+    %t21 = icmp eq i64 %t18, 0
+    %t20 = zext i1 %t21 to i64
+    %t22 = icmp eq i64 %t20, 0
+    br i1 %t22, label %L6, label %L7
+L6:
+    %t23 = load i64, i64* %node_slot.6
+    %t25 = inttoptr i64 %t23 to i64*
+    %t24 = load i64, i64* %t25
+    %t26 = load i64, i64* %node.2
+    %t28 = icmp eq i64 %t24, %t26
+    %t27 = zext i1 %t28 to i64
+    %t29 = icmp ne i64 %t27, 0
+    %t30 = zext i1 %t29 to i64
+    store i64 %t30, i64* %t16
+    br label %L7
+L7:
+    %t31 = load i64, i64* %t16
+    %t32 = icmp ne i64 %t31, 0
+    br i1 %t32, label %L3, label %L5
+L3:
+    %t33 = load i64, i64* %entry.5
+    %t34 = inttoptr i64 %t33 to i8*
+    ret i8* %t34
+L5:
+    %t35 = load i64, i64* %index.4
+    %t36 = add i64 %t35, 1
+    %t37 = load i64, i64* %capacity.1
+    %t38 = srem i64 %t36, %t37
+    store i64 %t38, i64* %index.4
+    br label %L0
+L2:
+    %t39 = inttoptr i64 0 to i8*
+    ret i8* %t39
+}
+
+define void @node_origin_grow() {
+L.entry:
+    %capacity.0 = alloca i64
+    %t0 = load i64, i64* @node_origin_capacity
+    %t1 = mul i64 %t0, 2
+    store i64 %t1, i64* %capacity.0
+    %t2 = load i64, i64* %capacity.0
+    %t4 = icmp eq i64 %t2, 0
+    %t3 = zext i1 %t4 to i64
+    %t5 = icmp ne i64 %t3, 0
+    br i1 %t5, label %L0, label %L2
+L0:
+    store i64 1024, i64* %capacity.0
+    br label %L2
+L2:
+    %table.1 = alloca i64
+    %t6 = load i64, i64* %capacity.0
+    %t7 = mul i64 %t6, 48
+    %t8 = call i8* @alloc(i64 %t7)
+    %t9 = ptrtoint i8* %t8 to i64
+    store i64 %t9, i64* %table.1
+    %i.2 = alloca i64
+    store i64 0, i64* %i.2
+    br label %L3
+L3:
+    %t10 = load i64, i64* %i.2
+    %t11 = load i64, i64* %capacity.0
+    %t13 = icmp slt i64 %t10, %t11
+    %t12 = zext i1 %t13 to i64
+    %t14 = icmp ne i64 %t12, 0
+    br i1 %t14, label %L4, label %L5
+L4:
+    %slot.3 = alloca i64
+    %t15 = load i64, i64* %table.1
+    %t16 = load i64, i64* %i.2
+    %t17 = mul i64 %t16, 48
+    %t18 = add i64 %t15, %t17
+    store i64 %t18, i64* %slot.3
+    %t19 = load i64, i64* %slot.3
+    %t20 = inttoptr i64 %t19 to i64*
+    store i64 0, i64* %t20
+    %t21 = load i64, i64* %i.2
+    %t22 = add i64 %t21, 1
+    store i64 %t22, i64* %i.2
+    br label %L3
+L5:
+    store i64 0, i64* %i.2
+    br label %L6
+L6:
+    %t23 = load i64, i64* %i.2
+    %t24 = load i64, i64* @node_origin_capacity
+    %t26 = icmp slt i64 %t23, %t24
+    %t25 = zext i1 %t26 to i64
+    %t27 = icmp ne i64 %t25, 0
+    br i1 %t27, label %L7, label %L8
+L7:
+    %old_entry.4 = alloca i64
+    %t28 = load i64, i64* @node_origins
+    %t29 = load i64, i64* %i.2
+    %t30 = mul i64 %t29, 48
+    %t31 = add i64 %t28, %t30
+    store i64 %t31, i64* %old_entry.4
+    %node_slot.5 = alloca i64
+    %t32 = load i64, i64* %old_entry.4
+    store i64 %t32, i64* %node_slot.5
+    %t33 = load i64, i64* %node_slot.5
+    %t35 = inttoptr i64 %t33 to i64*
+    %t34 = load i64, i64* %t35
+    %t37 = icmp ne i64 %t34, 0
+    %t36 = zext i1 %t37 to i64
+    %t38 = icmp ne i64 %t36, 0
+    br i1 %t38, label %L9, label %L11
+L9:
+    %entry.6 = alloca i64
+    %t39 = load i64, i64* %table.1
+    %t40 = load i64, i64* %capacity.0
+    %t41 = load i64, i64* %node_slot.5
+    %t43 = inttoptr i64 %t41 to i64*
+    %t42 = load i64, i64* %t43
+    %t44 = call i8* @node_origin_slot(i64 %t39, i64 %t40, i64 %t42)
+    %t45 = ptrtoint i8* %t44 to i64
+    store i64 %t45, i64* %entry.6
+    %j.7 = alloca i64
+    store i64 0, i64* %j.7
+    br label %L12
+L12:
+    %t46 = load i64, i64* %j.7
+    %t48 = icmp slt i64 %t46, 48
+    %t47 = zext i1 %t48 to i64
+    %t49 = icmp ne i64 %t47, 0
+    br i1 %t49, label %L13, label %L14
+L13:
+    %src.8 = alloca i64
+    %t50 = load i64, i64* %old_entry.4
+    %t51 = load i64, i64* %j.7
+    %t52 = add i64 %t50, %t51
+    store i64 %t52, i64* %src.8
+    %dst.9 = alloca i64
+    %t53 = load i64, i64* %entry.6
+    %t54 = load i64, i64* %j.7
+    %t55 = add i64 %t53, %t54
+    store i64 %t55, i64* %dst.9
+    %t56 = load i64, i64* %src.8
+    %t58 = inttoptr i64 %t56 to i64*
+    %t57 = load i64, i64* %t58
+    %t59 = load i64, i64* %dst.9
+    %t60 = inttoptr i64 %t59 to i64*
+    store i64 %t57, i64* %t60
+    %t61 = load i64, i64* %j.7
+    %t62 = add i64 %t61, 8
+    store i64 %t62, i64* %j.7
+    br label %L12
+L14:
+    br label %L11
+L11:
+    %t63 = load i64, i64* %i.2
+    %t64 = add i64 %t63, 1
+    store i64 %t64, i64* %i.2
+    br label %L6
+L8:
+    %t65 = load i64, i64* %table.1
+    store i64 %t65, i64* @node_origins
+    %t66 = load i64, i64* %capacity.0
+    store i64 %t66, i64* @node_origin_capacity
+    ret void
+}
+
 define void @node_set_origin_full(i64 %node.arg, i64 %source_name.arg, i64 %line.arg, i64 %column.arg, i64 %start.arg, i64 %end.arg) {
 L.entry:
     %node.0 = alloca i64
@@ -12913,84 +13117,102 @@ L4:
 L0:
     ret void
 L2:
-    %t23 = load i64, i64* @node_origins
+    %t23 = load i64, i64* @node_origin_capacity
     %t25 = icmp eq i64 %t23, 0
     %t24 = zext i1 %t25 to i64
     %t26 = icmp ne i64 %t24, 0
     br i1 %t26, label %L7, label %L9
 L7:
-    %t27 = load i64, i64* @LIMIT_NODE_ORIGINS
-    %t28 = mul i64 %t27, 48
-    %t29 = call i8* @alloc(i64 %t28)
-    %t30 = ptrtoint i8* %t29 to i64
-    store i64 %t30, i64* @node_origins
+    call void @node_origin_grow()
     br label %L9
 L9:
-    %t31 = load i64, i64* @node_origin_count
-    %t32 = load i64, i64* @LIMIT_NODE_ORIGINS
-    %t34 = icmp sge i64 %t31, %t32
-    %t33 = zext i1 %t34 to i64
-    %t35 = icmp ne i64 %t33, 0
-    br i1 %t35, label %L10, label %L12
-L10:
-    ret void
-L12:
     %entry.6 = alloca i64
-    %t36 = load i64, i64* @node_origins
-    %t37 = load i64, i64* @node_origin_count
-    %t38 = mul i64 %t37, 48
-    %t39 = add i64 %t36, %t38
-    store i64 %t39, i64* %entry.6
+    %t27 = load i64, i64* @node_origins
+    %t28 = load i64, i64* @node_origin_capacity
+    %t29 = load i64, i64* %node.0
+    %t30 = call i8* @node_origin_slot(i64 %t27, i64 %t28, i64 %t29)
+    %t31 = ptrtoint i8* %t30 to i64
+    store i64 %t31, i64* %entry.6
     %node_slot.7 = alloca i64
-    %t40 = load i64, i64* %entry.6
-    store i64 %t40, i64* %node_slot.7
-    %t41 = load i64, i64* %node.0
-    %t42 = load i64, i64* %node_slot.7
-    %t43 = inttoptr i64 %t42 to i64*
-    store i64 %t41, i64* %t43
+    %t32 = load i64, i64* %entry.6
+    store i64 %t32, i64* %node_slot.7
+    %t33 = load i64, i64* %node_slot.7
+    %t35 = inttoptr i64 %t33 to i64*
+    %t34 = load i64, i64* %t35
+    %t37 = icmp eq i64 %t34, 0
+    %t36 = zext i1 %t37 to i64
+    %t38 = icmp ne i64 %t36, 0
+    br i1 %t38, label %L10, label %L12
+L10:
+    %t39 = load i64, i64* @node_origin_count
+    %t40 = add i64 %t39, 1
+    %t41 = mul i64 %t40, 2
+    %t42 = load i64, i64* @node_origin_capacity
+    %t44 = icmp sgt i64 %t41, %t42
+    %t43 = zext i1 %t44 to i64
+    %t45 = icmp ne i64 %t43, 0
+    br i1 %t45, label %L13, label %L15
+L13:
+    call void @node_origin_grow()
+    %t46 = load i64, i64* @node_origins
+    %t47 = load i64, i64* @node_origin_capacity
+    %t48 = load i64, i64* %node.0
+    %t49 = call i8* @node_origin_slot(i64 %t46, i64 %t47, i64 %t48)
+    %t50 = ptrtoint i8* %t49 to i64
+    store i64 %t50, i64* %entry.6
+    %t51 = load i64, i64* %entry.6
+    store i64 %t51, i64* %node_slot.7
+    br label %L15
+L15:
+    %t52 = load i64, i64* @node_origin_count
+    %t53 = add i64 %t52, 1
+    store i64 %t53, i64* @node_origin_count
+    br label %L12
+L12:
+    %t54 = load i64, i64* %node.0
+    %t55 = load i64, i64* %node_slot.7
+    %t56 = inttoptr i64 %t55 to i64*
+    store i64 %t54, i64* %t56
     %source_slot.8 = alloca i64
-    %t44 = load i64, i64* %entry.6
-    %t45 = add i64 %t44, 8
-    store i64 %t45, i64* %source_slot.8
-    %t46 = load i64, i64* %source_name.1
-    %t47 = load i64, i64* %source_slot.8
-    %t48 = inttoptr i64 %t47 to i64*
-    store i64 %t46, i64* %t48
+    %t57 = load i64, i64* %entry.6
+    %t58 = add i64 %t57, 8
+    store i64 %t58, i64* %source_slot.8
+    %t59 = load i64, i64* %source_name.1
+    %t60 = load i64, i64* %source_slot.8
+    %t61 = inttoptr i64 %t60 to i64*
+    store i64 %t59, i64* %t61
     %line_slot.9 = alloca i64
-    %t49 = load i64, i64* %entry.6
-    %t50 = add i64 %t49, 16
-    store i64 %t50, i64* %line_slot.9
-    %t51 = load i64, i64* %line.2
-    %t52 = load i64, i64* %line_slot.9
-    %t53 = inttoptr i64 %t52 to i64*
-    store i64 %t51, i64* %t53
+    %t62 = load i64, i64* %entry.6
+    %t63 = add i64 %t62, 16
+    store i64 %t63, i64* %line_slot.9
+    %t64 = load i64, i64* %line.2
+    %t65 = load i64, i64* %line_slot.9
+    %t66 = inttoptr i64 %t65 to i64*
+    store i64 %t64, i64* %t66
     %column_slot.10 = alloca i64
-    %t54 = load i64, i64* %entry.6
-    %t55 = add i64 %t54, 24
-    store i64 %t55, i64* %column_slot.10
-    %t56 = load i64, i64* %column.3
-    %t57 = load i64, i64* %column_slot.10
-    %t58 = inttoptr i64 %t57 to i64*
-    store i64 %t56, i64* %t58
+    %t67 = load i64, i64* %entry.6
+    %t68 = add i64 %t67, 24
+    store i64 %t68, i64* %column_slot.10
+    %t69 = load i64, i64* %column.3
+    %t70 = load i64, i64* %column_slot.10
+    %t71 = inttoptr i64 %t70 to i64*
+    store i64 %t69, i64* %t71
     %start_slot.11 = alloca i64
-    %t59 = load i64, i64* %entry.6
-    %t60 = add i64 %t59, 32
-    store i64 %t60, i64* %start_slot.11
-    %t61 = load i64, i64* %start.4
-    %t62 = load i64, i64* %start_slot.11
-    %t63 = inttoptr i64 %t62 to i64*
-    store i64 %t61, i64* %t63
+    %t72 = load i64, i64* %entry.6
+    %t73 = add i64 %t72, 32
+    store i64 %t73, i64* %start_slot.11
+    %t74 = load i64, i64* %start.4
+    %t75 = load i64, i64* %start_slot.11
+    %t76 = inttoptr i64 %t75 to i64*
+    store i64 %t74, i64* %t76
     %end_slot.12 = alloca i64
-    %t64 = load i64, i64* %entry.6
-    %t65 = add i64 %t64, 40
-    store i64 %t65, i64* %end_slot.12
-    %t66 = load i64, i64* %end.5
-    %t67 = load i64, i64* %end_slot.12
-    %t68 = inttoptr i64 %t67 to i64*
-    store i64 %t66, i64* %t68
-    %t69 = load i64, i64* @node_origin_count
-    %t70 = add i64 %t69, 1
-    store i64 %t70, i64* @node_origin_count
+    %t77 = load i64, i64* %entry.6
+    %t78 = add i64 %t77, 40
+    store i64 %t78, i64* %end_slot.12
+    %t79 = load i64, i64* %end.5
+    %t80 = load i64, i64* %end_slot.12
+    %t81 = inttoptr i64 %t80 to i64*
+    store i64 %t79, i64* %t81
     ret void
 }
 
@@ -13136,47 +13358,54 @@ define i8* @node_origin_entry(i64 %node.arg) {
 L.entry:
     %node.0 = alloca i64
     store i64 %node.arg, i64* %node.0
-    %i.1 = alloca i64
-    %t0 = load i64, i64* @node_origin_count
-    %t1 = sub i64 %t0, 1
-    store i64 %t1, i64* %i.1
-    br label %L0
-L0:
-    %t2 = load i64, i64* %i.1
-    %t4 = icmp sge i64 %t2, 0
-    %t3 = zext i1 %t4 to i64
-    %t5 = icmp ne i64 %t3, 0
-    br i1 %t5, label %L1, label %L2
-L1:
-    %entry.2 = alloca i64
-    %t6 = load i64, i64* @node_origins
-    %t7 = load i64, i64* %i.1
-    %t8 = mul i64 %t7, 48
-    %t9 = add i64 %t6, %t8
-    store i64 %t9, i64* %entry.2
-    %node_slot.3 = alloca i64
-    %t10 = load i64, i64* %entry.2
-    store i64 %t10, i64* %node_slot.3
-    %t11 = load i64, i64* %node_slot.3
-    %t13 = inttoptr i64 %t11 to i64*
-    %t12 = load i64, i64* %t13
-    %t14 = load i64, i64* %node.0
-    %t16 = icmp eq i64 %t12, %t14
-    %t15 = zext i1 %t16 to i64
-    %t17 = icmp ne i64 %t15, 0
-    br i1 %t17, label %L3, label %L5
+    %t0 = alloca i64
+    store i64 1, i64* %t0
+    %t1 = load i64, i64* %node.0
+    %t3 = icmp eq i64 %t1, 0
+    %t2 = zext i1 %t3 to i64
+    %t4 = icmp eq i64 %t2, 0
+    br i1 %t4, label %L3, label %L4
 L3:
-    %t18 = load i64, i64* %entry.2
-    %t19 = inttoptr i64 %t18 to i8*
-    ret i8* %t19
-L5:
-    %t20 = load i64, i64* %i.1
-    %t21 = sub i64 %t20, 1
-    store i64 %t21, i64* %i.1
-    br label %L0
+    %t5 = load i64, i64* @node_origin_capacity
+    %t7 = icmp eq i64 %t5, 0
+    %t6 = zext i1 %t7 to i64
+    %t8 = icmp ne i64 %t6, 0
+    %t9 = zext i1 %t8 to i64
+    store i64 %t9, i64* %t0
+    br label %L4
+L4:
+    %t10 = load i64, i64* %t0
+    %t11 = icmp ne i64 %t10, 0
+    br i1 %t11, label %L0, label %L2
+L0:
+    %t12 = inttoptr i64 0 to i8*
+    ret i8* %t12
 L2:
-    %t22 = inttoptr i64 0 to i8*
-    ret i8* %t22
+    %entry.1 = alloca i64
+    %t13 = load i64, i64* @node_origins
+    %t14 = load i64, i64* @node_origin_capacity
+    %t15 = load i64, i64* %node.0
+    %t16 = call i8* @node_origin_slot(i64 %t13, i64 %t14, i64 %t15)
+    %t17 = ptrtoint i8* %t16 to i64
+    store i64 %t17, i64* %entry.1
+    %node_slot.2 = alloca i64
+    %t18 = load i64, i64* %entry.1
+    store i64 %t18, i64* %node_slot.2
+    %t19 = load i64, i64* %node_slot.2
+    %t21 = inttoptr i64 %t19 to i64*
+    %t20 = load i64, i64* %t21
+    %t22 = load i64, i64* %node.0
+    %t24 = icmp eq i64 %t20, %t22
+    %t23 = zext i1 %t24 to i64
+    %t25 = icmp ne i64 %t23, 0
+    br i1 %t25, label %L5, label %L7
+L5:
+    %t26 = load i64, i64* %entry.1
+    %t27 = inttoptr i64 %t26 to i8*
+    ret i8* %t27
+L7:
+    %t28 = inttoptr i64 0 to i8*
+    ret i8* %t28
 }
 
 define i8* @node_origin_source(i64 %node.arg) {
@@ -92383,10 +92612,10 @@ L550:
 @.str15 = private constant [2 x i8] c"0\00"
 @.str16 = private constant [4 x i8] c"%f\0A\00"
 @.str17 = private constant [6 x i8] c"0.1.0\00"
-@.str18 = private constant [14 x i8] c"3afb83d-dirty\00"
+@.str18 = private constant [14 x i8] c"177b872-dirty\00"
 @.str19 = private constant [6 x i8] c"arm64\00"
 @.str20 = private constant [7 x i8] c"system\00"
-@.str21 = private constant [8 x i8] c"93107ce\00"
+@.str21 = private constant [14 x i8] c"3afb83d-dirty\00"
 @.str22 = private constant [5 x i8] c"func\00"
 @.str23 = private constant [4 x i8] c"var\00"
 @.str24 = private constant [7 x i8] c"struct\00"
