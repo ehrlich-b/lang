@@ -2739,7 +2739,7 @@ L2:
 @LANG_BUILD_OS = global i64 ptrtoint (i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str0, i64 0, i64 0) to i64)
 @LANG_BUILD_ARCH = global i64 ptrtoint (i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str19, i64 0, i64 0) to i64)
 @LANG_BUILD_LIBC = global i64 ptrtoint (i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str20, i64 0, i64 0) to i64)
-@LANG_BOOTSTRAP_FROM = global i64 ptrtoint (i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str21, i64 0, i64 0) to i64)
+@LANG_BOOTSTRAP_FROM = global i64 ptrtoint (i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str21, i64 0, i64 0) to i64)
 @TOKEN_EOF = global i64 0
 @TOKEN_ERROR = global i64 1
 @TOKEN_IDENT = global i64 2
@@ -43320,12 +43320,15 @@ L.entry:
 
 @llvm_let_bindings = global i64 0
 @llvm_let_depth = global i64 0
+@llvm_let_capacity = global i64 0
 define void @llvm_init_let_bindings() {
 L.entry:
-    %t0 = mul i64 256, 32
-    %t1 = call i8* @alloc(i64 %t0)
-    %t2 = ptrtoint i8* %t1 to i64
-    store i64 %t2, i64* @llvm_let_bindings
+    store i64 256, i64* @llvm_let_capacity
+    %t0 = load i64, i64* @llvm_let_capacity
+    %t1 = mul i64 %t0, 32
+    %t2 = call i8* @alloc(i64 %t1)
+    %t3 = ptrtoint i8* %t2 to i64
+    store i64 %t3, i64* @llvm_let_bindings
     store i64 0, i64* @llvm_let_depth
     ret void
 }
@@ -43340,46 +43343,74 @@ L.entry:
     store i64 %unique.arg, i64* %unique.2
     %unique_len.3 = alloca i64
     store i64 %unique_len.arg, i64* %unique_len.3
-    %entry.4 = alloca i64
-    %t0 = load i64, i64* @llvm_let_bindings
-    %t1 = load i64, i64* @llvm_let_depth
-    %t2 = mul i64 %t1, 32
-    %t3 = add i64 %t0, %t2
-    store i64 %t3, i64* %entry.4
-    %p_name.5 = alloca i64
-    %t4 = load i64, i64* %entry.4
-    store i64 %t4, i64* %p_name.5
-    %t5 = load i64, i64* %name.0
-    %t6 = load i64, i64* %p_name.5
-    %t7 = inttoptr i64 %t6 to i64*
-    store i64 %t5, i64* %t7
-    %p_name_len.6 = alloca i64
-    %t8 = load i64, i64* %entry.4
-    %t9 = add i64 %t8, 8
-    store i64 %t9, i64* %p_name_len.6
-    %t10 = load i64, i64* %name_len.1
-    %t11 = load i64, i64* %p_name_len.6
-    %t12 = inttoptr i64 %t11 to i64*
-    store i64 %t10, i64* %t12
-    %p_unique.7 = alloca i64
-    %t13 = load i64, i64* %entry.4
-    %t14 = add i64 %t13, 16
-    store i64 %t14, i64* %p_unique.7
-    %t15 = load i64, i64* %unique.2
-    %t16 = load i64, i64* %p_unique.7
-    %t17 = inttoptr i64 %t16 to i64*
-    store i64 %t15, i64* %t17
-    %p_unique_len.8 = alloca i64
-    %t18 = load i64, i64* %entry.4
-    %t19 = add i64 %t18, 24
-    store i64 %t19, i64* %p_unique_len.8
-    %t20 = load i64, i64* %unique_len.3
-    %t21 = load i64, i64* %p_unique_len.8
-    %t22 = inttoptr i64 %t21 to i64*
-    store i64 %t20, i64* %t22
-    %t23 = load i64, i64* @llvm_let_depth
-    %t24 = add i64 %t23, 1
-    store i64 %t24, i64* @llvm_let_depth
+    %t0 = load i64, i64* @llvm_let_depth
+    %t1 = load i64, i64* @llvm_let_capacity
+    %t3 = icmp sge i64 %t0, %t1
+    %t2 = zext i1 %t3 to i64
+    %t4 = icmp ne i64 %t2, 0
+    br i1 %t4, label %L0, label %L2
+L0:
+    %capacity.4 = alloca i64
+    %t5 = load i64, i64* @llvm_let_capacity
+    %t6 = mul i64 %t5, 2
+    store i64 %t6, i64* %capacity.4
+    %bindings.5 = alloca i64
+    %t7 = load i64, i64* %capacity.4
+    %t8 = mul i64 %t7, 32
+    %t9 = call i8* @alloc(i64 %t8)
+    %t10 = ptrtoint i8* %t9 to i64
+    store i64 %t10, i64* %bindings.5
+    %t11 = load i64, i64* %bindings.5
+    %t12 = load i64, i64* @llvm_let_bindings
+    %t13 = load i64, i64* @llvm_let_depth
+    %t14 = mul i64 %t13, 32
+    call void @memcpy(i64 %t11, i64 %t12, i64 %t14)
+    %t15 = load i64, i64* %bindings.5
+    store i64 %t15, i64* @llvm_let_bindings
+    %t16 = load i64, i64* %capacity.4
+    store i64 %t16, i64* @llvm_let_capacity
+    br label %L2
+L2:
+    %entry.6 = alloca i64
+    %t17 = load i64, i64* @llvm_let_bindings
+    %t18 = load i64, i64* @llvm_let_depth
+    %t19 = mul i64 %t18, 32
+    %t20 = add i64 %t17, %t19
+    store i64 %t20, i64* %entry.6
+    %p_name.7 = alloca i64
+    %t21 = load i64, i64* %entry.6
+    store i64 %t21, i64* %p_name.7
+    %t22 = load i64, i64* %name.0
+    %t23 = load i64, i64* %p_name.7
+    %t24 = inttoptr i64 %t23 to i64*
+    store i64 %t22, i64* %t24
+    %p_name_len.8 = alloca i64
+    %t25 = load i64, i64* %entry.6
+    %t26 = add i64 %t25, 8
+    store i64 %t26, i64* %p_name_len.8
+    %t27 = load i64, i64* %name_len.1
+    %t28 = load i64, i64* %p_name_len.8
+    %t29 = inttoptr i64 %t28 to i64*
+    store i64 %t27, i64* %t29
+    %p_unique.9 = alloca i64
+    %t30 = load i64, i64* %entry.6
+    %t31 = add i64 %t30, 16
+    store i64 %t31, i64* %p_unique.9
+    %t32 = load i64, i64* %unique.2
+    %t33 = load i64, i64* %p_unique.9
+    %t34 = inttoptr i64 %t33 to i64*
+    store i64 %t32, i64* %t34
+    %p_unique_len.10 = alloca i64
+    %t35 = load i64, i64* %entry.6
+    %t36 = add i64 %t35, 24
+    store i64 %t36, i64* %p_unique_len.10
+    %t37 = load i64, i64* %unique_len.3
+    %t38 = load i64, i64* %p_unique_len.10
+    %t39 = inttoptr i64 %t38 to i64*
+    store i64 %t37, i64* %t39
+    %t40 = load i64, i64* @llvm_let_depth
+    %t41 = add i64 %t40, 1
+    store i64 %t41, i64* @llvm_let_depth
     ret void
 }
 
@@ -92651,10 +92682,10 @@ L550:
 @.str15 = private constant [2 x i8] c"0\00"
 @.str16 = private constant [4 x i8] c"%f\0A\00"
 @.str17 = private constant [6 x i8] c"0.1.0\00"
-@.str18 = private constant [14 x i8] c"febdb79-dirty\00"
+@.str18 = private constant [14 x i8] c"516ae43-dirty\00"
 @.str19 = private constant [7 x i8] c"x86_64\00"
 @.str20 = private constant [7 x i8] c"system\00"
-@.str21 = private constant [14 x i8] c"177b872-dirty\00"
+@.str21 = private constant [8 x i8] c"516ae43\00"
 @.str22 = private constant [5 x i8] c"func\00"
 @.str23 = private constant [4 x i8] c"var\00"
 @.str24 = private constant [7 x i8] c"struct\00"

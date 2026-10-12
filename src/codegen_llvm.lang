@@ -272,13 +272,25 @@ func llvm_is_local(name *u8, len i64) i64 {
 // Each entry: [orig_name:8][orig_len:8][unique_name:8][unique_len:8] = 32 bytes
 var llvm_let_bindings *u8 = nil;
 var llvm_let_depth i64 = 0;
+var llvm_let_capacity i64 = 0;
 
 func llvm_init_let_bindings() void {
-    llvm_let_bindings = alloc(256 * 32);  // Max 256 nested let bindings
+    llvm_let_capacity = 256;
+    llvm_let_bindings = alloc(llvm_let_capacity * 32);
     llvm_let_depth = 0;
 }
 
 func llvm_push_let_binding(name *u8, name_len i64, unique *u8, unique_len i64) void {
+    // Ordinary locals also use this stack and stay until the function ends.
+    // Large functions must not overwrite the registries allocated beside it.
+    if llvm_let_depth >= llvm_let_capacity {
+        var capacity i64 = llvm_let_capacity * 2;
+        var bindings *u8 = alloc(capacity * 32);
+        memcpy(bindings, llvm_let_bindings, llvm_let_depth * 32);
+        // alloc may be arena-backed; existing entry pointers remain valid.
+        llvm_let_bindings = bindings;
+        llvm_let_capacity = capacity;
+    }
     var entry *u8 = llvm_let_bindings + (llvm_let_depth * 32);
     var p_name **u8 = entry;
     *p_name = name;

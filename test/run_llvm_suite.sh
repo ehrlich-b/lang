@@ -481,6 +481,18 @@ call_locations_e2e() {
 }
 call_locations_e2e
 
+llvm_bindings_growth_e2e() {
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
+    if COMPILER="$COMPILER" ./test/llvm_bindings_growth_e2e.sh >"$tmp/result" 2>&1; then
+        echo "PASS llvm_bindings_growth_e2e" >> "$results_file"
+    else
+        cat "$tmp/result" >&2
+        echo "FAIL llvm_bindings_growth_e2e" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+llvm_bindings_growth_e2e
+
 # A reader that reports an error must not also produce a program. minipy has
 # been guarded since it was the one that surfaced `cg_had_error`; forth and
 # minilisp were still printing a complaint and building anyway.
