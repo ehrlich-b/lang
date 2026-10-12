@@ -2485,24 +2485,24 @@ func node_origin_grow() void {
     if capacity == 0 { capacity = 1024; }
     var table *u8 = alloc(capacity * 48);
     var i i64 = 0;
+    // LLVM allocas live until this call returns; keep loop storage constant
+    // when rehashing a large table on the wasm target's bounded stack.
+    var slot **u8 = nil;
     while i < capacity {
-        var slot **u8 = table + i * 48;
+        slot = table + i * 48;
         *slot = nil;
         i = i + 1;
     }
     i = 0;
+    var old_entry *u8 = nil;
+    var node_slot **u8 = nil;
+    var entry *u8 = nil;
     while i < node_origin_capacity {
-        var old_entry *u8 = node_origins + i * 48;
-        var node_slot **u8 = old_entry;
+        old_entry = node_origins + i * 48;
+        node_slot = old_entry;
         if *node_slot != nil {
-            var entry *u8 = node_origin_slot(table, capacity, *node_slot);
-            var j i64 = 0;
-            while j < 48 {
-                var src *i64 = old_entry + j;
-                var dst *i64 = entry + j;
-                *dst = *src;
-                j = j + 8;
-            }
+            entry = node_origin_slot(table, capacity, *node_slot);
+            memcpy(entry, old_entry, 48);
         }
         i = i + 1;
     }

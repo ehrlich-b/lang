@@ -12,12 +12,12 @@ if (!compilerPath) {
   process.exit(2);
 }
 
-async function compileAndRun(sourcePath) {
+async function compileAndRun(sourcePath, dependencies = {}) {
   const source = fs.readFileSync(sourcePath, 'utf8');
   const result = await runLangCompiler(
     fs.readFileSync(compilerPath),
     ['input.lang', '-o', 'output.wasm'],
-    { ...stdlibFiles, 'input.lang': source },
+    { ...stdlibFiles, ...dependencies, 'input.lang': source },
     undefined,
     { LANGBE: 'wasm' },
   );
@@ -116,7 +116,10 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   const localAddress = await compileAndRun('test/suite/286_local_address_shadows_function.lang');
   if (Number(localAddress.value) !== 0) throw new Error('local address did not shadow function');
 
-  const origins = await compileAndRun('test/suite/287_node_origins_index.lang');
+  const origins = await compileAndRun('test/suite/287_node_origins_index.lang', {
+    'src/lexer.lang': fs.readFileSync('src/lexer.lang', 'utf8'),
+    'src/parser.lang': fs.readFileSync('src/parser.lang', 'utf8'),
+  });
   if (Number(origins.value) !== 0) throw new Error(`origin index mismatch: ${origins.value}`);
 
   const imported = await compileAndRun('test/direct_wasm_import_e2e.lang');

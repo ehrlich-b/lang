@@ -52,16 +52,16 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 35. ✓ Fold prefix and assignment operators into the precedence table
 36. ✓ Let a reader say what a comment is
 37. ✓ Give every reader's own errors a location
-38. → Pinpoint a failing call in every syntax
+38. ✓ Pinpoint a failing call in every syntax
 
 ---
 
-## In progress: Pinpoint a failing call in every syntax
+## Completed: Pinpoint a failing call in every syntax
 
 Milestone 30 made wrong-arity calls fatal but left their location at the enclosing
-declaration. The linear origin table made expression-wide provenance expensive.
-Indexing it is the smallest next step that unlocks more precise kernel errors
-for reader authors, without extending the AST ABI or capturing another language.
+declaration. A growing pointer index now makes expression-wide provenance cheap,
+so Lang and the shipped readers locate failing calls without extending the AST
+ABI or capturing another language.
 
 - [x] Replace the linear side table with a growing pointer index; updates replace
       metadata, and locations survive beyond the old 32,768-entry cutoff.
@@ -69,13 +69,21 @@ for reader authors, without extending the AST ABI or capturing another language.
       arguments, includes, and unknown functions.
 - [x] Preserve source-level calls in C, Flow, Minipy, and Minilisp with `ast_span`.
       Forth validates a word's stack arguments in the reader itself.
-- [ ] Guard native/direct-wasm diagnostics, saved reader ASTs, a minted C compiler,
+- [x] Guard native/direct-wasm diagnostics, saved reader ASTs, a minted C compiler,
       and the browser's reader-to-program pipeline, then promote all gates.
 
 A 40,000-node stress test checks growth, collisions, misses, replacements, span
 fields, and copies. A local three-run microbenchmark of 64,000 lookups over
 16,000 nodes measured median 657 ms before and 8.6 ms after (including process
 startup); this is a lookup comparison, not an end-to-end compile-time claim.
+
+Validation also exposed a fixed 256-entry LLVM name-binding table overwriting
+the struct registry during kernel composition. It now grows; a 700-local
+regression checks retained names and later struct access through source and
+saved AST. Origin-table rehashing keeps its loop storage constant so the same
+40,000-node test fits the LLVM wasm stack. Bootstrap, composition, all 240
+native checks, all 178 LLVM wasm checks, direct wasm, and the browser reader
+pipeline pass; the browser compiler and packaged toolkit are refreshed.
 
 ---
 
@@ -655,9 +663,9 @@ if streq(vec_get(v, 0).name, "seven")   // used to crash, silently
 - [x] The message names the failing type and shows the typed-local form, so the
       fix is in the diagnostic rather than in a memory of it.
 - [x] Field accesses on a computed base carry a source origin, so the error
-      points at the access rather than at the enclosing function. Origins are a
-      linear side table, so a `.field` on a plain identifier still reports at
-      its declaration - the base that resolves does not need locating.
+      points at the access rather than at the enclosing function. A `.field`
+      on a plain identifier still reports at its declaration - the base that
+      resolves does not need locating. Milestone 38 indexes the origin table.
 - [x] The direct wasm backend infers types its own way, so it shares the two
       messages rather than the resolver, and says the same thing in the browser.
 - [x] Guarded on both: `282_field_access_typed` runs every legal shape,

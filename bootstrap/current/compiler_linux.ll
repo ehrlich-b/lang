@@ -2739,7 +2739,7 @@ L2:
 @LANG_BUILD_OS = global i64 ptrtoint (i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str0, i64 0, i64 0) to i64)
 @LANG_BUILD_ARCH = global i64 ptrtoint (i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str19, i64 0, i64 0) to i64)
 @LANG_BUILD_LIBC = global i64 ptrtoint (i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str20, i64 0, i64 0) to i64)
-@LANG_BOOTSTRAP_FROM = global i64 ptrtoint (i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str21, i64 0, i64 0) to i64)
+@LANG_BOOTSTRAP_FROM = global i64 ptrtoint (i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str21, i64 0, i64 0) to i64)
 @TOKEN_EOF = global i64 0
 @TOKEN_ERROR = global i64 1
 @TOKEN_IDENT = global i64 2
@@ -12960,6 +12960,8 @@ L2:
     store i64 %t9, i64* %table.1
     %i.2 = alloca i64
     store i64 0, i64* %i.2
+    %slot.3 = alloca i64
+    store i64 0, i64* %slot.3
     br label %L3
 L3:
     %t10 = load i64, i64* %i.2
@@ -12969,7 +12971,6 @@ L3:
     %t14 = icmp ne i64 %t12, 0
     br i1 %t14, label %L4, label %L5
 L4:
-    %slot.3 = alloca i64
     %t15 = load i64, i64* %table.1
     %t16 = load i64, i64* %i.2
     %t17 = mul i64 %t16, 48
@@ -12984,6 +12985,12 @@ L4:
     br label %L3
 L5:
     store i64 0, i64* %i.2
+    %old_entry.4 = alloca i64
+    store i64 0, i64* %old_entry.4
+    %node_slot.5 = alloca i64
+    store i64 0, i64* %node_slot.5
+    %entry.6 = alloca i64
+    store i64 0, i64* %entry.6
     br label %L6
 L6:
     %t23 = load i64, i64* %i.2
@@ -12993,13 +13000,11 @@ L6:
     %t27 = icmp ne i64 %t25, 0
     br i1 %t27, label %L7, label %L8
 L7:
-    %old_entry.4 = alloca i64
     %t28 = load i64, i64* @node_origins
     %t29 = load i64, i64* %i.2
     %t30 = mul i64 %t29, 48
     %t31 = add i64 %t28, %t30
     store i64 %t31, i64* %old_entry.4
-    %node_slot.5 = alloca i64
     %t32 = load i64, i64* %old_entry.4
     store i64 %t32, i64* %node_slot.5
     %t33 = load i64, i64* %node_slot.5
@@ -13010,7 +13015,6 @@ L7:
     %t38 = icmp ne i64 %t36, 0
     br i1 %t38, label %L9, label %L11
 L9:
-    %entry.6 = alloca i64
     %t39 = load i64, i64* %table.1
     %t40 = load i64, i64* %capacity.0
     %t41 = load i64, i64* %node_slot.5
@@ -13019,48 +13023,20 @@ L9:
     %t44 = call i8* @node_origin_slot(i64 %t39, i64 %t40, i64 %t42)
     %t45 = ptrtoint i8* %t44 to i64
     store i64 %t45, i64* %entry.6
-    %j.7 = alloca i64
-    store i64 0, i64* %j.7
-    br label %L12
-L12:
-    %t46 = load i64, i64* %j.7
-    %t48 = icmp slt i64 %t46, 48
-    %t47 = zext i1 %t48 to i64
-    %t49 = icmp ne i64 %t47, 0
-    br i1 %t49, label %L13, label %L14
-L13:
-    %src.8 = alloca i64
-    %t50 = load i64, i64* %old_entry.4
-    %t51 = load i64, i64* %j.7
-    %t52 = add i64 %t50, %t51
-    store i64 %t52, i64* %src.8
-    %dst.9 = alloca i64
-    %t53 = load i64, i64* %entry.6
-    %t54 = load i64, i64* %j.7
-    %t55 = add i64 %t53, %t54
-    store i64 %t55, i64* %dst.9
-    %t56 = load i64, i64* %src.8
-    %t58 = inttoptr i64 %t56 to i64*
-    %t57 = load i64, i64* %t58
-    %t59 = load i64, i64* %dst.9
-    %t60 = inttoptr i64 %t59 to i64*
-    store i64 %t57, i64* %t60
-    %t61 = load i64, i64* %j.7
-    %t62 = add i64 %t61, 8
-    store i64 %t62, i64* %j.7
-    br label %L12
-L14:
+    %t46 = load i64, i64* %entry.6
+    %t47 = load i64, i64* %old_entry.4
+    call void @memcpy(i64 %t46, i64 %t47, i64 48)
     br label %L11
 L11:
-    %t63 = load i64, i64* %i.2
-    %t64 = add i64 %t63, 1
-    store i64 %t64, i64* %i.2
+    %t48 = load i64, i64* %i.2
+    %t49 = add i64 %t48, 1
+    store i64 %t49, i64* %i.2
     br label %L6
 L8:
-    %t65 = load i64, i64* %table.1
-    store i64 %t65, i64* @node_origins
-    %t66 = load i64, i64* %capacity.0
-    store i64 %t66, i64* @node_origin_capacity
+    %t50 = load i64, i64* %table.1
+    store i64 %t50, i64* @node_origins
+    %t51 = load i64, i64* %capacity.0
+    store i64 %t51, i64* @node_origin_capacity
     ret void
 }
 
@@ -92682,10 +92658,10 @@ L550:
 @.str15 = private constant [2 x i8] c"0\00"
 @.str16 = private constant [4 x i8] c"%f\0A\00"
 @.str17 = private constant [6 x i8] c"0.1.0\00"
-@.str18 = private constant [14 x i8] c"516ae43-dirty\00"
+@.str18 = private constant [14 x i8] c"b395962-dirty\00"
 @.str19 = private constant [7 x i8] c"x86_64\00"
 @.str20 = private constant [7 x i8] c"system\00"
-@.str21 = private constant [8 x i8] c"516ae43\00"
+@.str21 = private constant [14 x i8] c"516ae43-dirty\00"
 @.str22 = private constant [5 x i8] c"func\00"
 @.str23 = private constant [4 x i8] c"var\00"
 @.str24 = private constant [7 x i8] c"struct\00"
