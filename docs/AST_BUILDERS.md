@@ -32,6 +32,16 @@ the first and last child range. Spans are optional and do not change old reader
 output. The compiler binds them to the source path when it consumes the AST, so
 semantic errors can report the custom syntax rather than the reader or wrapper.
 
+Put a span on each source-level call, even when its enclosing function already
+has one. Both backends use the call's span for an unknown callee or a wrong
+argument count; without it, the diagnostic falls back to the declaration.
+For a postfix call, start at the callee and end after its closing parenthesis:
+
+```lang
+emitted = ast_span(ast_call_named(parsed_name.text, args),
+                   parsed_name.start, parsed_call.end);
+```
+
 ## Lists and types
 
 ```lang

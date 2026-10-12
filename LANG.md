@@ -101,6 +101,10 @@ func two(a i64, b i64) i64 { return a + b; }
 two(1);   // error: function 'two' takes 2 arguments, called with 1
 ```
 
+Direct-call errors point at the callee in source, including nested and
+multiline calls. Readers can supply the same location with `ast_span` on the
+call node; C, Flow, Minipy, and Minilisp do so.
+
 A call through a function-pointer variable is checked by the variable's type
 instead, and a local of the same name as a function wins over it.
 

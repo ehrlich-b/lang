@@ -1632,6 +1632,7 @@ func llvm_emit_expr(expr *u8) void {
             if known_func == nil && is_indirect == 0 {
                 var by_name *u8 = find_func(func_name, func_name_len);
                 if by_name != nil {
+                    if node_origin_source(expr) != nil { cg_diagnostic_node = expr; }
                     cg_arity_error(func_name, func_name_len,
                                    func_decl_param_count(by_name), arg_count);
                     *(llvm_expr_result) = 48;
@@ -1649,7 +1650,7 @@ func llvm_emit_expr(expr *u8) void {
                     is_syscall_name = 1;
                 }
                 if is_syscall_name == 0 {
-                    cg_error_prefix();
+                    cg_error_prefix_at(expr);
                     eprint("undefined function '");
                     eprint_buf(func_name, func_name_len);
                     eprintln("'");

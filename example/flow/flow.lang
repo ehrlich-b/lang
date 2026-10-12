@@ -159,13 +159,15 @@ func fl_emit_operand(node *PNode) *u8 {
 
 // flow_postfix = flow_primary flow_callopt*  ->  fold calls left-to-right.
 func fl_emit_postfix(pf *PNode) *u8 {
-    var base *u8 = fl_emit_primary(pnode_require(pf, "primary"));
+    var primary *PNode = pnode_require(pf, "primary");
+    var base *u8 = fl_emit_primary(primary);
     var ops *PNode = pnode_require(pf, "calls");
     var n i64 = vec_len(ops.children);
     var i i64 = 0;
     while i < n {
         var op *PNode = vec_get(ops.children, i);
-        base = ast_call(base, fl_emit_args(pnode_require(op, "args")));
+        base = ast_span(ast_call(base, fl_emit_args(pnode_require(op, "args"))),
+                        primary.start, op.end);
         i = i + 1;
     }
     return base;
@@ -285,7 +287,8 @@ func fl_emit_forin(s *PNode) *u8 {
     var block *PNode = pnode_require(s, "body");
 
     var gname *PNode = pnode_require(call, "name");
-    var gcall *u8 = ast_call_named(gname.text, fl_emit_args(pnode_require(call, "args")));
+    var gcall *u8 = ast_span(ast_call_named(gname.text, fl_emit_args(pnode_require(call, "args"))),
+                             gname.start, call.end);
 
     var kname *u8 = fl_gensym("__k", s);
     var rvname *u8 = fl_gensym("__rv", s);

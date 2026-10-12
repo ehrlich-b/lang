@@ -52,6 +52,30 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 35. ✓ Fold prefix and assignment operators into the precedence table
 36. ✓ Let a reader say what a comment is
 37. ✓ Give every reader's own errors a location
+38. → Pinpoint a failing call in every syntax
+
+---
+
+## In progress: Pinpoint a failing call in every syntax
+
+Milestone 30 made wrong-arity calls fatal but left their location at the enclosing
+declaration. The linear origin table made expression-wide provenance expensive.
+Indexing it is the smallest next step that unlocks more precise kernel errors
+for reader authors, without extending the AST ABI or capturing another language.
+
+- [x] Replace the linear side table with a growing pointer index; updates replace
+      metadata, and locations survive beyond the old 32,768-entry cutoff.
+- [x] Locate direct Lang calls at their callee, including nesting, multiline
+      arguments, includes, and unknown functions.
+- [x] Preserve source-level calls in C, Flow, Minipy, and Minilisp with `ast_span`.
+      Forth validates a word's stack arguments in the reader itself.
+- [ ] Guard native/direct-wasm diagnostics, saved reader ASTs, a minted C compiler,
+      and the browser's reader-to-program pipeline, then promote all gates.
+
+A 40,000-node stress test checks growth, collisions, misses, replacements, span
+fields, and copies. A local three-run microbenchmark of 64,000 lookups over
+16,000 nodes measured median 657 ms before and 8.6 ms after (including process
+startup); this is a lookup comparison, not an end-to-end compile-time claim.
 
 ---
 
@@ -607,10 +631,9 @@ crashed inside the vector rather than at the call.
       compiler; `call_arity_diagnostics_e2e` covers four rejections plus the
       wasm wording, and the browser gate covers one.
 
-Not done: the error reports at the enclosing declaration, because calls carry no
-origin of their own and the origin table is a linear scan - see milestone 29 for
-why only computed field bases got one. The message names the callee and both
-counts, which is enough to find it.
+Milestone 38 closes the location gap left here: the origin table is indexed,
+Lang calls carry their callee location, and shipped readers attach a span to
+each source-level call. Both backends can now point at the failing call.
 
 ---
 

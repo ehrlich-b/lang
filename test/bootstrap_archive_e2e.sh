@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$PWD
-tmp=$(mktemp -d)
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 
 fixture() {

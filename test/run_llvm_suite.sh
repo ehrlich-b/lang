@@ -56,7 +56,7 @@ export LLI_JIT_FLAG
 run_one_test() {
     local f=$1
     local name=$(basename "$f" .lang)
-    local tmpdir=$(mktemp -d)
+    local tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 
     # Check for //ignore marker
     if head -1 "$f" | grep -q '//ignore'; then
@@ -119,7 +119,7 @@ if [ "$SEQUENTIAL" = "1" ]; then
 fi
 
 # Run tests
-results_file=$(mktemp)
+results_file=$(mktemp "${TMPDIR:-/tmp}/lang-results.XXXXXX")
 
 if [ "$JOBS" -gt 1 ]; then
     # Parallel execution
@@ -138,7 +138,7 @@ fi
 reader_e2e() {
     local name=$1; local file=$2
     local expected=${3:-0}
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$file" -o "$tmp/r.ll" >/dev/null 2>&1; then
         do_timeout 30 lli $LLI_JIT_FLAG "$tmp/r.ll" >/dev/null 2>&1
         local result=$?
@@ -163,7 +163,7 @@ reader_e2e reader_minipy_e2e    example/minipy/test_minipy.lang
 # the reader executable, unrelated host functions do not.
 reader_order_wrapper_e2e() {
     local name=reader_order_wrapper_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local ok=1
     LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER \
         test/suite/276_reader_declaration_order.lang -o "$tmp/order.ll" \
@@ -187,7 +187,7 @@ reader_order_wrapper_e2e
 # visible, so that is what this guards.
 compile_must_fail() {
     local name=$1
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     cat > "$tmp/bad.lang" <<'BADEOF'
 include "std/core.lang"
 include "example/minipy/minipy.lang"
@@ -212,7 +212,7 @@ reader_error_location_e2e() {
     local reader=$1
     local expected=$2
     local name=reader_${reader}_error_location_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local ok=1
     LANG_CACHE="$tmp/cache" LANGBE=llvm $COMPILER read \
         "example/$reader/$reader.lang" "test/reader_error_$reader.$reader" \
@@ -237,7 +237,7 @@ reader_error_location_e2e minipy "minipy:2:26: range's step must be an integer l
 # a nonzero status, and no stale or partial output that looks usable.
 reader_authoring_failures_e2e() {
     local name=reader_authoring_failures_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local ok=1
 
     cat > "$tmp/malformed.lang" <<'MALFORMED'
@@ -310,7 +310,7 @@ reader_authoring_failures_e2e
 # has to be a located compile error on every path that can spell it.
 field_access_diagnostics_e2e() {
     local name=field_access_diagnostics_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local ok=1
 
     field_must_fail() {
@@ -404,7 +404,7 @@ field_access_diagnostics_e2e
 # hid the reader-generated return-type bug.
 call_arity_diagnostics_e2e() {
     local name=call_arity_diagnostics_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local ok=1
 
     arity_must_fail() {
@@ -467,12 +467,26 @@ ARITYSTDLIB
 }
 call_arity_diagnostics_e2e
 
+# The call boundary owns its diagnostic even inside another call or after a
+# successful sibling. Exercise reader spans and saved/minted artifacts too.
+call_locations_e2e() {
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
+    if COMPILER="$COMPILER" ./test/call_locations_e2e.sh >"$tmp/result" 2>&1; then
+        echo "PASS call_locations_e2e" >> "$results_file"
+    else
+        cat "$tmp/result" >&2
+        echo "FAIL call_locations_e2e" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+call_locations_e2e
+
 # A reader that reports an error must not also produce a program. minipy has
 # been guarded since it was the one that surfaced `cg_had_error`; forth and
 # minilisp were still printing a complaint and building anyway.
 reader_errors_are_fatal_e2e() {
     local name=reader_errors_are_fatal_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local ok=1
 
     reader_must_fail() {
@@ -536,7 +550,7 @@ reader_errors_are_fatal_e2e
 # message, from one place, for every reader that declares the operator.
 reader_operator_positions_e2e() {
     local name=reader_operator_positions_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local ok=1
 
     position_must_fail() {
@@ -621,7 +635,7 @@ reader_operator_positions_e2e
 # its block structure.
 reader_comment_syntax_e2e() {
     local name=reader_comment_syntax_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local ok=1
 
     # Python's `#`, with `//` still floor division and `#` inside a string still
@@ -701,7 +715,7 @@ reader_comment_syntax_e2e
 
 negative_compile_e2e() {
     local name=$1; local file=$2
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$file" \
            -o "$tmp/bad.ll" >/dev/null 2>&1; then
         echo "FAIL $name (compiler accepted invalid source)" >> "$results_file"
@@ -722,7 +736,7 @@ negative_compile_e2e negative_continue_outside_loop test/negative/continue_outsi
 # the //clang suite tests). The flow DSL is built on effects.
 reader_e2e_clang() {
     local name=$1; local file=$2
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER "$file" -o "$tmp/r.ll" >/dev/null 2>&1 \
        && clang -O0 "$tmp/r.ll" -o "$tmp/r" 2>/dev/null \
        && do_timeout 10 "$tmp/r" >/dev/null 2>&1; then
@@ -740,7 +754,7 @@ reader_e2e_clang reader_polyglot_e2e example/polyglot.lang
 # without leaving the other half of a scaffold behind.
 reader_scaffold_e2e() {
     local name=reader_scaffold_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local compiler_path=$COMPILER
     case "$compiler_path" in
         /*) ;;
@@ -806,7 +820,7 @@ reader_scaffold_e2e
 # feed that exact artifact back into the kernel without changing semantics.
 reader_read_e2e() {
     local name=reader_read_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local compiler_path=$COMPILER
     case "$compiler_path" in
         /*) ;;
@@ -899,7 +913,7 @@ reader_read_e2e
 # instead of becoming a nil dereference or a later codegen error.
 reader_named_capture_diagnostic_e2e() {
     local name=reader_named_capture_diagnostic_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local compiler_path=$COMPILER
     case "$compiler_path" in
         /*) ;;
@@ -945,7 +959,7 @@ reader_named_capture_diagnostic_e2e
 # stream consumed by snapshots, pipes, or --from-ast.
 reader_pnode_dump_e2e() {
     local name=reader_pnode_dump_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local compiler_path=$COMPILER
     case "$compiler_path" in
         /*) ;;
@@ -974,7 +988,7 @@ reader_pnode_dump_e2e
 # reject two matches rather than silently lowering the first one.
 reader_capture_ambiguity_e2e() {
     local name=reader_capture_ambiguity_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local compiler_path=$COMPILER
     case "$compiler_path" in
         /*) ;;
@@ -1006,7 +1020,7 @@ reader_capture_ambiguity_e2e
 # arbitrary binding power.
 reader_prec_ladder_e2e() {
     local name=reader_prec_ladder_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local compiler_path=$COMPILER
     case "$compiler_path" in
         /*) ;;
@@ -1036,7 +1050,7 @@ reader_prec_ladder_e2e
 # node that turns a reader gap into a mystery in the generated program.
 reader_choice_branch_e2e() {
     local name=reader_choice_branch_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local compiler_path=$COMPILER
     case "$compiler_path" in
         /*) ;;
@@ -1072,7 +1086,7 @@ reader_choice_branch_e2e
 # undefined generated function or reader-wrapper link step.
 parser_grammar_diagnostics_e2e() {
     local name=parser_grammar_diagnostics_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local compiler_path=$COMPILER
     case "$compiler_path" in
         /*) ;;
@@ -1204,7 +1218,7 @@ parser_grammar_diagnostics_e2e
 # compiler, that compiler consumes its own file extension, and its output runs.
 compiler_compiler_e2e() {
     local name=compiler_compiler_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     if LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER -c tiny \
            example/tiny/tiny.lang -o "$tmp/tinyc.ll" >/dev/null 2>&1 \
        && clang -O2 "$tmp/tinyc.ll" -o "$tmp/tinyc" >/dev/null 2>&1 \
@@ -1226,7 +1240,7 @@ compiler_compiler_e2e
 
 compiler_command_e2e() {
     local name=compiler_command_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     if LANG_CACHE="$tmp/cache-build" LANGBE=llvm $COMPILER compiler tiny \
            example/tiny/tiny.lang -o "$tmp/tinyc" >/dev/null 2>&1 \
        && LANG_CACHE="$tmp/cache-use" "$tmp/tinyc" example/tiny/answer.tiny \
@@ -1250,7 +1264,7 @@ compiler_command_e2e
 # compile-time grammar machinery must not leak into the compiler it produces.
 compiler_parser_reader_e2e() {
     local name=compiler_parser_reader_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     if LANG_CACHE="$tmp/cache-build" LANGBE=llvm $COMPILER compiler parser_tiny \
            test/compiler_parser_reader.lang -o "$tmp/parser-tinyc" >/dev/null 2>&1 \
        && nm "$tmp/parser-tinyc" >"$tmp/symbols" 2>/dev/null \
@@ -1282,7 +1296,7 @@ compiler_parser_reader_e2e
 # Prove the shipped generated reader, not only the reduced grammar above.
 compiler_c_reader_e2e() {
     local name=compiler_c_reader_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     if LANG_CACHE="$tmp/cache-build" LANGBE=llvm $COMPILER compiler c \
            example/c/c.lang -o "$tmp/cc" >/dev/null 2>&1 \
        && LANG_CACHE="$tmp/cache-use" "$tmp/cc" test/compiler_c.c \
@@ -1306,7 +1320,7 @@ compiler_c_reader_e2e
 # again when that compiler consumes a source file.
 compiler_minilisp_runtime_e2e() {
     local name=compiler_minilisp_runtime_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     if LANG_CACHE="$tmp/cache-build" LANGBE=llvm $COMPILER compiler minilisp \
            example/minilisp/minilisp.lang \
            --runtime example/minilisp/lisp_runtime.lang \
@@ -1332,7 +1346,7 @@ compiler_minilisp_runtime_e2e
 # Lang and prepended to reader-emitted AST before either backend sees it.
 from_ast_runtime_e2e() {
     local name=from_ast_runtime_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local result=compile_error
     if LANGBE=llvm $COMPILER test/from_ast_runtime.ast --from-ast \
            --runtime example/minilisp/lisp_runtime.lang \
@@ -1354,7 +1368,7 @@ from_ast_runtime_e2e
 # not merely mtime freshness.
 reader_cache_refresh_e2e() {
     local name=reader_cache_refresh_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     cat > "$tmp/probe.lang" <<'PROBE1'
 include "std/ast.lang"
 reader cache_probe(text *u8) *u8 { return ast_number("41"); }
@@ -1396,7 +1410,7 @@ reader_cache_refresh_e2e
 # generated AST routinely exceed that once a language grows past a toy.
 reader_large_input_e2e() {
     local name=reader_large_input_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     cat > "$tmp/largeio.lang" <<'LARGEIO'
 include "std/ast.lang"
 reader largeio(text *u8) *u8 {
@@ -1430,7 +1444,7 @@ reader_large_input_e2e
 
 cli_run_e2e() {
     local name=cli_run_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     LANG_CACHE="$tmp/.lang-cache" LANGBE=llvm $COMPILER run \
         example/tiny/tiny.lang example/tiny/answer.tiny >/dev/null 2>&1
     local result=$?
@@ -1459,7 +1473,7 @@ token_dump_e2e
 
 cli_errors_e2e() {
     local name=cli_errors_e2e
-    local tmp=$(mktemp -d)
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     local ok=1
 
     $COMPILER --not-a-real-option test/suite/002_return_42.lang \

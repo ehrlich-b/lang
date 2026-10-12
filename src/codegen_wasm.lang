@@ -950,6 +950,7 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
     if kind == NODE_CALL_EXPR {
         var callee *u8 = call_expr_func(expr);
         if node_kind(callee) != NODE_IDENT_EXPR {
+            if node_origin_source(expr) != nil { cg_diagnostic_node = expr; }
             wasm_error("direct wasm currently supports only direct function calls");
             wasm_put(out, 66); wasm_put_sleb(out, 0);
             return;

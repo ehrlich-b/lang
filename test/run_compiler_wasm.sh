@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")/.."
 
-tmp=$(mktemp -d)
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 
 COMPILER=${COMPILER:-./out/lang} ./web/build_compiler.sh

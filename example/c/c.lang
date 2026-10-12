@@ -344,7 +344,7 @@ func emit_postfix_str(pf *PNode) *u8 {
                 }
                 i = i + 1;
             }
-            base = ast_call(base, args);
+            base = ast_span(ast_call(base, args), primary.start, op.end);
         } else {
             return c_unhandled("postfix operator", op);
         }
