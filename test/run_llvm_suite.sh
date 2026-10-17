@@ -21,8 +21,8 @@ case "$(uname -s)" in
         ;;
     *)
         export LANGOS=${LANGOS:-linux}
-        # Generate OS layer for Linux
-        echo 'include "std/os/linux_x86_64.lang"' > std/os.lang
+        # LLVM uses libc, including printf for std/core.lang's print_f64.
+        echo 'include "std/os/libc.lang"' > std/os.lang
         ;;
 esac
 
