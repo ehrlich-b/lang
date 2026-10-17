@@ -95,6 +95,32 @@ pub func pnode_child(node *PNode, index i64) *PNode {
     return pnode_unwrap(vec_get(node.children, index));
 }
 
+// Report a reader's own error in the same byte-based line/column format as
+// tok_print_error. The source is the text handed to the reader, not the host
+// file containing a reader block. Nodes without spans keep a bare diagnostic.
+pub func pnode_print_error(node *PNode, source *u8, label *u8, message *u8) void {
+    if label != nil && *label != 0 {
+        eprint(label);
+        eprint(":");
+    }
+    if node != nil && node.start >= 0 && source != nil {
+        var line i64 = 1;
+        var column i64 = 1;
+        var i i64 = 0;
+        while i < node.start && *(source + i) != 0 {
+            if *(source + i) == 10 { line = line + 1; column = 1; }
+            else { column = column + 1; }
+            i = i + 1;
+        }
+        eprint_i64(line);
+        eprint(":");
+        eprint_i64(column);
+        eprint(":");
+    }
+    eprint(" ");
+    eprintln(message);
+}
+
 func pnode_collect_capture_chain(node *PNode, name *u8,
                                  matches *u8) void {
     while node != nil && node.kind == PNODE_CAPTURE {

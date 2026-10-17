@@ -107,6 +107,8 @@ include "std/prec.lang"
 
 // PNode kinds: 1=number, 2=symbol, 3=string, 4=list/sequence, 5=operator, 0=literal marker
 
+var c_src *u8 = nil;
+
 // ============================================================
 // Operator precedence (higher binds tighter)
 // ============================================================
@@ -138,19 +140,21 @@ func c_table() *PrecTable {
 // ============================================================
 
 // std/prec.lang already named the operator it refused, so this only has to stop.
-func c_checked(value *u8) *u8 {
+func c_checked(value *u8, node *PNode) *u8 {
     if value == nil {
-        eprintln("c: this expression is not in the C subset");
+        pnode_print_error(node, c_src, "c", "this expression is not in the C subset");
         exit(1);
     }
     return value;
 }
 
 func c_refused(what *u8, op *PNode) void {
-    eprint("c: '");
-    eprint(op.text);
-    eprint("' ");
-    eprintln(what);
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, "'");
+    sb_str(sb, op.text);
+    sb_str(sb, "' ");
+    sb_str(sb, what);
+    pnode_print_error(op, c_src, "c", sb_finish(sb));
     exit(1);
 }
 
@@ -205,7 +209,7 @@ func emit_expr_str(e *PNode) *u8 {
     var expr *PrecExpr = prec_expr(c_table());
     c_push_flat(expr, pnode_require(binexpr, "first"),
                 pnode_require(binexpr, "rest"), 0);
-    var base *u8 = c_checked(prec_build(expr));
+    var base *u8 = c_checked(prec_build(expr), e);
     if vec_len(terntail.children) > 0 {
         return emit_ternary(base, vec_get(terntail.children, 0));
     }
@@ -247,16 +251,18 @@ func emit_ternary(cond *u8, tt *PNode) *u8 {
 // reader bug. Name it and stop: emitting a placeholder is how a reader turns its
 // own gap into a mystery in the generated program.
 func c_unhandled(what *u8, node *PNode) *u8 {
-    eprint("c: unhandled ");
-    eprint(what);
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, "unhandled ");
+    sb_str(sb, what);
     var label *u8 = pnode_branch(node);
     if label == nil {
-        eprintln(" (the grammar left this alternative unlabeled)");
+        sb_str(sb, " (the grammar left this alternative unlabeled)");
     } else {
-        eprint(" branch '");
-        eprint(label);
-        eprintln("'");
+        sb_str(sb, " branch '");
+        sb_str(sb, label);
+        sb_str(sb, "'");
     }
+    pnode_print_error(node, c_src, "c", sb_finish(sb));
     exit(1);
     return nil;
 }
@@ -485,15 +491,15 @@ func emit_exprstmt_from_expr(expr *PNode) *u8 {
     if at < 0 {
         var whole *PrecExpr = prec_expr(table);
         c_push_flat(whole, first, rest, 0);
-        if ntt == 0 { return c_checked(prec_build_stmt(whole)); }
-        return ast_expr_stmt(emit_ternary(c_checked(prec_build(whole)),
+        if ntt == 0 { return c_checked(prec_build_stmt(whole), expr); }
+        return ast_expr_stmt(emit_ternary(c_checked(prec_build(whole), expr),
                                           vec_get(terntail.children, 0)));
     }
 
     var last *PNode = vec_get(rest.children, at);
     var tail *PrecExpr = prec_expr(table);
     c_push_flat(tail, pnode_require(last, "right"), rest, at + 1);
-    var value *u8 = emit_ternary(c_checked(prec_build(tail)),
+    var value *u8 = emit_ternary(c_checked(prec_build(tail), pnode_require(last, "right")),
                                  vec_get(terntail.children, 0));
 
     var head *PrecExpr = prec_expr(table);
@@ -506,7 +512,7 @@ func emit_exprstmt_from_expr(expr *PNode) *u8 {
     }
     prec_op(head, pnode_require(last, "op").text);
     prec_operand(head, value);
-    return c_checked(prec_build_stmt(head));
+    return c_checked(prec_build_stmt(head), expr);
 }
 
 // c_forstmt = 'for' '(' c_forinit c_expr ';' c_expr ')' c_stmt
@@ -826,6 +832,7 @@ func emit_program(prog *PNode) *u8 {
 }
 
 reader c(text *u8) *u8 {
+    c_src = text;
     var t *Tokenizer = tok_new(text);
     var prog *PNode = parse_c_program(t);
     return emit_program(prog);

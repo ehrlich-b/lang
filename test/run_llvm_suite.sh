@@ -206,6 +206,33 @@ BADEOF
 }
 compile_must_fail compile_error_is_fatal
 
+# Syntax errors above already fail at the parser. These inputs parse, then each
+# reader rejects its own unsupported form at an exact custom-source location.
+reader_error_location_e2e() {
+    local reader=$1
+    local expected=$2
+    local name=reader_${reader}_error_location_e2e
+    local tmp=$(mktemp -d)
+    local ok=1
+    LANG_CACHE="$tmp/cache" LANGBE=llvm $COMPILER read \
+        "example/$reader/$reader.lang" "test/reader_error_$reader.$reader" \
+        >"$tmp/bad.ast" 2>"$tmp/bad.err" && ok=0
+    test ! -s "$tmp/bad.ast" || ok=0
+    grep -Fxq "$expected" "$tmp/bad.err" || ok=0
+    if [ "$ok" = 1 ]; then
+        echo "PASS $name" >> "$results_file"
+    else
+        echo "FAIL $name" >> "$results_file"
+        cat "$tmp/bad.err" >> "$results_file"
+    fi
+    rm -rf "$tmp"
+}
+reader_error_location_e2e c "c:3:10: '++' has no value here; use it as a statement of its own"
+reader_error_location_e2e flow "flow:2:12: this expression is not in the flow subset"
+reader_error_location_e2e forth "forth:2:5: stack underflow"
+reader_error_location_e2e minilisp "minilisp:2:5: a call's head must be a symbol, an operator, or a list '2'"
+reader_error_location_e2e minipy "minipy:2:26: range's step must be an integer literal"
+
 # Reader authoring errors must be ordinary compiler failures: one diagnostic,
 # a nonzero status, and no stale or partial output that looks usable.
 reader_authoring_failures_e2e() {
@@ -465,7 +492,7 @@ include "example/forth/forth.lang"
 }
 func main() i64 { return bad(); }
 FORTHBAD
-    reader_must_fail forth "forth: stack underflow"
+    reader_must_fail forth "forth:2:16: stack underflow"
 
     # A word that is never declared cannot be called.
     cat > "$tmp/forthword.lang" <<'FORTHWORD'
@@ -475,7 +502,7 @@ include "example/forth/forth.lang"
 }
 func main() i64 { return bad(1); }
 FORTHWORD
-    reader_must_fail forthword "forth: undefined word"
+    reader_must_fail forthword "forth:2:18: undefined word"
 
     # A list headed by a number is not a call; it used to become nil silently.
     cat > "$tmp/lisp.lang" <<'LISPBAD'
@@ -486,7 +513,7 @@ include "example/minilisp/lisp_runtime.lang"
 }
 func main() i64 { return 0; }
 LISPBAD
-    reader_must_fail lisp "minilisp: a call's head must be a symbol"
+    reader_must_fail lisp "minilisp:2:21: a call's head must be a symbol"
 
     # The readers still build what they always did.
     for good in example/forth/test_forth.lang example/minilisp/test_minilisp.lang; do
@@ -530,7 +557,7 @@ include "example/c/c.lang"
 }
 func main() i64 { return 0; }
 CINCDEC
-    position_must_fail cincdec "c: '++' has no value here"
+    position_must_fail cincdec "c:2:34: '++' has no value here"
 
     # Assignment is a statement in the shared AST; there is no assignment
     # expression to lower `f(a = b)` to.

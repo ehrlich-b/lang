@@ -2745,9 +2745,10 @@ func llvm_emit_expr(expr *u8) void {
                 var name *u8 = ident_expr_name(inner);
                 var len i64 = ident_expr_name_len(inner);
 
-                // Check if it's a function name
+                // A local shadows a function of the same name. In particular,
+                // eprint_i64's &c must address its digit even in a C reader.
                 var func_decl *u8 = find_func(name, len);
-                if func_decl != nil {
+                if func_decl != nil && find_local(name, len) < 0 {
                     // Function address: ptrtoint func_type* @funcname to i64
                     // Get function parameter count for type signature
                     var param_count i64 = func_decl_param_count(func_decl);

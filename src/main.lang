@@ -1814,8 +1814,10 @@ func main(argc i64, argv **u8) i64 {
     var run_base *u8 = nil;
     var remove_run_output i64 = 0;
     var compiler_binary *u8 = nil;
+    var temp_dir *u8 = getenv("TMPDIR");
+    if temp_dir == nil || *temp_dir == 0 { temp_dir = "/tmp"; }
     if run_mode != 0 {
-        run_base = str_concat("/tmp/lang-run-", i64_to_str(getpid()));
+        run_base = str_concat(str_concat(temp_dir, "/lang-run-"), i64_to_str(getpid()));
     }
 
     if build_compiler_mode != 0 {
@@ -1823,7 +1825,7 @@ func main(argc i64, argv **u8) i64 {
         if compiler_binary == nil {
             compiler_binary = gen_compiler;
         }
-        var compiler_tmp *u8 = str_concat("/tmp/lang-compiler-", i64_to_str(getpid()));
+        var compiler_tmp *u8 = str_concat(str_concat(temp_dir, "/lang-compiler-"), i64_to_str(getpid()));
         if cg_backend_is_wasm() != 0 {
             output_file = str_concat(compiler_tmp, ".wasm");
         } else if cg_backend_is_llvm() != 0 {

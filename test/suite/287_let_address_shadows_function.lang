@@ -1,0 +1,10 @@
+// expect: 42
+// A let binding is a local too, and stops shadowing at the end of its body.
+func digit() i64 { return 7; }
+
+func main() i64 {
+    var result i64 = let digit i64 = 42 in *(&digit);
+    var f fn() i64 = &digit;
+    if f() != 7 { return 1; }
+    return result;
+}

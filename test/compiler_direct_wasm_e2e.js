@@ -113,6 +113,9 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   const memory = await compileAndRun('test/direct_wasm_memory_e2e.lang');
   if (Number(memory.value) !== 176) throw new Error(`expected 176, got ${memory.value}`);
 
+  const localAddress = await compileAndRun('test/suite/286_local_address_shadows_function.lang');
+  if (Number(localAddress.value) !== 0) throw new Error('local address did not shadow function');
+
   const imported = await compileAndRun('test/direct_wasm_import_e2e.lang');
   if (Number(imported.value) !== 17 || imported.stdout !== 'direct import\n') {
     throw new Error(`direct import mismatch: value=${imported.value} stdout=${JSON.stringify(imported.stdout)}`);
@@ -300,6 +303,24 @@ func main() i64 { return two(1); }
   if (Number(minipyRead.ran.value) !== 42 ||
       !minipyRead.ast?.startsWith('(program ') || !minipyRead.ast.includes('(func main ')) {
     throw new Error(`Minipy reader mismatch: ast=${minipyRead.ast}`);
+  }
+
+  const readerErrors = [
+    ['c', "c:3:10: '++' has no value here; use it as a statement of its own"],
+    ['flow', 'flow:2:12: this expression is not in the flow subset'],
+    ['forth', 'forth:2:5: stack underflow'],
+    ['minilisp', "minilisp:2:5: a call's head must be a symbol, an operator, or a list '2'"],
+    ['minipy', "minipy:2:26: range's step must be an integer literal"],
+  ];
+  for (const [name, expected] of readerErrors) {
+    const failed = await runReaderSource(
+      fs.readFileSync(`example/${name}/${name}.lang`, 'utf8'), name,
+      fs.readFileSync(`test/reader_error_${name}.${name}`, 'utf8'),
+    );
+    if (failed.ast !== null || failed.readerRun.exit !== 1 ||
+        !failed.readerRun.stderr.split('\n').includes(expected)) {
+      throw new Error(`${name} reader location mismatch: ${failed.readerRun.stderr}`);
+    }
   }
 
   const labHtml = fs.readFileSync('web/lab.html', 'utf8');
