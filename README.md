@@ -83,7 +83,18 @@ examples below.
 
 Or [write and run a generated reader in the browser](https://lang.ehrlich.dev/lab.html).
 Edit its `#parser{}` grammar and lowering; the reader, AST, compiler, and output
-program all stay in the tab.
+program all stay in the tab. Choose **named capture tree** to inspect the
+reader's `pnode_dump` output beside the grammar: node kinds, named captures,
+and byte spans appear in the collapsible **reader diagnostics / tree** panel.
+Edit the grammar and lowering, then build again; editing only the source
+reuses the compiled reader. AST downloads still contain only the lowered AST.
+
+For a local lab, run `make build`, `./web/build_compiler.sh`, then
+`python3 -m http.server 8000 --directory web` and open
+`http://127.0.0.1:8000/lab.html`. The software Chromium contract is
+`node test/lab_tree_browser.mjs` after installing Playwright (`npm install
+--no-save playwright`); set `CHROMIUM_PATH` to use an existing browser and
+`LAB_EVIDENCE_DIR` to save screenshots and a JSON receipt.
 
 ## Shipped readers, one binary
 
