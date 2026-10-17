@@ -55,7 +55,7 @@ func test_capture_string() i64 {
 
 // Test 4: Capture pointer to array (pointer arithmetic)
 func test_capture_array_ptr() i64 {
-    var arr *i64 = alloc(40);  // 5 elements
+    var arr *i64 = alloc(136);  // 17 elements, including arr + 16 below
     var p *i64 = arr;
     *p = 10;
     p = arr + 8;
