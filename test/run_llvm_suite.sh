@@ -21,8 +21,9 @@ case "$(uname -s)" in
         ;;
     *)
         export LANGOS=${LANGOS:-linux}
-        # Generate OS layer for Linux
-        echo 'include "std/os/linux_x86_64.lang"' > std/os.lang
+        # LLVM uses libc on Linux as well: std/core.lang's print_f64 requires
+        # printf, which the frozen raw-syscall layer does not declare.
+        echo 'include "std/os/libc.lang"' > std/os.lang
         ;;
 esac
 
@@ -232,6 +233,17 @@ reader_error_location_e2e flow "flow:2:12: this expression is not in the flow su
 reader_error_location_e2e forth "forth:2:5: stack underflow"
 reader_error_location_e2e minilisp "minilisp:2:5: a call's head must be a symbol, an operator, or a list '2'"
 reader_error_location_e2e minipy "minipy:2:26: range's step must be an integer literal"
+
+reader_unicode_locations_e2e() {
+    local log=$(mktemp)
+    if node test/reader_locations.js >"$log" 2>&1; then
+        echo "PASS reader_unicode_locations_e2e" >> "$results_file"
+    else
+        echo "FAIL reader_unicode_locations_e2e" >> "$results_file"
+        cat "$log" >> "$results_file"
+    fi
+}
+reader_unicode_locations_e2e
 
 # Reader authoring errors must be ordinary compiler failures: one diagnostic,
 # a nonzero status, and no stale or partial output that looks usable.

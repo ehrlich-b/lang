@@ -24,6 +24,7 @@ var llvm_buf_size i64 = 0;
 var llvm_is_arm64 i64 = 0;
 // Target flag: 1 = WebAssembly - no inline asm, so effects are a hard error
 var llvm_is_wasm i64 = 0;
+var llvm_current_function *u8 = nil;
 
 func llvm_init_output(output_file *u8) void {
     llvm_buf_size = 8 * 1024 * 1024;  // 8MB buffer
@@ -4113,21 +4114,16 @@ func llvm_emit_expr(expr *u8) void {
         llvm_emit_int(rsp_temp);
         llvm_emit_line(", i64* @__handler_rsp");
 
-        // Get handler block address using inline asm - compute label address
+        // Address the LLVM block itself: an asm label can sit AFTER a machine
+        // reload inserted at block entry, so jumping to it skips that reload.
         var addr_temp i64 = llvm_next_temp();
         llvm_emit_str("    %t");
         llvm_emit_int(addr_temp);
-        if llvm_is_arm64 {
-            llvm_emit_str(" = call i64 asm \"adrp $0, .Lhandler");
-            llvm_emit_int(handler_label);
-            llvm_emit_str("@PAGE\\0Aadd $0, $0, .Lhandler");
-            llvm_emit_int(handler_label);
-            llvm_emit_line("@PAGEOFF\", \"=r\"()");
-        } else {
-            llvm_emit_str(" = call i64 asm \"leaq .Lhandler");
-            llvm_emit_int(handler_label);
-            llvm_emit_line("(%rip), $0\", \"=r\"()");
-        }
+        llvm_emit_str(" = ptrtoint i8* blockaddress(@");
+        llvm_emit_str(llvm_current_function);
+        llvm_emit_str(", %Lhandler");
+        llvm_emit_int(handler_label);
+        llvm_emit_line(") to i64");
 
         llvm_emit_str("    store i64 %t");
         llvm_emit_int(addr_temp);
@@ -4473,19 +4469,19 @@ func llvm_emit_expr(expr *u8) void {
         llvm_emit_int(cont_temp);
         llvm_emit_line(", i64 16");
 
-        if llvm_is_arm64 {
-            llvm_emit_str("    call void asm sideeffect \"adrp x0, .Lresume");
-            llvm_emit_int(resume_label);
-            llvm_emit_str("@PAGE\\0Aadd x0, x0, .Lresume");
-            llvm_emit_int(resume_label);
-            llvm_emit_str("@PAGEOFF\\0Astr x0, [$0]\", \"r,~{x0},~{memory}\"(i8* %t");
-        } else {
-            llvm_emit_str("    call void asm sideeffect \"leaq .Lresume");
-            llvm_emit_int(resume_label);
-            llvm_emit_str("(%rip), %rax\\0Amovq %rax, ($0)\", \"r,~{rax},~{memory}\"(i8* %t");
-        }
+        var ret_slot i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(ret_slot);
+        llvm_emit_str(" = bitcast i8* %t");
         llvm_emit_int(ret_ptr);
-        llvm_emit_line(")");
+        llvm_emit_line(" to i8**");
+        llvm_emit_str("    store i8* blockaddress(@");
+        llvm_emit_str(llvm_current_function);
+        llvm_emit_str(", %Lresume");
+        llvm_emit_int(resume_label);
+        llvm_emit_str("), i8** %t");
+        llvm_emit_int(ret_slot);
+        llvm_emit_char(10);
 
         // Store continuation pointer in global
         llvm_emit_str("    store i8* %t");
@@ -6197,6 +6193,7 @@ func llvm_emit_func(func_node *u8) void {
     llvm_anon_local_counter = 0;  // Reset unique name counter
     cg_local_count = 0;  // Reset x86 backend's local tracking (for type info)
     llvm_current_ret_type = ret_type;
+    llvm_current_function = str_dup_n(name, name_len);
 
     // Set current emit module for visibility checking
     var func_idx i64 = find_func_index(name, name_len);
@@ -6452,6 +6449,8 @@ func llvm_emit_reader(reader_node *u8) void {
     var name_len i64 = reader_decl_name_len(reader_node);
     var pname *u8 = reader_decl_param_name(reader_node);
     var param_len i64 = reader_decl_param_len(reader_node);
+
+    llvm_current_function = str_dup_n(name, name_len);
 
     // Reset counters for this function
     llvm_temp_counter = 0;
@@ -7196,6 +7195,10 @@ func llvm_register_all_decls(prog *u8) void {
 
 // Generate a single lambda function
 func llvm_gen_lambda(lambda_node *u8, lambda_id i64, captures *u8, capture_count i64) void {
+    llvm_current_function = alloc(32);
+    memcpy(llvm_current_function, "__lambda_", 9);
+    itoa(lambda_id, llvm_current_function + 9);
+
     // Reset temp counter and locals for this lambda
     llvm_temp_counter = 0;
     llvm_emitted_terminator = 0;

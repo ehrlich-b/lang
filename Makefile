@@ -14,6 +14,9 @@ BOOTSTRAP_FROM := $(shell cat bootstrap/current/COMMIT 2>/dev/null || echo "unkn
 # disabled; all local verification, archival, promotion, and installation stay.
 PUBLISH_BOOTSTRAP ?= 1
 
+# Keep verification artifacts private to this checkout, including parallel checkouts.
+BOOTSTRAP_VERIFY_DIR := $(abspath out/bootstrap_verify)
+
 # OS detection
 UNAME := $(shell uname -s)
 ifeq ($(UNAME),Darwin)
@@ -154,8 +157,8 @@ bootstrap:
 	@echo "╚════════════════════════════════════════════════════════════════╝"
 	@echo ""
 	@# Never trust leftovers from a failed or interrupted prior bootstrap.
-	@rm -rf /tmp/bootstrap_verify
-	@mkdir -p out out/ast /tmp/bootstrap_verify
+	@rm -rf $(BOOTSTRAP_VERIFY_DIR)
+	@mkdir -p out out/ast $(BOOTSTRAP_VERIFY_DIR)
 	@command -v clang >/dev/null || { echo "ERROR: clang is required"; exit 1; }
 	@if [ "$(PUBLISH_BOOTSTRAP)" = "1" ]; then \
 		command -v gh >/dev/null || { echo "ERROR: gh is required for bootstrap archive releases"; exit 1; }; \
@@ -167,7 +170,7 @@ bootstrap:
 	@echo "Platform: $(PLATFORM)"
 	@echo "Bootstrap: $(BOOTSTRAP_LL)"
 	@if [ ! -f $(BOOTSTRAP_LL) ]; then echo "ERROR: $(BOOTSTRAP_LL) not found"; exit 1; fi
-	clang -O2 $(BOOTSTRAP_LL) -o /tmp/bootstrap_verify/ctrusted
+	clang -O2 $(BOOTSTRAP_LL) -o $(BOOTSTRAP_VERIFY_DIR)/ctrusted
 	@echo "Built: ctrusted from $(BOOTSTRAP_LL)"
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
@@ -176,31 +179,31 @@ bootstrap:
 	@# Set up OS layer for LLVM compilation
 	@echo 'include "$(BOOTSTRAP_LIBC)"' > std/os.lang
 	@# Build kernel1 using LLVM backend
-	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/ctrusted std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o /tmp/bootstrap_verify/kernel1.ll
-	clang -O2 /tmp/bootstrap_verify/kernel1.ll -o /tmp/bootstrap_verify/kernel1
+	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/ctrusted std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel1.ll
+	clang -O2 $(BOOTSTRAP_VERIFY_DIR)/kernel1.ll -o $(BOOTSTRAP_VERIFY_DIR)/kernel1
 	@echo "Built: kernel1 (LLVM)"
 	@# Emit reader AST 1 using kernel1
-	/tmp/bootstrap_verify/kernel1 src/lang_reader.lang --emit-expanded-ast -o /tmp/bootstrap_verify/reader_ast1.ast
-	@echo "Emitted: reader_ast1.ast ($$(wc -l < /tmp/bootstrap_verify/reader_ast1.ast) lines)"
+	$(BOOTSTRAP_VERIFY_DIR)/kernel1 src/lang_reader.lang --emit-expanded-ast -o $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast
+	@echo "Emitted: reader_ast1.ast ($$(wc -l < $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast) lines)"
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
 	@echo "│ STAGE 3: GENERATION 2 + 3 (LLVM FIXED POINT)                   │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
 	@# Build kernel2 (kernel1 compiles sources)
-	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/kernel1 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o /tmp/bootstrap_verify/kernel2.ll
-	clang -O2 /tmp/bootstrap_verify/kernel2.ll -o /tmp/bootstrap_verify/kernel2
+	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/kernel1 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll
+	clang -O2 $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll -o $(BOOTSTRAP_VERIFY_DIR)/kernel2
 	@echo "Built: kernel2 (LLVM)"
 	@# Build kernel3 (kernel2 compiles sources) for true fixed point
-	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/kernel2 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o /tmp/bootstrap_verify/kernel3.ll
+	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/kernel2 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll
 	@echo ""
 	@echo "Checking LLVM FIXED POINT (kernel2.ll === kernel3.ll)..."
-	@if diff -q /tmp/bootstrap_verify/kernel2.ll /tmp/bootstrap_verify/kernel3.ll > /dev/null; then \
+	@if diff -q $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll > /dev/null; then \
 		echo "✓ LLVM FIXED POINT VERIFIED"; \
 	else \
 		echo ""; \
 		echo "!!! LLVM FIXED POINT FAILED !!!"; \
 		echo "kernel2.ll and kernel3.ll differ:"; \
-		diff /tmp/bootstrap_verify/kernel2.ll /tmp/bootstrap_verify/kernel3.ll | head -20; \
+		diff $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll | head -20; \
 		exit 1; \
 	fi
 	@echo ""
@@ -208,16 +211,16 @@ bootstrap:
 	@echo "│ STAGE 4: AST FIXED POINT                                       │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
 	@# Emit reader AST 2 using kernel2
-	/tmp/bootstrap_verify/kernel2 src/lang_reader.lang --emit-expanded-ast -o /tmp/bootstrap_verify/reader_ast2.ast
+	$(BOOTSTRAP_VERIFY_DIR)/kernel2 src/lang_reader.lang --emit-expanded-ast -o $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
 	@echo ""
 	@echo "Checking AST FIXED POINT (reader_ast1 === reader_ast2)..."
-	@if diff -q /tmp/bootstrap_verify/reader_ast1.ast /tmp/bootstrap_verify/reader_ast2.ast > /dev/null; then \
+	@if diff -q $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast > /dev/null; then \
 		echo "✓ AST FIXED POINT VERIFIED"; \
 	else \
 		echo ""; \
 		echo "!!! AST FIXED POINT FAILED !!!"; \
 		echo "reader_ast1.ast and reader_ast2.ast differ:"; \
-		diff /tmp/bootstrap_verify/reader_ast1.ast /tmp/bootstrap_verify/reader_ast2.ast | head -20; \
+		diff $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast | head -20; \
 		exit 1; \
 	fi
 	@echo ""
@@ -228,34 +231,34 @@ bootstrap:
 	@echo "Generating cross-platform bootstrap files..."
 	@# Linux LLVM bootstrap
 	@echo 'include "std/os/libc.lang"' > std/os.lang
-	@echo '// Auto-generated by Makefile - do not edit manually' > /tmp/bootstrap_verify/version_info_linux.lang
-	@echo 'var LANG_VERSION *u8 = "0.1.0";' >> /tmp/bootstrap_verify/version_info_linux.lang
-	@echo 'var LANG_COMMIT *u8 = "$(VERSION)";' >> /tmp/bootstrap_verify/version_info_linux.lang
-	@echo 'var LANG_BUILD_BACKEND *u8 = "llvm";' >> /tmp/bootstrap_verify/version_info_linux.lang
-	@echo 'var LANG_BUILD_OS *u8 = "linux";' >> /tmp/bootstrap_verify/version_info_linux.lang
-	@echo 'var LANG_BUILD_ARCH *u8 = "x86_64";' >> /tmp/bootstrap_verify/version_info_linux.lang
-	@echo 'var LANG_BUILD_LIBC *u8 = "system";' >> /tmp/bootstrap_verify/version_info_linux.lang
-	@echo 'var LANG_BOOTSTRAP_FROM *u8 = "$(BOOTSTRAP_FROM)";' >> /tmp/bootstrap_verify/version_info_linux.lang
-	LANGBE=llvm LANGOS=linux /tmp/bootstrap_verify/kernel2 std/core.lang /tmp/bootstrap_verify/version_info_linux.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o /tmp/bootstrap_verify/compiler_linux.ll
+	@echo '// Auto-generated by Makefile - do not edit manually' > $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang
+	@echo 'var LANG_VERSION *u8 = "0.1.0";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang
+	@echo 'var LANG_COMMIT *u8 = "$(VERSION)";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang
+	@echo 'var LANG_BUILD_BACKEND *u8 = "llvm";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang
+	@echo 'var LANG_BUILD_OS *u8 = "linux";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang
+	@echo 'var LANG_BUILD_ARCH *u8 = "x86_64";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang
+	@echo 'var LANG_BUILD_LIBC *u8 = "system";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang
+	@echo 'var LANG_BOOTSTRAP_FROM *u8 = "$(BOOTSTRAP_FROM)";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang
+	LANGBE=llvm LANGOS=linux $(BOOTSTRAP_VERIFY_DIR)/kernel2 std/core.lang $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/compiler_linux.ll
 	@echo "Cross-checking compiler_linux.ll as x86_64 Linux object..."
-	clang -O2 -c -target x86_64-unknown-linux-gnu /tmp/bootstrap_verify/compiler_linux.ll -o /tmp/bootstrap_verify/compiler_linux.o || { echo "ERROR: compiler_linux.ll failed cross-target verification"; exit 1; }
+	clang -O2 -c -target x86_64-unknown-linux-gnu $(BOOTSTRAP_VERIFY_DIR)/compiler_linux.ll -o $(BOOTSTRAP_VERIFY_DIR)/compiler_linux.o || { echo "ERROR: compiler_linux.ll failed cross-target verification"; exit 1; }
 	@echo "✓ compiler_linux.ll cross-target verified"
 	@# macOS LLVM bootstrap
 	@echo 'include "std/os/libc_macos.lang"' > std/os.lang
-	@echo '// Auto-generated by Makefile - do not edit manually' > /tmp/bootstrap_verify/version_info_macos.lang
-	@echo 'var LANG_VERSION *u8 = "0.1.0";' >> /tmp/bootstrap_verify/version_info_macos.lang
-	@echo 'var LANG_COMMIT *u8 = "$(VERSION)";' >> /tmp/bootstrap_verify/version_info_macos.lang
-	@echo 'var LANG_BUILD_BACKEND *u8 = "llvm";' >> /tmp/bootstrap_verify/version_info_macos.lang
-	@echo 'var LANG_BUILD_OS *u8 = "macos";' >> /tmp/bootstrap_verify/version_info_macos.lang
-	@echo 'var LANG_BUILD_ARCH *u8 = "arm64";' >> /tmp/bootstrap_verify/version_info_macos.lang
-	@echo 'var LANG_BUILD_LIBC *u8 = "system";' >> /tmp/bootstrap_verify/version_info_macos.lang
-	@echo 'var LANG_BOOTSTRAP_FROM *u8 = "$(BOOTSTRAP_FROM)";' >> /tmp/bootstrap_verify/version_info_macos.lang
-	LANGBE=llvm LANGOS=macos /tmp/bootstrap_verify/kernel2 std/core.lang /tmp/bootstrap_verify/version_info_macos.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o /tmp/bootstrap_verify/compiler_macos.ll
+	@echo '// Auto-generated by Makefile - do not edit manually' > $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang
+	@echo 'var LANG_VERSION *u8 = "0.1.0";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang
+	@echo 'var LANG_COMMIT *u8 = "$(VERSION)";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang
+	@echo 'var LANG_BUILD_BACKEND *u8 = "llvm";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang
+	@echo 'var LANG_BUILD_OS *u8 = "macos";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang
+	@echo 'var LANG_BUILD_ARCH *u8 = "arm64";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang
+	@echo 'var LANG_BUILD_LIBC *u8 = "system";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang
+	@echo 'var LANG_BOOTSTRAP_FROM *u8 = "$(BOOTSTRAP_FROM)";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang
+	LANGBE=llvm LANGOS=macos $(BOOTSTRAP_VERIFY_DIR)/kernel2 std/core.lang $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/compiler_macos.ll
 	@echo "Cross-checking compiler_macos.ll as arm64 macOS object..."
-	clang -O2 -c -target arm64-apple-macosx /tmp/bootstrap_verify/compiler_macos.ll -o /tmp/bootstrap_verify/compiler_macos.o || { echo "ERROR: compiler_macos.ll failed cross-target verification"; exit 1; }
+	clang -O2 -c -target arm64-apple-macosx $(BOOTSTRAP_VERIFY_DIR)/compiler_macos.ll -o $(BOOTSTRAP_VERIFY_DIR)/compiler_macos.o || { echo "ERROR: compiler_macos.ll failed cross-target verification"; exit 1; }
 	@echo "✓ compiler_macos.ll cross-target verified"
 	@# Build the native binary that Stage 6 will actually execute.
-	clang -O2 /tmp/bootstrap_verify/compiler_$(PLATFORM).ll -o /tmp/bootstrap_verify/compiler_$(PLATFORM) || { echo "ERROR: native compiler_$(PLATFORM) failed to link"; exit 1; }
+	clang -O2 $(BOOTSTRAP_VERIFY_DIR)/compiler_$(PLATFORM).ll -o $(BOOTSTRAP_VERIFY_DIR)/compiler_$(PLATFORM) || { echo "ERROR: native compiler_$(PLATFORM) failed to link"; exit 1; }
 	@echo "✓ compiler_$(PLATFORM) linked for validation"
 	@# Restore OS layer for test suite
 	@echo 'include "$(BOOTSTRAP_LIBC)"' > std/os.lang
@@ -265,7 +268,7 @@ bootstrap:
 	@echo "└────────────────────────────────────────────────────────────────┘"
 	@# Test the FINAL platform-specific binary (what we actually promote)
 	@echo "Testing final compiler_$(PLATFORM) binary..."
-	COMPILER=/tmp/bootstrap_verify/compiler_$(PLATFORM) ./test/run_llvm_suite.sh
+	COMPILER=$(BOOTSTRAP_VERIFY_DIR)/compiler_$(PLATFORM) ./test/run_llvm_suite.sh
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
 	@echo "│ STAGE 7: ARCHIVE + PROMOTE                                     │"
@@ -273,9 +276,9 @@ bootstrap:
 	@# Archive current bootstrap to GitHub release + local cache
 	@OLD_COMMIT=$$(cat bootstrap/current/COMMIT 2>/dev/null || echo ""); \
 	if [ "$$OLD_COMMIT" = "$(VERSION)" ] && \
-	   { ! cmp -s bootstrap/current/compiler_linux.ll /tmp/bootstrap_verify/compiler_linux.ll || \
-	     ! cmp -s bootstrap/current/compiler_macos.ll /tmp/bootstrap_verify/compiler_macos.ll || \
-	     ! cmp -s bootstrap/current/lang_reader/source.ast /tmp/bootstrap_verify/reader_ast1.ast; }; then \
+	   { ! cmp -s bootstrap/current/compiler_linux.ll $(BOOTSTRAP_VERIFY_DIR)/compiler_linux.ll || \
+	     ! cmp -s bootstrap/current/compiler_macos.ll $(BOOTSTRAP_VERIFY_DIR)/compiler_macos.ll || \
+	     ! cmp -s bootstrap/current/lang_reader/source.ast $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast; }; then \
 		echo "ERROR: bootstrap identity $(VERSION) already names different artifacts."; \
 		echo "Commit the previously promoted root before bootstrapping more compiler changes."; \
 		exit 1; \
@@ -354,9 +357,9 @@ bootstrap:
 	@# Stage complete files beside the current root, then move the identity marker
 	@# last. An interruption cannot leave a truncated artifact claiming success.
 	@mkdir -p bootstrap/current/lang_reader
-	cp /tmp/bootstrap_verify/compiler_linux.ll bootstrap/current/.compiler_linux.ll.next
-	cp /tmp/bootstrap_verify/compiler_macos.ll bootstrap/current/.compiler_macos.ll.next
-	cp /tmp/bootstrap_verify/reader_ast1.ast bootstrap/current/lang_reader/.source.ast.next
+	cp $(BOOTSTRAP_VERIFY_DIR)/compiler_linux.ll bootstrap/current/.compiler_linux.ll.next
+	cp $(BOOTSTRAP_VERIFY_DIR)/compiler_macos.ll bootstrap/current/.compiler_macos.ll.next
+	cp $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast bootstrap/current/lang_reader/.source.ast.next
 	@echo "$(VERSION)" > bootstrap/current/.COMMIT.next
 	@echo "compiler_linux.ll:" > bootstrap/current/.PROVENANCE.next
 	@echo "  sha256: $$(shasum -a 256 bootstrap/current/.compiler_linux.ll.next | cut -d' ' -f1)" >> bootstrap/current/.PROVENANCE.next
@@ -376,8 +379,8 @@ bootstrap:
 	@echo "  sha256: $$(shasum -a 256 bootstrap/current/lang_reader/.source.ast.next | cut -d' ' -f1)" >> bootstrap/current/.PROVENANCE.next
 	@echo "  lines: $$(wc -l < bootstrap/current/lang_reader/.source.ast.next)" >> bootstrap/current/.PROVENANCE.next
 	@# Stage the stable install before changing the root, too.
-	cp /tmp/bootstrap_verify/compiler_$(PLATFORM) out/.lang.next
-	cp /tmp/bootstrap_verify/compiler_$(PLATFORM).ll out/.lang_$(VERSION).ll.next
+	cp $(BOOTSTRAP_VERIFY_DIR)/compiler_$(PLATFORM) out/.lang.next
+	cp $(BOOTSTRAP_VERIFY_DIR)/compiler_$(PLATFORM).ll out/.lang_$(VERSION).ll.next
 	mv bootstrap/current/.compiler_linux.ll.next bootstrap/current/compiler_linux.ll
 	mv bootstrap/current/.compiler_macos.ll.next bootstrap/current/compiler_macos.ll
 	mv bootstrap/current/lang_reader/.source.ast.next bootstrap/current/lang_reader/source.ast
@@ -388,7 +391,7 @@ bootstrap:
 	mv out/.lang_$(VERSION).ll.next out/lang_$(VERSION).ll
 	mv out/.lang.next out/lang
 	@echo "Installed: out/lang (from compiler_$(PLATFORM))"
-	@rm -rf /tmp/bootstrap_verify
+	@rm -rf $(BOOTSTRAP_VERIFY_DIR)
 	@echo ""
 	@echo "╔════════════════════════════════════════════════════════════════╗"
 	@echo "║                    BOOTSTRAP COMPLETE                          ║"
@@ -416,25 +419,25 @@ bootstrap-local:
 # Diagnostic fixed-point check only. Promotion always uses bootstrap above.
 bootstrap-verify: LANGBE=llvm
 bootstrap-verify: generate-os-layer generate-version-info
-	@rm -rf /tmp/bootstrap_verify
-	@mkdir -p out out/ast /tmp/bootstrap_verify
+	@rm -rf $(BOOTSTRAP_VERIFY_DIR)
+	@mkdir -p out out/ast $(BOOTSTRAP_VERIFY_DIR)
 	@if [ ! -f $(BOOTSTRAP_LL) ]; then echo "ERROR: $(BOOTSTRAP_LL) not found"; exit 1; fi
-	clang -O2 $(BOOTSTRAP_LL) -o /tmp/bootstrap_verify/ctrusted
+	clang -O2 $(BOOTSTRAP_LL) -o $(BOOTSTRAP_VERIFY_DIR)/ctrusted
 	@echo 'include "$(BOOTSTRAP_LIBC)"' > std/os.lang
-	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/ctrusted std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o /tmp/bootstrap_verify/kernel1.ll
-	clang -O2 /tmp/bootstrap_verify/kernel1.ll -o /tmp/bootstrap_verify/kernel1
-	/tmp/bootstrap_verify/kernel1 src/lang_reader.lang --emit-expanded-ast -o /tmp/bootstrap_verify/reader_ast1.ast
-	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/kernel1 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o /tmp/bootstrap_verify/kernel2.ll
-	clang -O2 /tmp/bootstrap_verify/kernel2.ll -o /tmp/bootstrap_verify/kernel2
-	LANGBE=llvm LANGOS=$(PLATFORM) /tmp/bootstrap_verify/kernel2 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o /tmp/bootstrap_verify/kernel3.ll
-	@if ! diff -q /tmp/bootstrap_verify/kernel2.ll /tmp/bootstrap_verify/kernel3.ll > /dev/null; then \
+	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/ctrusted std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel1.ll
+	clang -O2 $(BOOTSTRAP_VERIFY_DIR)/kernel1.ll -o $(BOOTSTRAP_VERIFY_DIR)/kernel1
+	$(BOOTSTRAP_VERIFY_DIR)/kernel1 src/lang_reader.lang --emit-expanded-ast -o $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast
+	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/kernel1 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll
+	clang -O2 $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll -o $(BOOTSTRAP_VERIFY_DIR)/kernel2
+	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/kernel2 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll
+	@if ! diff -q $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll > /dev/null; then \
 		echo "LLVM FIXED POINT FAILED"; exit 1; \
 	fi
-	/tmp/bootstrap_verify/kernel2 src/lang_reader.lang --emit-expanded-ast -o /tmp/bootstrap_verify/reader_ast2.ast
-	@if ! diff -q /tmp/bootstrap_verify/reader_ast1.ast /tmp/bootstrap_verify/reader_ast2.ast > /dev/null; then \
+	$(BOOTSTRAP_VERIFY_DIR)/kernel2 src/lang_reader.lang --emit-expanded-ast -o $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
+	@if ! diff -q $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast > /dev/null; then \
 		echo "AST FIXED POINT FAILED"; exit 1; \
 	fi
-	COMPILER=/tmp/bootstrap_verify/kernel2 ./test/run_llvm_suite.sh
+	COMPILER=$(BOOTSTRAP_VERIFY_DIR)/kernel2 ./test/run_llvm_suite.sh
 
 # Compatibility alias for the old Mac-only verifier. The historical recipe
 # overwrote out/lang before its fixed-point comparison and tests completed.
@@ -464,6 +467,8 @@ test-all: test-suite
 	@./test/run_compiler_wasm.sh
 
 test-compiler-wasm:
+	@if [ ! -x $(LANG) ]; then $(MAKE) init; fi
+	@$(MAKE) generate-os-layer generate-version-info LANGBE=llvm LANGOS=$(PLATFORM) LANGLIBC=libc
 	@./test/run_compiler_wasm.sh
 
 test-direct-wasm:

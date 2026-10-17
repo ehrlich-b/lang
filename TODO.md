@@ -386,6 +386,12 @@ All five readers use it; Forth carries the offending word through stack pops,
 and minipy's `py_fail_at` is gone. Multi-line rejections are guarded both
 natively through `lang read` and in the browser's reader-Wasm pipeline.
 
+The browser lab now offers five **find an error** workspaces and a **jump to
+error** button. It translates UTF-8 byte columns to textarea offsets, including
+accents and emoji. `test/reader_locations.js` guards comments and blank lines;
+`test/reader_locations_browser.mjs` checks native/Wasm agreement, focus, repeat
+click selection and the valid examples, and captures all five error views.
+
 ---
 
 ## Completed: Let a reader say what a comment is

@@ -188,3 +188,13 @@ token. Generated `PNode`s expose `start` and `end` byte offsets for semantic
 locations. Call `pnode_dump(tree)` after a successful generated parse to print
 the complete tree—including named-capture wrappers and spans—to stderr without
 mixing debug output into `lang read`'s AST stdout.
+
+For a reader-owned semantic failure, call
+`pnode_print_error(node, text, "mylang", "explanation")` and stop with `exit(1)`
+or return `nil`. Pass the original reader input as `text`, so skipped comments
+and non-ASCII text keep their offsets. The helper prints
+`mylang:line:column: explanation` with 1-based lines and UTF-8 byte columns;
+nodes without a span retain a plain diagnostic. All five shipped readers share
+this helper. In the browser lab, diagnostics labeled with the active reader's
+name focus the custom source; the editor converts byte columns to UTF-16 before
+selecting a token. Choose a **find an error** workspace to try it.

@@ -24,6 +24,11 @@ const paths = [
   'example/minipy/minipy.lang',
   'example/flow/flow.lang',
   'example/minilisp/lisp_runtime.lang',
+  'test/reader_locations/c.c',
+  'test/reader_locations/flow.flow',
+  'test/reader_locations/forth.forth',
+  'test/reader_locations/minilisp.minilisp',
+  'test/reader_locations/minipy.minipy',
 ];
 
 const files = Object.fromEntries(paths.map((path) => [path, fs.readFileSync(path, 'utf8')]));

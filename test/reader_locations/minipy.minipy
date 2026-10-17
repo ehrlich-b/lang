@@ -1,0 +1,6 @@
+# café 🧭 before the function
+
+def bad(n):
+    # café 🧭 before the loop
+    for i in range(0, n, n):
+        pass

@@ -323,6 +323,19 @@ func main() i64 { return two(1); }
     }
   }
 
+  // Byte columns stay exact past comments, blank lines, accents and emoji.
+  const locations = require('./reader_locations.js');
+  for (const c of locations.cases) {
+    const failed = await runReaderSource(
+      fs.readFileSync(`example/${c.name}/${c.name}.lang`, 'utf8'), c.name,
+      fs.readFileSync(c.path, 'utf8'),
+    );
+    if (failed.ast !== null || failed.readerRun.exit !== 1 ||
+        !failed.readerRun.stderr.split('\n').includes(locations.diagnostic(c))) {
+      throw new Error(`${c.name} Unicode location mismatch: ${failed.readerRun.stderr}`);
+    }
+  }
+
   const labHtml = fs.readFileSync('web/lab.html', 'utf8');
   for (const path of [
     'example/tiny/tiny.lang', 'example/calc/calc.lang', 'example/c/c.lang',
@@ -339,7 +352,7 @@ func main() i64 { return two(1); }
     'id="preset"', 'id="download-reader"', 'id="download-ast"', 'id="download-program"',
     'id="save-workspace"', 'id="open-workspace"',
     'lang-reader-workspace', 'lang.lab.active', 'readerName(reader.value)',
-    'focusDiagnostic(message)', "target.closest('details').open = true", "phase = 'AST compile'",
+    'focusDiagnostic(message, sourceLabel)', "target.closest('details').open = true", "phase = 'AST compile'",
     'cachedReaderSource !== reader.value', 'customSource.value)',
     'editor.js?v=workbench10', 'formatLangAst(ast)', 'value:number',
     "'program.ast': formattedAst", 'installCodeEditor(reader, queueSave)',
