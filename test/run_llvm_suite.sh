@@ -21,8 +21,7 @@ case "$(uname -s)" in
         ;;
     *)
         export LANGOS=${LANGOS:-linux}
-        # LLVM uses libc on Linux as well: std/core.lang's print_f64 requires
-        # printf, which the frozen raw-syscall layer does not declare.
+        # LLVM uses libc, including printf for std/core.lang's print_f64.
         echo 'include "std/os/libc.lang"' > std/os.lang
         ;;
 esac
