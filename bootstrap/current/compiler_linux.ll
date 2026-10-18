@@ -23956,7 +23956,7 @@ L147:
     %t636 = ptrtoint i8* %t635 to i64
     store i64 %t636, i64* %wp.19
     %main_src.57 = alloca i64
-    %t637 = ptrtoint i8* getelementptr inbounds ([680 x i8], [680 x i8]* @.str245, i64 0, i64 0) to i64
+    %t637 = ptrtoint i8* getelementptr inbounds ([765 x i8], [765 x i8]* @.str245, i64 0, i64 0) to i64
     store i64 %t637, i64* %main_src.57
     br label %L148
 L148:
@@ -25000,7 +25000,7 @@ L16:
     %t96 = ptrtoint i8* %t95 to i64
     store i64 %t96, i64* %wp.12
     %main_src.14 = alloca i64
-    %t97 = ptrtoint i8* getelementptr inbounds ([680 x i8], [680 x i8]* @.str245, i64 0, i64 0) to i64
+    %t97 = ptrtoint i8* getelementptr inbounds ([765 x i8], [765 x i8]* @.str245, i64 0, i64 0) to i64
     store i64 %t97, i64* %main_src.14
     br label %L17
 L17:
@@ -92818,10 +92818,10 @@ L555:
 @.str15 = private constant [2 x i8] c"0\00"
 @.str16 = private constant [4 x i8] c"%f\0A\00"
 @.str17 = private constant [6 x i8] c"0.1.0\00"
-@.str18 = private constant [8 x i8] c"768f157\00"
+@.str18 = private constant [8 x i8] c"e97e4c2\00"
 @.str19 = private constant [7 x i8] c"x86_64\00"
 @.str20 = private constant [7 x i8] c"system\00"
-@.str21 = private constant [8 x i8] c"f532c0d\00"
+@.str21 = private constant [8 x i8] c"768f157\00"
 @.str22 = private constant [5 x i8] c"func\00"
 @.str23 = private constant [4 x i8] c"var\00"
 @.str24 = private constant [7 x i8] c"struct\00"
@@ -93045,7 +93045,7 @@ L555:
 @.str242 = private constant [3 x i8] c"}\0A\00"
 @.str243 = private constant [6 x i8] c"func \00"
 @.str244 = private constant [11 x i8] c" *u8) *u8 \00"
-@.str245 = private constant [680 x i8] c"func main() i64 {\0A    var buf *u8 = alloc(4194304);\0A    var n i64 = 0;\0A    var chunk i64 = file_read(0, buf, 4194303);\0A    while chunk > 0 {\0A        n = n + chunk;\0A        if n >= 4194303 { chunk = 0; }\0A        else { chunk = file_read(0, buf + n, 4194303 - n); }\0A    }\0A    if chunk < 0 { eprintln(\22error: cannot read reader stdin\22); return 1; }\0A    var probe u8 = 0;\0A    if n == 4194303 {\0A        var extra i64 = file_read(0, &probe, 1);\0A        if extra < 0 { eprintln(\22error: cannot read reader stdin\22); return 1; }\0A        if extra > 0 { eprintln(\22error: size limit exceeded: reader stdin (buffer bytes: 4194304)\22); return 1; }\0A    }\0A    *(buf + n) = 0;\0A    var result *u8 = \00"
+@.str245 = private constant [765 x i8] c"func main() i64 {\0A    var buf *u8 = alloc(4194304);\0A    var n i64 = 0;\0A    var chunk i64 = file_read(0, buf, 4194303);\0A    while chunk > 0 {\0A        n = n + chunk;\0A        if n >= 4194303 { chunk = 0; }\0A        else { chunk = file_read(0, buf + n, 4194303 - n); }\0A    }\0A    if chunk < 0 { eprintln(\22error: cannot read reader stdin\22); return 1; }\0A    var probe u8 = 0;\0A    if n == 4194303 {\0A        var extra i64 = file_read(0, &probe, 1);\0A        if extra < 0 { eprintln(\22error: cannot read reader stdin\22); return 1; }\0A        if extra > 0 {\0A            while extra > 0 { extra = file_read(0, buf, 4096); }\0A            eprintln(\22error: size limit exceeded: reader stdin (buffer bytes: 4194304)\22); return 1;\0A        }\0A    }\0A    *(buf + n) = 0;\0A    var result *u8 = \00"
 @.str246 = private constant [78 x i8] c"(buf);\0A    if result == nil { return 1; }\0A    print(result);\0A    return 0;\0A}\0A\00"
 @.str247 = private constant [69 x i8] c"func ___main(argc i64, argv **u8, envp **u8) i64 { return main(); }\0A\00"
 @.str248 = private constant [35 x i8] c"error: cannot write reader wrapper\00"
