@@ -206,6 +206,7 @@ bootstrap:
 		diff $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll | head -20; \
 		exit 1; \
 	fi
+	@shasum -a 256 $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
 	@echo "│ STAGE 4: AST FIXED POINT                                       │"
@@ -223,6 +224,7 @@ bootstrap:
 		diff $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast | head -20; \
 		exit 1; \
 	fi
+	@shasum -a 256 $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
 	@echo "│ STAGE 5: GENERATE BOOTSTRAP FILES                              │"
@@ -406,7 +408,7 @@ bootstrap:
 	@echo "║                                                                ║"
 	@echo "║ Promoted: bootstrap/current/ ($(VERSION))                     ║"
 	@echo "║   - compiler_linux.ll (clang-verified)                         ║"
-	@echo "║   - compiler_macos.ll (clang-verified, tested on macos)        ║"
+	@echo "║   - compiler_macos.ll (cross-target checked)                ║"
 	@echo "║   - lang_reader/source.ast                                     ║"
 	@echo "╚════════════════════════════════════════════════════════════════╝"
 	@echo ""

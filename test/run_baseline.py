@@ -56,8 +56,14 @@ def main():
                'log': log.name, 'pass': result.returncode == 0 and all(token in text for token in tokens)}
         if name == 'bootstrap' and row['pass']:
             artifacts = ['kernel2.ll', 'kernel3.ll', 'reader_ast1.ast', 'reader_ast2.ast']
-            receipt['fixed_points'] = {p: hashlib.sha256((Path('out/bootstrap_verify') / p).read_bytes()).hexdigest()
-                                       for p in artifacts}
+            # Bootstrap removes its temporary verification directory after promotion.
+            # Hashes are printed while both fixed-point pairs still exist.
+            receipt['fixed_points'] = {}
+            for artifact in artifacts:
+                match = re.search(r'^([0-9a-f]{64})\s+[^\n]*/' + re.escape(artifact) + r'$', text, re.M)
+                if match is None:
+                    raise RuntimeError(f'bootstrap did not record fixed-point hash: {artifact}')
+                receipt['fixed_points'][artifact] = match.group(1)
             points = receipt['fixed_points']
             row['pass'] &= points['kernel2.ll'] == points['kernel3.ll'] and points['reader_ast1.ast'] == points['reader_ast2.ast']
         if skips is not None:
