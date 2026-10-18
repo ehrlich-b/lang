@@ -1329,6 +1329,7 @@ func compile_reader_to_executable(decl *u8) void {
     var selected *u8 = alloc(cg_current_file_decl_count);
     var dependency_src *u8 = alloc(1048576);
     var dependency_len i64 = strlen(body_src);
+    if dependency_len >= 1048576 { compiler_size_error("reader dependencies", 1048576); }
     memcpy(dependency_src, body_src, dependency_len);
     *(dependency_src + dependency_len) = 0;
 
@@ -1383,6 +1384,7 @@ func compile_reader_to_executable(decl *u8) void {
                     if k == NODE_VAR_DECL { ast_to_string_stmt(sibling); }
                     var selected_src *u8 = ast_str_finish();
                     var selected_len i64 = strlen(selected_src);
+                    if dependency_len + selected_len >= 1048576 { compiler_size_error("reader dependencies", 1048576); }
                     memcpy(dependency_src + dependency_len, selected_src, selected_len);
                     dependency_len = dependency_len + selected_len;
                     *(dependency_src + dependency_len) = 0;
@@ -1497,34 +1499,34 @@ func compile_reader_to_executable(decl *u8) void {
 
     // Copy sibling declarations to wrapper
     var siblings_copy *u8 = siblings_src;
-    while *siblings_copy != 0 { *wp = *siblings_copy; wp = wp + 1; siblings_copy = siblings_copy + 1; }
+    while *siblings_copy != 0 { wp = compiler_wrapper_put(wrapper, wp, *siblings_copy); siblings_copy = siblings_copy + 1; }
 
     // func <name>(<param> *u8) *u8
     var fn_kw *u8 = "func ";
-    while *fn_kw != 0 { *wp = *fn_kw; wp = wp + 1; fn_kw = fn_kw + 1; }
+    while *fn_kw != 0 { wp = compiler_wrapper_put(wrapper, wp, *fn_kw); fn_kw = fn_kw + 1; }
     j = 0;
-    while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
-    *wp = 40; wp = wp + 1;  // (
+    while j < name_len { wp = compiler_wrapper_put(wrapper, wp, *(name + j)); j = j + 1; }
+    wp = compiler_wrapper_put(wrapper, wp, 40);  // (
     j = 0;
-    while j < param_len { *wp = *(param_name + j); wp = wp + 1; j = j + 1; }
+    while j < param_len { wp = compiler_wrapper_put(wrapper, wp, *(param_name + j)); j = j + 1; }
     var sig *u8 = " *u8) *u8 ";
-    while *sig != 0 { *wp = *sig; wp = wp + 1; sig = sig + 1; }
-    while *body_src != 0 { *wp = *body_src; wp = wp + 1; body_src = body_src + 1; }
-    *wp = 10; wp = wp + 1;  // newline
+    while *sig != 0 { wp = compiler_wrapper_put(wrapper, wp, *sig); sig = sig + 1; }
+    while *body_src != 0 { wp = compiler_wrapper_put(wrapper, wp, *body_src); body_src = body_src + 1; }
+    wp = compiler_wrapper_put(wrapper, wp, 10);  // newline
 
     // main() wrapper - use the reader's parameter name
-    var main_src *u8 = "func main() i64 {\n    var buf *u8 = alloc(4194304);\n    var n i64 = 0;\n    var chunk i64 = file_read(0, buf, 4194303);\n    while chunk > 0 {\n        n = n + chunk;\n        if n >= 4194303 { chunk = 0; }\n        else { chunk = file_read(0, buf + n, 4194303 - n); }\n    }\n    if chunk < 0 { return 1; }\n    *(buf + n) = 0;\n    var result *u8 = ";
-    while *main_src != 0 { *wp = *main_src; wp = wp + 1; main_src = main_src + 1; }
+    var main_src *u8 = "func main() i64 {\n    var buf *u8 = alloc(4194304);\n    var n i64 = 0;\n    var chunk i64 = file_read(0, buf, 4194303);\n    while chunk > 0 {\n        n = n + chunk;\n        if n >= 4194303 { chunk = 0; }\n        else { chunk = file_read(0, buf + n, 4194303 - n); }\n    }\n    if chunk < 0 { eprintln(\"error: cannot read reader stdin\"); return 1; }\n    var probe u8 = 0;\n    if n == 4194303 {\n        var extra i64 = file_read(0, &probe, 1);\n        if extra < 0 { eprintln(\"error: cannot read reader stdin\"); return 1; }\n        if extra > 0 { eprintln(\"error: size limit exceeded: reader stdin (buffer bytes: 4194304)\"); return 1; }\n    }\n    *(buf + n) = 0;\n    var result *u8 = ";
+    while *main_src != 0 { wp = compiler_wrapper_put(wrapper, wp, *main_src); main_src = main_src + 1; }
     j = 0;
-    while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
+    while j < name_len { wp = compiler_wrapper_put(wrapper, wp, *(name + j)); j = j + 1; }
     var main_end *u8 = "(buf);\n    if result == nil { return 1; }\n    print(result);\n    return 0;\n}\n";
-    while *main_end != 0 { *wp = *main_end; wp = wp + 1; main_end = main_end + 1; }
+    while *main_end != 0 { wp = compiler_wrapper_put(wrapper, wp, *main_end); main_end = main_end + 1; }
 
     // Add ___main entry point for x86 backend (_start calls ___main)
     // LLVM backend doesn't need this - clang provides the entry point
     if use_llvm == 0 {
         var entry_main *u8 = "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(); }\n";
-        while *entry_main != 0 { *wp = *entry_main; wp = wp + 1; entry_main = entry_main + 1; }
+        while *entry_main != 0 { wp = compiler_wrapper_put(wrapper, wp, *entry_main); entry_main = entry_main + 1; }
     }
     *wp = 0;
 
@@ -1544,7 +1546,7 @@ func compile_reader_to_executable(decl *u8) void {
         cg_had_error = 1;
         return;
     }
-    file_write(fd, wrapper, wlen);
+    compiler_write_all(fd, wrapper, wlen);
     file_close(fd);
 
     // Once this reader needs rebuilding, never leave an older executable in
@@ -1850,7 +1852,7 @@ func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
 
     // Include stdlib
     var stdlib *u8 = "include \"std/core.lang\"\n";
-    while *stdlib != 0 { *wp = *stdlib; wp = wp + 1; stdlib = stdlib + 1; }
+    while *stdlib != 0 { wp = compiler_wrapper_put(wrapper, wp, *stdlib); stdlib = stdlib + 1; }
 
     // Parse the embedded AST to get the reader declaration
     // The AST is in S-expr format: (reader name param body)
@@ -1866,24 +1868,24 @@ func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
     // For now, assume ast is actually source code (we'll fix -c to emit source)
 
     // Append the reader source
-    while *ast != 0 { *wp = *ast; wp = wp + 1; ast = ast + 1; }
-    *wp = 10; wp = wp + 1;  // newline
+    while *ast != 0 { wp = compiler_wrapper_put(wrapper, wp, *ast); ast = ast + 1; }
+    wp = compiler_wrapper_put(wrapper, wp, 10);  // newline
 
     // Add main wrapper that reads stdin, calls reader, prints result
-    var main_src *u8 = "func main() i64 {\n    var buf *u8 = alloc(4194304);\n    var n i64 = 0;\n    var chunk i64 = file_read(0, buf, 4194303);\n    while chunk > 0 {\n        n = n + chunk;\n        if n >= 4194303 { chunk = 0; }\n        else { chunk = file_read(0, buf + n, 4194303 - n); }\n    }\n    if chunk < 0 { return 1; }\n    *(buf + n) = 0;\n    var result *u8 = ";
-    while *main_src != 0 { *wp = *main_src; wp = wp + 1; main_src = main_src + 1; }
+    var main_src *u8 = "func main() i64 {\n    var buf *u8 = alloc(4194304);\n    var n i64 = 0;\n    var chunk i64 = file_read(0, buf, 4194303);\n    while chunk > 0 {\n        n = n + chunk;\n        if n >= 4194303 { chunk = 0; }\n        else { chunk = file_read(0, buf + n, 4194303 - n); }\n    }\n    if chunk < 0 { eprintln(\"error: cannot read reader stdin\"); return 1; }\n    var probe u8 = 0;\n    if n == 4194303 {\n        var extra i64 = file_read(0, &probe, 1);\n        if extra < 0 { eprintln(\"error: cannot read reader stdin\"); return 1; }\n        if extra > 0 { eprintln(\"error: size limit exceeded: reader stdin (buffer bytes: 4194304)\"); return 1; }\n    }\n    *(buf + n) = 0;\n    var result *u8 = ";
+    while *main_src != 0 { wp = compiler_wrapper_put(wrapper, wp, *main_src); main_src = main_src + 1; }
 
     // Append reader name
     var j i64 = 0;
-    while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
+    while j < name_len { wp = compiler_wrapper_put(wrapper, wp, *(name + j)); j = j + 1; }
 
     var main_end *u8 = "(buf);\n    if result == nil { return 1; }\n    print(result);\n    return 0;\n}\n";
-    while *main_end != 0 { *wp = *main_end; wp = wp + 1; main_end = main_end + 1; }
+    while *main_end != 0 { wp = compiler_wrapper_put(wrapper, wp, *main_end); main_end = main_end + 1; }
 
     // Add ___main entry point for x86 backend
     if use_llvm == 0 {
         var entry_main *u8 = "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(); }\n";
-        while *entry_main != 0 { *wp = *entry_main; wp = wp + 1; entry_main = entry_main + 1; }
+        while *entry_main != 0 { wp = compiler_wrapper_put(wrapper, wp, *entry_main); entry_main = entry_main + 1; }
     }
     *wp = 0;
 
@@ -1897,7 +1899,7 @@ func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
     var wlen i64 = 0;
     var ws *u8 = wrapper;
     while *ws != 0 { wlen = wlen + 1; ws = ws + 1; }
-    file_write(fd, wrapper, wlen);
+    compiler_write_all(fd, wrapper, wlen);
     file_close(fd);
     os_unlink(exe_path);
 
@@ -2165,6 +2167,59 @@ func include_stack_contains(path *u8, path_len i64) bool {
     return false;
 }
 
+// Bounded text I/O reserves a terminator and probes EOF at the boundary.
+// A valid prefix is never accepted as a complete translation unit.
+func compiler_size_error(kind *u8, capacity i64) void {
+    eprint("error: size limit exceeded: ");
+    eprint(kind);
+    eprint(" (buffer bytes: ");
+    eprint_i64(capacity);
+    eprintln(")");
+    exit(1);
+}
+
+func compiler_wrapper_put(wrapper *u8, cursor *u8, c u8) *u8 {
+    if cursor - wrapper >= 1048575 { compiler_size_error("reader wrapper", 1048576); }
+    *cursor = c;
+    return cursor + 1;
+}
+
+func compiler_read_text_fd(fd i64, buf *u8, capacity i64, label *u8) i64 {
+    var total i64 = 0;
+    while total < capacity - 1 {
+        var n i64 = file_read(fd, buf + total, capacity - 1 - total);
+        if n < 0 {
+            eprint("error: cannot read "); eprintln(label); exit(1);
+        }
+        if n == 0 { *(buf + total) = 0; return total; }
+        total = total + n;
+    }
+    var probe u8 = 0;
+    var extra i64 = file_read(fd, &probe, 1);
+    if extra < 0 { eprint("error: cannot read "); eprintln(label); exit(1); }
+    if extra > 0 { compiler_size_error(label, capacity); }
+    *(buf + total) = 0;
+    return total;
+}
+
+func compiler_read_text_file(path *u8, capacity i64) *u8 {
+    var fd i64 = resource_open_read(path);
+    if fd < 0 { eprint("error: cannot open "); eprintln(path); return nil; }
+    var buf *u8 = alloc(capacity);
+    compiler_read_text_fd(fd, buf, capacity, path);
+    file_close(fd);
+    return buf;
+}
+
+func compiler_write_all(fd i64, buf *u8, length i64) void {
+    var total i64 = 0;
+    while total < length {
+        var n i64 = file_write(fd, buf + total, length - total);
+        if n <= 0 { eprintln("error: cannot write compiler output"); exit(1); }
+        total = total + n;
+    }
+}
+
 // Read a file into a buffer (returns length, or -1 on error)
 func read_file_contents(path *u8, path_len i64, buf *u8, buf_cap i64) i64 {
     // Null-terminate path
@@ -2183,7 +2238,7 @@ func read_file_contents(path *u8, path_len i64, buf *u8, buf_cap i64) i64 {
     }
 
     // Read contents using OS layer
-    var n i64 = os_read(fd, buf, buf_cap);
+    var n i64 = compiler_read_text_fd(fd, buf, buf_cap, path_z);
     os_close(fd);
 
     if n >= 0 {
@@ -2678,6 +2733,7 @@ func new_label() i64 {
 func flush_func_body() void {
     var i i64 = 0;
     while i < cg_func_len {
+        if cg_code_len >= cg_code_cap { compiler_size_error("assembly output", cg_code_cap); }
         *(cg_code_buf + cg_code_len) = *(cg_func_buf + i);
         cg_code_len = cg_code_len + 1;
         i = i + 1;
@@ -2690,15 +2746,15 @@ func flush_func_body() void {
 // ============================================================
 
 func out_char(c u8) void {
-    file_write(cg_out_fd, &c, 1);
+    compiler_write_all(cg_out_fd, &c, 1);
 }
 
 func out_str(s *u8) void {
-    file_write(cg_out_fd, s, strlen(s));
+    compiler_write_all(cg_out_fd, s, strlen(s));
 }
 
 func out_n(s *u8, n i64) void {
-    file_write(cg_out_fd, s, n);
+    compiler_write_all(cg_out_fd, s, n);
 }
 
 func out_int(n i64) void {
@@ -5694,8 +5750,22 @@ func gen_block(block *u8) void {
 // Function code generation
 // ============================================================
 
+// Returning a struct currently transports the address of a local stack slot.
+// Refuse that signature until owned aggregate results have a defined ABI.
+func compiler_check_return_type(t *u8) void {
+    if t == nil { return; }
+    if type_kind(t) == TYPE_BASE {
+        if find_struct(base_type_name(t), base_type_name_len(t)) != nil {
+            cg_error_prefix();
+            eprintln("struct value returns are unsupported; use an explicit output pointer");
+            exit(1);
+        }
+    }
+}
+
 func gen_func(func_node *u8) void {
     cg_diagnostic_node = func_node;
+    compiler_check_return_type(func_decl_ret_type(func_node));
     // Extern functions have no body - skip code generation
     if func_decl_is_extern(func_node) {
         return;
@@ -5815,6 +5885,8 @@ func gen_func(func_node *u8) void {
 
 // Generate a lambda function (similar to gen_func but with generated name)
 func gen_lambda(lambda_node *u8, lambda_id i64, captures *u8, capture_count i64) void {
+    cg_diagnostic_node = lambda_node;
+    compiler_check_return_type(lambda_expr_ret_type(lambda_node));
     // Reset locals
     cg_local_count = 0;
     cg_stack_size = 0;
@@ -6711,10 +6783,15 @@ func cg_ast_effect_case(cases *u8, index i64) *u8 {
 }
 
 func ast_str_append_char(c u8) void {
-    if ast_str_pos < ast_str_cap - 1 {
-        *(ast_str_buf + ast_str_pos) = c;
-        ast_str_pos = ast_str_pos + 1;
+    if ast_str_pos >= ast_str_cap - 1 {
+        if ast_str_cap >= SIZE_AST_EMIT { compiler_size_error("AST source output", ast_str_cap); }
+        var grown *u8 = alloc(ast_str_cap * 2);
+        memcpy(grown, ast_str_buf, ast_str_pos);
+        ast_str_buf = grown;
+        ast_str_cap = ast_str_cap * 2;
     }
+    *(ast_str_buf + ast_str_pos) = c;
+    ast_str_pos = ast_str_pos + 1;
 }
 
 func ast_str_append(s *u8, len i64) void {
@@ -7632,6 +7709,13 @@ func exec_capture(program *u8, input *u8, input_len i64, output *u8, output_cap 
             n = os_read(stdout_read, output + total, output_cap - 1 - total);
         }
     }
+    var overflow i64 = 0;
+    if total >= output_cap - 1 {
+        var discard *u8 = alloc(4096);
+        n = os_read(stdout_read, discard, 4096);
+        while n > 0 { overflow = 1; n = os_read(stdout_read, discard, 4096); }
+    }
+    if n < 0 { eprintln("error: cannot read reader stdout"); exit(1); }
     os_close(stdout_read);
 
     // Null-terminate output
@@ -7641,6 +7725,7 @@ func exec_capture(program *u8, input *u8, input_len i64, output *u8, output_cap 
     var status *i64 = alloc(8);
     os_waitpid(pid, status, 0);
 
+    if overflow != 0 { compiler_size_error("reader stdout", output_cap); }
     var exit_code i64 = process_status_code(*status);
     if exit_code != 0 {
         return 0 - exit_code;
@@ -7801,7 +7886,7 @@ func generate(prog *u8, out_path *u8) void {
     }
 
     // Write code buffer
-    file_write(cg_out_fd, cg_code_buf, cg_code_len);
+    compiler_write_all(cg_out_fd, cg_code_buf, cg_code_len);
 
     file_close(cg_out_fd);
 }

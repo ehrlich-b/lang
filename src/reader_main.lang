@@ -14,30 +14,13 @@ func get_arg(argv **u8, i i64) *u8 {
 }
 
 func read_file(path *u8) *u8 {
-    var fd i64 = file_open(path, 0);  // O_RDONLY
-    if fd < 0 {
-        eprint("Error: cannot open file: ");
-        eprintln(path);
-        return nil;
-    }
-
-    var buf *u8 = alloc(1048576);  // 1MB max file size
-    var n i64 = file_read(fd, buf, 1048576);
-    file_close(fd);
-
-    if n < 0 {
-        eprintln("Error: cannot read file");
-        return nil;
-    }
-
-    // Null-terminate
-    *(buf + n) = 0;
-    return buf;
+    return compiler_read_text_file(path, 1048576);
 }
 
 // Helper to append string to source buffer
 func append_str(buf *u8, len *i64, s *u8) void {
     while *s != 0 {
+        if *len >= 4194303 { compiler_size_error("combined source", 4194304); }
         *(buf + *len) = *s;
         *len = *len + 1;
         s = s + 1;
@@ -129,7 +112,7 @@ func main(argc i64, argv **u8) i64 {
             eprintln(output_file);
             return 1;
         }
-        file_write(fd, ast_str, strlen(ast_str));
+        compiler_write_all(fd, ast_str, strlen(ast_str));
         file_close(fd);
 
         eprint("Wrote AST to ");

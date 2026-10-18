@@ -69,6 +69,7 @@ func llvm_emit_line(s *u8) void {
 var llvm_uses_effects i64 = 0;
 
 func llvm_emit_effect_optimization_guard() void {
+    llvm_emit_line("@llvm.used = appending global [1 x i8*] [i8* bitcast (void ()* @__lang_effects_require_O0 to i8*)], section \"llvm.metadata\"");
     llvm_emit_line("declare i1 @llvm.is.constant.i8(i8)");
     llvm_emit_line("define void @__lang_effects_require_O0() {");
     llvm_emit_line("    %slot = alloca i8");
@@ -114,7 +115,7 @@ func llvm_emit_n(s *u8, len i64) void {
 }
 
 func llvm_flush() void {
-    file_write(llvm_out_fd, llvm_buf, llvm_len);
+    compiler_write_all(llvm_out_fd, llvm_buf, llvm_len);
     file_close(llvm_out_fd);
 }
 
@@ -6145,6 +6146,7 @@ func llvm_emit_block(block *u8) void {
 
 func llvm_emit_func(func_node *u8) void {
     cg_diagnostic_node = func_node;
+    compiler_check_return_type(func_decl_ret_type(func_node));
     // Register this function for return type lookup
     var name *u8 = func_decl_name(func_node);
     var name_len i64 = func_decl_name_len(func_node);
@@ -7217,6 +7219,8 @@ func llvm_register_all_decls(prog *u8) void {
 
 // Generate a single lambda function
 func llvm_gen_lambda(lambda_node *u8, lambda_id i64, captures *u8, capture_count i64) void {
+    cg_diagnostic_node = lambda_node;
+    compiler_check_return_type(lambda_expr_ret_type(lambda_node));
     llvm_current_function = alloc(32);
     memcpy(llvm_current_function, "__lambda_", 9);
     itoa(lambda_id, llvm_current_function + 9);

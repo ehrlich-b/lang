@@ -42,16 +42,18 @@ for source in programs:
         if compiled.returncode:
             raise RuntimeError('LLVM emission failed: ' + compiled.stderr.decode(errors='replace'))
         reference = None
-        for level in range(3):
-            binary = directory / f'O{level}'
-            build = run([os.environ.get('CLANG', 'clang'), f'-O{level}', str(ir), '-o', str(binary)],
-                        directory / f'build-O{level}')
+        for mode, flags in [("O0", ["-O0"]), ("O1", ["-O1"]), ("O2", ["-O2"]),
+                            ("O2-lto", ["-O2", "-flto"] + ([] if sys.platform == "darwin" else ["-fuse-ld=lld"]))]:
+            level = 0 if mode == "O0" else 2
+            binary = directory / mode
+            build = run([os.environ.get('CLANG', 'clang'), *flags, str(ir), '-o', str(binary)],
+                        directory / f'build-{mode}')
             if build.returncode:
-                if level == 0 or not build.stderr.strip():
-                    raise RuntimeError(f'O{level} build failed without an acceptable baseline/diagnostic')
-                rows.append([name, f'-O{level}', 'LOUD BUILD FAILURE', '', '', build.returncode])
+                if level == 0 or b'algebraic effects require -O0' not in build.stderr:
+                    raise RuntimeError(f'{mode} build failed without the effects optimization diagnostic')
+                rows.append([name, ' '.join(flags), 'LOUD BUILD FAILURE', '', '', build.returncode])
                 continue
-            result = run([str(binary)], directory / f'run-O{level}', case_env)
+            result = run([str(binary)], directory / f'run-{mode}', case_env)
             behavior = (result.returncode, result.stdout, result.stderr)
             if level == 0:
                 match = re.search(r'expect:\s*(\d+)', source.read_text().splitlines()[0])
@@ -63,7 +65,7 @@ for source in programs:
                 reference = behavior
             verdict = 'PASS' if behavior == reference else 'WRONG BEHAVIOR'
             failed |= verdict != 'PASS'
-            rows.append([name, f'-O{level}', verdict, result.stdout.decode(errors='replace'),
+            rows.append([name, ' '.join(flags), verdict, result.stdout.decode(errors='replace'),
                          result.stderr.decode(errors='replace'), result.returncode])
     except (RuntimeError, subprocess.TimeoutExpired) as error:
         rows.append([name, '', 'FAIL', str(error), '', ''])
@@ -76,5 +78,5 @@ with (evidence / 'matrix.tsv').open('w') as output:
 (evidence / 'matrix.json').write_text(json.dumps(rows, indent=2) + '\n')
 for row in rows:
     print(f'{row[0]} {row[1]}: {row[2]}; stdout={row[3]!r}; exit={row[5]}')
-print(f"Effects safety: {'FAIL' if failed else 'PASS'} ({len(programs)} programs, O0/O1/O2)")
+print(f"Effects safety: {'FAIL' if failed else 'PASS'} ({len(programs)} programs, O0/O1/O2/O2 full LTO)")
 sys.exit(1 if failed else 0)

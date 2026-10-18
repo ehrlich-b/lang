@@ -1,3 +1,5 @@
+> Historical design and proposals: consult [current capability profiles](../docs/PROFILES.md) for shipped behavior. Continuation lifetime, GC, C semantics and compiler isolation claims below are not implementation guarantees.
+
 # AST as Language: The Root Language Design
 
 ## The Insight
@@ -1369,7 +1371,7 @@ The AST is intentionally high-level. The **kernel** defines the operational sema
 
 | Concern | Kernel's Answer |
 |---------|-----------------|
-| Integer overflow | Wrapping (two's complement, like C) |
+| Integer overflow | Historical proposal: wrapping two's complement; standard C signed overflow is undefined, and frontends must specify their own contract |
 | Division by zero | Undefined (crashes) |
 | Null pointer (`nil`) | Zero address, dereference crashes |
 | Struct layout | Sequential, 8-byte aligned fields |
