@@ -338,6 +338,7 @@ func main() i64 { return two(1); }
 
   const labHtml = fs.readFileSync('web/lab.html', 'utf8');
   for (const path of [
+    'example/tree/tree.lang',
     'example/tiny/tiny.lang', 'example/calc/calc.lang', 'example/c/c.lang',
     'example/forth/forth.lang', 'example/minilisp/minilisp.lang',
     'example/minipy/minipy.lang', 'example/flow/flow.lang',

@@ -17,6 +17,7 @@ const paths = [
   'std/pnode.lang',
   'std/parser_runtime.lang',
   'example/tiny/tiny.lang',
+  'example/tree/tree.lang',
   'example/calc/calc.lang',
   'example/c/c.lang',
   'example/forth/forth.lang',

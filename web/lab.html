@@ -13,10 +13,11 @@
   h1 { color:var(--green); margin:.5rem 0 0; font-size:1.8rem; }
   p { color:var(--dim); margin:.3rem 0 1.2rem; }
   .lab { display:grid; grid-template-columns:1.35fr .65fr; border:1px solid var(--border); border-radius:7px; overflow:hidden; background:var(--panel); }
+  .pane { min-width:0; }
   .pane + .pane { border-left:1px solid var(--border); }
   .head { height:42px; display:flex; align-items:center; justify-content:space-between; padding:0 .8rem; border-bottom:1px solid var(--border); color:var(--dim); }
   .tools, .downloads { display:flex; align-items:center; gap:.55rem; }
-  select { max-width:112px; border:1px solid var(--border); border-radius:4px; padding:.2rem .35rem; background:var(--bg); color:var(--text); font:12px inherit; }
+  select { max-width:170px; border:1px solid var(--border); border-radius:4px; padding:.2rem .35rem; background:var(--bg); color:var(--text); font:12px inherit; }
   textarea, pre { width:100%; height:350px; margin:0; padding:.8rem; border:0; background:var(--panel); color:var(--text); font:13px/1.45 inherit; resize:none; overflow:auto; tab-size:4; }
   #reader { height:314px; }
   #custom-source { height:82px; border-bottom:1px solid var(--border); }
@@ -24,6 +25,10 @@
   details.runtime { border-top:1px solid var(--border); color:var(--dim); }
   details.runtime summary { height:36px; padding:.45rem .8rem; cursor:pointer; font-size:.85rem; }
   #runtime { height:150px; border-top:1px solid var(--border); }
+  #reader-diagnostics { border-top:1px solid var(--border); }
+  #reader-diagnostics summary { padding:.45rem .8rem; cursor:pointer; color:var(--blue); font-size:.85rem; }
+  #reader-diagnostics p { padding:0 .8rem; margin:0; font-size:.75rem; }
+  #reader-stderr { height:auto; max-height:300px; font-size:12px; }
   textarea:focus { outline:1px solid var(--blue); outline-offset:-1px; }
   pre { white-space:pre; }
   button { border:0; border-radius:5px; padding:.3rem .8rem; color:#04260f; background:var(--green); font:inherit; font-weight:bold; cursor:pointer; }
@@ -33,7 +38,7 @@
   .file-action { color:var(--blue); cursor:pointer; text-decoration:underline; }
   .ok { color:var(--green); } .bad { color:var(--warn); }
   .note { font-size:.85rem; margin-top:.8rem; }
-  @media (max-width:760px) { .lab { grid-template-columns:1fr; } .pane + .pane { border-left:0; border-top:1px solid var(--border); } #reader { height:264px; } }
+  @media (max-width:760px) { .head { height:auto; min-height:42px; flex-wrap:wrap; gap:.4rem; padding:.4rem .8rem; } .lab { grid-template-columns:1fr; } .pane + .pane { border-left:0; border-top:1px solid var(--border); } #reader { height:264px; } }
 </style>
 </head>
 <body><main>
@@ -50,6 +55,7 @@
             <option value="starter">starter grammar</option>
             <option value="tiny">tiny</option>
             <option value="calc">calculator</option>
+            <option value="tree">named capture tree</option>
             <option value="c">C subset</option>
             <option value="forth">Forth</option>
             <option value="minilisp">Minilisp</option>
@@ -97,6 +103,11 @@ reader read(text *u8) *u8 {
         <a class="download" id="download-program" hidden>program ↓</a>
       </span></div>
       <pre id="output">Define a reader, then build + run.</pre>
+      <details id="reader-diagnostics" hidden>
+        <summary id="reader-diagnostics-label">reader diagnostics / tree</summary>
+        <p>Reader stderr · @start:end spans are zero-based bytes, end exclusive.</p>
+        <pre id="reader-stderr" aria-label="Reader diagnostics and parse tree"></pre>
+      </details>
     </section>
   </div>
   <p class="note">local: reader → AST → wasm · <a id="save-workspace">save workspace</a> · <label class="file-action">open workspace<input id="open-workspace" type="file" accept=".json,application/json" hidden></label></p>
@@ -124,6 +135,9 @@ const runtimeLabel = document.getElementById('runtime-label');
 const customSource = document.getElementById('custom-source');
 const output = document.getElementById('output');
 const status = document.getElementById('status');
+const readerDiagnostics = document.getElementById('reader-diagnostics');
+const readerStderr = document.getElementById('reader-stderr');
+const readerDiagnosticsLabel = document.getElementById('reader-diagnostics-label');
 const downloadReader = document.getElementById('download-reader');
 const downloadAst = document.getElementById('download-ast');
 const downloadProgram = document.getElementById('download-program');
@@ -135,6 +149,7 @@ const presets = {
   workspace: { source: 'answer 42' },
   starter: { source: 'answer 42' },
   tiny: { reader: 'example/tiny/tiny.lang', source: 'answer 42' },
+  tree: { reader: 'example/tree/tree.lang', source: '10:32' },
   calc: { reader: 'example/calc/calc.lang', source: 'answer 1 + 2 * 3' },
   c: { reader: 'example/c/c.lang', source: 'int main() { return 42; }' },
   forth: { reader: 'example/forth/forth.lang', source: ': main ( -- n ) 42 ;' },
@@ -151,11 +166,11 @@ for (const name of ['c', 'flow', 'forth', 'minilisp', 'minipy']) {
 }
 
 Promise.all([
-  fetch('compiler.wasm?v=workbench10').then(r => {
+  fetch('compiler.wasm?v=workbench12').then(r => {
     if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
     return r.arrayBuffer();
   }),
-  fetch('stdlib.json?v=reader-locations').then(r => {
+  fetch('stdlib.json?v=tree-reader-locations').then(r => {
     if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
     return r.json();
   }),
@@ -214,6 +229,8 @@ function loadPreset(name) {
     ? 'target runtime (included)'
     : 'target runtime (optional)';
   storageSet('lang.lab.active', name);
+  showReaderDiagnostics('');
+  readerDiagnostics.open = name === 'tree';
 }
 
 preset.onchange = () => {
@@ -269,6 +286,7 @@ openWorkspace.onchange = async () => {
       : 'target runtime (optional)';
     saveDraft();
     clearDownloads();
+    showReaderDiagnostics('');
     output.textContent = 'Workspace loaded. Build + run when ready.';
     status.innerHTML = '<span class="ok">loaded</span>';
   } catch (error) {
@@ -329,6 +347,13 @@ function focusDiagnostic(message, sourceLabel) {
   return true;
 }
 
+function showReaderDiagnostics(stderr) {
+  readerStderr.textContent = stderr;
+  readerDiagnostics.hidden = !stderr;
+  const lines = stderr.trimEnd().split('\n').length;
+  readerDiagnosticsLabel.textContent = `reader diagnostics / tree · ${lines} ${lines === 1 ? 'line' : 'lines'}`;
+}
+
 function clearDownloads() {
   jumpError.hidden = true;
   jumpError.onclick = null;
@@ -366,6 +391,7 @@ button.onclick = async () => {
   button.disabled = true;
   status.textContent = 'building reader…';
   output.textContent = '';
+  showReaderDiagnostics('');
   clearDownloads();
   const started = performance.now();
   let phase = 'reader build';
@@ -404,6 +430,7 @@ func main() *u8 {
     phase = 'reader run';
     status.textContent = `${phase}…`;
     const readerRun = await runLangProgram(readerProgram, undefined, customSource.value);
+    showReaderDiagnostics(readerRun.stderr);
     if (readerRun.value === 0n) {
       throw new Error(readerRun.stderr || readerRun.stdout || 'reader returned nil');
     }
