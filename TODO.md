@@ -51,7 +51,7 @@ Different syntaxes, same compilation pipeline, same ABI, single binary.
 34. ✓ Let a reader supply its own tokens
 35. ✓ Fold prefix and assignment operators into the precedence table
 36. ✓ Let a reader say what a comment is
-37. → **Give every reader's own errors a location** ← current
+37. ✓ Give every reader's own errors a location
 
 ---
 
@@ -365,7 +365,7 @@ in milestones 28 and 31.
 
 ---
 
-## Next: Give every reader's own errors a location
+## Completed: Give every reader's own errors a location
 
 The compiler reports semantic errors at the exact span in custom-language source
 (milestone 12), and a generated parser reports syntax errors at line and column.
@@ -375,11 +375,22 @@ hand-rolls it. One did: minipy carries `py_fail_at`, which walks the source
 counting newlines. C, flow, forth and minilisp all print a bare sentence, and
 every `PNode` has been carrying the span that would fix it since milestone 12.
 
-- [ ] One shared way to report a reader error at a `PNode`, given the source the
+- [x] One shared way to report a reader error at a `PNode`, given the source the
       reader was handed.
-- [ ] Adopt it in all five readers and delete minipy's copy.
-- [ ] Guard that each reader's own diagnostics carry a line and column, the way
+- [x] Adopt it in all five readers and delete minipy's copy.
+- [x] Guard that each reader's own diagnostics carry a line and column, the way
       the parse errors beside them already do.
+
+`pnode_print_error(node, source, reader, message)` now owns the location format.
+All five readers use it; Forth carries the offending word through stack pops,
+and minipy's `py_fail_at` is gone. Multi-line rejections are guarded both
+natively through `lang read` and in the browser's reader-Wasm pipeline.
+
+The browser lab now offers five **find an error** workspaces and a **jump to
+error** button. It translates UTF-8 byte columns to textarea offsets, including
+accents and emoji. `test/reader_locations.js` guards comments and blank lines;
+`test/reader_locations_browser.mjs` checks native/Wasm agreement, focus, repeat
+click selection and the valid examples, and captures all five error views.
 
 ---
 

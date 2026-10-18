@@ -1,0 +1,18 @@
+// expect: 0
+// Taking an address follows local scope even when a function has the same name.
+func digit() i64 { return 7; }
+
+func parameter(digit i64) i64 {
+    var p *i64 = &digit;
+    *p = *p + 1;
+    return digit;
+}
+
+func main() i64 {
+    var digit u8 = 40;
+    var p *u8 = &digit;
+    *p = *p + 2;
+    if digit != 42 { return 1; }
+    if parameter(41) != 42 { return 2; }
+    return 0;
+}

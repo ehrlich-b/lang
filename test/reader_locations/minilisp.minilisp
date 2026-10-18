@@ -1,0 +1,5 @@
+; café 🧭 before the form
+
+(+ 1
+   ; café 🧭 before the bad call
+   (2 3))

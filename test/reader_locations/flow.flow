@@ -1,0 +1,5 @@
+// café 🧭 before the program
+
+func bad() {
+    /* café 🧭 */ return 1 & 2;
+}

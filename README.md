@@ -85,6 +85,22 @@ Or [write and run a generated reader in the browser](https://lang.ehrlich.dev/la
 Edit its `#parser{}` grammar and lowering; the reader, AST, compiler, and output
 program all stay in the tab.
 
+To try source diagnostics locally, serve `web/` with
+`python3 -m http.server 8080 --bind 127.0.0.1 --directory web`, open
+`http://127.0.0.1:8080/lab.html`, and choose any of the five **find an error**
+workspaces. **Build + run** selects the offending source token; **jump to error**
+returns to it after you inspect the reader. The examples include comments,
+blank lines, accents and emoji. Locations use 1-based UTF-8 byte columns, which
+the editor converts to its own text offsets.
+
+`node test/reader_locations.js` checks native rejections.
+`node test/reader_locations_browser.mjs` compares native and browser diagnostics,
+checks focus and click selection, runs the five valid examples, and saves PNGs
+and a JSON receipt under `out/reader-locations/`. The browser check needs
+Playwright and Chromium; `PLAYWRIGHT_MODULE` may name Playwright's `index.mjs`,
+`CHROMIUM_PATH` may name an existing Chromium executable, and `EVIDENCE_DIR`
+chooses the artifact directory.
+
 ## Shipped readers, one binary
 
 A reader parses its own surface syntax and emits lang AST. The kernel compiles whatever any reader emits, so several readers can share one program — and because they all lower to the same AST, they share one calling convention. They call each other directly at the machine level. No FFI, no interpreter, no glue.

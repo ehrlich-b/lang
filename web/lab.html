@@ -29,6 +29,7 @@
   button { border:0; border-radius:5px; padding:.3rem .8rem; color:#04260f; background:var(--green); font:inherit; font-weight:bold; cursor:pointer; }
   button:disabled { opacity:.5; cursor:wait; }
   .download { font-size:.78rem; text-decoration:none; }
+  #jump-error { font-size:.78rem; padding:.15rem .4rem; }
   .file-action { color:var(--blue); cursor:pointer; text-decoration:underline; }
   .ok { color:var(--green); } .bad { color:var(--warn); }
   .note { font-size:.85rem; margin-top:.8rem; }
@@ -54,6 +55,13 @@
             <option value="minilisp">Minilisp</option>
             <option value="minipy">Minipy</option>
             <option value="flow">Flow</option>
+          </optgroup>
+          <optgroup label="find an error">
+            <option value="c-error">C error</option>
+            <option value="flow-error">Flow error</option>
+            <option value="forth-error">Forth error</option>
+            <option value="minilisp-error">Minilisp error</option>
+            <option value="minipy-error">Minipy error</option>
           </optgroup>
         </select>
         <button id="compile" disabled>build + run</button>
@@ -83,6 +91,7 @@ reader read(text *u8) *u8 {
       <div class="head"><span>source.read</span><span id="status" aria-live="polite">loading…</span></div>
       <textarea id="custom-source" aria-label="Source in your language" spellcheck="false">answer 42</textarea>
       <div class="head"><span>result</span><span class="downloads">
+        <button id="jump-error" hidden>jump to error</button>
         <a class="download" id="download-reader" hidden>reader ↓</a>
         <a class="download" id="download-ast" hidden>AST ↓</a>
         <a class="download" id="download-program" hidden>program ↓</a>
@@ -107,6 +116,7 @@ let astDownloadUrl;
 let programDownloadUrl;
 let workspaceDownloadUrl;
 const button = document.getElementById('compile');
+const jumpError = document.getElementById('jump-error');
 const preset = document.getElementById('preset');
 const reader = document.getElementById('reader');
 const runtime = document.getElementById('runtime');
@@ -136,13 +146,16 @@ const presets = {
   minipy: { reader: 'example/minipy/minipy.lang', source: 'def main():\n    return 42\n' },
   flow: { reader: 'example/flow/flow.lang', source: 'func main() { return 42; }' },
 };
+for (const name of ['c', 'flow', 'forth', 'minilisp', 'minipy']) {
+  presets[`${name}-error`] = { ...presets[name], sourcePath: `test/reader_locations/${name}.${name}` };
+}
 
 Promise.all([
   fetch('compiler.wasm?v=workbench10').then(r => {
     if (!r.ok) throw new Error(`compiler: HTTP ${r.status}`);
     return r.arrayBuffer();
   }),
-  fetch('stdlib.json?v=workbench10').then(r => {
+  fetch('stdlib.json?v=reader-locations').then(r => {
     if (!r.ok) throw new Error(`stdlib: HTTP ${r.status}`);
     return r.json();
   }),
@@ -171,7 +184,7 @@ function presetValue(name, field) {
   if (saved !== null) return saved;
   const spec = presets[name];
   if (field === 'reader') return spec.reader ? stdlibFiles[spec.reader] : starterReader;
-  if (field === 'source') return spec.source;
+  if (field === 'source') return spec.sourcePath ? stdlibFiles[spec.sourcePath] : spec.source;
   if (field === 'runtime') return spec.runtime ? stdlibFiles[spec.runtime] : '';
   return '';
 }
@@ -184,11 +197,14 @@ function saveDraft() {
 }
 
 function queueSave() {
+  jumpError.hidden = true;
+  jumpError.onclick = null;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveDraft, 150);
 }
 
 function loadPreset(name) {
+  clearDownloads();
   activePreset = name;
   preset.value = name;
   reader.value = presetValue(name, 'reader');
@@ -276,30 +292,46 @@ function readerName(source) {
   return matches[matches.length - 1][1];
 }
 
-function focusDiagnostic(message) {
+function focusDiagnostic(message, sourceLabel) {
   const match = message.match(
-    /(?:^|\n)(reader\.lang|source\.read|runtime\.lang):(\d+):(\d+):\s*(?:error|warning)/,
+    /(?:^|\n)(reader\.lang|source\.read|runtime\.lang|[A-Za-z_][A-Za-z0-9_]*):(\d+):(\d+):[^\n]*/,
   );
-  if (!match) return;
+  if (!match) return false;
+  if (!['reader.lang', 'source.read', 'runtime.lang', sourceLabel].includes(match[1])) return false;
   const target = match[1] === 'reader.lang'
     ? reader
-    : match[1] === 'source.read' ? customSource : runtime;
+    : match[1] === 'runtime.lang' ? runtime : customSource;
   if (target === runtime) target.closest('details').open = true;
   const line = Number(match[2]);
   const column = Number(match[3]);
   const lines = target.value.split('\n');
-  let start = 0;
-  for (let i = 1; i < line && i <= lines.length; i++) start += lines[i - 1].length + 1;
-  start += Math.max(0, column - 1);
-  start = Math.min(start, target.value.length);
+  if (line < 1 || line > lines.length || column < 1) return false;
+  let start = lines.slice(0, line - 1).reduce((n, text) => n + text.length + 1, 0);
+  // Compiler and reader columns count UTF-8 bytes; textarea offsets count UTF-16.
+  let bytes = 0;
+  const encoder = new TextEncoder();
+  for (const char of lines[line - 1]) {
+    if (bytes >= column - 1) break;
+    bytes += encoder.encode(char).length;
+    start += char.length;
+  }
   let end = start;
-  while (end < target.value.length && /[A-Za-z0-9_]/.test(target.value[end])) end++;
+  const word = /[A-Za-z0-9_?]/;
+  const operator = /[+*/%=!<>&|^~\-]/;
+  const token = word.test(target.value[start] || '') ? word : operator;
+  while (end < target.value.length && token.test(target.value[end])) end++;
   if (end === start) end = Math.min(start + 1, target.value.length);
   target.focus();
   target.setSelectionRange(start, end);
+  const style = getComputedStyle(target);
+  const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.45;
+  target.scrollTop = Math.max(0, (line - 1) * lineHeight - target.clientHeight / 2);
+  return true;
 }
 
 function clearDownloads() {
+  jumpError.hidden = true;
+  jumpError.onclick = null;
   if (readerDownloadUrl) URL.revokeObjectURL(readerDownloadUrl);
   if (astDownloadUrl) URL.revokeObjectURL(astDownloadUrl);
   if (programDownloadUrl) URL.revokeObjectURL(programDownloadUrl);
@@ -337,8 +369,9 @@ button.onclick = async () => {
   clearDownloads();
   const started = performance.now();
   let phase = 'reader build';
+  let name;
   try {
-    const name = readerName(reader.value);
+    name = readerName(reader.value);
     let readerProgram = cachedReaderProgram;
     if (!readerProgram || cachedReaderSource !== reader.value) {
       const harness = `include "std/core.lang"
@@ -413,7 +446,11 @@ func main() *u8 {
   } catch (error) {
     const message = String(error).replace(/^Error: /, '');
     output.textContent = message;
-    focusDiagnostic(message);
+    const sourceLabel = phase === 'reader run' ? name : undefined;
+    if (focusDiagnostic(message, sourceLabel)) {
+      jumpError.hidden = false;
+      jumpError.onclick = () => focusDiagnostic(message, sourceLabel);
+    }
     status.innerHTML = `<span class="bad">${phase} failed</span>`;
   }
   button.disabled = false;

@@ -113,6 +113,9 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   const memory = await compileAndRun('test/direct_wasm_memory_e2e.lang');
   if (Number(memory.value) !== 176) throw new Error(`expected 176, got ${memory.value}`);
 
+  const localAddress = await compileAndRun('test/suite/286_local_address_shadows_function.lang');
+  if (Number(localAddress.value) !== 0) throw new Error('local address did not shadow function');
+
   const imported = await compileAndRun('test/direct_wasm_import_e2e.lang');
   if (Number(imported.value) !== 17 || imported.stdout !== 'direct import\n') {
     throw new Error(`direct import mismatch: value=${imported.value} stdout=${JSON.stringify(imported.stdout)}`);
@@ -302,6 +305,37 @@ func main() i64 { return two(1); }
     throw new Error(`Minipy reader mismatch: ast=${minipyRead.ast}`);
   }
 
+  const readerErrors = [
+    ['c', "c:3:10: '++' has no value here; use it as a statement of its own"],
+    ['flow', 'flow:2:12: this expression is not in the flow subset'],
+    ['forth', 'forth:2:5: stack underflow'],
+    ['minilisp', "minilisp:2:5: a call's head must be a symbol, an operator, or a list '2'"],
+    ['minipy', "minipy:2:26: range's step must be an integer literal"],
+  ];
+  for (const [name, expected] of readerErrors) {
+    const failed = await runReaderSource(
+      fs.readFileSync(`example/${name}/${name}.lang`, 'utf8'), name,
+      fs.readFileSync(`test/reader_error_${name}.${name}`, 'utf8'),
+    );
+    if (failed.ast !== null || failed.readerRun.exit !== 1 ||
+        !failed.readerRun.stderr.split('\n').includes(expected)) {
+      throw new Error(`${name} reader location mismatch: ${failed.readerRun.stderr}`);
+    }
+  }
+
+  // Byte columns stay exact past comments, blank lines, accents and emoji.
+  const locations = require('./reader_locations.js');
+  for (const c of locations.cases) {
+    const failed = await runReaderSource(
+      fs.readFileSync(`example/${c.name}/${c.name}.lang`, 'utf8'), c.name,
+      fs.readFileSync(c.path, 'utf8'),
+    );
+    if (failed.ast !== null || failed.readerRun.exit !== 1 ||
+        !failed.readerRun.stderr.split('\n').includes(locations.diagnostic(c))) {
+      throw new Error(`${c.name} Unicode location mismatch: ${failed.readerRun.stderr}`);
+    }
+  }
+
   const labHtml = fs.readFileSync('web/lab.html', 'utf8');
   for (const path of [
     'example/tiny/tiny.lang', 'example/calc/calc.lang', 'example/c/c.lang',
@@ -318,7 +352,7 @@ func main() i64 { return two(1); }
     'id="preset"', 'id="download-reader"', 'id="download-ast"', 'id="download-program"',
     'id="save-workspace"', 'id="open-workspace"',
     'lang-reader-workspace', 'lang.lab.active', 'readerName(reader.value)',
-    'focusDiagnostic(message)', "target.closest('details').open = true", "phase = 'AST compile'",
+    'focusDiagnostic(message, sourceLabel)', "target.closest('details').open = true", "phase = 'AST compile'",
     'cachedReaderSource !== reader.value', 'customSource.value)',
     'editor.js?v=workbench10', 'formatLangAst(ast)', 'value:number',
     "'program.ast': formattedAst", 'installCodeEditor(reader, queueSave)',

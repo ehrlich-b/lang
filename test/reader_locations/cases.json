@@ -1,0 +1,42 @@
+[
+  {
+    "name": "c",
+    "path": "test/reader_locations/c.c",
+    "line": 5,
+    "column": 27,
+    "selected": "++",
+    "message": "'++' has no value here; use it as a statement of its own"
+  },
+  {
+    "name": "flow",
+    "path": "test/reader_locations/flow.flow",
+    "line": 4,
+    "column": 29,
+    "selected": "1",
+    "message": "this expression is not in the flow subset"
+  },
+  {
+    "name": "forth",
+    "path": "test/reader_locations/forth.forth",
+    "line": 4,
+    "column": 20,
+    "selected": "+",
+    "message": "stack underflow"
+  },
+  {
+    "name": "minilisp",
+    "path": "test/reader_locations/minilisp.minilisp",
+    "line": 5,
+    "column": 5,
+    "selected": "2",
+    "message": "a call's head must be a symbol, an operator, or a list '2'"
+  },
+  {
+    "name": "minipy",
+    "path": "test/reader_locations/minipy.minipy",
+    "line": 5,
+    "column": 26,
+    "selected": "n",
+    "message": "range's step must be an integer literal"
+  }
+]
