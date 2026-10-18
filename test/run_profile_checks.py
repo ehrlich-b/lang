@@ -21,12 +21,14 @@ def main():
                LANG_CACHE=str(output / 'cache'))
     rows = []
 
-    def check(name, command, *, diagnostic=None, data=None, success=True, run_env=env, empty_stdout=False):
+    def check(name, command, *, diagnostic=None, data=None, success=True, run_env=env, empty_stdout=False, exit_code=None):
         result = subprocess.run(command, input=data, capture_output=True, env=run_env, timeout=180)
         (output / f'{name}.stdout').write_bytes(result.stdout)
         (output / f'{name}.stderr').write_bytes(result.stderr)
         (output / f'{name}.exit').write_text(f'{result.returncode}\n')
         good = result.returncode == 0 if success else result.returncode > 0
+        if exit_code is not None:
+            good &= result.returncode == exit_code
         if empty_stdout:
             good &= not result.stdout
         if diagnostic:
@@ -91,7 +93,12 @@ def main():
     check('reader-stdin-boundary', [compiler, 'read', reader, custom, '--compact'])
     custom_over = source('over.bounded', ' ' * (4 * mib))
     check('reader-stdin-over', [compiler, 'read', reader, custom_over, '--compact'],
-          diagnostic='size limit exceeded: reader stdin', success=False, empty_stdout=True)
+          diagnostic='size limit exceeded: reader stdin', success=False, empty_stdout=True, exit_code=1)
+    # More than a pipe's capacity remains after the reader detects overflow.
+    # The producer must survive until it can collect the reader's exit status.
+    far_over = source('far-over.bounded', ' ' * (6 * mib))
+    check('reader-stdin-far-over', [compiler, 'read', reader, far_over, '--compact'],
+          diagnostic='size limit exceeded: reader stdin', success=False, empty_stdout=True, exit_code=1)
     check('combined-source-over', [compiler, reader, custom_over, '-o', str(output / 'combined.ll')],
           diagnostic='size limit exceeded: combined source', success=False)
 
@@ -109,7 +116,7 @@ def main():
               diagnostic=diagnostic, success=False,
               run_env=dict(env, LANGBE=backend, LANGOS='wasm' if backend == 'wasm' else env['LANGOS']))
     # Preserve legacy C semantics explicitly: a non-breaking case does not fall through.
-    c = source('legacy.c', 'int answer(int n) { switch(n) { case 1: n = 40; case 2: n = n + 2; } return n; }\n')
+    c = source('legacy.c', 'int answer(int n) { switch(n) { case 1: n = 40; case 2: n = n + 2; } return n; }\n/* trailing comment */\n')
     host = source('legacy.lang', 'func main() i64 { if answer(1) != 40 { return 1; } if answer(2) != 4 { return 2; } return 0; }\n')
     legacy_ir = str(output / 'legacy.ll')
     check('legacy-c-emit', [compiler, 'example/c/c.lang', c, host, '-o', legacy_ir])
@@ -119,6 +126,31 @@ def main():
     good = 'define i64 @answer(i64' in emitted
     rows.append({'name': 'legacy-c-int-i64', 'pass': good})
     print(f'{"PASS" if good else "FAIL"} legacy-c-int-i64', flush=True)
+    # A valid declaration on each side must never conceal an unsupported one.
+    # Check both the reader protocol and the normal mixed-source compile path.
+    unsupported = {
+        'struct-return': 'struct Pair mk(int n) { return n; }',
+        'typedef': 'typedef int Number;',
+        'union': 'union Value { int n; char c; };',
+        'goto': 'int jump(int n) { goto done; done: return n; }',
+        'varargs': 'int many(int n, ...) { return n; }',
+        'unsigned': 'unsigned int positive(int n) { return n; }',
+        'malformed': 'int broken(int n) { return n }',
+    }
+    for name, construct in unsupported.items():
+        c_bad = source('unsupported-' + name + '.c',
+                       'int before(int n) { return n; }\n' + construct +
+                       '\nint after(int n) { return n; }\n')
+        for mode, command in (
+                ('read', [compiler, 'read', 'example/c/c.lang', c_bad, '--compact']),
+                ('compile', [compiler, 'example/c/c.lang', c_bad, host, '-o', str(output / (name + '.ll'))])):
+            check('c-reject-' + name + '-' + mode, command,
+                  diagnostic='c:2:1: unsupported or invalid C subset syntax',
+                  success=False, empty_stdout=True, exit_code=1)
+    leading = source('unsupported-leading.c', 'typedef int Number;\n')
+    check('c-reject-leading', [compiler, 'read', 'example/c/c.lang', leading, '--compact'],
+          diagnostic='c:1:1: unsupported or invalid C subset syntax',
+          success=False, empty_stdout=True, exit_code=1)
     (output / 'receipt.json').write_text(json.dumps(rows, indent=2) + '\n')
     return 0 if all(row['pass'] for row in rows) else 1
 

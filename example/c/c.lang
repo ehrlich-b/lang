@@ -835,5 +835,15 @@ reader c(text *u8) *u8 {
     c_src = text;
     var t *Tokenizer = tok_new(text);
     var prog *PNode = parse_c_program(t);
+    // Repetition can stop at a valid prefix. Never emit that prefix as a
+    // complete translation unit when a declaration failed to parse.
+    if prog == nil || !tok_eof(t) {
+        var token *PNode = pnode_atom(0, tok_text(t));
+        token.start = tok_start_offset(t);
+        token.end = tok_end_offset(t);
+        pnode_print_error(token, text, "c", "unsupported or invalid C subset syntax");
+        exit(1);
+        return nil;
+    }
     return emit_program(prog);
 }

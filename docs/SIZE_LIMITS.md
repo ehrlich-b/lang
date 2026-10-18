@@ -9,7 +9,7 @@ Limits count bytes, not Unicode characters. Text capacities include one NUL term
 | Main/reader combined source wrapper | 4 MiB | combined source diagnostic |
 | Split compiler/kernel input | 4 MiB | Path diagnostic |
 | Standalone compiler / split reader input | 1 MiB | Path diagnostic |
-| Generated reader stdin | 4 MiB | EOF probe, reader stdin diagnostic |
+| Generated reader stdin | 4 MiB | EOF probe, drain excess, reader stdin diagnostic and exit 1 |
 | External reader stdout capture | 4 MiB | Drain excess, wait, reader stdout diagnostic |
 | Reader wrapper / dependency closure source | 1 MiB each | Checked before stores/copies |
 | AST-to-source renderer | 64 KiB initially, grows to 8 MiB | AST source output diagnostic at maximum |

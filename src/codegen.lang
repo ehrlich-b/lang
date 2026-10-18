@@ -1514,8 +1514,9 @@ func compile_reader_to_executable(decl *u8) void {
     while *body_src != 0 { wp = compiler_wrapper_put(wrapper, wp, *body_src); body_src = body_src + 1; }
     wp = compiler_wrapper_put(wrapper, wp, 10);  // newline
 
-    // main() wrapper - use the reader's parameter name
-    var main_src *u8 = "func main() i64 {\n    var buf *u8 = alloc(4194304);\n    var n i64 = 0;\n    var chunk i64 = file_read(0, buf, 4194303);\n    while chunk > 0 {\n        n = n + chunk;\n        if n >= 4194303 { chunk = 0; }\n        else { chunk = file_read(0, buf + n, 4194303 - n); }\n    }\n    if chunk < 0 { eprintln(\"error: cannot read reader stdin\"); return 1; }\n    var probe u8 = 0;\n    if n == 4194303 {\n        var extra i64 = file_read(0, &probe, 1);\n        if extra < 0 { eprintln(\"error: cannot read reader stdin\"); return 1; }\n        if extra > 0 { eprintln(\"error: size limit exceeded: reader stdin (buffer bytes: 4194304)\"); return 1; }\n    }\n    *(buf + n) = 0;\n    var result *u8 = ";
+    // main() wrapper - use the reader's parameter name. Drain oversized stdin
+    // before exiting so the compiler can finish writing and collect exit 1.
+    var main_src *u8 = "func main() i64 {\n    var buf *u8 = alloc(4194304);\n    var n i64 = 0;\n    var chunk i64 = file_read(0, buf, 4194303);\n    while chunk > 0 {\n        n = n + chunk;\n        if n >= 4194303 { chunk = 0; }\n        else { chunk = file_read(0, buf + n, 4194303 - n); }\n    }\n    if chunk < 0 { eprintln(\"error: cannot read reader stdin\"); return 1; }\n    var probe u8 = 0;\n    if n == 4194303 {\n        var extra i64 = file_read(0, &probe, 1);\n        if extra < 0 { eprintln(\"error: cannot read reader stdin\"); return 1; }\n        if extra > 0 {\n            while extra > 0 { extra = file_read(0, buf, 4096); }\n            eprintln(\"error: size limit exceeded: reader stdin (buffer bytes: 4194304)\"); return 1;\n        }\n    }\n    *(buf + n) = 0;\n    var result *u8 = ";
     while *main_src != 0 { wp = compiler_wrapper_put(wrapper, wp, *main_src); main_src = main_src + 1; }
     j = 0;
     while j < name_len { wp = compiler_wrapper_put(wrapper, wp, *(name + j)); j = j + 1; }
@@ -1871,8 +1872,9 @@ func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
     while *ast != 0 { wp = compiler_wrapper_put(wrapper, wp, *ast); ast = ast + 1; }
     wp = compiler_wrapper_put(wrapper, wp, 10);  // newline
 
-    // Add main wrapper that reads stdin, calls reader, prints result
-    var main_src *u8 = "func main() i64 {\n    var buf *u8 = alloc(4194304);\n    var n i64 = 0;\n    var chunk i64 = file_read(0, buf, 4194303);\n    while chunk > 0 {\n        n = n + chunk;\n        if n >= 4194303 { chunk = 0; }\n        else { chunk = file_read(0, buf + n, 4194303 - n); }\n    }\n    if chunk < 0 { eprintln(\"error: cannot read reader stdin\"); return 1; }\n    var probe u8 = 0;\n    if n == 4194303 {\n        var extra i64 = file_read(0, &probe, 1);\n        if extra < 0 { eprintln(\"error: cannot read reader stdin\"); return 1; }\n        if extra > 0 { eprintln(\"error: size limit exceeded: reader stdin (buffer bytes: 4194304)\"); return 1; }\n    }\n    *(buf + n) = 0;\n    var result *u8 = ";
+    // Add main wrapper that reads stdin, calls reader, prints result.
+    // Drain oversized stdin before exiting to keep the producer's pipe open.
+    var main_src *u8 = "func main() i64 {\n    var buf *u8 = alloc(4194304);\n    var n i64 = 0;\n    var chunk i64 = file_read(0, buf, 4194303);\n    while chunk > 0 {\n        n = n + chunk;\n        if n >= 4194303 { chunk = 0; }\n        else { chunk = file_read(0, buf + n, 4194303 - n); }\n    }\n    if chunk < 0 { eprintln(\"error: cannot read reader stdin\"); return 1; }\n    var probe u8 = 0;\n    if n == 4194303 {\n        var extra i64 = file_read(0, &probe, 1);\n        if extra < 0 { eprintln(\"error: cannot read reader stdin\"); return 1; }\n        if extra > 0 {\n            while extra > 0 { extra = file_read(0, buf, 4096); }\n            eprintln(\"error: size limit exceeded: reader stdin (buffer bytes: 4194304)\"); return 1;\n        }\n    }\n    *(buf + n) = 0;\n    var result *u8 = ";
     while *main_src != 0 { wp = compiler_wrapper_put(wrapper, wp, *main_src); main_src = main_src + 1; }
 
     // Append reader name
