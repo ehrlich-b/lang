@@ -1507,6 +1507,13 @@ cli_errors_e2e() {
 }
 cli_errors_e2e
 
+# Exercise every effects fixture at O0, O1 and O2, including live-state probes.
+if python3 test/run_effects_safety.py; then
+    echo "PASS effects_optimization_safety" >> "$results_file"
+else
+    echo "FAIL effects_optimization_safety" >> "$results_file"
+fi
+
 # Count results (grep -c returns 1 if no matches, so handle that)
 passed=$(grep -c '^PASS' "$results_file" 2>/dev/null) || passed=0
 failed=$(grep -c '^FAIL' "$results_file" 2>/dev/null) || failed=0

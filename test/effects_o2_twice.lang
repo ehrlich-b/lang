@@ -1,0 +1,28 @@
+// Two resumptions must preserve both returned values under optimization.
+include "std/core.lang"
+
+effect Step(i64) i64
+var step_count i64 = 0;
+
+func twice() i64 {
+    var first i64 = perform Step(10);
+    var second i64 = perform Step(first + 1);
+    return first + second;
+}
+
+func main() i64 {
+    var result i64 = handle { twice() } with {
+        return(value) => value,
+        Step(value, continuation) => {
+            step_count = step_count + 1;
+            resume continuation(value * 2);
+        }
+    };
+    print_int(result);
+    println("");
+    print_int(step_count);
+    println("");
+    if result != 62 { return 1; }
+    if step_count != 2 { return 2; }
+    return 0;
+}

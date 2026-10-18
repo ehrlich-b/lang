@@ -200,6 +200,14 @@ platform it was built for. Set them only to cross-target (`LANGOS=macos`,
 
 The LLVM backend is the primary target - handles closures, algebraic effects, reader macros, and all future features (floats, calling conventions, etc.).
 
+Native algebraic effects currently require `clang -O0`. Optimizing a module
+that performs or handles effects fails with an explicit diagnostic until
+nonlocal transfers use LLVM control-flow terminators. The default `lang run`
+and compiler-linking commands use `-O2`, so they also reject such programs.
+To run an effects program, emit its LLVM IR and compile it with `clang -O0`.
+`python3 test/run_effects_safety.py` checks the suite's effects programs and
+multiple-perform probes at `-O0`, `-O1`, and `-O2`.
+
 ### WebAssembly
 
 ```bash

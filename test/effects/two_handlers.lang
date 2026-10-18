@@ -1,0 +1,21 @@
+include "std/core.lang"
+
+effect Get(i64) i64
+
+func step(n i64) i64 {
+    var p i64 = n * 11;
+    var q i64 = perform Get(p);
+    var s i64 = p + q * 2;
+    var t i64 = perform Get(s);
+    return p + q * 3 + s * 5 + t * 7;
+}
+
+func main() i64 {
+    var x i64 = handle { step(1) + step(4) } with {
+        return(v) => v,
+        Get(y, k) => { resume k(y + 1); }
+    };
+    print_int(x);
+    println("");
+    return 0;
+}
