@@ -1,0 +1,32 @@
+// expect: 42
+// Indexing structs returns storage, steps over every field, and copies values.
+include "std/core.lang"
+struct Pair { first i64; second i64; }
+struct Buffer { data *u8; }
+func pairs(p *Pair) *Pair { return p; }
+
+func main() i64 {
+    var p *Pair = alloc(48);
+    p[0].first = 10;
+    p[0].second = 32;
+    p[1].first = 99;
+    p[1].second = 88;
+    p[2].first = 7;
+    p[2].second = 8;
+    p[1] = p[0];
+    if p[0].first != 10 || p[0].second != 32 { return 1; }
+    if p[2].first != 7 || p[2].second != 8 { return 2; }
+    var copy Pair = pairs(p)[1];
+    if copy.first != 10 || copy.second != 32 { return 3; }
+    var element *Pair = &p[1];
+    if element[0].second != 32 { return 4; }
+    var pp **Pair = &p;
+    pp[0][1].first = 10;
+    var buf Buffer;
+    var data [2]u8 = [0, 0];
+    buf.data = &data[0];
+    buf.data[1] = 255;
+    if buf.data[1] != 255 { return 5; }
+    var read closure() i64 = fn() i64 { return p[1].first + p[1].second; };
+    return read();
+}

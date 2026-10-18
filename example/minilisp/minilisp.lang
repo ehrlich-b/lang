@@ -358,7 +358,7 @@ func lisp_expr(node *PNode) *u8 {
             ast_push(args, lisp_expr(list_get(node, ai)));
             ai = ai + 1;
         }
-        return ast_call_named(first.text, args);
+        return ast_span(ast_call_named(first.text, args), first.start, node.end);
     }
 
     return ml_fail("a call's head must be a symbol, an operator, or a list", first);

@@ -1,0 +1,25 @@
+// expect: 42
+// C-style pointer slots must be loaded/stored as pointers, then use i64 values.
+func arg(argv **u8, index i64) *u8 { return argv[index]; }
+func set_arg(argv **u8, index i64, value *u8) void { argv[index] = value; }
+func args(argv **u8) **u8 { return argv; }
+
+func main() i64 {
+    var left [3]u8 = [10, 20, 0];
+    var right [3]u8 = [30, 40, 0];
+    var slots [3]*u8 = [&left[0], &right[0], nil];
+    var argv **u8 = &slots[0];
+    if arg(argv, 0)[1] != 20 { return 1; }
+    if argv[1][0] != 30 { return 2; }
+    args(argv)[1][1] = 42;
+    if right[1] != 42 { return 3; }
+    set_arg(argv, 0, argv[1]);
+    if slots[0] != slots[1] { return 4; }
+    if argv[0][1] != 42 { return 5; }
+    argv[2] = nil;
+    if argv[2] != nil { return 6; }
+    var table ***u8 = &argv;
+    table[0][0] = &left[0];
+    if left[1] != 20 { return 7; }
+    return table[0][1][1];
+}

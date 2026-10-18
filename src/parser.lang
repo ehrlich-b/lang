@@ -2463,20 +2463,68 @@ var parse_max_errors i64 = 10;   // Stop after this many errors
 // start/end are byte offsets into reader source, or -1 for ordinary Lang nodes.
 var node_origins *u8 = nil;
 var node_origin_count i64 = 0;
+var node_origin_capacity i64 = 0;
+
+// A pointer-keyed index keeps expression provenance cheap even in the compiler
+// itself. Empty slots have a nil node; the table stays at most half full.
+func node_origin_slot(table *u8, capacity i64, node *u8) *u8 {
+    var key i64 = node;
+    key = key >> 3;
+    var index i64 = ((key ^ (key >> 16)) & 2147483647) % capacity;
+    while true {
+        var entry *u8 = table + index * 48;
+        var node_slot **u8 = entry;
+        if *node_slot == nil || *node_slot == node { return entry; }
+        index = (index + 1) % capacity;
+    }
+    return nil;
+}
+
+func node_origin_grow() void {
+    var capacity i64 = node_origin_capacity * 2;
+    if capacity == 0 { capacity = 1024; }
+    var table *u8 = alloc(capacity * 48);
+    var i i64 = 0;
+    // LLVM allocas live until this call returns; keep loop storage constant
+    // when rehashing a large table on the wasm target's bounded stack.
+    var slot **u8 = nil;
+    while i < capacity {
+        slot = table + i * 48;
+        *slot = nil;
+        i = i + 1;
+    }
+    i = 0;
+    var old_entry *u8 = nil;
+    var node_slot **u8 = nil;
+    var entry *u8 = nil;
+    while i < node_origin_capacity {
+        old_entry = node_origins + i * 48;
+        node_slot = old_entry;
+        if *node_slot != nil {
+            entry = node_origin_slot(table, capacity, *node_slot);
+            memcpy(entry, old_entry, 48);
+        }
+        i = i + 1;
+    }
+    // Compiler allocations may be arena-backed on the raw-syscall OS layer.
+    node_origins = table;
+    node_origin_capacity = capacity;
+}
 
 func node_set_origin_full(node *u8, source_name *u8, line i64, column i64,
                           start i64, end i64) void {
-    if node == nil || source_name == nil || *source_name == 0 {
-        return;
-    }
-    if node_origins == nil {
-        node_origins = alloc(LIMIT_NODE_ORIGINS * 48);
-    }
-    if node_origin_count >= LIMIT_NODE_ORIGINS {
-        return;
-    }
-    var entry *u8 = node_origins + (node_origin_count * 48);
+    if node == nil || source_name == nil || *source_name == 0 { return; }
+    if node_origin_capacity == 0 { node_origin_grow(); }
+    var entry *u8 = node_origin_slot(node_origins, node_origin_capacity, node);
     var node_slot **u8 = entry;
+    if *node_slot == nil {
+        if (node_origin_count + 1) * 2 > node_origin_capacity {
+            node_origin_grow();
+            entry = node_origin_slot(node_origins, node_origin_capacity, node);
+            node_slot = entry;
+        }
+        node_origin_count = node_origin_count + 1;
+    }
     *node_slot = node;
     var source_slot **u8 = entry + 8;
     *source_slot = source_name;
@@ -2488,7 +2536,6 @@ func node_set_origin_full(node *u8, source_name *u8, line i64, column i64,
     *start_slot = start;
     var end_slot *i64 = entry + 40;
     *end_slot = end;
-    node_origin_count = node_origin_count + 1;
 }
 
 pub func node_set_origin(node *u8, source_name *u8, line i64, column i64) void {
@@ -2517,15 +2564,10 @@ pub func node_set_span(node *u8, source_name *u8, source *u8,
 }
 
 func node_origin_entry(node *u8) *u8 {
-    var i i64 = node_origin_count - 1;
-    while i >= 0 {
-        var entry *u8 = node_origins + (i * 48);
-        var node_slot **u8 = entry;
-        if *node_slot == node {
-            return entry;
-        }
-        i = i - 1;
-    }
+    if node == nil || node_origin_capacity == 0 { return nil; }
+    var entry *u8 = node_origin_slot(node_origins, node_origin_capacity, node);
+    var node_slot **u8 = entry;
+    if *node_slot == node { return entry; }
     return nil;
 }
 
@@ -2992,12 +3034,13 @@ func parse_unary() *u8 {
 }
 
 func parse_postfix() *u8 {
+    var start_tok *u8 = parse_peek();
     var expr *u8 = parse_primary();
 
     var done i64 = 0;
     while done == 0 {
         if parse_match(TOKEN_LPAREN) {
-            expr = parse_finish_call(expr);
+            expr = parse_finish_call(expr, start_tok);
         } else if parse_match(TOKEN_LBRACKET) {
             var index *u8 = parse_expression();
             parse_expect(TOKEN_RBRACKET, "expected ']' after index");
@@ -3018,9 +3061,8 @@ func parse_postfix() *u8 {
             *pn = tok_lexeme(name_tok);
             var pl *i64 = node + 24;
             *pl = tok_lexeme_len(name_tok);
-            // Origins are a linear side table, not a per-node field, so they
-            // stay rare. A `.field` on a plain identifier is already located
-            // well enough by its declaration; one on a computed base - a call
+            // A `.field` on a plain identifier is already located by its
+            // declaration. A field on a computed base - a call
             // result, an index, a deref, another field - is the form that can
             // turn out to have no struct type at all, and codegen has no way
             // to recover where it was written.
@@ -3035,7 +3077,7 @@ func parse_postfix() *u8 {
     return expr;
 }
 
-func parse_finish_call(callee *u8) *u8 {
+func parse_finish_call(callee *u8, start_tok *u8) *u8 {
     // Allocate array for args (max 16)
     var args *u8 = alloc(LIMIT_CALL_ARGS * 8);
     var arg_count i64 = 0;
@@ -3058,6 +3100,7 @@ func parse_finish_call(callee *u8) *u8 {
     call_expr_set_func(node, callee);
     call_expr_set_args(node, args);
     call_expr_set_arg_count(node, arg_count);
+    node_set_origin(node, parse_source_name, tok_line(start_tok), tok_col(start_tok));
     return node;
 }
 

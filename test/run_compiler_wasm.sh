@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")/.."
 
-tmp=$(mktemp -d)
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 
 COMPILER=${COMPILER:-./out/lang} ./web/build_compiler.sh
@@ -32,3 +32,21 @@ if [ "$status" != 98 ]; then
     exit 1
 fi
 echo "PASS compiler_wasm_e2e"
+
+# Compile the LLVM indexing regressions inside the browser-hosted compiler,
+# then validate and execute their emitted IR on the wasm target.
+node test/compiler_wasm_pointer_index_e2e.js web/compiler.wasm "$tmp/pointer-index"
+for ir in "$tmp/pointer-index"/*.ll; do
+    "$WASM_CLANG" --target=wasm32-unknown-unknown -nostdlib \
+        -Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined \
+        -Wl,-z,stack-size=8388608 "$ir" -o "$tmp/pointer-index.wasm"
+    set +e
+    node test/wasm_host.js "$tmp/pointer-index.wasm"
+    status=$?
+    set -e
+    if [ "$status" != 42 ]; then
+        echo "FAIL compiler_wasm_pointer_index $(basename "$ir") (expected 42, got $status)"
+        exit 1
+    fi
+done
+echo "PASS compiler_wasm_pointer_index_e2e (6 programs)"
