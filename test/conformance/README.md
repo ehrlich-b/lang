@@ -2,8 +2,8 @@
 
 C1, C2 and C3 are mandatory manifests frozen before candidate implementation.
 Selection uses a fixed hash ordering of pinned upstream paths, independent of
-candidate successes. Each manifest requires 100% of its cases at O0 and O2 on
-both targets, plus its raw floor. Higher manifests contain the lower manifests.
+candidate successes. Each manifest requires 100% of its reference-applicable selected cases at O0
+and O2 per target, plus its unchanged raw floor. Higher manifests contain the lower manifests.
 No candidate-only skip or replacement can discharge a mandatory case. These are
 future gates, not current C-subset passes or ISO certification.
 
@@ -31,8 +31,9 @@ unqualified counts. Record every skip's upstream predicate and reference result.
 Report raw rates against 220/1890/1988 separately from reference-applicable
 rates. Never count compile-only as execution. Freeze a resolved per-platform
 reference receipt before implementing that milestone; a source inventory does
-not establish applicability. A mandatory platform exclusion leaves its raw gate
-incomplete; it cannot shrink the frozen manifest.
+not establish applicability. A platform skip never counts as a pass or reduces a raw floor. Additional
+cases from the pinned inventory, in the same frozen hash order, may supply
+raw passes; they never replace an applicable mandatory case.
 
 C2 additionally requires bidirectional aggregate/union callback ABI, varargs
 definitions, volatile, goto and setjmp fixtures. C3 additionally requires every
@@ -42,3 +43,30 @@ targets. The application requirements do not replace these manifests.
 
 SHA256SUMS locks the mandatory selections and inventory. Any later amendment
 must be explicit, independently justified, and published before candidate work.
+
+Static applicability is frozen in each case's `applicability` map for both
+optimizations and targets. Reproduce it with
+`python3 test/conformance_applicability.py`; `--write` explicitly regenerates
+these fields and SHA256SUMS before candidate work. The selection and source
+identities are unchanged; inventory.json remains the complete raw source
+inventory, while these selected-case maps supersede its old skip-policy label. `arm64-apple-macos` uses the canonical DejaGnu target
+`aarch64-apple-darwin`; both declared native profiles are hosted LP64 with
+32-bit int and at least 32-bit pointers. These profile properties resolve
+lp64/llp64/ilp32/ia32, int32plus, ptr32plus, size20plus and freestanding.
+
+`platform-skip` is a proven static exclusion from dg-do, dg-skip-if or
+require-effective-target, including optimization include/exclude lists.
+`eligible` means no static exclusion, not a successful reference run.
+`reference-required` preserves unknown effective-target, toolchain or resource
+requirements and incomplete directive parsing; it is neither a skip nor a pass.
+All statuses still require the pinned reference harness (including support/.x
+files, diagnostics and xfails) before candidate implementation. Publish these
+reference resolutions without changing selections or lowering raw floors.
+
+For example, compile/20111209-1.c and compile/mipscop-4.c are skipped on both
+profiles; compile/pr96998.c is skipped on x86-64 and eligible on arm64;
+compile/pr65680.c is eligible on both LP64 targets. The wildcard skips for
+-O1 or -flto do not exclude -O0/-O2 without those options. The asmgoto-5.c
+-O0 exclusion applies to x86-64, with its assembler capability otherwise
+remaining reference-required. No native macOS or reference GCC result is
+inferred from static classification.

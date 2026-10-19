@@ -2,7 +2,11 @@
 set -e
 cd "$(dirname "$0")/.."
 
-COMPILER=${COMPILER:-./out/lang}
+COMPILER=${COMPILER:-./out/bootstrap_verify/kernel2}
+if [ ! -x "$COMPILER" ]; then
+    echo "direct wasm compiler missing: $COMPILER; run make verify first" >&2
+    exit 1
+fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 

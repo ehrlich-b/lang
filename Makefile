@@ -472,7 +472,7 @@ test-suite:
 # Run ALL tests
 test-all: test-suite
 	@./test/run_wasm_suite.sh
-	@./test/run_direct_wasm.sh
+	@$(MAKE) test-direct-wasm
 	@./test/run_compiler_wasm.sh
 
 test-compiler-wasm:
@@ -481,7 +481,8 @@ test-compiler-wasm:
 	@./test/run_compiler_wasm.sh
 
 test-direct-wasm:
-	@./test/run_direct_wasm.sh
+	@if [ -z "$(COMPILER)" ] && [ ! -x "$(BOOTSTRAP_VERIFY_DIR)/kernel2" ]; then $(MAKE) verify; fi
+	@COMPILER="$(or $(COMPILER),$(BOOTSTRAP_VERIFY_DIR)/kernel2)" ./test/run_direct_wasm.sh
 
 # Compile and run sample test programs
 test-run:

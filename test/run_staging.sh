@@ -9,4 +9,5 @@ mkdir -p "$output"
 python3 test/run_layout_audit.py --output "$output/layout"
 python3 test/run_confinement.py --output "$output/confinement"
 node test/confinement/wasm.js > "$output/wasm.json"
+python3 test/test_conformance_applicability.py
 python3 test/check_conformance.py

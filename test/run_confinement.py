@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Feasibility spike, never a launcher authorizing native source execution."""
-import argparse, json, os, platform, shutil, subprocess
+import argparse, json, os, platform, shutil, socket, subprocess
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent.parent
 p=argparse.ArgumentParser(description=__doc__); p.add_argument('--output',type=Path,required=True)
@@ -17,22 +17,28 @@ secret=out/'undeclared'; secret.write_text('private fixture\n')
 scratch=out/'scratch'; scratch.mkdir()
 # Controls demonstrate each attack is live, against disposable fixtures only.
 fd=os.open(secret,os.O_RDONLY)
+# A live listener outside the boundary makes a successful connection evidence
+# of host network reachability; merely creating a socket grants no such access.
+listener=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+listener.bind(('127.0.0.1',0)); listener.listen(16)
+port=str(listener.getsockname()[1])
+attacks=[('read',str(secret)),('write',str(secret)),('socket',port),('child','0'),('descriptor',str(fd))]
 try:
-    for mode,arg in [('read',str(secret)),('write',str(secret)),('socket','0'),('child','0'),('descriptor',str(fd))]:
+    for mode,arg in attacks:
         r=run('control-'+mode,[str(binary),mode,arg],pass_fds=(fd,))
         if r.returncode!=1: raise RuntimeError('invalid attack control: '+mode)
     os.lseek(fd,0,0)
     if platform.system()=='Linux' and shutil.which('bwrap'):
         base=['bwrap','--unshare-all','--die-with-parent','--new-session','--ro-bind','/usr','/usr','--symlink','usr/bin','/bin','--symlink','usr/lib','/lib','--symlink','usr/lib64','/lib64','--proc','/proc','--dev','/dev','--tmpfs','/tmp','--dir','/etc','--ro-bind',str(binary),'/probe','--bind',str(scratch),'/scratch','--chdir','/scratch','--clearenv','--setenv','PATH','/usr/bin:/bin']
-        for mode,arg in [('read',str(secret)),('write',str(secret)),('socket','0'),('child','0'),('descriptor',str(fd))]:
+        for mode,arg in attacks:
             run('linux-'+mode,base+['--','/probe',mode,arg],pass_fds=(fd,))
         # The compiler and the linker are descendants of the same boundary.
         # The resulting program attempts the same escape after tool execution.
         source=scratch/'child.c'; source.write_text((ROOT/'test/confinement/probe.c').read_text())
         for driver in ['clang','gcc']:
-            cmd=' '.join([driver,'-O0 /scratch/child.c -o /scratch/child-'+driver,'&& /scratch/child-'+driver,'socket 0'])
+            cmd=' '.join([driver,'-O0 /scratch/child.c -o /scratch/child-'+driver,'&& /scratch/child-'+driver,'socket '+port])
             run('linux-compiler-child-'+driver,base+['--','/bin/sh','-c',cmd])
-        linux='unavailable'  # Namespace-only policy permits fork/socket creation.
+        linux='unavailable'  # Namespace-only policy permits fork/inherited reads.
         reason='Namespace isolation alone is insufficient; inspect attack rows, including tool-child results. No production native launcher is qualified.'
     else:
         linux='unavailable'; reason='Linux bubblewrap unavailable on this execution host.'
@@ -42,10 +48,12 @@ try:
         # Deprecated sandbox-exec is not treated as a signed-helper qualification.
         profile='(version 1)(deny default)(allow process-exec)(allow file-read* (subpath "/usr") (subpath "/System") (subpath "/Library") (literal "'+str(binary)+'"))'
         if shutil.which('sandbox-exec'):
-            for mode,arg in [('read',str(secret)),('write',str(secret)),('socket','0'),('child','0'),('descriptor',str(fd))]:
+            for mode,arg in attacks:
                 run('macos-'+mode,['sandbox-exec','-p',profile,str(binary),mode,arg],pass_fds=(fd,))
         reason+=' Signed helper/toolchain qualification is still required on macOS.'
-    receipt=dict(schema=1,host=dict(system=platform.system(),machine=platform.machine()),linux_native=linux,macos_native=mac,macos_executed=platform.system()=='Darwin',trusted_native_auto=False,reason=reason,rows=rows)
+    receipt=dict(schema=2,network_probe='TCP connect to live host loopback listener; socket creation reported separately',host=dict(system=platform.system(),machine=platform.machine()),linux_native=linux,macos_native=mac,macos_executed=platform.system()=='Darwin',trusted_native_auto=False,reason=reason,rows=rows)
     (out/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
-finally: os.close(fd)
+finally:
+    listener.close()
+    os.close(fd)
 print(json.dumps({k:v for k,v in receipt.items() if k!='rows'},indent=2))

@@ -21,4 +21,6 @@ for name,counts in [('C1',(55,95,100)),('C2',(176,945,995)),('C3',(220,1607,1690
     assert all('directives' in r and 'directive_option_sets' in r for r in cases if r['corpus']=='gcc')
     previous=selected
     print(name+': PASS; execution/compile-only counts '+str(counts))
-print('Manifest hashes, independent source inventory and nesting: PASS')
+from conformance_applicability import main as check_applicability
+check_applicability()
+print('Manifest hashes, independent source inventory, nesting and static applicability: PASS')
