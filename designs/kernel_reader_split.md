@@ -1,3 +1,5 @@
+> Historical design and proposals: consult [current capability profiles](../docs/PROFILES.md) for shipped behavior. Continuation lifetime, GC, C semantics and compiler isolation claims below are not implementation guarantees.
+
 # Kernel/Reader Split
 
 ## Status: PHASE 2 COMPLETE (2025-01-03)

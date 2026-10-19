@@ -22,21 +22,7 @@ func compiler_get_arg(argv **u8, i i64) *u8 {
 }
 
 func compiler_read_file(path *u8) *u8 {
-    var fd i64 = file_open(path, 0);
-    if fd < 0 {
-        eprint("Error: cannot open file: ");
-        eprintln(path);
-        return nil;
-    }
-    var buf *u8 = alloc(4194304);
-    var n i64 = file_read(fd, buf, 4194304);
-    file_close(fd);
-    if n < 0 {
-        eprintln("Error: cannot read file");
-        return nil;
-    }
-    *(buf + n) = 0;
-    return buf;
+    return compiler_read_text_file(path, 4194304);
 }
 
 // Combine multiple AST programs into one
