@@ -1,0 +1,14 @@
+include "std/ast.lang"
+
+reader boundary_oversize(text *u8) *u8 {
+    var result *u8 = alloc(8193);
+    var prefix *u8 = ast_main_i64(ast_int(42));
+    var i i64 = 0;
+    while i < 8192 {
+        *(result + i) = ' ';
+        i = i + 1;
+    }
+    memcpy(result, prefix, strlen(prefix));
+    *(result + 8192) = 0;
+    return result;
+}

@@ -1,0 +1,78 @@
+{
+  "measurement": "reference_only_no_candidate_semantics",
+  "profile_sha256": "2835218ef0c87d37840184215dcc4d00e394a943bba2241269df255dd62d6c48",
+  "source_archive_sha256": "b6c7f1728f043700d6529bac980800792f824256a9d2f1839b3d62beed0b8abd",
+  "compiler_archive_sha256": "1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026",
+  "compiler_executable_sha256": "7c61539af19fa4082c94848f1c2b57b89e76dc6cfd5bd4c57764c3caf8f82272",
+  "U": {
+    "candidate_passes": 0,
+    "denominator": 2137
+  },
+  "U_recursive": {
+    "candidate_passes": 0,
+    "denominator": 2239
+  },
+  "upstream_passes_claimed": false,
+  "direct_files": 119,
+  "recursive_files": 133,
+  "declaration_index_sha256": "b08169235806eb7340c66d61e9d1276fbad1488473af1b22e9a0d49ef7c021a5",
+  "modes": {
+    "debug": {
+      "discovered_instances": 2097,
+      "reference_outcomes": {
+        "pass": 2064,
+        "skip": 33
+      },
+      "P": {
+        "candidate_passes": 0,
+        "candidate_status": "not_implemented",
+        "reference_supported": 2064
+      },
+      "discovered_direct_declarations": 2095,
+      "discovered_recursive_declarations": 2095,
+      "discovery_sha256": "5dac773cbc0eff4c5d3ee60c646caee348baaa8d44bc5a4b9f72c47eeebc68a7"
+    },
+    "safe": {
+      "discovered_instances": 2097,
+      "reference_outcomes": {
+        "pass": 2065,
+        "skip": 32
+      },
+      "P": {
+        "candidate_passes": 0,
+        "candidate_status": "not_implemented",
+        "reference_supported": 2065
+      },
+      "discovered_direct_declarations": 2095,
+      "discovered_recursive_declarations": 2095,
+      "discovery_sha256": "5dac773cbc0eff4c5d3ee60c646caee348baaa8d44bc5a4b9f72c47eeebc68a7"
+    },
+    "fast": {
+      "discovered_instances": 2097,
+      "reference_outcomes": {
+        "pass": 2063,
+        "skip": 34
+      },
+      "P": {
+        "candidate_passes": 0,
+        "candidate_status": "not_implemented",
+        "reference_supported": 2063
+      },
+      "discovered_direct_declarations": 2095,
+      "discovered_recursive_declarations": 2095,
+      "discovery_sha256": "5dac773cbc0eff4c5d3ee60c646caee348baaa8d44bc5a4b9f72c47eeebc68a7"
+    }
+  },
+  "duplicate_name_ids": [
+    "b6c7f1728f043700d6529bac980800792f824256a9d2f1839b3d62beed0b8abd:test/behavior/duplicated_test_names.zig:181:behavior.duplicated_test_names.test.thingy#1",
+    "b6c7f1728f043700d6529bac980800792f824256a9d2f1839b3d62beed0b8abd:test/behavior/duplicated_test_names.zig:199:behavior.duplicated_test_names.decltest.thingy#1",
+    "b6c7f1728f043700d6529bac980800792f824256a9d2f1839b3d62beed0b8abd:test/behavior/duplicated_test_names.zig:68:behavior.duplicated_test_names.Namespace.test.thingy#1"
+  ],
+  "selected_upstream_negative_safety": {
+    "cases": 8,
+    "expected_categories_observed": 8,
+    "candidate_credit": 0
+  },
+  "direct_files_with_declarations": 117,
+  "recursive_files_with_declarations": 122
+}

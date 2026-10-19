@@ -1,0 +1,40 @@
+{
+  "version": "0.17.0",
+  "source": {
+    "tarball": "https://ziglang.org/download/0.17.0/zig-0.17.0.tar.xz",
+    "shasum": "b6c7f1728f043700d6529bac980800792f824256a9d2f1839b3d62beed0b8abd",
+    "size": "23049960"
+  },
+  "compiler_archive": {
+    "tarball": "https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz",
+    "shasum": "1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026",
+    "size": "57332648"
+  },
+  "target": "x86_64-linux",
+  "cpu": "baseline",
+  "modes": [
+    "debug",
+    "safe",
+    "fast"
+  ],
+  "backend": "stage2_llvm",
+  "backend_flag": "-fllvm",
+  "libc": false,
+  "root": "test/behavior.zig",
+  "seed": 0,
+  "direct_denominator": 2137,
+  "recursive_denominator": 2239,
+  "resolved_target": {
+    "triple": "x86_64-linux-musl",
+    "object_format": "elf",
+    "pointer_bits": 64,
+    "endian": "little",
+    "linux_min": "5.10.0",
+    "linux_max": "7.2.0"
+  },
+  "candidate_backend_checks": {
+    "debug": "-O0",
+    "safe": "-O2",
+    "fast": "-O2"
+  }
+}

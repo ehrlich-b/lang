@@ -1,0 +1,11 @@
+{
+  "compile_rejection": [
+    "test/cases/compile_errors/assign_through_constant_pointer.zig",
+    "test/cases/compile_errors/assign_null_to_non-optional_pointer.zig"
+  ],
+  "checked_safety": [
+    "test/cases/safety/value does not fit in shortening cast.zig",
+    "test/cases/safety/integer addition overflow.zig"
+  ],
+  "modes": ["debug", "safe"]
+}

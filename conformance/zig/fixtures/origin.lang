@@ -1,0 +1,7 @@
+reader boundary_origin(text *u8) *u8 {
+    return "(span 0 1 (ident missing_boundary_symbol))";
+}
+
+func main() i64 {
+    return #boundary_origin{x};
+}
