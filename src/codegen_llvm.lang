@@ -293,13 +293,25 @@ func llvm_is_local(name *u8, len i64) i64 {
 // Each entry: [orig_name:8][orig_len:8][unique_name:8][unique_len:8] = 32 bytes
 var llvm_let_bindings *u8 = nil;
 var llvm_let_depth i64 = 0;
+var llvm_let_capacity i64 = 0;
 
 func llvm_init_let_bindings() void {
-    llvm_let_bindings = alloc(256 * 32);  // Max 256 nested let bindings
+    llvm_let_capacity = 256;
+    llvm_let_bindings = alloc(llvm_let_capacity * 32);
     llvm_let_depth = 0;
 }
 
 func llvm_push_let_binding(name *u8, name_len i64, unique *u8, unique_len i64) void {
+    // Ordinary locals also use this stack and stay until the function ends.
+    // Large functions must not overwrite the registries allocated beside it.
+    if llvm_let_depth >= llvm_let_capacity {
+        var capacity i64 = llvm_let_capacity * 2;
+        var bindings *u8 = alloc(capacity * 32);
+        memcpy(bindings, llvm_let_bindings, llvm_let_depth * 32);
+        // alloc may be arena-backed; existing entry pointers remain valid.
+        llvm_let_bindings = bindings;
+        llvm_let_capacity = capacity;
+    }
     var entry *u8 = llvm_let_bindings + (llvm_let_depth * 32);
     var p_name **u8 = entry;
     *p_name = name;
@@ -955,6 +967,11 @@ func llvm_get_expr_type(expr *u8) *u8 {
         var name *u8 = ident_expr_name(expr);
         var name_len i64 = ident_expr_name_len(expr);
 
+        if cg_in_closure == 1 {
+            var cap_idx i64 = find_closure_capture(name, name_len);
+            if cap_idx >= 0 { return closure_capture_type(cap_idx); }
+        }
+
         // Check locals first
         var local_idx i64 = find_local(name, name_len);
         if local_idx >= 0 {
@@ -995,8 +1012,27 @@ func llvm_get_expr_type(expr *u8) *u8 {
         return bitcast_expr_type(expr);
     }
 
+    if k == NODE_STRING_EXPR {
+        var byte_type *u8 = base_type_alloc();
+        base_type_set_name(byte_type, "u8");
+        base_type_set_name_len(byte_type, 2);
+        var pointer_type *u8 = ptr_type_alloc();
+        ptr_type_set_elem(pointer_type, byte_type);
+        return pointer_type;
+    }
+
+    if k == NODE_FIELD_EXPR {
+        // The shared resolver knows struct fields, including pointer fields.
+        return get_expr_type(expr);
+    }
+
     if k == NODE_UNARY_EXPR {
         var op i64 = unary_expr_op(expr);
+        if op == TOKEN_AMP {
+            var pointer_type *u8 = ptr_type_alloc();
+            ptr_type_set_elem(pointer_type, llvm_get_expr_type(unary_expr_expr(expr)));
+            return pointer_type;
+        }
         if op == TOKEN_STAR {
             var inner_type *u8 = llvm_get_expr_type(unary_expr_expr(expr));
             if inner_type != nil && type_kind(inner_type) == TYPE_PTR {
@@ -1049,6 +1085,29 @@ func llvm_emit_array_addr(expr *u8) void {
         return;
     }
     var k i64 = node_kind(expr);
+
+    if k == NODE_GROUP_EXPR {
+        llvm_emit_array_addr(group_expr_expr(expr));
+        return;
+    }
+
+    if k == NODE_INDEX_EXPR {
+        // A nested array expression denotes storage, not an aggregate load.
+        var array_type *u8 = llvm_get_expr_type(expr);
+        var addr_temp i64 = llvm_emit_index_addr(expr);
+        var cast_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(cast_temp);
+        llvm_emit_str(" = bitcast ");
+        llvm_emit_type(array_type);
+        llvm_emit_str("* %t");
+        llvm_emit_int(addr_temp);
+        llvm_emit_str(" to ");
+        llvm_emit_type(array_type_elem(array_type));
+        llvm_emit_line("*");
+        llvm_set_result_temp(cast_temp);
+        return;
+    }
 
     if k == NODE_IDENT_EXPR {
         var name *u8 = ident_expr_name(expr);
@@ -1133,6 +1192,66 @@ func llvm_emit_array_addr(expr *u8) void {
 
     // Fallback: treat as expression
     llvm_emit_expr(expr);
+}
+
+// Structs/enums are byte buffers in LLVM, not the fallback scalar i64 type.
+// GEP must step over the complete buffer and aggregate reads return its address.
+func llvm_emit_index_storage_type(t *u8) void {
+    var size i64 = llvm_aggregate_type_size(t);
+    if size > 0 {
+        llvm_emit_str("[");
+        llvm_emit_int(size);
+        llvm_emit_str(" x i8]");
+    } else if t != nil {
+        llvm_emit_type(t);
+    } else {
+        llvm_emit_str("i64");
+    }
+}
+
+// Both reads and assignments need the same typed memory boundary. Expressions
+// carry pointers as i64; array addresses are already LLVM pointers.
+func llvm_emit_index_addr(expr *u8) i64 {
+    var base_expr *u8 = index_expr_base(expr);
+    var base_type *u8 = llvm_get_expr_type(base_expr);
+    var elem_type *u8 = llvm_get_expr_type(expr);
+    var is_array i64 = base_type != nil && type_kind(base_type) == TYPE_ARRAY;
+
+    llvm_emit_expr(index_expr_index(expr));
+    var index_val *u8 = str_dup(llvm_expr_result);
+    if is_array {
+        llvm_emit_array_addr(base_expr);
+    } else {
+        llvm_emit_expr(base_expr);
+    }
+    var base_val *u8 = str_dup(llvm_expr_result);
+
+    if is_array == 0 {
+        var ptr_temp i64 = llvm_next_temp();
+        llvm_emit_str("    %t");
+        llvm_emit_int(ptr_temp);
+        llvm_emit_str(" = inttoptr i64 ");
+        llvm_emit_str(base_val);
+        llvm_emit_str(" to ");
+        llvm_emit_index_storage_type(elem_type);
+        llvm_emit_line("*");
+        llvm_set_result_temp(ptr_temp);
+        base_val = str_dup(llvm_expr_result);
+    }
+
+    var gep_temp i64 = llvm_next_temp();
+    llvm_emit_str("    %t");
+    llvm_emit_int(gep_temp);
+    llvm_emit_str(" = getelementptr ");
+    llvm_emit_index_storage_type(elem_type);
+    llvm_emit_str(", ");
+    llvm_emit_index_storage_type(elem_type);
+    llvm_emit_str("* ");
+    llvm_emit_str(base_val);
+    llvm_emit_str(", i64 ");
+    llvm_emit_str(index_val);
+    llvm_emit_line("");
+    return gep_temp;
 }
 
 // Emit expression, return the LLVM value reference (e.g., "%1" or "42")
@@ -1653,6 +1772,7 @@ func llvm_emit_expr(expr *u8) void {
             if known_func == nil && is_indirect == 0 {
                 var by_name *u8 = find_func(func_name, func_name_len);
                 if by_name != nil {
+                    if node_origin_source(expr) != nil { cg_diagnostic_node = expr; }
                     cg_arity_error(func_name, func_name_len,
                                    func_decl_param_count(by_name), arg_count);
                     *(llvm_expr_result) = 48;
@@ -1670,7 +1790,7 @@ func llvm_emit_expr(expr *u8) void {
                     is_syscall_name = 1;
                 }
                 if is_syscall_name == 0 {
-                    cg_error_prefix();
+                    cg_error_prefix_at(expr);
                     eprint("undefined function '");
                     eprint_buf(func_name, func_name_len);
                     eprintln("'");
@@ -2761,6 +2881,9 @@ func llvm_emit_expr(expr *u8) void {
 
         // Handle address-of specially - don't evaluate inner, just get its address
         if op == 30 {  // TOKEN_AMP (address-of &x)
+            while node_kind(inner) == NODE_GROUP_EXPR {
+                inner = group_expr_expr(inner);
+            }
             var temp i64 = llvm_next_temp();
             if node_kind(inner) == NODE_IDENT_EXPR {
                 var name *u8 = ident_expr_name(inner);
@@ -2839,6 +2962,16 @@ func llvm_emit_expr(expr *u8) void {
                     llvm_emit_line(" to i64");
                     llvm_set_result_temp(temp);
                 }
+            } else if node_kind(inner) == NODE_INDEX_EXPR {
+                var addr_temp i64 = llvm_emit_index_addr(inner);
+                llvm_emit_str("    %t");
+                llvm_emit_int(temp);
+                llvm_emit_str(" = ptrtoint ");
+                llvm_emit_index_storage_type(llvm_get_expr_type(inner));
+                llvm_emit_str("* %t");
+                llvm_emit_int(addr_temp);
+                llvm_emit_line(" to i64");
+                llvm_set_result_temp(temp);
             } else if node_kind(inner) == NODE_FIELD_EXPR {
                 // &struct.field - need to compute address without loading value
                 var base_expr *u8 = field_expr_expr(inner);
@@ -3129,62 +3262,22 @@ func llvm_emit_expr(expr *u8) void {
     }
 
     if k == NODE_INDEX_EXPR {
-        // arr[i] - compute address and load value
-        // IndexExpr: [kind:8][base:8][index:8]
-        var base_p **u8 = expr + 8;
-        var index_p **u8 = expr + 16;
-        var base_expr *u8 = *base_p;
-        var index_expr *u8 = *index_p;
+        var elem_type *u8 = llvm_get_expr_type(expr);
+        var gep_temp i64 = llvm_emit_index_addr(expr);
 
-        var base_type *u8 = llvm_get_expr_type(base_expr);
-
-        // Get element type
-        var elem_type *u8 = nil;
-        var is_array i64 = 0;
-        if base_type != nil {
-            if type_kind(base_type) == TYPE_ARRAY {
-                elem_type = array_type_elem(base_type);
-                is_array = 1;
-            } else if type_kind(base_type) == TYPE_PTR {
-                elem_type = ptr_type_elem(base_type);
-            }
+        if llvm_aggregate_type_size(elem_type) > 0 ||
+           (elem_type != nil && type_kind(elem_type) == TYPE_ARRAY) {
+            var addr_temp i64 = llvm_next_temp();
+            llvm_emit_str("    %t");
+            llvm_emit_int(addr_temp);
+            llvm_emit_str(" = ptrtoint ");
+            llvm_emit_index_storage_type(elem_type);
+            llvm_emit_str("* %t");
+            llvm_emit_int(gep_temp);
+            llvm_emit_line(" to i64");
+            llvm_set_result_temp(addr_temp);
+            return;
         }
-
-        // Emit index expression first
-        llvm_emit_expr(index_expr);
-        var index_val *u8 = str_dup(llvm_expr_result);
-
-        // Get base address
-        if is_array == 1 {
-            // For arrays, get pointer to array
-            llvm_emit_array_addr(base_expr);
-        } else {
-            // For pointers, get the pointer value
-            llvm_emit_expr(base_expr);
-        }
-        var base_val *u8 = str_dup(llvm_expr_result);
-
-        // Use getelementptr to compute address
-        var gep_temp i64 = llvm_next_temp();
-        llvm_emit_str("    %t");
-        llvm_emit_int(gep_temp);
-        llvm_emit_str(" = getelementptr ");
-        if elem_type != nil {
-            llvm_emit_type(elem_type);
-        } else {
-            llvm_emit_str("i64");
-        }
-        llvm_emit_str(", ");
-        if elem_type != nil {
-            llvm_emit_type(elem_type);
-        } else {
-            llvm_emit_str("i64");
-        }
-        llvm_emit_str("* ");
-        llvm_emit_str(base_val);
-        llvm_emit_str(", i64 ");
-        llvm_emit_str(index_val);
-        llvm_emit_line("");
 
         // Load value from computed address
         var load_temp i64 = llvm_next_temp();
@@ -3221,12 +3314,19 @@ func llvm_emit_expr(expr *u8) void {
             llvm_emit_int(load_temp);
             llvm_emit_line(" to i64");
             llvm_set_result_temp(ptrtoint_temp);
+        } else if llvm_is_float_type(elem_type) {
+            llvm_set_result_temp(load_temp);
+            llvm_expr_is_float = 1;
         } else if elem_size < 8 {
-            // Zero-extend small types to i64
+            // Widen the typed load with the element's signedness.
             var zext_temp i64 = llvm_next_temp();
             llvm_emit_str("    %t");
             llvm_emit_int(zext_temp);
-            llvm_emit_str(" = zext ");
+            if llvm_is_signed_int(elem_type) {
+                llvm_emit_str(" = sext ");
+            } else {
+                llvm_emit_str(" = zext ");
+            }
             llvm_emit_type(elem_type);
             llvm_emit_str(" %t");
             llvm_emit_int(load_temp);
@@ -5446,60 +5546,64 @@ func llvm_emit_stmt(stmt *u8) void {
             }
         }
 
-        // Check for array index assignment (arr[i] = value)
+        // Indexed arrays and pointers share address lowering.
         if node_kind(target) == NODE_INDEX_EXPR {
-            var base_p **u8 = target + 8;
-            var index_p **u8 = target + 16;
-            var base_expr *u8 = *base_p;
-            var index_expr *u8 = *index_p;
+            var elem_type *u8 = llvm_get_expr_type(target);
+            var gep_temp i64 = llvm_emit_index_addr(target);
 
-            var base_type *u8 = llvm_get_expr_type(base_expr);
-
-            // Get element type
-            var elem_type *u8 = nil;
-            var is_array i64 = 0;
-            if base_type != nil {
-                if type_kind(base_type) == TYPE_ARRAY {
-                    elem_type = array_type_elem(base_type);
-                    is_array = 1;
-                } else if type_kind(base_type) == TYPE_PTR {
-                    elem_type = ptr_type_elem(base_type);
+            var aggregate_size i64 = llvm_aggregate_type_size(elem_type);
+            if elem_type != nil && type_kind(elem_type) == TYPE_ARRAY {
+                aggregate_size = get_type_size(elem_type);
+            }
+            if aggregate_size > 0 {
+                var src_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(src_temp);
+                llvm_emit_str(" = inttoptr i64 ");
+                llvm_emit_str(val);
+                llvm_emit_line(" to i8*");
+                var dst_temp i64 = llvm_next_temp();
+                llvm_emit_str("    %t");
+                llvm_emit_int(dst_temp);
+                llvm_emit_str(" = bitcast ");
+                llvm_emit_index_storage_type(elem_type);
+                llvm_emit_str("* %t");
+                llvm_emit_int(gep_temp);
+                llvm_emit_line(" to i8*");
+                // Copy bytes rather than storing the source address in slot 0.
+                var copy_i i64 = 0;
+                while copy_i < aggregate_size {
+                    var src_slot i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(src_slot);
+                    llvm_emit_str(" = getelementptr i8, i8* %t");
+                    llvm_emit_int(src_temp);
+                    llvm_emit_str(", i64 ");
+                    llvm_emit_int(copy_i);
+                    llvm_emit_line("");
+                    var byte_temp i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(byte_temp);
+                    llvm_emit_str(" = load i8, i8* %t");
+                    llvm_emit_int(src_slot);
+                    llvm_emit_line("");
+                    var dst_slot i64 = llvm_next_temp();
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(dst_slot);
+                    llvm_emit_str(" = getelementptr i8, i8* %t");
+                    llvm_emit_int(dst_temp);
+                    llvm_emit_str(", i64 ");
+                    llvm_emit_int(copy_i);
+                    llvm_emit_line("");
+                    llvm_emit_str("    store i8 %t");
+                    llvm_emit_int(byte_temp);
+                    llvm_emit_str(", i8* %t");
+                    llvm_emit_int(dst_slot);
+                    llvm_emit_line("");
+                    copy_i = copy_i + 1;
                 }
+                return;
             }
-
-            // Emit index expression
-            llvm_emit_expr(index_expr);
-            var index_val *u8 = str_dup(llvm_expr_result);
-
-            // Get base address
-            if is_array == 1 {
-                llvm_emit_array_addr(base_expr);
-            } else {
-                llvm_emit_expr(base_expr);
-            }
-            var base_val *u8 = str_dup(llvm_expr_result);
-
-            // Use getelementptr to compute address
-            var gep_temp i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(gep_temp);
-            llvm_emit_str(" = getelementptr ");
-            if elem_type != nil {
-                llvm_emit_type(elem_type);
-            } else {
-                llvm_emit_str("i64");
-            }
-            llvm_emit_str(", ");
-            if elem_type != nil {
-                llvm_emit_type(elem_type);
-            } else {
-                llvm_emit_str("i64");
-            }
-            llvm_emit_str("* ");
-            llvm_emit_str(base_val);
-            llvm_emit_str(", i64 ");
-            llvm_emit_str(index_val);
-            llvm_emit_line("");
 
             // Store value - convert i64 to pointer if needed
             if elem_type != nil && type_kind(elem_type) == TYPE_PTR {

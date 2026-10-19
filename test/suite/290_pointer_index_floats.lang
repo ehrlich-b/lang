@@ -1,0 +1,16 @@
+// expect: 42
+// Float element loads remain float SSA values instead of integer extensions.
+func main() i64 {
+    var storage [3]i64 = [0, 0, 123];
+    var doubles *f64 = &storage[0];
+    doubles[0] = 1.5;
+    doubles[1] = 2.5;
+    if doubles[0] + doubles[1] != 4.0 { return 1; }
+    if storage[2] != 123 { return 2; }
+    var singles *f32 = &storage[0];
+    singles[0] = cast(f32, 1.5);
+    singles[1] = cast(f32, 2.5);
+    if cast(i64, singles[0]) != 1 { return 3; }
+    if cast(i64, singles[1]) != 2 { return 4; }
+    return 42;
+}

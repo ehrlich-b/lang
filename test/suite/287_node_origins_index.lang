@@ -1,0 +1,47 @@
+// expect:0
+// Source metadata must survive collisions, growth, and updates beyond the old cap.
+include "std/core.lang"
+include "src/lexer.lang"
+include "src/parser.lang"
+
+func main() i64 {
+    if node_origin_source(nil) != nil { return 1; }
+    var nodes *u8 = alloc(40000 * 16);
+    var i i64 = 0;
+    while i < 40000 {
+        node_set_origin(nodes + i * 16, "indexed.lang", i + 1, i + 2);
+        i = i + 1;
+    }
+    i = 39999;
+    while i >= 0 {
+        var node *u8 = nodes + i * 16;
+        if node_origin_source(node) == nil { return 2; }
+        if !streq(node_origin_source(node), "indexed.lang") { return 2; }
+        if node_origin_line(node) != i + 1 { return 3; }
+        if node_origin_column(node) != i + 2 { return 4; }
+        if node_origin_start(node) != -1 || node_origin_end(node) != -1 { return 5; }
+        i = i - 1;
+    }
+    // Reassigning one node must replace every field and not exhaust capacity.
+    i = 0;
+    while i < 40000 {
+        node_set_origin(nodes, "updated.lang", 9, 10);
+        i = i + 1;
+    }
+    node_set_span(nodes, "span.lang", "first\nsecond\n", 7, 10);
+    if !streq(node_origin_source(nodes), "span.lang") { return 6; }
+    if node_origin_line(nodes) != 2 || node_origin_column(nodes) != 2 { return 7; }
+    if node_origin_start(nodes) != 7 || node_origin_end(nodes) != 10 { return 8; }
+    var copied *u8 = alloc(8);
+    node_copy_origin(copied, nodes);
+    if node_origin_start(copied) != 7 || node_origin_end(copied) != 10 { return 9; }
+    node_copy_origin(copied, nodes + 16);
+    if !streq(node_origin_source(copied), "span.lang") { return 10; }
+    var absent *u8 = alloc(8);
+    if node_origin_source(absent) != nil || node_origin_line(absent) != 0 { return 11; }
+    if node_origin_start(absent) != -1 || node_origin_end(absent) != -1 { return 12; }
+    node_set_origin(absent, nil, 1, 1);
+    node_set_origin(absent, "", 1, 1);
+    if node_origin_source(absent) != nil { return 13; }
+    return 0;
+}

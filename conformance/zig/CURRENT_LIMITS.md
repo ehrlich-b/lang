@@ -1,5 +1,13 @@
 # Native-reader boundary at 480e61e
 
+This section inventories the historical seed. The integrated target-profile
+work now checks source, wrapper, AST and capture boundaries; see
+[`docs/SIZE_LIMITS.md`](../../docs/SIZE_LIMITS.md) for the current contract.
+The M0 reader probe requires exact lengths below 4,194,304 bytes and an empty
+stdout, reader-stdin size diagnostic and exit 1 at or above that capacity.
+Silent truncation is no longer an accepted integration result. This changes
+the boundary expectation only; it adds no Zig frontend or candidate credit.
+
 M0 inventories this boundary and adds external measurement tools. Production
 files stay unchanged. Growable buffers belong to H; nested-phase execution and
 its stronger qualification belong to P. No Zig-specific kernel rules are added.

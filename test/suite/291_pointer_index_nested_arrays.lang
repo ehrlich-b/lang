@@ -1,0 +1,20 @@
+// expect: 42
+// Parentheses preserve indexed lvalues, including nested array storage.
+func matrix(p *[3]i64) *[3]i64 { return p; }
+func main() i64 {
+    var data [2][3]i64;
+    data[0][0] = 1; data[0][1] = 2; data[0][2] = 3;
+    data[1][0] = 4; data[1][1] = 5; data[1][2] = 6;
+    var rows *[3]i64 = &data[0];
+    rows[1][2] = 42;
+    if data[1][2] != 42 { return 1; }
+    var slot *i64 = &(rows[1][2]);
+    if slot[0] != 42 { return 2; }
+    slot[0] = 42;
+    rows[0] = rows[1];
+    if (rows[0])[2] != 42 { return 3; }
+    if (rows + 1)[-1][2] != 42 { return 4; }
+    var pp **[3]i64 = &rows;
+    if pp[0][1][2] != 42 { return 5; }
+    return matrix(rows)[0][2];
+}

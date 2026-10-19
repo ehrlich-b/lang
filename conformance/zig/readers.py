@@ -107,10 +107,14 @@ def main():
             observed = subprocess.run([str(executable)], input=b'x' * size, capture_output=True,
                                       env=env, cwd=ROOT, timeout=10)
             (work / f'length-{size}.ast').write_bytes(observed.stdout)
+            (work / f'length-{size}.stderr').write_bytes(observed.stderr)
             match = re.search(rb'\(number (\d+)\)', observed.stdout)
             report['input_limit_inventory']['measurements'].append(
                 {'input_bytes': size, 'reader_observed_bytes': int(match[1]) if match else None,
                  'returncode': observed.returncode})
+            report['input_limit_inventory']['measurements'][-1].update(
+                stdout_empty=not observed.stdout,
+                overflow_diagnostic=b'size limit exceeded: reader stdin' in observed.stderr)
     report['production_source_unchanged'] = before == {p: digest(ROOT / p) for p in paths}
     save(args.receipt, report)
     good = all(p['outcome'] == 'pass' for p in report['probes'][:4])
@@ -119,7 +123,9 @@ def main():
     good &= report['probes'][5]['outcome'] == 'output_limit'
     measurements = report['input_limit_inventory']['measurements']
     good &= len(measurements) == 4 and all(
-        r['returncode'] == 0 and r['reader_observed_bytes'] == min(r['input_bytes'], 4194303)
+        (r['returncode'] == 0 and r['reader_observed_bytes'] == r['input_bytes'])
+        if r['input_bytes'] < 4194304 else
+        (r['returncode'] == 1 and r['stdout_empty'] and r['overflow_diagnostic'])
         for r in measurements)
     if not good or not report['production_source_unchanged']:
         raise SystemExit('reader boundary probe failed; see receipt')

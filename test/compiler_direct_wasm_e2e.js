@@ -12,12 +12,12 @@ if (!compilerPath) {
   process.exit(2);
 }
 
-async function compileAndRun(sourcePath) {
+async function compileAndRun(sourcePath, dependencies = {}) {
   const source = fs.readFileSync(sourcePath, 'utf8');
   const result = await runLangCompiler(
     fs.readFileSync(compilerPath),
     ['input.lang', '-o', 'output.wasm'],
-    { ...stdlibFiles, 'input.lang': source },
+    { ...stdlibFiles, ...dependencies, 'input.lang': source },
     undefined,
     { LANGBE: 'wasm' },
   );
@@ -115,6 +115,12 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
 
   const localAddress = await compileAndRun('test/suite/286_local_address_shadows_function.lang');
   if (Number(localAddress.value) !== 0) throw new Error('local address did not shadow function');
+
+  const origins = await compileAndRun('test/suite/287_node_origins_index.lang', {
+    'src/lexer.lang': fs.readFileSync('src/lexer.lang', 'utf8'),
+    'src/parser.lang': fs.readFileSync('src/parser.lang', 'utf8'),
+  });
+  if (Number(origins.value) !== 0) throw new Error(`origin index mismatch: ${origins.value}`);
 
   const imported = await compileAndRun('test/direct_wasm_import_e2e.lang');
   if (Number(imported.value) !== 17 || imported.stdout !== 'direct import\n') {
@@ -248,6 +254,38 @@ func main() i64 { return two(1); }
       throw new Error(`browser field note missing: ${badFieldCompile.stderr}`);
     }
   }
+  const badCalls = [
+    ['multiline', `func two(a i64, b i64) i64 { return a + b; }
+func main() i64 {
+    var total i64 = 0;
+    return total + two(
+        1
+    );
+}
+`, "4:20: error: function 'two' takes 2 arguments, called with 1"],
+    ['nested', `func two(a i64, b i64) i64 { return a + b; }
+func main() i64 {
+    return two(1, two(2));
+}
+`, "3:19: error: function 'two' takes 2 arguments, called with 1"],
+    ['unknown', `func id(a i64) i64 { return a; }
+func main() i64 {
+    return id(1) + absent(2);
+}
+`, '3:20: error: unknown function'],
+  ];
+  for (const [name, source, expected] of badCalls) {
+    const sourceName = `bad-call-${name}.lang`;
+    const failed = await runLangCompiler(
+      fs.readFileSync(compilerPath), [sourceName, '-o', 'bad-call.wasm'],
+      { [sourceName]: source }, undefined, { LANGBE: 'wasm' },
+    );
+    if (failed.exit === 0 || failed.files.has('bad-call.wasm') ||
+        !failed.stderr.includes(`${sourceName}:${expected}`)) {
+      throw new Error(`browser ${name} call location mismatch: ${failed.stderr}`);
+    }
+  }
+
   const generatedSource = fs.readFileSync('test/direct_wasm_parser_reader.lang', 'utf8');
   const generatedBad = await runReaderSource(
     generatedSource, 'parser_tiny', 'bad\nmissing',
@@ -375,6 +413,47 @@ func main() i64 { return two(1); }
   if (readBad.ast !== null ||
       !readBad.readerRun.stderr.includes('source.read:1:8: expected number, found nope')) {
     throw new Error(`lab reader failure mismatch: ${readBad.readerRun.stderr}`);
+  }
+
+  const badReaderCalls = [
+    ['c', `int two(int a, int b) { return a + b; }
+int main() {
+    return 1 + two(1);
+}
+`, '3:16', []],
+    ['flow', `func two(a, b) { return a + b; }
+func main() {
+    return 1 + two(1);
+}
+`, '3:16', []],
+    ['minipy', `def two(a, b):
+    return a + b
+def main():
+    return 1 + two(1)
+`, '4:16', []],
+    ['minilisp', `(defun main ()
+    (+ 1 (two 2)))
+`, '2:11', ['example/minilisp/lisp_runtime.lang', 'test/call_location_helper.lang']],
+  ];
+  for (const [name, source, location, runtimes] of badReaderCalls) {
+    const read = await runReaderSource(
+      fs.readFileSync(`example/${name}/${name}.lang`, 'utf8'), name, source,
+    );
+    if (read.ast === null) throw new Error(`${name} reader refused the call before codegen`);
+    const sourceName = `${name}.source`;
+    const args = ['program.ast', '--from-ast', '--ast-source', sourceName];
+    for (const runtime of runtimes) args.push('--runtime', runtime);
+    args.push('-o', 'bad-call.wasm');
+    const failed = await runLangCompiler(
+      fs.readFileSync(compilerPath), args,
+      { ...stdlibFiles, 'test/call_location_helper.lang': fs.readFileSync('test/call_location_helper.lang', 'utf8'),
+        'program.ast': formatLangAst(read.ast), [sourceName]: source },
+      undefined, { LANGBE: 'wasm' },
+    );
+    const expected = `${sourceName}:${location}: error: function 'two' takes 2 arguments, called with 1`;
+    if (failed.exit === 0 || failed.files.has('bad-call.wasm') || !failed.stderr.includes(expected)) {
+      throw new Error(`${name} reader call location mismatch: ${failed.stderr}`);
+    }
   }
 
   console.log(`PASS compiler_direct_wasm_e2e (${arithmetic.bytes}/${memory.bytes}/${imported.bytes}/${ast.bytes}/${addressed.bytes}; readers → tiny:${reader.ran.value}/calc:${calc.ran.value}/generated:${generated.ran.value}/forth:${forth.ran.value}/lisp:${lispValue}/C/Flow/Minipy/lab:${read.ran.value})`);

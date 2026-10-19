@@ -35,7 +35,7 @@ export WASM_LDFLAGS
 run_one_test() {
     local f=$1
     local name=$(basename "$f" .lang)
-    local tmpdir=$(mktemp -d)
+    local tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 
     if head -1 "$f" | grep -q '//ignore'; then
         echo "SKIP $name (ignored)"; rm -rf "$tmpdir"; return 0
@@ -72,7 +72,7 @@ run_one_test() {
 }
 export -f run_one_test
 
-results_file=$(mktemp)
+results_file=$(mktemp "${TMPDIR:-/tmp}/lang-results.XXXXXX")
 if [ "${SEQUENTIAL:-0}" = "1" ]; then
     for f in test/suite/*.lang; do run_one_test "$f"; done > "$results_file" 2>&1
 else
