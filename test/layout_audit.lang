@@ -1,0 +1,28 @@
+// Calls the actual layout implementations, never a duplicated size formula.
+include "std/core.lang"
+include "src/lexer.lang"
+include "src/parser.lang"
+include "src/codegen.lang"
+include "src/ast_emit.lang"
+include "src/codegen_llvm.lang"
+include "src/codegen_wasm.lang"
+include "src/sexpr_reader.lang"
+include "src/compiler_readers_none.lang"
+var add_reader_mode i64 = 0;
+func find_kernel_builtin(name *u8, len i64) *u8 { return nil; }
+func has_kernel_module(name *u8, len i64) i64 { return 0; }
+func audit(source *u8) void {
+    var prog *u8 = parse_program_from_string(source);
+    var decl *u8 = get_decl(program_decls(prog), 0);
+    print_int(get_struct_size(decl)); print(" ");
+    print_int(get_field_offset(decl, "a", 1)); print(" ");
+    print_int(get_field_offset(decl, "b", 1)); print(" ");
+    print_int(wasm_struct_size(decl)); print(" ");
+    print_int(wasm_field_offset(decl, "a", 1)); print(" ");
+    print_int(wasm_field_offset(decl, "b", 1)); print("\n");
+}
+func main() i64 {
+    audit("struct Pair { a i64; b i64; }");
+    audit("struct Bytes { a u8; b u8; }");
+    return 0;
+}

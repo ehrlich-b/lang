@@ -36,6 +36,16 @@ clang -O2 bootstrap/current/compiler_macos.ll -o out/lang
 
 Use `compiler_linux.ll` on Linux.
 
+## Verify without promotion
+
+Run `nice -n 10 make verify` after implementation changes. It aliases
+bootstrap-verify: exact generation-2/3 LLVM equality (which implies normalized
+equality), reader-AST equality and the LLVM suite. It never archives, promotes
+or installs a root. Run `nice -n 10 env COMPILER=out/bootstrap_verify/kernel2 make
+test-direct-wasm` as the matching direct-emitter regression gate. Keep the seed
+unchanged until migration is proved; exercise promotion with PUBLISH_BOOTSTRAP=0
+in a disposable checkout.
+
 ## The one promotion command
 
 After any change under `src/`, run:

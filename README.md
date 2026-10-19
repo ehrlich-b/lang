@@ -150,7 +150,7 @@ flow's `primes` coroutine streams primes — asking C about each candidate and s
 
 No two of the five agree on so much as where a block ends: parens, braces, `;`, `then`, and — in minipy — nothing but the column the line starts in.
 
-- **C** ([example/c/](./example/c/)) captures a large subset: all control flow, every operator, structs, pointers, arrays, enums, switch, ternary.
+- **C** ([example/c/](./example/c/)) is a [legacy/internal subset](docs/C_SUBSET.md): `int → i64`, no switch fall-through, and no standard C ABI claim.
 - **minilisp** ([example/minilisp/](./example/minilisp/)) is a real (small) Lisp: first-class closures, `let`, `quote`, cons lists. Every value is an i64 that's secretly a pointer, so it marshals across the language boundary.
 - **flow** ([example/flow/](./example/flow/)) is a generator/coroutine language built on algebraic effects. `yield` is bidirectional — a generator's output can depend on what the driver sends back.
 - **forth** ([example/forth/](./example/forth/)) has no expression grammar at all — just a flat stream of words over a data stack. The stack is the reader's, not the program's: it holds AST nodes at read time and is gone before codegen, so `: square ( n -- n2 ) dup * ;` compiles to a single `mul`.
@@ -189,6 +189,8 @@ testing compiler changes you have not bootstrapped yet.
 
 ### Compiling programs
 
+See the [current target profiles](docs/PROFILES.md), [size limits](docs/SIZE_LIMITS.md), and reproducible baseline command before selecting a backend or external ABI.
+
 ```bash
 ./out/lang hello.lang -o hello.ll
 clang -O2 hello.ll -o hello
@@ -198,7 +200,7 @@ No environment variables needed: the compiler defaults `LANGBE`/`LANGOS` to the
 platform it was built for. Set them only to cross-target (`LANGOS=macos`,
 `LANGOS=wasm`; `LANGBE=x86` for the frozen assembly backend on Linux).
 
-The LLVM backend is the primary target - handles closures, algebraic effects, reader macros, and all future features (floats, calling conventions, etc.).
+The LLVM backend is the primary native target. Its current contract covers the tested scalar, closure and reader paths, with the effects restriction below; general external layout and calling conventions remain unverified.
 
 Native algebraic effects currently require `clang -O0`. Optimizing a module
 that performs or handles effects fails with an explicit diagnostic until
@@ -206,7 +208,7 @@ nonlocal transfers use LLVM control-flow terminators. The default `lang run`
 and compiler-linking commands use `-O2`, so they also reject such programs.
 To run an effects program, emit its LLVM IR and compile it with `clang -O0`.
 `python3 test/run_effects_safety.py` checks the suite's effects programs and
-multiple-perform probes at `-O0`, `-O1`, and `-O2`.
+multiple-perform probes at `-O0`, `-O1`, `-O2`, and `-O2 -flto`.
 
 ### WebAssembly
 
@@ -218,7 +220,7 @@ node test/wasm_host.js hello.wasm
 ```
 
 `test/wasm_host.js` is a small node host providing the libc surface
-(write/alloc/exit). 168 of the suite's tests pass on wasm
+(write/alloc/exit). The LLVM-to-Wasm suite has a historical baseline of 177 passes
 (`./test/run_wasm_suite.sh`); the exception is algebraic effects, which need
 stack switching that core wasm cannot express - the compiler rejects them
 cleanly for this target.

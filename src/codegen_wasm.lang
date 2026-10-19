@@ -1237,6 +1237,7 @@ func wasm_collect_decl(decl *u8) void {
         return;
     }
     if kind == NODE_STRUCT_DECL {
+        compiler_check_audited_layout(decl);
         if wasm_struct_count >= LIMIT_STRUCTS {
             wasm_error("too many structs for direct wasm output");
         } else {
@@ -1710,6 +1711,6 @@ func generate_wasm(prog *u8, output_file *u8) void {
         eprintln(output_file);
         exit(1);
     }
-    file_write(fd, wasm_module.data, wasm_module.len);
+    compiler_write_all(fd, wasm_module.data, wasm_module.len);
     file_close(fd);
 }

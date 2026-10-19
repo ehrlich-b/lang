@@ -57,10 +57,14 @@ func ast_emit_init() void {
 }
 
 func ast_emit_char(c u8) void {
-    if ast_emit_len < ast_emit_cap - 1 {
-        *(ast_emit_buf + ast_emit_len) = c;
-        ast_emit_len = ast_emit_len + 1;
+    if ast_emit_len >= ast_emit_cap - 1 {
+        eprint("error: size limit exceeded: AST output (buffer bytes: ");
+        eprint_i64(ast_emit_cap);
+        eprintln(")");
+        exit(1);
     }
+    *(ast_emit_buf + ast_emit_len) = c;
+    ast_emit_len = ast_emit_len + 1;
 }
 
 func ast_emit_str(s *u8) void {

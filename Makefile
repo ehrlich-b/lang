@@ -1,4 +1,4 @@
-.PHONY: all init bootstrap bootstrap-local bootstrap-verify build release test test-suite test-all test-compiler-wasm test-direct-wasm test-run clean distclean \
+.PHONY: all init bootstrap bootstrap-local bootstrap-verify verify build release test test-suite test-all test-compiler-wasm test-direct-wasm test-run clean distclean \
 		build-kernel build-lang-reader emit-kernel-ast emit-lang-reader-ast emit-compiler-ast \
 		seed-bootstrap test-composition test-bootstrap generate-os-layer generate-version-info llvm-verify \
 		compile run stdlib-run dev-run dev-stdlib-run status
@@ -206,6 +206,7 @@ bootstrap:
 		diff $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll | head -20; \
 		exit 1; \
 	fi
+	@shasum -a 256 $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
 	@echo "│ STAGE 4: AST FIXED POINT                                       │"
@@ -223,6 +224,7 @@ bootstrap:
 		diff $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast | head -20; \
 		exit 1; \
 	fi
+	@shasum -a 256 $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
 	@echo "│ STAGE 5: GENERATE BOOTSTRAP FILES                              │"
@@ -406,7 +408,7 @@ bootstrap:
 	@echo "║                                                                ║"
 	@echo "║ Promoted: bootstrap/current/ ($(VERSION))                     ║"
 	@echo "║   - compiler_linux.ll (clang-verified)                         ║"
-	@echo "║   - compiler_macos.ll (clang-verified, tested on macos)        ║"
+	@echo "║   - compiler_macos.ll (cross-target checked)                ║"
 	@echo "║   - lang_reader/source.ast                                     ║"
 	@echo "╚════════════════════════════════════════════════════════════════╝"
 	@echo ""
@@ -433,11 +435,18 @@ bootstrap-verify: generate-os-layer generate-version-info
 	@if ! diff -q $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll > /dev/null; then \
 		echo "LLVM FIXED POINT FAILED"; exit 1; \
 	fi
+	@echo "LLVM FIXED POINT VERIFIED (exact equality, hence normalized equality)"
+	@shasum -a 256 $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll
 	$(BOOTSTRAP_VERIFY_DIR)/kernel2 src/lang_reader.lang --emit-expanded-ast -o $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
 	@if ! diff -q $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast > /dev/null; then \
 		echo "AST FIXED POINT FAILED"; exit 1; \
 	fi
+	@echo "AST FIXED POINT VERIFIED"
+	@shasum -a 256 $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
 	COMPILER=$(BOOTSTRAP_VERIFY_DIR)/kernel2 ./test/run_llvm_suite.sh
+
+# Non-promoting verification alias; never archives, installs or updates the seed.
+verify: bootstrap-verify
 
 # Compatibility alias for the old Mac-only verifier. The historical recipe
 # overwrote out/lang before its fixed-point comparison and tests completed.
