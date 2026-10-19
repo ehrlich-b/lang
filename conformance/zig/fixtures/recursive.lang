@@ -1,0 +1,19 @@
+include "std/ast.lang"
+
+func boundary_sum(n i64) i64 {
+    if n == 0 { return 0; }
+    return n + boundary_sum(n - 1);
+}
+
+reader boundary_leaf(text *u8) *u8 {
+    return ast_span(ast_int(boundary_sum(6) * 2), 0, 1);
+}
+
+reader boundary_outer(text *u8) *u8 {
+    if boundary_sum(6) != 21 { return nil; }
+    return "(span 0 1 (reader_expr boundary_leaf \"x\"))";
+}
+
+func main() i64 {
+    return #boundary_outer{x};
+}

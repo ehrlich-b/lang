@@ -1,0 +1,5 @@
+include "std/ast.lang"
+
+reader boundary_file(text *u8) *u8 {
+    return ast_main_i64(ast_span(ast_ident("missing_boundary_symbol"), 0, 1));
+}
