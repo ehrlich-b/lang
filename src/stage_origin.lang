@@ -95,7 +95,8 @@ pub func phase_utf8_validate(text *u8, name *u8) void {
         j = 1;
         while j < count {
             next = *(text + i + j);
-            if next < 128 || next > 191 { phase_error("invalid-utf8", name); }
+            if next < 128 { phase_error("invalid-utf8", name); }
+            if next > 191 { phase_error("invalid-utf8", name); }
             value = value * 64 + next - 128; j = j + 1;
         }
         if value < minimum { phase_error("invalid-utf8", name); }
