@@ -1,5 +1,5 @@
 // Registries mint IDs; worker-supplied pointers and source names confer no authority.
-struct PhaseSource { id i64; name *u8; text *u8; len i64; digest *u8; }
+struct PhaseSource { id i64; name *u8; text *u8; len i64; digest *u8; lines *u8; line_count i64; }
 struct PhaseOrigin { id i64; source i64; start i64; end i64; include_parent i64; expansion_parent i64; }
 var phase_sources *u8 = nil;
 var phase_origins *u8 = nil;
@@ -11,12 +11,25 @@ pub func phase_source_get(id i64) *PhaseSource {
 pub func phase_source_new(name *u8, text *u8) i64 {
     if name == nil || text == nil { phase_error("missing-source", phase_diagnostic_source); }
     phase_utf8_validate(text, name);
-    phase_charge(strlen(text) + strlen(name) + 42);
+    var len i64 = strlen(text);
+    phase_charge(len + strlen(name) + 58);
     phase_work(1);
     if phase_sources == nil { phase_sources = vec_new(16); }
-    var s *PhaseSource = alloc(40);
+    var s *PhaseSource = alloc(56);
     s.id = vec_len(phase_sources) + 1; s.name = str_dup(name);
-    s.text = str_dup(text); s.len = strlen(text); s.digest = phase_digest(text, s.len);
+    s.text = str_dup(text); s.len = len; s.digest = phase_digest(s.text, s.len);
+    // Index line starts once instead of rescanning the prefix for every node.
+    var count i64 = 1;
+    var pos i64 = 0;
+    while pos < len { if *(s.text + pos) == 10 { count = count + 1; } pos = pos + 1; }
+    phase_charge(count * 8);
+    s.lines = alloc(count * 8); s.line_count = count;
+    phase_set_word(s.lines, 0, 0);
+    count = 1; pos = 0;
+    while pos < len {
+        if *(s.text + pos) == 10 { phase_set_word(s.lines, count, pos + 1); count = count + 1; }
+        pos = pos + 1;
+    }
     vec_push(phase_sources, s); return s.id;
 }
 pub func phase_origin_get(id i64) *PhaseOrigin {
@@ -60,14 +73,37 @@ pub func phase_source_latest(name *u8) i64 {
     }
     return 0;
 }
-pub func phase_line_byte(text *u8, line i64, column i64) i64 {
-    var pos i64 = 0; var row i64 = 1; var col i64 = 1;
-    while *(text + pos) != 0 {
-        if row == line && col == column { return pos; }
-        if *(text + pos) == 10 { row = row + 1; col = 1; } else { col = col + 1; }
-        pos = pos + 1;
+// Reuse an immutable record only after matching the exact bytes and name.
+pub func phase_source_register(name *u8, text *u8) i64 {
+    var previous *PhaseSource = phase_source_get(phase_source_latest(name));
+    if previous != nil && text != nil {
+        if previous.text == text { return previous.id; }
+        var len i64 = strlen(text);
+        if previous.len == len {
+            if streq(previous.text, text) { return previous.id; }
+        }
     }
-    return pos;
+    return phase_source_new(name, text);
+}
+// File snapshots are separate from reader slices that can share a display name.
+var phase_file_sources *u8 = nil;
+pub func phase_source_capture(name *u8, text *u8) i64 {
+    if phase_file_sources == nil { phase_file_sources = map_new(); }
+    var id i64 = phase_source_register(name, text);
+    map_set(phase_file_sources, name, id);
+    return id;
+}
+pub func phase_source_snapshot(name *u8) *PhaseSource {
+    if phase_file_sources == nil { return nil; }
+    return phase_source_get(map_get(phase_file_sources, name));
+}
+pub func phase_line_byte(source *PhaseSource, line i64, column i64) i64 {
+    if line < 1 || line > source.line_count || column < 1 { return source.len; }
+    var start i64 = phase_word(source.lines, line - 1);
+    var end i64 = source.len;
+    if line < source.line_count { end = phase_word(source.lines, line) - 1; }
+    if column - 1 > end - start { return end; }
+    return start + column - 1;
 }
 
 pub func phase_utf8_validate(text *u8, name *u8) void {

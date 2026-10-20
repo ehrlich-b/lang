@@ -29,6 +29,18 @@ func main(argc i64, argv **u8) i64 {
         parse_ast_from_reader_string("(program (span -1 4 (func main () (type_base i64) (block (return (number 0))))))", "negative-span-input", "abcde");
         return 9;
     }
+    if streq(mode, "register") {
+        var first i64 = phase_source_capture("snapshot", "é\na\nb");
+        if first != phase_source_register("snapshot", "é\na\nb") { return 8; }
+        var source *PhaseSource = phase_source_get(first);
+        if phase_line_byte(source, 2, 1) != 3 { return 8; }
+        if phase_line_byte(source, 3, 1) != 5 { return 8; }
+        if first == phase_source_register("snapshot", "é\na\nc") { return 8; }
+        if streq(source.text, "é\na\nb") == 0 { return 8; }
+        var snapshot *PhaseSource = phase_source_snapshot("snapshot");
+        if snapshot.id != first { return 8; }
+        return 0;
+    }
     if streq(mode, "identity") {
         var key *u8 = phase_cache_identity("dep", "compiler", "target-a", 1, "profile");
         if streq(key, phase_cache_identity("dep", "compiler", "target-b", 1, "profile")) { return 6; }

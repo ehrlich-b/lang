@@ -1331,7 +1331,7 @@ func parse_ast_from_reader_string(source *u8, source_name *u8,
     if source_name == nil { source_name = "<reader-invocation>"; sexpr_reader_source_name = source_name; }
     phase_diagnostic_source = source_name;
     var saved_bound_source i64 = phase_bound_source_id;
-    var source_id i64 = phase_source_new(source_name, reader_source);
+    var source_id i64 = phase_source_register(source_name, reader_source);
     phase_bound_source_id = source_id;
     var saved_expansion i64 = phase_expansion_origin;
     phase_expansion_origin = phase_origin_new(source_id, 0, strlen(reader_source), 0, saved_expansion);
@@ -1366,7 +1366,7 @@ func parse_ast_expression_from_reader_string(source *u8, source_name *u8,
     if source_name == nil { source_name = "<reader-invocation>"; sexpr_reader_source_name = source_name; }
     phase_diagnostic_source = source_name;
     var saved_bound_source i64 = phase_bound_source_id;
-    var source_id i64 = phase_source_new(source_name, reader_source);
+    var source_id i64 = phase_source_register(source_name, reader_source);
     phase_bound_source_id = source_id;
     var saved_expansion i64 = phase_expansion_origin;
     phase_expansion_origin = phase_origin_new(source_id, 0, strlen(reader_source), 0, saved_expansion);

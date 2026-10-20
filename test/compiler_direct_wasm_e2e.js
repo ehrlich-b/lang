@@ -107,6 +107,20 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
 }
 
 (async () => {
+  for (const [terms, environment] of [[200, {}], [700, { LANG_HOST_MAX_DEPTH: '1024' }]]) {
+    let expression = '(number 1)';
+    for (let i = 1; i < terms; i++) expression = `(binop + ${expression} (number 1))`;
+    const astText = `(program (func main () (type_base i64) (block (return ${expression}))))`;
+    const compiled = await runLangCompiler(
+      fs.readFileSync(compilerPath),
+      ['deep.ast', '--from-ast', '-o', 'deep.wasm'],
+      { ...stdlibFiles, 'deep.ast': astText }, undefined,
+      { LANGBE: 'wasm', ...environment },
+    );
+    if (compiled.exit !== 0) throw new Error(compiled.stderr || 'deep AST compilation failed');
+    const ran = await runLangProgram(compiled.files.get('deep.wasm'));
+    if (Number(ran.value) !== terms) throw new Error(`deep AST expected ${terms}, got ${ran.value}`);
+  }
   const arithmetic = await compileAndRun('test/direct_wasm_e2e.lang');
   if (Number(arithmetic.value) !== 42) throw new Error(`expected 42, got ${arithmetic.value}`);
 
@@ -151,6 +165,10 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   if (Number(calc.ran.value) !== 7 || !calc.ast.includes('(binop + ')) {
     throw new Error(`calc reader pipeline mismatch: value=${calc.ran.value} ast=${calc.ast}`);
   }
+  const deepCalc = await compileReaderPipeline(
+    'example/calc/calc.lang', 'calc', 'answer ' + Array(150).fill('1').join(' + '),
+  );
+  if (Number(deepCalc.ran.value) !== 150) throw new Error('deep calc AST did not round-trip');
   const invalid = await compileReaderPipeline('example/calc/calc.lang', 'calc', 'wat');
   if (invalid.ast !== null || !invalid.readerRun.stderr.includes('expected `answer EXPRESSION`')) {
     throw new Error(`reader failure mismatch: ast=${invalid.ast} stderr=${invalid.readerRun.stderr}`);

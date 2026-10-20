@@ -10,6 +10,7 @@ const paths = [
   'std/os/libc_macos.lang',
   'std/tools.lang',
   'std/core.lang',
+  'std/buffer.lang',
   'std/emit.lang',
   'std/ast.lang',
   'std/prec.lang',

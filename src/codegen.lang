@@ -7197,10 +7197,16 @@ func write_ascii_string(ptr *u8, len i64) void {
 
 func phase_read_resource(path *u8, len i64) *u8 {
     var name *u8 = str_dup_n(path, len);
+    // A compilation and its dependency key consume the same immutable snapshot.
+    var snapshot *PhaseSource = phase_source_snapshot(name);
+    if snapshot != nil { return snapshot.text; }
     var fd i64 = resource_open_read(name);
     if fd < 0 { return nil; }
     var b *PhaseBuffer = phase_read_fd(fd, phase_limit(), name);
-    os_close(fd); return b.data;
+    os_close(fd);
+    var id i64 = phase_source_capture(name, b.data);
+    snapshot = phase_source_get(id);
+    return snapshot.text;
 }
 
 func phase_parse_include(text *u8, name *u8, invocation *u8) *u8 {

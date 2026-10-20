@@ -1,5 +1,23 @@
 // Validate before parsing or publishing. Text grammar is the legacy AST ABI.
-var PHASE_AST_MAX_DEPTH i64 = 128;
+var PHASE_AST_MAX_DEPTH i64 = 512;
+var phase_depth_configured i64 = 0;
+// A bounded host setting, shared by source parsing, AST parsing and emission.
+pub func phase_depth_limit() i64 {
+    if phase_depth_configured != 0 { return PHASE_AST_MAX_DEPTH; }
+    var setting *u8 = getenv("LANG_HOST_MAX_DEPTH");
+    var value i64 = 0;
+    if setting != nil && *setting != 0 {
+        while *setting != 0 {
+            if *setting < 48 || *setting > 57 || value > 1024 { phase_error("invalid-depth-limit", phase_diagnostic_source); }
+            value = value * 10 + *setting - 48;
+            setting = setting + 1;
+        }
+        if value < 1 || value > 1024 { phase_error("invalid-depth-limit", phase_diagnostic_source); }
+        PHASE_AST_MAX_DEPTH = value;
+    }
+    phase_depth_configured = 1;
+    return PHASE_AST_MAX_DEPTH;
+}
 var PHASE_AST_MAX_NODES i64 = 1048576;
 pub func phase_validate_ast(text *u8, len i64, source *u8) void {
     // Keep storage in the entry block, including unoptimized host workers.
@@ -45,7 +63,7 @@ pub func phase_validate_ast(text *u8, len i64, source *u8) void {
         } else if c == 40 {
             if depth == 0 { roots = roots + 1; }
             depth = depth + 1; nodes = nodes + 1; atom = 0;
-            if depth > PHASE_AST_MAX_DEPTH { phase_error("ast-depth", source); }
+            if depth > phase_depth_limit() { phase_error("ast-depth", source); }
         } else if c == 41 {
             depth = depth - 1; atom = 0;
             if depth < 0 { phase_error("ast-shape", source); }

@@ -2503,7 +2503,7 @@ func node_set_origin_full(node *u8, source_name *u8, line i64, column i64,
     var byte_start i64 = start;
     var byte_end i64 = end;
     if byte_start < 0 {
-        byte_start = phase_line_byte(source_record.text, line, column);
+        byte_start = phase_line_byte(source_record, line, column);
         byte_end = byte_start;
     }
     var origin_slot *i64 = entry + 48;
@@ -2645,7 +2645,7 @@ pub func parser_tokenize(source *u8) void {
     source_name = parse_source_name;
     if source_name == nil { source_name = "<input>"; parse_source_name = source_name; }
     phase_diagnostic_source = source_name;
-    phase_bound_source_id = phase_source_new(source_name, source);
+    phase_bound_source_id = phase_source_register(source_name, source);
     lexer_init(source);
 
     done = 0;
@@ -2654,7 +2654,7 @@ pub func parser_tokenize(source *u8) void {
         tok = scan_token();
         shape_kind = tok_type(tok);
         shape_depth = shape_depth + phase_token_nesting(shape_kind);
-        if shape_depth > PHASE_AST_MAX_DEPTH { phase_error("source-depth", source_name); }
+        if shape_depth > phase_depth_limit() { phase_error("source-depth", source_name); }
         if vec_len(parse_tokens) >= PHASE_AST_MAX_NODES { phase_error("source-nodes", source_name); }
         parser_add_token(tok);
         if tok_type(tok) == TOKEN_EOF || tok_type(tok) == TOKEN_ERROR {
@@ -4419,7 +4419,7 @@ pub func node_origin_id(node *u8) i64 {
 
 func parse_type() *u8 {
     phase_parse_depth = phase_parse_depth + 1;
-    if phase_parse_depth > PHASE_AST_MAX_DEPTH { phase_error("source-depth", phase_diagnostic_source); }
+    if phase_parse_depth > phase_depth_limit() { phase_error("source-depth", phase_diagnostic_source); }
     var result *u8 = parse_type_bounded_inner();
     phase_parse_depth = phase_parse_depth - 1;
     return result;
@@ -4427,7 +4427,7 @@ func parse_type() *u8 {
 
 func parse_unary() *u8 {
     phase_parse_depth = phase_parse_depth + 1;
-    if phase_parse_depth > PHASE_AST_MAX_DEPTH { phase_error("source-depth", phase_diagnostic_source); }
+    if phase_parse_depth > phase_depth_limit() { phase_error("source-depth", phase_diagnostic_source); }
     var result *u8 = parse_unary_bounded_inner();
     phase_parse_depth = phase_parse_depth - 1;
     return result;

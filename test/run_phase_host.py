@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 
 root = Path(__file__).resolve().parent.parent
 os.chdir(root)
@@ -49,12 +50,16 @@ check("nul-source", run("echo", b"a\0b"), error="embedded-nul")
 for size in [0, 3, 55, 56, 63, 64, 65, 4097]:
     data = b"abc" if size == 3 else b"z" * size
     check("digest-" + str(size), run("digest", data), expected=hashlib.sha256(data).hexdigest().encode() + b"\n")
-for name, data, error in [("depth", b"(" * 129 + b")" * 129, "ast-depth"),
+for name, data, error in [("depth", b"(" * 513 + b")" * 513, "ast-depth"),
                           ("unclosed", b"(program", "ast-shape"),
                           ("trailing", b"(program) (program)", "ast-shape"),
                           ("quote", b'(program "abc)', "ast-shape"),
                           ("root", b"garbage", "ast-root")]:
     check(name, run("shape", data), error=error)
+check("configured-depth", run("shape", b"(" * 129 + b")" * 129, {"LANG_HOST_MAX_DEPTH": "128"}), error="ast-depth")
+check("raised-depth", run("shape", b"(" * 700 + b")" * 700, {"LANG_HOST_MAX_DEPTH": "1024"}))
+check("invalid-depth-limit", run("shape", b"(program)", {"LANG_HOST_MAX_DEPTH": "1025"}), error="invalid-depth-limit")
+check("source-register", run("register"))
 check("nodes", run("shape", b"(program " + b"a " * 1048577 + b")"), error="ast-nodes")
 check("origins", run("origin", "éabc".encode()))
 check("envelope", run("envelope", "éabc".encode()))
@@ -78,12 +83,64 @@ source.write_bytes(b'func main() i64 { var text *u8 = "' + large + b'"; return 0
 ast = out / "large.ast"
 check("large-frontend", command([compiler, str(source), "--emit-expanded-ast", "-o", str(ast)]))
 deep_source = out / "deep.lang"
-deep_source.write_text("func main() i64 { return " + "(" * 129 + "0" + ")" * 129 + "; }")
+deep_source.write_text("func main() i64 { return " + "(" * 513 + "0" + ")" * 513 + "; }")
 check("native-depth", command([compiler, str(deep_source), "--emit-expanded-ast", "-o", str(out / "deep.ast")]), error="source-depth")
 ast_bytes = ast.read_bytes()
 assert large in ast_bytes
 first = check("large-ast-parse", run("roundtrip", ast_bytes))
 check("large-ast-fixed-point", run("roundtrip", first), expected=first)
+# Ordinary left-associative expressions and else-if chains cross the AST boundary.
+for name, body, value, setting in [
+    ("sum-200", "return " + " + ".join(["1"] * 200) + ";", 200, {}),
+    ("sum-700", "return " + " + ".join(["1"] * 700) + ";", 700, {"LANG_HOST_MAX_DEPTH": "1024"}),
+    ("else-if-150", "".join("if 0 { return 1; } else " for _ in range(150)) + "{ return 23; }", 23, {}),
+]:
+    path = out / (name + ".lang")
+    path.write_text("func main() i64 { " + body + " }\n")
+    emitted = out / (name + ".ast")
+    check(name + "-emit", command([compiler, str(path), "--emit-expanded-ast", "-o", str(emitted)], extra=setting))
+    llvm = out / (name + ".ll")
+    check(name + "-from-ast", command([compiler, "--from-ast", str(emitted), "-o", str(llvm)], extra=setting))
+    executable = out / name
+    check(name + "-link", command(["clang", "-O0", str(llvm), "-o", str(executable)]))
+    check(name + "-run", command([str(executable)]), code=value % 256)
+    if name == "sum-200":
+        refused = command([compiler, "--from-ast", str(emitted), "-o", str(llvm)], extra={"LANG_HOST_MAX_DEPTH": "128"})
+        check("raw-depth-source", refused, error="ast-depth")
+        assert str(emitted).encode() in refused.stderr
+spanned = out / "unbound.ast"
+spanned.write_text('(program (func main () (type_base i64) (block (return (span 7 9 (number 20))))))')
+refused = command([compiler, "--from-ast", str(spanned), "-o", str(out / "unbound.ll")])
+check("raw-span-source", refused, error="missing-span-source")
+assert str(spanned).encode() in refused.stderr
+latin = out / "latin.lang"
+latin.write_bytes(b"// \xe9\nfunc main() i64 { return 0; }\n")
+refused = command([compiler, str(latin), "-o", str(out / "latin.ll")])
+check("native-invalid-utf8", refused, error="invalid-utf8")
+assert str(latin).encode() in refused.stderr
+# A root source supplied once must not be reopened for origins or expansion.
+fifo = out / "once.lang"
+if fifo.exists():
+    fifo.unlink()
+os.mkfifo(fifo)
+def write_root():
+    with fifo.open("w") as pipe:
+        pipe.write("func main() i64 { return 7; }\n")
+writer = threading.Thread(target=write_root, daemon=True)
+writer.start()
+check("root-snapshot", command([compiler, str(fifo), "--emit-expanded-ast", "-o", str(out / "once.ast")]))
+writer.join(timeout=5)
+assert not writer.is_alive() and b"(number 7)" in (out / "once.ast").read_bytes()
+fifo.unlink()
+# A large first guest followed by many appends must retain allocated capacity.
+guest = out / "large.capacityprobe"
+guest.write_bytes(large)
+empty = out / "empty.lang"
+empty.write_text("")
+check("combined-capacity", command([compiler, str(guest)] + [str(empty)] * 100 + ["--emit-ast", "-o", str(out / "combined.ast")]))
+calc_input = out / "deep.calc"
+calc_input.write_text("answer " + " + ".join(["1"] * 150))
+check("calc-deep-read", command([compiler, "read", "example/calc/calc.lang", str(calc_input)]))
 # Native legacy readers are linked without optimization. The host must also
 # retain bounded stack use there, rather than depending on LLVM promotion.
 optimized_probe = probe
@@ -91,6 +148,7 @@ probe = out / "probe-o0"
 check("link-probe-o0", command(["clang", "-O0", str(ir), "-o", str(probe)]))
 check("large-digest-o0", run("digest", large), expected=hashlib.sha256(large).hexdigest().encode() + b"\n")
 check("large-roundtrip-o0", run("roundtrip", first), expected=first)
+check("deep-roundtrip-o0", run("roundtrip", (out / "sum-700.ast").read_bytes(), {"LANG_HOST_MAX_DEPTH": "1024"}))
 check("large-origin-o0", run("origin", large))
 check("unicode-origin-o0", run("origin", "é".encode() * 1200000))
 probe = optimized_probe
@@ -99,6 +157,14 @@ worker = out / "worker.py"
 worker.write_text("#!/usr/bin/env python3\nimport sys\nsys.stdout.buffer.write(b'x' * 200000); sys.stdout.flush()\nsys.stdin.buffer.read()\n")
 worker.chmod(0o755)
 check("duplex-worker", run("worker", large, arg=worker), expected=b"x" * 200000)
+# File snapshots must remain distinct from C-reader slices with the same name.
+algorithm_ir = out / "algorithms.ll"
+for state in ["cold", "warm"]:
+    check("c-snapshot-" + state, command([compiler, "example/c/algorithms.lang", "-o", str(algorithm_ir)]))
+    if state == "cold":
+        cold_ir = algorithm_ir.read_bytes()
+    else:
+        assert algorithm_ir.read_bytes() == cold_ir
 # Frozen mtimes, transitive includes and a warm artifact hit.
 leaf = out / "leaf.lang"
 helper = out / "helper.lang"
