@@ -25,6 +25,10 @@ func main(argc i64, argv **u8) i64 {
         if output == nil { return 3; }
         print(output); return 0;
     }
+    if streq(mode, "span-negative") {
+        parse_ast_from_reader_string("(program (span -1 4 (func main () (type_base i64) (block (return (number 0))))))", "negative-span-input", "abcde");
+        return 9;
+    }
     if streq(mode, "identity") {
         var key *u8 = phase_cache_identity("dep", "compiler", "target-a", 1, "profile");
         if streq(key, phase_cache_identity("dep", "compiler", "target-b", 1, "profile")) { return 6; }

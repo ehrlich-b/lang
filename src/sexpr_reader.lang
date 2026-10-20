@@ -66,7 +66,7 @@ func sexpr_atoi(s *u8) i64 {
         if c >= '0' && c <= '9' {
             if result > 107374182 { phase_error("span-overflow", phase_diagnostic_source); }
             result = result * 10 + (c - '0');
-        }
+        } else { phase_error("invalid-span-number", phase_diagnostic_source); }
         s = s + 1;
     }
     return result;
