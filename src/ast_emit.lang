@@ -124,10 +124,14 @@ func ast_emit_finish() *u8 {
 
 // Emit a quoted string (with escaping)
 func ast_emit_quoted_string(s *u8, len i64) void {
-    ast_emit_char('"');
+    // Keep storage in the entry block, including unoptimized host workers.
     var i i64 = 0;
+    var c u8 = 0;
+
+    ast_emit_char('"');
+    i = 0;
     while i < len {
-        var c u8 = *(s + i);
+        c = *(s + i);
         if c == '"' {
             ast_emit_char('\\');
             ast_emit_char('"');

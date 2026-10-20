@@ -2,12 +2,24 @@
 var PHASE_AST_MAX_DEPTH i64 = 128;
 var PHASE_AST_MAX_NODES i64 = 1048576;
 pub func phase_validate_ast(text *u8, len i64, source *u8) void {
+    // Keep storage in the entry block, including unoptimized host workers.
+    var depth i64 = 0;
+    var nodes i64 = 0;
+    var quoted i64 = 0;
+    var escaped i64 = 0;
+    var roots i64 = 0;
+    var atom i64 = 0;
+    var i i64 = 0;
+    var line_comment i64 = 0;
+    var block_comment i64 = 0;
+    var c i64 = 0;
+
     if len < 1 || len > phase_limit() { phase_error("ast-byte-limit", source); }
-    var depth i64 = 0; var nodes i64 = 0; var quoted i64 = 0; var escaped i64 = 0;
-    var roots i64 = 0; var atom i64 = 0; var i i64 = 0;
-    var line_comment i64 = 0; var block_comment i64 = 0;
+    depth = 0; nodes = 0; quoted = 0; escaped = 0;
+    roots = 0; atom = 0; i = 0;
+    line_comment = 0; block_comment = 0;
     while i < len {
-        var c i64 = *(text + i);
+        c = *(text + i);
         if c == 0 { phase_error("embedded-nul", source); }
         if line_comment != 0 {
             if c == 10 { line_comment = 0; }
@@ -19,10 +31,10 @@ pub func phase_validate_ast(text *u8, len i64, source *u8) void {
             }
             i = i + 1; continue;
         }
-        if quoted == 0 && c == 47 && i + 1 < len {
+        if quoted == 0 { if c == 47 { if i + 1 < len {
             if *(text + i + 1) == 47 { line_comment = 1; atom = 0; i = i + 2; continue; }
             if *(text + i + 1) == 42 { block_comment = 1; atom = 0; i = i + 2; continue; }
-        }
+        } } }
         if quoted != 0 {
             if escaped != 0 { escaped = 0; }
             else if c == 92 { escaped = 1; }

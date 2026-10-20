@@ -3,7 +3,7 @@
 The compiler host owns bytes, source identities, origin grants, dependency
 identities and resource accounts. Frontends own language semantics. The host
 request boundary lives in `src/phase_host.lang`; `stage_buffer`, `stage_digest`,
-`stage_origin`, `stage_wire`, `stage_worker`, `stage_dependencies` and
+`stage_origin`, `stage_node_origin`, `stage_wire`, `stage_worker`, `stage_dependencies` and
 `stage_legacy` implement separate mechanisms using bootstrap-compatible syntax.
 
 `phase_compile_hook` accepts a `PhaseCompileRequest` and returns an exit status.
@@ -87,4 +87,5 @@ Run `COMPILER=out/lang_next python3 test/run_phase_host.py` for the production
 boundary tests. `PHASE_HOST_EVIDENCE` selects the artifact directory. The suite
 checks multi-megabyte source/emission/AST fidelity, malformed frames and shape,
 UTF-8/origins, SHA-256 boundary vectors, budgets, bidirectional pipe progress,
-and cold/warm/same-mtime transitive dependency invalidation.
+cold/warm/same-mtime transitive dependency invalidation, and multi-megabyte
+round trips, hashing and Unicode sources in unoptimized workers.

@@ -83,6 +83,16 @@ ast_bytes = ast.read_bytes()
 assert large in ast_bytes
 first = check("large-ast-parse", run("roundtrip", ast_bytes))
 check("large-ast-fixed-point", run("roundtrip", first), expected=first)
+# Native legacy readers are linked without optimization. The host must also
+# retain bounded stack use there, rather than depending on LLVM promotion.
+optimized_probe = probe
+probe = out / "probe-o0"
+check("link-probe-o0", command(["clang", "-O0", str(ir), "-o", str(probe)]))
+check("large-digest-o0", run("digest", large), expected=hashlib.sha256(large).hexdigest().encode() + b"\n")
+check("large-roundtrip-o0", run("roundtrip", first), expected=first)
+check("large-origin-o0", run("origin", large))
+check("unicode-origin-o0", run("origin", "é".encode() * 1200000))
+probe = optimized_probe
 # Both sides of the legacy pipes exceed pipe capacity at the same time.
 worker = out / "worker.py"
 worker.write_text("#!/usr/bin/env python3\nimport sys\nsys.stdout.buffer.write(b'x' * 200000); sys.stdout.flush()\nsys.stdin.buffer.read()\n")

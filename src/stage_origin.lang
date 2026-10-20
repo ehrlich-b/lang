@@ -71,22 +71,36 @@ pub func phase_line_byte(text *u8, line i64, column i64) i64 {
 }
 
 pub func phase_utf8_validate(text *u8, name *u8) void {
-    var len i64 = strlen(text); var i i64 = 0;
+    // Keep storage in the entry block, including unoptimized host workers.
+    var len i64 = 0;
+    var i i64 = 0;
+    var c i64 = 0;
+    var count i64 = 0;
+    var value i64 = 0;
+    var minimum i64 = 0;
+    var j i64 = 0;
+    var next i64 = 0;
+
+    len = strlen(text); i = 0;
     while i < len {
-        var c i64 = *(text + i); var count i64 = 0; var value i64 = 0; var minimum i64 = 0;
+        c = *(text + i); count = 0; value = 0; minimum = 0;
         if c < 128 { count = 1; value = c; }
-        else if c >= 194 && c <= 223 { count = 2; value = c - 192; minimum = 128; }
-        else if c >= 224 && c <= 239 { count = 3; value = c - 224; minimum = 2048; }
-        else if c >= 240 && c <= 244 { count = 4; value = c - 240; minimum = 65536; }
-        else { phase_error("invalid-utf8", name); }
+        else if c >= 194 {
+            if c <= 223 { count = 2; value = c - 192; minimum = 128; }
+            else if c <= 239 { count = 3; value = c - 224; minimum = 2048; }
+            else if c <= 244 { count = 4; value = c - 240; minimum = 65536; }
+            else { phase_error("invalid-utf8", name); }
+        } else { phase_error("invalid-utf8", name); }
         if count > len - i { phase_error("invalid-utf8", name); }
-        var j i64 = 1;
+        j = 1;
         while j < count {
-            var next i64 = *(text + i + j);
+            next = *(text + i + j);
             if next < 128 || next > 191 { phase_error("invalid-utf8", name); }
             value = value * 64 + next - 128; j = j + 1;
         }
-        if value < minimum || value > 1114111 || (value >= 55296 && value <= 57343) { phase_error("invalid-utf8", name); }
+        if value < minimum { phase_error("invalid-utf8", name); }
+        if value > 1114111 { phase_error("invalid-utf8", name); }
+        if value >= 55296 { if value <= 57343 { phase_error("invalid-utf8", name); } }
         i = i + count;
     }
 }

@@ -206,15 +206,26 @@ func sexpr_strdup(s *u8) *u8 {
 // Input: "hello\nworld" (with quotes)
 // Output: hello<newline>world (without quotes, escapes processed)
 func sexpr_parse_string(quoted *u8) *u8 {
-    var len i64 = strlen(quoted);
-    var buf *u8 = alloc(len + 1);
+    // Keep storage in the entry block, including unoptimized host workers.
+    var has_escape i64 = 0;
+    var len i64 = 0;
+    var buf *u8 = nil;
     var out i64 = 0;
-    var i i64 = 1;  // Skip opening quote
+    var i i64 = 0;
+    var c u8 = 0;
+    var next u8 = 0;
+
+    len = strlen(quoted);
+    buf = alloc(len + 1);
+    out = 0;
+    i = 1;  // Skip opening quote
 
     while i < len - 1 {  // Stop before closing quote
-        var c u8 = *(quoted + i);
-        if c == '\\' && i + 1 < len - 1 {
-            var next u8 = *(quoted + i + 1);
+        c = *(quoted + i);
+        has_escape = 0;
+        if c == 92 { if i + 1 < len - 1 { has_escape = 1; } }
+        if has_escape != 0 {
+            next = *(quoted + i + 1);
             if next == 'n' { *(buf + out) = '\n'; out = out + 1; i = i + 2; }
             else if next == 't' { *(buf + out) = '\t'; out = out + 1; i = i + 2; }
             else if next == 'r' { *(buf + out) = '\r'; out = out + 1; i = i + 2; }

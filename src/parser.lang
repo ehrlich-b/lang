@@ -1,3 +1,4 @@
+include "src/stage_node_origin.lang"
 include "src/stage_digest.lang"
 include "src/stage_origin.lang"
 include "src/stage_wire.lang"
@@ -2466,16 +2467,23 @@ var parse_max_errors i64 = 10;   // Stop after this many errors
 // start/end are byte offsets into reader source, or -1 for ordinary Lang nodes.
 var node_origins *u8 = nil;
 var node_origin_count i64 = 0;
+var node_origin_capacity i64 = 0;
 
 func node_set_origin_full(node *u8, source_name *u8, line i64, column i64,
                           start i64, end i64) void {
     if node == nil || source_name == nil || *source_name == 0 {
         return;
     }
-    if node_origins == nil {
-        node_origins = alloc(LIMIT_NODE_ORIGINS * 56);
+    if node_origin_count >= PHASE_AST_MAX_NODES { phase_error("origin-budget", source_name); }
+    if node_origin_count >= node_origin_capacity {
+        var capacity i64 = node_origin_capacity * 2;
+        if capacity == 0 { capacity = 256; }
+        if capacity > PHASE_AST_MAX_NODES { capacity = PHASE_AST_MAX_NODES; }
+        phase_charge(capacity * 56);
+        var storage *u8 = alloc(capacity * 56);
+        if node_origin_count > 0 { memcpy(storage, node_origins, node_origin_count * 56); }
+        node_origins = storage; node_origin_capacity = capacity;
     }
-    if node_origin_count >= LIMIT_NODE_ORIGINS { phase_error("origin-budget", source_name); }
     var entry *u8 = node_origins + (node_origin_count * 56);
     var node_slot **u8 = entry;
     *node_slot = node;
@@ -2500,6 +2508,7 @@ func node_set_origin_full(node *u8, source_name *u8, line i64, column i64,
     }
     var origin_slot *i64 = entry + 48;
     *origin_slot = phase_origin_new(source_id, byte_start, byte_end, phase_include_origin, phase_expansion_origin);
+    phase_node_index_set(node, node_origin_count);
     node_origin_count = node_origin_count + 1;
 }
 
@@ -2526,16 +2535,9 @@ pub func node_set_span(node *u8, source_name *u8, source *u8,
 }
 
 func node_origin_entry(node *u8) *u8 {
-    var i i64 = node_origin_count - 1;
-    while i >= 0 {
-        var entry *u8 = node_origins + (i * 56);
-        var node_slot **u8 = entry;
-        if *node_slot == node {
-            return entry;
-        }
-        i = i - 1;
-    }
-    return nil;
+    var index i64 = phase_node_index_find(node);
+    if index < 0 { return nil; }
+    return node_origins + index * 56;
 }
 
 pub func node_origin_source(node *u8) *u8 {
@@ -2632,23 +2634,27 @@ func parser_add_token(tok *u8) void {
 
 // Tokenize source and fill token array
 pub func parser_tokenize(source *u8) void {
+    // Keep storage in the entry block, including unoptimized host workers.
+    var source_name *u8 = nil;
+    var done i64 = 0;
+    var shape_depth i64 = 0;
+    var tok *u8 = nil;
+    var shape_kind i64 = 0;
+
     parser_init();
-    var source_name *u8 = parse_source_name;
+    source_name = parse_source_name;
     if source_name == nil { source_name = "<input>"; parse_source_name = source_name; }
     phase_diagnostic_source = source_name;
     phase_bound_source_id = phase_source_new(source_name, source);
     lexer_init(source);
 
-    var done i64 = 0;
-    var shape_depth i64 = 0;
+    done = 0;
+    shape_depth = 0;
     while done == 0 {
-        var tok *u8 = scan_token();
-        var shape_kind i64 = tok_type(tok);
-        if shape_kind == TOKEN_LPAREN || shape_kind == TOKEN_LBRACE || shape_kind == TOKEN_LBRACKET {
-            shape_depth = shape_depth + 1;
-            if shape_depth > PHASE_AST_MAX_DEPTH { phase_error("source-depth", source_name); }
-        }
-        if shape_kind == TOKEN_RPAREN || shape_kind == TOKEN_RBRACE || shape_kind == TOKEN_RBRACKET { shape_depth = shape_depth - 1; }
+        tok = scan_token();
+        shape_kind = tok_type(tok);
+        shape_depth = shape_depth + phase_token_nesting(shape_kind);
+        if shape_depth > PHASE_AST_MAX_DEPTH { phase_error("source-depth", source_name); }
         if vec_len(parse_tokens) >= PHASE_AST_MAX_NODES { phase_error("source-nodes", source_name); }
         parser_add_token(tok);
         if tok_type(tok) == TOKEN_EOF || tok_type(tok) == TOKEN_ERROR {
@@ -4428,3 +4434,13 @@ func parse_unary() *u8 {
 }
 
 var phase_parse_depth i64 = 0;
+
+func phase_token_nesting(kind i64) i64 {
+    if kind == TOKEN_LPAREN { return 1; }
+    if kind == TOKEN_LBRACE { return 1; }
+    if kind == TOKEN_LBRACKET { return 1; }
+    if kind == TOKEN_RPAREN { return -1; }
+    if kind == TOKEN_RBRACE { return -1; }
+    if kind == TOKEN_RBRACKET { return -1; }
+    return 0;
+}

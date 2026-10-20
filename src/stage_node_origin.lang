@@ -1,0 +1,52 @@
+// Host-local node addresses index provenance; addresses never enter digests
+// or worker frames. Reallocation preserves immutable origin handles.
+var phase_node_keys *u8 = nil;
+var phase_node_values *u8 = nil;
+var phase_node_capacity i64 = 0;
+var phase_node_entries i64 = 0;
+pub func phase_node_index_find(node *u8) i64 {
+    if phase_node_capacity == 0 || node == nil { return -1; }
+    var key i64 = node;
+    var bucket i64 = (key / 8) % phase_node_capacity;
+    var stored i64 = phase_word(phase_node_keys, bucket);
+    while stored != 0 {
+        if stored == key { return phase_word(phase_node_values, bucket) - 1; }
+        bucket = (bucket + 1) % phase_node_capacity;
+        stored = phase_word(phase_node_keys, bucket);
+    }
+    return -1;
+}
+pub func phase_node_index_put(node *u8, index i64) void {
+    var key i64 = node;
+    var bucket i64 = (key / 8) % phase_node_capacity;
+    var stored i64 = phase_word(phase_node_keys, bucket);
+    while stored != 0 {
+        if stored == key { phase_set_word(phase_node_values, bucket, index + 1); return; }
+        bucket = (bucket + 1) % phase_node_capacity;
+        stored = phase_word(phase_node_keys, bucket);
+    }
+    phase_set_word(phase_node_keys, bucket, key);
+    phase_set_word(phase_node_values, bucket, index + 1);
+    phase_node_entries = phase_node_entries + 1;
+}
+pub func phase_node_index_set(node *u8, index i64) void {
+    var old_keys *u8 = nil; var old_values *u8 = nil;
+    var old_capacity i64 = 0; var i i64 = 0; var key i64 = 0;
+    if phase_node_entries * 2 >= phase_node_capacity {
+        old_keys = phase_node_keys; old_values = phase_node_values;
+        old_capacity = phase_node_capacity;
+        phase_node_capacity = phase_node_capacity * 2;
+        if phase_node_capacity == 0 { phase_node_capacity = 512; }
+        phase_charge(phase_node_capacity * 16);
+        phase_node_keys = alloc(phase_node_capacity * 8);
+        phase_node_values = alloc(phase_node_capacity * 8);
+        phase_node_entries = 0;
+        i = 0;
+        while i < old_capacity {
+            key = phase_word(old_keys, i);
+            if key != 0 { phase_node_index_put(key, phase_word(old_values, i) - 1); }
+            i = i + 1;
+        }
+    }
+    phase_node_index_put(node, index);
+}

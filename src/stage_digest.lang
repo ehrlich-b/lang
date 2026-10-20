@@ -3,9 +3,42 @@ pub func phase_rotr(x i64, n i64) i64 { return ((x >> n) | (x << (32 - n))) & 42
 pub func phase_word(a *u8, i i64) i64 { var p *i64 = a + i * 8; return *p; }
 pub func phase_set_word(a *u8, i i64, x i64) void { var p *i64 = a + i * 8; *p = x; }
 pub func phase_digest(data *u8, len i64) *u8 {
+    // Keep storage in the entry block, including unoptimized host workers.
+    var k *u8 = nil;
+    var h *u8 = nil;
+    var w *u8 = nil;
+    var blocks i64 = 0;
+    var block i64 = 0;
+    var i i64 = 0;
+    var value i64 = 0;
+    var j i64 = 0;
+    var pos i64 = 0;
+    var byte i64 = 0;
+    var x i64 = 0;
+    var y i64 = 0;
+    var s0 i64 = 0;
+    var s1 i64 = 0;
+    var a i64 = 0;
+    var b i64 = 0;
+    var c i64 = 0;
+    var d i64 = 0;
+    var e i64 = 0;
+    var f i64 = 0;
+    var g i64 = 0;
+    var hh i64 = 0;
+    var big1 i64 = 0;
+    var ch i64 = 0;
+    var t1 i64 = 0;
+    var big0 i64 = 0;
+    var maj i64 = 0;
+    var t2 i64 = 0;
+    var out *u8 = nil;
+    var hex *u8 = nil;
+    var word i64 = 0;
+
     if len < 0 || len > 1073741824 { phase_error("digest-length", phase_diagnostic_source); }
     phase_charge(1153);
-    var k *u8 = alloc(512);
+    k = alloc(512);
     phase_set_word(k, 0, 1116352408);
     phase_set_word(k, 1, 1899447441);
     phase_set_word(k, 2, 3049323471);
@@ -70,7 +103,7 @@ pub func phase_digest(data *u8, len i64) *u8 {
     phase_set_word(k, 61, 2756734187);
     phase_set_word(k, 62, 3204031479);
     phase_set_word(k, 63, 3329325298);
-    var h *u8 = alloc(64);
+    h = alloc(64);
     phase_set_word(h, 0, 1779033703);
     phase_set_word(h, 1, 3144134277);
     phase_set_word(h, 2, 1013904242);
@@ -79,17 +112,17 @@ pub func phase_digest(data *u8, len i64) *u8 {
     phase_set_word(h, 5, 2600822924);
     phase_set_word(h, 6, 528734635);
     phase_set_word(h, 7, 1541459225);
-    var w *u8 = alloc(512);
-    var blocks i64 = (len + 72) / 64;
-    var block i64 = 0;
+    w = alloc(512);
+    blocks = (len + 72) / 64;
+    block = 0;
     while block < blocks {
-        var i i64 = 0;
+        i = 0;
         while i < 16 {
-            var value i64 = 0;
-            var j i64 = 0;
+            value = 0;
+            j = 0;
             while j < 4 {
-                var pos i64 = block * 64 + i * 4 + j;
-                var byte i64 = 0;
+                pos = block * 64 + i * 4 + j;
+                byte = 0;
                 if pos < len { byte = *(data + pos); }
                 else if pos == len { byte = 128; }
                 else if pos >= blocks * 64 - 8 { byte = ((len * 8) >> ((blocks * 64 - 1 - pos) * 8)) & 255; }
@@ -98,25 +131,25 @@ pub func phase_digest(data *u8, len i64) *u8 {
             phase_set_word(w, i, value); i = i + 1;
         }
         while i < 64 {
-            var x i64 = phase_word(w, i - 15);
-            var y i64 = phase_word(w, i - 2);
-            var s0 i64 = phase_rotr(x, 7) ^ phase_rotr(x, 18) ^ (x >> 3);
-            var s1 i64 = phase_rotr(y, 17) ^ phase_rotr(y, 19) ^ (y >> 10);
+            x = phase_word(w, i - 15);
+            y = phase_word(w, i - 2);
+            s0 = phase_rotr(x, 7) ^ phase_rotr(x, 18) ^ (x >> 3);
+            s1 = phase_rotr(y, 17) ^ phase_rotr(y, 19) ^ (y >> 10);
             phase_set_word(w, i, (phase_word(w, i - 16) + s0 + phase_word(w, i - 7) + s1) & 4294967295);
             i = i + 1;
         }
-        var a i64 = phase_word(h, 0); var b i64 = phase_word(h, 1);
-        var c i64 = phase_word(h, 2); var d i64 = phase_word(h, 3);
-        var e i64 = phase_word(h, 4); var f i64 = phase_word(h, 5);
-        var g i64 = phase_word(h, 6); var hh i64 = phase_word(h, 7);
+        a = phase_word(h, 0); b = phase_word(h, 1);
+        c = phase_word(h, 2); d = phase_word(h, 3);
+        e = phase_word(h, 4); f = phase_word(h, 5);
+        g = phase_word(h, 6); hh = phase_word(h, 7);
         i = 0;
         while i < 64 {
-            var big1 i64 = phase_rotr(e, 6) ^ phase_rotr(e, 11) ^ phase_rotr(e, 25);
-            var ch i64 = (e & f) ^ ((e ^ 4294967295) & g);
-            var t1 i64 = (hh + big1 + ch + phase_word(k, i) + phase_word(w, i)) & 4294967295;
-            var big0 i64 = phase_rotr(a, 2) ^ phase_rotr(a, 13) ^ phase_rotr(a, 22);
-            var maj i64 = (a & b) ^ (a & c) ^ (b & c);
-            var t2 i64 = (big0 + maj) & 4294967295;
+            big1 = phase_rotr(e, 6) ^ phase_rotr(e, 11) ^ phase_rotr(e, 25);
+            ch = (e & f) ^ ((e ^ 4294967295) & g);
+            t1 = (hh + big1 + ch + phase_word(k, i) + phase_word(w, i)) & 4294967295;
+            big0 = phase_rotr(a, 2) ^ phase_rotr(a, 13) ^ phase_rotr(a, 22);
+            maj = (a & b) ^ (a & c) ^ (b & c);
+            t2 = (big0 + maj) & 4294967295;
             hh = g; g = f; f = e; e = (d + t1) & 4294967295;
             d = c; c = b; b = a; a = (t1 + t2) & 4294967295;
             i = i + 1;
@@ -131,10 +164,10 @@ pub func phase_digest(data *u8, len i64) *u8 {
         phase_set_word(h, 7, (phase_word(h, 7) + hh) & 4294967295);
         block = block + 1;
     }
-    var out *u8 = alloc(65); var hex *u8 = "0123456789abcdef";
-    var i i64 = 0;
+    out = alloc(65); hex = "0123456789abcdef";
+    i = 0;
     while i < 64 {
-        var word i64 = phase_word(h, i / 8);
+        word = phase_word(h, i / 8);
         *(out + i) = *(hex + ((word >> ((7 - i % 8) * 4)) & 15));
         i = i + 1;
     }
