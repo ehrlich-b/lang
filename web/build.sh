@@ -28,7 +28,7 @@ echo 'include "std/os/libc.lang"' > std/os.lang
 
 mkdir -p web/examples
 for e in $EXAMPLES; do
-    tmp=$(mktemp -d)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
     LANG_CACHE="$tmp/cache" LANGOS=wasm LANGBE=llvm $COMPILER "example/$e.lang" -o "$tmp/$e.ll" >/dev/null
     "$WASM_CLANG" --target=wasm32-unknown-unknown -nostdlib $WASM_LDFLAGS "$tmp/$e.ll" -o "web/examples/$e.wasm"
     cp "example/$e.lang" "web/examples/$e.lang"

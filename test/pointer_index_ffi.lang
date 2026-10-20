@@ -1,0 +1,10 @@
+// Real C-owned bytes, pointer slots, and struct storage exercise the LLVM ABI.
+extern func pointer_index_check() i64;
+struct IndexPair { first i64; second i64; }
+func lang_index_byte(p *u8, i i64) i64 { return p[i]; }
+func lang_store_byte(p *u8, i i64, value i64) void { p[i] = value; }
+func lang_index_arg(argv **u8, i i64) *u8 { return argv[i]; }
+func lang_store_arg(argv **u8, i i64, value *u8) void { argv[i] = value; }
+func lang_index_pair(p *IndexPair, i i64) i64 { return p[i].second; }
+func lang_copy_pair(p *IndexPair) void { p[1] = p[0]; }
+func main() i64 { return pointer_index_check(); }

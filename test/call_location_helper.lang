@@ -1,0 +1,2 @@
+// A Lang callee for the single-form minilisp reader's cross-language call.
+func two(a i64, b i64) i64 { return a + b; }

@@ -1,0 +1,5 @@
+include "std/ast.lang"
+
+reader boundary_length(text *u8) *u8 {
+    return ast_main_i64(ast_int(strlen(text)));
+}

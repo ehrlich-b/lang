@@ -404,7 +404,7 @@ func py_postfix_of(node *PNode) *u8 {
             i = i + 1;
         }
         // Any name, defined here or in any other language in the binary.
-        return ast_call_named(name.text, out);
+        return ast_span(ast_call_named(name.text, out), name.start, node.end);
     }
     return py_primary_of(node);
 }

@@ -2,8 +2,12 @@
 set -e
 cd "$(dirname "$0")/.."
 
-COMPILER=${COMPILER:-./out/lang}
-tmp=$(mktemp -d)
+COMPILER=${COMPILER:-./out/bootstrap_verify/kernel2}
+if [ ! -x "$COMPILER" ]; then
+    echo "direct wasm compiler missing: $COMPILER; run make verify first" >&2
+    exit 1
+fi
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 
 run_case() {
@@ -31,6 +35,7 @@ run_case test/direct_wasm_ast_e2e.lang 40
 run_case test/direct_wasm_reader_e2e.lang 40
 run_case test/direct_wasm_calc_reader_e2e.lang 40
 run_case test/suite/286_local_address_shadows_function.lang 0
+run_case test/suite/287_node_origins_index.lang 0
 
 unsupported="$tmp/unsupported.wasm"
 if LANGBE=wasm LANGOS=wasm "$COMPILER" test/suite/250_arrays.lang -o "$unsupported" \

@@ -1,0 +1,24 @@
+// expect: 42
+// Byte indexing uses one-byte loads/stores and unsigned widening.
+func get(p *u8, offset i64) i64 { return p[offset]; }
+func put(p *u8, offset i64, value i64) void { p[offset] = value; }
+func bytes(p *u8) *u8 { return p; }
+
+func main() i64 {
+    var data [6]u8 = [11, 0, 0, 0, 0, 22];
+    var p *u8 = &data[0];
+    put(p, 1, 128);
+    p[2] = 255;
+    p[3] = 511;
+    p[4] = 298;
+    if get(p, 1) != 128 { return 1; }
+    if get(p, 2) != 255 { return 2; }
+    if p[3] != 255 { return 3; }
+    if data[0] != 11 || data[5] != 22 { return 4; }
+    if (p + 2)[-1] != 128 { return 5; }
+    if bytes(p)[4] != 42 { return 6; }
+    if "xyz"[2] != 122 { return 7; }
+    var slot *u8 = &p[4];
+    slot[0] = 42;
+    return get(p, 4);
+}

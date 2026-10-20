@@ -23,7 +23,7 @@ echo 'include "std/os/libc.lang"' > std/os.lang
 
 node web/build_stdlib.js
 
-tmp=$(mktemp -d)
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 trap 'restore_os; rm -rf "$tmp"' EXIT
 LANGOS=wasm LANGBE=llvm "$COMPILER" \
     std/core.lang out/version_info.lang src/lexer.lang src/parser.lang \

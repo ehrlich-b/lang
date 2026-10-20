@@ -2396,7 +2396,7 @@ func main(argc i64, argv **u8) i64 {
             eprintln(output_file);
             return 1;
         }
-        file_write(fd, ast_str, strlen(ast_str));
+        compiler_write_all(fd, ast_str, strlen(ast_str));
         file_close(fd);
 
         print("Wrote expanded AST to ");
@@ -2412,7 +2412,7 @@ func main(argc i64, argv **u8) i64 {
             eprintln(output_file);
             return 1;
         }
-        file_write(fd, ast_str, strlen(ast_str));
+        compiler_write_all(fd, ast_str, strlen(ast_str));
         file_close(fd);
 
         print("Wrote AST to ");

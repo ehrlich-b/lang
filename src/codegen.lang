@@ -854,7 +854,43 @@ func add_global(name *u8, name_len i64, t *u8, init *u8, is_extern i64, is_pub i
 // Struct registry helpers
 // ============================================================
 
+// Opt-in audited storage boundary; bootstrap/internal-v1 stays unchanged.
+// This is an admission guard, not a replacement layout calculator.
+func compiler_check_audited_layout(decl *u8) void {
+    var profile *u8 = getenv("LANG_LAYOUT_PROFILE");
+    if profile == nil { return; }
+    if streq(profile, "bootstrap-internal-v1") { return; }
+    if streq(profile, "audited-slots-v1") == 0 {
+        cg_error_prefix();
+        eprintln("unknown layout profile");
+        exit(1);
+    }
+    var fields *u8 = struct_decl_fields(decl);
+    var i i64 = 0;
+    while i < struct_decl_field_count(decl) {
+        var field *u8 = get_struct_field(fields, i);
+        var t *u8 = struct_field_type(field);
+        var admitted i64 = 0;
+        if type_kind(t) == TYPE_PTR { admitted = 1; }
+        if type_kind(t) == TYPE_BASE {
+            var name *u8 = base_type_name(t);
+            var len i64 = base_type_name_len(t);
+            if len == 3 {
+                if memcmp(name, "i64", 3) || memcmp(name, "u64", 3) { admitted = 1; }
+            }
+        }
+        if admitted == 0 {
+            cg_diagnostic_node = decl;
+            cg_error_prefix();
+            eprintln("unaudited field layout in audited-slots-v1; use bootstrap-internal-v1 for legacy programs");
+            exit(1);
+        }
+        i = i + 1;
+    }
+}
+
 func add_struct(decl *u8) void {
+    compiler_check_audited_layout(decl);
     var name *u8 = struct_decl_name(decl);
     var name_len i64 = struct_decl_name_len(decl);
 
@@ -1613,6 +1649,59 @@ func include_stack_contains(path *u8, path_len i64) bool {
     return false;
 }
 
+// Bounded text I/O reserves a terminator and probes EOF at the boundary.
+// A valid prefix is never accepted as a complete translation unit.
+func compiler_size_error(kind *u8, capacity i64) void {
+    eprint("error: size limit exceeded: ");
+    eprint(kind);
+    eprint(" (buffer bytes: ");
+    eprint_i64(capacity);
+    eprintln(")");
+    exit(1);
+}
+
+func compiler_wrapper_put(wrapper *u8, cursor *u8, c u8) *u8 {
+    if cursor - wrapper >= 1048575 { compiler_size_error("reader wrapper", 1048576); }
+    *cursor = c;
+    return cursor + 1;
+}
+
+func compiler_read_text_fd(fd i64, buf *u8, capacity i64, label *u8) i64 {
+    var total i64 = 0;
+    while total < capacity - 1 {
+        var n i64 = file_read(fd, buf + total, capacity - 1 - total);
+        if n < 0 {
+            eprint("error: cannot read "); eprintln(label); exit(1);
+        }
+        if n == 0 { *(buf + total) = 0; return total; }
+        total = total + n;
+    }
+    var probe u8 = 0;
+    var extra i64 = file_read(fd, &probe, 1);
+    if extra < 0 { eprint("error: cannot read "); eprintln(label); exit(1); }
+    if extra > 0 { compiler_size_error(label, capacity); }
+    *(buf + total) = 0;
+    return total;
+}
+
+func compiler_read_text_file(path *u8, capacity i64) *u8 {
+    var fd i64 = resource_open_read(path);
+    if fd < 0 { eprint("error: cannot open "); eprintln(path); return nil; }
+    var buf *u8 = alloc(capacity);
+    compiler_read_text_fd(fd, buf, capacity, path);
+    file_close(fd);
+    return buf;
+}
+
+func compiler_write_all(fd i64, buf *u8, length i64) void {
+    var total i64 = 0;
+    while total < length {
+        var n i64 = file_write(fd, buf + total, length - total);
+        if n <= 0 { eprintln("error: cannot write compiler output"); exit(1); }
+        total = total + n;
+    }
+}
+
 // Read a file into a buffer (returns length, or -1 on error)
 func read_file_contents(path *u8, path_len i64, buf *u8, buf_cap i64) i64 {
     // Null-terminate path
@@ -2123,6 +2212,7 @@ func new_label() i64 {
 func flush_func_body() void {
     var i i64 = 0;
     while i < cg_func_len {
+        if cg_code_len >= cg_code_cap { compiler_size_error("assembly output", cg_code_cap); }
         *(cg_code_buf + cg_code_len) = *(cg_func_buf + i);
         cg_code_len = cg_code_len + 1;
         i = i + 1;
@@ -2135,15 +2225,15 @@ func flush_func_body() void {
 // ============================================================
 
 func out_char(c u8) void {
-    file_write(cg_out_fd, &c, 1);
+    compiler_write_all(cg_out_fd, &c, 1);
 }
 
 func out_str(s *u8) void {
-    file_write(cg_out_fd, s, strlen(s));
+    compiler_write_all(cg_out_fd, s, strlen(s));
 }
 
 func out_n(s *u8, n i64) void {
-    file_write(cg_out_fd, s, n);
+    compiler_write_all(cg_out_fd, s, n);
 }
 
 func out_int(n i64) void {
@@ -5140,8 +5230,22 @@ func gen_block(block *u8) void {
 // Function code generation
 // ============================================================
 
+// Returning a struct currently transports the address of a local stack slot.
+// Refuse that signature until owned aggregate results have a defined ABI.
+func compiler_check_return_type(t *u8) void {
+    if t == nil { return; }
+    if type_kind(t) == TYPE_BASE {
+        if find_struct(base_type_name(t), base_type_name_len(t)) != nil {
+            cg_error_prefix();
+            eprintln("struct value returns are unsupported; use an explicit output pointer");
+            exit(1);
+        }
+    }
+}
+
 func gen_func(func_node *u8) void {
     cg_diagnostic_node = func_node;
+    compiler_check_return_type(func_decl_ret_type(func_node));
     // Extern functions have no body - skip code generation
     if func_decl_is_extern(func_node) {
         return;
@@ -5261,6 +5365,8 @@ func gen_func(func_node *u8) void {
 
 // Generate a lambda function (similar to gen_func but with generated name)
 func gen_lambda(lambda_node *u8, lambda_id i64, captures *u8, capture_count i64) void {
+    cg_diagnostic_node = lambda_node;
+    compiler_check_return_type(lambda_expr_ret_type(lambda_node));
     // Reset locals
     cg_local_count = 0;
     cg_stack_size = 0;
@@ -7157,7 +7263,7 @@ func generate(prog *u8, out_path *u8) void {
     }
 
     // Write code buffer
-    file_write(cg_out_fd, cg_code_buf, cg_code_len);
+    compiler_write_all(cg_out_fd, cg_code_buf, cg_code_len);
 
     file_close(cg_out_fd);
 }

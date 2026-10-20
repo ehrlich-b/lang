@@ -3027,12 +3027,13 @@ func parse_unary_bounded_inner() *u8 {
 }
 
 func parse_postfix() *u8 {
+    var start_tok *u8 = parse_peek();
     var expr *u8 = parse_primary();
 
     var done i64 = 0;
     while done == 0 {
         if parse_match(TOKEN_LPAREN) {
-            expr = parse_finish_call(expr);
+            expr = parse_finish_call(expr, start_tok);
         } else if parse_match(TOKEN_LBRACKET) {
             var index *u8 = parse_expression();
             parse_expect(TOKEN_RBRACKET, "expected ']' after index");
@@ -3053,9 +3054,8 @@ func parse_postfix() *u8 {
             *pn = tok_lexeme(name_tok);
             var pl *i64 = node + 24;
             *pl = tok_lexeme_len(name_tok);
-            // Origins are a linear side table, not a per-node field, so they
-            // stay rare. A `.field` on a plain identifier is already located
-            // well enough by its declaration; one on a computed base - a call
+            // A `.field` on a plain identifier is already located by its
+            // declaration. A field on a computed base - a call
             // result, an index, a deref, another field - is the form that can
             // turn out to have no struct type at all, and codegen has no way
             // to recover where it was written.
@@ -3070,7 +3070,7 @@ func parse_postfix() *u8 {
     return expr;
 }
 
-func parse_finish_call(callee *u8) *u8 {
+func parse_finish_call(callee *u8, start_tok *u8) *u8 {
     // Allocate array for args (max 16)
     var args *u8 = alloc(LIMIT_CALL_ARGS * 8);
     var arg_count i64 = 0;
@@ -3093,6 +3093,7 @@ func parse_finish_call(callee *u8) *u8 {
     call_expr_set_func(node, callee);
     call_expr_set_args(node, args);
     call_expr_set_arg_count(node, arg_count);
+    node_set_origin(node, parse_source_name, tok_line(start_tok), tok_col(start_tok));
     return node;
 }
 
