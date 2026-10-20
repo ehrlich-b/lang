@@ -66,6 +66,8 @@ check("missing-source", run("missing", b"a"), error="invalid-span")
 for mode, error in [("wire-short", "wire-header"), ("wire-length", "wire-length"), ("wire-origin", "wire-origin"), ("wire-version", "wire-version")]:
     check(mode, run(mode, b"(program)"), error=error)
 check("wire-valid", run("wire", b"(program)"), expected=b"(program)")
+check("wire-comments", run("wire", b"/* trivia ) */ (program) // ( end"), expected=b"/* trivia ) */ (program) // ( end")
+check("wire-unclosed-comment", run("wire", b"(program) /*"), error="ast-shape")
 check("memory-budget", run("budget", b"abc"), error="memory-budget")
 check("work-budget", run("work"), error="work-budget")
 # A real source larger than the old 4 MiB capacity takes the normal include,
