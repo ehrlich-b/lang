@@ -1,0 +1,68 @@
+// Declared import dependency_bytes for legacy reader artifacts. This is artifact
+// invalidation, not specialization/result caching or a phase scheduler.
+var phase_compiler_path *u8 = nil;
+var phase_compiler_digest *u8 = nil;
+pub func phase_binary_digest(path *u8) *u8 {
+    var fd i64 = file_open(path, 0);
+    if fd < 0 { return nil; }
+    var b *PhaseBuffer = phase_buffer_new(268435456, path);
+    var chunk *u8 = alloc(4096);
+    var n i64 = file_read(fd, chunk, 4096);
+    while n > 0 { phase_buffer_append(b, chunk, n); n = file_read(fd, chunk, 4096); }
+    file_close(fd);
+    if n < 0 { return nil; }
+    return phase_digest(b.data, b.len);
+}
+pub func phase_dependency_visit(text *u8, name *u8, seen *u8,
+                            dependency_bytes *PhaseBuffer, depth i64) void {
+    if depth > LIMIT_INCLUDE_DEPTH { phase_error("dependency-depth", name); }
+    phase_work(1);
+    phase_buffer_field(dependency_bytes, name);
+    phase_buffer_field(dependency_bytes, phase_digest(text, strlen(text)));
+    var prog *u8 = parse_program_from_named_string(text, name);
+    if prog == nil { phase_error("dependency-parse", name); }
+    var i i64 = 0;
+    while i < program_decl_count(prog) {
+        var decl *u8 = get_decl(program_decls(prog), i);
+        var kind i64 = node_kind(decl);
+        var path *u8 = nil;
+        if kind == NODE_INCLUDE_DECL { path = str_dup_n(include_decl_path(decl), include_decl_path_len(decl)); }
+        if kind == NODE_REQUIRE_DECL { path = str_concat(str_dup_n(require_decl_module(decl), require_decl_module_len(decl)), ".lang"); }
+        if path != nil && map_has(seen, path) == 0 {
+            map_set(seen, path, 1);
+            var imported *u8 = phase_read_resource(path, strlen(path));
+            // Embedded modules have no mutable source dependency. Distinguish
+            // them explicitly instead of conflating an absent file with bytes.
+            if imported == nil {
+                if kind == NODE_REQUIRE_DECL && find_kernel_builtin(require_decl_module(decl), require_decl_module_len(decl)) != nil {
+                    phase_buffer_field(dependency_bytes, path); phase_buffer_field(dependency_bytes, "embedded-in-compiler");
+                } else { phase_error("missing-dependency", path); }
+            } else { phase_dependency_visit(imported, path, seen, dependency_bytes, depth + 1); }
+        }
+        i = i + 1;
+    }
+}
+pub func phase_reader_identity(wrapper *u8, llvm i64) *u8 {
+    if phase_compiler_path == nil { return nil; }
+    if phase_compiler_digest == nil { phase_compiler_digest = phase_binary_digest(phase_compiler_path); }
+    if phase_compiler_digest == nil { return nil; }
+    var dependency_bytes *PhaseBuffer = phase_buffer_new(phase_limit(), "reader dependencies");
+    var seen *u8 = map_new();
+    phase_dependency_visit(wrapper, "<reader-wrapper>", seen, dependency_bytes, 0);
+    phase_buffer_int(dependency_bytes, llvm);
+    return phase_cache_identity(phase_digest(dependency_bytes.data, dependency_bytes.len), phase_compiler_digest,
+                                os_platform_name(), 1, "trusted-native;legacy-abi");
+}
+pub func phase_identity_matches(path *u8, identity *u8) i64 {
+    if identity == nil { return 0; }
+    var stored *u8 = phase_read_file(path);
+    if stored == nil { return 0; }
+    return streq(stored, identity);
+}
+pub func phase_identity_write(path *u8, identity *u8) void {
+    if identity == nil { return; }
+    var fd i64 = file_open(path, O_WRONLY_CREAT_TRUNC);
+    if fd < 0 { phase_error("cache-write", path); }
+    if file_write(fd, identity, strlen(identity)) != strlen(identity) { phase_error("cache-write", path); }
+    file_close(fd);
+}

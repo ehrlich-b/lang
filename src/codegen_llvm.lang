@@ -3553,8 +3553,9 @@ func llvm_emit_expr(expr *u8) void {
         var exe_path *u8 = build_reader_cache_path(name, name_len);
 
         // Execute reader with content as input
-        var output *u8 = alloc(4194304);
-        var n i64 = exec_capture(exe_path, content, content_len, output, 4194304);
+        var output *u8 = phase_worker_call(exe_path, content, content_len);
+        var n i64 = phase_worker_status;
+        if output != nil { n = strlen(output); }
 
         if n < 0 {
             cg_error_prefix();
@@ -6704,8 +6705,9 @@ func llvm_emit_decl(decl *u8) void {
         map_set(llvm_included_files, path_str, 1);
 
         // Read file
-        var buf *u8 = alloc(1048576);  // 1MB max
-        var n i64 = read_file_contents(path, path_len, buf, 1048576);
+        var buf *u8 = phase_read_resource(path, path_len);
+        var n i64 = -1;
+        if buf != nil { n = strlen(buf); }
         if n < 0 {
             eprint("Error: cannot read include file: ");
             eprintln(path_str);
@@ -6714,7 +6716,7 @@ func llvm_emit_decl(decl *u8) void {
         }
 
         // Parse file
-        var inc_prog *u8 = parse_program_from_named_string(buf, path_str);
+        var inc_prog *u8 = phase_parse_include(buf, path_str, decl);
         if inc_prog == nil {
             eprint("Error: cannot parse include file: ");
             eprintln(path_str);
@@ -6761,15 +6763,16 @@ func llvm_emit_decl(decl *u8) void {
 
         if local_exists != 0 {
             // Local file found - read and parse it
-            var buf *u8 = alloc(1048576);  // 1MB max
-            var n i64 = read_file_contents(full_path, full_len, buf, 1048576);
+            var buf *u8 = phase_read_resource(full_path, full_len);
+            var n i64 = -1;
+            if buf != nil { n = strlen(buf); }
             if n < 0 {
                 eprint("Error: cannot read require file: ");
                 eprintln(full_path);
                 return;
             }
 
-            var req_prog *u8 = parse_program_from_named_string(buf, full_path);
+            var req_prog *u8 = phase_parse_include(buf, full_path, decl);
             if req_prog == nil {
                 eprint("Error: cannot parse require file: ");
                 eprintln(full_path);
@@ -6958,8 +6961,9 @@ func llvm_emit_decl(decl *u8) void {
         var exe_path *u8 = build_reader_cache_path(name, name_len);
 
         // Execute reader with content as input
-        var output *u8 = alloc(4194304);
-        var n i64 = exec_capture(exe_path, content, content_len, output, 4194304);
+        var output *u8 = phase_worker_call(exe_path, content, content_len);
+        var n i64 = phase_worker_status;
+        if output != nil { n = strlen(output); }
 
         if n <= 0 {
             return;
@@ -7060,27 +7064,11 @@ func llvm_register_decl(decl *u8) void {
         var path_str *u8 = str_dup_n(path, path_len);
 
         // Read and parse include file
-        var buf *u8 = alloc(1024 * 1024);  // 1MB buffer
-        var buf_cap i64 = 1024 * 1024;
-        var fd i64 = resource_open_read(path_str);
-        if fd < 0 {
-            eprint("error: cannot open include file: ");
-            eprintln(path_str);
-            cg_had_error = 1;
-            return;
-        }
-        var n i64 = file_read(fd, buf, buf_cap);
-        file_close(fd);
-        if n < 0 {
-            eprint("error: cannot read include file: ");
-            eprintln(path_str);
-            cg_had_error = 1;
-            return;
-        }
-        *(buf + n) = 0;
+        var buf *u8 = phase_read_resource(path_str, strlen(path_str));
+        if buf == nil { cg_had_error = 1; return; }
 
         // Parse file
-        var inc_prog *u8 = parse_program_from_named_string(buf, path_str);
+        var inc_prog *u8 = phase_parse_include(buf, path_str, decl);
         if inc_prog == nil {
             eprint("error: failed to parse include file: ");
             eprintln(path_str);
@@ -7142,7 +7130,7 @@ func llvm_register_decl(decl *u8) void {
             if n < 0 { return; }
             *(buf + n) = 0;
 
-            req_prog = parse_program_from_named_string(buf, full_path);
+            req_prog = phase_parse_include(buf, full_path, decl);
             if req_prog == nil {
                 eprint("error: failed to parse require file: ");
                 eprint_buf(path, path_len);

@@ -654,3 +654,5 @@ pub func file_mtime(path *u8) i64 {
 // ============================================================
 // Note: environ, init_environ, getenv are provided by the OS layer
 // (linux_x86_64.lang, macos_arm64.lang, or libc.lang)
+
+include "src/stage_buffer.lang"

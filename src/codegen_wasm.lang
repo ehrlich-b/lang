@@ -1171,9 +1171,8 @@ func wasm_collect_path(path *u8, path_len i64) void {
     var path_z *u8 = str_dup_n(path, path_len);
     if map_has(wasm_included_files, path_z) != 0 { return; }
     map_set(wasm_included_files, path_z, 1);
-    var source *u8 = alloc(1024 * 1024);
-    var n i64 = read_file_contents(path, path_len, source, 1024 * 1024 - 1);
-    if n < 0 {
+    var source *u8 = phase_read_resource(path, path_len);
+    if source == nil {
         wasm_error("cannot open dependency for direct wasm output");
         return;
     }

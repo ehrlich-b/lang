@@ -64,6 +64,7 @@ func sexpr_atoi(s *u8) i64 {
     while *s != 0 {
         var c u8 = *s;
         if c >= '0' && c <= '9' {
+            if result > 107374182 { phase_error("span-overflow", phase_diagnostic_source); }
             result = result * 10 + (c - '0');
         }
         s = s + 1;
@@ -407,7 +408,7 @@ func sexpr_to_param(node *PNode, params_buf *u8, index i64) void {
 // Main node conversion
 // ============================================================
 
-func sexpr_to_node(node *PNode) *u8 {
+func sexpr_to_node_inner(node *PNode) *u8 {
     if node == nil { return nil; }
 
     // Check for "nil" symbol
@@ -441,6 +442,13 @@ func sexpr_to_node(node *PNode) *u8 {
         }
         var start i64 = sexpr_atoi(start_node.text);
         var end i64 = sexpr_atoi(end_node.text);
+        if sexpr_reader_source_name == nil || sexpr_reader_source_text == nil {
+            phase_error("missing-span-source", phase_diagnostic_source);
+        }
+        var source_id i64 = phase_origin_source_id(sexpr_reader_source_name);
+        if phase_span_valid(source_id, start, end) == 0 {
+            phase_error("invalid-span", sexpr_reader_source_name);
+        }
         var inner *u8 = sexpr_to_node(sexpr_get(node, 3));
         if inner != nil && sexpr_reader_source_name != nil &&
            sexpr_reader_source_text != nil {
@@ -1217,6 +1225,7 @@ func sexpr_to_node(node *PNode) *u8 {
     // Unknown node type
     eprint("Error: unknown S-expression node type: ");
     eprintln(head);
+    phase_error("unknown-ast-node", phase_diagnostic_source);
     return nil;
 }
 
@@ -1267,6 +1276,7 @@ func sexpr_to_program(node *PNode) *u8 {
     var i i64 = 0;
     while i < decl_count {
         var decl *u8 = sexpr_to_node(sexpr_get(node, start_index + i));
+        if decl == nil { phase_error("invalid-ast-declaration", phase_diagnostic_source); }
         var dp **u8 = decls + (i * 8);
         *dp = decl;
         i = i + 1;
@@ -1287,6 +1297,7 @@ func sexpr_to_program(node *PNode) *u8 {
 // ============================================================
 
 func parse_ast_from_string(source *u8) *u8 {
+    phase_validate_ast(source, strlen(source), phase_diagnostic_source);
     var t *Tokenizer = tok_new(source);
     var node *PNode = parse_sexpr(t);
 
@@ -1306,7 +1317,16 @@ func parse_ast_from_reader_string(source *u8, source_name *u8,
     var saved_text *u8 = sexpr_reader_source_text;
     sexpr_reader_source_name = source_name;
     sexpr_reader_source_text = reader_source;
+    if source_name == nil { source_name = "<reader-invocation>"; sexpr_reader_source_name = source_name; }
+    phase_diagnostic_source = source_name;
+    var saved_bound_source i64 = phase_bound_source_id;
+    var source_id i64 = phase_source_new(source_name, reader_source);
+    phase_bound_source_id = source_id;
+    var saved_expansion i64 = phase_expansion_origin;
+    phase_expansion_origin = phase_origin_new(source_id, 0, strlen(reader_source), 0, saved_expansion);
     var prog *u8 = parse_ast_from_string(source);
+    phase_expansion_origin = saved_expansion;
+    phase_bound_source_id = saved_bound_source;
     sexpr_reader_source_name = saved_name;
     sexpr_reader_source_text = saved_text;
     return prog;
@@ -1314,6 +1334,7 @@ func parse_ast_from_reader_string(source *u8, source_name *u8,
 
 // Parse a single expression from S-expr AST text (for inline readers)
 func parse_ast_expression_from_string(source *u8) *u8 {
+    phase_validate_ast(source, strlen(source), phase_diagnostic_source);
     var t *Tokenizer = tok_new(source);
     var node *PNode = parse_sexpr(t);
 
@@ -1331,8 +1352,46 @@ func parse_ast_expression_from_reader_string(source *u8, source_name *u8,
     var saved_text *u8 = sexpr_reader_source_text;
     sexpr_reader_source_name = source_name;
     sexpr_reader_source_text = reader_source;
+    if source_name == nil { source_name = "<reader-invocation>"; sexpr_reader_source_name = source_name; }
+    phase_diagnostic_source = source_name;
+    var saved_bound_source i64 = phase_bound_source_id;
+    var source_id i64 = phase_source_new(source_name, reader_source);
+    phase_bound_source_id = source_id;
+    var saved_expansion i64 = phase_expansion_origin;
+    phase_expansion_origin = phase_origin_new(source_id, 0, strlen(reader_source), 0, saved_expansion);
     var expr *u8 = parse_ast_expression_from_string(source);
+    phase_expansion_origin = saved_expansion;
+    phase_bound_source_id = saved_bound_source;
     sexpr_reader_source_name = saved_name;
     sexpr_reader_source_text = saved_text;
     return expr;
+}
+
+func sexpr_to_node(node *PNode) *u8 {
+    var result *u8 = sexpr_to_node_inner(node);
+    if result != nil && sexpr_reader_source_name != nil && node_origin_id(result) == 0 {
+        var invocation *PhaseOrigin = phase_origin_get(phase_expansion_origin);
+        if invocation == nil { phase_error("missing-origin", sexpr_reader_source_name); }
+        node_set_span(result, sexpr_reader_source_name, sexpr_reader_source_text, invocation.start, invocation.start);
+    }
+    return result;
+}
+
+
+pub func phase_syntax_program(syntax *PhaseSyntax) *u8 {
+    var origin *PhaseOrigin = phase_origin_get(syntax.origin);
+    if origin == nil { phase_error("missing-origin", phase_diagnostic_source); }
+    var source *PhaseSource = phase_source_get(origin.source);
+    var saved_name *u8 = sexpr_reader_source_name;
+    var saved_text *u8 = sexpr_reader_source_text;
+    var saved_origin i64 = phase_expansion_origin;
+    var saved_bound_source i64 = phase_bound_source_id;
+    phase_bound_source_id = origin.source;
+    sexpr_reader_source_name = source.name; sexpr_reader_source_text = source.text;
+    phase_expansion_origin = syntax.origin;
+    var program *u8 = parse_ast_from_string(syntax.text);
+    phase_expansion_origin = saved_origin;
+    phase_bound_source_id = saved_bound_source;
+    sexpr_reader_source_name = saved_name; sexpr_reader_source_text = saved_text;
+    return program;
 }

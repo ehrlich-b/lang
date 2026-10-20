@@ -1,0 +1,142 @@
+// SHA-256 over exact bytes; no timestamps, external tools or process addresses.
+pub func phase_rotr(x i64, n i64) i64 { return ((x >> n) | (x << (32 - n))) & 4294967295; }
+pub func phase_word(a *u8, i i64) i64 { var p *i64 = a + i * 8; return *p; }
+pub func phase_set_word(a *u8, i i64, x i64) void { var p *i64 = a + i * 8; *p = x; }
+pub func phase_digest(data *u8, len i64) *u8 {
+    if len < 0 || len > 1073741824 { phase_error("digest-length", phase_diagnostic_source); }
+    phase_charge(1153);
+    var k *u8 = alloc(512);
+    phase_set_word(k, 0, 1116352408);
+    phase_set_word(k, 1, 1899447441);
+    phase_set_word(k, 2, 3049323471);
+    phase_set_word(k, 3, 3921009573);
+    phase_set_word(k, 4, 961987163);
+    phase_set_word(k, 5, 1508970993);
+    phase_set_word(k, 6, 2453635748);
+    phase_set_word(k, 7, 2870763221);
+    phase_set_word(k, 8, 3624381080);
+    phase_set_word(k, 9, 310598401);
+    phase_set_word(k, 10, 607225278);
+    phase_set_word(k, 11, 1426881987);
+    phase_set_word(k, 12, 1925078388);
+    phase_set_word(k, 13, 2162078206);
+    phase_set_word(k, 14, 2614888103);
+    phase_set_word(k, 15, 3248222580);
+    phase_set_word(k, 16, 3835390401);
+    phase_set_word(k, 17, 4022224774);
+    phase_set_word(k, 18, 264347078);
+    phase_set_word(k, 19, 604807628);
+    phase_set_word(k, 20, 770255983);
+    phase_set_word(k, 21, 1249150122);
+    phase_set_word(k, 22, 1555081692);
+    phase_set_word(k, 23, 1996064986);
+    phase_set_word(k, 24, 2554220882);
+    phase_set_word(k, 25, 2821834349);
+    phase_set_word(k, 26, 2952996808);
+    phase_set_word(k, 27, 3210313671);
+    phase_set_word(k, 28, 3336571891);
+    phase_set_word(k, 29, 3584528711);
+    phase_set_word(k, 30, 113926993);
+    phase_set_word(k, 31, 338241895);
+    phase_set_word(k, 32, 666307205);
+    phase_set_word(k, 33, 773529912);
+    phase_set_word(k, 34, 1294757372);
+    phase_set_word(k, 35, 1396182291);
+    phase_set_word(k, 36, 1695183700);
+    phase_set_word(k, 37, 1986661051);
+    phase_set_word(k, 38, 2177026350);
+    phase_set_word(k, 39, 2456956037);
+    phase_set_word(k, 40, 2730485921);
+    phase_set_word(k, 41, 2820302411);
+    phase_set_word(k, 42, 3259730800);
+    phase_set_word(k, 43, 3345764771);
+    phase_set_word(k, 44, 3516065817);
+    phase_set_word(k, 45, 3600352804);
+    phase_set_word(k, 46, 4094571909);
+    phase_set_word(k, 47, 275423344);
+    phase_set_word(k, 48, 430227734);
+    phase_set_word(k, 49, 506948616);
+    phase_set_word(k, 50, 659060556);
+    phase_set_word(k, 51, 883997877);
+    phase_set_word(k, 52, 958139571);
+    phase_set_word(k, 53, 1322822218);
+    phase_set_word(k, 54, 1537002063);
+    phase_set_word(k, 55, 1747873779);
+    phase_set_word(k, 56, 1955562222);
+    phase_set_word(k, 57, 2024104815);
+    phase_set_word(k, 58, 2227730452);
+    phase_set_word(k, 59, 2361852424);
+    phase_set_word(k, 60, 2428436474);
+    phase_set_word(k, 61, 2756734187);
+    phase_set_word(k, 62, 3204031479);
+    phase_set_word(k, 63, 3329325298);
+    var h *u8 = alloc(64);
+    phase_set_word(h, 0, 1779033703);
+    phase_set_word(h, 1, 3144134277);
+    phase_set_word(h, 2, 1013904242);
+    phase_set_word(h, 3, 2773480762);
+    phase_set_word(h, 4, 1359893119);
+    phase_set_word(h, 5, 2600822924);
+    phase_set_word(h, 6, 528734635);
+    phase_set_word(h, 7, 1541459225);
+    var w *u8 = alloc(512);
+    var blocks i64 = (len + 72) / 64;
+    var block i64 = 0;
+    while block < blocks {
+        var i i64 = 0;
+        while i < 16 {
+            var value i64 = 0;
+            var j i64 = 0;
+            while j < 4 {
+                var pos i64 = block * 64 + i * 4 + j;
+                var byte i64 = 0;
+                if pos < len { byte = *(data + pos); }
+                else if pos == len { byte = 128; }
+                else if pos >= blocks * 64 - 8 { byte = ((len * 8) >> ((blocks * 64 - 1 - pos) * 8)) & 255; }
+                value = value * 256 + byte; j = j + 1;
+            }
+            phase_set_word(w, i, value); i = i + 1;
+        }
+        while i < 64 {
+            var x i64 = phase_word(w, i - 15);
+            var y i64 = phase_word(w, i - 2);
+            var s0 i64 = phase_rotr(x, 7) ^ phase_rotr(x, 18) ^ (x >> 3);
+            var s1 i64 = phase_rotr(y, 17) ^ phase_rotr(y, 19) ^ (y >> 10);
+            phase_set_word(w, i, (phase_word(w, i - 16) + s0 + phase_word(w, i - 7) + s1) & 4294967295);
+            i = i + 1;
+        }
+        var a i64 = phase_word(h, 0); var b i64 = phase_word(h, 1);
+        var c i64 = phase_word(h, 2); var d i64 = phase_word(h, 3);
+        var e i64 = phase_word(h, 4); var f i64 = phase_word(h, 5);
+        var g i64 = phase_word(h, 6); var hh i64 = phase_word(h, 7);
+        i = 0;
+        while i < 64 {
+            var big1 i64 = phase_rotr(e, 6) ^ phase_rotr(e, 11) ^ phase_rotr(e, 25);
+            var ch i64 = (e & f) ^ ((e ^ 4294967295) & g);
+            var t1 i64 = (hh + big1 + ch + phase_word(k, i) + phase_word(w, i)) & 4294967295;
+            var big0 i64 = phase_rotr(a, 2) ^ phase_rotr(a, 13) ^ phase_rotr(a, 22);
+            var maj i64 = (a & b) ^ (a & c) ^ (b & c);
+            var t2 i64 = (big0 + maj) & 4294967295;
+            hh = g; g = f; f = e; e = (d + t1) & 4294967295;
+            d = c; c = b; b = a; a = (t1 + t2) & 4294967295;
+            i = i + 1;
+        }
+        phase_set_word(h, 0, (phase_word(h, 0) + a) & 4294967295);
+        phase_set_word(h, 1, (phase_word(h, 1) + b) & 4294967295);
+        phase_set_word(h, 2, (phase_word(h, 2) + c) & 4294967295);
+        phase_set_word(h, 3, (phase_word(h, 3) + d) & 4294967295);
+        phase_set_word(h, 4, (phase_word(h, 4) + e) & 4294967295);
+        phase_set_word(h, 5, (phase_word(h, 5) + f) & 4294967295);
+        phase_set_word(h, 6, (phase_word(h, 6) + g) & 4294967295);
+        phase_set_word(h, 7, (phase_word(h, 7) + hh) & 4294967295);
+        block = block + 1;
+    }
+    var out *u8 = alloc(65); var hex *u8 = "0123456789abcdef";
+    var i i64 = 0;
+    while i < 64 {
+        var word i64 = phase_word(h, i / 8);
+        *(out + i) = *(hex + ((word >> ((7 - i % 8) * 4)) & 15));
+        i = i + 1;
+    }
+    *(out + 64) = 0; return out;
+}

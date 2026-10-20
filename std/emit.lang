@@ -31,9 +31,10 @@ func sb_new() *StringBuilder {
 }
 
 func sb_grow(sb *StringBuilder, need i64) void {
+    if need < 0 || need > phase_limit() - sb.len { phase_error("ast-byte-limit", phase_diagnostic_source); }
     if sb.len + need >= sb.cap {
         var new_cap i64 = sb.cap * 2;
-        while new_cap < sb.len + need {
+        while new_cap <= sb.len + need {
             new_cap = new_cap * 2;
         }
         var new_buf *u8 = alloc(new_cap);

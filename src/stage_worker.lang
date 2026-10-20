@@ -1,0 +1,116 @@
+// Trusted-native legacy adapter. Isolation, deadlines and cancellation are
+// supplied by future engines through this hook, never implied by a fork.
+extern var ___envp **u8;
+var phase_worker_status i64 = 0;
+var phase_worker_hook fn(*u8, *u8, i64) *u8 = nil;
+pub func phase_worker_call(program *u8, input *u8, len i64) *u8 {
+    if phase_worker_hook == nil { return phase_exec_capture(program, input, len); }
+    return phase_worker_hook(program, input, len);
+}
+pub func phase_exec_capture(program *u8, input *u8, input_len i64) *u8 {
+    phase_worker_status = 0;
+    if input_len < 0 || input_len > phase_limit() { phase_error("input-limit", phase_diagnostic_source); }
+    // Create pipes - pipe() writes two i32 file descriptors
+    var stdin_pipe *u8 = alloc(8);
+    var stdout_pipe *u8 = alloc(8);
+
+    if os_pipe(stdin_pipe) < 0 {
+        phase_worker_status = -1; return nil;
+    }
+    if os_pipe(stdout_pipe) < 0 {
+        phase_worker_status = -1; return nil;
+    }
+
+    // Read fds as i32 (pipe returns int, not int64)
+    var p1 *i32 = stdin_pipe;
+    var p2 *i32 = stdin_pipe + 4;
+    var p3 *i32 = stdout_pipe;
+    var p4 *i32 = stdout_pipe + 4;
+    var stdin_read i64 = *p1;
+    var stdin_write i64 = *p2;
+    var stdout_read i64 = *p3;
+    var stdout_write i64 = *p4;
+
+    var pid i64 = os_fork();
+
+    if pid < 0 {
+        phase_worker_status = -1; return nil;
+    }
+
+    if pid == 0 {
+        // Child process
+        // Redirect stdin: dup2(stdin_read, 0)
+        os_dup2(stdin_read, 0);
+        // Redirect stdout: dup2(stdout_write, 1)
+        os_dup2(stdout_write, 1);
+        // Close all pipe fds
+        os_close(stdin_read);
+        os_close(stdin_write);
+        os_close(stdout_read);
+        os_close(stdout_write);
+
+        // Build argv: [program, NULL]
+        var argv *u8 = alloc(16);
+        var ap **u8 = argv;
+        *ap = program;
+        var ap2 **u8 = argv + 8;
+        *ap2 = nil;
+
+        // Readers are ordinary programs and should see the compiler's environment.
+        var envp **u8 = ___envp;
+        os_execve(program, argv, envp);
+        // If execve fails, exit
+        os__exit(127);
+    }
+
+    // Parent process
+    // Close child's ends of pipes
+    os_close(stdin_read);
+    os_close(stdout_write);
+
+    var feeder i64 = os_fork();
+    if feeder < 0 { os_close(stdin_write); os_close(stdout_read); phase_worker_status = -1; return nil; }
+    if feeder == 0 {
+        os_close(stdout_read);
+        var written i64 = 0;
+        while written < input_len {
+            var count i64 = os_write(stdin_write, input + written, input_len - written);
+            if count <= 0 { os_close(stdin_write); os__exit(1); }
+            written = written + count;
+        }
+        os_close(stdin_write); os__exit(0);
+    }
+    os_close(stdin_write);
+
+    // Continue reading until EOF; a full buffer is never an EOF indication.
+    var captured *PhaseBuffer = phase_read_fd(stdout_read, phase_limit(), phase_diagnostic_source);
+    os_close(stdout_read);
+
+    // Wait for child
+    var status *i64 = alloc(8);
+    os_waitpid(pid, status, 0);
+
+    var exit_code i64 = phase_process_status(*status);
+    os_waitpid(feeder, status, 0);
+    var feeder_code i64 = phase_process_status(*status);
+    if exit_code == 0 && feeder_code != 0 { exit_code = feeder_code; }
+    if exit_code != 0 {
+        phase_worker_status = 0 - exit_code; return nil;
+    }
+
+    return captured.data;
+}
+// Stable compatibility entry point for existing fixed-buffer clients.
+pub func exec_capture(program *u8, input *u8, len i64, output *u8, cap i64) i64 {
+    var result *u8 = phase_worker_call(program, input, len);
+    if result == nil { return phase_worker_status; }
+    var size i64 = strlen(result);
+    if size >= cap { phase_error("output-limit", phase_diagnostic_source); }
+    memcpy(output, result, size + 1); return size;
+}
+
+pub func phase_process_status(status i64) i64 {
+    var sig i64 = status & 127;
+    if sig != 0 { return 128 + sig; }
+    return (status / 256) % 256;
+}

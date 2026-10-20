@@ -25,21 +25,9 @@ func find_kernel_builtin(name *u8, name_len i64) *u8 {
 }
 
 func standalone_read_file(path *u8) *u8 {
-    var fd i64 = file_open(path, 0);
-    if fd < 0 {
-        eprint("Error: cannot open file: ");
-        eprintln(path);
-        return nil;
-    }
-    var buf *u8 = alloc(1048576);
-    var n i64 = file_read(fd, buf, 1048576);
-    file_close(fd);
-    if n < 0 {
-        eprintln("Error: cannot read file");
-        return nil;
-    }
-    *(buf + n) = 0;
-    return buf;
+    var text *u8 = phase_read_file(path);
+    if text == nil { eprint("Error: cannot open file: "); eprintln(path); }
+    return text;
 }
 
 func standalone_get_arg(argv **u8, i i64) *u8 {

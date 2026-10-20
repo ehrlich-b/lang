@@ -1,0 +1,77 @@
+// Validate before parsing or publishing. Text grammar is the legacy AST ABI.
+var PHASE_AST_MAX_DEPTH i64 = 128;
+var PHASE_AST_MAX_NODES i64 = 1048576;
+pub func phase_validate_ast(text *u8, len i64, source *u8) void {
+    if len < 1 || len > phase_limit() { phase_error("ast-byte-limit", source); }
+    var depth i64 = 0; var nodes i64 = 0; var quoted i64 = 0; var escaped i64 = 0;
+    var roots i64 = 0; var atom i64 = 0; var i i64 = 0;
+    while i < len {
+        var c i64 = *(text + i);
+        if c == 0 { phase_error("embedded-nul", source); }
+        if quoted != 0 {
+            if escaped != 0 { escaped = 0; }
+            else if c == 92 { escaped = 1; }
+            else if c == 34 { quoted = 0; }
+        } else if c == 34 {
+            if depth == 0 { phase_error("ast-root", source); }
+            quoted = 1; nodes = nodes + 1; atom = 0;
+        } else if c == 40 {
+            if depth == 0 { roots = roots + 1; }
+            depth = depth + 1; nodes = nodes + 1; atom = 0;
+            if depth > PHASE_AST_MAX_DEPTH { phase_error("ast-depth", source); }
+        } else if c == 41 {
+            depth = depth - 1; atom = 0;
+            if depth < 0 { phase_error("ast-shape", source); }
+        } else if c == 32 || c == 10 || c == 13 || c == 9 { atom = 0; }
+        else {
+            if depth == 0 { phase_error("ast-root", source); }
+            if atom == 0 { nodes = nodes + 1; atom = 1; }
+        }
+        if nodes > PHASE_AST_MAX_NODES { phase_error("ast-nodes", source); }
+        i = i + 1;
+    }
+    if quoted != 0 || depth != 0 || roots != 1 { phase_error("ast-shape", source); }
+    phase_work(nodes);
+}
+// v1 frame: 4 little-endian u32 fields: version, payload bytes, origin ID,
+// reserved (zero), then exact AST bytes. No native pointers or trailing bytes.
+pub func phase_wire_u32(frame *u8, offset i64) i64 {
+    return *(frame + offset) + *(frame + offset + 1) * 256 +
+           *(frame + offset + 2) * 65536 + *(frame + offset + 3) * 16777216;
+}
+pub func phase_wire_decode(frame *u8, len i64, granted_origin i64) *PhaseSyntax {
+    if len < 16 { phase_error("wire-header", phase_diagnostic_source); }
+    if phase_wire_u32(frame, 0) != PHASE_PROTOCOL_VERSION || phase_wire_u32(frame, 12) != 0 { phase_error("wire-version", phase_diagnostic_source); }
+    var size i64 = phase_wire_u32(frame, 4);
+    if size != len - 16 || size > phase_limit() { phase_error("wire-length", phase_diagnostic_source); }
+    var id i64 = phase_wire_u32(frame, 8);
+    if id != granted_origin || phase_origin_get(id) == nil { phase_error("wire-origin", phase_diagnostic_source); }
+    var o *PhaseOrigin = phase_origin_get(id);
+    var s *PhaseSource = phase_source_get(o.source);
+    phase_validate_ast(frame + 16, size, s.name);
+    var syntax *PhaseSyntax = alloc(16);
+    syntax.text = str_dup_n(frame + 16, size); syntax.origin = id; return syntax;
+}
+
+
+struct PhaseSyntax { text *u8; origin i64; }
+pub func phase_wire_publish(frame *u8, len i64, granted_origin i64) *u8 {
+    var syntax *PhaseSyntax = phase_wire_decode(frame, len, granted_origin);
+    return syntax.text;
+}
+pub func phase_wire_encode(text *u8, origin i64) *PhaseBuffer {
+    if phase_origin_get(origin) == nil { phase_error("wire-origin", phase_diagnostic_source); }
+    var size i64 = strlen(text);
+    phase_validate_ast(text, size, phase_diagnostic_source);
+    var frame *PhaseBuffer = phase_buffer_new(phase_limit() + 16, phase_diagnostic_source);
+    phase_buffer_reserve(frame, size + 16);
+    var i i64 = 0; while i < 16 { *(frame.data + i) = 0; i = i + 1; }
+    *(frame.data) = PHASE_PROTOCOL_VERSION;
+    i = 0;
+    while i < 4 {
+        *(frame.data + 4 + i) = (size >> (i * 8)) & 255;
+        *(frame.data + 8 + i) = (origin >> (i * 8)) & 255;
+        i = i + 1;
+    }
+    frame.len = 16; phase_buffer_append(frame, text, size); return frame;
+}

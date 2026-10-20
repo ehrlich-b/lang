@@ -1,0 +1,547 @@
+pub func phase_legacy_compile(request *PhaseCompileRequest) i64 {
+    parser_set_source_name(request.name);
+    phase_expansion_origin = request.origin;
+    parser_tokenize(request.source);
+    var prog *u8 = parse_program();
+    if parse_error_count > 0 { return 1; }
+    if request.llvm != 0 { cg_generate_llvm_fn(prog, request.output); }
+    else { generate(prog, request.output); }
+    return cg_had_error;
+}
+
+// Legacy reader artifact adapter. New execution engines implement phase_host hooks.
+pub func compile_reader_to_executable(decl *u8) void {
+    var name *u8 = reader_decl_name(decl);
+    var name_len i64 = reader_decl_name_len(decl);
+    var param_name *u8 = reader_decl_param_name(decl);
+    var param_len i64 = reader_decl_param_len(decl);
+    var body *u8 = reader_decl_body(decl);
+
+    // Build cache path: $LANG_CACHE/readers/<name>
+    var base_path *u8 = build_reader_cache_path(name, name_len);
+    var exe_path *u8 = str_dup(base_path);
+
+    // Create cache directories
+    var cache_base *u8 = get_cache_base();
+    var readers_dir *u8 = str_concat(cache_base, "/readers");
+    os_mkdir(cache_base, 493);
+    os_mkdir(readers_dir, 493);
+
+    // Backend selection: LLVM if requested-or-default AND available
+    // (standalone compilers don't include codegen_llvm.lang)
+    var use_llvm i64 = 0;
+    if cg_backend_is_llvm() != 0 && cg_has_llvm_backend != 0 {
+        use_llvm = 1;
+    }
+
+    var src_path *u8 = str_concat(base_path, ".lang");
+    // Output path depends on backend: .ll for LLVM, .s for x86
+    var out_path *u8 = nil;
+    if use_llvm {
+        out_path = str_concat(base_path, ".ll");
+    } else {
+        out_path = str_concat(base_path, ".s");
+    }
+    var obj_path *u8 = str_concat(base_path, ".o");
+
+    // Loop variables used throughout function
+    var i i64 = 0;
+    var j i64 = 0;
+    var dependency_newer i64 = 0;
+    var exe_mtime i64 = file_mtime(exe_path);
+
+    // Build wrapper source with dependencies from the reader's current file.
+    var wrapper *u8 = nil;
+    var wp *u8 = wrapper;
+
+    // Generate the reader body first: it seeds the dependency closure below.
+    var body_src *u8 = ast_to_string_block(body);
+
+    // Select named siblings by dependency, regardless of whether they appear
+    // before or after the reader. Each selected declaration extends the source
+    // searched on the next pass, so helper -> helper and helper -> type/global
+    // dependencies are transitive. The current-file boundary keeps unrelated
+    // declarations from the including host program out of this wrapper.
+    var selected *u8 = alloc(cg_current_file_decl_count);
+    var dependency_cap i64 = 256;
+    var dependency_src *u8 = alloc(dependency_cap);
+    var dependency_len i64 = strlen(body_src);
+    dependency_src = phase_grow(dependency_src, 0, &dependency_cap, dependency_len, phase_diagnostic_source);
+    memcpy(dependency_src, body_src, dependency_len);
+    *(dependency_src + dependency_len) = 0;
+
+    var changed i64 = 1;
+    while changed != 0 {
+        changed = 0;
+        i = 0;
+        while i < cg_current_file_decl_count {
+            if *(selected + i) == 0 {
+                var sibling *u8 = get_decl(cg_current_file_decls, i);
+                var k i64 = node_kind(sibling);
+                var sibling_name *u8 = nil;
+                var sibling_name_len i64 = 0;
+                if k == NODE_FUNC_DECL {
+                    sibling_name = func_decl_name(sibling);
+                    sibling_name_len = func_decl_name_len(sibling);
+                }
+                if k == NODE_STRUCT_DECL {
+                    sibling_name = struct_decl_name(sibling);
+                    sibling_name_len = struct_decl_name_len(sibling);
+                }
+                if k == NODE_ENUM_DECL {
+                    sibling_name = enum_decl_name(sibling);
+                    sibling_name_len = enum_decl_name_len(sibling);
+                }
+                if k == NODE_EFFECT_DECL {
+                    sibling_name = effect_decl_name(sibling);
+                    sibling_name_len = effect_decl_name_len(sibling);
+                }
+                if k == NODE_VAR_DECL {
+                    sibling_name = var_decl_name(sibling);
+                    sibling_name_len = var_decl_name_len(sibling);
+                }
+
+                // main belongs to the host program; the wrapper supplies its
+                // own main below. Everything else is selected only on use.
+                var is_main i64 = 0;
+                if k == NODE_FUNC_DECL && sibling_name_len == 4 &&
+                   memcmp(sibling_name, "main", 4) {
+                    is_main = 1;
+                }
+                if sibling_name != nil && is_main == 0 &&
+                   reader_source_mentions(dependency_src, sibling_name, sibling_name_len) != 0 {
+                    *(selected + i) = 1;
+                    changed = 1;
+
+                    ast_str_init();
+                    if k == NODE_FUNC_DECL { ast_to_string_func_decl(sibling); }
+                    if k == NODE_STRUCT_DECL { ast_to_string_struct_decl(sibling); }
+                    if k == NODE_ENUM_DECL { ast_to_string_enum_decl(sibling); }
+                    if k == NODE_EFFECT_DECL { ast_to_string_effect_decl(sibling); }
+                    if k == NODE_VAR_DECL { ast_to_string_stmt(sibling); }
+                    var selected_src *u8 = ast_str_finish();
+                    var selected_len i64 = strlen(selected_src);
+                    dependency_src = phase_grow(dependency_src, dependency_len, &dependency_cap, selected_len, phase_diagnostic_source);
+                    memcpy(dependency_src + dependency_len, selected_src, selected_len);
+                    dependency_len = dependency_len + selected_len;
+                    *(dependency_src + dependency_len) = 0;
+                }
+            }
+            i = i + 1;
+        }
+    }
+
+    ast_str_init();
+
+    // Always include std/core.lang for stdlib functions
+    // String is: include "std/core.lang"\n = 24 chars
+    ast_str_append_cstr("include \"std/core.lang\"\n");
+
+    // Imports are explicit dependencies of this source file. Emit every one up
+    // front so imports may appear after the reader and generated declarations
+    // have their prerequisite readers registered before expansion.
+    if cg_current_file_decl_count > 0 {
+        i = 0;
+        while i < cg_current_file_decl_count {
+            var sibling *u8 = get_decl(cg_current_file_decls, i);
+            var k i64 = node_kind(sibling);
+            if k == NODE_INCLUDE_DECL {
+                ast_to_string_include_decl(sibling);
+                var dep_path *u8 = str_dup_n(include_decl_path(sibling), include_decl_path_len(sibling));
+                if resource_file_mtime(dep_path) > exe_mtime { dependency_newer = 1; }
+            }
+            // For reader caching, treat require like include (inline the code)
+            if k == NODE_REQUIRE_DECL {
+                // Convert require "x/y" to include "x/y.lang"
+                var mod *u8 = require_decl_module(sibling);
+                var mod_len i64 = require_decl_module_len(sibling);
+                ast_str_append_cstr("include \"");
+                ast_str_append(mod, mod_len);
+                ast_str_append_cstr(".lang\"\n");
+                var dep_base *u8 = str_dup_n(mod, mod_len);
+                var dep_path *u8 = str_concat(dep_base, ".lang");
+                if resource_file_mtime(dep_path) > exe_mtime { dependency_newer = 1; }
+            }
+            i = i + 1;
+        }
+
+        // Preserve declaration generators such as #parser{} in source form.
+        // Putting them after imports lets a cold cache build them even when the
+        // grammar appears after this reader in the original file. Expressions
+        // driven by a sibling reader are use sites and are deliberately omitted.
+        i = 0;
+        while i < cg_current_file_decl_count {
+            var sibling *u8 = get_decl(cg_current_file_decls, i);
+            var k i64 = node_kind(sibling);
+            if k == NODE_READER_EXPR && reader_expr_uses_sibling_reader(sibling) == 0 {
+                var rname *u8 = reader_expr_name(sibling);
+                var rname_len i64 = reader_expr_name_len(sibling);
+                var rcontent *u8 = reader_expr_content(sibling);
+                var rcontent_len i64 = reader_expr_content_len(sibling);
+                ast_str_append_char(35);  // #
+                ast_str_append(rname, rname_len);
+                ast_str_append_char(123);  // {
+                ast_str_append(rcontent, rcontent_len);
+                ast_str_append_cstr("}\n");
+            }
+            i = i + 1;
+        }
+
+        // Emit the selected dependency closure in declaration-friendly order.
+        i = 0;
+        while i < cg_current_file_decl_count {
+            var sibling *u8 = get_decl(cg_current_file_decls, i);
+            var k i64 = node_kind(sibling);
+            if *(selected + i) != 0 && k == NODE_STRUCT_DECL {
+                ast_to_string_struct_decl(sibling);
+            }
+            i = i + 1;
+        }
+
+        i = 0;
+        while i < cg_current_file_decl_count {
+            var sibling *u8 = get_decl(cg_current_file_decls, i);
+            var k i64 = node_kind(sibling);
+            if *(selected + i) != 0 && k == NODE_ENUM_DECL {
+                ast_to_string_enum_decl(sibling);
+            }
+            if *(selected + i) != 0 && k == NODE_EFFECT_DECL {
+                ast_to_string_effect_decl(sibling);
+            }
+            i = i + 1;
+        }
+
+        i = 0;
+        while i < cg_current_file_decl_count {
+            var sibling *u8 = get_decl(cg_current_file_decls, i);
+            var k i64 = node_kind(sibling);
+            if *(selected + i) != 0 && k == NODE_VAR_DECL {
+                ast_to_string_stmt(sibling);
+            }
+            i = i + 1;
+        }
+
+        i = 0;
+        while i < cg_current_file_decl_count {
+            var sibling *u8 = get_decl(cg_current_file_decls, i);
+            var k i64 = node_kind(sibling);
+            if *(selected + i) != 0 && k == NODE_FUNC_DECL {
+                ast_to_string_func_decl(sibling);
+            }
+            i = i + 1;
+        }
+    }
+
+    var siblings_src *u8 = ast_str_finish();
+    var wrapper_size i64 = strlen(siblings_src) + strlen(body_src) + name_len * 3 + param_len + 2048;
+    if wrapper_size > phase_limit() { phase_error("wrapper-limit", phase_diagnostic_source); }
+    phase_charge(wrapper_size); wrapper = alloc(wrapper_size); wp = wrapper;
+
+    // Copy sibling declarations to wrapper
+    var siblings_copy *u8 = siblings_src;
+    while *siblings_copy != 0 { *wp = *siblings_copy; wp = wp + 1; siblings_copy = siblings_copy + 1; }
+
+    // func <name>(<param> *u8) *u8
+    var fn_kw *u8 = "func ";
+    while *fn_kw != 0 { *wp = *fn_kw; wp = wp + 1; fn_kw = fn_kw + 1; }
+    j = 0;
+    while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
+    *wp = 40; wp = wp + 1;  // (
+    j = 0;
+    while j < param_len { *wp = *(param_name + j); wp = wp + 1; j = j + 1; }
+    var sig *u8 = " *u8) *u8 ";
+    while *sig != 0 { *wp = *sig; wp = wp + 1; sig = sig + 1; }
+    while *body_src != 0 { *wp = *body_src; wp = wp + 1; body_src = body_src + 1; }
+    *wp = 10; wp = wp + 1;  // newline
+
+    // main() wrapper - use the reader's parameter name
+    var main_src *u8 = "func main() i64 {\n    var input *PhaseBuffer = phase_read_fd(0, phase_limit(), \"<reader-input>\");\n    var buf *u8 = input.data;\n    var result *u8 = ";
+    while *main_src != 0 { *wp = *main_src; wp = wp + 1; main_src = main_src + 1; }
+    j = 0;
+    while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
+    var main_end *u8 = "(buf);\n    if result == nil { return 1; }\n    print(result);\n    return 0;\n}\n";
+    while *main_end != 0 { *wp = *main_end; wp = wp + 1; main_end = main_end + 1; }
+
+    // Add ___main entry point for x86 backend (_start calls ___main)
+    // LLVM backend doesn't need this - clang provides the entry point
+    if use_llvm == 0 {
+        var entry_main *u8 = "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(); }\n";
+        while *entry_main != 0 { *wp = *entry_main; wp = wp + 1; entry_main = entry_main + 1; }
+    }
+    *wp = 0;
+
+    var wlen i64 = strlen(wrapper);
+
+    var identity *u8 = phase_reader_identity(wrapper, use_llvm);
+    var identity_path *u8 = str_concat(base_path, ".identity");
+    if file_mtime(exe_path) != 0 && phase_identity_matches(identity_path, identity) != 0 &&
+       reader_wrapper_matches(src_path, wrapper, wlen) != 0 { return; }
+
+    // Write wrapper source to file (for debugging)
+    var fd i64 = file_open(src_path, O_WRONLY_CREAT_TRUNC);
+    if fd < 0 {
+        eprintln("error: cannot write reader wrapper");
+        cg_had_error = 1;
+        return;
+    }
+    file_write(fd, wrapper, wlen);
+    file_close(fd);
+
+    // Once this reader needs rebuilding, never leave an older executable in
+    // place. A failed rebuild must fail closed rather than run stale code.
+    os_unlink(exe_path);
+
+    // Fork-self: child compiles directly instead of exec-ing ./out/lang
+    // This removes the hardcoded path and avoids exec overhead
+    var pid i64 = os_fork();
+    if pid < 0 {
+        eprintln("error: fork failed for reader compilation");
+        cg_had_error = 1;
+        return;
+    }
+    if pid == 0 {
+        // Child: compile wrapper source directly. The reader executable runs
+        // on THIS machine, so target the host platform even when the main
+        // compile cross-targets (LANGOS=wasm would emit an unrunnable reader).
+        cg_langos_override = os_platform_name();
+        cg_flatten_require_modules = 1;
+        var request *PhaseCompileRequest = alloc(56);
+        request.source = wrapper; request.name = src_path; request.output = out_path;
+        request.origin = node_origin_id(decl); request.phase = 1;
+        request.target = os_platform_name(); request.llvm = use_llvm;
+        if phase_compile_hook == nil { phase_compile_hook = &phase_legacy_compile; }
+        os__exit(phase_host_compile(request));
+    }
+
+    // Parent: wait for child to finish
+    var status *i64 = alloc(8);
+    os_waitpid(pid, status, 0);
+    var exit_code i64 = process_status_code(*status);
+    if exit_code != 0 {
+        cg_diagnostic_node = decl;
+        cg_error_prefix();
+        eprint("reader '");
+        eprint_buf(name, name_len);
+        eprintln("' failed to compile");
+        eprint("hint: inspect generated reader source at ");
+        eprintln(src_path);
+        cg_had_error = 1;
+        return;
+    }
+
+    if use_llvm {
+        // LLVM path: clang <ll> -o <exe>
+        var clang_path *u8 = find_clang();
+        if clang_path == nil {
+            eprintln("error: clang not found; cannot build reader executable");
+            cg_had_error = 1;
+            return;
+        }
+        var clang_result i64 = exec_run(clang_path, "-Wno-override-module", out_path, "-o", exe_path, nil, nil);
+        if clang_result != 0 {
+            os_unlink(exe_path);
+            eprint("error: linking reader '");
+            eprint_buf(name, name_len);
+            eprintln("' failed");
+            eprint("hint: inspect generated reader IR at ");
+            eprintln(out_path);
+            cg_had_error = 1;
+            return;
+        }
+    } else {
+        // x86 path: as <asm> -o <obj>, ld <obj> -o <exe>
+        var as_path *u8 = find_as();
+        var ld_path *u8 = find_ld();
+        if as_path == nil || ld_path == nil {
+            eprintln("error: as and ld are required to build a reader executable");
+            cg_had_error = 1;
+            return;
+        }
+        var as_result i64 = exec_run(as_path, out_path, "-o", obj_path, nil, nil, nil);
+        if as_result != 0 {
+            os_unlink(obj_path);
+            eprintln("error: assembling reader executable failed");
+            cg_had_error = 1;
+            return;
+        }
+        var ld_result i64 = exec_run(ld_path, obj_path, "-o", exe_path, nil, nil, nil);
+        os_unlink(obj_path);
+        if ld_result != 0 {
+            os_unlink(exe_path);
+            eprintln("error: linking reader executable failed");
+            cg_had_error = 1;
+            return;
+        }
+    }
+    phase_identity_write(identity_path, identity);
+}
+
+pub func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
+    var exe_path *u8 = build_reader_cache_path(name, name_len);
+
+    // Create cache directories
+    var cache_base *u8 = get_cache_base();
+    var readers_dir *u8 = str_concat(cache_base, "/readers");
+    os_mkdir(cache_base, 493);
+    os_mkdir(readers_dir, 493);
+
+    // Check backend
+    var use_llvm i64 = 0;
+    if cg_backend_is_llvm() != 0 && cg_has_llvm_backend != 0 {
+        use_llvm = 1;
+    }
+
+    var base_path *u8 = build_reader_cache_path(name, name_len);
+    var src_path *u8 = str_concat(base_path, ".lang");
+    var out_path *u8 = nil;
+    if use_llvm {
+        out_path = str_concat(base_path, ".ll");
+    } else {
+        out_path = str_concat(base_path, ".s");
+    }
+    var obj_path *u8 = str_concat(base_path, ".o");
+
+    // Build wrapper source: std/core.lang + embedded AST + main wrapper
+    // The embedded AST is a reader declaration, we need to wrap it
+    var wrapper_size i64 = strlen(ast) + name_len + 2048;
+    if wrapper_size > phase_limit() { phase_error("wrapper-limit", phase_diagnostic_source); }
+    phase_charge(wrapper_size);
+    var wrapper *u8 = alloc(wrapper_size);
+    var wp *u8 = wrapper;
+
+    // Include stdlib
+    var stdlib *u8 = "include \"std/core.lang\"\n";
+    while *stdlib != 0 { *wp = *stdlib; wp = wp + 1; stdlib = stdlib + 1; }
+
+    // Parse the embedded AST to get the reader declaration
+    // The AST is in S-expr format: (reader name param body)
+    // We need to convert it back to source form for compilation
+    // For now, we'll parse it with sexpr_reader and regenerate source
+
+    // Actually, we need to emit the reader as source code
+    // The embedded AST is the serialized reader decl from ast_emit
+    // We need to parse it and emit source
+
+    // Simpler approach: store reader SOURCE not AST in embedded readers
+    // That way we can just include it directly
+    // For now, assume ast is actually source code (we'll fix -c to emit source)
+
+    // Append the reader source
+    while *ast != 0 { *wp = *ast; wp = wp + 1; ast = ast + 1; }
+    *wp = 10; wp = wp + 1;  // newline
+
+    // Add main wrapper that reads stdin, calls reader, prints result
+    var main_src *u8 = "func main() i64 {\n    var input *PhaseBuffer = phase_read_fd(0, phase_limit(), \"<reader-input>\");\n    var buf *u8 = input.data;\n    var result *u8 = ";
+    while *main_src != 0 { *wp = *main_src; wp = wp + 1; main_src = main_src + 1; }
+
+    // Append reader name
+    var j i64 = 0;
+    while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
+
+    var main_end *u8 = "(buf);\n    if result == nil { return 1; }\n    print(result);\n    return 0;\n}\n";
+    while *main_end != 0 { *wp = *main_end; wp = wp + 1; main_end = main_end + 1; }
+
+    // Add ___main entry point for x86 backend
+    if use_llvm == 0 {
+        var entry_main *u8 = "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(); }\n";
+        while *entry_main != 0 { *wp = *entry_main; wp = wp + 1; entry_main = entry_main + 1; }
+    }
+    *wp = 0;
+
+    var identity *u8 = phase_reader_identity(wrapper, use_llvm);
+    var identity_path *u8 = str_concat(base_path, ".identity");
+    if file_mtime(exe_path) != 0 && phase_identity_matches(identity_path, identity) != 0 {
+        return exe_path;
+    }
+
+    // Write source to file for debugging
+    var fd i64 = file_open(src_path, O_WRONLY_CREAT_TRUNC);
+    if fd < 0 {
+        eprintln("error: cannot write embedded reader wrapper");
+        cg_had_error = 1;
+        return nil;
+    }
+    var wlen i64 = 0;
+    var ws *u8 = wrapper;
+    while *ws != 0 { wlen = wlen + 1; ws = ws + 1; }
+    file_write(fd, wrapper, wlen);
+    file_close(fd);
+    os_unlink(exe_path);
+
+    // Fork-self to compile
+    var pid i64 = os_fork();
+    if pid < 0 {
+        eprintln("error: fork failed for embedded reader compilation");
+        cg_had_error = 1;
+        return nil;
+    }
+    if pid == 0 {
+        // Child: compile wrapper source (host-targeted - the reader runs here)
+        cg_langos_override = os_platform_name();
+        var source_id i64 = phase_source_new(src_path, wrapper);
+        var request *PhaseCompileRequest = alloc(56);
+        request.source = wrapper; request.name = src_path; request.output = out_path;
+        request.origin = phase_origin_new(source_id, 0, strlen(wrapper), 0, 0);
+        request.phase = 1; request.target = os_platform_name(); request.llvm = use_llvm;
+        if phase_compile_hook == nil { phase_compile_hook = &phase_legacy_compile; }
+        os__exit(phase_host_compile(request));
+    }
+
+    // Parent: wait for child
+    var status *i64 = alloc(8);
+    os_waitpid(pid, status, 0);
+    var exit_code i64 = process_status_code(*status);
+    if exit_code != 0 {
+        eprintln("error: embedded reader compilation failed");
+        cg_had_error = 1;
+        return nil;
+    }
+
+    if use_llvm {
+        var clang_path *u8 = find_clang();
+        if clang_path == nil {
+            eprintln("error: clang not found");
+            cg_had_error = 1;
+            return nil;
+        }
+        var clang_result i64 = exec_run(clang_path, "-Wno-override-module", out_path, "-o", exe_path, nil, nil);
+        if clang_result != 0 {
+            os_unlink(exe_path);
+            eprintln("error: linking embedded reader executable failed");
+            cg_had_error = 1;
+            return nil;
+        }
+    } else {
+        var as_path *u8 = find_as();
+        var ld_path *u8 = find_ld();
+        if as_path == nil {
+            eprintln("error: as (assembler) not found");
+            cg_had_error = 1;
+            return nil;
+        }
+        if ld_path == nil {
+            eprintln("error: ld (linker) not found");
+            cg_had_error = 1;
+            return nil;
+        }
+        var as_result i64 = exec_run(as_path, out_path, "-o", obj_path, nil, nil, nil);
+        if as_result != 0 {
+            os_unlink(obj_path);
+            eprintln("error: assembling embedded reader executable failed");
+            cg_had_error = 1;
+            return nil;
+        }
+        var ld_result i64 = exec_run(ld_path, obj_path, "-o", exe_path, nil, nil, nil);
+        os_unlink(obj_path);
+        if ld_result != 0 {
+            os_unlink(exe_path);
+            eprintln("error: linking embedded reader executable failed");
+            cg_had_error = 1;
+            return nil;
+        }
+    }
+
+    phase_identity_write(identity_path, identity);
+    return exe_path;
+}
+

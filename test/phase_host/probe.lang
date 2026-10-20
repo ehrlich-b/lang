@@ -1,0 +1,71 @@
+include "std/core.lang"
+include "src/phase_host.lang"
+include "src/lexer.lang"
+include "src/parser.lang"
+include "src/ast_emit.lang"
+include "src/sexpr_reader.lang"
+
+func probe_arg(argv **u8, i i64) *u8 { var raw *u8 = argv; var p **u8 = raw + i * 8; return *p; }
+func main(argc i64, argv **u8) i64 {
+    var mode *u8 = probe_arg(argv, 1);
+    if streq(mode, "budget") { phase_budget_limit = 100; phase_read_fd(0, phase_limit(), "budget-input"); return 9; }
+    if streq(mode, "work") { phase_work_limit = 1; phase_work(2); return 9; }
+    var input *PhaseBuffer = phase_read_fd(0, phase_limit(), "probe-input");
+    if streq(mode, "echo") { file_write(1, input.data, input.len); return 0; }
+    if streq(mode, "digest") { println(phase_digest(input.data, input.len)); return 0; }
+    if streq(mode, "shape") { phase_validate_ast(input.data, input.len, "probe-input"); return 0; }
+    if streq(mode, "emit") { ast_emit_init(); ast_emit_str(input.data); print(ast_emit_finish()); return 0; }
+    if streq(mode, "roundtrip") {
+        var prog *u8 = parse_ast_from_string(input.data);
+        if prog == nil { return 2; }
+        print(ast_emit_program(prog)); return 0;
+    }
+    if streq(mode, "worker") {
+        var output *u8 = phase_worker_call(probe_arg(argv, 2), input.data, input.len);
+        if output == nil { return 3; }
+        print(output); return 0;
+    }
+    if streq(mode, "identity") {
+        var key *u8 = phase_cache_identity("dep", "compiler", "target-a", 1, "profile");
+        if streq(key, phase_cache_identity("dep", "compiler", "target-b", 1, "profile")) { return 6; }
+        if streq(key, phase_cache_identity("dep", "compiler", "target-a", 2, "profile")) { return 6; }
+        PHASE_CACHE_VERSION = PHASE_CACHE_VERSION + 1;
+        if streq(key, phase_cache_identity("dep", "compiler", "target-a", 1, "profile")) { return 6; }
+        return 0;
+    }
+    var source_id i64 = phase_source_new("origin-input", input.data);
+    var root i64 = phase_origin_new(source_id, 0, input.len, 0, 0);
+    if streq(mode, "envelope") {
+        var frame *PhaseBuffer = phase_wire_encode("(program (func main () (type_base i64) (block (return (number 0)))))", root);
+        var syntax *PhaseSyntax = phase_wire_decode(frame.data, frame.len, root);
+        var program *u8 = phase_syntax_program(syntax);
+        if program == nil { return 7; }
+        var decl *u8 = get_decl(program_decls(program), 0);
+        var origin *PhaseOrigin = phase_origin_get(node_origin_id(decl));
+        if origin == nil || origin.expansion_parent != root { return 7; }
+        return 0;
+    }
+    if streq(mode, "origin") {
+        var child i64 = phase_origin_new(source_id, input.len, input.len, root, root);
+        var o *PhaseOrigin = phase_origin_get(child);
+        if o.include_parent != root || o.expansion_parent != root { return 4; }
+        if input.len > 0 { *(input.data) = 120; }
+        var s *PhaseSource = phase_source_get(source_id);
+        if streq(s.digest, phase_digest(s.text, s.len)) == 0 { return 5; }
+        return 0;
+    }
+    if streq(mode, "span") { phase_origin_new(source_id, 1, input.len, 0, 0); return 0; }
+    if streq(mode, "forged") { phase_origin_new(source_id, 0, 0, 99999, 0); return 9; }
+    if streq(mode, "missing") { phase_origin_new(99999, 0, 0, 0, 0); return 9; }
+    var frame *u8 = alloc(input.len + 16);
+    var i i64 = 0; while i < 16 { *(frame + i) = 0; i = i + 1; }
+    *frame = 1; *(frame + 8) = root;
+    var size i64 = input.len; i = 0;
+    while i < 4 { *(frame + 4 + i) = size & 255; size = size >> 8; i = i + 1; }
+    memcpy(frame + 16, input.data, input.len);
+    if streq(mode, "wire-short") { phase_wire_publish(frame, 15, root); return 9; }
+    if streq(mode, "wire-length") { *(frame + 7) = 255; }
+    if streq(mode, "wire-origin") { *(frame + 8) = 0; }
+    if streq(mode, "wire-version") { *frame = 2; }
+    print(phase_wire_publish(frame, input.len + 16, root)); return 0;
+}

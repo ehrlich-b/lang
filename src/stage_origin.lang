@@ -1,0 +1,99 @@
+// Registries mint IDs; worker-supplied pointers and source names confer no authority.
+struct PhaseSource { id i64; name *u8; text *u8; len i64; digest *u8; }
+struct PhaseOrigin { id i64; source i64; start i64; end i64; include_parent i64; expansion_parent i64; }
+var phase_sources *u8 = nil;
+var phase_origins *u8 = nil;
+pub func phase_source_get(id i64) *PhaseSource {
+    if phase_sources == nil || id < 1 { return nil; }
+    if id > vec_len(phase_sources) { return nil; }
+    return vec_get(phase_sources, id - 1);
+}
+pub func phase_source_new(name *u8, text *u8) i64 {
+    if name == nil || text == nil { phase_error("missing-source", phase_diagnostic_source); }
+    phase_utf8_validate(text, name);
+    phase_charge(strlen(text) + strlen(name) + 42);
+    phase_work(1);
+    if phase_sources == nil { phase_sources = vec_new(16); }
+    var s *PhaseSource = alloc(40);
+    s.id = vec_len(phase_sources) + 1; s.name = str_dup(name);
+    s.text = str_dup(text); s.len = strlen(text); s.digest = phase_digest(text, s.len);
+    vec_push(phase_sources, s); return s.id;
+}
+pub func phase_origin_get(id i64) *PhaseOrigin {
+    if phase_origins == nil || id < 1 { return nil; }
+    if id > vec_len(phase_origins) { return nil; }
+    return vec_get(phase_origins, id - 1);
+}
+pub func phase_utf8_boundary(s *PhaseSource, pos i64) i64 {
+    if pos < 0 || pos > s.len { return 0; }
+    if pos == s.len { return 1; }
+    var c i64 = *(s.text + pos);
+    if c >= 128 && c < 192 { return 0; }
+    return 1;
+}
+pub func phase_span_valid(source i64, start i64, end i64) i64 {
+    var s *PhaseSource = phase_source_get(source);
+    if s == nil || start > end { return 0; }
+    return phase_utf8_boundary(s, start) && phase_utf8_boundary(s, end);
+}
+pub func phase_origin_new(source i64, start i64, end i64, included i64, expanded i64) i64 {
+    if phase_span_valid(source, start, end) == 0 { phase_error("invalid-span", phase_diagnostic_source); }
+    if included != 0 && phase_origin_get(included) == nil { phase_error("forged-include-origin", phase_diagnostic_source); }
+    if expanded != 0 && phase_origin_get(expanded) == nil { phase_error("forged-expansion-origin", phase_diagnostic_source); }
+    if phase_origins == nil { phase_origins = vec_new(16); }
+    phase_work(1);
+    phase_charge(48);
+    var o *PhaseOrigin = alloc(48); o.id = vec_len(phase_origins) + 1;
+    o.source = source; o.start = start; o.end = end; o.include_parent = included; o.expansion_parent = expanded;
+    vec_push(phase_origins, o); return o.id;
+}
+
+var phase_include_origin i64 = 0;
+var phase_expansion_origin i64 = 0;
+pub func phase_source_latest(name *u8) i64 {
+    if phase_sources == nil || name == nil { return 0; }
+    var i i64 = vec_len(phase_sources);
+    while i > 0 {
+        var s *PhaseSource = phase_source_get(i);
+        if streq(s.name, name) { return i; }
+        i = i - 1;
+    }
+    return 0;
+}
+pub func phase_line_byte(text *u8, line i64, column i64) i64 {
+    var pos i64 = 0; var row i64 = 1; var col i64 = 1;
+    while *(text + pos) != 0 {
+        if row == line && col == column { return pos; }
+        if *(text + pos) == 10 { row = row + 1; col = 1; } else { col = col + 1; }
+        pos = pos + 1;
+    }
+    return pos;
+}
+
+pub func phase_utf8_validate(text *u8, name *u8) void {
+    var len i64 = strlen(text); var i i64 = 0;
+    while i < len {
+        var c i64 = *(text + i); var count i64 = 0; var value i64 = 0; var minimum i64 = 0;
+        if c < 128 { count = 1; value = c; }
+        else if c >= 194 && c <= 223 { count = 2; value = c - 192; minimum = 128; }
+        else if c >= 224 && c <= 239 { count = 3; value = c - 224; minimum = 2048; }
+        else if c >= 240 && c <= 244 { count = 4; value = c - 240; minimum = 65536; }
+        else { phase_error("invalid-utf8", name); }
+        if count > len - i { phase_error("invalid-utf8", name); }
+        var j i64 = 1;
+        while j < count {
+            var next i64 = *(text + i + j);
+            if next < 128 || next > 191 { phase_error("invalid-utf8", name); }
+            value = value * 64 + next - 128; j = j + 1;
+        }
+        if value < minimum || value > 1114111 || (value >= 55296 && value <= 57343) { phase_error("invalid-utf8", name); }
+        i = i + count;
+    }
+}
+
+var phase_bound_source_id i64 = 0;
+pub func phase_origin_source_id(name *u8) i64 {
+    var bound *PhaseSource = phase_source_get(phase_bound_source_id);
+    if bound != nil && name != nil { if streq(bound.name, name) { return bound.id; } }
+    return phase_source_latest(name);
+}

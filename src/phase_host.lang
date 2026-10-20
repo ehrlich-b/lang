@@ -1,0 +1,38 @@
+// Compiler-host substrate; independent of frontend and backend policy.
+include "src/stage_buffer.lang"
+include "src/stage_digest.lang"
+include "src/stage_origin.lang"
+include "src/stage_wire.lang"
+include "src/stage_worker.lang"
+
+// These fields are serialized into every dependency identity.
+pub func phase_cache_identity(dependency_bytes *u8, compiler *u8, target *u8,
+                          phase i64, profile *u8) *u8 {
+    var b *PhaseBuffer = phase_buffer_new(phase_limit(), "cache identity");
+    phase_buffer_text(b, "phase-host;");
+    phase_buffer_int(b, PHASE_PROTOCOL_VERSION); phase_buffer_text(b, ";");
+    phase_buffer_int(b, PHASE_CACHE_VERSION); phase_buffer_text(b, ";core-ast-v2;");
+    phase_buffer_field(b, compiler);
+    phase_buffer_field(b, target);
+    phase_buffer_field(b, profile);
+    phase_buffer_int(b, phase); phase_buffer_text(b, ";");
+    phase_buffer_field(b, dependency_bytes);
+    return phase_digest(b.data, b.len);
+}
+
+
+// Compiler-owned source wrapper request. Target describes the execution ABI;
+// output-target semantics belong to the caller's serialized core module.
+struct PhaseCompileRequest {
+    source *u8; name *u8; output *u8; origin i64;
+    phase i64; target *u8; llvm i64;
+}
+var phase_compile_hook fn(*PhaseCompileRequest) i64 = nil;
+pub func phase_host_compile(request *PhaseCompileRequest) i64 {
+    if phase_origin_get(request.origin) == nil { phase_error("compile-origin", request.name); }
+    if request.phase < 1 || request.target == nil { phase_error("compile-context", request.name); }
+    if strlen(request.source) > phase_limit() { phase_error("compile-byte-limit", request.name); }
+    phase_work(1);
+    if phase_compile_hook == nil { phase_error("compile-engine-unavailable", request.name); }
+    return phase_compile_hook(request);
+}

@@ -50,17 +50,22 @@ var ast_emit_cap i64 = 0;
 var ast_emit_indent i64 = 0;
 
 func ast_emit_init() void {
-    ast_emit_cap = SIZE_AST_EMIT;
+    ast_emit_cap = 256;
     ast_emit_buf = alloc(ast_emit_cap);
     ast_emit_len = 0;
     ast_emit_indent = 0;
+    phase_emit_depth = 0; phase_emit_nodes = 0;
 }
 
 func ast_emit_char(c u8) void {
-    if ast_emit_len < ast_emit_cap - 1 {
-        *(ast_emit_buf + ast_emit_len) = c;
-        ast_emit_len = ast_emit_len + 1;
+    if ast_emit_len >= phase_limit() { phase_error("ast-byte-limit", phase_diagnostic_source); }
+    if ast_emit_len >= ast_emit_cap - 1 {
+        var capacity i64 = ast_emit_cap;
+        ast_emit_buf = phase_grow(ast_emit_buf, ast_emit_len, &capacity, 1, phase_diagnostic_source);
+        ast_emit_cap = capacity;
     }
+    *(ast_emit_buf + ast_emit_len) = c;
+    ast_emit_len = ast_emit_len + 1;
 }
 
 func ast_emit_str(s *u8) void {
@@ -270,12 +275,14 @@ func ast_emit_param(p *u8) void {
 // Main AST emission
 // ============================================================
 
-func ast_emit_node(node *u8) void {
+func ast_emit_node_inner(node *u8) void {
     if node == nil {
         ast_emit_str("nil");
         return;
     }
 
+    var origin_source *u8 = node_origin_source(node);
+    if origin_source != nil { phase_diagnostic_source = origin_source; }
     var kind i64 = node_kind(node);
 
     // ============================================================
@@ -981,4 +988,15 @@ pub func ast_emit_expression(expr *u8) *u8 {
     ast_emit_init();
     ast_emit_node(expr);
     return ast_emit_finish();
+}
+
+var phase_emit_depth i64 = 0;
+var phase_emit_nodes i64 = 0;
+func ast_emit_node(node *u8) void {
+    phase_emit_depth = phase_emit_depth + 1;
+    phase_emit_nodes = phase_emit_nodes + 1;
+    if phase_emit_depth > PHASE_AST_MAX_DEPTH { phase_error("ast-depth", phase_diagnostic_source); }
+    if phase_emit_nodes > PHASE_AST_MAX_NODES { phase_error("ast-nodes", phase_diagnostic_source); }
+    ast_emit_node_inner(node);
+    phase_emit_depth = phase_emit_depth - 1;
 }

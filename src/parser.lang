@@ -1,3 +1,6 @@
+include "src/stage_digest.lang"
+include "src/stage_origin.lang"
+include "src/stage_wire.lang"
 // src/parser.lang - Parser for self-hosting compiler
 // Recursive descent parser with precedence climbing for expressions
 
@@ -2470,12 +2473,10 @@ func node_set_origin_full(node *u8, source_name *u8, line i64, column i64,
         return;
     }
     if node_origins == nil {
-        node_origins = alloc(LIMIT_NODE_ORIGINS * 48);
+        node_origins = alloc(LIMIT_NODE_ORIGINS * 56);
     }
-    if node_origin_count >= LIMIT_NODE_ORIGINS {
-        return;
-    }
-    var entry *u8 = node_origins + (node_origin_count * 48);
+    if node_origin_count >= LIMIT_NODE_ORIGINS { phase_error("origin-budget", source_name); }
+    var entry *u8 = node_origins + (node_origin_count * 56);
     var node_slot **u8 = entry;
     *node_slot = node;
     var source_slot **u8 = entry + 8;
@@ -2488,6 +2489,17 @@ func node_set_origin_full(node *u8, source_name *u8, line i64, column i64,
     *start_slot = start;
     var end_slot *i64 = entry + 40;
     *end_slot = end;
+    var source_id i64 = phase_origin_source_id(source_name);
+    if source_id == 0 { phase_error("missing-source", source_name); }
+    var source_record *PhaseSource = phase_source_get(source_id);
+    var byte_start i64 = start;
+    var byte_end i64 = end;
+    if byte_start < 0 {
+        byte_start = phase_line_byte(source_record.text, line, column);
+        byte_end = byte_start;
+    }
+    var origin_slot *i64 = entry + 48;
+    *origin_slot = phase_origin_new(source_id, byte_start, byte_end, phase_include_origin, phase_expansion_origin);
     node_origin_count = node_origin_count + 1;
 }
 
@@ -2498,12 +2510,9 @@ pub func node_set_origin(node *u8, source_name *u8, line i64, column i64) void {
 // Attach a reader-relative byte span and derive its one-based line/column.
 pub func node_set_span(node *u8, source_name *u8, source *u8,
                        start i64, end i64) void {
-    if source == nil { return; }
-    if start < 0 { start = 0; }
-    var source_len i64 = strlen(source);
-    if start > source_len { start = source_len; }
-    if end < start { end = start; }
-    if end > source_len { end = source_len; }
+    if source == nil || phase_span_valid(phase_origin_source_id(source_name), start, end) == 0 {
+        phase_error("invalid-span", source_name);
+    }
 
     var line i64 = 1;
     var column i64 = 1;
@@ -2519,7 +2528,7 @@ pub func node_set_span(node *u8, source_name *u8, source *u8,
 func node_origin_entry(node *u8) *u8 {
     var i i64 = node_origin_count - 1;
     while i >= 0 {
-        var entry *u8 = node_origins + (i * 48);
+        var entry *u8 = node_origins + (i * 56);
         var node_slot **u8 = entry;
         if *node_slot == node {
             return entry;
@@ -2568,9 +2577,17 @@ pub func node_copy_origin(node *u8, source_node *u8) void {
     if node_origin_source(node) != nil { return; }
     var source *u8 = node_origin_source(source_node);
     if source != nil {
+        var saved_bound i64 = phase_bound_source_id;
+        var original *PhaseOrigin = phase_origin_get(node_origin_id(source_node));
+        if original == nil { phase_error("missing-origin", source); }
+        phase_bound_source_id = original.source;
         node_set_origin_full(node, source, node_origin_line(source_node),
                              node_origin_column(source_node),
                              node_origin_start(source_node), node_origin_end(source_node));
+        phase_bound_source_id = saved_bound;
+        var copied *u8 = node_origin_entry(node);
+        var id_slot *i64 = copied + 48;
+        *id_slot = node_origin_id(source_node);
     }
 }
 
@@ -2616,11 +2633,23 @@ func parser_add_token(tok *u8) void {
 // Tokenize source and fill token array
 pub func parser_tokenize(source *u8) void {
     parser_init();
+    var source_name *u8 = parse_source_name;
+    if source_name == nil { source_name = "<input>"; parse_source_name = source_name; }
+    phase_diagnostic_source = source_name;
+    phase_bound_source_id = phase_source_new(source_name, source);
     lexer_init(source);
 
     var done i64 = 0;
+    var shape_depth i64 = 0;
     while done == 0 {
         var tok *u8 = scan_token();
+        var shape_kind i64 = tok_type(tok);
+        if shape_kind == TOKEN_LPAREN || shape_kind == TOKEN_LBRACE || shape_kind == TOKEN_LBRACKET {
+            shape_depth = shape_depth + 1;
+            if shape_depth > PHASE_AST_MAX_DEPTH { phase_error("source-depth", source_name); }
+        }
+        if shape_kind == TOKEN_RPAREN || shape_kind == TOKEN_RBRACE || shape_kind == TOKEN_RBRACKET { shape_depth = shape_depth - 1; }
+        if vec_len(parse_tokens) >= PHASE_AST_MAX_NODES { phase_error("source-nodes", source_name); }
         parser_add_token(tok);
         if tok_type(tok) == TOKEN_EOF || tok_type(tok) == TOKEN_ERROR {
             done = 1;
@@ -2705,7 +2734,7 @@ func parse_expect(t i64, msg *u8) *u8 {
 // Type parsing
 // ============================================================
 
-func parse_type() *u8 {
+func parse_type_bounded_inner() *u8 {
     if parse_match(TOKEN_STAR) {
         var elem *u8 = parse_type();
         var t *u8 = ptr_type_alloc();
@@ -2978,7 +3007,7 @@ func parse_mult() *u8 {
     return expr;
 }
 
-func parse_unary() *u8 {
+func parse_unary_bounded_inner() *u8 {
     if parse_check(TOKEN_MINUS) || parse_check(TOKEN_BANG) ||
        parse_check(TOKEN_STAR) || parse_check(TOKEN_AMP) {
         var op i64 = tok_type(parse_advance());
@@ -4306,6 +4335,7 @@ func parse_expression_from_string(source *u8) *u8 {
     var saved_current i64 = parse_current;
     var saved_errors i64 = parse_error_count;
     var saved_source_name *u8 = parse_source_name;
+    var saved_bound_source i64 = phase_bound_source_id;
 
     // Tokenize into a fresh state
     parser_tokenize(source);
@@ -4324,6 +4354,7 @@ func parse_expression_from_string(source *u8) *u8 {
     parse_current = saved_current;
     parse_error_count = saved_errors;
     parse_source_name = saved_source_name;
+    phase_bound_source_id = saved_bound_source;
 
     return expr;
 }
@@ -4336,6 +4367,7 @@ func parse_program_from_named_string(source *u8, source_name *u8) *u8 {
     var saved_current i64 = parse_current;
     var saved_errors i64 = parse_error_count;
     var saved_source_name *u8 = parse_source_name;
+    var saved_bound_source i64 = phase_bound_source_id;
 
     // Tokenize into a fresh state
     parse_source_name = source_name;
@@ -4360,6 +4392,7 @@ func parse_program_from_named_string(source *u8, source_name *u8) *u8 {
     parse_current = saved_current;
     parse_error_count = saved_errors;
     parse_source_name = saved_source_name;
+    phase_bound_source_id = saved_bound_source;
 
     if nested_errors > 0 {
         return nil;
@@ -4371,3 +4404,27 @@ func parse_program_from_named_string(source *u8, source_name *u8) *u8 {
 func parse_program_from_string(source *u8) *u8 {
     return parse_program_from_named_string(source, parse_source_name);
 }
+
+pub func node_origin_id(node *u8) i64 {
+    var entry *u8 = node_origin_entry(node);
+    if entry == nil { return 0; }
+    var slot *i64 = entry + 48; return *slot;
+}
+
+func parse_type() *u8 {
+    phase_parse_depth = phase_parse_depth + 1;
+    if phase_parse_depth > PHASE_AST_MAX_DEPTH { phase_error("source-depth", phase_diagnostic_source); }
+    var result *u8 = parse_type_bounded_inner();
+    phase_parse_depth = phase_parse_depth - 1;
+    return result;
+}
+
+func parse_unary() *u8 {
+    phase_parse_depth = phase_parse_depth + 1;
+    if phase_parse_depth > PHASE_AST_MAX_DEPTH { phase_error("source-depth", phase_diagnostic_source); }
+    var result *u8 = parse_unary_bounded_inner();
+    phase_parse_depth = phase_parse_depth - 1;
+    return result;
+}
+
+var phase_parse_depth i64 = 0;

@@ -45,26 +45,9 @@ func is_lang_extension(ext *u8) i64 {
 }
 
 func read_file(path *u8) *u8 {
-    var fd i64 = file_open(path, 0);  // O_RDONLY
-    if fd < 0 {
-        eprint("Error: cannot open file: ");
-        eprintln(path);
-        return nil;
-    }
-
-    var buf *u8 = alloc(SIZE_AST_EMIT);  // Use same limit as AST emit
-    var n i64 = file_read(fd, buf, SIZE_AST_EMIT);
-    file_close(fd);
-
-    if n < 0 {
-        eprintln("Error: cannot read file");
-        return nil;
-    }
-
-    // Null-terminate
-    *(buf + n) = 0;
-
-    return buf;
+    var text *u8 = phase_read_file(path);
+    if text == nil { eprint("Error: cannot open file: "); eprintln(path); }
+    return text;
 }
 
 // Get argv[i] - argv is array of char pointers
@@ -97,6 +80,7 @@ func path_dirname(path *u8) *u8 {
 }
 
 func init_resource_root(argv0 *u8) void {
+    phase_compiler_path = argv0;
     var configured *u8 = getenv("LANG_ROOT");
     if configured != nil && *configured != 0 {
         cg_resource_root = configured;
@@ -108,6 +92,7 @@ func init_resource_root(argv0 *u8) void {
         var found *u8 = find_in_path(executable);
         if found != nil { executable = found; }
     }
+    phase_compiler_path = executable;
     var root *u8 = path_dirname(path_dirname(executable));
     var probe *u8 = str_concat(root, "/std/core.lang");
     var fd i64 = file_open(probe, O_RDONLY);
@@ -118,12 +103,10 @@ func init_resource_root(argv0 *u8) void {
 }
 
 // Helper to append string to source buffer
-func append_str(buf *u8, len *i64, s *u8) void {
-    while *s != 0 {
-        *(buf + *len) = *s;
-        *len = *len + 1;
-        s = s + 1;
-    }
+func append_str(buf **u8, len *i64, s *u8) void {
+    var b *PhaseBuffer = phase_buffer_new(phase_limit(), phase_diagnostic_source);
+    b.data = *buf; b.len = *len; b.cap = *len + 1;
+    phase_buffer_text(b, s); *buf = b.data; *len = b.len;
 }
 
 // The full compiler always includes both optional backends. Keeping this
@@ -272,20 +255,22 @@ func expand_collect_decl(decl *u8) void {
         map_set(expand_included_map, path_str, 1);
 
         // Read and parse file
-        var buf *u8 = alloc(1048576);
+        var buf *u8 = nil;
         var fd i64 = resource_open_read(path_str);
         if fd < 0 {
             eprint("Error: cannot open include file: ");
             eprintln(path_str);
             return;
         }
-        var n i64 = file_read(fd, buf, 1048576);
+        var source_input *PhaseBuffer = phase_read_fd(fd, phase_limit(), path_str);
+        buf = source_input.data;
+        var n i64 = source_input.len;
         file_close(fd);
         if n < 0 { return; }
         *(buf + n) = 0;
 
         // Parse
-        var prog *u8 = parse_program_from_named_string(buf, path_str);
+        var prog *u8 = phase_parse_include(buf, path_str, decl);
         if prog == nil {
             eprint("Error: cannot parse include file: ");
             eprintln(path_str);
@@ -320,20 +305,22 @@ func expand_collect_decl(decl *u8) void {
             map_set(expand_included_map, path_str, 1);
 
             // Read and parse file
-            var buf *u8 = alloc(1048576);
+            var buf *u8 = nil;
             var fd i64 = resource_open_read(path_str);
             if fd < 0 {
                 eprint("Error: cannot open require file: ");
                 eprintln(path_str);
                 return;
             }
-            var n i64 = file_read(fd, buf, 1048576);
+            var source_input *PhaseBuffer = phase_read_fd(fd, phase_limit(), path_str);
+        buf = source_input.data;
+        var n i64 = source_input.len;
             file_close(fd);
             if n < 0 { return; }
             *(buf + n) = 0;
 
             // Parse
-            var prog *u8 = parse_program_from_named_string(buf, path_str);
+            var prog *u8 = phase_parse_include(buf, path_str, decl);
             if prog == nil {
                 eprint("Error: cannot parse require file: ");
                 eprintln(path_str);
@@ -434,15 +421,15 @@ func build_expanded_program() *u8 {
 // every custom-language program without parsing the runtime through that
 // custom reader or needing the runtime source tree at use time.
 func build_embedded_runtime_ast(runtime_files *u8) *u8 {
-    var source *u8 = alloc(4194304);
+    var source *u8 = alloc(256);
     var source_len i64 = 0;
     var i i64 = 0;
     while i < vec_len(runtime_files) {
         var path *u8 = vec_get(runtime_files, i);
         if read_file(path) == nil { return nil; }
-        append_str(source, &source_len, "include \"");
-        append_str(source, &source_len, path);
-        append_str(source, &source_len, "\"\n");
+        append_str(&source, &source_len, "include \"");
+        append_str(&source, &source_len, path);
+        append_str(&source, &source_len, "\"\n");
         i = i + 1;
     }
     *(source + source_len) = 0;
@@ -510,26 +497,26 @@ func file_write_all(fd i64, data *u8) i64 {
 func scaffold_reader_source(name *u8) *u8 {
     var source *u8 = alloc(4096);
     var len i64 = 0;
-    append_str(source, &len, "include \"std/parser_reader.lang\"\n");
-    append_str(source, &len, "include \"std/ast.lang\"\n\n");
-    append_str(source, &len, "#parser{\n    ");
-    append_str(source, &len, name);
-    append_str(source, &len, "_program = 'answer' value:number\n}\n\nreader ");
-    append_str(source, &len, name);
-    append_str(source, &len, "(text *u8) *u8 {\n");
-    append_str(source, &len, "    var tokens *Tokenizer = tok_new(text);\n");
-    append_str(source, &len, "    var tree *PNode = parse_");
-    append_str(source, &len, name);
-    append_str(source, &len, "_program(tokens);\n");
-    append_str(source, &len, "    if tree == nil || !tok_eof(tokens) {\n");
-    append_str(source, &len, "        tok_print_error(tokens, \"");
-    append_str(source, &len, name);
-    append_str(source, &len, "\"); return nil;\n");
-    append_str(source, &len, "    }\n");
-    append_str(source, &len, "    var value *PNode = pnode_require(tree, \"value\");\n");
-    append_str(source, &len, "    if value == nil { return nil; }\n");
-    append_str(source, &len, "    return ast_main_i64(ast_span(ast_number(value.text), value.start, value.end));\n");
-    append_str(source, &len, "}\n");
+    append_str(&source, &len, "include \"std/parser_reader.lang\"\n");
+    append_str(&source, &len, "include \"std/ast.lang\"\n\n");
+    append_str(&source, &len, "#parser{\n    ");
+    append_str(&source, &len, name);
+    append_str(&source, &len, "_program = 'answer' value:number\n}\n\nreader ");
+    append_str(&source, &len, name);
+    append_str(&source, &len, "(text *u8) *u8 {\n");
+    append_str(&source, &len, "    var tokens *Tokenizer = tok_new(text);\n");
+    append_str(&source, &len, "    var tree *PNode = parse_");
+    append_str(&source, &len, name);
+    append_str(&source, &len, "_program(tokens);\n");
+    append_str(&source, &len, "    if tree == nil || !tok_eof(tokens) {\n");
+    append_str(&source, &len, "        tok_print_error(tokens, \"");
+    append_str(&source, &len, name);
+    append_str(&source, &len, "\"); return nil;\n");
+    append_str(&source, &len, "    }\n");
+    append_str(&source, &len, "    var value *PNode = pnode_require(tree, \"value\");\n");
+    append_str(&source, &len, "    if value == nil { return nil; }\n");
+    append_str(&source, &len, "    return ast_main_i64(ast_span(ast_number(value.text), value.start, value.end));\n");
+    append_str(&source, &len, "}\n");
     *(source + len) = 0;
     return source;
 }
@@ -668,13 +655,13 @@ func cmd_help_read() i64 {
 }
 
 func read_prepare_readers(reader_files *u8) i64 {
-    var source *u8 = alloc(4194304);
+    var source *u8 = alloc(256);
     var source_len i64 = 0;
     var i i64 = 0;
     while i < vec_len(reader_files) {
-        append_str(source, &source_len, "include \"");
-        append_str(source, &source_len, vec_get(reader_files, i));
-        append_str(source, &source_len, "\"\n");
+        append_str(&source, &source_len, "include \"");
+        append_str(&source, &source_len, vec_get(reader_files, i));
+        append_str(&source, &source_len, "\"\n");
         i = i + 1;
     }
     *(source + source_len) = 0;
@@ -732,8 +719,9 @@ func read_run_reader(name *u8, source_path *u8, content *u8) *u8 {
         }
 
         var exe_path *u8 = build_reader_cache_path(name, name_len);
-        output = alloc(4194304);
-        var n i64 = exec_capture(exe_path, content, strlen(content), output, 4194304);
+        output = phase_worker_call(exe_path, content, strlen(content));
+        var n i64 = phase_worker_status;
+        if output != nil { n = strlen(output); }
         if n < 0 {
             read_error_prefix(source_path);
             eprint("reader '");
@@ -798,9 +786,11 @@ func read_ast_measure(node *PNode) i64 {
 }
 
 func read_ast_emit_char(formatter *ReadAstFormatter, c u8) void {
+    if formatter.len >= phase_limit() { phase_error("ast-byte-limit", phase_diagnostic_source); }
     if formatter.len >= formatter.cap - 1 {
-        formatter.failed = 1;
-        return;
+        var cap i64 = formatter.cap;
+        formatter.output = phase_grow(formatter.output, formatter.len, &cap, 1, phase_diagnostic_source);
+        formatter.cap = cap;
     }
     *(formatter.output + formatter.len) = c;
     formatter.len = formatter.len + 1;
@@ -883,15 +873,16 @@ func read_ast_emit_pretty(formatter *ReadAstFormatter, node *PNode,
 }
 
 func read_ast_format(ast *u8) *u8 {
+    phase_validate_ast(ast, strlen(ast), phase_diagnostic_source);
     var tokens *Tokenizer = tok_new(ast);
     var root *PNode = parse_sexpr(tokens);
     if root == nil || !tok_eof(tokens) { return nil; }
     read_ast_measure(root);
 
     var formatter *ReadAstFormatter = alloc(32);
-    formatter.output = alloc(SIZE_AST_EMIT);
+    formatter.output = alloc(256);
     formatter.len = 0;
-    formatter.cap = SIZE_AST_EMIT;
+    formatter.cap = 256;
     formatter.failed = 0;
     read_ast_emit_pretty(formatter, root, 0, 0, 1);
     if formatter.failed != 0 { return nil; }
@@ -1715,7 +1706,7 @@ func main(argc i64, argv **u8) i64 {
     }
 
     // Build source based on mode
-    var source_buf *u8 = alloc(4194304);  // 4MB for all sources
+    var source_buf *u8 = alloc(256);  // 4MB for all sources
     var source_len i64 = 0;
 
     if gen_compiler != nil {
@@ -1725,9 +1716,9 @@ func main(argc i64, argv **u8) i64 {
         i = 0;
         while i < vec_len(input_files) {
             var path *u8 = vec_get(input_files, i);
-            append_str(source_buf, &source_len, "include \"");
-            append_str(source_buf, &source_len, path);
-            append_str(source_buf, &source_len, "\"\n");
+            append_str(&source_buf, &source_len, "include \"");
+            append_str(&source_buf, &source_len, path);
+            append_str(&source_buf, &source_len, "\"\n");
             i = i + 1;
         }
 
@@ -1741,24 +1732,24 @@ func main(argc i64, argv **u8) i64 {
                 return 1;
             }
         }
-        append_str(source_buf, &source_len, "var reader_runtime_ast *u8 = \"");
-        append_str(source_buf, &source_len, escape_string_literal(runtime_ast));
-        append_str(source_buf, &source_len, "\";\n");
-        append_str(source_buf, &source_len, "var reader_compiler_name *u8 = \"");
-        append_str(source_buf, &source_len, gen_compiler);
-        append_str(source_buf, &source_len, "\";\n");
+        append_str(&source_buf, &source_len, "var reader_runtime_ast *u8 = \"");
+        append_str(&source_buf, &source_len, escape_string_literal(runtime_ast));
+        append_str(&source_buf, &source_len, "\";\n");
+        append_str(&source_buf, &source_len, "var reader_compiler_name *u8 = \"");
+        append_str(&source_buf, &source_len, gen_compiler);
+        append_str(&source_buf, &source_len, "\";\n");
 
         // 2. Generate glue function that calls the reader directly
-        append_str(source_buf, &source_len, "func reader_transform(t *u8) *u8 { return ");
-        append_str(source_buf, &source_len, gen_compiler);
-        append_str(source_buf, &source_len, "(t); }\n");
+        append_str(&source_buf, &source_len, "func reader_transform(t *u8) *u8 { return ");
+        append_str(&source_buf, &source_len, gen_compiler);
+        append_str(&source_buf, &source_len, "(t); }\n");
 
         // 3. Include standalone template (provides main and compiler infrastructure)
-        append_str(source_buf, &source_len, "include \"src/standalone.lang\"\n");
+        append_str(&source_buf, &source_len, "include \"src/standalone.lang\"\n");
 
         // 4. Add ___main wrapper (receives envp from _start)
         // Reader mode includes std/core.lang which provides init_environ
-        append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { init_environ(envp); return main(argc, argv); }\n");
+        append_str(&source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { init_environ(envp); return main(argc, argv); }\n");
 
     } else {
         // Normal mode: Compile user program
@@ -1774,16 +1765,16 @@ func main(argc i64, argv **u8) i64 {
                     return 1;
                 }
 
-                append_str(source_buf, &source_len, "#");
-                append_str(source_buf, &source_len, ext);
-                append_str(source_buf, &source_len, "{");
-                append_str(source_buf, &source_len, content);
-                append_str(source_buf, &source_len, "}\n");
+                append_str(&source_buf, &source_len, "#");
+                append_str(&source_buf, &source_len, ext);
+                append_str(&source_buf, &source_len, "{");
+                append_str(&source_buf, &source_len, content);
+                append_str(&source_buf, &source_len, "}\n");
             } else {
                 // .lang file: generate include statement
-                append_str(source_buf, &source_len, "include \"");
-                append_str(source_buf, &source_len, arg);
-                append_str(source_buf, &source_len, "\"\n");
+                append_str(&source_buf, &source_len, "include \"");
+                append_str(&source_buf, &source_len, arg);
+                append_str(&source_buf, &source_len, "\"\n");
             }
             i = i + 1;
         }
@@ -1797,7 +1788,7 @@ func main(argc i64, argv **u8) i64 {
         if emit_exe_ast_mode != 0 || (emit_ast_mode == 0 && emit_expanded_ast_mode == 0 && is_llvm == 0 && is_wasm == 0) {
             // Simple ___main - no environment setup for basic programs
             // Programs needing getenv should include std/core.lang
-            append_str(source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(argc, argv); }\n");
+            append_str(&source_buf, &source_len, "func ___main(argc i64, argv **u8, envp **u8) i64 { return main(argc, argv); }\n");
         }
     }
 
@@ -2369,7 +2360,11 @@ func main(argc i64, argv **u8) i64 {
     var root_decl_count i64 = program_decl_count(prog);
     i = 0;
     while i < vec_len(input_files) && i < root_decl_count {
-        node_set_origin(get_decl(root_decls, i), vec_get(input_files, i), 1, 1);
+        var input_path *u8 = vec_get(input_files, i);
+        var input_text *u8 = phase_read_file(input_path);
+        if input_text == nil { phase_error("missing-source", input_path); }
+        phase_source_new(input_path, input_text);
+        node_set_origin(get_decl(root_decls, i), input_path, 1, 1);
         i = i + 1;
     }
 
