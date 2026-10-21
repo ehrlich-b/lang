@@ -8,6 +8,18 @@ pub func phase_worker_call(program *u8, input *u8, len i64) *u8 {
     return phase_worker_hook(program, input, len);
 }
 pub func phase_exec_capture(program *u8, input *u8, input_len i64) *u8 {
+    var captured *PhaseBuffer = phase_exec_capture_buffer(program, input, input_len, 0);
+    if captured == nil { return nil; }
+    return captured.data;
+}
+// Exact-length transport for copied values; stderr remains a separate channel.
+var phase_worker_buffer_hook fn(*u8, *u8, i64) *PhaseBuffer = nil;
+pub func phase_worker_buffer_call(program *u8, input *u8, len i64) *PhaseBuffer {
+    phase_worker_status = 0;
+    if phase_worker_buffer_hook != nil { return phase_worker_buffer_hook(program, input, len); }
+    return phase_exec_capture_buffer(program, input, len, 1);
+}
+pub func phase_exec_capture_buffer(program *u8, input *u8, input_len i64, binary i64) *PhaseBuffer {
     phase_worker_status = 0;
     if input_len < 0 || input_len > phase_limit() { phase_error("input-limit", phase_diagnostic_source); }
     // Create pipes - pipe() writes two i32 file descriptors
@@ -83,22 +95,25 @@ pub func phase_exec_capture(program *u8, input *u8, input_len i64) *u8 {
     os_close(stdin_write);
 
     // Continue reading until EOF; a full buffer is never an EOF indication.
-    var captured *PhaseBuffer = phase_read_fd(stdout_read, phase_limit(), phase_diagnostic_source);
+    var captured *PhaseBuffer = nil;
+    if binary != 0 { captured = phase_read_bytes_fd(stdout_read, phase_limit(), phase_diagnostic_source); }
+    else { captured = phase_read_fd(stdout_read, phase_limit(), phase_diagnostic_source); }
     os_close(stdout_read);
 
     // Wait for child
     var status *i64 = alloc(8);
-    os_waitpid(pid, status, 0);
+    var waited i64 = os_waitpid(pid, status, 0);
 
     var exit_code i64 = phase_process_status(*status);
-    os_waitpid(feeder, status, 0);
+    var fed i64 = os_waitpid(feeder, status, 0);
     var feeder_code i64 = phase_process_status(*status);
+    if waited != pid || fed != feeder { phase_worker_status = -1; return nil; }
     if exit_code == 0 && feeder_code != 0 { exit_code = feeder_code; }
     if exit_code != 0 {
         phase_worker_status = 0 - exit_code; return nil;
     }
 
-    return captured.data;
+    return captured;
 }
 // Stable compatibility entry point for existing fixed-buffer clients.
 pub func exec_capture(program *u8, input *u8, len i64, output *u8, cap i64) i64 {

@@ -1,0 +1,13 @@
+include "std/core.lang"
+include "src/stage_values.lang"
+func main() i64 {
+    var input *PhaseBuffer = phase_read_bytes_fd(0, phase_limit(), "arguments");
+    phase_value_validate(input.data, input.len, 0, 0);
+    var frame *PhaseBuffer = phase_buffer_new(phase_limit(), "generated");
+    var ast *u8 = "(program (func main () (type_base i64) (block (return (binop + (number 19) (number 23))))))";
+    phase_value_u32(frame, 1); phase_value_u32(frame, strlen(ast));
+    phase_value_u32(frame, 1); phase_value_u32(frame, 0);
+    phase_buffer_text(frame, ast);
+    var result *PhaseBuffer = phase_value_new(13, frame.data, frame.len);
+    file_write(1, result.data, result.len); return 0;
+}

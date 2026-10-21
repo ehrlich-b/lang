@@ -545,3 +545,20 @@ pub func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
     return exe_path;
 }
 
+
+// Explicit trusted-native H engine for copied-value executable wrappers. The
+// call host forks before entering this adapter, keeping backend state per call.
+// Signature/import validation belongs to the frontend and linker; neither a
+// compile failure nor a partial link is a successful executable artifact.
+pub func phase_legacy_worker_compile(request *PhaseCompileRequest) i64 {
+    if streq(request.target, os_platform_name()) == 0 { return 1; }
+    cg_langos_override = os_platform_name();
+    cg_flatten_require_modules = 1;
+    var executable *u8 = request.output;
+    request.output = str_concat(executable, ".ll"); request.llvm = 1;
+    var result i64 = phase_legacy_compile(request);
+    if result != 0 { return result; }
+    var clang_path *u8 = find_clang();
+    if clang_path == nil { return 1; }
+    return exec_run(clang_path, "-Wno-override-module", request.output, "-o", executable, nil, nil);
+}

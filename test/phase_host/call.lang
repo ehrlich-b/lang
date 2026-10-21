@@ -1,0 +1,58 @@
+include "std/core.lang"
+include "src/lexer.lang"
+include "src/parser.lang"
+include "src/codegen.lang"
+include "src/codegen_llvm.lang"
+include "src/ast_emit.lang"
+include "src/sexpr_reader.lang"
+include "src/stage_call.lang"
+
+// This test host has no embedded reader registry or composition mode.
+var add_reader_mode i64 = 0;
+func find_kernel_builtin(name *u8, len i64) *u8 { return nil; }
+func arg(argv **u8, i i64) *u8 { var raw *u8 = argv; var p **u8 = raw + i * 8; return *p; }
+func main(argc i64, argv **u8) i64 {
+    var mode *u8 = arg(argv, 1);
+    var input *PhaseBuffer = phase_read_bytes_fd(0, phase_limit(), "input");
+    var source_id i64 = phase_source_new("controlled", "add(19,23)");
+    var origin i64 = phase_origin_new(source_id, 0, 10, 0, 0);
+    if streq(mode, "copy") {
+        var copy *PhaseBuffer = phase_value_copy(input.data, input.len, origin);
+        if input.len > 0 { *input.data = 255; }
+        file_write(1, copy.data, copy.len); return 0;
+    }
+    var request *PhaseCompileRequest = alloc(56);
+    request.source = phase_read_file(arg(argv, 2)); request.name = arg(argv, 2);
+    request.output = "unused"; request.origin = origin; request.phase = 1;
+    request.target = os_platform_name(); request.llvm = 1;
+    var call *PhaseCallRequest = alloc(64);
+    call.compile = request; call.arguments = input;
+    call.signature = "copied-values-v1"; call.profile = "trusted-native";
+    call.output_target = "wasm32-unknown-unknown/core-v2";
+    call.workspace = arg(argv, 3); call.publication = arg(argv, 4); call.result_tag = 7;
+    if streq(mode, "bytes") { call.result_tag = 10; }
+    if streq(mode, "ast") { call.result_tag = 13; }
+    if streq(mode, "signature") { call.signature = "native-pointers"; }
+    if streq(mode, "untrusted") { call.profile = "untrusted"; }
+    if streq(mode, "target") { request.target = "wasm32"; }
+    if streq(mode, "result-signature") { call.result_tag = 11; }
+    cg_generate_llvm_fn = &generate_llvm;
+    phase_compile_hook = &phase_legacy_worker_compile;
+    var result *PhaseBuffer = phase_host_call(call);
+    if result == nil { eprint("call failed: "); eprint_i64(phase_worker_status); eprintln(""); return 5; }
+    file_write(1, result.data, result.len);
+    if streq(mode, "rebuild-fail") {
+        request.source = "func main() i64 { return missing_import(); }";
+        result = phase_host_call(call);
+        if result != nil || phase_worker_status == 0 { return 7; }
+        return 0;
+    }
+    if streq(mode, "twice") {
+        result = phase_host_call(call);
+        if result == nil { return 6; }
+        file_write(1, result.data, result.len);
+    }
+    eprint("execution-target="); eprintln(request.target);
+    eprint("output-target="); eprintln(call.output_target);
+    return 0;
+}

@@ -1,0 +1,13 @@
+include "std/core.lang"
+include "src/stage_values.lang"
+var calls i64 = 0;
+func add(a i64, b i64) i64 { calls = calls + 1; return a + b + calls - 1; }
+func main() i64 {
+    var input *PhaseBuffer = phase_read_bytes_fd(0, phase_limit(), "arguments");
+    phase_value_validate(input.data, input.len, 0, 0);
+    if phase_wire_u32(input.data, 0) != 12 || phase_wire_u32(input.data, 8) != 2 { return 2; }
+    if input.len != 44 || phase_wire_u32(input.data, 12) != 7 || phase_wire_u32(input.data, 28) != 7 { return 3; }
+    eprintln("worker diagnostics stay on stderr");
+    var result *PhaseBuffer = phase_value_i64(add(phase_value_integer(input.data + 12), phase_value_integer(input.data + 28)));
+    file_write(1, result.data, result.len); return 0;
+}

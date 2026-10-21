@@ -130,3 +130,16 @@ pub func phase_grow(data *u8, len i64, cap *i64, extra i64, source *u8) *u8 {
     b.data = data; b.len = len; b.cap = *cap;
     phase_buffer_reserve(b, extra); *cap = b.cap; return b.data;
 }
+
+// Binary transport has the same quotas and EOF checks as source transport.
+pub func phase_read_bytes_fd(fd i64, limit i64, source *u8) *PhaseBuffer {
+    var b *PhaseBuffer = phase_buffer_new(limit, source);
+    var chunk *u8 = alloc(4096);
+    var n i64 = file_read(fd, chunk, 4096);
+    while n > 0 {
+        phase_buffer_append(b, chunk, n);
+        n = file_read(fd, chunk, 4096);
+    }
+    if n < 0 { phase_error("read-failed", source); }
+    phase_buffer_reserve(b, 0); return b;
+}

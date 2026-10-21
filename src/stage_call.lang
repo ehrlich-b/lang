@@ -1,0 +1,62 @@
+// Opt-in trusted native call engine. Fork isolation supplies fresh compiler and
+// executable state, not confinement. This adapter requires a libc native host.
+include "src/stage_values.lang"
+extern func rename(old *u8, dest *u8) i32;
+
+struct PhaseCallRequest {
+    compile *PhaseCompileRequest; arguments *PhaseBuffer;
+    signature *u8; profile *u8; output_target *u8;
+    workspace *u8; publication *u8; result_tag i64;
+}
+var phase_call_sequence i64 = 0;
+func phase_call_decimal(n i64) *u8 {
+    var b *PhaseBuffer = phase_buffer_new(24, "call-id");
+    phase_buffer_int(b, n); return b.data;
+}
+// H compile hook must produce an executable implementing copied-values-v1.
+// Every attempt gets an exclusive directory; previous executables are never
+// candidates for this invocation, including after a compile or link failure.
+pub func phase_host_call(request *PhaseCallRequest) *PhaseBuffer {
+    var compilation *PhaseCompileRequest = request.compile;
+    if streq(request.profile, "trusted-native") == 0 { phase_error("untrusted-execution-refused", compilation.name); }
+    if streq(request.signature, "copied-values-v1") == 0 { phase_error("call-signature", compilation.name); }
+    if streq(compilation.target, os_platform_name()) == 0 { phase_error("execution-target", compilation.name); }
+    if request.output_target == nil { phase_error("output-target", compilation.name); }
+    if *request.output_target == 0 { phase_error("output-target", compilation.name); }
+    if request.result_tag < 1 || request.result_tag > 13 { phase_error("unsupported-value", compilation.name); }
+    var input *PhaseBuffer = phase_value_copy(request.arguments.data, request.arguments.len, compilation.origin);
+    phase_worker_status = 0;
+    phase_call_sequence = phase_call_sequence + 1;
+    var attempt *u8 = str_concat(str_concat(str_concat(request.workspace, "/call-"), phase_call_decimal(getpid())), "-");
+    attempt = str_concat(attempt, phase_call_decimal(phase_call_sequence));
+    if os_mkdir(attempt, 448) != 0 { phase_error("call-workspace", compilation.name); }
+    // Snapshot host fields: the forked engine cannot mutate the caller context.
+    var output *u8 = str_concat(attempt, "/program");
+    var child_request *PhaseCompileRequest = alloc(56);
+    memcpy(child_request, compilation, 56); child_request.output = output;
+    var pid i64 = os_fork();
+    if pid < 0 { phase_worker_status = -1; return nil; }
+    if pid == 0 { os__exit(phase_host_compile(child_request)); }
+    var status *i64 = alloc(8);
+    if os_waitpid(pid, status, 0) != pid { phase_worker_status = -1; return nil; }
+    var code i64 = phase_process_status(*status);
+    if code != 0 { phase_worker_status = 0 - code; return nil; }
+    var result *PhaseBuffer = phase_worker_buffer_call(output, input.data, input.len);
+    if result == nil { return nil; }
+    var owned *PhaseBuffer = phase_value_copy(result.data, result.len, compilation.origin);
+    if phase_wire_u32(owned.data, 0) != request.result_tag { phase_error("result-signature", compilation.name); }
+    // Stage beside the publication destination on the same filesystem. Only a
+    // complete validated response can replace the single visible result file.
+    var pending *u8 = str_concat(attempt, "/result.pending");
+    var fd i64 = file_open(pending, O_WRONLY_CREAT_TRUNC);
+    if fd < 0 { phase_error("publication-open", compilation.name); }
+    var offset i64 = 0;
+    while offset < owned.len {
+        var count i64 = file_write(fd, owned.data + offset, owned.len - offset);
+        if count <= 0 { phase_error("publication-write", compilation.name); }
+        offset = offset + count;
+    }
+    if os_close(fd) != 0 { phase_error("publication-close", compilation.name); }
+    if rename(pending, request.publication) != 0 { phase_error("publication-rename", compilation.name); }
+    return owned;
+}
