@@ -1314,11 +1314,11 @@ func integer_expr_alloc(kind i64, op *u8, src *u8, dst *u8, left *u8, right *u8)
     *(slots + 3) = left; *(slots + 4) = right;
     return n;
 }
-func integer_expr_op(n *u8) *u8 { var p **u8 = n + 8; return *p; }
-func integer_expr_src(n *u8) *u8 { var p **u8 = n + 16; return *p; }
-func integer_expr_dst(n *u8) *u8 { var p **u8 = n + 24; return *p; }
-func integer_expr_left(n *u8) *u8 { var p **u8 = n + 32; return *p; }
-func integer_expr_right(n *u8) *u8 { var p **u8 = n + 40; return *p; }
+pub func integer_expr_op(n *u8) *u8 { var p **u8 = n + 8; return *p; }
+pub func integer_expr_src(n *u8) *u8 { var p **u8 = n + 16; return *p; }
+pub func integer_expr_dst(n *u8) *u8 { var p **u8 = n + 24; return *p; }
+pub func integer_expr_left(n *u8) *u8 { var p **u8 = n + 32; return *p; }
+pub func integer_expr_right(n *u8) *u8 { var p **u8 = n + 40; return *p; }
 
 func integer_type_bits(t *u8) i64 {
     if t == nil || type_kind(t) != TYPE_BASE { return 0; }

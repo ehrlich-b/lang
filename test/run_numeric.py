@@ -177,6 +177,17 @@ class Runner:
             _, result = self.compile(invalid, backend, 'origin-error-' + backend, success=False)
             assert result.returncode and b'test/numeric/origin.txt:2:1: error:' in result.stderr, result.stderr
         print('PASS roundtrip: exact tokens, stable AST, executable semantics and origin diagnostics')
+        for backend in ('llvm', 'wasm'):
+            target = self.output / ('roundtrip-runtime.ll' if backend == 'llvm' else 'roundtrip-runtime.wasm')
+            env = dict(os.environ, LANGBE=backend, LANGOS='linux' if backend == 'llvm' else 'wasm')
+            self.run([self.compiler, 'test/numeric/roundtrip_runtime.lang', '-o', str(target)], env=env)
+            if backend == 'llvm':
+                binary = self.output / 'roundtrip-runtime'
+                self.run(['clang', '-O2', str(target), '-o', str(binary)])
+                self.run([str(binary)])
+            else:
+                self.run(['node', 'test/wasm_host.js', str(target)])
+        print('PASS runtime roundtrip: parse/emit and origin inspection inside native and direct Wasm; all 112 type/operation combinations')
 
 
 def main():

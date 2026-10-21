@@ -62,7 +62,9 @@ out-of-width inputs, deterministic random patterns and composition. Native O0/O2
 results are read through ctypes and direct Wasm results through BigInt, retaining
 all 64 bits. Rejections must be loud, preserve origin coordinates and leave no
 partial target output. Round trips compare complete AST tokens and executable
-results on both backends, plus diagnostic origins after re-emission.
+results on both backends, plus diagnostic origins after re-emission. A second fixture executes the
+parser/emitter and inspects type, operation and origin metadata inside native
+and direct Wasm programs for all 112 type/operation combinations.
 
 `python3 test/run_numeric_mutations.py --output DIR` builds isolated compiler
 copies with an inverted LLVM signedness predicate and a missing direct Wasm
