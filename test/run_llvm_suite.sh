@@ -839,6 +839,14 @@ reader_scaffold_e2e() {
 }
 reader_scaffold_e2e
 
+# Exercise the shipped reader, copyable guides, browser bundle, and CLI starter
+# against the same full-input contract, including AST output on failure.
+if python3 test/reader_tutorial_contract.py; then
+    echo "PASS reader_tutorial_contract" >> "$results_file"
+else
+    echo "FAIL reader_tutorial_contract" >> "$results_file"
+fi
+
 # Native authors can stop at the reader boundary, inspect/save its AST, and
 # feed that exact artifact back into the kernel without changing semantics.
 reader_read_e2e() {
