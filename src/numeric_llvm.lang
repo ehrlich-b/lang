@@ -1,0 +1,241 @@
+// Exact values cross the legacy expression boundary as sign/zero-extended i64
+// or double. All arithmetic and rounding happen at the declared core width.
+func llvm_numeric_declarations() void {
+    llvm_emit_line("declare void @llvm.trap() cold noreturn nounwind");
+    llvm_emit_line("declare double @llvm.trunc.f64(double)");
+}
+func llvm_numeric_temp() *u8 {
+    var temp i64 = llvm_next_temp(); var buf *u8 = alloc(32);
+    *buf = '%'; *(buf + 1) = 't'; itoa(temp, buf + 2);
+    llvm_emit_str("    "); llvm_emit_str(buf); llvm_emit_str(" = "); return buf;
+}
+func llvm_numeric_type(name *u8) void {
+    if streq(name, "f32") { llvm_emit_str("float"); }
+    else if streq(name, "f64") { llvm_emit_str("double"); }
+    else { llvm_emit_str("i"); llvm_emit_int(numeric_bits(name)); }
+}
+func llvm_numeric_cast(op *u8, src *u8, value *u8, dst *u8) *u8 {
+    var result *u8 = llvm_numeric_temp(); llvm_emit_str(op); llvm_emit_str(" ");
+    llvm_numeric_type(src); llvm_emit_str(" "); llvm_emit_str(value);
+    llvm_emit_str(" to "); llvm_numeric_type(dst); llvm_emit_char(10); return result;
+}
+func llvm_numeric_binary(op *u8, t *u8, a *u8, b *u8) *u8 {
+    var result *u8 = llvm_numeric_temp(); llvm_emit_str(op); llvm_emit_str(" ");
+    llvm_numeric_type(t); llvm_emit_str(" "); llvm_emit_str(a); llvm_emit_str(", "); llvm_emit_line(b); return result;
+}
+func llvm_numeric_select(test *u8, t *u8, yes *u8, no *u8) *u8 {
+    var result *u8 = llvm_numeric_temp(); llvm_emit_str("select i1 "); llvm_emit_str(test);
+    llvm_emit_str(", "); llvm_numeric_type(t); llvm_emit_str(" "); llvm_emit_str(yes);
+    llvm_emit_str(", "); llvm_numeric_type(t); llvm_emit_str(" "); llvm_emit_line(no); return result;
+}
+// The legacy double carrier must preserve every f32 bit, including signaling
+// NaNs. LLVM floating conversions may quiet them, so transport NaN sign and
+// payload with integer operations. Finite values retain normal IEEE conversion.
+func llvm_numeric_float_carrier(value *u8, widen i64) *u8 {
+    if widen {
+        var bits *u8 = llvm_numeric_cast("bitcast", "f32", value, "u32");
+        var magnitude *u8 = llvm_numeric_binary("and", "u32", bits, "2147483647");
+        var nan *u8 = llvm_numeric_binary("icmp ugt", "u32", magnitude, "2139095040");
+        var wide *u8 = llvm_numeric_cast("zext", "u32", bits, "u64");
+        var sign *u8 = llvm_numeric_binary("and", "u64", wide, "2147483648");
+        sign = llvm_numeric_binary("shl", "u64", sign, "32");
+        var payload *u8 = llvm_numeric_binary("and", "u64", wide, "8388607");
+        payload = llvm_numeric_binary("shl", "u64", payload, "29");
+        payload = llvm_numeric_binary("or", "u64", payload, "9218868437227405312");
+        payload = llvm_numeric_binary("or", "u64", payload, sign);
+        var normal *u8 = llvm_numeric_cast("fpext", "f32", value, "f64");
+        normal = llvm_numeric_cast("bitcast", "f64", normal, "u64");
+        return llvm_numeric_cast("bitcast", "u64", llvm_numeric_select(nan, "u64", payload, normal), "f64");
+    }
+    var bits *u8 = llvm_numeric_cast("bitcast", "f64", value, "u64");
+    var magnitude *u8 = llvm_numeric_binary("and", "u64", bits, "9223372036854775807");
+    var nan *u8 = llvm_numeric_binary("icmp ugt", "u64", magnitude, "9218868437227405312");
+    var sign *u8 = llvm_numeric_binary("lshr", "u64", bits, "32");
+    sign = llvm_numeric_binary("and", "u64", sign, "2147483648");
+    var payload *u8 = llvm_numeric_binary("lshr", "u64", bits, "29");
+    payload = llvm_numeric_binary("and", "u64", payload, "8388607");
+    var empty *u8 = llvm_numeric_binary("icmp eq", "u64", payload, "0");
+    payload = llvm_numeric_select(empty, "u64", "1", payload);
+    payload = llvm_numeric_binary("or", "u64", payload, "2139095040");
+    payload = llvm_numeric_binary("or", "u64", payload, sign);
+    payload = llvm_numeric_cast("trunc", "u64", payload, "u32");
+    var normal *u8 = llvm_numeric_cast("fptrunc", "f64", value, "f32");
+    normal = llvm_numeric_cast("bitcast", "f32", normal, "u32");
+    return llvm_numeric_cast("bitcast", "u32", llvm_numeric_select(nan, "u32", payload, normal), "f32");
+}
+// Branch before any LLVM operation that could produce poison. The continuation
+// dominates every use, including when clang optimizes the generated module.
+func llvm_numeric_guard(bad *u8) void {
+    var fail i64 = llvm_next_label(); var ok i64 = llvm_next_label();
+    llvm_emit_str("    br i1 "); llvm_emit_str(bad); llvm_emit_str(", label %L"); llvm_emit_int(fail);
+    llvm_emit_str(", label %L"); llvm_emit_int(ok); llvm_emit_char(10);
+    llvm_emit_str("L"); llvm_emit_int(fail); llvm_emit_line(":");
+    llvm_emit_line("    call void @llvm.trap()"); llvm_emit_line("    unreachable");
+    llvm_emit_str("L"); llvm_emit_int(ok); llvm_emit_line(":");
+}
+func llvm_numeric_native_f32(arg *u8) i64 {
+    while node_kind(arg) == NODE_GROUP_EXPR { arg = group_expr_expr(arg); }
+    var t *u8 = llvm_get_expr_type(arg);
+    return t != nil && type_kind(t) == TYPE_BASE && base_type_name_len(t) == 3 &&
+        memcmp(base_type_name(t), "f32", 3) && !numeric_is_call(arg) && node_kind(arg) != NODE_NUMBER_EXPR;
+}
+func llvm_numeric_normalize(expr *u8, arg *u8, t *u8) *u8 {
+    var actual *u8 = llvm_get_expr_type(arg);
+    if actual == nil || type_kind(actual) != TYPE_BASE { numeric_fail(expr, "operand has no numeric representation"); }
+    var name *u8 = str_dup_n(base_type_name(actual), base_type_name_len(actual));
+    if numeric_bits(name) == 0 || numeric_float(name) != numeric_float(t) { numeric_fail(expr, "operand representation disagrees with explicit type"); }
+    llvm_emit_expr(arg); var value *u8 = str_dup(llvm_expr_result);
+    if numeric_float(t) {
+        // Legacy f32 loads already have float SSA type; literals and exact
+        // numeric results cross this boundary as double.
+        if llvm_numeric_native_f32(arg) {
+            if streq(t, "f32") { return value; }
+            value = llvm_numeric_float_carrier(value, 1);
+        }
+        if streq(t, "f32") { value = llvm_numeric_float_carrier(value, 0); }
+    } else if numeric_bits(t) < 64 { value = llvm_numeric_cast("trunc", "i64", value, t); }
+    return value;
+}
+func llvm_numeric_result(value *u8, t *u8) void {
+    if streq(t, "f32") { value = llvm_numeric_float_carrier(value, 1); }
+    if !numeric_float(t) && numeric_bits(t) < 64 {
+        var op *u8 = "zext"; if *t == 'i' { op = "sext"; }
+        value = llvm_numeric_cast(op, t, value, "i64");
+    }
+    memcpy(llvm_expr_result, value, strlen(value) + 1); llvm_expr_is_float = numeric_float(t);
+}
+func llvm_numeric_min(t *u8) *u8 {
+    var bits i64 = numeric_bits(t);
+    if bits == 8 { return "-128"; } if bits == 16 { return "-32768"; }
+    if bits == 32 { return "-2147483648"; } return "-9223372036854775808";
+}
+func llvm_numeric_bound(t *u8, lower i64) *u8 {
+    var bits i64 = numeric_bits(t);
+    if lower { if *t == 'u' { return "0.0"; }
+        if bits == 8 { return "-1.28e2"; } if bits == 16 { return "-3.2768e4"; }
+        if bits == 32 { return "-2.147483648e9"; } return "-9.223372036854775808e18";
+    }
+    if *t == 'i' {
+        if bits == 8 { return "1.28e2"; } if bits == 16 { return "3.2768e4"; }
+        if bits == 32 { return "2.147483648e9"; } return "9.223372036854775808e18";
+    }
+    if bits == 8 { return "2.56e2"; } if bits == 16 { return "6.5536e4"; }
+    if bits == 32 { return "4.294967296e9"; } return "1.8446744073709551616e19";
+}
+func llvm_numeric_convert(expr *u8, op *u8, dst *u8, src *u8, a *u8) *u8 {
+    var sf i64 = numeric_float(src); var df i64 = numeric_float(dst);
+    var sb i64 = numeric_bits(src); var db i64 = numeric_bits(dst);
+    if streq(op, "bitcast") {
+        if sf == df { return a; }
+        return llvm_numeric_cast("bitcast", src, a, dst);
+    }
+    if sf && df {
+        if sb == db { return a; }
+        if db > sb { return llvm_numeric_cast("fpext", src, a, dst); }
+        return llvm_numeric_cast("fptrunc", src, a, dst);
+    }
+    if sf {
+        if sb == 32 { a = llvm_numeric_cast("fpext", src, a, "f64"); }
+        var trunc *u8 = llvm_numeric_temp(); llvm_emit_str("call double @llvm.trunc.f64(double "); llvm_emit_str(a); llvm_emit_line(")");
+        var low *u8 = llvm_numeric_binary("fcmp oge", "f64", trunc, llvm_numeric_bound(dst, 1));
+        var high *u8 = llvm_numeric_binary("fcmp olt", "f64", trunc, llvm_numeric_bound(dst, 0));
+        var good *u8 = llvm_numeric_temp(); llvm_emit_str("and i1 "); llvm_emit_str(low); llvm_emit_str(", "); llvm_emit_line(high);
+        var bad *u8 = llvm_numeric_temp(); llvm_emit_str("xor i1 "); llvm_emit_str(good); llvm_emit_line(", true");
+        llvm_numeric_guard(bad);
+        if *dst == 'i' { return llvm_numeric_cast("fptosi", "f64", a, dst); }
+        return llvm_numeric_cast("fptoui", "f64", a, dst);
+    }
+    if df {
+        if *src == 'i' { return llvm_numeric_cast("sitofp", src, a, dst); }
+        return llvm_numeric_cast("uitofp", src, a, dst);
+    }
+    var result *u8 = a;
+    if db < sb { result = llvm_numeric_cast("trunc", src, a, dst); }
+    if db > sb {
+        if *src == 'i' { result = llvm_numeric_cast("sext", src, a, dst); }
+        else { result = llvm_numeric_cast("zext", src, a, dst); }
+    }
+    if streq(op, "convert_checked") {
+        var restored *u8 = result;
+        if db < sb {
+            if *dst == 'i' { restored = llvm_numeric_cast("sext", dst, result, src); }
+            else { restored = llvm_numeric_cast("zext", dst, result, src); }
+        }
+        var bad *u8 = "false";
+        if db < sb { bad = llvm_numeric_binary("icmp ne", src, a, restored); }
+        // A sign change also has to retain mathematical nonnegativity.
+        if *src != *dst {
+            var sign *u8 = nil;
+            if *src == 'i' { sign = llvm_numeric_binary("icmp slt", src, a, "0"); }
+            else { sign = llvm_numeric_binary("icmp slt", dst, result, "0"); }
+            var either *u8 = llvm_numeric_temp(); llvm_emit_str("or i1 "); llvm_emit_str(bad); llvm_emit_str(", "); llvm_emit_line(sign); bad = either;
+        }
+        llvm_numeric_guard(bad);
+    }
+    return result;
+}
+func llvm_numeric_checked(op *u8, t *u8, a *u8, b *u8) *u8 {
+    // Compute in twice the width, then compare the exact value to the restored
+    // low bits. This covers signed and unsigned overflow without host math.
+    var wide *u8 = str_concat("i", "16"); var bits i64 = numeric_bits(t);
+    if bits == 16 { wide = "i32"; } if bits == 32 { wide = "i64"; } if bits == 64 { wide = "i128"; }
+    var ext *u8 = "zext"; if *t == 'i' { ext = "sext"; }
+    var x *u8 = llvm_numeric_temp(); llvm_emit_str(ext); llvm_emit_str(" "); llvm_numeric_type(t); llvm_emit_str(" "); llvm_emit_str(a); llvm_emit_str(" to "); llvm_emit_line(wide);
+    var y *u8 = llvm_numeric_temp(); llvm_emit_str(ext); llvm_emit_str(" "); llvm_numeric_type(t); llvm_emit_str(" "); llvm_emit_str(b); llvm_emit_str(" to "); llvm_emit_line(wide);
+    var z *u8 = llvm_numeric_temp(); llvm_emit_str(str_dup_n(op, 3)); llvm_emit_str(" "); llvm_emit_str(wide); llvm_emit_str(" "); llvm_emit_str(x); llvm_emit_str(", "); llvm_emit_line(y);
+    var result *u8 = llvm_numeric_temp(); llvm_emit_str("trunc "); llvm_emit_str(wide); llvm_emit_str(" "); llvm_emit_str(z); llvm_emit_str(" to "); llvm_numeric_type(t); llvm_emit_char(10);
+    var restored *u8 = llvm_numeric_temp(); llvm_emit_str(ext); llvm_emit_str(" "); llvm_numeric_type(t); llvm_emit_str(" "); llvm_emit_str(result); llvm_emit_str(" to "); llvm_emit_line(wide);
+    var bad *u8 = llvm_numeric_temp(); llvm_emit_str("icmp ne "); llvm_emit_str(wide); llvm_emit_str(" "); llvm_emit_str(z); llvm_emit_str(", "); llvm_emit_line(restored); llvm_numeric_guard(bad); return result;
+}
+func llvm_numeric_emit(expr *u8) void {
+    numeric_validate(expr);
+    var op *u8 = numeric_meta(expr, 0); var dst *u8 = numeric_meta(expr, 1); var src *u8 = numeric_meta(expr, 2);
+    if streq(op, "trap") || streq(op, "unreachable") {
+        llvm_emit_line("    call void @llvm.trap()"); llvm_emit_line("    unreachable");
+        // Legacy statement emission can continue after a terminator. Give it
+        // an unreachable block rather than instructions after a terminator.
+        var dead i64 = llvm_next_label(); llvm_emit_str("L"); llvm_emit_int(dead); llvm_emit_line(":");
+        memcpy(llvm_expr_result, "0", 2); return;
+    }
+    var a *u8 = llvm_numeric_normalize(expr, numeric_arg(expr, 3), src);
+    if call_expr_arg_count(expr) == 4 {
+        llvm_numeric_result(llvm_numeric_convert(expr, op, dst, src, a), dst); return;
+    }
+    var b *u8 = llvm_numeric_normalize(expr, numeric_arg(expr, 4), src);
+    var instruction *u8 = nil; var fp i64 = numeric_float(src);
+    if numeric_compare(op) {
+        if fp {
+            if streq(op, "ne") { instruction = "fcmp une"; }
+            else { instruction = str_concat("fcmp o", op); }
+        } else {
+            if streq(op, "eq") || streq(op, "ne") { instruction = str_concat("icmp ", op); }
+            else if *src == 'i' { instruction = str_concat("icmp s", op); }
+            else { instruction = str_concat("icmp u", op); }
+        }
+        var cmp *u8 = llvm_numeric_binary(instruction, src, a, b);
+        var result *u8 = llvm_numeric_temp(); llvm_emit_str("zext i1 "); llvm_emit_str(cmp); llvm_emit_line(" to i64");
+        memcpy(llvm_expr_result, result, strlen(result) + 1); llvm_expr_is_float = 0; return;
+    }
+    if fp { instruction = str_concat("f", op); }
+    else {
+        if streq(op, "add_checked") || streq(op, "sub_checked") || streq(op, "mul_checked") {
+            llvm_numeric_result(llvm_numeric_checked(op, src, a, b), dst); return;
+        }
+        if streq(op, "add_wrap") || streq(op, "sub_wrap") || streq(op, "mul_wrap") { instruction = str_dup_n(op, 3); }
+        else if streq(op, "div") || streq(op, "rem") {
+            llvm_numeric_guard(llvm_numeric_binary("icmp eq", src, b, "0"));
+            if *src == 'i' {
+                var min *u8 = llvm_numeric_binary("icmp eq", src, a, llvm_numeric_min(src));
+                var minus *u8 = llvm_numeric_binary("icmp eq", src, b, "-1");
+                var both *u8 = llvm_numeric_temp(); llvm_emit_str("and i1 "); llvm_emit_str(min); llvm_emit_str(", "); llvm_emit_line(minus); llvm_numeric_guard(both);
+                instruction = str_concat("s", op);
+            } else { instruction = str_concat("u", op); }
+        } else if streq(op, "shl") || streq(op, "shr") {
+            var bound *u8 = alloc(32); itoa(numeric_bits(src), bound);
+            llvm_numeric_guard(llvm_numeric_binary("icmp uge", src, b, bound));
+            instruction = "shl";
+            if streq(op, "shr") { if *src == 'i' { instruction = "ashr"; } else { instruction = "lshr"; } }
+        } else { instruction = op; }
+    }
+    llvm_numeric_result(llvm_numeric_binary(instruction, src, a, b), dst);
+}

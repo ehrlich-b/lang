@@ -798,6 +798,7 @@ func wasm_emit_truth(expr *u8, out *WasmBuf) void {
 }
 
 func wasm_emit_expr(expr *u8, out *WasmBuf) void {
+    if numeric_is_call(expr) { numeric_fail(expr, "exact numeric profile requires LLVM lowering (native or wasm target)"); }
     if expr == nil { wasm_put(out, 66); wasm_put_sleb(out, 0); return; }
     var kind i64 = node_kind(expr);
 

@@ -269,11 +269,11 @@ func sexpr_op_to_token(op *u8) i64 {
     if streq(op, "!") { return TOKEN_BANG; }
     if streq(op, "=") { return TOKEN_EQ; }
     // Unsigned comparisons (from captured Zig AIR)
-    if streq(op, "ult") { return TOKEN_LT; }
-    if streq(op, "ugt") { return TOKEN_GT; }
-    if streq(op, "ule") { return TOKEN_LTEQ; }
-    if streq(op, "uge") { return TOKEN_GTEQ; }
-    // Unknown operator
+    if streq(op, "ult") { phase_error("use-explicit-numeric-comparison", phase_diagnostic_source); }
+    if streq(op, "ugt") { phase_error("use-explicit-numeric-comparison", phase_diagnostic_source); }
+    if streq(op, "ule") { phase_error("use-explicit-numeric-comparison", phase_diagnostic_source); }
+    if streq(op, "uge") { phase_error("use-explicit-numeric-comparison", phase_diagnostic_source); }
+    phase_error("unknown-core-operator", phase_diagnostic_source);
     return 0;
 }
 
@@ -289,10 +289,10 @@ func sexpr_to_type(node *PNode) *u8 {
         return nil;
     }
 
-    if node.kind != PNODE_LIST { return nil; }
+    if node.kind != PNODE_LIST { phase_error("invalid-core-type", phase_diagnostic_source); }
 
     var head *u8 = sexpr_head(node);
-    if head == nil { return nil; }
+    if head == nil { phase_error("invalid-core-type", phase_diagnostic_source); }
 
     // (type-base name)
     if streq(head, "type_base") {
@@ -358,6 +358,7 @@ func sexpr_to_type(node *PNode) *u8 {
         return t;
     }
 
+    phase_error("unknown-core-type", phase_diagnostic_source);
     return nil;
 }
 
@@ -959,7 +960,9 @@ func sexpr_to_node_inner(node *PNode) *u8 {
     if streq(head, "binop") {
         var n *u8 = binary_expr_alloc();
         var op_node *PNode = sexpr_get(node, 1);
-        binary_expr_set_op(n, sexpr_op_to_token(op_node.text));
+        var token i64 = sexpr_op_to_token(op_node.text);
+        if token == TOKEN_BANG { phase_error("invalid-core-binary-operator", phase_diagnostic_source); }
+        binary_expr_set_op(n, token);
         binary_expr_set_left(n, sexpr_to_node(sexpr_get(node, 2)));
         binary_expr_set_right(n, sexpr_to_node(sexpr_get(node, 3)));
         return n;
@@ -969,7 +972,9 @@ func sexpr_to_node_inner(node *PNode) *u8 {
     if streq(head, "unop") {
         var n *u8 = unary_expr_alloc();
         var op_node *PNode = sexpr_get(node, 1);
-        unary_expr_set_op(n, sexpr_op_to_token(op_node.text));
+        var token i64 = sexpr_op_to_token(op_node.text);
+        if token != TOKEN_MINUS && token != TOKEN_BANG && token != TOKEN_STAR && token != TOKEN_AMP { phase_error("invalid-core-unary-operator", phase_diagnostic_source); }
+        unary_expr_set_op(n, token);
         unary_expr_set_expr(n, sexpr_to_node(sexpr_get(node, 2)));
         return n;
     }
