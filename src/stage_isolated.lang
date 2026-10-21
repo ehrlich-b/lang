@@ -81,7 +81,9 @@ func phase_isolated_enabled() i64 { return phase_compile_hook == &phase_isolated
 extern func rename(old *u8, new *u8) i32;
 func phase_reader_link_path(path *u8) *u8 {
     if phase_isolated_enabled() == 0 { return path; }
-    return str_concat(str_concat(path, ".pending-"), i64_to_str(os_getpid()));
+    var b *PhaseBuffer = phase_buffer_new(phase_limit(), path);
+    phase_buffer_text(b, path); phase_buffer_text(b, ".pending-");
+    phase_buffer_int(b, os_getpid()); return b.data;
 }
 func phase_reader_publish(pending *u8, path *u8) void {
     if phase_isolated_enabled() != 0 {
