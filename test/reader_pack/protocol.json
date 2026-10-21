@@ -112,5 +112,6 @@
     "outreach": false,
     "revive_old_LANG_AI_scope": false,
     "network": "loopback browser harness only"
-  }
+  },
+  "input_limit_bytes": 65534
 }

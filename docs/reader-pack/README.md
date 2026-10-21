@@ -9,6 +9,8 @@ model runs require an explicit budget and isolated sessions before starting.
 Run from the repository root with Python 3, Node, Clang, wasm-ld, and Playwright
 with a locally installed Chromium. Set PLAYWRIGHT_MODULE to the installed
 package's index.mjs and CHROMIUM_PATH to its executable if not discoverable.
+For long output paths, set BROWSER_TMPDIR to a short local scratch directory
+to keep Chromium Unix socket paths within their OS limit.
 Evidence must be outside the checkout, in a new directory for every invocation.
 
 ```bash
@@ -59,6 +61,8 @@ quoted, overflow, oversized, missing and trailing inputs must fail. Whitespace,
 recognition must end at TOK_EOF. Testing TOK_NUMBER alone is insufficient:
 negative tokens and numeric prefixes still need validation. Check every digit
 and length before arithmetic; never overflow a conversion and then range-check.
+The entry wrappers reject inputs over 65,534 UTF-8 bytes and embedded NUL
+bytes before calling the reader; neither may silently truncate the input.
 Return nil after a diagnostic and never emit a successful AST on failure.
 
 ## Current helper signatures
@@ -102,7 +106,9 @@ also document the native/Wasm commands without relying on a stale downloaded bui
 
 [training.json](../../test/reader_pack/training.json) contains public examples;
 [heldout.json](../../test/reader_pack/heldout.json) was authored separately, with
-new boundaries, zero/max values, comments and malformed numeric forms. Heldout
+new boundaries, zero/max values, comments, malformed numeric forms, NUL and
+oversized inputs. The oversized case uses an explicit frozen padding/repeat
+specification to keep the fixture compact. Heldout
 expected values are explicit, independent of either implementation. freeze.json
 hashes prompts, fixtures, helpers and references. Do not update it to accept a
 failed oracle. An intentional task revision needs a new protocol version.

@@ -3,6 +3,10 @@ import re
 
 
 def interpret(source, stage):
+    if len(source.encode('utf-8')) > 65534:
+        return {'diagnostic': 'input exceeds 65534 bytes'}
+    if '\x00' in source:
+        return {'diagnostic': 'expected text without NUL'}
     # Tokenize independently; never accept a prefix of the input.
     source = re.sub(r'/\*[\s\S]*?\*/|//[^\n]*', ' ', source)
     words = source.split()

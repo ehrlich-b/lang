@@ -22,10 +22,21 @@ READ = '''    var text *u8 = alloc(65536);
     var count i64 = file_read(0, text, 65535);
     while count > 0 {
         length = length + count;
-        if length >= 65535 { count = 0; }
-        else { count = file_read(0, text + length, 65535 - length); }
+        if length >= 65535 {
+            eprintln("threshold: input exceeds 65534 bytes");
+            return nil;
+        }
+        count = file_read(0, text + length, 65535 - length);
     }
     if count < 0 { return nil; }
+    var i i64 = 0;
+    while i < length {
+        if *(text + i) == 0 {
+            eprintln("threshold: expected text without NUL");
+            return nil;
+        }
+        i = i + 1;
+    }
     *(text + length) = 0;
     return threshold(text);
 '''
@@ -47,6 +58,7 @@ def check_contract():
     assert protocol['orders'] == [['interpreter-only', 'native-plus-wasm'], ['native-plus-wasm', 'interpreter-only']]
     assert all(value is False for key, value in protocol['policy'].items() if key != 'network')
     assert protocol['future_runs']['status'] == 'disabled'
+    assert protocol['input_limit_bytes'] == 65534
     # Signatures are checked against current source, not remembered API names.
     for file, signatures in json.loads((PACK / 'helpers.json').read_text()).items():
         source = (ROOT / file).read_text()
@@ -184,13 +196,22 @@ def passed(row, case):
     return row.get('rejected', False) and case['diagnostic'] in row.get('diagnostic', '')
 
 
+def load_cases():
+    cases = []
+    for split in ['training', 'heldout']:
+        for c in json.loads((PACK / (split + '.json')).read_text()):
+            c = dict(c, split=split)
+            if 'padding' in c:
+                c['source'] += c['padding']['text'] * c['padding']['repeat']
+            cases.append(c)
+    return cases
+
+
 def smoke(evidence):
     protocol = check_contract()
     replay = Replay(evidence)
     replay.build()
-    cases = []
-    for split in ['training', 'heldout']:
-        cases.extend(dict(c, split=split) for c in json.loads((PACK / (split + '.json')).read_text()))
+    cases = load_cases()
     for order_index, order in enumerate(protocol['orders']):
         for track in order:
             if track == 'interpreter-only':
@@ -279,8 +300,7 @@ def smoke(evidence):
 
 def evaluate(evidence, track, candidate, stage):
     check_contract()
-    cases = [dict(c, split=split) for split in ['training', 'heldout']
-             for c in json.loads((PACK / (split + '.json')).read_text()) if c['stage'] == stage]
+    cases = [c for c in load_cases() if c['stage'] == stage]
     if track == 'interpreter-only':
         spec = importlib.util.spec_from_file_location('submitted_interpreter', candidate)
         module = importlib.util.module_from_spec(spec)

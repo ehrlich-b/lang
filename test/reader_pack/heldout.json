@@ -94,5 +94,21 @@
     "stage": "evolve",
     "source": "limit 2 value 3",
     "diagnostic": "expected keyword"
+  },
+  {
+    "id": "nul-tail",
+    "stage": "evolve",
+    "source": "threshold 1 value 2\u0000junk",
+    "diagnostic": "expected text without NUL"
+  },
+  {
+    "id": "oversized",
+    "stage": "evolve",
+    "source": "threshold 1 value 2 //",
+    "padding": {
+      "text": "x",
+      "repeat": 65535
+    },
+    "diagnostic": "input exceeds 65534 bytes"
   }
 ]

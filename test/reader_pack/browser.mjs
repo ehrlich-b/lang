@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
+// Chromium's Unix socket path is limited; allow a short local scratch root.
+if (process.env.BROWSER_TMPDIR) process.env.TMPDIR = process.env.BROWSER_TMPDIR;
 const [inputPath, outputPath] = process.argv.slice(2);
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE
   ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
