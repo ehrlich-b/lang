@@ -180,3 +180,63 @@ replaces the stable compiler only after every check succeeds. See
 [BOOTSTRAP.md](./BOOTSTRAP.md).
 
 Do not copy bootstrap files by hand or promote a partially verified compiler.
+
+## Choose and prove a compiler identity
+
+| Command | Candidate | Stable `out/lang` | Preserved seed | Archive upload |
+|---|---|---|---|---|
+| `make build` | `out/lang_next` | preserved (initialized if absent) | preserved | none |
+| `make verify` | `out/bootstrap_verify/kernel2` | preserved, including symlink | preserved | none |
+| `make bootstrap-local` | verified platform compiler | replaced after validation | promoted | none |
+| `make bootstrap PUBLISH_BOOTSTRAP=0` | same local promotion | replaced after validation | promoted | none |
+| `make bootstrap` | same promotion | replaced after validation | promoted | GitHub release |
+
+`PUBLISH_BOOTSTRAP=0` controls upload only. Use `make verify` for a replay that
+must preserve both the seed and stable compiler. Promotion can be tested in a
+separate checkout without changing the working checkout's root of trust.
+
+Each successful source build writes `out/build-receipt.json`; verification
+writes `out/verify-receipt.json`; promotion writes `out/bootstrap-receipt.json`.
+These JSON receipts include the full source revision, dirty-source flag, exact
+source input hashes, bootstrap identity and seed hashes, builder hash, resulting
+compiler bytes/hash and complete `version` output. Verification also records
+both LLVM and reader-AST fixed-point pairs. A revision identifies the selected
+commit; input hashes describe the actual working files, including dirty edits.
+A failed build does not create a new successful receipt; consumers must validate
+the existing receipt against current source and binary bytes before using it.
+
+To test the current source, build it and use the candidate explicitly:
+
+```bash
+make build
+./out/lang_next run example/tiny/tiny.lang example/tiny/answer.tiny
+# The sample returns 42.
+python3 test/run_identity.py source --output /absolute/path/to/evidence
+python3 test/run_identity.py verify --output /absolute/path/to/evidence
+python3 test/run_identity.py promotion --output /absolute/path/to/evidence
+```
+
+The source gate builds the selected revision and uses the receipt-bound candidate
+for the generated-reader tutorial, AST round trip, and native compiler packing.
+The verification gate checks seed hashes, stable binary bytes, version output
+and symlink identity before and after two complete verification replays. The
+promotion gate exercises `make bootstrap PUBLISH_BOOTSTRAP=0` in another checkout.
+Evidence directories must be outside the repository.
+
+`web/build.sh` and `web/build_compiler.sh` build `out/lang_next` by default.
+An explicit `COMPILER` requires its matching `COMPILER_RECEIPT` (default
+`out/build-receipt.json`); a stale compiler or changed source fails before
+artifact generation. For example, after verification:
+
+```bash
+COMPILER=./out/bootstrap_verify/kernel2 COMPILER_RECEIPT=out/verify-receipt.json ./web/build.sh
+```
+
+Browser metadata is regenerated for `wasm-wasm32` from that receipt instead of
+reusing the native version file. `web/compiler-receipt.json` binds the compiler
+and library bundle; `web/receipt.json` also binds example source and wasm bytes.
+Their source revision is the commit used to generate the artifacts, which can
+precede a later artifact-only commit. Every recorded source input must still
+match. `node test/browser_identity.js /absolute/path/to/evidence` checks hashes,
+byte sizes, browser `version` output, invalid-input refusal, and byte-for-byte
+wasm emission plus behavior against a fresh native source compiler.

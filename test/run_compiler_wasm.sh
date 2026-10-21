@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 
-COMPILER=${COMPILER:-./out/lang} ./web/build_compiler.sh
+./web/build_compiler.sh
 node test/compiler_direct_wasm_e2e.js web/compiler.wasm
 node test/compiler_wasm_e2e.js web/compiler.wasm "$tmp/output.ll"
 node test/editor_e2e.js
