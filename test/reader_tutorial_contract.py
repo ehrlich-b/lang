@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Keep the copyable reader tutorial, shipped example and CLI starter in sync."""
 import os
+from html import unescape
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -34,12 +36,23 @@ snippets = re.findall(r'```lang\n(.*?)\n```', guide, re.S)
 snippet = next(source for source in snippets if 'reader tiny(' in source)
 documented = EVIDENCE / 'documented.lang'
 documented.write_text(snippet + '\n')
+html_guide = (ROOT / 'web/readers.html').read_text()
+html_snippets = re.findall(r'<pre><code>(.*?)</code></pre>', html_guide, re.S)
+html_snippet = next(source for source in html_snippets if 'reader tiny(' in source)
+published = EVIDENCE / 'published.lang'
+published.write_text(unescape(html_snippet) + '\n')
+bundled_source = json.loads((ROOT / 'web/stdlib.json').read_text())['example/tiny/tiny.lang']
+require(bundled_source == (ROOT / 'example/tiny/tiny.lang').read_text(),
+        'browser bundle has a stale tiny reader')
+bundled = EVIDENCE / 'bundled.lang'
+bundled.write_text(bundled_source)
 scaffold = EVIDENCE / 'scaffold'
 scaffold.mkdir()
 created = run(['new', 'reader', 'tiny'], 'scaffold-create', cwd=scaffold)
 require(created.returncode == 0, 'CLI scaffold creation failed')
 readers = {'shipped': ROOT / 'example/tiny/tiny.lang',
-           'documented': documented, 'scaffold': scaffold / 'tiny.lang'}
+           'documented': documented, 'published': published, 'bundled': bundled,
+           'scaffold': scaffold / 'tiny.lang'}
 cases = {
     'valid': ('answer 42', 42),
     'different-number': ('answer 17', 17),
