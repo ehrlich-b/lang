@@ -113,6 +113,18 @@
       ]
     },
     {
+      "id": "silent-infinite-work",
+      "attack": "silent-spin",
+      "expected": "deadline-exceeded",
+      "C_accounts": [
+        "wall_ms",
+        "fuel"
+      ],
+      "granted_inputs": [
+        "source"
+      ]
+    },
+    {
       "id": "stdout-overflow",
       "attack": "stdout",
       "expected": "output-limit",

@@ -1,4 +1,4 @@
-.PHONY: all init bootstrap bootstrap-local bootstrap-verify verify build release test test-suite test-all test-compiler-wasm test-direct-wasm test-run clean distclean \
+.PHONY: all init bootstrap bootstrap-local bootstrap-verify verify build release test test-suite test-all test-worker-confinement test-compiler-wasm test-direct-wasm test-run clean distclean \
 		build-kernel build-lang-reader emit-kernel-ast emit-lang-reader-ast emit-compiler-ast \
 		seed-bootstrap test-composition test-bootstrap generate-os-layer generate-version-info llvm-verify \
 		compile run stdlib-run dev-run dev-stdlib-run status
@@ -469,8 +469,14 @@ test-suite:
 	@if [ ! -x $(LANG) ]; then $(MAKE) init; fi
 	@./test/run_llvm_suite.sh
 
+# Retain test-only worker receipts outside the checkout.
+WORKER_EVIDENCE_DIR ?= $(abspath ../worker-confinement-evidence)
+test-worker-confinement:
+	python3 test/run_worker_confinement.py --output "$(WORKER_EVIDENCE_DIR)"
+	python3 test/check_worker_corpus.py --output "$(WORKER_EVIDENCE_DIR)"
+
 # Run ALL tests
-test-all: test-suite
+test-all: test-suite test-worker-confinement
 	@./test/run_wasm_suite.sh
 	@$(MAKE) test-direct-wasm
 	@./test/run_compiler_wasm.sh
