@@ -157,7 +157,7 @@ func numeric_validate_tree(node *u8) void {
         numeric_validate_tree(handle_expr_body(node)); numeric_validate_tree(handle_expr_ret_body(node));
         var hi i64 = 0;
         while hi < handle_expr_case_count(node) {
-            numeric_validate_tree(effect_case_body(vec_get(handle_expr_cases(node), hi))); hi = hi + 1;
+            numeric_validate_tree(effect_case_body(handle_expr_cases(node) + hi * 56)); hi = hi + 1;
         }
     } else if k == NODE_RESUME_EXPR {
         numeric_validate_tree(resume_expr_k(node)); numeric_validate_tree(resume_expr_value(node));

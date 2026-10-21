@@ -872,7 +872,7 @@ func handle_expr_set_ret_body(node *u8, body *u8) void {
 }
 
 // Effect case entry: [effect_name:8][effect_name_len:8][binding_ptr:8][binding_len:8][k_ptr:8][k_len:8][body:8] = 56 bytes
-// Stored in a Vec
+// Stored as a flat array of 56-byte entries.
 // Example: Fail(e, k) => body
 
 pub func effect_case_name(entry *u8) *u8 {

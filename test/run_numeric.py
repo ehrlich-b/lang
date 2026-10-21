@@ -178,6 +178,7 @@ def validation():
     for t in ['wat', 'i0', 'i7', 'u3', 'i128', 'u128', 'i256', 'f16']:
         reject(f'func main() i64 {{ var x {t} = 0; return 0; }}', 'unsupported declared type')
         reject(f'func unknown(x {t}) i64 {{ return 0; }}', 'unsupported declared type')
+    reject('effect Fail(i64) i64\nfunc main() i64 { return handle { perform Fail(1); } with { Fail(e) => __core_numeric("oops", "i64", "i64", 1, 2) }; }', 'unknown or incompatible operation')
     reject('func __core_numeric() i64 { return 0; }', 'reserved intrinsic name')
     reject('var x [1]i64 = [__core_numeric("add_wrap", "i64", "i64", 1, 2)]; func main() i64 { return 0; }', 'unsupported global array initializer')
     reject('struct Bad { x i7; } func main() i64 { return 0; }', 'unsupported declared type')
