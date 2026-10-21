@@ -1,0 +1,7 @@
+include "std/core.lang"
+include "src/stage_values.lang"
+func main() i64 {
+    var input *PhaseBuffer = phase_read_bytes_fd(0, phase_limit(), "arguments");
+    var owned *PhaseBuffer = phase_value_copy(input.data, input.len, 0);
+    file_write(1, owned.data, owned.len); return 0;
+}

@@ -57,6 +57,9 @@ def call(name, mode='call', source='test/phase_host/add.lang', data=arguments, *
 
 def source(name, body):
     path = out / (name + '.lang')
+    # Executable entry wrappers consume their one framed request even when
+    # the controlled function ignores its arguments.
+    body = body.replace('func main() i64 {', 'func main() i64 { var incoming *PhaseBuffer = phase_read_bytes_fd(0, phase_limit(), "arguments");')
     path.write_text('include "std/core.lang"\ninclude "src/stage_values.lang"\n' + body)
     return path
 
@@ -81,10 +84,12 @@ if options.acceptance in (None, 'A2'):
         for label, data in [('zero', bytes(width)), ('high', bytes([1 if tag == 9 else 255]) * width)]:
             frame = value(tag, data)
             call(f'scalar-{tag}-{label}', 'copy', data=frame, expected=frame)
+            call(f'worker-scalar-{tag}-{label}', 'echo', 'test/phase_host/echo.lang', data=frame, expected=frame)
     for name, frame in [('bytes-nul', value(10, b'a\0b\xff')),
                         ('unicode', value(11, '水🦉é\0tail'.encode())),
                         ('record', record(integer(-42), value(9, b'\1'), value(10, b'\0'), value(11, '雪'.encode())))]:
         call(name, 'copy', data=frame, expected=frame)
+        call('worker-' + name, 'echo', 'test/phase_host/echo.lang', data=frame, expected=frame)
     malformed = [('short-header', b'123', 'value-length'),
                  ('length', struct.pack('<II', 7, 0xffffffff), 'value-length'),
                  ('trailing', answer + b'x', 'value-length'),
@@ -116,6 +121,8 @@ if options.acceptance in (None, 'A2'):
 
 if options.acceptance in (None, 'A3'):
     call('fresh-context', 'twice', expected=answer * 2)
+    binary = value(10, b'a\0b' * 100000)
+    call('binary-duplex', 'echo', 'test/phase_host/echo.lang', data=binary, expected=binary)
     call('failed-rebuild', 'rebuild-fail', expected=answer)
     assert publication.read_bytes() == answer
     bad = source('bad-response', 'func main() i64 { print("unframed stdout"); return 0; }\n')

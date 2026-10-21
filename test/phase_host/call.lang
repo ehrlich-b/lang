@@ -30,6 +30,10 @@ func main(argc i64, argv **u8) i64 {
     call.signature = "copied-values-v1"; call.profile = "trusted-native";
     call.output_target = "wasm32-unknown-unknown/core-v2";
     call.workspace = arg(argv, 3); call.publication = arg(argv, 4); call.result_tag = 7;
+    if streq(mode, "echo") {
+        phase_value_validate(input.data, input.len, origin, 0);
+        call.result_tag = phase_wire_u32(input.data, 0);
+    }
     if streq(mode, "bytes") { call.result_tag = 10; }
     if streq(mode, "ast") { call.result_tag = 13; }
     if streq(mode, "signature") { call.signature = "native-pointers"; }
