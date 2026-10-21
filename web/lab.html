@@ -74,9 +74,7 @@
       </span></div>
       <textarea id="reader" aria-label="Reader source" spellcheck="false">include "std/parser_runtime.lang"
 include "std/ast.lang"
-#parser{
-    answer_program = 'answer' value:number
-}
+#parser{ answer_program = 'answer' value:number }
 reader read(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
     var tree *PNode = parse_answer_program(tokens);
