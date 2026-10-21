@@ -1,0 +1,12 @@
+include "src/lang_reader.lang"
+include "example/minilisp/lisp_runtime.lang"
+include "example/minilisp/minilisp.lang"
+reader phase_value(text *u8) *u8 { return lang(text); }
+// é: minilisp is nested in lang, and both have an enclosing source offset.
+func main() i64 {
+    var seed i64 = 0;
+    var f closure() i64 = fn() i64 {
+        return #lang{ lisp_to_int(#minilisp{ (let ((x 10)) (+ (let ((x 32)) x) x)) }) } + seed;
+    };
+    return f() + #phase_value{ 1 } - 1;
+}

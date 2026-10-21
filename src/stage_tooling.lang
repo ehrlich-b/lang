@@ -1,0 +1,263 @@
+// Q0: reader-supplied facts, checked before a compiler or tooling client sees AST.
+// IDs for sources and origins belong to H; local IDs are dense within an envelope.
+struct ToolScope { id i64; parent i64; phase i64; }
+struct ToolBinding { id i64; scope i64; origin i64; name *u8; }
+struct ToolSite { source i64; start i64; end i64; scope i64; binding i64; origin i64; role i64; }
+struct ToolEnvelope {
+    version i64; mapped i64; syntax *PhaseSyntax;
+    sources *u8; scopes *u8; bindings *u8; sites *u8;
+}
+pub func tooling_new(text *u8, origin i64, mapped i64) *ToolEnvelope {
+    phase_charge(80 + strlen(text) + 1); phase_work(1);
+    var e *ToolEnvelope = alloc(64);
+    e.version = 1; e.mapped = mapped;
+    e.syntax = alloc(16); e.syntax.text = str_dup(text); e.syntax.origin = origin;
+    e.sources = vec_new(4); e.scopes = vec_new(8);
+    e.bindings = vec_new(8); e.sites = vec_new(16);
+    return e;
+}
+pub func tooling_source(e *ToolEnvelope, source i64) void {
+    var s *PhaseSource = phase_source_get(source);
+    if s == nil { phase_error("tooling-source", phase_diagnostic_source); }
+    phase_charge(8); phase_work(1);
+    vec_push(e.sources, s);
+}
+pub func tooling_scope(e *ToolEnvelope, parent i64, phase i64) i64 {
+    phase_charge(24); phase_work(1);
+    var s *ToolScope = alloc(24);
+    s.id = vec_len(e.scopes) + 1; s.parent = parent; s.phase = phase;
+    vec_push(e.scopes, s); return s.id;
+}
+pub func tooling_binding(e *ToolEnvelope, scope i64, origin i64, name *u8) i64 {
+    phase_charge(33 + strlen(name)); phase_work(1);
+    var b *ToolBinding = alloc(32);
+    b.id = vec_len(e.bindings) + 1; b.scope = scope; b.origin = origin; b.name = str_dup(name);
+    vec_push(e.bindings, b); return b.id;
+}
+pub func tooling_site(e *ToolEnvelope, source i64, start i64, end i64,
+                      scope i64, binding i64, origin i64, role i64) void {
+    phase_charge(56); phase_work(1);
+    var s *ToolSite = alloc(56);
+    s.source = source; s.start = start; s.end = end; s.scope = scope;
+    s.binding = binding; s.origin = origin; s.role = role; vec_push(e.sites, s);
+}
+func tooling_has_source(e *ToolEnvelope, id i64) i64 {
+    var i i64 = 0;
+    while i < vec_len(e.sources) {
+        phase_work(1);
+        var s *PhaseSource = vec_get(e.sources, i);
+        if s.id == id { return 1; } i = i + 1;
+    }
+    return 0;
+}
+func tooling_origin(e *ToolEnvelope, id i64) *PhaseOrigin {
+    var o *PhaseOrigin = phase_origin_get(id);
+    if o == nil { phase_error("tooling-origin", phase_diagnostic_source); }
+    if tooling_has_source(e, o.source) == 0 { phase_error("tooling-source", phase_diagnostic_source); }
+    // Visit each H ancestor once, even when both parent chains share a DAG.
+    // Host-minted parent IDs always precede their children.
+    phase_charge(id + 1); phase_work(id);
+    var seen *u8 = alloc(id + 1); var n i64 = 0;
+    while n <= id { *(seen + n) = 0; n = n + 1; }
+    *(seen + id) = 1; n = id;
+    while n > 0 {
+        if *(seen + n) != 0 {
+            var parent *PhaseOrigin = phase_origin_get(n);
+            if tooling_has_source(e, parent.source) == 0 { phase_error("tooling-source", phase_diagnostic_source); }
+            if parent.include_parent != 0 { *(seen + parent.include_parent) = 1; }
+            if parent.expansion_parent != 0 { *(seen + parent.expansion_parent) = 1; }
+        }
+        n = n - 1;
+    }
+    return o;
+}
+pub func tooling_validate(e *ToolEnvelope) void {
+    if e.version != 1 || e.mapped < 0 || e.mapped > 1 { phase_error("tooling-version", phase_diagnostic_source); }
+    var i i64 = 0;
+    var j i64 = 0;
+    while i < vec_len(e.sources) {
+        var s *PhaseSource = vec_get(e.sources, i);
+        var known *PhaseSource = phase_source_get(s.id);
+        if known == nil { phase_error("tooling-source", phase_diagnostic_source); }
+        var current *PhaseSource = phase_source_snapshot(known.name);
+        var latest i64 = phase_source_latest(known.name);
+        if current != nil { latest = current.id; }
+        if latest != s.id || streq(s.digest, known.digest) == 0 { phase_error("tooling-stale-source", known.name); }
+        j = 0;
+        while j < i {
+            phase_work(1);
+            var prior *PhaseSource = vec_get(e.sources, j);
+            if prior.id == s.id { phase_error("tooling-duplicate-source", known.name); } j = j + 1;
+        }
+        i = i + 1;
+    }
+    tooling_origin(e, e.syntax.origin);
+    phase_utf8_validate(e.syntax.text, phase_diagnostic_source);
+    phase_validate_ast(e.syntax.text, strlen(e.syntax.text), phase_diagnostic_source);
+    if e.mapped == 0 {
+        if vec_len(e.scopes) != 0 || vec_len(e.bindings) != 0 || vec_len(e.sites) != 0 { phase_error("tooling-unmapped", phase_diagnostic_source); }
+        return;
+    }
+    if vec_len(e.scopes) == 0 { phase_error("tooling-scope", phase_diagnostic_source); }
+    i = 0;
+    while i < vec_len(e.scopes) {
+        var scope *ToolScope = vec_get(e.scopes, i);
+        if scope.id != i + 1 || scope.parent < 0 || scope.parent >= scope.id || scope.phase < 0 {
+            phase_error("tooling-scope", phase_diagnostic_source);
+        }
+        i = i + 1;
+    }
+    i = 0;
+    while i < vec_len(e.bindings) {
+        var b *ToolBinding = vec_get(e.bindings, i);
+        if b.id != i + 1 || b.scope < 1 || b.scope > vec_len(e.scopes) { phase_error("tooling-binding", phase_diagnostic_source); }
+        if b.name == nil || strlen(b.name) == 0 { phase_error("tooling-name", phase_diagnostic_source); }
+        phase_utf8_validate(b.name, phase_diagnostic_source);
+        tooling_origin(e, b.origin);
+        j = 0;
+        while j < i {
+            phase_work(1);
+            var before *ToolBinding = vec_get(e.bindings, j);
+            if before.scope == b.scope && streq(before.name, b.name) { phase_error("tooling-conflicting-scope", phase_diagnostic_source); }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    i = 0;
+    while i < vec_len(e.sites) {
+        var site *ToolSite = vec_get(e.sites, i);
+        if tooling_has_source(e, site.source) == 0 || phase_span_valid(site.source, site.start, site.end) == 0 { phase_error("tooling-span", phase_diagnostic_source); }
+        if site.scope < 1 || site.scope > vec_len(e.scopes) { phase_error("tooling-scope", phase_diagnostic_source); }
+        if site.binding < 1 || site.binding > vec_len(e.bindings) { phase_error("tooling-binding", phase_diagnostic_source); }
+        if site.role < 1 || site.role > 2 { phase_error("tooling-role", phase_diagnostic_source); }
+        var origin *PhaseOrigin = tooling_origin(e, site.origin);
+        if origin.source != site.source || site.start < origin.start || site.end > origin.end { phase_error("tooling-site-origin", phase_diagnostic_source); }
+        var binding *ToolBinding = vec_get(e.bindings, site.binding - 1);
+        var active *ToolScope = vec_get(e.scopes, site.scope - 1);
+        var bound *ToolScope = vec_get(e.scopes, binding.scope - 1);
+        if active.phase != bound.phase { phase_error("tooling-phase", phase_diagnostic_source); }
+        var ancestor i64 = site.scope;
+        while ancestor != 0 && ancestor != binding.scope {
+            phase_work(1);
+            var parent *ToolScope = vec_get(e.scopes, ancestor - 1); ancestor = parent.parent;
+        }
+        if ancestor == 0 || (site.role == 1 && site.scope != binding.scope) { phase_error("tooling-visibility", phase_diagnostic_source); }
+        i = i + 1;
+    }
+}
+// Capability discovery is honest: Q0 facts are available only for mapped readers.
+pub func tooling_capabilities(e *ToolEnvelope) *u8 {
+    tooling_validate(e);
+    if e.mapped == 0 { return "compile,limited-tooling"; }
+    return "compile,Q0";
+}
+pub func tooling_require(e *ToolEnvelope, query i64) void {
+    tooling_validate(e);
+    if query == 4 && e.mapped == 0 { phase_error("tooling-unmapped-rename", phase_diagnostic_source); }
+    if query < 0 || query > 4 { phase_error("tooling-query", phase_diagnostic_source); }
+    if query != 0 { phase_error("tooling-unimplemented", phase_diagnostic_source); }
+}
+// W framing is unchanged. Reserved discriminator 1 selects a Q0 payload instead
+// of AST; old W decoders reject it. All words are checked little-endian u32.
+func tooling_put(b *PhaseBuffer, value i64) void {
+    if value < 0 || value > 4294967295 { phase_error("tooling-wire-word", phase_diagnostic_source); }
+    phase_charge(4);
+    var bytes *u8 = alloc(4); var i i64 = 0;
+    while i < 4 { *(bytes + i) = (value >> (i * 8)) & 255; i = i + 1; }
+    phase_buffer_append(b, bytes, 4);
+}
+func tooling_text(b *PhaseBuffer, text *u8) void {
+    tooling_put(b, strlen(text)); phase_buffer_text(b, text);
+}
+pub func tooling_wire_encode(e *ToolEnvelope) *PhaseBuffer {
+    tooling_validate(e);
+    var payload *PhaseBuffer = phase_buffer_new(phase_limit(), phase_diagnostic_source);
+    tooling_put(payload, e.version); tooling_put(payload, e.mapped);
+    tooling_text(payload, e.syntax.text);
+    tooling_put(payload, vec_len(e.sources));
+    var i i64 = 0;
+    while i < vec_len(e.sources) {
+        var s *PhaseSource = vec_get(e.sources, i);
+        tooling_put(payload, s.id); phase_buffer_append(payload, s.digest, 64); i = i + 1;
+    }
+    tooling_put(payload, vec_len(e.scopes)); i = 0;
+    while i < vec_len(e.scopes) {
+        var s *ToolScope = vec_get(e.scopes, i);
+        tooling_put(payload, s.id); tooling_put(payload, s.parent); tooling_put(payload, s.phase); i = i + 1;
+    }
+    tooling_put(payload, vec_len(e.bindings)); i = 0;
+    while i < vec_len(e.bindings) {
+        var b *ToolBinding = vec_get(e.bindings, i);
+        tooling_put(payload, b.id); tooling_put(payload, b.scope); tooling_put(payload, b.origin); tooling_text(payload, b.name); i = i + 1;
+    }
+    tooling_put(payload, vec_len(e.sites)); i = 0;
+    while i < vec_len(e.sites) {
+        var s *ToolSite = vec_get(e.sites, i);
+        tooling_put(payload, s.source); tooling_put(payload, s.start); tooling_put(payload, s.end);
+        tooling_put(payload, s.scope); tooling_put(payload, s.binding); tooling_put(payload, s.origin); tooling_put(payload, s.role); i = i + 1;
+    }
+    var frame *PhaseBuffer = phase_buffer_new(phase_limit() + 16, phase_diagnostic_source);
+    tooling_put(frame, PHASE_PROTOCOL_VERSION); tooling_put(frame, payload.len);
+    tooling_put(frame, e.syntax.origin); tooling_put(frame, 1);
+    phase_buffer_append(frame, payload.data, payload.len); return frame;
+}
+struct ToolCursor { data *u8; len i64; pos i64; }
+func tooling_take(c *ToolCursor, size i64) *u8 {
+    if size < 0 || size > c.len - c.pos { phase_error("tooling-wire-length", phase_diagnostic_source); }
+    var result *u8 = c.data + c.pos; c.pos = c.pos + size; return result;
+}
+func tooling_word(c *ToolCursor) i64 { return phase_wire_u32(tooling_take(c, 4), 0); }
+func tooling_string(c *ToolCursor) *u8 {
+    var size i64 = tooling_word(c); var bytes *u8 = tooling_take(c, size);
+    var i i64 = 0;
+    while i < size { if *(bytes + i) == 0 { phase_error("embedded-nul", phase_diagnostic_source); } i = i + 1; }
+    phase_charge(size + 1);
+    return str_dup_n(bytes, size);
+}
+// Check count against remaining bytes before any allocation or loop.
+func tooling_count(c *ToolCursor, width i64) i64 {
+    var count i64 = tooling_word(c);
+    if count > (c.len - c.pos) / width { phase_error("tooling-wire-length", phase_diagnostic_source); }
+    phase_work(count); return count;
+}
+pub func tooling_wire_decode(frame *u8, len i64, granted_origin i64) *ToolEnvelope {
+    if len < 16 || len > phase_limit() + 16 { phase_error("tooling-wire-length", phase_diagnostic_source); }
+    if phase_wire_u32(frame, 0) != PHASE_PROTOCOL_VERSION || phase_wire_u32(frame, 12) != 1 { phase_error("tooling-wire-version", phase_diagnostic_source); }
+    if phase_wire_u32(frame, 4) != len - 16 { phase_error("tooling-wire-length", phase_diagnostic_source); }
+    if phase_wire_u32(frame, 8) != granted_origin || phase_origin_get(granted_origin) == nil { phase_error("tooling-origin", phase_diagnostic_source); }
+    phase_charge(24);
+    var c *ToolCursor = alloc(24); c.data = frame + 16; c.len = len - 16; c.pos = 0;
+    var version i64 = tooling_word(c); var mapped i64 = tooling_word(c);
+    var text *u8 = tooling_string(c);
+    var e *ToolEnvelope = tooling_new(text, granted_origin, mapped); e.version = version;
+    var count i64 = tooling_count(c, 68); var i i64 = 0;
+    while i < count {
+        phase_charge(65);
+        var id i64 = tooling_word(c); var digest *u8 = str_dup_n(tooling_take(c, 64), 64);
+        var known *PhaseSource = phase_source_get(id);
+        if known == nil { phase_error("tooling-source", phase_diagnostic_source); }
+        if streq(digest, known.digest) == 0 { phase_error("tooling-stale-source", known.name); }
+        tooling_source(e, id); i = i + 1;
+    }
+    count = tooling_count(c, 12); i = 0;
+    while i < count {
+        var sid i64 = tooling_word(c); var parent i64 = tooling_word(c); var phase i64 = tooling_word(c);
+        var created i64 = tooling_scope(e, parent, phase);
+        if sid != created { phase_error("tooling-scope", phase_diagnostic_source); } i = i + 1;
+    }
+    count = tooling_count(c, 16); i = 0;
+    while i < count {
+        var bid i64 = tooling_word(c); var scope i64 = tooling_word(c); var origin i64 = tooling_word(c);
+        var name *u8 = tooling_string(c); var binding i64 = tooling_binding(e, scope, origin, name);
+        if bid != binding { phase_error("tooling-binding", phase_diagnostic_source); } i = i + 1;
+    }
+    count = tooling_count(c, 28); i = 0;
+    while i < count {
+        var source i64 = tooling_word(c); var start i64 = tooling_word(c); var end i64 = tooling_word(c);
+        var site_scope i64 = tooling_word(c); var site_binding i64 = tooling_word(c);
+        var site_origin i64 = tooling_word(c); var role i64 = tooling_word(c);
+        tooling_site(e, source, start, end, site_scope, site_binding, site_origin, role); i = i + 1;
+    }
+    if c.pos != c.len { phase_error("tooling-wire-length", phase_diagnostic_source); }
+    tooling_validate(e); return e;
+}
