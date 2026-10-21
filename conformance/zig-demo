@@ -18,16 +18,18 @@ def main():
     p.add_argument('--target', default='x86_64-linux', choices=['x86_64-linux'])
     for name in ['source', 'source-archive', 'compiler', 'compiler-archive', 'work', 'receipt']:
         p.add_argument('--' + name, type=Path, required=True)
-    p.add_argument('--lang', type=Path, default=ROOT.parent / 'out/lang')
+    p.add_argument('--lang', type=Path, default=ROOT.parent / 'out/bootstrap_verify/kernel2')
+    p.add_argument('--mode-jobs', type=int, choices=range(1, 4), default=1)
     args = p.parse_args()
     work = args.work.resolve()
     work.mkdir(parents=True, exist_ok=True)
     commands = [
-        ('reference', [sys.executable, ROOT / 'zig/oracle.py', 'reference',
+        ('reference', [sys.executable, '-B', ROOT / 'zig/oracle.py', 'reference',
                        '--source', args.source.resolve(), '--source-archive', args.source_archive.resolve(),
-                       '--compiler', args.compiler.resolve(), '--compiler-archive', args.compiler_archive.resolve()]),
-        ('harness', [sys.executable, ROOT / 'zig/oracle.py', 'selftest', '--compiler', args.compiler.resolve()]),
-        ('readers', [sys.executable, ROOT / 'zig/readers.py', '--compiler', args.lang.resolve()]),
+                       '--compiler', args.compiler.resolve(), '--compiler-archive', args.compiler_archive.resolve(),
+                       '--mode-jobs', args.mode_jobs]),
+        ('harness', [sys.executable, '-B', ROOT / 'zig/oracle.py', 'selftest', '--compiler', args.compiler.resolve()]),
+        ('readers', [sys.executable, '-B', ROOT / 'zig/readers.py', '--compiler', args.lang.resolve()]),
     ]
     report = {'milestone': 'M0', 'profile': LOCK, 'profile_sha256': digest(ROOT / 'zig/oracle.lock.json'),
               'lang_compiler_sha256': digest(args.lang.resolve()), 'upstream_passes_claimed': False,
