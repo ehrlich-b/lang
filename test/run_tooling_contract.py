@@ -96,7 +96,6 @@ try:
 
             for name, field, value, error in [
                 ('unknown-source', 'sources.0.id', 999999, 'tooling-source'),
-                ('split-codepoint', 'sites.0.start', source.index('é'.encode()) + 1, 'tooling-span'),
                 ('out-of-range', 'sites.0.end', len(source) + 1, 'tooling-span'),
                 ('reversed-span', 'sites.0.start', len(source), 'tooling-span'),
                 ('dangling-binding', 'sites.0.binding', 9999, 'tooling-binding'),
@@ -116,6 +115,19 @@ try:
                 ('unmapped-metadata', 'mapped', 0, 'tooling-unmapped'),
             ]:
                 mutate(name, field, value, error)
+            # Isolate codepoint boundaries: ordered, in-range spans in root origin.
+            # The whole codepoint is valid; splitting either endpoint must fail.
+            codepoint = source.index('é'.encode())
+            whole = bytearray(frame)
+            struct.pack_into('<I', whole, offsets['sites.0.start'], codepoint)
+            struct.pack_into('<I', whole, offsets['sites.0.end'], codepoint + 2)
+            invoke('whole-codepoint-control', bytes(whole))
+            split = bytearray(whole)
+            struct.pack_into('<I', split, offsets['sites.0.start'], codepoint + 1)
+            invoke('split-codepoint-start', bytes(split), error='tooling-span')
+            split = bytearray(whole)
+            struct.pack_into('<I', split, offsets['sites.0.end'], codepoint + 1)
+            invoke('split-codepoint-end', bytes(split), error='tooling-span')
             mutate('cross-phase-reference', 'sites.7.scope', 2, 'tooling-phase')
             changed = bytearray(frame)
             changed[offsets['sources.0.digest']] ^= 1
