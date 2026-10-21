@@ -1,5 +1,9 @@
 # Write a reader
 
+For executable create, evolve and repair exercises, use the
+[reader authoring pack](reader-pack/README.md). It includes current-source build
+identities and a deterministic native/browser smoke replay.
+
 Lang is a compiler compiler: give its kernel a function that turns source text
 into Lang AST, and you have taught it a new language. That function is a
 **reader**. The kernel supplies type checking, LLVM generation, native code,

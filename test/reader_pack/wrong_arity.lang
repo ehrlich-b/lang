@@ -1,0 +1,5 @@
+include "test/reader_pack/common.lang"
+
+reader threshold(text *u8) *u8 {
+    return ast_main_i64(ast_ge(ast_number("10")));
+}
