@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "phases": {
+    "Q0": {
+      "implemented": true,
+      "fixtures": [
+        "lang.lang",
+        "lang.ast",
+        "lang.golden.json",
+        "nested.lang",
+        "lang-slice.lang",
+        "minilisp.minilisp",
+        "minilisp.ast",
+        "minilisp.golden.json",
+        "invalid.json",
+        "compatibility.json",
+        "legacy.ast"
+      ]
+    },
+    "Q1": {
+      "implemented": false,
+      "fixtures": [
+        "invalid.json",
+        "lang.golden.json"
+      ],
+      "requires": "Production admission before analysis, framed lengths and quotas, snapshot/grant validation"
+    },
+    "Q2": {
+      "implemented": false,
+      "fixtures": [
+        "lang.lang",
+        "lang.ast",
+        "lang.golden.json"
+      ],
+      "requires": "Real Lang adapter, phase identities and LSP position conversion"
+    },
+    "Q3": {
+      "implemented": false,
+      "fixtures": [
+        "nested.lang",
+        "lang-slice.lang",
+        "minilisp.minilisp",
+        "minilisp.ast",
+        "minilisp.golden.json"
+      ],
+      "requires": "Real minilisp adapter, nested readers, Lisp-2, captures and generated identities"
+    },
+    "Q4": {
+      "implemented": false,
+      "fixtures": [
+        "legacy.ast",
+        "compatibility.json",
+        "lang.golden.json",
+        "minilisp.golden.json"
+      ],
+      "requires": "Real tooling requests, atomic rename and legacy compilation"
+    }
+  }
+}

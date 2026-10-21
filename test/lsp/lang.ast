@@ -1,0 +1,8 @@
+(program
+ (func outer ((param value (type_base i64))) (type_base i64)
+  (block (var result (type_base i64) (ident value))
+   (block (var value (type_base i64) (ident result))
+    (assign (ident result) (ident value)))
+   (return (ident result))))
+ (func identity ((param text (type_ptr (type_base u8)))) (type_ptr (type_base u8))
+  (block (return (ident text)))))

@@ -1,0 +1,469 @@
+{
+  "schema": 1,
+  "session": "fixture-host",
+  "request": "fixture-request",
+  "revision": 3,
+  "phase": 0,
+  "source": "lang-source",
+  "core_sha256": "589dc8bb4f9e081fb811f12cf6303db809d69bd327713560909855f4a4485f61",
+  "sources": [
+    {
+      "id": "lang-source",
+      "path": "lang.lang",
+      "sha256": "0d0032993b069af152e4017db8bad4d9fc0bb5de3dc2ad06b46b3d5459553d12",
+      "bytes": 239,
+      "slice": null
+    }
+  ],
+  "origins": [
+    {
+      "id": "origin-lang-source",
+      "source": "lang-source",
+      "start": 0,
+      "end": 239,
+      "include_parent": null,
+      "expansion_parent": null
+    }
+  ],
+  "scopes": [
+    {
+      "id": "root",
+      "parent": null,
+      "phase": 0,
+      "origin": "origin-lang-source"
+    },
+    {
+      "id": "fn",
+      "parent": "root",
+      "phase": 0,
+      "origin": "origin-lang-source"
+    },
+    {
+      "id": "block",
+      "parent": "fn",
+      "phase": 0,
+      "origin": "origin-lang-source"
+    },
+    {
+      "id": "phase-root",
+      "parent": null,
+      "phase": 1,
+      "origin": "origin-lang-source"
+    },
+    {
+      "id": "reader",
+      "parent": "phase-root",
+      "phase": 1,
+      "origin": "origin-lang-source"
+    }
+  ],
+  "bindings": [
+    {
+      "id": "outer",
+      "name": "outer",
+      "namespace": "function",
+      "scope": "root",
+      "phase": 0,
+      "declaration": "site-0",
+      "generated": false
+    },
+    {
+      "id": "parameter",
+      "name": "value",
+      "namespace": "value",
+      "scope": "fn",
+      "phase": 0,
+      "declaration": "site-1",
+      "generated": false
+    },
+    {
+      "id": "result",
+      "name": "result",
+      "namespace": "value",
+      "scope": "fn",
+      "phase": 0,
+      "declaration": "site-2",
+      "generated": false
+    },
+    {
+      "id": "shadow",
+      "name": "value",
+      "namespace": "value",
+      "scope": "block",
+      "phase": 0,
+      "declaration": "site-4",
+      "generated": false
+    },
+    {
+      "id": "identity",
+      "name": "identity",
+      "namespace": "reader",
+      "scope": "phase-root",
+      "phase": 1,
+      "declaration": "site-9",
+      "generated": false
+    },
+    {
+      "id": "text",
+      "name": "text",
+      "namespace": "value",
+      "scope": "reader",
+      "phase": 1,
+      "declaration": "site-10",
+      "generated": false
+    }
+  ],
+  "sites": [
+    {
+      "id": "site-0",
+      "source": "lang-source",
+      "start": 52,
+      "end": 57,
+      "name": "outer",
+      "role": "declaration",
+      "binding": "outer",
+      "namespace": "function",
+      "scope": "root",
+      "phase": 0,
+      "origin": "origin-lang-source",
+      "core": [
+        "core-0"
+      ]
+    },
+    {
+      "id": "site-1",
+      "source": "lang-source",
+      "start": 58,
+      "end": 63,
+      "name": "value",
+      "role": "declaration",
+      "binding": "parameter",
+      "namespace": "value",
+      "scope": "fn",
+      "phase": 0,
+      "origin": "origin-lang-source",
+      "core": [
+        "core-1"
+      ]
+    },
+    {
+      "id": "site-2",
+      "source": "lang-source",
+      "start": 83,
+      "end": 89,
+      "name": "result",
+      "role": "declaration",
+      "binding": "result",
+      "namespace": "value",
+      "scope": "fn",
+      "phase": 0,
+      "origin": "origin-lang-source",
+      "core": [
+        "core-2"
+      ]
+    },
+    {
+      "id": "site-3",
+      "source": "lang-source",
+      "start": 96,
+      "end": 101,
+      "name": "value",
+      "role": "reference",
+      "binding": "parameter",
+      "namespace": "value",
+      "scope": "fn",
+      "phase": 0,
+      "origin": "origin-lang-source",
+      "core": [
+        "core-3"
+      ]
+    },
+    {
+      "id": "site-4",
+      "source": "lang-source",
+      "start": 121,
+      "end": 126,
+      "name": "value",
+      "role": "declaration",
+      "binding": "shadow",
+      "namespace": "value",
+      "scope": "block",
+      "phase": 0,
+      "origin": "origin-lang-source",
+      "core": [
+        "core-4"
+      ]
+    },
+    {
+      "id": "site-5",
+      "source": "lang-source",
+      "start": 133,
+      "end": 139,
+      "name": "result",
+      "role": "reference",
+      "binding": "result",
+      "namespace": "value",
+      "scope": "block",
+      "phase": 0,
+      "origin": "origin-lang-source",
+      "core": [
+        "core-5"
+      ]
+    },
+    {
+      "id": "site-6",
+      "source": "lang-source",
+      "start": 149,
+      "end": 155,
+      "name": "result",
+      "role": "reference",
+      "binding": "result",
+      "namespace": "value",
+      "scope": "block",
+      "phase": 0,
+      "origin": "origin-lang-source",
+      "core": [
+        "core-6"
+      ]
+    },
+    {
+      "id": "site-7",
+      "source": "lang-source",
+      "start": 158,
+      "end": 163,
+      "name": "value",
+      "role": "reference",
+      "binding": "shadow",
+      "namespace": "value",
+      "scope": "block",
+      "phase": 0,
+      "origin": "origin-lang-source",
+      "core": [
+        "core-7"
+      ]
+    },
+    {
+      "id": "site-8",
+      "source": "lang-source",
+      "start": 182,
+      "end": 188,
+      "name": "result",
+      "role": "reference",
+      "binding": "result",
+      "namespace": "value",
+      "scope": "fn",
+      "phase": 0,
+      "origin": "origin-lang-source",
+      "core": [
+        "core-8"
+      ]
+    },
+    {
+      "id": "site-9",
+      "source": "lang-source",
+      "start": 199,
+      "end": 207,
+      "name": "identity",
+      "role": "declaration",
+      "binding": "identity",
+      "namespace": "reader",
+      "scope": "phase-root",
+      "phase": 1,
+      "origin": "origin-lang-source",
+      "core": [
+        "core-9"
+      ]
+    },
+    {
+      "id": "site-10",
+      "source": "lang-source",
+      "start": 208,
+      "end": 212,
+      "name": "text",
+      "role": "declaration",
+      "binding": "text",
+      "namespace": "value",
+      "scope": "reader",
+      "phase": 1,
+      "origin": "origin-lang-source",
+      "core": [
+        "core-10"
+      ]
+    },
+    {
+      "id": "site-11",
+      "source": "lang-source",
+      "start": 231,
+      "end": 235,
+      "name": "text",
+      "role": "reference",
+      "binding": "text",
+      "namespace": "value",
+      "scope": "reader",
+      "phase": 1,
+      "origin": "origin-lang-source",
+      "core": [
+        "core-11"
+      ]
+    }
+  ],
+  "core": [
+    {
+      "id": "core-0",
+      "path": [
+        1,
+        1
+      ],
+      "binding": "outer",
+      "origin": "origin-lang-source",
+      "generated": false
+    },
+    {
+      "id": "core-1",
+      "path": [
+        1,
+        2,
+        0,
+        1
+      ],
+      "binding": "parameter",
+      "origin": "origin-lang-source",
+      "generated": false
+    },
+    {
+      "id": "core-2",
+      "path": [
+        1,
+        4,
+        1,
+        1
+      ],
+      "binding": "result",
+      "origin": "origin-lang-source",
+      "generated": false
+    },
+    {
+      "id": "core-3",
+      "path": [
+        1,
+        4,
+        1,
+        3,
+        1
+      ],
+      "binding": "parameter",
+      "origin": "origin-lang-source",
+      "generated": false
+    },
+    {
+      "id": "core-4",
+      "path": [
+        1,
+        4,
+        2,
+        1,
+        1
+      ],
+      "binding": "shadow",
+      "origin": "origin-lang-source",
+      "generated": false
+    },
+    {
+      "id": "core-5",
+      "path": [
+        1,
+        4,
+        2,
+        1,
+        3,
+        1
+      ],
+      "binding": "result",
+      "origin": "origin-lang-source",
+      "generated": false
+    },
+    {
+      "id": "core-6",
+      "path": [
+        1,
+        4,
+        2,
+        2,
+        1,
+        1
+      ],
+      "binding": "result",
+      "origin": "origin-lang-source",
+      "generated": false
+    },
+    {
+      "id": "core-7",
+      "path": [
+        1,
+        4,
+        2,
+        2,
+        2,
+        1
+      ],
+      "binding": "shadow",
+      "origin": "origin-lang-source",
+      "generated": false
+    },
+    {
+      "id": "core-8",
+      "path": [
+        1,
+        4,
+        3,
+        1,
+        1
+      ],
+      "binding": "result",
+      "origin": "origin-lang-source",
+      "generated": false
+    },
+    {
+      "id": "core-9",
+      "path": [
+        2,
+        1
+      ],
+      "binding": "identity",
+      "origin": "origin-lang-source",
+      "generated": false
+    },
+    {
+      "id": "core-10",
+      "path": [
+        2,
+        2,
+        0,
+        1
+      ],
+      "binding": "text",
+      "origin": "origin-lang-source",
+      "generated": false
+    },
+    {
+      "id": "core-11",
+      "path": [
+        2,
+        4,
+        1,
+        1,
+        1
+      ],
+      "binding": "text",
+      "origin": "origin-lang-source",
+      "generated": false
+    }
+  ],
+  "capabilities": {
+    "diagnostics": true,
+    "navigation": true,
+    "references": true,
+    "rename": false,
+    "reason": "Q0-contract-only"
+  }
+}

@@ -1,0 +1,346 @@
+{
+  "schema": 1,
+  "session": "fixture-host",
+  "request": "fixture-request",
+  "revision": 3,
+  "phase": 0,
+  "source": "ml-slice",
+  "core_sha256": "ec8fe2eef031c28065e8ca44aa796d25401372e16d39bc882d71458f377142b8",
+  "sources": [
+    {
+      "id": "host",
+      "path": "nested.lang",
+      "sha256": "c4c9d81a39b43fb8607c6a5337db76a34133e9c1d7fea0e98427cb5e39d6855e",
+      "bytes": 182,
+      "slice": null
+    },
+    {
+      "id": "lang-slice",
+      "path": "lang-slice.lang",
+      "sha256": "00489dc6a0de71fb9824e507d4efb79dddcfa33f95463efa55ab9316608ec6ca",
+      "bytes": 133,
+      "slice": {
+        "source": "host",
+        "start": 47,
+        "end": 180
+      }
+    },
+    {
+      "id": "ml-slice",
+      "path": "minilisp.minilisp",
+      "sha256": "10c17951575be28d8498d5fa577e70863dee6fabed06f882dd0a6b4aae2bef3f",
+      "bytes": 89,
+      "slice": {
+        "source": "lang-slice",
+        "start": 40,
+        "end": 129
+      }
+    }
+  ],
+  "origins": [
+    {
+      "id": "origin-host",
+      "source": "host",
+      "start": 0,
+      "end": 182,
+      "include_parent": null,
+      "expansion_parent": null
+    },
+    {
+      "id": "origin-lang-slice",
+      "source": "lang-slice",
+      "start": 0,
+      "end": 133,
+      "include_parent": null,
+      "expansion_parent": "origin-host"
+    },
+    {
+      "id": "origin-ml-slice",
+      "source": "ml-slice",
+      "start": 0,
+      "end": 89,
+      "include_parent": null,
+      "expansion_parent": "origin-lang-slice"
+    }
+  ],
+  "scopes": [
+    {
+      "id": "ml-root",
+      "parent": null,
+      "phase": 0,
+      "origin": "origin-ml-slice"
+    },
+    {
+      "id": "let",
+      "parent": "ml-root",
+      "phase": 0,
+      "origin": "origin-ml-slice"
+    },
+    {
+      "id": "lambda",
+      "parent": "let",
+      "phase": 0,
+      "origin": "origin-ml-slice"
+    }
+  ],
+  "bindings": [
+    {
+      "id": "outer",
+      "name": "value",
+      "namespace": "value",
+      "scope": "let",
+      "phase": 0,
+      "declaration": "site-0",
+      "generated": false
+    },
+    {
+      "id": "shadow",
+      "name": "value",
+      "namespace": "value",
+      "scope": "lambda",
+      "phase": 0,
+      "declaration": "site-1",
+      "generated": false
+    },
+    {
+      "id": "generated-__lt_fixture",
+      "name": "__lt_fixture",
+      "namespace": "value",
+      "scope": "let",
+      "phase": 0,
+      "declaration": null,
+      "generated": true
+    },
+    {
+      "id": "generated-__args",
+      "name": "__args",
+      "namespace": "value",
+      "scope": "lambda",
+      "phase": 0,
+      "declaration": null,
+      "generated": true
+    }
+  ],
+  "sites": [
+    {
+      "id": "site-0",
+      "source": "ml-slice",
+      "start": 33,
+      "end": 38,
+      "name": "value",
+      "role": "declaration",
+      "binding": "outer",
+      "namespace": "value",
+      "scope": "let",
+      "phase": 0,
+      "origin": "origin-ml-slice",
+      "core": [
+        "core-0"
+      ]
+    },
+    {
+      "id": "site-1",
+      "source": "ml-slice",
+      "start": 61,
+      "end": 66,
+      "name": "value",
+      "role": "declaration",
+      "binding": "shadow",
+      "namespace": "value",
+      "scope": "lambda",
+      "phase": 0,
+      "origin": "origin-ml-slice",
+      "core": [
+        "core-1"
+      ]
+    },
+    {
+      "id": "site-2",
+      "source": "ml-slice",
+      "start": 71,
+      "end": 76,
+      "name": "value",
+      "role": "reference",
+      "binding": "shadow",
+      "namespace": "value",
+      "scope": "lambda",
+      "phase": 0,
+      "origin": "origin-ml-slice",
+      "core": [
+        "core-2"
+      ]
+    },
+    {
+      "id": "site-3",
+      "source": "ml-slice",
+      "start": 81,
+      "end": 86,
+      "name": "value",
+      "role": "reference",
+      "binding": "outer",
+      "namespace": "value",
+      "scope": "let",
+      "phase": 0,
+      "origin": "origin-ml-slice",
+      "core": [
+        "core-3"
+      ]
+    },
+    {
+      "id": "site-4",
+      "source": "ml-slice",
+      "start": null,
+      "end": null,
+      "name": null,
+      "role": "generated",
+      "binding": "generated-__lt_fixture",
+      "namespace": "value",
+      "scope": "let",
+      "phase": 0,
+      "origin": "origin-ml-slice",
+      "core": [
+        "core-4",
+        "core-5"
+      ]
+    },
+    {
+      "id": "site-5",
+      "source": "ml-slice",
+      "start": null,
+      "end": null,
+      "name": null,
+      "role": "generated",
+      "binding": "generated-__args",
+      "namespace": "value",
+      "scope": "lambda",
+      "phase": 0,
+      "origin": "origin-ml-slice",
+      "core": [
+        "core-6",
+        "core-7"
+      ]
+    }
+  ],
+  "core": [
+    {
+      "id": "core-0",
+      "path": [
+        1
+      ],
+      "binding": "outer",
+      "origin": "origin-ml-slice",
+      "generated": false
+    },
+    {
+      "id": "core-1",
+      "path": [
+        4,
+        2,
+        1,
+        3,
+        3,
+        1,
+        1,
+        1
+      ],
+      "binding": "shadow",
+      "origin": "origin-ml-slice",
+      "generated": false
+    },
+    {
+      "id": "core-2",
+      "path": [
+        4,
+        2,
+        1,
+        3,
+        3,
+        1,
+        1,
+        4,
+        2,
+        1
+      ],
+      "binding": "shadow",
+      "origin": "origin-ml-slice",
+      "generated": false
+    },
+    {
+      "id": "core-3",
+      "path": [
+        4,
+        3,
+        2,
+        1
+      ],
+      "binding": "outer",
+      "origin": "origin-ml-slice",
+      "generated": false
+    },
+    {
+      "id": "core-4",
+      "path": [
+        4,
+        2,
+        1,
+        1
+      ],
+      "binding": "generated-__lt_fixture",
+      "origin": "origin-ml-slice",
+      "generated": true
+    },
+    {
+      "id": "core-5",
+      "path": [
+        4,
+        2,
+        2,
+        2,
+        1
+      ],
+      "binding": "generated-__lt_fixture",
+      "origin": "origin-ml-slice",
+      "generated": true
+    },
+    {
+      "id": "core-6",
+      "path": [
+        4,
+        2,
+        1,
+        3,
+        1,
+        0,
+        1
+      ],
+      "binding": "generated-__args",
+      "origin": "origin-ml-slice",
+      "generated": true
+    },
+    {
+      "id": "core-7",
+      "path": [
+        4,
+        2,
+        1,
+        3,
+        3,
+        1,
+        1,
+        3,
+        2,
+        1
+      ],
+      "binding": "generated-__args",
+      "origin": "origin-ml-slice",
+      "generated": true
+    }
+  ],
+  "capabilities": {
+    "diagnostics": true,
+    "navigation": true,
+    "references": true,
+    "rename": false,
+    "reason": "Q0-contract-only"
+  }
+}

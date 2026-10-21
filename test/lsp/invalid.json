@@ -1,0 +1,174 @@
+[
+  {
+    "id": "unknown-source",
+    "code": "unknown-source",
+    "path": "/sites/0/source",
+    "value": "missing"
+  },
+  {
+    "id": "stale-source",
+    "code": "stale-source",
+    "path": "/revision",
+    "value": 2
+  },
+  {
+    "id": "cross-session",
+    "code": "stale-source",
+    "path": "/session",
+    "value": "other-host"
+  },
+  {
+    "id": "bounds",
+    "code": "invalid-span",
+    "path": "/sites/0/end",
+    "value": 999999
+  },
+  {
+    "id": "negative",
+    "code": "invalid-span",
+    "path": "/sites/0/start",
+    "value": -1
+  },
+  {
+    "id": "reversed",
+    "code": "invalid-span",
+    "path": "/sites/0/start",
+    "value": 90
+  },
+  {
+    "id": "split-codepoint",
+    "code": "invalid-span",
+    "path": "/sites/0/start",
+    "value": 7
+  },
+  {
+    "id": "dangling-binding",
+    "code": "dangling-binding",
+    "path": "/sites/0/binding",
+    "value": "missing"
+  },
+  {
+    "id": "scope-conflict",
+    "code": "conflicting-scope",
+    "path": "/scopes/1/id",
+    "value": "root"
+  },
+  {
+    "id": "scope-cycle",
+    "code": "invalid-scope",
+    "path": "/scopes/0/parent",
+    "value": "block"
+  },
+  {
+    "id": "phase-conflict",
+    "code": "invalid-scope",
+    "path": "/sites/0/phase",
+    "value": 1
+  },
+  {
+    "id": "bad-name",
+    "code": "invalid-mapping",
+    "path": "/sites/0/name",
+    "value": "wrong"
+  },
+  {
+    "id": "bad-core",
+    "code": "invalid-mapping",
+    "path": "/sites/0/core/0",
+    "value": "missing"
+  },
+  {
+    "id": "bad-core-path",
+    "code": "invalid-mapping",
+    "path": "/core/0/path",
+    "value": [
+      999
+    ]
+  },
+  {
+    "id": "bad-digest",
+    "code": "invalid-mapping",
+    "path": "/core_sha256",
+    "value": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+    "id": "unknown-origin",
+    "code": "invalid-origin",
+    "path": "/sites/0/origin",
+    "value": "missing"
+  },
+  {
+    "id": "forged-parent",
+    "code": "invalid-origin",
+    "path": "/origins/0/expansion_parent",
+    "value": "missing"
+  },
+  {
+    "id": "wrong-schema",
+    "code": "wire-version",
+    "path": "/schema",
+    "value": 2
+  },
+  {
+    "id": "short-frame",
+    "code": "wire-length",
+    "frame": "short"
+  },
+  {
+    "id": "wrong-length",
+    "code": "wire-length",
+    "frame": "mismatch"
+  },
+  {
+    "id": "trailing-bytes",
+    "code": "wire-length",
+    "frame": "trailing"
+  },
+  {
+    "id": "oversized-result",
+    "code": "byte-limit",
+    "frame": "oversized"
+  },
+  {
+    "id": "unknown-wire-version",
+    "code": "wire-version",
+    "frame": "version"
+  },
+  {
+    "id": "node-budget",
+    "code": "metadata-limit",
+    "budget": "nodes"
+  },
+  {
+    "id": "depth-budget",
+    "code": "metadata-limit",
+    "budget": "depth"
+  },
+  {
+    "id": "stale-source-digest",
+    "code": "stale-source",
+    "path": "/sources/0/sha256",
+    "value": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+    "id": "slice-bounds",
+    "code": "invalid-span",
+    "golden": "minilisp",
+    "path": "/sources/2/slice/end",
+    "value": 99999
+  },
+  {
+    "id": "slice-offset",
+    "code": "invalid-span",
+    "golden": "minilisp",
+    "path": "/sources/2/slice/start",
+    "value": 39
+  },
+  {
+    "id": "generated-editable",
+    "code": "invalid-mapping",
+    "golden": "minilisp",
+    "path": "/sites/4/role",
+    "value": "declaration"
+  }
+]
