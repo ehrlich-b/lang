@@ -1,0 +1,5 @@
+func mixed() i64 {
+    return #minilisp{; café 🧭 before names
+(let ((value 7)) (funcall (lambda (value) (+ value 1)) value))
+};
+}
