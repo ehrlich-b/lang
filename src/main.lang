@@ -1874,6 +1874,15 @@ func main(argc i64, argv **u8) i64 {
             prog = main_combine_programs(runtime_prog, prog);
         }
 
+        if emit_ast_mode != 0 {
+            var ast_text *u8 = ast_emit_program(prog);
+            var ast_fd i64 = file_open(output_file, O_WRONLY_CREAT_TRUNC);
+            if ast_fd < 0 { eprintln("Error: cannot open AST output"); return 1; }
+            compiler_write_all(ast_fd, ast_text, strlen(ast_text));
+            file_close(ast_fd);
+            return 0;
+        }
+
         // Generate using appropriate backend
         main_generate_selected(prog, output_file);
 

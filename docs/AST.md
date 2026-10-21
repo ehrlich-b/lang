@@ -393,6 +393,9 @@ References a variable or function:
 
 ### Binary Operations
 
+The explicit [N1 integer forms](NUMERIC.md) provide common-width signed/unsigned
+comparisons and conversions independently of the legacy `binop`/`cast` model.
+
 ```lisp
 (binop <op> <left> <right>)
 ```

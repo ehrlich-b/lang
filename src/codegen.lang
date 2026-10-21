@@ -3046,6 +3046,12 @@ func gen_expr(expr *u8) void {
 
     var k i64 = node_kind(expr);
 
+    if k == NODE_INT_COMPARE || k == NODE_INT_CONVERT {
+        cg_error_prefix_at(expr);
+        eprintln("exact integer operations require LLVM or direct wasm");
+        cg_had_error = 1; return;
+    }
+
     if k == NODE_NUMBER_EXPR {
         emit_str("    mov $");
         emit_n(number_expr_value(expr), number_expr_value_len(expr));

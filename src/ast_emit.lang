@@ -642,6 +642,31 @@ func ast_emit_node_inner(node *u8) void {
         return;
     }
 
+    if kind == NODE_INT_COMPARE || kind == NODE_INT_CONVERT {
+        // Preserve the explicit source range on interchange round trips.
+        var start i64 = node_origin_start(node);
+        var end i64 = node_origin_end(node);
+        var has_span i64 = node_origin_source(node) != nil && start >= 0 && end >= start;
+        if has_span != 0 {
+            ast_emit_str("(span "); ast_emit_int(start); ast_emit_str(" ");
+            ast_emit_int(end); ast_emit_str(" ");
+        }
+        if kind == NODE_INT_COMPARE { ast_emit_str("(int_compare "); }
+        else { ast_emit_str("(int_convert "); }
+        ast_emit_str(integer_expr_op(node)); ast_emit_str(" ");
+        ast_emit_type(integer_expr_src(node)); ast_emit_str(" ");
+        if kind == NODE_INT_CONVERT {
+            ast_emit_type(integer_expr_dst(node)); ast_emit_str(" ");
+        }
+        ast_emit_node(integer_expr_left(node));
+        if kind == NODE_INT_COMPARE {
+            ast_emit_str(" "); ast_emit_node(integer_expr_right(node));
+        }
+        ast_emit_str(")");
+        if has_span != 0 { ast_emit_str(")"); }
+        return;
+    }
+
     if kind == NODE_CAST_EXPR {
         ast_emit_str("(cast ");
         ast_emit_type(cast_expr_type(node));

@@ -506,6 +506,9 @@ func wasm_scan_address_expr(expr *u8) void {
         wasm_scan_address_expr(binary_expr_right(expr));
     } else if kind == NODE_GROUP_EXPR {
         wasm_scan_address_expr(group_expr_expr(expr));
+    } else if kind == NODE_INT_COMPARE || kind == NODE_INT_CONVERT {
+        wasm_scan_address_expr(integer_expr_left(expr));
+        wasm_scan_address_expr(integer_expr_right(expr));
     } else if kind == NODE_CAST_EXPR {
         wasm_scan_address_expr(cast_expr_expr(expr));
     } else if kind == NODE_BITCAST_EXPR {
@@ -587,6 +590,7 @@ func wasm_parse_integer(text *u8, len i64) i64 {
         if c >= '0' && c <= '9' { value = value * 10 + (c - '0'); }
         i = i + 1;
     }
+    if len > 0 && *text == '-' { return 0 - value; }
     return value;
 }
 
@@ -597,6 +601,8 @@ func wasm_expr_type(expr *u8) *u8 {
     if kind == NODE_STRING_EXPR { return wasm_u8_ptr_type; }
     if kind == NODE_NIL_EXPR { return wasm_u8_ptr_type; }
     if kind == NODE_GROUP_EXPR { return wasm_expr_type(group_expr_expr(expr)); }
+    if kind == NODE_INT_CONVERT { return integer_expr_dst(expr); }
+    if kind == NODE_INT_COMPARE { return wasm_i64_type; }
     if kind == NODE_CAST_EXPR { return cast_expr_type(expr); }
     if kind == NODE_BITCAST_EXPR { return bitcast_expr_type(expr); }
     if kind == NODE_IDENT_EXPR {
@@ -797,6 +803,51 @@ func wasm_emit_truth(expr *u8, out *WasmBuf) void {
     wasm_put(out, 69);  // i32.eqz: nonzero becomes true
 }
 
+func wasm_integer_normalize(t *u8, out *WasmBuf) void {
+    var bits i64 = integer_type_bits(t);
+    if bits == 64 { return; }
+    // Shift the low bits into place, then select arithmetic/logical recovery.
+    wasm_put(out, 66); wasm_put_sleb(out, 64 - bits);
+    wasm_put(out, 134);  // i64.shl
+    wasm_put(out, 66); wasm_put_sleb(out, 64 - bits);
+    if integer_type_signed(t) != 0 { wasm_put(out, 135); } // i64.shr_s
+    else { wasm_put(out, 136); } // i64.shr_u
+}
+
+func wasm_emit_integer(expr *u8, out *WasmBuf) void {
+    if integer_expr_valid(expr) == 0 {
+        cg_diagnostic_node = expr;
+        wasm_error("unsupported exact integer operation or type"); return;
+    }
+    var left_type *u8 = wasm_expr_type(integer_expr_left(expr));
+    if integer_type_bits(left_type) == 0 {
+        cg_diagnostic_node = expr;
+        wasm_error("exact integer operand must be an integer"); return;
+    }
+    wasm_emit_expr(integer_expr_left(expr), out);
+    wasm_integer_normalize(integer_expr_src(expr), out);
+    if node_kind(expr) == NODE_INT_CONVERT {
+        wasm_integer_normalize(integer_expr_dst(expr), out);
+        return;
+    }
+    var right_type *u8 = wasm_expr_type(integer_expr_right(expr));
+    if integer_type_bits(right_type) == 0 {
+        cg_diagnostic_node = expr;
+        wasm_error("exact integer operand must be an integer"); return;
+    }
+    wasm_emit_expr(integer_expr_right(expr), out);
+    wasm_integer_normalize(integer_expr_src(expr), out);
+    var op *u8 = integer_expr_op(expr);
+    var unsigned i64 = 1 - integer_type_signed(integer_expr_src(expr));
+    if streq(op, "eq") { wasm_put(out, 81); }
+    else if streq(op, "ne") { wasm_put(out, 82); }
+    else if streq(op, "lt") { wasm_put(out, 83 + unsigned); }
+    else if streq(op, "gt") { wasm_put(out, 85 + unsigned); }
+    else if streq(op, "le") { wasm_put(out, 87 + unsigned); }
+    else if streq(op, "ge") { wasm_put(out, 89 + unsigned); }
+    wasm_put(out, 173);  // boolean -> i64 carrier
+}
+
 func wasm_emit_expr(expr *u8, out *WasmBuf) void {
     if expr == nil { wasm_put(out, 66); wasm_put_sleb(out, 0); return; }
     var kind i64 = node_kind(expr);
@@ -825,6 +876,9 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
     if kind == NODE_GROUP_EXPR {
         wasm_emit_expr(group_expr_expr(expr), out);
         return;
+    }
+    if kind == NODE_INT_COMPARE || kind == NODE_INT_CONVERT {
+        wasm_emit_integer(expr, out); return;
     }
     if kind == NODE_CAST_EXPR {
         wasm_emit_expr(cast_expr_expr(expr), out);
@@ -1349,6 +1403,9 @@ func wasm_mark_expr(expr *u8) void {
         wasm_mark_expr(unary_expr_expr(expr));
     } else if kind == NODE_GROUP_EXPR {
         wasm_mark_expr(group_expr_expr(expr));
+    } else if kind == NODE_INT_COMPARE || kind == NODE_INT_CONVERT {
+        wasm_mark_expr(integer_expr_left(expr));
+        wasm_mark_expr(integer_expr_right(expr));
     } else if kind == NODE_CAST_EXPR {
         wasm_mark_expr(cast_expr_expr(expr));
     } else if kind == NODE_BITCAST_EXPR {

@@ -1,0 +1,6 @@
+(program
+  (func main ((param sample (type_base i64)) (param a (type_base i64)) (param b (type_base i64))) (type_base i64)
+    (block
+      (if (binop == (ident sample) (number 0))
+        (block (return (span 15 31 (int_compare lt (type_base u64) (ident a) (ident b))))))
+      (return (span 32 48 (int_convert extend (type_base i8) (type_base u64) (ident a)))))))
