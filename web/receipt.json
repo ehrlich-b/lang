@@ -1,9 +1,9 @@
 {
   "artifacts": {
     "web/compiler.wasm": {
-      "bytes": 678044,
+      "bytes": 694266,
       "path": "web/compiler.wasm",
-      "sha256": "f7ba8a38ce8aac2998258b4e8982f902aa481aaa9ad14af56c78be9d056f9532"
+      "sha256": "5c4040da204b3842f93fb70d97be6107c8184a9e37bce3851d5c400ef2abca94"
     },
     "web/examples/fib.lang": {
       "bytes": 339,
@@ -31,14 +31,14 @@
       "sha256": "05c317767b6471ca4747fd8dadd216c6d224b1be3514568541046e208054a776"
     },
     "web/examples/polyglot_wasm.wasm": {
-      "bytes": 841131,
+      "bytes": 845793,
       "path": "web/examples/polyglot_wasm.wasm",
-      "sha256": "bb73a90ba88f1f9a9e3c8a4d30dae6ebf9711528326bb995c65edd8621fc4d6b"
+      "sha256": "181d2027e5f95f7f7af89568ae24abf6de85d8faffc639f9d4b9617a887906f0"
     },
     "web/stdlib.json": {
-      "bytes": 258046,
+      "bytes": 260461,
       "path": "web/stdlib.json",
-      "sha256": "c62f3c586d581e65293e1a4c4ea008ca407bdc7626579e9975ddd1768ffdc1bb"
+      "sha256": "e6066e367eaf112da66b313f6cb6e025451612563ceb24bd1f60fbc94d6a7894"
     }
   },
   "bootstrap": {
@@ -52,16 +52,16 @@
     }
   },
   "builder": {
-    "bytes": 557464,
+    "bytes": 575104,
     "path": "out/lang_next",
-    "sha256": "b9ab9af71c51c9cdc8a87e475dbc69ce2bee851bc8b90fdcc4bb03e2d0c1c4ff",
-    "version": "lang 0.1.0 (ed7d0a1)\nbuilt: llvm, linux-x86_64, libc\nbootstrap: from f532c0d\n"
+    "sha256": "0802b162dd77181cb122b1fd6748da3fc58b5eceb170c8f27bc649c8444e0bc1",
+    "version": "lang 0.1.0 (e09ca8c)\nbuilt: llvm, linux-x86_64, libc\nbootstrap: from f532c0d\n"
   },
   "schema": 1,
   "source": {
     "dirty": false,
     "inputs": {
-      "Makefile": "4f83be2d81963fd7ab04fd208b51f4e620b6a167e97aec96972a793aa092c6d8",
+      "Makefile": "6dc524a993745bf86a85421503dfe39de91faa105063ed2c466d8f90d274d698",
       "example/c/algorithms.lang": "e4e8dbb197803df4768a8124462986bedf98c6c47438c354cc0dc06ed67c0b9f",
       "example/c/c.lang": "4bb8a0d078a227fc2bbb87d16452c48e1469a018cee122037e9a87956f42fa60",
       "example/c/test_c.lang": "15320d5da02bf7d586f196bd66caeca6119407aa081391e44a8642d5d22806fa",
@@ -80,18 +80,18 @@
       "example/minilisp/minilisp.lang": "140053d182379e575326c4506dacd98699dec9424d8d4be722dd192bcfd0f46a",
       "example/minilisp/test_defun.lang": "9746d8ffc0874109713729365410cd752b4d97b6f868383b7f047bc4f16e3055",
       "example/minilisp/test_minilisp.lang": "e6749997fa3bec7d6d65196f2fcf883957dc96426c1ec3a5ed393f86273994d6",
-      "example/minipy/minipy.lang": "8e727421c4909c41bda754ce47e47c93f05a9ccac57620e158e32f2330cd5845",
+      "example/minipy/minipy.lang": "f910a58274de103caa4b063cfa41d3bb8e4d238c439063f637e2c8e0b0632a2c",
       "example/minipy/minipy_runtime.lang": "b5ae025a016258096f14adf90be8f127c297bcab6b51567ba0dee96839066fb1",
       "example/minipy/test_minipy.lang": "bae0af04ba20b95f8555d67a61e2f04699e93aa32e020f0515a9288ef50eecc7",
       "example/polyglot.lang": "12a68e5e2e7d55e0545d07b231b1e4ef1c04bed2b7a92bccde11b525896bd95f",
       "example/polyglot_wasm.lang": "05c317767b6471ca4747fd8dadd216c6d224b1be3514568541046e208054a776",
       "example/tiny/answer.tiny": "a8b8a763dc39012cfa39f84f0ea7c518df6633ecf81d06a57dea0c5499a46df4",
       "example/tiny/test_tiny.lang": "39994b24c1af05dd15db722b17956cb8b7f8934bba401ddd35fb732676e9cdd7",
-      "example/tiny/tiny.lang": "ba5739302f850440b554e96883adb66b6c58dfcc8b0d02deeb0b5833e1ac8d99",
-      "example/tree/tree.lang": "5328cfe4a7845c4c8f5c6192e687c2f7d294b3b7122e2b9c78d81d8c159e5fd4",
+      "example/tiny/tiny.lang": "5b8ac161d3fc1661f8fc1b1aae721600985cc99584feb5cbfe560c401d2972cc",
+      "example/tree/tree.lang": "5f7bf3bc0190029a4032bb0b32b14b88b941205c58043e8c4b3398526579fc67",
       "scripts/build_receipt.py": "443a1988ad25df60ecc100464f9d96bd707e81572ccf5e7b831986720741b627",
       "src/ast_emit.lang": "e4c60acae309d652e20c0326612da26229cce7021e70d46d1c6c4be889242eee",
-      "src/codegen.lang": "a6c8654fe70c5037102136ce820d2d48f77cfcb1dae97f46c9fa04b35e107f32",
+      "src/codegen.lang": "97c42859b3174473d1182d773f53c153e5dfaca4d67b95a54113ea27a689004a",
       "src/codegen_llvm.lang": "a25c4322ac3eac1c2846ce3ae68990b932ab3ed40d99133a1a7c6b59a95a8682",
       "src/codegen_wasm.lang": "e425e20b0309f31a5858e15c91a6440f4847261e6138ab016aa7c238bae9733b",
       "src/compiler.lang": "e8e72f49a1e7f2385560d909590b5b3906c0f3f894eb3b013c79093e78728101",
@@ -101,7 +101,7 @@
       "src/lang_reader.lang": "ac0988a21119dbc015e9287aaa0ed51c0834b436bbeec5f5ce434e5bddce1923",
       "src/lexer.lang": "caac7bc57ede07113173e5304a3290ff1b0f1a566574a5db3da72d8ace3dbac0",
       "src/limits.lang": "dc2612a4624c9ea1b2eef0669a774fd35a1f3350d2c5bcce6dc6f4ecebb56d34",
-      "src/main.lang": "1ff20c85576c270d2b6b43ff8763f9cc0aef1fca7b77dadf2899dde74b600d47",
+      "src/main.lang": "348464d6ec15d2e9c57bb55a60971f12a5ab587a7f56b53f1c77933729d47735",
       "src/parser.lang": "9a257325aae8e9405c4cfdad5fb6231c93a88c733f3a0f900bd71be2df6f94bf",
       "src/phase_host.lang": "5019a394da24b043a33bc32996aae6d31503b321cf459f20d2bd6d571c865fd8",
       "src/reader_main.lang": "80d934f196c3f5522c001cd87a63aca57740d19f62a5726d3354c513e3d07d49",
@@ -109,11 +109,14 @@
       "src/stage_buffer.lang": "0f38ee7456a2663a8fd76c823feb4f50c888956cd6a9ffdc20de3fcd638d8226",
       "src/stage_dependencies.lang": "11dce31fdbb78b72ec4761463038d3e32eed735ba7e6f3d612dc2f4eefb4f363",
       "src/stage_digest.lang": "73e305c6672ef81dad4b0ae0f64f05576049904963da860f3abd5ed751b4739f",
-      "src/stage_legacy.lang": "ce47e88e95e45ffa438f1fd702c9c283ac1361b226649307acd0ba253ac6a18c",
+      "src/stage_host.py": "89141fb6ed9b135bed0b92adfcb5aa0409238b597794b3e3fd894c880c929694",
+      "src/stage_isolated.lang": "990260dbd7bc55f6784deb961d121d51fa3ad423055d620e57b5cbb7a9f72cf6",
+      "src/stage_legacy.lang": "bdc8b5255ec476ce21880d2ab209559770e662e904a657cc61c9e8037fb31c09",
       "src/stage_node_origin.lang": "b55c54bebb2bbaa15786f8be2b8d00a9468ebaf040a9e1ff3dcae63c41bacb52",
       "src/stage_origin.lang": "e5dec5fc84f65c55f7ee36a74357c266fa5f17a1ed650c66644e1b748d425da9",
+      "src/stage_protocol.py": "1c80ccb5a6b3a4cfeb4062e005343f99e933b9f9a19b59ba9168a4e74919e799",
       "src/stage_wire.lang": "63810a201e7d6113431fbdfb541832297d3720e9c986bc7bf7d9edb7999db868",
-      "src/stage_worker.lang": "dd9fd743a81d960fa6907e5ef4ee65420bc443cad9121d084a2013b404c585a5",
+      "src/stage_worker.lang": "b9614e2e55427c768c9de5d6623c685dc2b857632020a1cff658d0f967533cc7",
       "src/standalone.lang": "06841787e462a16f1f2844d0c4dc0bfd8b279c84874685dc9ef53b12a6ed4c4d",
       "std/ast.lang": "2a1fc510fcc05bd83f2202fb1beffedcb779f045761bdd04097fd72df12726fd",
       "std/buffer.lang": "70d8ada660d8835f5e7e9b0782123b551c32a5e1bbd4f38c9cd64d2c52f1cd36",
@@ -130,7 +133,8 @@
       "std/prec.lang": "1eb2bdad0b9cfceec508ee6e8006675359f267eae5e21b0b6dafbdc32b3a5346",
       "std/rdgen.lang": "de4c857bc343454385139ad5e4af79e90ab5b9be0789c3603227a5461d3045ff",
       "std/sexpr_reader.lang": "1bfe2f94894bf7fcc446b6ce962fe01737bd466c1fe332a02138b1b321ab4ef7",
-      "std/tok.lang": "835b8915636c4eeb53194d06bc81c5c70834bcc3a1087d26c989e6bf29a25971",
+      "std/stage.lang": "db5394ab68389e5fd73b836f7a6c2cdc1ec3725437eb609d0d136edb07c43e4f",
+      "std/tok.lang": "65a3464974723396af018aba4e2217f79be6a8b8d16d4a62ae9e01c7b857d809",
       "std/tools.lang": "e7d0fe0090cde21cb36e5f0af697db1d39a38bea8d8a0f1301bfd9399de3f8d0",
       "test/reader_locations/c.c": "a1cfd7cbf62f87a0bbd600651b5c6c3997aefcb224738d0da6c1f3b57e9ef18a",
       "test/reader_locations/cases.json": "e0c3537a3b7f7d3b20ec5bf2a2f09daa94c88c9dddf8cf8b46b0de2b1f48638c",
@@ -142,7 +146,7 @@
       "web/build_compiler.sh": "c30571967236c1bf065d82350d0aec5d602a2e16a384f9dec324040d63a597e9",
       "web/build_stdlib.js": "ccac680d87f0df0a57c8282679109a986f5a06e6f9439292617756bc4e5e6336"
     },
-    "revision": "ed7d0a1a4c623970ee8c03bd5428c5e6dc95aafe"
+    "revision": "e09ca8c7c6413e7ff12d60449042a6bbd9488cde"
   },
-  "version": "var LANG_VERSION *u8 = \"0.1.0\";\nvar LANG_COMMIT *u8 = \"ed7d0a1\";\nvar LANG_BUILD_BACKEND *u8 = \"llvm\";\nvar LANG_BUILD_OS *u8 = \"wasm\";\nvar LANG_BUILD_ARCH *u8 = \"wasm32\";\nvar LANG_BUILD_LIBC *u8 = \"system\";\nvar LANG_BOOTSTRAP_FROM *u8 = \"f532c0d\";\n"
+  "version": "var LANG_VERSION *u8 = \"0.1.0\";\nvar LANG_COMMIT *u8 = \"e09ca8c\";\nvar LANG_BUILD_BACKEND *u8 = \"llvm\";\nvar LANG_BUILD_OS *u8 = \"wasm\";\nvar LANG_BUILD_ARCH *u8 = \"wasm32\";\nvar LANG_BUILD_LIBC *u8 = \"system\";\nvar LANG_BOOTSTRAP_FROM *u8 = \"f532c0d\";\n"
 }
