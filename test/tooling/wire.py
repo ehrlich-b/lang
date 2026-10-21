@@ -24,6 +24,11 @@ def envelope(source, syntax, marker, body):
         scope = [4, 5, 5, 4][i]
         binding = [4, 5, 5, 4][i]
         sites.append([1, start + hit.start(), start + hit.end(), scope, binding, 2, 1 if i < 2 else 2])
+    # A reader may retain the guest slice as well as absolute enclosing sites.
+    # Both projections use the same binding IDs; H origin 3 links slice to invocation.
+    for i, hit in enumerate(hits):
+        scope = [4, 5, 5, 4][i]
+        sites.append([2, hit.start(), hit.end(), scope, scope, 3, 1 if i < 2 else 2])
     return dict(version=1, mapped=1, origin=1, syntax=syntax, start=start, end=end,
                 sources=[[1, hashlib.sha256(source).hexdigest()], [2, hashlib.sha256(body).hexdigest()]],
                 scopes=scopes, bindings=bindings, sites=sites)

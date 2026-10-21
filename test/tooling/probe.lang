@@ -37,10 +37,14 @@ func main(argc i64, argv **u8) i64 {
     if streq(mode, "Q2") { tooling_require(envelope, 2); return 9; }
     if streq(mode, "Q3") { tooling_require(envelope, 3); return 9; }
     if streq(mode, "Q4") { tooling_require(envelope, 4); return 9; }
+    if streq(mode, "after-decode") {
+        var site *ToolSite = vec_get(envelope.sites, 0); site.binding = 99999;
+        tooling_program(envelope); return 9;
+    }
     if streq(mode, "program") {
+        if tooling_program(envelope) == nil { return 8; }
         // This marker must never be reached by malformed metadata.
-        println("validated-before-analysis");
-        if tooling_program(envelope) == nil { return 8; } return 0;
+        println("validated-before-analysis"); return 0;
     }
     var encoded *PhaseBuffer = tooling_wire_encode(envelope);
     file_write(1, encoded.data, encoded.len); return 0;

@@ -121,6 +121,7 @@ try:
             changed[offsets['sources.0.digest']] ^= 1
             invoke('wrong-digest', bytes(changed), error='tooling-stale-source')
             invoke('stale-snapshot', mode='stale', error='tooling-stale-source')
+            invoke('handoff-revalidates', mode='after-decode', error='tooling-binding')
             invoke('truncated', frame[:-1], error='tooling-wire-length')
             invoke('trailing', frame + b'x', error='tooling-wire-length')
             changed = bytearray(frame)

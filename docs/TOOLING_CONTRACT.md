@@ -49,7 +49,8 @@ digests and oversized counts fail closed. Host byte, work and memory budgets
 apply. Syntax and names use NUL-free strings; no native pointers enter the wire.
 Nested reader sites stay in the enclosing source's absolute byte coordinates;
 a separately registered slice can have its own source and expansion-parent
-origin without changing those coordinates.
+origin without changing those coordinates. The fixtures also pin slice-relative
+site projections to the same binding IDs through that expansion origin.
 
 ## Capabilities and clients
 
