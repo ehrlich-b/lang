@@ -86,6 +86,11 @@ start/end/name, no editable range, and an origin leading to their invocation.
 All sites map to one or more core IDs. Many surface sites may map to one core
 node; one surface name may lower to many nodes. Core paths must resolve against
 the AST whose digest is bound by the envelope; no synthetic guessed paths.
+The Lang fixture retains the emitted `(modules ...)` header at program child 1:
+the ordinary function is child 2 and `(reader identity text ...)` is child 3.
+Phase-1 name paths refer to that reader form, never a phase-0 function surrogate.
+Only trailing file whitespace is normalized to one newline in this fixture;
+its digest binds those normalized bytes, with no AST nodes removed or rewritten.
 
 A slice is itself a registered immutable H source with its own digest/ID.
 Its bytes must equal `parent[start:end]`. Nested translation composes offsets:
@@ -99,6 +104,11 @@ into H origin handles; an envelope never authorizes its own parent graph.
 A binding's declaration and every reference must agree on binding ID, namespace,
 phase and spelling. Shadowing is distinct IDs, even for equal names. A scope's
 parent is a containment edge, not a frontend-independent lookup algorithm.
+Each site's binding scope must be the site's scope or an ancestor; readers
+represent imported bindings in a local interface scope. The site's origin must
+use the same source and contain its exact name span. Missing/extra record fields
+or wrong JSON container/scalar types fail `invalid-envelope` before indexing;
+typed span, phase and mapping errors retain their more specific codes.
 Explicit imported interfaces carry their phase and identity; moving between
 phases requires a reader-provided import mapping, never name matching. Core
 captures reference the original binding; closure storage/argument temporaries
@@ -164,6 +174,10 @@ Do not expose runtime helpers or an address-based temporary as rename targets.
 Unicode trivia in the fixture tests byte coordinates without claiming a new
 identifier grammar. The nested fixture preserves two slice offsets before the
 minilisp input; a local offset alone must not reach the host file.
+The separate `minilisp-lisp2` fixture declares `value` as both a function and a
+parameter: `(value value)` maps its head and argument to distinct namespaces.
+The nested golden also maps every emitted `lisp_*` helper as a generated,
+noneditable function binding, separately from editable surface names.
 
 Goldens in `test/lsp` specify desired metadata, **not output already emitted by
 these adapters**. The Q0 fixtures use stable representative temporary spellings;
@@ -200,6 +214,16 @@ explicitly limited results with a reason, or a structured error. The client
 converts negotiated LSP UTF-16/UTF-8 positions using the exact H snapshot's
 line index. Never reuse legacy byte-column diagnostics as UTF-16 columns.
 
+A newer document revision supersedes in-flight requests for older snapshots;
+explicit cancellation does the same without creating a revision. Propagate the
+request's cancellation token through reader work and admission. Recheck that
+token and the current revision atomically at response/cache publication and
+before applying edits. Cancelled or superseded work fails with a structured
+`cancelled` error before publication, even if analysis has already completed;
+it cannot populate a current-result cache, publish partial results or apply an
+edit. A late worker response cannot revive the request. This follows staging's
+fail-before-publication cancellation rule in [CORE_WIRE](docs/CORE_WIRE.md).
+
 Definition follows a site binding to its declaration; references collect that
 binding's sites, not matching text. Hover text/types are frontend contributions;
 unknown type information stays unknown. A generated core node can navigate its
@@ -233,7 +257,7 @@ The default phase is Q0; extra arguments and unknown phases fail.
 | `test/run_lsp.sh Q1` | production envelope decoder: all invalid mutations fail before an analysis sentinel; wire short/trailing/overflow, exact and oversized byte/node/depth limits, stale revisions and cross-session grants |
 | `test/run_lsp.sh Q2` | real Lang adapter output equals golden, including shadowing, phase-1 reader bodies, UTF-8 byte/LSP conversion and complete core mappings |
 | `test/run_lsp.sh Q3` | real minilisp adapter equals golden, sequential let/Lisp-2 namespaces, two-level nested slices, captures and generated closure names |
-| `test/run_lsp.sh Q4` | actual definition/references/hover/atomic rename; capture/stale/partial rejection; legacy AST compile unchanged and limited capability responses; no reader semantics added to kernel |
+| `test/run_lsp.sh Q4` | actual definition/references/hover/atomic rename; capture/stale/partial rejection; cancellation/supersession before response/cache publication and edit application, including late completed work; legacy AST compile unchanged and limited capability responses; no reader semantics added to kernel |
 
 `test/lsp/phases.json` enumerates fixtures and unmet requirements. Future
 implementers replace an unimplemented dispatch with a real driver; marking a
@@ -241,6 +265,11 @@ manifest status alone cannot turn a phase green. `python3 test/check_lsp_contrac
 checks the design examples and verifies fail-fast dispatch, not those future
 claims. Q1–Q4 failures are expected evidence of the Q0 boundary. They must not
 be reported as completed LSP tests.
+`make test-lsp` runs Q0 and is a prerequisite of `make test-suite`/`test-all`.
+`python3 test/check_lsp_frontend.py --compiler out/lang_next` independently
+checks the core fixtures against actual frontend emission, including the Lang
+header and reader form and minilisp lowering. It checks today's AST bytes/tree,
+not metadata from the proposed adapters, so it does not complete Q2 or Q3.
 
 Regression requirements remain independent: bootstrap fixed points, LLVM suite
 with no new skips, effects O0 correctness and loud optimized rejection, wasm

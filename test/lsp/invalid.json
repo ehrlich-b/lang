@@ -170,5 +170,66 @@
     "golden": "minilisp",
     "path": "/sites/4/role",
     "value": "declaration"
+  },
+  {
+    "id": "boolean-phase",
+    "code": "invalid-scope",
+    "path": "/sites/9/phase",
+    "value": true
+  },
+  {
+    "id": "float-revision",
+    "code": "invalid-envelope",
+    "path": "/revision",
+    "value": 3.0
+  },
+  {
+    "id": "unknown-site-field",
+    "code": "invalid-envelope",
+    "path": "/sites/0/colour",
+    "value": "red"
+  },
+  {
+    "id": "shadow-outside-scope",
+    "code": "invalid-scope",
+    "path": "/sites/7/scope",
+    "value": "root"
+  },
+  {
+    "id": "non-list-sites",
+    "code": "invalid-envelope",
+    "path": "/sites",
+    "value": "x"
+  },
+  {
+    "id": "boolean-generated",
+    "code": "invalid-envelope",
+    "path": "/bindings/0/generated",
+    "value": 1
+  },
+  {
+    "id": "float-phase",
+    "code": "invalid-scope",
+    "path": "/bindings/0/phase",
+    "value": 0.0
+  },
+  {
+    "id": "non-list-core-path",
+    "code": "invalid-mapping",
+    "path": "/core/0/path",
+    "value": "x"
+  },
+  {
+    "id": "missing-site-field",
+    "code": "invalid-envelope",
+    "path": "/sites/0/namespace",
+    "remove": true
+  },
+  {
+    "id": "cross-source-origin",
+    "code": "invalid-origin",
+    "golden": "minilisp",
+    "path": "/sites/0/origin",
+    "value": "origin-host"
   }
 ]

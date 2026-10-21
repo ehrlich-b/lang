@@ -1,4 +1,4 @@
-.PHONY: all init bootstrap bootstrap-local bootstrap-verify verify build release test test-suite test-all test-compiler-wasm test-direct-wasm test-run clean distclean \
+.PHONY: all init bootstrap bootstrap-local bootstrap-verify verify build release test test-lsp test-suite test-all test-compiler-wasm test-direct-wasm test-run clean distclean \
 		build-kernel build-lang-reader emit-kernel-ast emit-lang-reader-ast emit-compiler-ast \
 		seed-bootstrap test-composition test-bootstrap generate-os-layer generate-version-info llvm-verify \
 		compile run stdlib-run dev-run dev-stdlib-run status
@@ -465,7 +465,10 @@ release:
 	@echo "Commit the release state, then run: git tag $(TAG)"
 
 # Run the test suite
-test-suite:
+test-lsp:
+	@./test/run_lsp.sh Q0
+
+test-suite: test-lsp
 	@if [ ! -x $(LANG) ]; then $(MAKE) init; fi
 	@./test/run_llvm_suite.sh
 

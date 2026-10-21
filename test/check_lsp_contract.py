@@ -67,10 +67,59 @@ def index(rows, code):
     return result
 
 
+def record(value, fields):
+    require(type(value) is dict and set(value) == set(fields.split()), 'invalid-envelope')
+
+
+def text(value, nullable=False):
+    require(nullable and value is None or type(value) is str and bool(value), 'invalid-envelope')
+
+
+def shape(document):
+    """Reject missing/extra fields and JSON type confusion before indexing."""
+    record(document, 'schema session request revision phase source core_sha256 sources origins scopes bindings sites core capabilities')
+    for key in ('session', 'request', 'source', 'core_sha256'):
+        text(document[key])
+    require(integer(document['revision']) and integer(document['phase']), 'invalid-envelope')
+    fields = {
+        'sources': 'id path sha256 bytes slice',
+        'origins': 'id source start end include_parent expansion_parent',
+        'scopes': 'id parent phase origin',
+        'bindings': 'id name namespace scope phase declaration generated',
+        'sites': 'id source start end name role binding namespace scope phase origin core',
+        'core': 'id path binding origin generated',
+    }
+    for kind, keys in fields.items():
+        require(type(document[kind]) is list, 'invalid-envelope')
+        for row in document[kind]:
+            record(row, keys)
+            for key in keys.split():
+                if key in ('bytes', 'start', 'end', 'phase', 'generated', 'slice', 'core') or kind == 'core' and key == 'path':
+                    continue
+                text(row[key], nullable=key in ('parent', 'include_parent', 'expansion_parent', 'declaration', 'name'))
+            if 'phase' in row:
+                require(integer(row['phase']), 'invalid-scope')
+            if 'generated' in row:
+                require(type(row['generated']) is bool, 'invalid-envelope')
+            if kind == 'sources' and row['slice'] is not None:
+                record(row['slice'], 'source start end')
+                text(row['slice']['source'])
+            if kind == 'sites':
+                require(type(row['core']) is list, 'invalid-envelope')
+                for cid in row['core']:
+                    text(cid)
+            if kind == 'core':
+                require(type(row['path']) is list, 'invalid-mapping')
+    record(document['capabilities'], 'diagnostics navigation references rename reason')
+    for key in ('diagnostics', 'navigation', 'references', 'rename'):
+        require(type(document['capabilities'][key]) is bool, 'invalid-envelope')
+    text(document['capabilities']['reason'])
+
+
 def ast_tree(data):
-    # Fixtures intentionally contain no quoted atoms. This is a path checker,
-    # not the production sexpr parser or a frontend semantic verifier.
-    tokens = re.findall(r'\(|\)|[^\s()]+', data.decode())
+    # Preserve quoted atoms (including modules paths) as single children.
+    # This is a path checker, not a frontend semantic verifier.
+    tokens = re.findall(r'"(?:\\.|[^"\\])*"|\(|\)|[^\s()]+', data.decode())
     stack = []
     result = None
     for token in tokens:
@@ -98,14 +147,14 @@ def decode(frame, limit=65536):
     require(version == 1, 'wire-version')
     require(size <= limit, 'byte-limit')
     require(size == len(frame) - 8, 'wire-length')
-    return json.loads(frame[8:].decode('utf-8'), object_pairs_hook=unique)
+    try:
+        return json.loads(frame[8:].decode('utf-8'), object_pairs_hook=unique)
+    except (UnicodeError, json.JSONDecodeError):
+        raise Rejected('invalid-envelope') from None
 
 
 def validate(document, granted, ast, max_nodes=10000, max_depth=32):
     """Generic decoded-envelope model with out-of-band immutable host grants."""
-    require(type(document['schema']) is int and document['schema'] == 1, 'wire-version')
-    for key in ('session', 'request', 'revision'):
-        require(document[key] == granted[key], 'stale-source')
     # Iterative budget walk before recursive consumers; values cannot buy fuel.
     todo = [(document, 0)]
     count = 0
@@ -117,6 +166,10 @@ def validate(document, granted, ast, max_nodes=10000, max_depth=32):
             todo.extend((v, depth + 1) for v in value.values())
         elif isinstance(value, list):
             todo.extend((v, depth + 1) for v in value)
+    shape(document)
+    require(type(document['schema']) is int and document['schema'] == 1, 'wire-version')
+    for key in ('session', 'request', 'revision'):
+        require(document[key] == granted[key], 'stale-source')
     sources = index(document['sources'], 'unknown-source')
     require(document['source'] in sources, 'unknown-source')
     source_bytes = {}
@@ -128,7 +181,7 @@ def validate(document, granted, ast, max_nodes=10000, max_depth=32):
         data.decode('utf-8')
         source_bytes[sid] = data
         parent = source['slice']
-        if parent:
+        if parent is not None:
             require(parent['source'] in source_bytes, 'unknown-source')
             original = source_bytes[parent['source']]
             span(original, parent['start'], parent['end'])
@@ -179,7 +232,13 @@ def validate(document, granted, ast, max_nodes=10000, max_depth=32):
         require(site['binding'] in bindings, 'dangling-binding')
         binding = bindings[site['binding']]
         require(site['scope'] in scopes and site['phase'] == scopes[site['scope']]['phase'] == binding['phase'], 'invalid-scope')
+        ancestor = site['scope']
+        while ancestor is not None and ancestor != binding['scope']:
+            ancestor = scopes[ancestor]['parent']
+        require(ancestor == binding['scope'], 'invalid-scope')
         require(site['origin'] in origins, 'invalid-origin')
+        origin = origins[site['origin']]
+        require(origin['source'] == site['source'], 'invalid-origin')
         require(site['namespace'] == binding['namespace'], 'invalid-mapping')
         if site['role'] == 'generated':
             require(binding['generated'] and site['start'] is None and site['end'] is None and site['name'] is None, 'invalid-mapping')
@@ -187,6 +246,7 @@ def validate(document, granted, ast, max_nodes=10000, max_depth=32):
             require(site['role'] in ('declaration', 'reference') and not binding['generated'], 'invalid-mapping')
             data = source_bytes[site['source']]
             span(data, site['start'], site['end'])
+            require(origin['start'] <= site['start'] <= site['end'] <= origin['end'], 'invalid-origin')
             require(site['start'] < site['end'] and data[site['start']:site['end']].decode() == site['name'] == binding['name'], 'invalid-mapping')
             if site['role'] == 'declaration':
                 require(binding['declaration'] == site['id'] and binding['scope'] == site['scope'], 'invalid-mapping')
@@ -206,21 +266,30 @@ def grants(document):
 
 def examples():
     documents = {}
-    for name in ('lang', 'minilisp'):
+    for name in ('lang', 'minilisp', 'minilisp-lisp2'):
         document = load(fixture(name + '.golden.json'))
         ast = fixture(name + '.ast').read_bytes()
         validate(document, grants(document), ast)
         documents[name] = document
+        print('PASS Q0 decoded golden:', name)
         # Check exact surface occurrences and explicit shadowing, independently
         # from the author's ID spelling. Equal names must not merge bindings.
-        visible = [b for b in document['bindings'] if b['name'] == 'value']
+        visible = [b for b in document['bindings'] if b['name'] == 'value' and b['namespace'] == 'value']
+        if name == 'minilisp-lisp2':
+            require({b['namespace'] for b in document['bindings'] if b['name'] == 'value'} == {'function', 'value'}, 'Lisp-2 namespaces lost')
+            continue
         require(len(visible) == 2 and len({b['id'] for b in visible}) == 2, 'shadowing lost')
         for binding in visible:
             require(any(s['binding'] == binding['id'] and s['role'] == 'reference' for s in document['sites']), 'reference lost')
-        print('PASS Q0 decoded golden:', name)
     require({s['phase'] for s in documents['lang']['sites']} == {0, 1}, 'phase lost')
     ml = documents['minilisp']
-    require({b['name'] for b in ml['bindings'] if b['generated']} == {'__args', '__lt_fixture'}, 'closure names lost')
+    generated = {b['name'] for b in ml['bindings'] if b['generated']}
+    require({'__args', '__lt_fixture', 'lisp_int', 'lisp_apply', 'lisp_car', 'lisp_add', 'lisp_closure', 'lisp_cons', 'lisp_nil'} == generated, 'generated lowering lost')
+    lang_tree = ast_tree(fixture('lang.ast').read_bytes())
+    require(lang_tree[1][0] == 'modules' and lang_tree[3][0] == 'reader', 'Lang reader/header lowering lost')
+    phases = {binding['id']: binding['phase'] for binding in documents['lang']['bindings']}
+    require(all(node['path'][0] == (3 if phases[node['binding']] == 1 else 2)
+                for node in documents['lang']['core']), 'phase/core partition lost')
     # Demonstrate two-level local-to-root mapping using the actual source bytes.
     by_id = {s['id']: s for s in ml['sources']}
     for site in ml['sites']:
@@ -252,7 +321,10 @@ def negatives(document):
                 for part in parts[:-1]:
                     target = target[int(part)] if isinstance(target, list) else target[part]
                 key = int(parts[-1]) if isinstance(target, list) else parts[-1]
-                target[key] = case['value']
+                if case.get('remove'):
+                    del target[key]
+                else:
+                    target[key] = case['value']
                 validate(mutated, case_grants, case_ast)
             elif 'frame' in case:
                 frames = dict(short=good[:7], mismatch=struct.pack('<II', 1, len(raw)+1)+raw,

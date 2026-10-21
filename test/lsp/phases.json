@@ -14,7 +14,10 @@
         "minilisp.golden.json",
         "invalid.json",
         "compatibility.json",
-        "legacy.ast"
+        "legacy.ast",
+        "minilisp-lisp2.minilisp",
+        "minilisp-lisp2.ast",
+        "minilisp-lisp2.golden.json"
       ]
     },
     "Q1": {
@@ -41,7 +44,10 @@
         "lang-slice.lang",
         "minilisp.minilisp",
         "minilisp.ast",
-        "minilisp.golden.json"
+        "minilisp.golden.json",
+        "minilisp-lisp2.minilisp",
+        "minilisp-lisp2.ast",
+        "minilisp-lisp2.golden.json"
       ],
       "requires": "Real minilisp adapter, nested readers, Lisp-2, captures and generated identities"
     },
@@ -53,7 +59,7 @@
         "lang.golden.json",
         "minilisp.golden.json"
       ],
-      "requires": "Real tooling requests, atomic rename and legacy compilation"
+      "requires": "Real tooling requests, atomic rename, cancellation/supersession before publication and edits, and legacy compilation"
     }
   }
 }
