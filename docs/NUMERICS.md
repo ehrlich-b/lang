@@ -28,7 +28,8 @@ the explicit operand type selects their low bits and signed interpretation.
 Float inputs must have float representation; integer inputs must have integer
 representation. This is explicit normalization, not a source-language promotion.
 Unknown metadata, operations, operand representations, arity, and declared types
-reject with source provenance. The kernel does not infer C or Zig rules.
+reject with source provenance. A validation walk checks operation metadata and
+declared types even in statements after a return. The kernel does not infer C or Zig rules.
 
 | Operations | Contract |
 | --- | --- |

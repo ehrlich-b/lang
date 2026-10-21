@@ -171,6 +171,10 @@ def validation():
     ]
     for call, message in calls:
         reject(f'func main() i64 {{\n return __core_numeric({call});\n}}', message)
+    for call, message in calls[:6]:
+        if message != 'operand representation':
+            reject(f'func main() i64 {{ return 0; __core_numeric({call}); }}', message)
+    reject('func main() i64 { return 0; var dead i7 = 0; }', 'unsupported declared type')
     for t in ['wat', 'i0', 'i7', 'u3', 'i128', 'u128', 'i256', 'f16']:
         reject(f'func main() i64 {{ var x {t} = 0; return 0; }}', 'unsupported declared type')
         reject(f'func unknown(x {t}) i64 {{ return 0; }}', 'unsupported declared type')

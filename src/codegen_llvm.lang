@@ -6260,6 +6260,7 @@ func llvm_emit_func(func_node *u8) void {
     cg_diagnostic_node = func_node;
     compiler_check_return_type(func_decl_ret_type(func_node));
     numeric_validate_signature(func_node);
+    numeric_validate_tree(func_decl_body(func_node));
     // Register this function for return type lookup
     var name *u8 = func_decl_name(func_node);
     var name_len i64 = func_decl_name_len(func_node);

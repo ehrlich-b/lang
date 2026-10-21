@@ -5249,6 +5249,7 @@ func gen_func(func_node *u8) void {
     cg_diagnostic_node = func_node;
     compiler_check_return_type(func_decl_ret_type(func_node));
     numeric_validate_signature(func_node);
+    numeric_validate_tree(func_decl_body(func_node));
     // Extern functions have no body - skip code generation
     if func_decl_is_extern(func_node) {
         return;

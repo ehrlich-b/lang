@@ -99,3 +99,69 @@ func numeric_validate_signature(decl *u8) void {
         numeric_validate_legacy_type(param_type(params + i * 24), decl); i = i + 1;
     }
 }
+
+// Validate numeric metadata and declared representations independently of CFG
+// emission. In particular, a return must not hide an invalid operation/type.
+// Quoted code and unexpanded reader text are data until expansion.
+func numeric_validate_tree(node *u8) void {
+    if node == nil { return; }
+    var k i64 = node_kind(node);
+    var children *u8 = nil; var count i64 = 0;
+    if k == NODE_BLOCK_STMT { children = block_stmt_stmts(node); count = block_stmt_count(node); }
+    else if k == NODE_BLOCK_EXPR {
+        children = block_expr_stmts(node); count = block_expr_count(node);
+        numeric_validate_tree(block_expr_tail(node));
+    } else if k == NODE_CALL_EXPR {
+        if numeric_is_call(node) { numeric_validate(node); }
+        numeric_validate_tree(call_expr_func(node));
+        children = call_expr_args(node); count = call_expr_arg_count(node);
+    } else if k == NODE_ARRAY_LITERAL { children = array_literal_elems(node); count = array_literal_count(node); }
+    else if k == NODE_PERFORM_EXPR { children = perform_expr_args(node); count = perform_expr_arg_count(node); }
+    else if k == NODE_VAR_DECL {
+        numeric_validate_legacy_type(var_decl_type(node), node); numeric_validate_tree(var_decl_init(node));
+    } else if k == NODE_RETURN_STMT { numeric_validate_tree(return_stmt_value(node)); }
+    else if k == NODE_EXPR_STMT { numeric_validate_tree(expr_stmt_expr(node)); }
+    else if k == NODE_BINARY_EXPR {
+        numeric_validate_tree(binary_expr_left(node)); numeric_validate_tree(binary_expr_right(node));
+    } else if k == NODE_ASSIGN_STMT {
+        numeric_validate_tree(assign_stmt_target(node)); numeric_validate_tree(assign_stmt_value(node));
+    } else if k == NODE_UNARY_EXPR { numeric_validate_tree(unary_expr_expr(node)); }
+    else if k == NODE_GROUP_EXPR { numeric_validate_tree(group_expr_expr(node)); }
+    else if k == NODE_INDEX_EXPR {
+        numeric_validate_tree(index_expr_base(node)); numeric_validate_tree(index_expr_index(node));
+    } else if k == NODE_FIELD_EXPR { numeric_validate_tree(field_expr_expr(node)); }
+    else if k == NODE_CAST_EXPR {
+        numeric_validate_legacy_type(cast_expr_type(node), node); numeric_validate_tree(cast_expr_expr(node));
+    } else if k == NODE_BITCAST_EXPR {
+        numeric_validate_legacy_type(bitcast_expr_type(node), node); numeric_validate_tree(bitcast_expr_expr(node));
+    } else if k == NODE_IF_STMT {
+        numeric_validate_tree(if_stmt_cond(node)); numeric_validate_tree(if_stmt_then(node)); numeric_validate_tree(if_stmt_else(node));
+    } else if k == NODE_WHILE_STMT {
+        numeric_validate_tree(while_stmt_cond(node)); numeric_validate_tree(while_stmt_body(node));
+    } else if k == NODE_LET_EXPR {
+        numeric_validate_legacy_type(let_expr_type(node), node);
+        numeric_validate_tree(let_expr_init(node)); numeric_validate_tree(let_expr_body(node));
+    } else if k == NODE_LAMBDA_EXPR {
+        numeric_validate_legacy_type(lambda_expr_ret_type(node), node);
+        var params *u8 = lambda_expr_params(node); var pi i64 = 0;
+        while pi < lambda_expr_param_count(node) {
+            numeric_validate_legacy_type(param_type(params + pi * 24), node); pi = pi + 1;
+        }
+        numeric_validate_tree(lambda_expr_body(node));
+    } else if k == NODE_MATCH_EXPR {
+        numeric_validate_tree(match_expr_scrutinee(node)); var mi i64 = 0;
+        while mi < match_expr_arm_count(node) {
+            numeric_validate_tree(match_arm_body(get_match_arm(match_expr_arms(node), mi))); mi = mi + 1;
+        }
+    } else if k == NODE_HANDLE_EXPR {
+        numeric_validate_tree(handle_expr_body(node)); numeric_validate_tree(handle_expr_ret_body(node));
+        var hi i64 = 0;
+        while hi < handle_expr_case_count(node) {
+            numeric_validate_tree(effect_case_body(vec_get(handle_expr_cases(node), hi))); hi = hi + 1;
+        }
+    } else if k == NODE_RESUME_EXPR {
+        numeric_validate_tree(resume_expr_k(node)); numeric_validate_tree(resume_expr_value(node));
+    }
+    var i i64 = 0;
+    while i < count { var p **u8 = children + i * 8; numeric_validate_tree(*p); i = i + 1; }
+}
