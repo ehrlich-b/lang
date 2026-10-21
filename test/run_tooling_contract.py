@@ -60,7 +60,8 @@ try:
         run(client + '-read', [compiler, str(fixture), '--emit-expanded-ast', '-o', str(ast)])
         syntax = ast.read_bytes()
         assert b'(lambda ' in syntax and b'(reader_expr ' in syntax, syntax[-2000:]
-        e = importlib.import_module(client + '_client').read(source, syntax)
+        client_read = importlib.import_module(client + '_client').read
+        e = client_read(source, syntax)
         facts = {k: v for k, v in e.items() if k != 'syntax'}
         frozen = json.loads(Path(f'test/tooling/{client}.json').read_text())
         assert facts == frozen, f'{client}: frozen envelope changed'
@@ -78,10 +79,34 @@ try:
             guest_ast = out / (client + '-guest.ast')
             reader = 'test/tooling/lang_reader.lang' if client == 'lang' else 'test/tooling/minilisp_reader.lang'
             run(client + '-reader-client', [compiler, 'read', reader, str(guest), '--compact', '-o', str(guest_ast)])
-            assert b'(let x ' in guest_ast.read_bytes()
+            guest_name = e['bindings'][3][3].encode()
+            assert b'(let ' + guest_name + b' ' in guest_ast.read_bytes()
+            # Both clients discover names and scopes from their own grammar.
+            changed_source = (source[:e['start']] + source[e['start']:e['end']].replace(guest_name, b'renamed')
+                              + source[e['end']:])
+            changed_facts = client_read(changed_source, syntax)
+            assert [b[3] for b in changed_facts['bindings'][3:]] == ['renamed', 'renamed']
+            assert changed_facts['scopes'] == e['scopes']
+            (out / (client + '-renamed-facts.json')).write_text(json.dumps(
+                {k: v for k, v in changed_facts.items() if k != 'syntax'}, indent=2) + '\n')
+            assert len(e['scopes']) == (5 if client == 'lang' else 6)
+            deeper_body = (b' let item = 2 in (let item = 3 in (let item = 4 in item) + item) + item '
+                           if client == 'lang' else
+                           b' (let ((item 2)) (+ (let ((item 3)) (+ (let ((item 4)) item) item)) item)) ')
+            deeper = client_read(source[:e['start']] + deeper_body + source[e['end']:], syntax)
+            assert len(deeper['scopes']) == len(e['scopes']) + 1
+            assert [b[3] for b in deeper['bindings'][3:]] == ['item'] * 3
+            assert [s[4] for s in deeper['sites'] if s[5:] == [2, 2]] == [6, 5, 4]
+            (out / (client + '-deeper-facts.json')).write_text(json.dumps(
+                {k: v for k, v in deeper.items() if k != 'syntax'}, indent=2) + '\n')
             invoke('roundtrip', mode='roundtrip', expected=frame)
             invoke('handoff')
+            invoke('expression-reader-slice', mode='expression-slice')
+            invoke('same-name-slices', mode='two-slices')
+            invoke('uncaptured-slices', mode='uncaptured-slices')
+            invoke('immutable-file-id', mode='recaptured-file')
             invoke('capabilities', mode='capabilities', expected=b'compile,Q0\n')
+            invoke('require-Q0', mode='Q0', expected=b'Q0\n')
             # The actual compiler runs the same fixture with the reader and closure.
             program_ir = out / (client + '.ll')
             program = out / (client + '-program')
@@ -99,7 +124,7 @@ try:
                 ('out-of-range', 'sites.0.end', len(source) + 1, 'tooling-span'),
                 ('reversed-span', 'sites.0.start', len(source), 'tooling-span'),
                 ('dangling-binding', 'sites.0.binding', 9999, 'tooling-binding'),
-                ('conflicting-scopes', 'bindings.4.scope', 4, 'tooling-conflicting-scope'),
+                ('conflicting-scopes', 'bindings.4.scope', e['bindings'][3][1], 'tooling-conflicting-scope'),
                 ('cycle', 'scopes.2.parent', 3, 'tooling-scope'),
                 ('unknown-scope', 'sites.0.scope', 99, 'tooling-scope'),
                 ('duplicate-scope-id', 'scopes.1.id', 1, 'tooling-scope'),
@@ -132,7 +157,7 @@ try:
             changed = bytearray(frame)
             changed[offsets['sources.0.digest']] ^= 1
             invoke('wrong-digest', bytes(changed), error='tooling-stale-source')
-            invoke('stale-snapshot', mode='stale', error='tooling-stale-source')
+            invoke('stale-after-decode', mode='stale-after-decode', error='tooling-stale-source')
             invoke('handoff-revalidates', mode='after-decode', error='tooling-binding')
             invoke('truncated', frame[:-1], error='tooling-wire-length')
             invoke('trailing', frame + b'x', error='tooling-wire-length')
@@ -163,6 +188,7 @@ try:
             legacy.update(mapped=0, scopes=[], bindings=[], sites=[])
             legacy_frame, _ = encode(legacy)
             invoke('legacy-capabilities', legacy_frame, mode='capabilities', expected=b'compile,limited-tooling\n')
+            invoke('legacy-cannot-Q0', legacy_frame, mode='Q0', error='tooling-unmapped')
             invoke('legacy-handoff', legacy_frame)
             invoke('legacy-cannot-rename', legacy_frame, mode='Q4', error='tooling-unmapped-rename')
             legacy_ir = out / (client + '-legacy.ll')

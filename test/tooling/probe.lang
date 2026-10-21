@@ -18,13 +18,26 @@ func main(argc i64, argv **u8) i64 {
     var mode *u8 = arg(argv, 1);
     var name *u8 = arg(argv, 2);
     var text *u8 = phase_read_file(name);
-    var source i64 = phase_source_capture(name, text);
+    var source i64 = 0;
+    if streq(mode, "uncaptured-slices") { source = phase_source_register(name, text); }
+    else { source = phase_source_capture(name, text); }
     var root i64 = phase_origin_new(source, 0, strlen(text), 0, 0);
     var start i64 = number(arg(argv, 3)); var end i64 = number(arg(argv, 4));
     var invocation i64 = phase_origin_new(source, start, end, root, root);
-    var slice i64 = phase_source_new("guest-slice", str_dup_n(text + start, end - start));
-    phase_origin_new(slice, 0, end - start, 0, invocation);
-    if streq(mode, "stale") { phase_source_capture(name, "changed snapshot"); }
+    var reader_text *u8 = str_dup_n(text + start, end - start);
+    // Mint the slice through the compiler entry points, under the enclosing
+    // filename and invocation origin, rather than a test-only source name.
+    phase_expansion_origin = invocation;
+    if streq(mode, "expression-slice") {
+        if parse_ast_expression_from_reader_string("(number 0)", name, reader_text) == nil { return 8; }
+    } else {
+        if parse_ast_from_reader_string("(program)", name, reader_text) == nil { return 8; }
+    }
+    phase_expansion_origin = 0;
+    if streq(mode, "two-slices") || streq(mode, "uncaptured-slices") {
+        parse_ast_expression_from_reader_string("(number 1)", name, "another immutable slice");
+    }
+    if streq(mode, "recaptured-file") { phase_source_capture(name, "changed snapshot"); }
     var input *PhaseBuffer = phase_read_fd(0, phase_limit(), "hex-frame");
     var frame *u8 = alloc(input.len / 2 + 1); var i i64 = 0;
     while i < input.len / 2 {
@@ -32,6 +45,7 @@ func main(argc i64, argv **u8) i64 {
     }
     if streq(mode, "old-W") { phase_wire_decode(frame, i, root); return 9; }
     var envelope *ToolEnvelope = tooling_wire_decode(frame, i, root);
+    if streq(mode, "Q0") { tooling_require(envelope, 0); println("Q0"); return 0; }
     if streq(mode, "capabilities") { println(tooling_capabilities(envelope)); return 0; }
     if streq(mode, "Q1") { tooling_require(envelope, 1); return 9; }
     if streq(mode, "Q2") { tooling_require(envelope, 2); return 9; }
@@ -41,7 +55,14 @@ func main(argc i64, argv **u8) i64 {
         var site *ToolSite = vec_get(envelope.sites, 0); site.binding = 99999;
         tooling_program(envelope); return 9;
     }
-    if streq(mode, "program") {
+    if streq(mode, "stale-after-decode") {
+        // Replace only the envelope record: the H registry remains immutable.
+        var original *PhaseSource = vec_get(envelope.sources, 0);
+        var forged *PhaseSource = alloc(56); forged.id = original.id; forged.digest = "stale";
+        vec_set(envelope.sources, 0, forged);
+        tooling_program(envelope); return 9;
+    }
+    if streq(mode, "program") || streq(mode, "expression-slice") || streq(mode, "two-slices") || streq(mode, "uncaptured-slices") || streq(mode, "recaptured-file") {
         if tooling_program(envelope) == nil { return 8; }
         // This marker must never be reached by malformed metadata.
         println("validated-before-analysis"); return 0;

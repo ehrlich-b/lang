@@ -79,10 +79,9 @@ pub func tooling_validate(e *ToolEnvelope) void {
         var s *PhaseSource = vec_get(e.sources, i);
         var known *PhaseSource = phase_source_get(s.id);
         if known == nil { phase_error("tooling-source", phase_diagnostic_source); }
-        var current *PhaseSource = phase_source_snapshot(known.name);
-        var latest i64 = phase_source_latest(known.name);
-        if current != nil { latest = current.id; }
-        if latest != s.id || streq(s.digest, known.digest) == 0 { phase_error("tooling-stale-source", known.name); }
+        // H records are immutable; a display name can identify a file and many
+        // reader slices. Freshness belongs to the granted ID and exact digest.
+        if streq(s.digest, known.digest) == 0 { phase_error("tooling-stale-source", known.name); }
         j = 0;
         while j < i {
             phase_work(1);
@@ -155,6 +154,7 @@ pub func tooling_require(e *ToolEnvelope, query i64) void {
     tooling_validate(e);
     if query == 4 && e.mapped == 0 { phase_error("tooling-unmapped-rename", phase_diagnostic_source); }
     if query < 0 || query > 4 { phase_error("tooling-query", phase_diagnostic_source); }
+    if query == 0 && e.mapped == 0 { phase_error("tooling-unmapped", phase_diagnostic_source); }
     if query != 0 { phase_error("tooling-unimplemented", phase_diagnostic_source); }
 }
 // W framing is unchanged. Reserved discriminator 1 selects a Q0 payload instead

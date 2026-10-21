@@ -6,7 +6,7 @@ reader phase_value(text *u8) *u8 { return lang(text); }
 func main() i64 {
     var seed i64 = 0;
     var f closure() i64 = fn() i64 {
-        return #lang{ lisp_to_int(#minilisp{ (let ((x 10)) (+ (let ((x 32)) x) x)) }) } + seed;
+        return #lang{ lisp_to_int(#minilisp{ (let ((value 10)) (+ (let ((value 32)) value) value)) }) } + seed;
     };
     return f() + #phase_value{ 1 } - 1;
 }

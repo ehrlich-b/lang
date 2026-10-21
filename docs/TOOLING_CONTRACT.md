@@ -10,10 +10,12 @@ H (`phase_host`) owns immutable source snapshots and origin IDs. Sources carry
 SHA-256 of exact UTF-8 bytes. Sites use half-open **byte** offsets, never codepoint
 indices, pointers, or line/column guesses. An envelope grants an explicit set of
 source IDs and digests, plus a root origin. All origin ancestors must refer to
-those sources. Source IDs must match the current captured file snapshot; a
-reader slice with the same display name does not supersede a captured file.
-Without a file snapshot, the latest registered source is current. IDs are local
-to a host session: a persisted worker frame cannot grant itself source authority.
+those sources. Freshness is checked per granted source ID and digest, never by
+display name or registration order. File snapshots and distinct reader slices
+can share a name and remain valid simultaneously, including after another file
+capture. A digest from another revision paired with an old ID is stale. Selecting
+the file revision for an invocation belongs to its host caller. IDs are local to
+a host session: a persisted worker frame cannot grant itself source authority.
 
 Scopes and bindings use dense IDs starting at 1 within the envelope. Scope 0 is
 no parent. Parents must precede children, ruling out cycles. Each scope has a
@@ -23,6 +25,10 @@ conflicting facts. A site names its source, span, scope, binding, H origin and r
 (1 declaration, 2 reference). Its origin must contain its span in that same source.
 Bindings must be visible through the supplied scope ancestry and in the same
 phase. These are consistency checks on supplied facts, not a name resolver.
+Q0 checks span boundaries and provenance, not whether source spelling equals a
+binding name: readers can lower or generate names. Consumers must not treat
+validated Q0 facts as proof of resolution or rename safety; those queries remain
+unimplemented.
 Closure names use ordinary binding records; capture uses reference sites to an
 ancestor binding. Generated bindings may have no editable declaration site.
 
@@ -57,7 +63,8 @@ site projections to the same binding IDs through that expansion origin.
 `tooling_capabilities` reports `compile,Q0` only for a validated mapped envelope.
 A legacy adapter uses `tooling_new(text, origin, 0)` and grants its H sources;
 it supplies no scope, binding or site records and advertises
-`compile,limited-tooling`. `tooling_require(legacy, 4)` rejects unmapped rename.
+`compile,limited-tooling`. `tooling_require(legacy, 0)` rejects unmapped Q0 facts
+as `tooling-unmapped`; `tooling_require(legacy, 4)` rejects unmapped rename.
 Existing source readers continue compiling through their unchanged string ABI.
 The CLI `lang tooling capabilities` describes that legacy path. `lang tooling
 Q1` through `Q4` fail explicitly as unimplemented, and `lang tooling rename`
@@ -65,7 +72,10 @@ fails because that path has no binding map. CLI Q0 requests require an envelope;
 the host API is the Q0 entry point. No general reader gains mapping automatically.
 
 `test/tooling/lang_client.py` and `minilisp_client.py` are two independent fixture
-clients sharing only the W encoder and fact construction helpers. Their frozen
+clients parsing Lang let/in expressions and Lisp let forms separately. They
+share the W encoder, record helpers and facts for their common Lang wrapper.
+Minilisp includes an extra enclosing Lang invocation scope and distinct guest
+names; neither guest graph is hard-coded in the W encoder. Their frozen
 JSON fixtures pin identities, scope/phase structure, closure names, captures,
 shadowing sites and UTF-8 byte offsets. Both drive the real reader to produce
 core AST, compile and execute their enclosing source, and exchange frames with
@@ -74,7 +84,11 @@ they are not general-purpose tooling implementations. The minilisp invocation
 is nested inside Lang, with separate host and guest source identities and an
 include/expansion origin chain. Mutation controls pass corrupted frames to the
 pre-analysis boundary and require nonzero status, a specific diagnostic and no
-handoff marker. A valid neighboring control must still pass.
+handoff marker. A valid neighboring control must still pass. The probe mints its
+slice through `parse_ast_from_reader_string` under the enclosing filename, and
+also tests the expression entry point, multiple same-name slices with and without
+a captured file, and retained immutable IDs after recapture. Stale digest controls
+exercise both wire decoding and revalidation at the AST handoff.
 
 Run `python3 test/run_tooling_contract.py` with a compiler built from these sources
 (`COMPILER=out/lang_next` after `make build`). `--acceptance A1`, `A2`, or `A3`
