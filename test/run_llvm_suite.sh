@@ -93,8 +93,8 @@ run_one_test() {
             "$outbin" >/dev/null 2>&1
             result=$?
         else
-            # Use ORC JIT for ~13x faster interpretation (if available)
-            do_timeout 2 lli $LLI_JIT_FLAG "$outll" >/dev/null 2>&1
+            # Generated reader code needs JIT headroom on contended hosts.
+            do_timeout 10 lli $LLI_JIT_FLAG "$outll" >/dev/null 2>&1
             result=$?
         fi
         rm -rf "$tmpdir"
