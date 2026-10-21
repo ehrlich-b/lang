@@ -7,6 +7,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import locations from './reader_locations.js';
+import diagnosticBytes from './reader_diagnostic_bytes.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 process.chdir(root);
@@ -99,6 +100,49 @@ try {
     }
     assert.equal(await page.locator('#jump-error').isVisible(), false);
   }
+  // The same raw-byte inputs must survive a real Wasm reader and select its
+  // exact token, even when UTF-8 bytes and textarea offsets differ.
+  const byteNative = diagnosticBytes.nativeDiagnostics();
+  const byteReceipts = [];
+  await page.fill('#reader', fs.readFileSync(diagnosticBytes.reader, 'utf8'));
+  await page.click('#runtime-label');
+  await page.fill('#runtime', '');
+  for (const [index, c] of diagnosticBytes.cases.entries()) {
+    // Populate both result downloads before failure to exercise stale cleanup.
+    await page.fill('#custom-source', 'answer 42');
+    await run();
+    assert.match(await page.locator('#output').innerText(), /main\(\) → 42/);
+    for (const id of ['download-ast', 'download-program']) {
+      assert.equal(await page.locator(`#${id}`).isVisible(), true);
+    }
+    await page.fill('#custom-source', c.source);
+    await run();
+    assert.equal(await page.locator('#status').innerText(), 'reader run failed');
+    const diagnostic = await page.locator('#output').innerText();
+    assert(diagnostic.split('\n').includes(byteNative[index].diagnostic), diagnostic);
+    const selected = await selection();
+    assert.equal(selected.focused, true);
+    assert.equal(selected.text, c.token, `${c.name}: full token`);
+    assert.equal(Buffer.byteLength(c.source.slice(0, selected.start)), c.start);
+    assert.equal(Buffer.byteLength(c.source.slice(0, selected.end)), c.end);
+    for (const id of ['download-ast', 'download-program']) {
+      assert.equal(await page.locator(`#${id}`).isVisible(), false);
+      assert.equal(await page.locator(`#${id}`).getAttribute('href'), null);
+    }
+    await page.locator('#reader').focus();
+    await page.locator('#custom-source').evaluate(el => el.setSelectionRange(0, 0));
+    await page.click('#jump-error');
+    assert.deepEqual(await selection(), selected);
+    byteReceipts.push({ ...byteNative[index], wasmDiagnostic: diagnostic, selection: selected, staleDownloadsCleared: true });
+    console.log(`PASS ${c.name}: native = Wasm, exact byte span and full token, stale downloads cleared`);
+    if (['emoji', 'trailing'].includes(c.name)) {
+      for (const width of [390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.screenshot({ path: path.join(evidence, `${c.name}-${width}.png`), fullPage: true });
+      }
+    }
+  }
+  fs.writeFileSync(path.join(evidence, 'diagnostic-bytes.json'), JSON.stringify(byteReceipts, null, 2) + '\n');
   // Compiler diagnostics still target the correct pane, including a byte
   // column after an emoji, and opening a folded runtime pane.
   for (const [label, id] of [['reader.lang', 'reader'], ['source.read', 'custom-source'], ['runtime.lang', 'runtime']]) {

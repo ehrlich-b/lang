@@ -244,6 +244,17 @@ reader_unicode_locations_e2e() {
 }
 reader_unicode_locations_e2e
 
+reader_diagnostic_bytes_e2e() {
+    local log=$(mktemp "${TMPDIR:-/tmp}/lang-results.XXXXXX")
+    if node test/reader_diagnostic_bytes.js >"$log" 2>&1; then
+        echo "PASS reader_diagnostic_bytes_e2e" >> "$results_file"
+    else
+        echo "FAIL reader_diagnostic_bytes_e2e" >> "$results_file"
+        cat "$log" >> "$results_file"
+    fi
+}
+reader_diagnostic_bytes_e2e
+
 # Reader authoring errors must be ordinary compiler failures: one diagnostic,
 # a nonzero status, and no stale or partial output that looks usable.
 reader_authoring_failures_e2e() {

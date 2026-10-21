@@ -68,6 +68,7 @@ struct Tokenizer {
     error_expected *u8;  // "number or '('", capped at 511 bytes
     error_expected_len i64;
     error_found *u8;     // token text captured at error_pos
+    error_end i64;      // end-exclusive byte offset captured with error_pos
     stream *u8;          // reader-supplied token stream, or nil to scan input
     stream_index i64;    // index of the current token within that stream
     stream_count i64;    // number of tokens in it
@@ -78,7 +79,7 @@ struct Tokenizer {
 }
 
 func tok_new_state(input *u8) *Tokenizer {
-    var t *Tokenizer = alloc(136);  // 17 fields * 8 bytes
+    var t *Tokenizer = alloc(144);  // 18 fields * 8 bytes
     t.input = input;
     t.pos = 0;
     t.len = strlen(input);
@@ -89,6 +90,7 @@ func tok_new_state(input *u8) *Tokenizer {
     t.error_expected = alloc(512);
     t.error_expected_len = 0;
     t.error_found = nil;
+    t.error_end = -1;
     t.stream = nil;
     t.stream_index = 0;
     t.stream_count = 0;
@@ -283,6 +285,28 @@ pub func tok_skip_whitespace(t *Tokenizer) void {
             }
         }
     }
+}
+
+// A valid scalar's width; malformed bytes remain individual unknown tokens.
+func tok_utf8_width(t *Tokenizer) i64 {
+    var first i64 = tok_peek_char(t);
+    var width i64 = 1;
+    if first >= 194 && first <= 223 { width = 2; }
+    else if first >= 224 && first <= 239 { width = 3; }
+    else if first >= 240 && first <= 244 { width = 4; }
+    if t.pos + width > t.len { return 1; }
+    var i i64 = 1;
+    while i < width {
+        var next i64 = tok_peek_char_at(t, i);
+        if next < 128 || next > 191 { return 1; }
+        i = i + 1;
+    }
+    var second i64 = tok_peek_char_at(t, 1);
+    if first == 224 && second < 160 { return 1; }
+    if first == 237 && second > 159 { return 1; }
+    if first == 240 && second < 144 { return 1; }
+    if first == 244 && second > 143 { return 1; }
+    return width;
 }
 
 pub func tok_next(t *Tokenizer) void {
@@ -482,10 +506,11 @@ pub func tok_next(t *Tokenizer) void {
         return;
     }
 
-    // Unknown
+    // Unknown Unicode scalars remain one token, with their original byte span.
+    // They are not identifiers or whitespace unless a reader declares them so.
     t.tok_kind = TOK_UNKNOWN;
-    t.tok_len = 1;
-    tok_advance_char(t);
+    t.tok_len = tok_utf8_width(t);
+    tok_skip_marker(t, t.tok_len);
 }
 
 pub func tok_kind(t *Tokenizer) i64 {
@@ -518,6 +543,8 @@ pub func tok_end_offset(t *Tokenizer) i64 {
 // Returns a null-terminated copy of the token text
 pub func tok_text(t *Tokenizer) *u8 {
     if t.stream_text != nil { return t.stream_text; }
+    if t.tok_kind == TOK_UNKNOWN && t.tok_len == 1 &&
+       *(t.input + t.tok_start) >= 128 { return "invalid UTF-8 byte"; }
     var buf *u8 = alloc(t.tok_len + 1);
     var i i64 = 0;
     while i < t.tok_len {
@@ -571,6 +598,7 @@ pub func tok_note_expected(t *Tokenizer, expected *u8) void {
 
     if at > t.error_pos {
         t.error_pos = at;
+        t.error_end = tok_end_offset(t);
         t.error_expected_len = 0;
         *t.error_expected = 0;
         if t.tok_kind == TOK_EOF { t.error_found = "end of input"; }
@@ -591,6 +619,21 @@ pub func tok_note_expected(t *Tokenizer, expected *u8) void {
     memcpy(t.error_expected + t.error_expected_len, expected, expected_len);
     t.error_expected_len = t.error_expected_len + expected_len;
     *(t.error_expected + t.error_expected_len) = 0;
+}
+
+// Call only after a successful root parse: speculative failures inside it no
+// longer describe the error. The remaining token violates the input boundary.
+pub func tok_expect_end(t *Tokenizer) bool {
+    if tok_eof(t) { return true; }
+    t.error_pos = -1;
+    t.error_expected_len = 0;
+    *t.error_expected = 0;
+    tok_note_expected(t, "end of input");
+    return false;
+}
+
+pub func tok_error_end_offset(t *Tokenizer) i64 {
+    return t.error_end;
 }
 
 pub func tok_error_offset(t *Tokenizer) i64 {
@@ -634,6 +677,8 @@ pub func tok_error_column(t *Tokenizer) i64 {
 // Ready-to-use diagnostic for small readers. Larger readers can use the query
 // functions above to integrate the same structured data into their own errors.
 pub func tok_print_error(t *Tokenizer, label *u8) void {
+    // Also support existing readers checking !tok_eof after a successful parse.
+    if t.error_pos < 0 { tok_note_expected(t, "end of input"); }
     if label != nil && *label != 0 {
         eprint(label);
         eprint(":");
@@ -644,7 +689,12 @@ pub func tok_print_error(t *Tokenizer, label *u8) void {
     eprint(": expected ");
     eprint(tok_error_expected(t));
     eprint(", found ");
-    eprintln(tok_error_found(t));
+    eprint(tok_error_found(t));
+    eprint(" @");
+    eprint_i64(tok_error_offset(t));
+    eprint(":");
+    eprint_i64(tok_error_end_offset(t));
+    eprintln("");
 }
 
 // Parse the current number token as i64
