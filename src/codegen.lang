@@ -5598,6 +5598,8 @@ func gen_decl(decl *u8) void {
 
     var k i64 = node_kind(decl);
 
+    if k == NODE_EFFECT_DECL { numeric_validate_effect(decl); }
+
     if k == NODE_FUNC_DECL {
         gen_func(decl);
         return;

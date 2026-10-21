@@ -92,11 +92,16 @@ def arithmetic():
         values = ['fa', 'fb'] if src.startswith('f') else ['a', 'b']
         operands = ''.join(', ' + x for x in values[:arity])
         expr = f'__core_numeric("{op}", "{dst}", "{src}"{operands})'
+        storage = c.get('storage', 'direct')
+        prefix = ''
+        if storage != 'direct':
+            prefix = f'var carrier {storage} = {expr}; '
+            expr = 'carrier'
         if dst.startswith('f'):
             expr = f'__core_numeric("bitcast", "u{dst[1:]}", "{dst}", {expr})'
-        body = f'return {expr};' if dst != 'void' else f'{expr}; return 0;'
+        body = prefix + (f'return {expr};' if dst != 'void' else f'{expr}; return 0;')
         declarations.append(f'func numeric_probe_{i}(a i64, b i64, fa f64, fb f64) i64 {{ {body} }}')
-        schemas.append(f'numeric_probe_{i} {op} {dst} {src} {arity}')
+        schemas.append(f'numeric_probe_{i} {op} {dst} {src} {arity} {storage}')
     dispatch = [f'extern int64_t numeric_probe_{i}(int64_t,int64_t,double,double);' for i in range(len(cases))]
     dispatch += ['static int64_t (*numeric_probes[])(int64_t,int64_t,double,double) = {',
                  ','.join(f'numeric_probe_{i}' for i in range(len(cases))), '};']
@@ -175,9 +180,24 @@ def validation():
         if message != 'operand representation':
             reject(f'func main() i64 {{ return 0; __core_numeric({call}); }}', message)
     reject('func main() i64 { return 0; var dead i7 = 0; }', 'unsupported declared type')
+    reject('func main() i64 { var x f32 = 1.0; return 0; }', 'f32 initializer requires an explicit numeric conversion')
+    reject('func add(a f32, b f32) f64 { return a + b; }', 'legacy f32 binary operands require explicit numeric operations')
     for t in ['wat', 'i0', 'i7', 'u3', 'i128', 'u128', 'i256', 'f16']:
         reject(f'func main() i64 {{ var x {t} = 0; return 0; }}', 'unsupported declared type')
         reject(f'func unknown(x {t}) i64 {{ return 0; }}', 'unsupported declared type')
+        for backend in ['llvm', 'x86']:
+            reject(f'effect Ask(i64, {t}) i64\nfunc main() i64 {{ return 0; }}',
+                   'unsupported declared type', backend=backend)
+            reject(f'effect Ask(i64) {t}\nfunc main() i64 {{ return 0; }}',
+                   'unsupported declared type', backend=backend)
+    for backend in ['llvm', 'x86']:
+        reject('effect Ask(i7) wat\nfunc main() i64 { return handle { perform Ask(300) } with { return(v) => v, Ask(x, k) => { resume k(x + 1); } }; }',
+               'unsupported declared type', backend=backend)
+        for params, result in [('(type_base i7)', '(type_base i64)'),
+                               ('(type_base i64)', '(type_base wat)'),
+                               ('(type_ptr (type_base u128))', '(type_base i64)')]:
+            reject(f'(program (effect Ask ({params}) {result}) (func main () (type_base i64) (block (return (number 0)))))',
+                   'unsupported declared type', ast=True, backend=backend)
     reject('effect Fail(i64) i64\nfunc main() i64 { return handle { perform Fail(1); } with { Fail(e) => __core_numeric("oops", "i64", "i64", 1, 2) }; }', 'unknown or incompatible operation')
     reject('func __core_numeric() i64 { return 0; }', 'reserved intrinsic name')
     reject('var x [1]i64 = [__core_numeric("add_wrap", "i64", "i64", 1, 2)]; func main() i64 { return 0; }', 'unsupported global array initializer')

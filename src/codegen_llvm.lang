@@ -2339,6 +2339,10 @@ func llvm_emit_expr(expr *u8) void {
         var left *u8 = binary_expr_left(expr);
         var right *u8 = binary_expr_right(expr);
 
+        if op != 32 && (llvm_numeric_native_f32(left) || llvm_numeric_native_f32(right)) {
+            numeric_fail(expr, "legacy f32 binary operands require explicit numeric operations");
+        }
+
         // Check for assignment first (op == 32 is TOKEN_EQ)
         if op == 32 {
             // Assignment: store to left (must be ident)
@@ -5304,8 +5308,19 @@ func llvm_emit_stmt(stmt *u8) void {
                 }
             }
 
-            llvm_emit_expr(init);
-            var init_val *u8 = str_dup(llvm_expr_result);
+            var init_val *u8 = nil;
+            if numeric_is_call(init) && var_type != nil && llvm_is_float_type(var_type) {
+                var target_type *u8 = str_dup_n(base_type_name(var_type), base_type_name_len(var_type));
+                init_val = llvm_numeric_normalize(stmt, init, target_type);
+            } else {
+                if var_type != nil && type_kind(var_type) == TYPE_BASE &&
+                    base_type_name_len(var_type) == 3 && memcmp(base_type_name(var_type), "f32", 3) &&
+                    !llvm_numeric_native_f32(init) {
+                    numeric_fail(stmt, "f32 initializer requires an explicit numeric conversion");
+                }
+                llvm_emit_expr(init);
+                init_val = str_dup(llvm_expr_result);
+            }
 
             // Check if assigning non-capturing lambda to closure type
             // Wrap it in a closure struct with tag=0
@@ -6789,6 +6804,8 @@ func llvm_emit_decl(decl *u8) void {
     cg_diagnostic_node = decl;
 
     var k i64 = node_kind(decl);
+
+    if k == NODE_EFFECT_DECL { numeric_validate_effect(decl); }
 
     if k == NODE_STRUCT_DECL {
         var numeric_field i64 = 0;

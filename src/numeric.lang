@@ -100,6 +100,15 @@ func numeric_validate_signature(decl *u8) void {
     }
 }
 
+func numeric_validate_effect(decl *u8) void {
+    numeric_validate_legacy_type(effect_decl_return_type(decl), decl);
+    var params *u8 = effect_decl_param_types(decl); var i i64 = 0;
+    while i < effect_decl_param_type_count(decl) {
+        var p **u8 = params + i * 8;
+        numeric_validate_legacy_type(*p, decl); i = i + 1;
+    }
+}
+
 // Validate numeric metadata and declared representations independently of CFG
 // emission. In particular, a return must not hide an invalid operation/type.
 // Quoted code and unexpanded reader text are data until expansion.

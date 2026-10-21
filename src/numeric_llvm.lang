@@ -23,6 +23,46 @@ func llvm_numeric_binary(op *u8, t *u8, a *u8, b *u8) *u8 {
     var result *u8 = llvm_numeric_temp(); llvm_emit_str(op); llvm_emit_str(" ");
     llvm_numeric_type(t); llvm_emit_str(" "); llvm_emit_str(a); llvm_emit_str(", "); llvm_emit_line(b); return result;
 }
+func llvm_numeric_select(test *u8, t *u8, yes *u8, no *u8) *u8 {
+    var result *u8 = llvm_numeric_temp(); llvm_emit_str("select i1 "); llvm_emit_str(test);
+    llvm_emit_str(", "); llvm_numeric_type(t); llvm_emit_str(" "); llvm_emit_str(yes);
+    llvm_emit_str(", "); llvm_numeric_type(t); llvm_emit_str(" "); llvm_emit_line(no); return result;
+}
+// The legacy double carrier must preserve every f32 bit, including signaling
+// NaNs. LLVM floating conversions may quiet them, so transport NaN sign and
+// payload with integer operations. Finite values retain normal IEEE conversion.
+func llvm_numeric_float_carrier(value *u8, widen i64) *u8 {
+    if widen {
+        var bits *u8 = llvm_numeric_cast("bitcast", "f32", value, "u32");
+        var magnitude *u8 = llvm_numeric_binary("and", "u32", bits, "2147483647");
+        var nan *u8 = llvm_numeric_binary("icmp ugt", "u32", magnitude, "2139095040");
+        var wide *u8 = llvm_numeric_cast("zext", "u32", bits, "u64");
+        var sign *u8 = llvm_numeric_binary("and", "u64", wide, "2147483648");
+        sign = llvm_numeric_binary("shl", "u64", sign, "32");
+        var payload *u8 = llvm_numeric_binary("and", "u64", wide, "8388607");
+        payload = llvm_numeric_binary("shl", "u64", payload, "29");
+        payload = llvm_numeric_binary("or", "u64", payload, "9218868437227405312");
+        payload = llvm_numeric_binary("or", "u64", payload, sign);
+        var normal *u8 = llvm_numeric_cast("fpext", "f32", value, "f64");
+        normal = llvm_numeric_cast("bitcast", "f64", normal, "u64");
+        return llvm_numeric_cast("bitcast", "u64", llvm_numeric_select(nan, "u64", payload, normal), "f64");
+    }
+    var bits *u8 = llvm_numeric_cast("bitcast", "f64", value, "u64");
+    var magnitude *u8 = llvm_numeric_binary("and", "u64", bits, "9223372036854775807");
+    var nan *u8 = llvm_numeric_binary("icmp ugt", "u64", magnitude, "9218868437227405312");
+    var sign *u8 = llvm_numeric_binary("lshr", "u64", bits, "32");
+    sign = llvm_numeric_binary("and", "u64", sign, "2147483648");
+    var payload *u8 = llvm_numeric_binary("lshr", "u64", bits, "29");
+    payload = llvm_numeric_binary("and", "u64", payload, "8388607");
+    var empty *u8 = llvm_numeric_binary("icmp eq", "u64", payload, "0");
+    payload = llvm_numeric_select(empty, "u64", "1", payload);
+    payload = llvm_numeric_binary("or", "u64", payload, "2139095040");
+    payload = llvm_numeric_binary("or", "u64", payload, sign);
+    payload = llvm_numeric_cast("trunc", "u64", payload, "u32");
+    var normal *u8 = llvm_numeric_cast("fptrunc", "f64", value, "f32");
+    normal = llvm_numeric_cast("bitcast", "f32", normal, "u32");
+    return llvm_numeric_cast("bitcast", "u32", llvm_numeric_select(nan, "u32", payload, normal), "f32");
+}
 // Branch before any LLVM operation that could produce poison. The continuation
 // dominates every use, including when clang optimizes the generated module.
 func llvm_numeric_guard(bad *u8) void {
@@ -33,6 +73,12 @@ func llvm_numeric_guard(bad *u8) void {
     llvm_emit_line("    call void @llvm.trap()"); llvm_emit_line("    unreachable");
     llvm_emit_str("L"); llvm_emit_int(ok); llvm_emit_line(":");
 }
+func llvm_numeric_native_f32(arg *u8) i64 {
+    while node_kind(arg) == NODE_GROUP_EXPR { arg = group_expr_expr(arg); }
+    var t *u8 = llvm_get_expr_type(arg);
+    return t != nil && type_kind(t) == TYPE_BASE && base_type_name_len(t) == 3 &&
+        memcmp(base_type_name(t), "f32", 3) && !numeric_is_call(arg) && node_kind(arg) != NODE_NUMBER_EXPR;
+}
 func llvm_numeric_normalize(expr *u8, arg *u8, t *u8) *u8 {
     var actual *u8 = llvm_get_expr_type(arg);
     if actual == nil || type_kind(actual) != TYPE_BASE { numeric_fail(expr, "operand has no numeric representation"); }
@@ -42,15 +88,16 @@ func llvm_numeric_normalize(expr *u8, arg *u8, t *u8) *u8 {
     if numeric_float(t) {
         // Legacy f32 loads already have float SSA type; literals and exact
         // numeric results cross this boundary as double.
-        if streq(name, "f32") && !numeric_is_call(arg) && node_kind(arg) != NODE_NUMBER_EXPR {
-            value = llvm_numeric_cast("fpext", "f32", value, "f64");
+        if llvm_numeric_native_f32(arg) {
+            if streq(t, "f32") { return value; }
+            value = llvm_numeric_float_carrier(value, 1);
         }
-        if streq(t, "f32") { value = llvm_numeric_cast("fptrunc", "f64", value, "f32"); }
+        if streq(t, "f32") { value = llvm_numeric_float_carrier(value, 0); }
     } else if numeric_bits(t) < 64 { value = llvm_numeric_cast("trunc", "i64", value, t); }
     return value;
 }
 func llvm_numeric_result(value *u8, t *u8) void {
-    if streq(t, "f32") { value = llvm_numeric_cast("fpext", "f32", value, "f64"); }
+    if streq(t, "f32") { value = llvm_numeric_float_carrier(value, 1); }
     if !numeric_float(t) && numeric_bits(t) < 64 {
         var op *u8 = "zext"; if *t == 'i' { op = "sext"; }
         value = llvm_numeric_cast(op, t, value, "i64");

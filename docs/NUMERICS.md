@@ -36,7 +36,7 @@ declared types even in statements after a return. The kernel does not infer C or
 | `add_wrap`, `sub_wrap`, `mul_wrap` | Integer arithmetic modulo 2^N; result and operand types match. |
 | `add_checked`, `sub_checked`, `mul_checked` | Exact mathematical integer result, or a deterministic trap if out of range. No LLVM poison. |
 | `div`, `rem` | Integer division truncates toward zero; remainder has dividend's sign. Signedness comes from the operand type. Zero divisor and signed MIN/-1 trap for both operations. |
-| `shl`, `shr` | Integer count must be in [0,N), otherwise trap. Left shift wraps; right shift is arithmetic for signed types, logical for unsigned. |
+| `shl`, `shr` | The count first normalizes to the operand type's low N bits, like every integer operand, then must be in [0,N), otherwise trap. For example, an i8 count of 256 normalizes to zero. Left shift wraps; right shift is arithmetic for signed types, logical for unsigned. |
 | `and`, `or`, `xor` | Integer bitwise operations. |
 | `add`, `sub`, `mul`, `div`, `rem` | Float arithmetic at the declared f32/f64 precision, without fast-math or contraction. IEEE signed zeros, infinities, and NaNs; NaN payload propagation is unspecified. Remainder uses truncating quotient. Native remainder may require libm. |
 | `eq`, `ne`, `lt`, `le`, `gt`, `ge` | Integer signedness or IEEE comparison at the operand precision; i64 result 0/1. `ne` is true for unordered operands; other float predicates are ordered. |
@@ -61,10 +61,16 @@ double, while declared f32 loads and parameters use float SSA values. Existing
 `binop` and `cast` forms retain their historical behavior. They are not a promise
 of exact narrow arithmetic or checked float conversions. New readers should use
 the explicit operations rather than relying on those forms for exact semantics.
+Legacy binary operations on native f32 values and implicit double initializers
+of f32 locals reject with an origin; use explicit numeric operations/conversions.
 
 Exact integer results sign/zero-extend to i64 carriers; f32 results round at f32
-then extend exactly to double carriers. Store exact float results in f64 carrier
-locals and pass them through the explicit operand type on the next operation.
+then extend exactly to double carriers. NaN carriers preserve the sign and all
+23 payload bits, including the signaling/quiet bit, in the high double payload
+bits; normalization restores them without a floating conversion. Thus bitcasts
+preserve every bit even through f64 carrier locals. Exact float initializers
+also normalize to the declared f32/f64 local representation. Pass carrier values
+through the explicit operand type on the next operation.
 Use explicit `convert` for arithmetic conversion, or `bitcast` to expose bits.
 This profile does not change native aggregate or foreign narrow-call ABI rules.
 The C reader still owns promotions, and future Zig readers own coercions.
