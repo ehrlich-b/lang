@@ -1,6 +1,7 @@
 include "test/reader_pack/common.lang"
 
 reader threshold(text *u8) *u8 {
+    if !pack_comments(text) { return nil; }
     var tokens *Tokenizer = tok_new(text);
     if !pack_word(tokens, "answer") { return nil; }
     var value *u8 = pack_number(tokens);

@@ -59,6 +59,7 @@ def check_contract():
     assert all(value is False for key, value in protocol['policy'].items() if key != 'network')
     assert protocol['future_runs']['status'] == 'disabled'
     assert protocol['input_limit_bytes'] == 65534
+    assert protocol['version'] == 2 and set(protocol['grammar']) == {'whitespace', 'comments', 'separation'}
     # Signatures are checked against current source, not remembered API names.
     for file, signatures in json.loads((PACK / 'helpers.json').read_text()).items():
         source = (ROOT / file).read_text()
@@ -290,7 +291,13 @@ def smoke(evidence):
         for metric in ['read_ms', 'program_build_ms', 'run_ms']:
             group[metric] += row.get(metric, 0)
     summary = {'label': protocol['label'], 'by_backend_stage_split': groups, 'orders': protocol['orders'], 'observations': len(replay.rows),
-               'correct': len(replay.rows), 'negative_controls_rejected': len(repairs) * 3,
+               'correct': sum(group['passed'] for group in groups.values()),
+               'negative_controls_rejected': sum(
+                   int(control.get('compileFailure', False) and bool(control.get('diagnostic')))
+                   if defect['case'] == 'compile' else
+                   int(not passed(control, next(c for c in cases if c['id'] == defect['case'])))
+                   for defect, repair in zip(protocol['repairs'], repairs)
+                   for control in [repair['before_native'][0], repair['before_interpreter'], repair['before_browser']]),
                'model_calls': 0, 'model_attempts': 0, 'paid_calls': 0,
                'metrics': protocol['metrics'], 'build_identity': 'build/identity.json'}
     dump(evidence / 'summary.json', summary)

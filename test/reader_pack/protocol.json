@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "label": "deterministic local smoke experiment; not model benchmark evidence",
   "tracks": {
     "interpreter-only": {
@@ -45,7 +45,7 @@
   "tasks": [
     {
       "id": "create",
-      "prompt": "Implement answer N; return N. Consume all input and validate ASCII decimal bytes 0..255, at most three digits. Allow whitespace, // and /* */ comments. Canonicalize leading zeros. Reject all other syntax.",
+      "prompt": "Implement answer N; return N. Consume all input and validate ASCII decimal bytes 0..255, at most three digits. Separate tokens with ASCII space, tab, LF, CR or comments only. Allow // comments to LF or EOF and non-nesting /* */ comments with mandatory closure. Canonicalize leading zeros. Reject all other syntax.",
       "reference": "test/reader_pack/create.lang"
     },
     {
@@ -113,5 +113,10 @@
     "revive_old_LANG_AI_scope": false,
     "network": "loopback browser harness only"
   },
-  "input_limit_bytes": 65534
+  "input_limit_bytes": 65534,
+  "grammar": {
+    "whitespace": "ASCII space (U+0020), tab (U+0009), LF (U+000A) and CR (U+000D) only; all other characters outside comments must form the declared keywords or decimal bytes",
+    "comments": "// ends at LF or EOF; /* ends at the first */; block comments do not nest and must close; comment contents are otherwise arbitrary text without NUL",
+    "separation": "Keywords and numbers must be separated by at least one allowed whitespace character or comment; consume the entire input"
+  }
 }

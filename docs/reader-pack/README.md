@@ -35,6 +35,7 @@ the same compiler and program host scripts as the lab. Only loopback HTTP is use
 
 The exact prompts, matched tracks, metrics, safety boundary and counterbalanced
 orders are frozen in [protocol.json](../../test/reader_pack/protocol.json).
+Protocol version 2 specifies exact whitespace and mandatory block-comment closure.
 Both tracks implement the same grammar and return the same numeric results.
 The interpreter-only track uses Python's standard library; the native-plus-Wasm
 track authors a Lang reader and must pass both backends. The resulting products
@@ -56,9 +57,15 @@ and tool access differ intentionally; record that when interpreting later data.
 
 A decimal byte is one to three ASCII decimal digits with value 0..255; leading
 zeros are accepted and canonicalized. Negative, float, hexadecimal, exponent,
-quoted, overflow, oversized, missing and trailing inputs must fail. Whitespace,
-`//` comments and `/* */` comments are skipped by the tokenizer. Successful
-recognition must end at TOK_EOF. Testing TOK_NUMBER alone is insufficient:
+quoted, overflow, oversized, missing and trailing inputs must fail. Whitespace
+means only ASCII space (U+0020), tab (U+0009), LF (U+000A) and CR (U+000D).
+Other Unicode whitespace and ASCII control separators are invalid outside comments.
+Tokens require at least one whitespace character or comment between them.
+`//` comments end at LF or EOF; `/* */` comments end at the first closing `*/`
+and do not nest. Arbitrary non-NUL text is allowed inside comments. Both readers
+validate block-comment closure before recognition, since the shared tokenizer
+otherwise silently skips an unfinished comment. Successful recognition must end
+at TOK_EOF after this validation. Testing TOK_NUMBER alone is insufficient:
 negative tokens and numeric prefixes still need validation. Check every digit
 and length before arithmetic; never overflow a conversion and then range-check.
 The entry wrappers reject inputs over 65,534 UTF-8 bytes and embedded NUL
@@ -106,7 +113,8 @@ also document the native/Wasm commands without relying on a stale downloaded bui
 
 [training.json](../../test/reader_pack/training.json) contains public examples;
 [heldout.json](../../test/reader_pack/heldout.json) was authored separately, with
-new boundaries, zero/max values, comments, malformed numeric forms, NUL and
+new boundaries, zero/max values, closed and unclosed comments, exact whitespace,
+malformed numeric forms, NUL and
 oversized inputs. The oversized case uses an explicit frozen padding/repeat
 specification to keep the fixture compact. Heldout
 expected values are explicit, independent of either implementation. freeze.json
