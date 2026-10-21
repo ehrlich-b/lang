@@ -756,7 +756,9 @@ reader minipy(text *u8) *u8 {
     py_src = text;
     var t *Tokenizer = tok_new_stream(text, py_lex(text));
     var tree *PNode = parse_py_program(t);
-    if tree == nil || !tok_eof(t) {
+    var complete bool = false;
+    if tree != nil { complete = tok_expect_end(t); }
+    if !complete {
         tok_print_error(t, "minipy");
         exit(1);
     }

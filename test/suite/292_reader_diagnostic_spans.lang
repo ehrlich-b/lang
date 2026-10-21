@@ -1,0 +1,41 @@
+// expect: 0
+// Unknown scalars and remembered failures keep complete UTF-8 byte spans.
+include "std/core.lang"
+include "std/parser_runtime.lang"
+
+func main() i64 {
+    var tokens *Tokenizer = tok_new("/* café 🧭 */ é€🧭");
+    if tok_kind(tokens) != TOK_UNKNOWN { return 1; }
+    if !streq(tok_text(tokens), "é") { return 2; }
+    if tok_start_offset(tokens) != 17 || tok_end_offset(tokens) != 19 { return 3; }
+    tok_next(tokens);
+    if !streq(tok_text(tokens), "€") || tok_text_len(tokens) != 3 { return 4; }
+    tok_next(tokens);
+    if !streq(tok_text(tokens), "🧭") || tok_text_len(tokens) != 4 { return 5; }
+    tok_note_expected(tokens, "number");
+    // Backtracking must retain both ends of the furthest failed token.
+    tok_reset(tokens, 0);
+    if tok_error_offset(tokens) != 22 || tok_error_end_offset(tokens) != 26 { return 6; }
+    if !streq(tok_error_found(tokens), "🧭") { return 7; }
+    // A successful prefix instead reports the current full-input boundary.
+    if tok_expect_end(tokens) { return 8; }
+    if !streq(tok_error_expected(tokens), "end of input") { return 9; }
+    if !streq(tok_error_found(tokens), "é") { return 10; }
+    if tok_error_offset(tokens) != 17 || tok_error_end_offset(tokens) != 19 { return 11; }
+
+    var stream *u8 = tok_stream_new();
+    tok_stream_push(stream, TOK_USER, 2, 0, "indent");
+    var synthetic *Tokenizer = tok_new_stream("  x", stream);
+    if tok_expect_end(synthetic) { return 12; }
+    if tok_error_offset(synthetic) != 2 || tok_error_end_offset(synthetic) != 2 { return 13; }
+    if !streq(tok_error_found(synthetic), "indent") { return 14; }
+    tok_next(synthetic);
+    if !tok_expect_end(synthetic) { return 15; }
+    // A failed manual parse with no expectations must not claim success.
+    var unknown *Tokenizer = tok_new("é");
+    tok_print_error(unknown, "manual");
+    if !streq(tok_error_expected(unknown), "valid token") { return 16; }
+    if !streq(tok_error_found(unknown), "é") { return 17; }
+    if tok_error_offset(unknown) != 0 || tok_error_end_offset(unknown) != 2 { return 18; }
+    return 0;
+}

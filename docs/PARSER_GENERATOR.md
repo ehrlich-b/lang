@@ -20,7 +20,12 @@ include "std/parser_reader.lang"
 func main() i64 {
     var tokens *Tokenizer = tok_new("(add 1 2)");
     var tree *PNode = parse_expr(tokens);
-    if tree == nil || !tok_eof(tokens) { return 1; }
+    var complete bool = false;
+    if tree != nil { complete = tok_expect_end(tokens); }
+    if !complete {
+        tok_print_error(tokens, "mylang");
+        return 1;
+    }
     var items *PNode = pnode_require(tree, "items");
     if items == nil || vec_len(items.children) != 3 { return 2; }
     return 0;
@@ -28,8 +33,12 @@ func main() i64 {
 ```
 
 Each rule creates `parse_<rule>(tokens)`. A parser returns `nil` when it does
-not match. Always check both the result and `tok_eof(tokens)` at the reader
-boundary; a successful prefix is not necessarily a complete program. Name the
+not match. After a successful root parse, call `tok_expect_end(tokens)` at the
+reader boundary; a successful prefix is not necessarily a complete program.
+The helper returns true at EOF; otherwise it replaces speculative failures with
+`expected end of input` at the remaining token, including its exact UTF-8 byte
+span. Call it only when the root is non-nil, so a failed parse keeps its furthest
+mismatch. Use an explicit guard as above on both native and browser hosts. Name the
 children used by lowering and retrieve them with `pnode_get` or
 `pnode_require`; `pnode_child(node, index)` remains available for old grammars.
 
@@ -233,7 +242,8 @@ That prints, for example, `mylang:2:9: expected number or string, found name`.
 Use the query functions when you want different wording or structured output.
 
 `tok_error_offset` exposes the zero-based byte offset; line and column are
-one-based. Expectations from alternatives failing at the same furthest token
+one-based. `tok_error_end_offset` is the exclusive UTF-8 byte end of that
+complete token, so diagnostics can select it exactly. Expectations from alternatives failing at the same furthest token
 are combined (`number or string`).
 
 Choice remains ordered—the first successful branch wins. Direct, indirect, and
