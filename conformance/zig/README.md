@@ -3,7 +3,7 @@
 This is an oracle and measurement harness, with no Zig frontend or candidate
 semantics. `oracle.lock.json` pins the source and Linux compiler archives from
 the 0.17.0 distribution manifest. Extract both archives without editing them.
-Initialize Lang with the non-promoting `make verify`, then run:
+Initialize Lang with `make bootstrap PUBLISH_BOOTSTRAP=0`, then run:
 
 ```sh
 nice -n 10 ./conformance/zig-demo M0 --zig-version 0.17.0 \
@@ -17,7 +17,9 @@ nice -n 10 ./conformance/zig-demo M0 --zig-version 0.17.0 \
 
 All compiler caches, temporary inputs, logs, native reader wrappers, LLVM IR,
 and per-instance receipts live below `--work`. `--lang` selects the Lang
-compiler (default `out/bootstrap_verify/kernel2`); its executable digest is in the receipt. No
+compiler (default `out/lang`); its executable digest is in the receipt. For
+non-promoting verification, run `make verify` and pass
+`--lang out/bootstrap_verify/kernel2` explicitly. No
 upstream program is ever compiled as a candidate by the reference compiler.
 
 The profile is x86_64 Linux, baseline CPU, ELF, little endian, 64-bit pointers,
@@ -92,8 +94,16 @@ its own complete metadata discovery, and executes instances in discovery order.
 Only whole modes overlap. Debug/safe/fast receipts are joined in that order;
 optimized discovery must still match debug exactly before canonical origins are
 reused. Each mode owns its local/global caches, temporary directory, binaries,
-IR and logs under `reference/{debug,safe,fast}`. A reference work directory must
-be new, preventing stale outputs from a previous attempt.
+IR and logs under `reference/{debug,safe,fast}`. An existing reference work
+directory can be reused: caches remain warm and current receipts and outputs
+are overwritten. Use a new directory for cold-cache measurements. Do not run
+multiple replays in the same work directory at once. Workers read the parent
+declaration inventory rather than rebuilding it.
+
+Serial replay (`--mode-jobs 1`) keeps the original compile/instance timeout
+contract without a whole-mode deadline or CPU/resource restrictions. Pass
+`--bounded` to apply supervision to serial replay, as the benchmark does.
+Parallel replay always uses supervision.
 
 The supervisor requires Linux `/proc`, child subreaping and CPU affinity. Defaults
 are four shared CPU cores, 12 GiB aggregate descendant RSS, 128 descendant

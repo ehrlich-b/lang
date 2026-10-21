@@ -51,6 +51,7 @@ class SupervisionTests(unittest.TestCase):
 
     def test_inherited_affinity(self):
         folder, marker, commands = self.job('affinity')
+        (folder / 'debug').mkdir()  # Existing outputs remain a supported input.
         before = os.sched_getaffinity(0)
         result = self.run_job(folder, commands)
         self.assertEqual(int(marker.read_text()), min(2, len(before)))
@@ -122,7 +123,10 @@ class SupervisionTests(unittest.TestCase):
     def test_repeated_cancellation_during_cleanup(self):
         self.cancellation(True)
 
-    def cancellation(self, repeated):
+    def test_cancellation_masked_before_unwind(self):
+        self.cancellation(False, before_unwind=True)
+
+    def cancellation(self, repeated, before_unwind=False):
         folder, marker, commands = self.job('cancel')
         cleanup_marker = folder / 'cleaning'
         prefix = 'import sys; from pathlib import Path; from mode_jobs import supervise; '
@@ -131,6 +135,14 @@ class SupervisionTests(unittest.TestCase):
                       'original = mode_jobs.cleanup; '
                       'mode_jobs.cleanup = lambda processes: (Path(' + repr(str(cleanup_marker)) + ').write_text("1"), '
                       'time.sleep(.3), original(processes))[-1]; supervise = mode_jobs.supervise; ')
+        if before_unwind:
+            # Deliver every cancellation signal exactly as the handler raises,
+            # before supervise's finally block can mask them.
+            prefix += ("import signal, sys\ndef trace(frame, event, arg):\n"
+                       " if frame.f_code.co_name == 'cancelled' and event == 'exception':\n"
+                       "  for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGQUIT):\n"
+                       "   os.kill(os.getpid(), sig)\n"
+                       " return trace\nimport os\nsys.settrace(trace)\n")
         code = (prefix +
                 'supervise(' + repr(commands) + ', 1, Path(' + repr(str(folder)) + '), '
                 'memory_mib=512, cpus=2, processes=32, timeout=60)')

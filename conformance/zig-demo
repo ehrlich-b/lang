@@ -2,6 +2,7 @@
 """Build and measure the M0 oracle/native-reader boundary."""
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -18,9 +19,11 @@ def main():
     p.add_argument('--target', default='x86_64-linux', choices=['x86_64-linux'])
     for name in ['source', 'source-archive', 'compiler', 'compiler-archive', 'work', 'receipt']:
         p.add_argument('--' + name, type=Path, required=True)
-    p.add_argument('--lang', type=Path, default=ROOT.parent / 'out/bootstrap_verify/kernel2')
+    p.add_argument('--lang', type=Path, default=ROOT.parent / 'out/lang')
     p.add_argument('--mode-jobs', type=int, choices=range(1, 4), default=1)
     args = p.parse_args()
+    if not args.lang.is_file() or not os.access(args.lang, os.X_OK):
+        p.error(f'--lang must name an executable Lang compiler: {args.lang}; run make bootstrap PUBLISH_BOOTSTRAP=0 or select one with --lang')
     work = args.work.resolve()
     work.mkdir(parents=True, exist_ok=True)
     commands = [

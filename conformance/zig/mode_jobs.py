@@ -133,6 +133,8 @@ def supervise(commands, jobs, work, *, memory_mib, cpus, processes, timeout):
     signals = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGQUIT)
     handlers = {sig: signal.getsignal(sig) for sig in signals}
     def cancelled(signum, frame):
+        for sig in signals:
+            signal.signal(sig, signal.SIG_IGN)
         raise KeyboardInterrupt('whole-mode jobs cancelled')
     for sig in signals:
         signal.signal(sig, cancelled)
@@ -152,7 +154,7 @@ def supervise(commands, jobs, work, *, memory_mib, cpus, processes, timeout):
                     exhausted = True
                     break
                 folder = work / mode
-                folder.mkdir()
+                folder.mkdir(exist_ok=True)
                 with (folder / 'worker.log').open('wb') as log:
                     process = subprocess.Popen(list(map(str, command)), stdout=log, stderr=log,
                                                start_new_session=True)

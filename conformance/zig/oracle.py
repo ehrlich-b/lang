@@ -271,7 +271,7 @@ def negative_cases(compiler, source, work, env, timeout):
 def mode_worker(args):
     work, source, compiler, mode = args.work.resolve(), args.source.resolve(), args.compiler.resolve(), args.mode
     env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(work / 'global-cache'), TMPDIR=str(work))
-    rows = inventory(source)
+    rows = json.loads(args.declarations.read_text())
     binary, ir = work / f'behavior-{mode}', work / f'behavior-{mode}.ll'
     branch = run([compiler, 'test', HERE / 'fixtures/backend.zig',
                   '-target', LOCK['target'], '-mcpu=' + LOCK['cpu'], '-O', mode,
@@ -319,7 +319,7 @@ def mode_worker(args):
 
 def reference(args):
     work = args.work.resolve()
-    work.mkdir(parents=True, exist_ok=False)
+    work.mkdir(parents=True, exist_ok=True)
     source, compiler = args.source.resolve(), args.compiler.resolve()
     identity = {'source': verify_archive(args.source_archive, LOCK['source'], source),
                 'compiler': verify_archive(args.compiler_archive, LOCK['compiler_archive'], compiler.parent),
@@ -345,10 +345,21 @@ def reference(args):
     for mode in LOCK['modes']:
         commands.append((mode, [sys.executable, '-B', Path(__file__).resolve(), '_mode',
                                '--mode', mode, '--source', source, '--compiler', compiler,
+                               '--declarations', work / 'declarations.json',
                                '--work', work / mode, '--compile-timeout', args.compile_timeout,
                                '--test-timeout', args.test_timeout]))
-    resources = supervise(commands, args.mode_jobs, work, memory_mib=args.memory_mib,
-                          cpus=args.cpus, processes=args.process_limit, timeout=args.mode_timeout)
+    resources = None
+    if args.mode_jobs > 1 or args.bounded:
+        resources = supervise(commands, args.mode_jobs, work, memory_mib=args.memory_mib,
+                              cpus=args.cpus, processes=args.process_limit, timeout=args.mode_timeout)
+    else:
+        # Preserve serial per-compile/per-instance budgets without a whole-mode
+        # deadline or inherited CPU/resource restrictions.
+        for mode in LOCK['modes']:
+            folder = work / mode
+            folder.mkdir(exist_ok=True)
+            mode_worker(argparse.Namespace(**(vars(args) | {
+                'mode': mode, 'work': folder, 'declarations': work / 'declarations.json'})))
     receipts = []
     canonical_names, canonical_origins = None, {}
     for mode in LOCK['modes']:
@@ -432,6 +443,7 @@ def main():
         ref.add_argument('--' + name, type=Path, required=True)
     ref.add_argument('--compile-timeout', type=float, default=240)
     ref.add_argument('--test-timeout', type=float, default=10)
+    ref.add_argument('--bounded', action='store_true', help='also supervise serial replay with resource and whole-mode limits')
     ref.add_argument('--mode-jobs', type=int, choices=range(1, 4), default=1)
     ref.add_argument('--cpus', type=int, choices=range(1, 17), default=4)
     ref.add_argument('--memory-mib', type=int, choices=range(256, 32769), metavar='MIB', default=12288)
@@ -439,6 +451,7 @@ def main():
     ref.add_argument('--mode-timeout', type=float, default=600)
     worker = sub.add_parser('_mode', help=argparse.SUPPRESS)
     worker.add_argument('--mode', choices=LOCK['modes'], required=True)
+    worker.add_argument('--declarations', type=Path, required=True)
     worker.add_argument('--source', type=Path, required=True)
     worker.add_argument('--compiler', type=Path, required=True)
     worker.add_argument('--work', type=Path, required=True)

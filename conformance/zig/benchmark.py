@@ -81,7 +81,7 @@ def main():
             folder, receipt_path = work / name, work / (name + '.json')
             command = [sys.executable, '-B', HERE / 'oracle.py', 'reference',
                        '--work', folder, '--receipt', receipt_path,
-                       '--mode-jobs', jobs, '--cpus', args.cpus]
+                       '--mode-jobs', jobs, '--bounded', '--cpus', args.cpus]
             for field in ('source', 'source_archive', 'compiler', 'compiler_archive'):
                 command.extend(['--' + field.replace('_', '-'), getattr(args, field).resolve()])
             start = time.monotonic()
