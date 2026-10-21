@@ -5,6 +5,7 @@ include "src/limits.lang"
 include "src/phase_host.lang"
 include "src/stage_dependencies.lang"
 include "src/stage_legacy.lang"
+include "src/stage_isolated.lang"
 
 // Environment pointer set by main() - used to inherit environment in exec_run
 extern var ___envp **u8;

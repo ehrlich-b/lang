@@ -81,6 +81,7 @@ func path_dirname(path *u8) *u8 {
 
 func init_resource_root(argv0 *u8) void {
     phase_compiler_path = argv0;
+    phase_install_isolated_fixture_hook();
     var configured *u8 = getenv("LANG_ROOT");
     if configured != nil && *configured != 0 {
         cg_resource_root = configured;

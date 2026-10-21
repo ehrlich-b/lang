@@ -1,0 +1,165 @@
+// STG1 copied values. Storage is worker-owned; wire bytes never contain
+// process addresses. Integer-only slots use the audited baseline layout.
+include "std/core.lang"
+struct StageValue { wire *u8; len i64; }
+var stage_nodes i64 = 0;
+func stage_equal(a *u8, b *u8, len i64) i64 {
+    var i i64 = 0;
+    while i < len { if *(a + i) != *(b + i) { return 0; } i = i + 1; }
+    return 1;
+}
+func stage_fail(code *u8) void { eprint("stage-error: "); eprintln(code); exit(1); }
+func stage_u32(p *u8) i64 {
+    return *p + *(p + 1) * 256 + *(p + 2) * 65536 + *(p + 3) * 16777216;
+}
+func stage_put32(p *u8, n i64) void {
+    var i i64 = 0;
+    while i < 4 { *(p + i) = (n >> (i * 8)) & 255; i = i + 1; }
+}
+func stage_utf8(p *u8, len i64) void {
+    var i i64 = 0;
+    var c i64 = 0;
+    var n i64 = 0;
+    var v i64 = 0;
+    var min i64 = 0;
+    var j i64 = 0;
+    var b i64 = 0;
+    while i < len {
+        c = *(p + i); n = 1; v = c; min = 0;
+        if c >= 128 {
+            if c >= 194 && c <= 223 { n = 2; v = c & 31; min = 128; }
+            else if c >= 224 && c <= 239 { n = 3; v = c & 15; min = 2048; }
+            else if c >= 240 && c <= 244 { n = 4; v = c & 7; min = 65536; }
+            else { stage_fail("invalid-utf8"); }
+        }
+        if n > len - i { stage_fail("invalid-utf8"); }
+        j = 1;
+        while j < n {
+            b = *(p + i + j);
+            if b < 128 || b > 191 { stage_fail("invalid-utf8"); }
+            v = v * 64 + (b & 63); j = j + 1;
+        }
+        if v < min || v > 1114111 || (v >= 55296 && v <= 57343) { stage_fail("invalid-utf8"); }
+        i = i + n;
+    }
+}
+// Validates every nested length before looking inside it. Record keys are
+// canonical UTF-8 bytes in strictly increasing order, so duplicates fail.
+func stage_validate(p *u8, available i64, depth i64) i64 {
+    var tag i64 = 0; var size i64 = 0; var pos i64 = 0;
+    var count i64 = 0; var i i64 = 0; var step i64 = 0;
+    var key *u8 = nil; var keylen i64 = 0; var prev *u8 = nil;
+    var prevlen i64 = 0; var j i64 = 0; var order i64 = 0;
+    stage_nodes = stage_nodes + 1;
+    if depth > 64 || stage_nodes > 100000 { stage_fail("wire-budget"); }
+    if available < 5 { stage_fail("value-header"); }
+    tag = *p; size = stage_u32(p + 1);
+    if size > available - 5 || tag > 11 { stage_fail("value-length-or-tag"); }
+    if tag == 0 { if size != 0 { stage_fail("null-length"); } }
+    if tag == 1 { if size != 1 { stage_fail("bool-length"); } if *(p + 5) > 1 { stage_fail("bool-value"); } }
+    if tag >= 2 && tag <= 5 {
+        step = 1 << (tag - 2);
+        if size != step { stage_fail("integer-length"); }
+    }
+    if tag == 7 || tag == 10 { stage_utf8(p + 5, size); }
+    if tag == 10 {
+        if size < 8 { stage_fail("syntax-value"); }
+        if stage_equal(p + 5, "(program", 8) == 0 { stage_fail("syntax-value"); }
+        i = 0; while i < size { if *(p + 5 + i) == 0 { stage_fail("syntax-value"); } i = i + 1; }
+    }
+    if tag == 8 || tag == 9 || tag == 11 {
+        if size < 4 { stage_fail("container-length"); }
+        count = stage_u32(p + 5); pos = 9; i = 0;
+        if count > 100000 || count > (size - 4) / 5 { stage_fail("container-length"); }
+        while i < count {
+            if tag != 8 {
+                step = stage_validate(p + pos, size + 5 - pos, depth + 1);
+                if *(p + pos) != 7 { stage_fail("record-key"); }
+                key = p + pos + 5; keylen = step - 5;
+                if prev != nil {
+                    j = 0; order = 0;
+                    while j < keylen && j < prevlen && order == 0 {
+                        if *(prev + j) < *(key + j) { order = -1; }
+                        if *(prev + j) > *(key + j) { order = 1; }
+                        j = j + 1;
+                    }
+                    if order == 0 { if prevlen < keylen { order = -1; } }
+                    if order != -1 { stage_fail("record-key"); }
+                }
+                prev = key; prevlen = keylen; pos = pos + step;
+            }
+            pos = pos + stage_validate(p + pos, size + 5 - pos, depth + 1);
+            i = i + 1;
+        }
+        if pos != size + 5 { stage_fail("container-trailing"); }
+    }
+    return size + 5;
+}
+func stage_copy(p *u8, len i64) *StageValue {
+    if len < 0 || len > 8388608 { stage_fail("wire-length"); }
+    stage_nodes = 0;
+    if stage_validate(p, len, 0) != len { stage_fail("value-trailing"); }
+    var v *StageValue = alloc(16); v.wire = alloc(len + 1); v.len = len;
+    memcpy(v.wire, p, len); *(v.wire + len) = 0; return v;
+}
+func stage_tag(v *StageValue) i64 { return *v.wire; }
+func stage_integer(v *StageValue, tag i64) i64 {
+    if stage_tag(v) != tag || tag < 2 || tag > 5 { stage_fail("wrong-signature"); }
+    var n i64 = v.len - 5; var i i64 = n; var result i64 = 0;
+    if *(v.wire + v.len - 1) >= 128 { result = -1; }
+    while i > 0 { i = i - 1; result = (result << 8) | *(v.wire + 5 + i); }
+    return result;
+}
+func stage_i64(n i64) *StageValue {
+    var p *u8 = alloc(13); *p = 5; stage_put32(p + 1, 8);
+    var i i64 = 0; while i < 8 { *(p + 5 + i) = (n >> (i * 8)) & 255; i = i + 1; }
+    return stage_copy(p, 13);
+}
+func stage_blob(tag i64, text *u8, len i64) *StageValue {
+    if tag != 6 && tag != 7 && tag != 10 { stage_fail("blob-tag"); }
+    if len < 0 || len > 8388603 { stage_fail("wire-length"); }
+    var p *u8 = alloc(len + 5); *p = tag; stage_put32(p + 1, len); memcpy(p + 5, text, len);
+    return stage_copy(p, len + 5);
+}
+func stage_count(v *StageValue) i64 {
+    if stage_tag(v) != 8 { stage_fail("wrong-signature"); }
+    return stage_u32(v.wire + 5);
+}
+func stage_at(v *StageValue, index i64) *StageValue {
+    if index < 0 || index >= stage_count(v) { stage_fail("argument-count"); }
+    var p *u8 = v.wire + 9; var i i64 = 0;
+    while i < index { p = p + 5 + stage_u32(p + 1); i = i + 1; }
+    return stage_copy(p, 5 + stage_u32(p + 1));
+}
+func stage_exact(fd i64, p *u8, len i64, writing i64) void {
+    var pos i64 = 0; var n i64 = 0;
+    while pos < len {
+        if writing != 0 { n = file_write(fd, p + pos, len - pos); }
+        else { n = file_read(fd, p + pos, len - pos); }
+        if n <= 0 { stage_fail("frame-io"); } pos = pos + n;
+    }
+}
+func stage_read() *StageValue {
+    var header *u8 = alloc(16); stage_exact(0, header, 16, 0);
+    if stage_equal(header, "STG1", 4) == 0 || stage_u32(header + 8) != 1 || stage_u32(header + 12) != 0 { stage_fail("frame-version"); }
+    var len i64 = stage_u32(header + 4);
+    if len > 8388608 { stage_fail("wire-length"); }
+    var p *u8 = alloc(len + 1); stage_exact(0, p, len, 0);
+    var extra *u8 = alloc(1);
+    if file_read(0, extra, 1) != 0 { stage_fail("frame-trailing"); }
+    return stage_copy(p, len);
+}
+func stage_write(v *StageValue) void {
+    v = stage_copy(v.wire, v.len);
+    var header *u8 = alloc(16); memcpy(header, "STG1", 4); stage_put32(header + 4, v.len);
+    stage_put32(header + 8, 2); stage_put32(header + 12, 0);
+    stage_exact(1, header, 16, 1); stage_exact(1, v.wire, v.len, 1);
+}
+
+// Legacy text adapters require a sentinel and forbid NUL source bytes.
+func stage_reader_text(value *StageValue) *u8 {
+    if stage_tag(value) != 7 { stage_fail("wrong-signature"); }
+    var i i64 = 5;
+    while i < value.len { if *(value.wire + i) == 0 { stage_fail("embedded-nul-source"); } i = i + 1; }
+    return value.wire + 5;
+}

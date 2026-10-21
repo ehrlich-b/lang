@@ -1,8 +1,16 @@
 #!/bin/sh
-# P0 contracts only; source execution phases are not implemented.
+# P0 audits and P1 controlled-fixture compile/call workers.
 set -eu
 cd "$(dirname "$0")/.."
 phase=${1:-P0}
+if [ "$phase" = P1 ]; then
+    if [ -z "${COMPILER:-}" ]; then
+        make build
+        COMPILER=out/lang_next
+        export COMPILER
+    fi
+    exec python3 test/run_stage_workers.py
+fi
 if [ "$phase" != P0 ]; then echo "unsupported staging phase: $phase" >&2; exit 1; fi
 output=${2:-out/staging-p0}
 mkdir -p "$output"

@@ -1,0 +1,90 @@
+include "std/stage.lang"
+// Opt-in H adapter for controlled fixtures. exec starts a fresh compiler;
+// forking a dirty compiler and parsing in its inherited context is insufficient.
+// Native confinement qualification is a separate engine admission requirement.
+func phase_isolated_compile(request *PhaseCompileRequest) i64 {
+    if streq(request.target, os_platform_name()) == 0 { phase_error("execution-target", request.name); }
+    if phase_compiler_path == nil { phase_error("compiler-path", request.name); }
+    var fd i64 = file_open(request.name, O_WRONLY_CREAT_TRUNC);
+    if fd < 0 { return 1; }
+    var len i64 = strlen(request.source); var pos i64 = 0; var written i64 = 0;
+    while pos < len {
+        written = file_write(fd, request.source + pos, len - pos);
+        if written <= 0 { file_close(fd); return 1; }
+        pos = pos + written;
+    }
+    file_close(fd);
+    // The caller invokes this hook in its compilation child. Replace that
+    // child, preserving stderr and removing only execution-target settings.
+    var argv **u8 = alloc(40);
+    var ap **u8 = argv; *ap = phase_compiler_path;
+    var raw *u8 = argv;
+    ap = raw + 8; *ap = request.name;
+    ap = raw + 16; *ap = "-o";
+    ap = raw + 24; *ap = request.output;
+    ap = raw + 32; *ap = nil;
+    var env_count i64 = 0;
+    var ep **u8 = ___envp;
+    while *ep != nil { env_count = env_count + 1; raw = ep; ep = raw + 8; }
+    var env **u8 = alloc((env_count + 5) * 8);
+    var index i64 = 0; var count i64 = 0; var setting *u8 = nil;
+    while index < env_count {
+        raw = ___envp; ep = raw + index * 8; setting = *ep;
+        if memcmp(setting, "LANGOS=", 7) == 0 && memcmp(setting, "LANGBE=", 7) == 0 &&
+           memcmp(setting, "LANG_STAGE_FRESH_COMPILER=", 26) == 0 {
+            raw = env; ep = raw + count * 8; *ep = setting; count = count + 1;
+        }
+        index = index + 1;
+    }
+    raw = env; ep = raw + count * 8; *ep = str_concat("LANGOS=", os_platform_name()); count = count + 1;
+    raw = env; ep = raw + count * 8;
+    if request.llvm != 0 { *ep = "LANGBE=llvm"; } else { *ep = "LANGBE=x86"; }
+    count = count + 1;
+    raw = env; ep = raw + count * 8; *ep = "LANG_STAGE_FRESH_COMPILER=0"; count = count + 1;
+    raw = env; ep = raw + count * 8; *ep = nil;
+    os_execve(phase_compiler_path, argv, env);
+    return 127;
+}
+func phase_install_isolated_fixture_hook() void {
+    var enabled *u8 = getenv("LANG_STAGE_FRESH_COMPILER");
+    if enabled != nil && streq(enabled, "1") {
+        var fixtures *u8 = getenv("LANG_STAGE_CONTROLLED_FIXTURES");
+        if fixtures == nil || streq(fixtures, "1") == 0 { phase_error("native-confinement-unavailable", "stage"); }
+        phase_compile_hook = &phase_isolated_compile;
+        phase_worker_hook = &phase_isolated_call;
+    }
+}
+
+// Compatibility adapter: existing readers consume text, while H uses STG1
+// values. Framing stays here; frontend-specific AST handling stays in callers.
+func phase_isolated_call(program *u8, input *u8, len i64) *u8 {
+    var value *StageValue = stage_blob(7, input, len);
+    var frame *u8 = alloc(value.len + 16);
+    memcpy(frame, "STG1", 4); stage_put32(frame + 4, value.len);
+    stage_put32(frame + 8, 1); stage_put32(frame + 12, 0);
+    memcpy(frame + 16, value.wire, value.len);
+    var result *u8 = phase_exec_capture_mode(program, frame, value.len + 16, 1);
+    if result == nil { return nil; }
+    if phase_worker_output_len < 16 { phase_error("frame-header", program); }
+    if stage_equal(result, "STG1", 4) == 0 || stage_u32(result + 8) != 2 || stage_u32(result + 12) != 0 {
+        phase_error("frame-version", program);
+    }
+    var size i64 = stage_u32(result + 4);
+    if size != phase_worker_output_len - 16 { phase_error("frame-length", program); }
+    var response *StageValue = stage_copy(result + 16, size);
+    if stage_tag(response) != 7 { phase_error("wrong-signature", program); }
+    phase_worker_output_len = response.len - 5;
+    return stage_reader_text(response);
+}
+func phase_isolated_enabled() i64 { return phase_compile_hook == &phase_isolated_compile; }
+// A private link output becomes visible only after the linker has succeeded.
+extern func rename(old *u8, new *u8) i32;
+func phase_reader_link_path(path *u8) *u8 {
+    if phase_isolated_enabled() == 0 { return path; }
+    return str_concat(str_concat(path, ".pending-"), i64_to_str(os_getpid()));
+}
+func phase_reader_publish(pending *u8, path *u8) void {
+    if phase_isolated_enabled() != 0 {
+        if rename(pending, path) != 0 { phase_error("artifact-publish", path); }
+    }
+}
