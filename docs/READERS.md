@@ -184,7 +184,14 @@ Your reader still has the best information about its own syntax. Manual readers
 can track tokens directly; generated parsers retain the furthest failure. Use
 `tok_print_error(tokens, "mylang")` before returning `nil` for a one-line parse
 diagnostic with the custom source's line, column, expected forms, and found
-token. Generated `PNode`s expose `start` and `end` byte offsets for semantic
+token. After a successful root parse, call `tok_expect_end(tokens)` before
+lowering; it rejects trailing tokens with `expected end of input` and their
+exact UTF-8 byte span, replacing speculative failures from successful
+alternatives. Guard this call with `if tree != nil`, as shown in the
+[smallest parser](./PARSER_GENERATOR.md#smallest-parser), so a failed root
+keeps its grammar expectations. Manual readers should call `tok_note_expected`
+on a mismatch; without a recorded expectation, `tok_print_error` uses the
+generic `expected valid token`. Generated `PNode`s expose `start` and `end` byte offsets for semantic
 locations. Call `pnode_dump(tree)` after a successful generated parse to print
 the complete tree—including named-capture wrappers and spans—to stderr without
 mixing debug output into `lang read`'s AST stdout.

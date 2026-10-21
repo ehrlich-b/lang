@@ -11,7 +11,9 @@ include "std/ast.lang"
 reader bunhandled(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
     var tree *PNode = parse_bu_expr(tokens);
-    if tree == nil || !tok_eof(tokens) {
+    var complete bool = false;
+    if tree != nil { complete = tok_expect_end(tokens); }
+    if !complete {
         tok_print_error(tokens, "source.bunhandled");
         return nil;
     }

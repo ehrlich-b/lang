@@ -31,5 +31,11 @@ func main() i64 {
     if !streq(tok_error_found(synthetic), "indent") { return 14; }
     tok_next(synthetic);
     if !tok_expect_end(synthetic) { return 15; }
+    // A failed manual parse with no expectations must not claim success.
+    var unknown *Tokenizer = tok_new("é");
+    tok_print_error(unknown, "manual");
+    if !streq(tok_error_expected(unknown), "valid token") { return 16; }
+    if !streq(tok_error_found(unknown), "é") { return 17; }
+    if tok_error_offset(unknown) != 0 || tok_error_end_offset(unknown) != 2 { return 18; }
     return 0;
 }

@@ -11,7 +11,7 @@ const cases = [
   ['nbsp', '\u00a0', 'number'], ['accent', 'é', 'number'], ['emoji', '🧭', 'number'],
   ['trailing', 'garbage', 'end of input'], ['operator', '++', 'end of input'],
   ['quoted', '"café 🧭"', 'end of input'], ['speculative', '!', 'end of input'],
-  ['eof', '', 'number'],
+  ['eof', '', 'number'], ['stale', 'junk', 'end of input'],
 ].map(([name, token, expected]) => {
   const file = `${directory}/${name}.read`;
   const source = fs.readFileSync(file, 'utf8');

@@ -36,6 +36,13 @@ try {
   page.on('pageerror', error => errors.push(String(error)));
   await page.goto(`http://127.0.0.1:${server.address().port}/lab.html`);
   await page.waitForFunction(() => !document.querySelector('#compile').disabled);
+  // Exercise the actual starter rather than a separately maintained reader.
+  await page.fill('#custom-source', 'answer 42 junk');
+  await page.click('#compile');
+  await page.waitForFunction(() => !document.querySelector('#compile').disabled, null, { timeout: 120000 });
+  assert.match(await page.locator('#output').innerText(), /source\.read:1:11: expected end of input, found junk @10:14/);
+  assert.equal(await page.locator('#custom-source').evaluate(el => el.value.slice(el.selectionStart, el.selectionEnd)), 'junk');
+  console.log('PASS lab starter: expected end of input, selected complete trailing token');
   const receipts = [];
   async function run() {
     await page.click('#compile');

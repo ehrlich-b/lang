@@ -1,6 +1,6 @@
 include "std/parser_reader.lang"
 include "std/ast.lang"
-#parser{ diagnostic_program = ('answer' value:number '!' 'more') | ('answer' value:number) }
+#parser{ diagnostic_program = (('go' '!' 'more' | 'go') 'stop') | ('answer' value:number '!' 'more') | ('answer' value:number) }
 reader diagnostic(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
     var tree *PNode = parse_diagnostic_program(tokens);

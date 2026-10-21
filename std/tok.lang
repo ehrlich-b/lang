@@ -677,8 +677,9 @@ pub func tok_error_column(t *Tokenizer) i64 {
 // Ready-to-use diagnostic for small readers. Larger readers can use the query
 // functions above to integrate the same structured data into their own errors.
 pub func tok_print_error(t *Tokenizer, label *u8) void {
-    // Also support existing readers checking !tok_eof after a successful parse.
-    if t.error_pos < 0 { tok_note_expected(t, "end of input"); }
+    // Without a recorded mismatch, success cannot be inferred here. Readers
+    // explicitly check successful roots with tok_expect_end before printing.
+    if t.error_pos < 0 { tok_note_expected(t, "valid token"); }
     if label != nil && *label != 0 {
         eprint(label);
         eprint(":");
