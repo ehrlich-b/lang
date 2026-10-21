@@ -81,6 +81,20 @@ run_one_test() {
         fi
     fi
 
+    # Negative fixtures are passes only when compilation rejects with the
+    # specified diagnostic; they do not increase the skip inventory.
+    if head -1 "$f" | grep -q '^// reject: '; then
+        local diagnostic=$(head -1 "$f" | sed 's@^// reject: @@')
+        if LANGBE=llvm LANG_CACHE="$tmpdir/.lang-cache" $COMPILER "$f" -o "$tmpdir/rejected.ll" >"$tmpdir/rejected.out" 2>&1; then
+            echo "FAIL $name (accepted invalid representation)"; rm -rf "$tmpdir"; return 1
+        fi
+        if grep -Fq "$diagnostic" "$tmpdir/rejected.out"; then
+            echo "PASS $name (rejected unsupported representation)"; rm -rf "$tmpdir"; return 0
+        fi
+        cat "$tmpdir/rejected.out"
+        echo "FAIL $name (wrong rejection)"; rm -rf "$tmpdir"; return 1
+    fi
+
     local expected=$(head -1 "$f" | grep -o '[0-9]*')
     local outll="$tmpdir/test.ll"
     local outbin="$tmpdir/test"

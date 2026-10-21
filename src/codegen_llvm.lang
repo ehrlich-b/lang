@@ -124,6 +124,7 @@ func llvm_flush() void {
 // ============================================================
 
 func llvm_emit_type(type_node *u8) void {
+    numeric_validate_legacy_type(type_node, cg_diagnostic_node);
     if type_node == nil {
         llvm_emit_str("void");
         return;
@@ -165,7 +166,8 @@ func llvm_emit_type(type_node *u8) void {
         } else if len == 4 && memcmp(name, "void", 4) {
             llvm_emit_str("void");
         } else {
-            llvm_emit_str("i64");  // Default
+            // Named aggregates retain the legacy address representation.
+            llvm_emit_str("i64");
         }
         return;
     }
@@ -948,6 +950,13 @@ func llvm_get_expr_type(expr *u8) *u8 {
 
     var k i64 = node_kind(expr);
 
+    if numeric_is_call(expr) {
+        numeric_validate(expr);
+        var result_name *u8 = numeric_meta(expr, 1);
+        if numeric_float(result_name) { return llvm_f64_type(); }
+        return numeric_type(result_name);
+    }
+
     if k == NODE_NUMBER_EXPR {
         var text *u8 = number_expr_value(expr);
         var text_len i64 = number_expr_value_len(expr);
@@ -1276,6 +1285,7 @@ func llvm_emit_expr(expr *u8) void {
     }
 
     var k i64 = node_kind(expr);
+    if numeric_is_call(expr) { llvm_numeric_emit(expr); return; }
 
     if k == NODE_NUMBER_EXPR {
         // Emit literal number - value is stored as a string
@@ -2647,7 +2657,7 @@ func llvm_emit_expr(expr *u8) void {
             } else if op == 29 {  // TOKEN_PERCENT
                 llvm_emit_str("frem");  // Float remainder
             } else {
-                llvm_emit_str("fadd");  // Default
+                numeric_fail(expr, "unsupported legacy float operator");
             }
 
             llvm_emit_str(" double ");
@@ -2682,7 +2692,7 @@ func llvm_emit_expr(expr *u8) void {
             } else if op == 61 {  // TOKEN_CARET (^)
                 llvm_emit_str("xor");
             } else {
-                llvm_emit_str("add");  // Default
+                numeric_fail(expr, "unsupported legacy integer operator");
             }
 
             llvm_emit_str(" i64 ");
@@ -2706,6 +2716,7 @@ func llvm_emit_expr(expr *u8) void {
     // Cast expression: (cast type expr)
     if k == NODE_CAST_EXPR {
         var target_type *u8 = cast_expr_type(expr);
+        numeric_validate_legacy_type(target_type, expr);
         var src_expr *u8 = cast_expr_expr(expr);
 
         // Emit source expression
@@ -2844,6 +2855,7 @@ func llvm_emit_expr(expr *u8) void {
     // Bitcast expression: (bitcast type expr) - reinterpret bits
     if k == NODE_BITCAST_EXPR {
         var target_type *u8 = bitcast_expr_type(expr);
+        numeric_validate_legacy_type(target_type, expr);
         var src_expr *u8 = bitcast_expr_expr(expr);
 
         // Emit source expression
@@ -3171,13 +3183,7 @@ func llvm_emit_expr(expr *u8) void {
             }
             llvm_set_result_temp(temp);
         } else {
-            // Unknown unary op, just pass through
-            llvm_emit_str("    %t");
-            llvm_emit_int(temp);
-            llvm_emit_str(" = add i64 0, ");
-            llvm_emit_str(inner_val);
-            llvm_emit_char(10);
-            llvm_set_result_temp(temp);
+            numeric_fail(expr, "unsupported legacy unary operator");
         }
         return;
     }
@@ -5105,6 +5111,7 @@ func llvm_emit_stmt(stmt *u8) void {
         var name_len i64 = var_decl_name_len(stmt);
         var init *u8 = var_decl_init(stmt);
         var var_type *u8 = var_decl_type(stmt);
+        numeric_validate_legacy_type(var_type, stmt);
 
         // Register as local (both LLVM and shared tracking for type info)
         llvm_add_local(name, name_len);
@@ -6252,6 +6259,7 @@ func llvm_emit_block(block *u8) void {
 func llvm_emit_func(func_node *u8) void {
     cg_diagnostic_node = func_node;
     compiler_check_return_type(func_decl_ret_type(func_node));
+    numeric_validate_signature(func_node);
     // Register this function for return type lookup
     var name *u8 = func_decl_name(func_node);
     var name_len i64 = func_decl_name_len(func_node);
@@ -6712,12 +6720,7 @@ func llvm_emit_global_array_elem(init *u8, is_ptr i64) void {
         return;
     }
 
-    // Unsupported - emit null/0
-    if is_ptr {
-        llvm_emit_str("null");
-    } else {
-        llvm_emit_str("0");
-    }
+    numeric_fail(init, "unsupported global array initializer");
 }
 
 // Helper: emit a constant expression value for global initializers
@@ -6774,8 +6777,7 @@ func llvm_emit_global_init_value(init *u8) void {
         return;
     }
 
-    // Unsupported initializer type - use 0
-    llvm_emit_str("0");
+    numeric_fail(init, "unsupported global initializer");
 }
 
 func llvm_emit_decl(decl *u8) void {
@@ -6787,6 +6789,20 @@ func llvm_emit_decl(decl *u8) void {
 
     var k i64 = node_kind(decl);
 
+    if k == NODE_STRUCT_DECL {
+        var numeric_field i64 = 0;
+        while numeric_field < struct_decl_field_count(decl) {
+            numeric_validate_legacy_type(struct_field_type(struct_decl_fields(decl) + numeric_field * 24), decl);
+            numeric_field = numeric_field + 1;
+        }
+    }
+    if k == NODE_ENUM_DECL {
+        var numeric_variant i64 = 0;
+        while numeric_variant < enum_decl_variant_count(decl) {
+            numeric_validate_legacy_type(enum_variant_type(get_enum_variant(enum_decl_variants(decl), numeric_variant)), decl);
+            numeric_variant = numeric_variant + 1;
+        }
+    }
     if k == NODE_FUNC_DECL {
         llvm_emit_func(decl);
         return;
@@ -6940,6 +6956,7 @@ func llvm_emit_decl(decl *u8) void {
         var init *u8 = var_decl_init(decl);
         var is_extern i64 = var_decl_is_extern(decl);
         var var_type *u8 = var_decl_type(decl);
+        numeric_validate_legacy_type(var_type, decl);
 
         // Register as global
         llvm_add_global(name, name_len);
@@ -7598,6 +7615,7 @@ func generate_llvm(prog *u8, output_file *u8) void {
 
     // Declare external syscall (variadic)
     llvm_emit_line("declare i64 @syscall(i64, ...)");
+    llvm_numeric_declarations();
     llvm_emit_char(10);
 
     // Global variables for effect handling
@@ -7651,3 +7669,5 @@ func generate_llvm(prog *u8, output_file *u8) void {
 
     llvm_flush();
 }
+
+include "src/numeric_llvm.lang"
