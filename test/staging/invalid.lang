@@ -1,0 +1,1 @@
+func stage_invalid(args *StageValue) *StageValue { return nonexistent_entry(args); }

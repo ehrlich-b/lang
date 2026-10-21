@@ -1,0 +1,2 @@
+include "test/staging/absent.lang"
+func stage_missing(args *StageValue) *StageValue { return args; }

@@ -20,6 +20,7 @@ pub func compile_reader_to_executable(decl *u8) void {
     // Build cache path: $LANG_CACHE/readers/<name>
     var base_path *u8 = build_reader_cache_path(name, name_len);
     var exe_path *u8 = str_dup(base_path);
+    var link_path *u8 = phase_reader_link_path(exe_path);
 
     // Create cache directories
     var cache_base *u8 = get_cache_base();
@@ -256,10 +257,16 @@ pub func compile_reader_to_executable(decl *u8) void {
 
     // main() wrapper - use the reader's parameter name
     var main_src *u8 = "func main() i64 {\n    var input *PhaseBuffer = phase_read_fd(0, phase_limit(), \"<reader-input>\");\n    var buf *u8 = input.data;\n    var result *u8 = ";
+    if phase_isolated_enabled() != 0 {
+        main_src = "include \"std/stage.lang\"\nfunc main() i64 {\n    var input *StageValue = stage_read();\n    var buf *u8 = stage_reader_text(input);\n    var result *u8 = ";
+    }
     while *main_src != 0 { *wp = *main_src; wp = wp + 1; main_src = main_src + 1; }
     j = 0;
     while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
     var main_end *u8 = "(buf);\n    if result == nil { return 1; }\n    print(result);\n    return 0;\n}\n";
+    if phase_isolated_enabled() != 0 {
+        main_end = "(buf);\n    if result == nil { return 1; }\n    stage_write(stage_blob(7, result, strlen(result)));\n    return 0;\n}\n";
+    }
     while *main_end != 0 { *wp = *main_end; wp = wp + 1; main_end = main_end + 1; }
 
     // Add ___main entry point for x86 backend (_start calls ___main)
@@ -337,7 +344,7 @@ pub func compile_reader_to_executable(decl *u8) void {
             cg_had_error = 1;
             return;
         }
-        var clang_result i64 = exec_run(clang_path, "-Wno-override-module", out_path, "-o", exe_path, nil, nil);
+        var clang_result i64 = exec_run(clang_path, "-Wno-override-module", out_path, "-o", link_path, nil, nil);
         if clang_result != 0 {
             os_unlink(exe_path);
             eprint("error: linking reader '");
@@ -364,7 +371,7 @@ pub func compile_reader_to_executable(decl *u8) void {
             cg_had_error = 1;
             return;
         }
-        var ld_result i64 = exec_run(ld_path, obj_path, "-o", exe_path, nil, nil, nil);
+        var ld_result i64 = exec_run(ld_path, obj_path, "-o", link_path, nil, nil, nil);
         os_unlink(obj_path);
         if ld_result != 0 {
             os_unlink(exe_path);
@@ -373,11 +380,13 @@ pub func compile_reader_to_executable(decl *u8) void {
             return;
         }
     }
+    phase_reader_publish(link_path, exe_path);
     phase_identity_write(identity_path, identity);
 }
 
 pub func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
     var exe_path *u8 = build_reader_cache_path(name, name_len);
+    var link_path *u8 = phase_reader_link_path(exe_path);
 
     // Create cache directories
     var cache_base *u8 = get_cache_base();
@@ -432,6 +441,9 @@ pub func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
 
     // Add main wrapper that reads stdin, calls reader, prints result
     var main_src *u8 = "func main() i64 {\n    var input *PhaseBuffer = phase_read_fd(0, phase_limit(), \"<reader-input>\");\n    var buf *u8 = input.data;\n    var result *u8 = ";
+    if phase_isolated_enabled() != 0 {
+        main_src = "include \"std/stage.lang\"\nfunc main() i64 {\n    var input *StageValue = stage_read();\n    var buf *u8 = stage_reader_text(input);\n    var result *u8 = ";
+    }
     while *main_src != 0 { *wp = *main_src; wp = wp + 1; main_src = main_src + 1; }
 
     // Append reader name
@@ -439,6 +451,9 @@ pub func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
     while j < name_len { *wp = *(name + j); wp = wp + 1; j = j + 1; }
 
     var main_end *u8 = "(buf);\n    if result == nil { return 1; }\n    print(result);\n    return 0;\n}\n";
+    if phase_isolated_enabled() != 0 {
+        main_end = "(buf);\n    if result == nil { return 1; }\n    stage_write(stage_blob(7, result, strlen(result)));\n    return 0;\n}\n";
+    }
     while *main_end != 0 { *wp = *main_end; wp = wp + 1; main_end = main_end + 1; }
 
     // Add ___main entry point for x86 backend
@@ -504,7 +519,7 @@ pub func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
             cg_had_error = 1;
             return nil;
         }
-        var clang_result i64 = exec_run(clang_path, "-Wno-override-module", out_path, "-o", exe_path, nil, nil);
+        var clang_result i64 = exec_run(clang_path, "-Wno-override-module", out_path, "-o", link_path, nil, nil);
         if clang_result != 0 {
             os_unlink(exe_path);
             eprintln("error: linking embedded reader executable failed");
@@ -531,7 +546,7 @@ pub func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
             cg_had_error = 1;
             return nil;
         }
-        var ld_result i64 = exec_run(ld_path, obj_path, "-o", exe_path, nil, nil, nil);
+        var ld_result i64 = exec_run(ld_path, obj_path, "-o", link_path, nil, nil, nil);
         os_unlink(obj_path);
         if ld_result != 0 {
             os_unlink(exe_path);
@@ -541,6 +556,7 @@ pub func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
         }
     }
 
+    phase_reader_publish(link_path, exe_path);
     phase_identity_write(identity_path, identity);
     return exe_path;
 }

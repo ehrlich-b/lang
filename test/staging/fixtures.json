@@ -1,0 +1,9 @@
+{
+  "add": {"source":"test/staging/add.lang","entry":"stage_add","params":["i64","i64"],"result":"i64"},
+  "echo": {"source":"test/staging/echo.lang","entry":"stage_echo","params":["list"],"result":"list"},
+  "ast": {"source":"test/staging/ast.lang","entry":"stage_ast","params":[],"result":"syntax"},
+  "state": {"source":"test/staging/state.lang","entry":"stage_state","params":[],"result":"i64"},
+  "invalid": {"source":"test/staging/invalid.lang","entry":"stage_invalid","params":[],"result":"i64"},
+  "missing": {"source":"test/staging/missing.lang","entry":"stage_missing","params":[],"result":"i64"},
+  "wrong_result": {"source":"test/staging/wrong_result.lang","entry":"stage_wrong_result","params":[],"result":"text"}
+}

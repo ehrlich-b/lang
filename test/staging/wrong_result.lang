@@ -1,0 +1,1 @@
+func stage_wrong_result(args *StageValue) *StageValue { return stage_i64(42); }
