@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "label": "deterministic local smoke experiment; not model benchmark evidence",
+  "tracks": {
+    "interpreter-only": {
+      "deliverable": "Python interpreter for the same create/evolve grammar and repairs",
+      "oracle": "same frozen training and independent heldout source/expected pairs",
+      "tools": [
+        "Python standard library"
+      ],
+      "artifacts": [
+        "interpreter source",
+        "diagnostics"
+      ]
+    },
+    "native-plus-wasm": {
+      "deliverable": "Lang reader for the same create/evolve grammar and repairs",
+      "oracle": "same frozen training and independent heldout source/expected pairs on native and real Chromium",
+      "tools": [
+        "current-source native compiler",
+        "current-source Wasm compiler",
+        "reader helpers",
+        "local Chromium"
+      ],
+      "artifacts": [
+        "reader source",
+        "AST",
+        "native binary",
+        "reader Wasm",
+        "program Wasm",
+        "diagnostics"
+      ]
+    }
+  },
+  "orders": [
+    [
+      "interpreter-only",
+      "native-plus-wasm"
+    ],
+    [
+      "native-plus-wasm",
+      "interpreter-only"
+    ]
+  ],
+  "tasks": [
+    {
+      "id": "create",
+      "prompt": "Implement answer N; return N. Consume all input and validate ASCII decimal bytes 0..255, at most three digits. Allow whitespace, // and /* */ comments. Canonicalize leading zeros. Reject all other syntax.",
+      "reference": "test/reader_pack/create.lang"
+    },
+    {
+      "id": "evolve",
+      "prompt": "Replace answer syntax with threshold LIMIT value VALUE; return 1 iff VALUE >= LIMIT, otherwise 0. Preserve validation and full consumption.",
+      "reference": "test/reader_pack/threshold.lang"
+    },
+    {
+      "id": "repair",
+      "prompt": "Diagnose and repair each supplied wrong_*.lang independently, preserving the evolved contract; use the current helper signatures. Return a patch and explain the diagnostic.",
+      "reference": "test/reader_pack/threshold.lang"
+    }
+  ],
+  "repairs": [
+    {
+      "fixture": "wrong_arity.lang",
+      "case": "compile",
+      "reason": "ast_ge needs two AST strings",
+      "interpreter_fixture": "test/reader_pack/wrong_interpreters.py"
+    },
+    {
+      "fixture": "wrong_boundary.lang",
+      "case": "new-boundary",
+      "reason": "equality must return 1",
+      "interpreter_fixture": "test/reader_pack/wrong_interpreters.py"
+    },
+    {
+      "fixture": "wrong_tail.lang",
+      "case": "tail-second-query",
+      "reason": "must reject trailing input",
+      "interpreter_fixture": "test/reader_pack/wrong_interpreters.py"
+    },
+    {
+      "fixture": "wrong_constant.lang",
+      "case": "new-below",
+      "reason": "must compute the comparison",
+      "interpreter_fixture": "test/reader_pack/wrong_interpreters.py"
+    },
+    {
+      "fixture": "wrong_numeric.lang",
+      "case": "overflow",
+      "reason": "must reject values above 255",
+      "interpreter_fixture": "test/reader_pack/wrong_interpreters.py"
+    }
+  ],
+  "metrics": {
+    "correctness": "passed cases / total, separately for training and heldout, stage and backend",
+    "time": "wall milliseconds for compiler build, reader build, read, program build and execution; report setup separately from task time",
+    "repair": "failed fixture oracle before repair; reference oracle after repair; attempts and elapsed milliseconds. Smoke replay uses supplied reference, zero model attempts."
+  },
+  "future_runs": {
+    "status": "disabled",
+    "requires": [
+      "explicit budget approval before any repeated model run",
+      "fresh isolated workspaces per track and session",
+      "heldout evaluator inaccessible to authoring session",
+      "equal task time, token and repair-attempt limits, recorded before starting",
+      "same model/version and task prompts, alternating frozen orders",
+      "retain failures and report per-case results, no pooled superiority claim from smoke data"
+    ]
+  },
+  "policy": {
+    "paid_model_calls": false,
+    "outreach": false,
+    "revive_old_LANG_AI_scope": false,
+    "network": "loopback browser harness only"
+  }
+}

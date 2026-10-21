@@ -1,0 +1,98 @@
+[
+  {
+    "id": "create-zero",
+    "stage": "create",
+    "source": "answer 0",
+    "expected": 0
+  },
+  {
+    "id": "create-max",
+    "stage": "create",
+    "source": "answer 255",
+    "expected": 255
+  },
+  {
+    "id": "create-tail",
+    "stage": "create",
+    "source": "answer 42 answer 3",
+    "diagnostic": "expected end of input"
+  },
+  {
+    "id": "new-boundary",
+    "stage": "evolve",
+    "source": "threshold 73 value 73",
+    "expected": 1
+  },
+  {
+    "id": "new-below",
+    "stage": "evolve",
+    "source": "threshold 73 value 72",
+    "expected": 0
+  },
+  {
+    "id": "leading-zero-comment",
+    "stage": "evolve",
+    "source": "/* measurement */ threshold 007\nvalue 008 // done\n",
+    "expected": 1
+  },
+  {
+    "id": "max-below",
+    "stage": "evolve",
+    "source": "threshold 255 value 0",
+    "expected": 0
+  },
+  {
+    "id": "tail-second-query",
+    "stage": "evolve",
+    "source": "threshold 2 value 3 threshold 0 value 0",
+    "diagnostic": "expected end of input"
+  },
+  {
+    "id": "overflow",
+    "stage": "evolve",
+    "source": "threshold 256 value 2",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "huge",
+    "stage": "evolve",
+    "source": "threshold 999999999999999999999999999999 value 2",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "negative",
+    "stage": "evolve",
+    "source": "threshold -1 value 2",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "hex",
+    "stage": "evolve",
+    "source": "threshold 0x10 value 2",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "exponent",
+    "stage": "evolve",
+    "source": "threshold 1e2 value 3",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "quoted",
+    "stage": "evolve",
+    "source": "threshold \"2\" value 3",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "missing",
+    "stage": "evolve",
+    "source": "threshold 2 value",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "keyword",
+    "stage": "evolve",
+    "source": "limit 2 value 3",
+    "diagnostic": "expected keyword"
+  }
+]

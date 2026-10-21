@@ -1,0 +1,16 @@
+{
+  "test/reader_pack/common.lang": "c059e7fa6d67dcf7e56e8b64a6d208498261e60fe79440c1c1cf5976a4d94601",
+  "test/reader_pack/create.lang": "078e80a21119948fecf3421199b75bf5c36c6368ca0f1c2640d22e8c621b9f2d",
+  "test/reader_pack/heldout.json": "dbcf1ca1fc2aec2780e61b16f3013096e473158cd27136026eb74e4ef06a2d27",
+  "test/reader_pack/helpers.json": "940b7e22f4def8f3ff6743bd164081ef7c165f652c4af05821fa130474f9f7e8",
+  "test/reader_pack/interpreter.py": "9e601fa195234ed69e87a260bc8e475d3763a1b12c96a96006e358267cd3e969",
+  "test/reader_pack/protocol.json": "0cfa8dbbf1056f06494581b3495ad3f250ecc5dcdca92fcc22f52907192f856b",
+  "test/reader_pack/threshold.lang": "c200f487e58c3362ad324889f35fe268251ca9db5c9ed73df6abee67c62d624f",
+  "test/reader_pack/training.json": "68aa7dd3f55bed8e7ac37c20835696e93d2acd1a230ecadf45fa45acd1cc2e10",
+  "test/reader_pack/wrong_arity.lang": "fc3c053861ad15d7be1917c3786c1530b05a4d7b3f401dd09287c2d6bc8d86f8",
+  "test/reader_pack/wrong_boundary.lang": "6e19bb7212ecfc7167606d6f9cbf4d00ac14b149cc58b6ed2c2e9e616f50f505",
+  "test/reader_pack/wrong_constant.lang": "dd85f335bd90ac1a447ed0ba3cacd82e88b15ffb1e91b4fea8662529292c2058",
+  "test/reader_pack/wrong_interpreters.py": "68e1577a72b4398fa3150eb5457d76221d349b5334262f84a276d48479f48d14",
+  "test/reader_pack/wrong_numeric.lang": "b25780974b3878b21ef3714329ff796524634482b00ea425dae019477eb0c273",
+  "test/reader_pack/wrong_tail.lang": "143f490fa177b65980c655c9a4dac001ed51fadbbefb51512113793299007431"
+}

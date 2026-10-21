@@ -1,0 +1,17 @@
+{
+  "std/tok.lang": [
+    "pub func tok_new(input *u8) *Tokenizer {",
+    "pub func tok_kind(t *Tokenizer) i64 {",
+    "pub func tok_text(t *Tokenizer) *u8 {",
+    "pub func tok_next(t *Tokenizer) void {",
+    "pub func tok_print_error(t *Tokenizer, label *u8) void {"
+  ],
+  "std/ast.lang": [
+    "func ast_number(val *u8) *u8 {",
+    "func ast_ge(l *u8, r *u8) *u8 {",
+    "func ast_main_i64(expr *u8) *u8 {"
+  ],
+  "std/pnode.lang": [
+    "pub func pnode_require(node *PNode, name *u8) *PNode {"
+  ]
+}
