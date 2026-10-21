@@ -27,7 +27,7 @@ def main():
     for key in ('LANGBE', 'LANGOS', 'COMPILER', 'LANGLIBC', 'LANG_ROOT', 'LANG_CACHE', 'LANG_LAYOUT_PROFILE'):
         env.pop(key, None)
     env.update(JOBS='2', PUBLISH_BOOTSTRAP='0', COMPILER=str(ROOT / 'out/bootstrap_verify/kernel2'), TMPDIR=str(output / 'tmp'),
-               EFFECTS_EVIDENCE_DIR=str(output / 'effects'))
+               EFFECTS_EVIDENCE_DIR=str(output / 'effects'), COMPILER_RECEIPT=str(ROOT / 'out/verify-receipt.json'))
     (output / 'tmp').mkdir()
     receipt = {'schema': 1, 'started': datetime.now(timezone.utc).isoformat(),
                'host': {'system': platform.system(), 'machine': platform.machine()},
