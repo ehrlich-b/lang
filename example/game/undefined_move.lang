@@ -1,0 +1,4 @@
+// An editor should select missing_move in the original source.
+func main() i64 {
+    return missing_move;
+}

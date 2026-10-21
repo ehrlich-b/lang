@@ -1,0 +1,5 @@
+// Direct Wasm must refuse arrays at their original source location.
+func main() i64 {
+    var board [5]i64;
+    return 0;
+}

@@ -1,0 +1,362 @@
+{
+  "version": 1,
+  "path": "browser",
+  "source_sha": "8fdb5a13bde1e94c1e81103e5a68b8bdcf007b2b",
+  "roadmap_sha256": "28a0a57598e1b157942ccb4a04330443f707325868a382e88e640fa121d3a8e6",
+  "example": {
+    "source": "example/game/spark.lang",
+    "input": "example/game/replay.txt",
+    "expected_output": "example/game/expected.txt"
+  },
+  "error_examples": [
+    {
+      "source": "example/game/undefined_move.lang",
+      "line": 2,
+      "column": 1,
+      "diagnostic": "example/game/undefined_move.lang:2:1: error: unknown value in direct wasm function"
+    },
+    {
+      "source": "example/game/unsupported_board.lang",
+      "line": 2,
+      "column": 1,
+      "diagnostic": "example/game/unsupported_board.lang:2:1: error: direct wasm currently supports only scalar and pointer locals"
+    }
+  ],
+  "status": "contract; playable scene pending",
+  "roadmap_document": "lang-roadmap-1018/ROADMAP.md",
+  "replay_command": "LANGBE=wasm LANGOS=wasm ./out/lang example/game/spark.lang -o ../spark.wasm && node test/game_replay.js ../spark.wasm",
+  "limits": {
+    "maximum_turns": 16,
+    "board_cells": 5,
+    "initial_position": 0,
+    "spark_position": 3,
+    "score_maximum": 1,
+    "input_alphabet": [
+      "a",
+      "d",
+      "."
+    ],
+    "fixture_framing": "remove exactly one final newline",
+    "frame_count_maximum": 17
+  },
+  "target_capabilities": {
+    "selection": "direct-wasm32; existing lang namespace host",
+    "program_exports": [
+      "memory",
+      "main",
+      "__heap_base"
+    ],
+    "program_imports": [
+      "lang.read",
+      "lang.write",
+      "lang.calloc"
+    ],
+    "compiler_host": "web/compiler_host.js",
+    "program_host": "web/program_host.js",
+    "toolchain": {
+      "clang": "Debian clang version 19.1.7 (3+b1)",
+      "lli": "Debian LLVM version 19.1.7",
+      "wasm-ld": "Debian LLD 19.1.7",
+      "ld.lld": "Debian LLD 19.1.7 (compatible with GNU linkers)",
+      "node": "v24.21.0",
+      "make": "GNU Make 4.4.1",
+      "python3": "Python 3.13.5"
+    },
+    "supported": [
+      "bounded ASCII stdin",
+      "integer state",
+      "structured branches and loops",
+      "stdout state trace",
+      "fresh instance per input prefix",
+      "compilation inside Wasm-hosted compiler"
+    ],
+    "unsupported": [
+      "persistent tick export",
+      "native effects",
+      "array locals",
+      "aggregate returns",
+      "indirect calls"
+    ],
+    "diagnostic_precision": "negative examples report the enclosing function at line 2 byte-column 1",
+    "probe_scope": "actual pinned native and Wasm-hosted compiler; existing browser hosts executed in Node WebAssembly",
+    "browser_ui_qualified": false,
+    "fallback": "not selected: bounded prefix replay is supported by the existing browser target"
+  },
+  "handoff": {
+    "consumer": "bf-f02-w2",
+    "document": "docs/GAME_CONTRACT.md",
+    "delivery": "local artifact for the existing owner; ownership unchanged",
+    "remaining": [
+      "one playable scene",
+      "one navigable source failure",
+      "real browser interaction qualification"
+    ]
+  },
+  "fixture_sha256": {
+    "example/game/spark.lang": "0252de655fd79c22d0f48ebb205bfb330f55f7ad5b25b769a91e490a4a3f1262",
+    "example/game/replay.txt": "1b93d043d8a6fdeae6721aaf3080f67764413099a29cedb8051e6d995211a1d1",
+    "example/game/expected.txt": "8997673597c1334562d64c5e2cf34f00efb901a0ab1a4f88a9e349a04e1f7472",
+    "example/game/undefined_move.lang": "ef32292d86928105d7a35ab9dc90ddd32f2eed16df672c8736531f1f3f2cdd45",
+    "example/game/unsupported_board.lang": "d0f2f45c919dc887c34418eb959108b96414c9c89fa6d23f7f7d2f891e5e9790",
+    "test/game_replay.js": "79cdb9523cd50ca22519507fef3182d2dcf814ff7ad3e7aad56467194ab19c20"
+  },
+  "suites": {
+    "bootstrap": {
+      "command": "make bootstrap PUBLISH_BOOTSTRAP=0",
+      "result": {
+        "passed": 250,
+        "failed": 0,
+        "skips": [
+          "SKIP 107_syscall_write_mac (macos only)",
+          "SKIP 108_syscall_getpid_mac (macos only)",
+          "SKIP 109_syscall_getuid_mac (macos only)",
+          "SKIP 187_extension_lisp (ignored)",
+          "SKIP 238_ast_statements (ignored)",
+          "SKIP 240_extern_func (ignored)"
+        ]
+      }
+    },
+    "llvm": {
+      "command": "COMPILER=out/bootstrap_verify/compiler_linux ./test/run_llvm_suite.sh",
+      "result": {
+        "passed": 250,
+        "failed": 0,
+        "skips": [
+          "SKIP 107_syscall_write_mac (macos only)",
+          "SKIP 108_syscall_getpid_mac (macos only)",
+          "SKIP 109_syscall_getuid_mac (macos only)",
+          "SKIP 187_extension_lisp (ignored)",
+          "SKIP 238_ast_statements (ignored)",
+          "SKIP 240_extern_func (ignored)"
+        ]
+      },
+      "invocation": "sanctioned bootstrap Stage 6"
+    },
+    "effects": {
+      "command": "python3 test/run_effects_safety.py",
+      "result": {
+        "programs": 14,
+        "optimization_variants": 4,
+        "loud_build_refusals": 42,
+        "failed": 0,
+        "skips": []
+      }
+    },
+    "wasm": {
+      "command": "bash test/run_wasm_suite.sh",
+      "result": {
+        "passed": 184,
+        "failed": 0,
+        "skips": [
+          "SKIP 104_syscall_write (platform-specific)",
+          "SKIP 105_syscall_getpid (platform-specific)",
+          "SKIP 106_syscall_getuid (platform-specific)",
+          "SKIP 107_syscall_write_mac (platform-specific)",
+          "SKIP 108_syscall_getpid_mac (platform-specific)",
+          "SKIP 109_syscall_getuid_mac (platform-specific)",
+          "SKIP 155_reader_full_language (effects - unsupported on wasm)",
+          "SKIP 187_extension_lisp (ignored)",
+          "SKIP 188_effect_exception (effects - unsupported on wasm)",
+          "SKIP 190_effect_resume (effects - unsupported on wasm)",
+          "SKIP 191_effect_nested (effects - unsupported on wasm)",
+          "SKIP 192_effect_multi_type (effects - unsupported on wasm)",
+          "SKIP 193_effect_deep_call (effects - unsupported on wasm)",
+          "SKIP 194_effect_deep_resume (effects - unsupported on wasm)",
+          "SKIP 195_effect_in_loop (effects - unsupported on wasm)",
+          "SKIP 196_effect_handler_func (effects - unsupported on wasm)",
+          "SKIP 197_effect_resume_expr (effects - unsupported on wasm)",
+          "SKIP 198_effect_many_resume (effects - unsupported on wasm)",
+          "SKIP 234_lang_reader_inline (effects - unsupported on wasm)",
+          "SKIP 238_ast_statements (ignored)",
+          "SKIP 240_extern_func (ignored)"
+        ]
+      }
+    },
+    "direct-wasm": {
+      "command": "bash test/run_direct_wasm.sh",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "skips": []
+      }
+    },
+    "compiler-wasm": {
+      "command": "bash test/run_compiler_wasm.sh",
+      "result": {
+        "passed": 4,
+        "failed": 0,
+        "skips": []
+      }
+    },
+    "composition": {
+      "command": "make -f ../composition.Makefile test-composition",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "skips": []
+      }
+    },
+    "readers": {
+      "command": "node test/reader_locations.js",
+      "result": {
+        "passed": 5,
+        "failed": 0,
+        "skips": []
+      }
+    }
+  },
+  "baseline_receipt": {
+    "source": "8fdb5a13bde1e94c1e81103e5a68b8bdcf007b2b",
+    "bootstrap_command": "make bootstrap PUBLISH_BOOTSTRAP=0",
+    "host": {
+      "system": "Linux",
+      "machine": "x86_64"
+    },
+    "tools": {
+      "clang": "Debian clang version 19.1.7 (3+b1)",
+      "lli": "Debian LLVM version 19.1.7",
+      "wasm-ld": "Debian LLD 19.1.7",
+      "ld.lld": "Debian LLD 19.1.7 (compatible with GNU linkers)",
+      "node": "v24.21.0",
+      "make": "GNU Make 4.4.1",
+      "python3": "Python 3.13.5"
+    },
+    "fixed_points": {
+      "kernel2.ll": "c3acb3551ca8c4d8d40222740f38fcfbe6985a82f62d4a59e86575fb8973f591",
+      "kernel3.ll": "c3acb3551ca8c4d8d40222740f38fcfbe6985a82f62d4a59e86575fb8973f591",
+      "reader_ast1.ast": "d4094003f8b2a43ea8b66693f9ee84ea21d553ff2413e9ff4aaf52866afd03f6",
+      "reader_ast2.ast": "d4094003f8b2a43ea8b66693f9ee84ea21d553ff2413e9ff4aaf52866afd03f6"
+    },
+    "suites": {
+      "bootstrap": {
+        "command": "make bootstrap PUBLISH_BOOTSTRAP=0",
+        "log": "pinned-bootstrap.log",
+        "log_sha256": "6511d8a4464528d629fc635e04e465971672c77d67cf1f5f16eb736d4fcad1a3",
+        "result": {
+          "passed": 250,
+          "failed": 0,
+          "skips": [
+            "SKIP 107_syscall_write_mac (macos only)",
+            "SKIP 108_syscall_getpid_mac (macos only)",
+            "SKIP 109_syscall_getuid_mac (macos only)",
+            "SKIP 187_extension_lisp (ignored)",
+            "SKIP 238_ast_statements (ignored)",
+            "SKIP 240_extern_func (ignored)"
+          ]
+        }
+      },
+      "llvm": {
+        "command": "COMPILER=out/bootstrap_verify/compiler_linux ./test/run_llvm_suite.sh",
+        "log": "pinned-bootstrap.log",
+        "log_sha256": "6511d8a4464528d629fc635e04e465971672c77d67cf1f5f16eb736d4fcad1a3",
+        "result": {
+          "passed": 250,
+          "failed": 0,
+          "skips": [
+            "SKIP 107_syscall_write_mac (macos only)",
+            "SKIP 108_syscall_getpid_mac (macos only)",
+            "SKIP 109_syscall_getuid_mac (macos only)",
+            "SKIP 187_extension_lisp (ignored)",
+            "SKIP 238_ast_statements (ignored)",
+            "SKIP 240_extern_func (ignored)"
+          ]
+        },
+        "invocation": "sanctioned bootstrap Stage 6"
+      },
+      "effects": {
+        "command": "python3 test/run_effects_safety.py",
+        "log": "pinned-effects.log",
+        "log_sha256": "07ba640dd383bdde17aa0afda7299432afc3deeea352e199c818b2cf6dbe5f14",
+        "result": {
+          "programs": 14,
+          "optimization_variants": 4,
+          "loud_build_refusals": 42,
+          "failed": 0,
+          "skips": []
+        }
+      },
+      "wasm": {
+        "command": "bash test/run_wasm_suite.sh",
+        "log": "pinned-wasm.log",
+        "log_sha256": "77d50d3bfb1b06508e236504693d8766e01289b8805784f56e968112c606e282",
+        "result": {
+          "passed": 184,
+          "failed": 0,
+          "skips": [
+            "SKIP 104_syscall_write (platform-specific)",
+            "SKIP 105_syscall_getpid (platform-specific)",
+            "SKIP 106_syscall_getuid (platform-specific)",
+            "SKIP 107_syscall_write_mac (platform-specific)",
+            "SKIP 108_syscall_getpid_mac (platform-specific)",
+            "SKIP 109_syscall_getuid_mac (platform-specific)",
+            "SKIP 155_reader_full_language (effects - unsupported on wasm)",
+            "SKIP 187_extension_lisp (ignored)",
+            "SKIP 188_effect_exception (effects - unsupported on wasm)",
+            "SKIP 190_effect_resume (effects - unsupported on wasm)",
+            "SKIP 191_effect_nested (effects - unsupported on wasm)",
+            "SKIP 192_effect_multi_type (effects - unsupported on wasm)",
+            "SKIP 193_effect_deep_call (effects - unsupported on wasm)",
+            "SKIP 194_effect_deep_resume (effects - unsupported on wasm)",
+            "SKIP 195_effect_in_loop (effects - unsupported on wasm)",
+            "SKIP 196_effect_handler_func (effects - unsupported on wasm)",
+            "SKIP 197_effect_resume_expr (effects - unsupported on wasm)",
+            "SKIP 198_effect_many_resume (effects - unsupported on wasm)",
+            "SKIP 234_lang_reader_inline (effects - unsupported on wasm)",
+            "SKIP 238_ast_statements (ignored)",
+            "SKIP 240_extern_func (ignored)"
+          ]
+        }
+      },
+      "direct-wasm": {
+        "command": "bash test/run_direct_wasm.sh",
+        "log": "pinned-direct-wasm.log",
+        "log_sha256": "2c815ace46f44e85e994bc99e9ee4d8dac7b5eb32cb713411b541e308b741ec1",
+        "result": {
+          "passed": 1,
+          "failed": 0,
+          "skips": []
+        }
+      },
+      "compiler-wasm": {
+        "command": "bash test/run_compiler_wasm.sh",
+        "log": "pinned-compiler-wasm.log",
+        "log_sha256": "712425b289d5aea42cfca758e4623fc04de4460cc3267fa2c6fdd48f09eb871e",
+        "result": {
+          "passed": 4,
+          "failed": 0,
+          "skips": []
+        }
+      },
+      "composition": {
+        "command": "make -f ../composition.Makefile test-composition",
+        "log": "pinned-composition.log",
+        "log_sha256": "4f3089e2e316f62abe27980b04e7e18b7b23a91b8cd40c7816ef53c55c29c544",
+        "result": {
+          "passed": 1,
+          "failed": 0,
+          "skips": []
+        }
+      },
+      "readers": {
+        "command": "node test/reader_locations.js",
+        "log": "pinned-readers.log",
+        "log_sha256": "bb2588435875f473e80a1cab0cf6cc160a0d1d47468d0d632a820a206b7abe63",
+        "result": {
+          "passed": 5,
+          "failed": 0,
+          "skips": []
+        }
+      }
+    },
+    "complete": true,
+    "preserved_candidate_seed": true,
+    "promotion_scope": "retained bootstrap execution copy only",
+    "input_seed_sha256": {
+      "bootstrap/current/COMMIT": "672c6d0c65fc1e9f882dc2c9ba597fe114dab99f40208525849e3be6dc887b0d",
+      "bootstrap/current/PROVENANCE": "f769a0f779d3def022b1cee1f258dfce3b9cd00bf6d7cc8d181f6072f1d0ced3",
+      "bootstrap/current/compiler_linux.ll": "51a94871007993696fa65f3d8c9f253a48b7d44ea36be0905e113bd92fa1ffbe",
+      "bootstrap/current/compiler_macos.ll": "63f845edf290d911d795c645d6329693ca6f2443fa6b6fb1d844e9da37873370",
+      "bootstrap/current/lang_reader/source.ast": "d4094003f8b2a43ea8b66693f9ee84ea21d553ff2413e9ff4aaf52866afd03f6"
+    }
+  }
+}

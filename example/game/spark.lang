@@ -1,0 +1,36 @@
+// Catch the spark at x=3 on a five-cell board. At most sixteen turns.
+include "std/core.lang"
+
+func show(turn i64, x i64, score i64) {
+    print("tick="); print_int(turn);
+    print(" x="); print_int(x);
+    print(" score="); print_int(score); print("\n");
+}
+
+func main() i64 {
+    var input *u8 = alloc(17);
+    var length i64 = 0;
+    var count i64 = file_read(0, input, 17);
+    while count > 0 {
+        length = length + count;
+        if length > 16 { eprintln("maximum 16 turns"); return 2; }
+        count = file_read(0, input + length, 17 - length);
+    }
+    if count < 0 { eprintln("input unavailable"); return 2; }
+    var turn i64 = 0;
+    var x i64 = 0;
+    var score i64 = 0;
+    show(turn, x, score);
+    while turn < length {
+        var key i64 = *(input + turn);
+        if key == 97 { if x > 0 { x = x - 1; } }
+        else if key == 100 { if x < 4 { x = x + 1; } }
+        else if key != 46 { eprintln("use a, d or ."); return 2; }
+        if x == 3 { score = 1; }
+        turn = turn + 1;
+        show(turn, x, score);
+    }
+    if score == 1 { println("caught"); }
+    else { println("seek"); }
+    return 0;
+}

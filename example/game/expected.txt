@@ -1,0 +1,7 @@
+tick=0 x=0 score=0
+tick=1 x=1 score=0
+tick=2 x=2 score=0
+tick=3 x=1 score=0
+tick=4 x=2 score=0
+tick=5 x=3 score=1
+caught
