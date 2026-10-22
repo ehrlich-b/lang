@@ -52,8 +52,15 @@ func main() i64 {
     if tok_kind(spanned) != TOK_IDENT { return 7; }
     if spanned.tok_start != 17 { return 8; }
 
-    // An unterminated block comment ends at the end of input.
-    if !streq(scan(tok_new_comments("1 /* 2", nil, "/*", "*/")), "n") { return 9; }
+    // An unterminated block comment is a lexical error, never successful EOF.
+    var unclosed *Tokenizer = tok_new_comments("1 /* 2", nil, "/*", "*/");
+    if tok_kind(unclosed) != TOK_NUMBER { return 9; }
+    tok_next(unclosed);
+    if tok_eof(unclosed) || tok_expect_end(unclosed) { return 9; }
+    if tok_kind(unclosed) != TOK_UNKNOWN { return 9; }
+    if tok_error_offset(unclosed) != 2 || tok_error_end_offset(unclosed) != 6 { return 9; }
+    if !streq(tok_error_expected(unclosed), "*/") { return 9; }
+    if !streq(tok_error_found(unclosed), "unterminated block comment") { return 9; }
 
     // The line comment's newline survives it, so a layout reader can still see
     // where the line ended.
