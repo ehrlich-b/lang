@@ -72,28 +72,35 @@ else:
     assert a.baseline_compiler, '--baseline-compiler is required for equivalence'
     old = a.baseline_compiler.resolve()
     for target in ('linux', 'wasm'):
-        modules = []
-        for label, cc in [('old', old), ('new', compiler)]:
-            module = out / f'{target}-{label}.ll'
-            run([cc, 'test/layout/equivalence.lang', '-o', module], target=target)
-            modules.append(module)
-        assert modules[0].read_bytes() == modules[1].read_bytes(), target + ' emitted layout changed'
-        if target == 'linux':
-            for opt in ('-O0', '-O2'):
-                exe = out / (target + opt)
-                run(['clang', opt, modules[1], '-o', exe])
-                run([exe], expected=42)
-        else:
-            exe = out / 'fixture.wasm'
-            run(['clang', '--target=wasm32-unknown-unknown', '-nostdlib', '-Wl,--no-entry',
-                 '-Wl,--export-all', '-Wl,--allow-undefined', modules[1], '-o', exe])
-            run(['node', 'test/wasm_host.js', exe], expected=42)
-        ast = out / f'{target}-round.ast'
-        run([compiler, 'test/layout/equivalence.lang', '--emit-expanded-ast', '-o', ast], target=target)
-        round_module = out / f'{target}-round.ll'
-        run([compiler, ast, '--from-ast', '-o', round_module], target=target)
-        assert round_module.read_bytes() == modules[1].read_bytes(), target + ' core round-trip changed layout'
-        print(f'PASS {target}: byte-identical old/new LLVM and core round-trip; expected runtime exit 42; zero-length arrays preserved')
+        for fixture in ('equivalence', 'f32_literal'):
+            source = f'test/layout/{fixture}.lang'
+            modules = []
+            for label, cc in [('old', old), ('new', compiler)]:
+                module = out / f'{target}-{fixture}-{label}.ll'
+                run([cc, source, '-o', module], target=target)
+                modules.append(module)
+            assert modules[0].read_bytes() == modules[1].read_bytes(), f'{target} {fixture} emitted layout changed'
+            if target == 'linux':
+                for opt in ('-O0', '-O2'):
+                    exe = out / (target + fixture + opt)
+                    run(['clang', opt, modules[1], '-o', exe])
+                    run([exe], expected=42)
+            else:
+                exe = out / f'{fixture}.wasm'
+                run(['clang', '--target=wasm32-unknown-unknown', '-nostdlib', '-Wl,--no-entry',
+                     '-Wl,--export-all', '-Wl,--allow-undefined', modules[1], '-o', exe])
+                run(['node', 'test/wasm_host.js', exe], expected=42)
+            print(f'PASS {target} {fixture}: byte-identical old/new LLVM; expected runtime exit 42')
+            # The existing AST reader cannot parse decimal float literals on
+            # either compiler. Keep core round-trip coverage on the original
+            # fixture; f32_literal checks every stored bit through execution.
+            if fixture == 'equivalence':
+                ast = out / f'{target}-round.ast'
+                run([compiler, source, '--emit-expanded-ast', '-o', ast], target=target)
+                round_module = out / f'{target}-round.ll'
+                run([compiler, ast, '--from-ast', '-o', round_module], target=target)
+                assert round_module.read_bytes() == modules[1].read_bytes(), target + ' core round-trip changed layout'
+                print(f'PASS {target}: core round-trip; zero-length arrays preserved')
     for target in ('linux', 'wasm'):
         overflow = '[1152921504606846976]i64' if target == 'linux' else '[536870912]i64'
         for label, typ, diagnostic in [

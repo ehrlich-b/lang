@@ -5268,9 +5268,8 @@ func llvm_emit_stmt(stmt *u8) void {
                 llvm_emit_int(li);
                 llvm_emit_char(10);
 
-                // Expressions are all i64 here, so narrow back to the element
-                // type on the way in - the mirror of what the index-read path
-                // does with ptrtoint/zext on the way out.
+                // Pointer and integer expressions use i64 carriers; floats
+                // already have their element type and must not be truncated.
                 var elem_bytes i64 = llvm_storage_size(lit_elem_type);
                 if type_kind(lit_elem_type) == TYPE_PTR {
                     var cast_temp i64 = llvm_next_temp();
@@ -5284,7 +5283,7 @@ func llvm_emit_stmt(stmt *u8) void {
                     llvm_emit_str(", i8** %t");
                     llvm_emit_int(slot_temp);
                     llvm_emit_char(10);
-                } else if elem_bytes < 8 {
+                } else if llvm_is_float_type(lit_elem_type) == 0 && elem_bytes < 8 {
                     var trunc_temp i64 = llvm_next_temp();
                     llvm_emit_str("    %t");
                     llvm_emit_int(trunc_temp);
