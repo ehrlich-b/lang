@@ -24,14 +24,36 @@ const cases = [
   const diagnostic = `diagnostic:${line}:${column}: expected ${expected}, found ${token || 'end of input'} @${start}:${end}`;
   return { name, file, token, source, start, end, diagnostic };
 });
+for (const name of ['comment-opener', 'comment-open', 'comment-truncated', 'comment-utf8',
+                    'comment-leading', 'custom-opener', 'custom-truncated', 'custom-utf8']) {
+  const custom = name.startsWith('custom-');
+  const file = `${directory}/${name}.read`;
+  const source = fs.readFileSync(file, 'utf8');
+  const index = source.lastIndexOf(custom ? '<!--' : '/*');
+  const token = source.slice(index);
+  const start = Buffer.byteLength(source.slice(0, index));
+  const end = Buffer.byteLength(source);
+  const prefix = source.slice(0, index).split('\n');
+  const diagnostic = `diagnostic:${prefix.length}:${Buffer.byteLength(prefix.at(-1)) + 1}: expected ${custom ? '-->' : '*/'}, found unterminated block comment @${start}:${end}`;
+  cases.push({ name, file, token, source, start, end, diagnostic,
+    reader: custom ? `${directory}/customdiagnostic.lang` : reader,
+    extension: custom ? 'customdiagnostic' : 'diagnostic' });
+}
+const controls = [
+  { name: 'closed', source: 'answer 42 /* é🧭 */' },
+  { name: 'line-eof', source: 'answer 42 // é🧭' },
+  { name: 'custom-closed', source: '<!-- é🧭 --> answer 42 <!-- done -->', reader: `${directory}/customdiagnostic.lang`, extension: 'customdiagnostic' },
+  { name: 'custom-line-eof', source: 'answer 42 # é🧭', reader: `${directory}/customdiagnostic.lang`, extension: 'customdiagnostic' },
+  { name: 'bare', source: 'answer 42', reader: `${directory}/bare.lang`, extension: 'bare' },
+];
 function nativeDiagnostics() {
   const evidence = fs.mkdtempSync(path.join(process.env.EVIDENCE_DIR || os.tmpdir(), 'diagnostic-bytes-'));
   const receipts = cases.map(c => {
     // The native CLI dispatches by extension; browser source labels are arbitrary.
-    const input = path.join(evidence, `${c.name}.diagnostic`);
+    const input = path.join(evidence, `${c.name}.${c.extension || 'diagnostic'}`);
     fs.writeFileSync(input, fs.readFileSync(c.file));
     const output = path.join(evidence, `${c.name}.ast`);
-    const result = spawnSync(process.env.COMPILER || './out/lang', ['read', reader, input, '-o', output], {
+    const result = spawnSync(process.env.COMPILER || './out/lang', ['read', c.reader || reader, input, '-o', output], {
       timeout: 120000, env: { ...process.env, LANGBE: 'llvm', LANG_CACHE: path.join(evidence, 'cache') },
     });
     assert.ifError(result.error);
@@ -47,8 +69,19 @@ function nativeDiagnostics() {
     console.log(`PASS ${c.name}: strict UTF-8, exit 1, no AST, ${c.diagnostic}`);
     return { name: c.name, diagnostic: c.diagnostic, start: c.start, end: c.end, exit: result.status, ast: false };
   });
+  for (const c of controls) {
+    const input = path.join(evidence, `${c.name}.${c.extension || 'diagnostic'}`);
+    fs.writeFileSync(input, c.source);
+    const result = spawnSync(process.env.COMPILER || './out/lang', ['read', c.reader || reader, input], {
+      timeout: 120000, env: { ...process.env, LANGBE: 'llvm', LANG_CACHE: path.join(evidence, 'cache') },
+    });
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, String(result.stderr));
+    assert.match(String(result.stdout), /\(program/);
+    console.log(`PASS control ${c.name}: usable AST`);
+  }
   fs.writeFileSync(path.join(evidence, 'native.json'), JSON.stringify(receipts, null, 2) + '\n');
   return receipts;
 }
 if (require.main === module) nativeDiagnostics();
-module.exports = { cases, reader, nativeDiagnostics };
+module.exports = { cases, controls, reader, nativeDiagnostics };

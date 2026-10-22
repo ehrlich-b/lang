@@ -115,6 +115,7 @@ try {
   await page.click('#runtime-label');
   await page.fill('#runtime', '');
   for (const [index, c] of diagnosticBytes.cases.entries()) {
+    await page.fill('#reader', fs.readFileSync(c.reader || diagnosticBytes.reader, 'utf8'));
     // Populate both result downloads before failure to exercise stale cleanup.
     await page.fill('#custom-source', 'answer 42');
     await run();
@@ -150,6 +151,13 @@ try {
     }
   }
   fs.writeFileSync(path.join(evidence, 'diagnostic-bytes.json'), JSON.stringify(byteReceipts, null, 2) + '\n');
+  for (const c of diagnosticBytes.controls) {
+    await page.fill('#reader', fs.readFileSync(c.reader || diagnosticBytes.reader, 'utf8'));
+    await page.fill('#custom-source', c.source);
+    await run();
+    assert.match(await page.locator('#output').innerText(), /main\(\) → 42/);
+    console.log(`PASS control ${c.name}: native = Wasm, return 42`);
+  }
   // Compiler diagnostics still target the correct pane, including a byte
   // column after an emoji, and opening a folded runtime pane.
   for (const [label, id] of [['reader.lang', 'reader'], ['source.read', 'custom-source'], ['runtime.lang', 'runtime']]) {

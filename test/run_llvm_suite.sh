@@ -328,7 +328,7 @@ BADASTREADER
         example/tiny/tiny.lang "$tmp/bad.tiny" -o "$tmp/bad-reader.ll" \
         >"$tmp/bad-reader.out" 2>&1 && ok=0
     test ! -e "$tmp/bad-reader.ll" || ok=0
-    test "$(grep -Fc 'tiny: expected' "$tmp/bad-reader.out")" = 1 || ok=0
+    test "$(grep -Fc 'tiny:1:1: expected answer' "$tmp/bad-reader.out")" = 1 || ok=0
 
     if [ "$ok" = 1 ]; then
         echo "PASS $name" >> "$results_file"

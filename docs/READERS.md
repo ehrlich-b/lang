@@ -43,14 +43,23 @@ include "std/ast.lang"
 reader tiny(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
     if tok_kind(tokens) != TOK_IDENT || !streq(tok_text(tokens), "answer") {
+        tok_note_expected(tokens, "answer");
+        tok_print_error(tokens, "tiny");
         return nil;
     }
     tok_next(tokens);
-    if tok_kind(tokens) != TOK_NUMBER { return nil; }
+    if tok_kind(tokens) != TOK_NUMBER {
+        tok_note_expected(tokens, "number");
+        tok_print_error(tokens, "tiny");
+        return nil;
+    }
 
     var value *u8 = tok_text(tokens);
     tok_next(tokens);
-    if !tok_eof(tokens) { return nil; }
+    if !tok_expect_end(tokens) {
+        tok_print_error(tokens, "tiny");
+        return nil;
+    }
 
     return ast_main_i64(ast_number(value));
 }
@@ -219,3 +228,9 @@ nodes without a span retain a plain diagnostic. All five shipped readers share
 this helper. In the browser lab, diagnostics labeled with the active reader's
 name focus the custom source; the editor converts byte columns to UTF-16 before
 selecting a token. Choose a **find an error** workspace to try it.
+
+A configured block comment must close before EOF. An unfinished comment is a
+lexical error: its byte span runs from the opener through EOF, and its expected
+text is the configured closer. It cannot satisfy `tok_eof` or `tok_expect_end`,
+and parser backtracking preserves that diagnostic. Line comments may end at EOF;
+readers with no configured comments continue to receive ordinary tokens.

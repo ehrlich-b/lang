@@ -76,10 +76,11 @@ struct Tokenizer {
     comment_line *u8;    // line-comment prefix, or nil if the language has none
     comment_open *u8;    // block-comment opener, or nil
     comment_close *u8;   // block-comment closer, or nil
+    comment_error i64;   // unterminated opener byte offset, or -1 (sticky)
 }
 
 func tok_new_state(input *u8) *Tokenizer {
-    var t *Tokenizer = alloc(144);  // 18 fields * 8 bytes
+    var t *Tokenizer = alloc(152);  // 19 fields * 8 bytes
     t.input = input;
     t.pos = 0;
     t.len = strlen(input);
@@ -98,6 +99,7 @@ func tok_new_state(input *u8) *Tokenizer {
     t.comment_line = "//";
     t.comment_open = "/*";
     t.comment_close = "*/";
+    t.comment_error = -1;
     return t;
 }
 
@@ -258,6 +260,7 @@ func tok_skip_marker(t *Tokenizer, n i64) void {
 }
 
 pub func tok_skip_whitespace(t *Tokenizer) void {
+    if t.comment_error >= 0 { return; }
     var again i64 = 1;
     while again == 1 {
         again = 0;
@@ -276,11 +279,31 @@ pub func tok_skip_whitespace(t *Tokenizer) void {
         if t.comment_close != nil {
             var open i64 = tok_marker_at(t, t.comment_open);
             if open > 0 {
+                var start i64 = t.pos;
                 tok_skip_marker(t, open);
                 while t.pos < t.len && tok_marker_at(t, t.comment_close) == 0 {
                     tok_advance_char(t);
                 }
-                tok_skip_marker(t, tok_marker_at(t, t.comment_close));
+                var close i64 = tok_marker_at(t, t.comment_close);
+                if close == 0 {
+                    // Lexical failure survives parser alternatives and end checks.
+                    // Select the entire unfinished comment in original bytes.
+                    t.comment_error = start;
+                    t.error_pos = start;
+                    t.error_end = t.len;
+                    t.error_expected_len = 0;
+                    *t.error_expected = 0;
+                    var expected *u8 = t.comment_close;
+                    while *expected != 0 && t.error_expected_len < 511 {
+                        *(t.error_expected + t.error_expected_len) = *expected;
+                        t.error_expected_len = t.error_expected_len + 1;
+                        expected = expected + 1;
+                    }
+                    *(t.error_expected + t.error_expected_len) = 0;
+                    t.error_found = "unterminated block comment";
+                    return;
+                }
+                tok_skip_marker(t, close);
                 again = 1;
             }
         }
@@ -315,6 +338,13 @@ pub func tok_next(t *Tokenizer) void {
         return;
     }
     tok_skip_whitespace(t);
+
+    if t.comment_error >= 0 {
+        t.tok_start = t.comment_error;
+        t.tok_len = t.len - t.comment_error;
+        t.tok_kind = TOK_UNKNOWN;
+        return;
+    }
 
     t.tok_start = t.pos;
     t.tok_len = 0;
@@ -593,6 +623,7 @@ func tok_expected_has(t *Tokenizer, expected *u8, expected_len i64) i64 {
 // Generated parsers call this on a terminal mismatch. Expectations at the
 // furthest byte win; alternatives failing at that byte are accumulated.
 pub func tok_note_expected(t *Tokenizer, expected *u8) void {
+    if t.comment_error >= 0 { return; }
     var at i64 = t.tok_start;
     if at < t.error_pos { return; }
 
@@ -624,6 +655,7 @@ pub func tok_note_expected(t *Tokenizer, expected *u8) void {
 // Call only after a successful root parse: speculative failures inside it no
 // longer describe the error. The remaining token violates the input boundary.
 pub func tok_expect_end(t *Tokenizer) bool {
+    if t.comment_error >= 0 { return false; }
     if tok_eof(t) { return true; }
     t.error_pos = -1;
     t.error_expected_len = 0;

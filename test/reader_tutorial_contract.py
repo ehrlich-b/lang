@@ -58,6 +58,13 @@ cases = {
     'different-number': ('answer 17', 17),
     'whitespace': (' \t\n answer \t42\r\n ', 42),
     'comments': ('// before\nanswer /* between */ 42 /* after */ // end\n', 42),
+    'line-eof': ('answer 42 // end', 42),
+    'closed-eof': ('answer 42 /**/', 42),
+    'open-eof': ('answer 42 /*', None),
+    'open-text': ('answer 42 /* open', None),
+    'truncated-close': ('answer 42 /* open *', None),
+    'utf8-open': ('// café 🧭\nanswer 42 /* open\né', None),
+    'leading-open': ('/*', None),
     'trailing-identifier': ('answer 42 ignored tokens', None),
     'trailing-number': ('answer 42 7', None),
     'trailing-punctuation': ('answer 42 ;', None),
@@ -80,6 +87,9 @@ for reader_name, reader in readers.items():
             result = run(args, label + '-' + mode)
             if expected is None:
                 require(result.returncode != 0, f'{label}/{mode} accepted invalid source')
+                if '/*' in source and '*/' not in source:
+                    require(b'unterminated block comment' in result.stderr,
+                            f'{label}/{mode} omitted comment diagnostic')
                 require(not result.stdout.strip(), f'{label}/{mode} emitted usable AST/output')
                 require(not output.exists() or not output.read_bytes().strip(),
                         f'{label}/{mode} left a usable AST file')

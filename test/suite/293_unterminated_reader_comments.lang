@@ -1,0 +1,36 @@
+// expect: 0
+// Lexical errors survive advancement, speculative expectations and rewinds.
+include "std/core.lang"
+include "std/tok.lang"
+
+func main() i64 {
+    var t *Tokenizer = tok_new("// café 🧭\n42 /* open *");
+    tok_note_expected(t, "speculative alternative");
+    tok_next(t);
+    if tok_eof(t) || tok_expect_end(t) { return 1; }
+    if tok_kind(t) != TOK_UNKNOWN { return 2; }
+    if tok_error_offset(t) != 17 || tok_error_end_offset(t) != 26 { return 3; }
+    if !streq(tok_error_expected(t), "*/") { return 4; }
+    if !streq(tok_error_found(t), "unterminated block comment") { return 5; }
+    tok_next(t);
+    tok_note_expected(t, "different terminal");
+    tok_reset(t, 0);
+    if tok_eof(t) || tok_expect_end(t) { return 6; }
+    if tok_error_offset(t) != 17 || tok_error_end_offset(t) != 26 { return 7; }
+    if tok_error_line(t) != 2 || tok_error_column(t) != 4 { return 8; }
+    if !streq(tok_error_expected(t), "*/") { return 9; }
+
+    var custom *Tokenizer = tok_new_comments("<!--", nil, "<!--", "-->");
+    if tok_eof(custom) || tok_expect_end(custom) { return 10; }
+    if tok_error_offset(custom) != 0 || tok_error_end_offset(custom) != 4 { return 11; }
+    if !streq(tok_error_expected(custom), "-->") { return 12; }
+    var bare *Tokenizer = tok_new_comments("/*", nil, nil, nil);
+    if tok_kind(bare) != TOK_SLASH || tok_error_offset(bare) != -1 { return 13; }
+    tok_next(bare);
+    if tok_kind(bare) != TOK_STAR { return 14; }
+    tok_next(bare);
+    if !tok_expect_end(bare) { return 15; }
+    var closed *Tokenizer = tok_new("/* é🧭 */ // EOF");
+    if !tok_expect_end(closed) { return 16; }
+    return 0;
+}

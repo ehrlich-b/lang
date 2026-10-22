@@ -2,7 +2,9 @@ include "std/parser_reader.lang"
 include "std/ast.lang"
 #parser{ diagnostic_program = (('go' '!' 'more' | 'go') 'stop') | ('answer' value:number '!' 'more') | ('answer' value:number) }
 reader diagnostic(text *u8) *u8 {
-    var tokens *Tokenizer = tok_new(text);
+    return diagnostic_read(tok_new(text));
+}
+func diagnostic_read(tokens *Tokenizer) *u8 {
     var tree *PNode = parse_diagnostic_program(tokens);
     var complete bool = false;
     if tree != nil { complete = tok_expect_end(tokens); }
