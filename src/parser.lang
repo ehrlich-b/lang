@@ -2654,6 +2654,15 @@ pub func parser_tokenize(source *u8) void {
     shape_depth = 0;
     while done == 0 {
         tok = scan_token();
+        // Included files are tokenized here too. Report a lexer failure before
+        // parser recovery can turn it into a cascade of syntax errors. Keep
+        // the established human recovery path when JSON is disabled.
+        if ___compiler_diagnostic_json != 0 && tok_type(tok) == TOKEN_ERROR {
+            ___compiler_diagnostic_context("lexical-error", source_name, lex_start, lex_start + 1);
+            eprint("Error: ");
+            eprintln(tok_lexeme(tok));
+            exit(1);
+        }
         shape_kind = tok_type(tok);
         shape_depth = shape_depth + phase_token_nesting(shape_kind);
         if shape_depth > phase_depth_limit() { phase_error("source-depth", source_name); }
@@ -2712,8 +2721,8 @@ func parse_match(t i64) bool {
 
 func parse_error(msg *u8) void {
     var tok *u8 = parse_peek();
-    diagnostic_token("syntax-error", parse_source_name, tok);
-    if streq(msg, "expected declaration") { diagnostic_code = "trailing-input"; }
+    ___compiler_diagnostic_token("syntax-error", parse_source_name, tok);
+    if streq(msg, "expected declaration") { ___compiler_diagnostic_code = "trailing-input"; }
     if parse_source_name != nil && *parse_source_name != 0 {
         eprint(parse_source_name);
         eprint(":");

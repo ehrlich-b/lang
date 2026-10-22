@@ -118,18 +118,24 @@ func wasm_name_eq(a *u8, a_len i64, b *u8, b_len i64) i64 {
     return 1;
 }
 
-func wasm_error(message *u8) void {
+func wasm_error_code(code *u8, message *u8) void {
     if wasm_had_error == 0 {
         if node_origin_source(cg_diagnostic_node) == nil {
             cg_diagnostic_node = wasm_current_decl;
         }
         cg_error_prefix();
-        if diagnostic_contains(message, "not supported") || diagnostic_contains(message, "unsupported") {
-            diagnostic_code = "unsupported-feature";
-        }
+        ___compiler_diagnostic_code = code;
         eprintln(message);
     }
     wasm_had_error = 1;
+}
+
+func wasm_error(message *u8) void {
+    wasm_error_code("codegen-error", message);
+}
+
+func wasm_unsupported(message *u8) void {
+    wasm_error_code("unsupported-feature", message);
 }
 
 func wasm_type_is_void(t *u8) i64 {
@@ -469,7 +475,7 @@ func wasm_collect_locals(stmt *u8) void {
     var kind i64 = node_kind(stmt);
     if kind == NODE_VAR_DECL {
         if wasm_type_is_value(var_decl_type(stmt)) == 0 {
-            wasm_error("direct wasm currently supports only scalar and pointer locals");
+            wasm_unsupported("direct wasm currently supports only scalar and pointer locals");
             return;
         }
         wasm_local_add(var_decl_name(stmt), var_decl_name_len(stmt), var_decl_type(stmt), stmt);
@@ -731,7 +737,7 @@ func wasm_emit_address(expr *u8, out *WasmBuf) *u8 {
         wasm_put(out, 167);  // i32.wrap_i64
         return wasm_field_type(decl, field_expr_field(expr), field_expr_field_len(expr));
     }
-    wasm_error("direct wasm cannot take this memory address yet");
+    wasm_unsupported("direct wasm cannot take this memory address yet");
     return nil;
 }
 
@@ -875,7 +881,7 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         } else if unary_op == TOKEN_AMP {
             var inner *u8 = unary_expr_expr(expr);
             if inner == nil || node_kind(inner) != NODE_IDENT_EXPR {
-                wasm_error("direct wasm currently takes addresses only of locals");
+                wasm_unsupported("direct wasm currently takes addresses only of locals");
                 wasm_put(out, 66); wasm_put_sleb(out, 0);
                 return;
             }
@@ -889,7 +895,7 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
             }
             wasm_emit_spill_pointer(local, out, 0);
         } else {
-            wasm_error("unsupported unary operator in direct wasm");
+            wasm_unsupported("unsupported unary operator in direct wasm");
             wasm_put(out, 66); wasm_put_sleb(out, 0);
         }
         return;
@@ -912,7 +918,7 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         if left_type != nil && type_kind(left_type) == TYPE_PTR &&
            (op == TOKEN_PLUS || op == TOKEN_MINUS) {
             if right_type != nil && type_kind(right_type) == TYPE_PTR {
-                wasm_error("pointer difference is not supported by direct wasm yet");
+                wasm_unsupported("pointer difference is not supported by direct wasm yet");
             } else {
                 var elem_size i64 = wasm_type_size(ptr_type_elem(left_type));
                 if elem_size > 1 {
@@ -937,7 +943,7 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         else if op == TOKEN_GT { wasm_put(out, 85); wasm_put(out, 173); }
         else if op == TOKEN_LTEQ { wasm_put(out, 87); wasm_put(out, 173); }
         else if op == TOKEN_GTEQ { wasm_put(out, 89); wasm_put(out, 173); }
-        else { wasm_error("unsupported binary operator in direct wasm"); }
+        else { wasm_unsupported("unsupported binary operator in direct wasm"); }
         return;
     }
     if kind == NODE_INDEX_EXPR {
@@ -954,7 +960,7 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         var callee *u8 = call_expr_func(expr);
         if node_kind(callee) != NODE_IDENT_EXPR {
             if node_origin_source(expr) != nil { cg_diagnostic_node = expr; }
-            wasm_error("direct wasm currently supports only direct function calls");
+            wasm_unsupported("direct wasm currently supports only direct function calls");
             wasm_put(out, 66); wasm_put_sleb(out, 0);
             return;
         }
@@ -995,7 +1001,7 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         return;
     }
 
-    wasm_error("expression is not supported by the direct wasm backend yet");
+    wasm_unsupported("expression is not supported by the direct wasm backend yet");
     wasm_put(out, 66); wasm_put_sleb(out, 0);
 }
 
@@ -1054,7 +1060,7 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
             return;
         }
         if node_kind(target) != NODE_IDENT_EXPR {
-            wasm_error("direct wasm cannot assign this target yet");
+            wasm_unsupported("direct wasm cannot assign this target yet");
             return;
         }
         var local i64 = wasm_find_local(ident_expr_name(target), ident_expr_name_len(target));
@@ -1144,7 +1150,7 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
         if depth >= 0 { wasm_put(out, 12); wasm_put_uleb(out, depth); }
         return;
     }
-    wasm_error("statement is not supported by the direct wasm backend yet");
+    wasm_unsupported("statement is not supported by the direct wasm backend yet");
 }
 
 func wasm_reader_function(decl *u8) *u8 {
@@ -1227,9 +1233,9 @@ func wasm_collect_decl(decl *u8) void {
     }
     if kind == NODE_VAR_DECL {
         if var_decl_is_extern(decl) != 0 {
-            wasm_error("extern globals are not supported by the direct wasm backend yet");
+            wasm_unsupported("extern globals are not supported by the direct wasm backend yet");
         } else if wasm_type_is_value(var_decl_type(decl)) == 0 {
-            wasm_error("direct wasm currently supports only scalar and pointer globals");
+            wasm_unsupported("direct wasm currently supports only scalar and pointer globals");
         } else if wasm_global_count >= LIMIT_GLOBALS {
             wasm_error("too many globals for direct wasm output");
         } else {
@@ -1294,7 +1300,7 @@ func wasm_collect_decl(decl *u8) void {
         return;
     }
     if kind != NODE_MODULES_DECL {
-        wasm_error("declaration is not supported by the direct wasm backend yet");
+        wasm_unsupported("declaration is not supported by the direct wasm backend yet");
     }
 }
 
@@ -1469,7 +1475,7 @@ func wasm_emit_type_section() void {
         while j < count {
             var p *u8 = params + j * 24;
             if wasm_type_is_value(param_type(p)) == 0 {
-                wasm_error("direct wasm currently supports only scalar and pointer parameters");
+                wasm_unsupported("direct wasm currently supports only scalar and pointer parameters");
             }
             wasm_put(wasm_section, 126);  // i64
             j = j + 1;
@@ -1478,7 +1484,7 @@ func wasm_emit_type_section() void {
             wasm_put_uleb(wasm_section, 0);
         } else {
             if wasm_type_is_value(func_decl_ret_type(decl)) == 0 {
-                wasm_error("direct wasm currently supports only scalar, pointer, or void returns");
+                wasm_unsupported("direct wasm currently supports only scalar, pointer, or void returns");
             }
             wasm_put_uleb(wasm_section, 1);
             wasm_put(wasm_section, 126);
@@ -1533,7 +1539,7 @@ func wasm_const_value(expr *u8) i64 {
     if node_kind(expr) == NODE_UNARY_EXPR && unary_expr_op(expr) == TOKEN_MINUS {
         return 0 - wasm_const_value(unary_expr_expr(expr));
     }
-    wasm_error("global initializer is not constant in direct wasm");
+    wasm_unsupported("global initializer is not constant in direct wasm");
     return 0;
 }
 

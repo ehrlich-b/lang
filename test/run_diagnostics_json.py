@@ -71,12 +71,40 @@ def a1():
     human = invoke(source, json_mode=False)
     assert human.stderr.splitlines()[0] == (f"{source}:2:28: error: expected ';' after return".encode())
     assert b'{"version"' not in human.stderr
-    print('A1 PASS: version, stable fields, byte span, unchanged human message')
+    # The first diagnostic must have unknown provenance until context is set.
+    # Negative global initializers are not reliable in the bootstrap compiler.
+    for flags, source_path in [([], work / 'missing.lang'),
+                               (['-o'], None), ([], None),
+                               ([str(fixture('success.lang')), '-o', str(work / 'absent/output.ll')], None)]:
+        _, records = invoke(source_path, flags=flags)
+        assert records[0]['code'] == 'compiler-error', records
+        assert records[0]['path'] is None and records[0]['span'] is None, records
+    included = work / 'missing-include.lang'
+    included.write_text('include "absent-include.lang"\n')
+    _, records = invoke(included)
+    assert records[-1]['code'] == 'compiler-error' and records[-1]['span'] is None, records
+    # Declaration origins currently provide zero-width codegen anchors.
+    anchor = work / 'unknown-value.lang'
+    anchor.write_text('func main() i64 { return nope; }\n')
+    _, records = invoke(anchor)
+    assert records[0]['code'] == 'codegen-error' and records[0]['span'] == {'start': 0, 'end': 0}, records
+    print('A1 PASS: version, stable fields, byte span, null unlocated spans, codegen anchors, unchanged human message')
 
 
 def a2():
     source = fixture('syntax.lang')
     located(invoke(source)[1], 'syntax-error', source, b'}')
+    source = fixture('unterminated.lang')
+    _, records = invoke(source)
+    d = located(records, 'lexical-error', source, b'"')
+    assert d['span']['start'] == source.read_bytes().index(b'"') and len(records) == 1, records
+    assert 'unterminated string' in d['message']
+    human = invoke(source, json_mode=False)
+    assert human.stderr.count(b'error:') == 10 and b'Too many errors' in human.stderr
+    # Multiline failures use the original token's byte start, not the EOF line.
+    included = work / 'lexical-include.lang'
+    included.write_text('include "' + str(source) + '"\n')
+    located(invoke(included)[1], 'lexical-error', source, b'"')
     source = fixture('trailing.lang')
     located(invoke(source)[1], 'trailing-input', source, b'stray')
     # Invalid scalars, continuations, truncated sequences, and invalid bytes in
@@ -97,7 +125,13 @@ def a2():
     _, records = invoke(source, env={'LANGBE': 'wasm'})
     assert any(d['code'] == 'unsupported-feature' and d['path'] == str(source)
                and d['span'] is not None for d in records), records
-    print('A2 PASS: syntax, trailing input, invalid UTF-8/NUL, LLVM/Wasm unsupported effects')
+    # This rejection deliberately has neither 'unsupported' nor 'not supported'
+    # in its message; the code must be selected at the failure site.
+    source = work / 'unsupported-local.lang'
+    source.write_text('func main() i64 { var values [2]i64; return 0; }\n')
+    _, records = invoke(source, env={'LANGBE': 'wasm'})
+    assert records[0]['code'] == 'unsupported-feature', records
+    print('A2 PASS: syntax, lexical/include errors, trailing input, invalid UTF-8/NUL, explicit LLVM/Wasm unsupported features')
 
 
 def a3():
@@ -160,7 +194,21 @@ def a4():
     (work / 'direct-stderr.stderr').write_bytes(ran.stderr)
     (work / 'direct-stderr.exit').write_text(str(ran.returncode))
     assert ran.returncode == 0 and not ran.stdout and ran.stderr == b'hello\n', ran
-    print('A4 PASS: flags/modes rejected, option values respected, success/artifacts separate, direct Wasm stderr')
+    # Public user names must not collide with compiler transport internals.
+    source = fixture('namespace.lang')
+    invoke(source, success=True)
+    native = work / 'namespace-native'
+    linked = subprocess.run(['clang', str(work / f'output-{counter}.ll'), '-o', str(native)],
+                            capture_output=True, timeout=30)
+    (work / 'namespace-link.stderr').write_bytes(linked.stderr)
+    assert linked.returncode == 0, linked
+    ran = subprocess.run([str(native)], capture_output=True, timeout=30)
+    assert ran.returncode == 0 and not ran.stdout and ran.stderr == b'user stderr\n', ran
+    invoke(source, env={'LANGBE': 'wasm'}, success=True)
+    ran = subprocess.run(['node', str(ROOT / 'test/wasm_host.js'),
+                          str(work / f'output-{counter}.ll')], capture_output=True, timeout=30)
+    assert ran.returncode == 0 and not ran.stdout and ran.stderr == b'user stderr\n', ran
+    print('A4 PASS: flags/modes rejected, success/artifacts separate, native/direct Wasm stderr and user namespace')
 
 
 for name, test in [('A1', a1), ('A2', a2), ('A3', a3), ('A4', a4)]:

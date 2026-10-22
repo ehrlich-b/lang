@@ -1474,9 +1474,9 @@ func main(argc i64, argv **u8) i64 {
     while diagnostic_arg < argc {
         var option *u8 = get_arg(argv, diagnostic_arg);
         if streq(option, "--diagnostics=json") {
-            diagnostic_default_code = "compiler-error";
-            diagnostic_code = diagnostic_default_code;
-            diagnostic_enable();
+            ___compiler_diagnostic_default_code = "compiler-error";
+            ___compiler_diagnostic_code = ___compiler_diagnostic_default_code;
+            ___compiler_diagnostic_enable();
         }
         // Option values are data, including a path that resembles a flag.
         if streq(option, "-o") || streq(option, "--ast-source") || streq(option, "--runtime") || streq(option, "-c") {
@@ -1497,9 +1497,9 @@ func main(argc i64, argv **u8) i64 {
     // Get first argument
     var first *u8 = get_arg(argv, 1);
 
-    if diagnostic_json != 0 && (streq(first, "read") || streq(first, "new") ||
+    if ___compiler_diagnostic_json != 0 && (streq(first, "read") || streq(first, "new") ||
        streq(first, "env") || streq(first, "tools")) {
-        diagnostic_context("unsupported-mode", nil, -1, -1);
+        ___compiler_diagnostic_context("unsupported-mode", nil, -1, -1);
         eprintln("Error: JSON diagnostics supports source compilation and AST emission only");
         return 1;
     }
@@ -1562,7 +1562,7 @@ func main(argc i64, argv **u8) i64 {
 
         if streq(arg, "--diagnostics=json") { handled = 1; }
         if str_starts_with(arg, "--diagnostics=") && handled == 0 {
-            diagnostic_context("invalid-option", nil, -1, -1);
+            ___compiler_diagnostic_context("invalid-option", nil, -1, -1);
             eprint("Error: unsupported diagnostics mode: "); eprintln(arg);
             return 1;
         }
@@ -1666,7 +1666,7 @@ func main(argc i64, argv **u8) i64 {
         }
 
         if handled == 0 && *arg == 45 {
-            diagnostic_context("invalid-option", nil, -1, -1);
+            ___compiler_diagnostic_context("invalid-option", nil, -1, -1);
             eprint("Error: unknown option: ");
             eprintln(arg);
             return 1;
@@ -1679,9 +1679,9 @@ func main(argc i64, argv **u8) i64 {
         i = i + 1;
     }
 
-    if diagnostic_json != 0 && (run_mode != 0 || gen_compiler != nil || from_ast_mode != 0 ||
+    if ___compiler_diagnostic_json != 0 && (run_mode != 0 || gen_compiler != nil || from_ast_mode != 0 ||
        embed_self_mode != 0 || add_reader_mode != 0 || dump_tokens_mode != 0 || cg_expand_macros != 0) {
-        diagnostic_context("unsupported-mode", nil, -1, -1);
+        ___compiler_diagnostic_context("unsupported-mode", nil, -1, -1);
         eprintln("Error: JSON diagnostics supports source compilation and AST emission only");
         return 1;
     }
@@ -2369,7 +2369,7 @@ func main(argc i64, argv **u8) i64 {
     while i < parser_token_count() {
         var tok *u8 = get_token(i);
         if tok_type(tok) == TOKEN_ERROR {
-            diagnostic_token("lexical-error", parse_source_name, tok);
+            ___compiler_diagnostic_token("lexical-error", parse_source_name, tok);
             eprint("Error: ");
             eprintln(tok_lexeme(tok));
             return 1;

@@ -52,8 +52,8 @@ func resource_file_mtime(path *u8) i64 {
 func cg_error_prefix() void {
     var source *u8 = node_origin_source(cg_diagnostic_node);
     var origin *PhaseOrigin = phase_origin_get(node_origin_id(cg_diagnostic_node));
-    diagnostic_context("codegen-error", source, -1, -1);
-    if origin != nil { diagnostic_context("codegen-error", source, origin.start, origin.end); }
+    ___compiler_diagnostic_context("codegen-error", source, -1, -1);
+    if origin != nil { ___compiler_diagnostic_context("codegen-error", source, origin.start, origin.end); }
     if source != nil {
         eprint(source);
         eprint(":");

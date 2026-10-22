@@ -20,6 +20,8 @@ source's original bytes. An EOF insertion point has equal start/end offsets.
 A diagnostic without a known location has `span: null`; consumers must check
 before proposing an edit. Code generation uses the closest existing node origin,
 which may identify a declaration rather than the entire failing expression.
+Codegen spans may also be zero-width anchors; those anchors do not imply a
+missing token or an insertion point.
 
 The stable categories are:
 
@@ -27,7 +29,7 @@ The stable categories are:
 | --- | --- |
 | `syntax-error` | A required source construct or token is missing |
 | `trailing-input` | Unexpected input at declaration level |
-| `lexical-error` | A lexer failure reported by the compilation driver |
+| `lexical-error` | A lexer failure during source tokenization |
 | `invalid-utf8` | Invalid source encoding; span marks the sequence's first byte |
 | `embedded-nul` | A NUL byte in a source file |
 | `unsupported-feature` | A backend explicitly rejects an unsupported feature |
@@ -69,3 +71,10 @@ python3 -B test/run_diagnostics_json.py
 
 Set `COMPILER` to select another compiler and `DIAGNOSTICS_EVIDENCE_DIR` to retain
 captured commands, stdout, stderr, exit codes and the repair result.
+
+The transport uses the internal runtime prefix `___compiler_`; these symbols
+are reserved for compiler/runtime use. Ordinary names such as `stderr_write`,
+`diagnostic_string` and `diagnostic_json` remain available to user programs.
+The standard core includes this transport so shared host failures use the same
+encoder without backend-specific callbacks; disabled transport writes stderr
+directly and allocates no message buffer.

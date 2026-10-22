@@ -1,35 +1,35 @@
 // Optional structured stderr records. Callers own codes and source locations;
 // this transport owns byte-safe JSON encoding and bounded message storage.
 // Direct calls keep this optional transport usable by every backend.
-var diagnostic_json i64 = 0;
-var diagnostic_default_code *u8 = "error";
-var diagnostic_code *u8 = "error";
-var diagnostic_path *u8 = nil;
-var diagnostic_start i64 = -1;
-var diagnostic_end i64 = -1;
-var diagnostic_message *u8 = nil;
-var diagnostic_len i64 = 0;
-var diagnostic_limit i64 = 1048576;
-var diagnostic_truncated i64 = 0;
+var ___compiler_diagnostic_json i64 = 0;
+var ___compiler_diagnostic_default_code *u8 = "error";
+var ___compiler_diagnostic_code *u8 = "error";
+var ___compiler_diagnostic_path *u8 = nil;
+var ___compiler_diagnostic_start i64 = -1;
+var ___compiler_diagnostic_end i64 = -1;
+var ___compiler_diagnostic_message *u8 = nil;
+var ___compiler_diagnostic_len i64 = 0;
+var ___compiler_diagnostic_limit i64 = 1048576;
+var ___compiler_diagnostic_truncated i64 = 0;
 
-pub func diagnostic_context(code *u8, path *u8, start i64, end i64) void {
-    if diagnostic_json == 0 { return; }
-    diagnostic_code = code; diagnostic_path = path;
-    diagnostic_start = start; diagnostic_end = end;
+pub func ___compiler_diagnostic_context(code *u8, path *u8, start i64, end i64) void {
+    if ___compiler_diagnostic_json == 0 { return; }
+    ___compiler_diagnostic_code = code; ___compiler_diagnostic_path = path;
+    ___compiler_diagnostic_start = start; ___compiler_diagnostic_end = end;
 }
 
 
-func diagnostic_write(s *u8) void { file_write(2, s, strlen(s)); }
-func diagnostic_integer(n i64) void {
+func ___compiler_diagnostic_write(s *u8) void { file_write(2, s, strlen(s)); }
+func ___compiler_diagnostic_integer(n i64) void {
     // Reuse decimal formatting without sending renderer output into its sink.
-    var saved i64 = diagnostic_json;
-    diagnostic_json = 0; eprint_i64(n); diagnostic_json = saved;
+    var saved i64 = ___compiler_diagnostic_json;
+    ___compiler_diagnostic_json = 0; eprint_i64(n); ___compiler_diagnostic_json = saved;
 }
 
 // Return the width of a valid scalar, or 0 for an invalid leading byte.
 // Invalid bytes are escaped individually, so even arbitrary OS paths and
 // source snippets produce UTF-8 JSON. Valid Unicode is preserved verbatim.
-func diagnostic_utf8_width(s *u8, len i64) i64 {
+func ___compiler_diagnostic_utf8_width(s *u8, len i64) i64 {
     var c i64 = *s;
     var width i64 = 0;
     var value i64 = 0;
@@ -50,56 +50,57 @@ func diagnostic_utf8_width(s *u8, len i64) i64 {
     return width;
 }
 
-func diagnostic_string(s *u8, len i64) void {
-    diagnostic_write("\"");
+func ___compiler_diagnostic_string(s *u8, len i64) void {
+    ___compiler_diagnostic_write("\"");
     var i i64 = 0;
     var hex *u8 = "0123456789abcdef";
     var escape *u8 = alloc(6);
     memcpy(escape, "\\u00", 4);
     while i < len {
         var c i64 = *(s + i);
-        var width i64 = diagnostic_utf8_width(s + i, len - i);
+        var width i64 = ___compiler_diagnostic_utf8_width(s + i, len - i);
         if c == 34 || c == 92 {
-            diagnostic_write("\\"); file_write(2, s + i, 1); i = i + 1;
+            ___compiler_diagnostic_write("\\"); file_write(2, s + i, 1); i = i + 1;
         } else if c < 32 || width == 0 {
             *(escape + 4) = *(hex + c / 16);
             *(escape + 5) = *(hex + c % 16);
             file_write(2, escape, 6); i = i + 1;
         } else { file_write(2, s + i, width); i = i + width; }
     }
-    diagnostic_write("\"");
+    ___compiler_diagnostic_write("\"");
 }
 
-pub func diagnostic_sink(data *u8, len i64, complete i64) void {
+pub func ___compiler_diagnostic_sink(data *u8, len i64, complete i64) void {
     // Only eprintln completes a record. Newlines in paths and messages are data.
     if complete == 0 {
-        var available i64 = diagnostic_limit - diagnostic_len;
-        if len > available { len = available; diagnostic_truncated = 1; }
-        if len > 0 { memcpy(diagnostic_message + diagnostic_len, data, len); }
-        diagnostic_len = diagnostic_len + len;
+        var available i64 = ___compiler_diagnostic_limit - ___compiler_diagnostic_len;
+        if len > available { len = available; ___compiler_diagnostic_truncated = 1; }
+        if len > 0 { memcpy(___compiler_diagnostic_message + ___compiler_diagnostic_len, data, len); }
+        ___compiler_diagnostic_len = ___compiler_diagnostic_len + len;
         return;
     }
-    diagnostic_write("{\"version\":1,\"code\":");
-    diagnostic_string(diagnostic_code, strlen(diagnostic_code));
-    diagnostic_write(",\"severity\":\"error\",\"path\":");
-    if diagnostic_path == nil { diagnostic_write("null"); }
-    else { diagnostic_string(diagnostic_path, strlen(diagnostic_path)); }
-    diagnostic_write(",\"span\":");
-    if diagnostic_start < 0 || diagnostic_end < diagnostic_start { diagnostic_write("null"); }
+    ___compiler_diagnostic_write("{\"version\":1,\"code\":");
+    ___compiler_diagnostic_string(___compiler_diagnostic_code, strlen(___compiler_diagnostic_code));
+    ___compiler_diagnostic_write(",\"severity\":\"error\",\"path\":");
+    if ___compiler_diagnostic_path == nil { ___compiler_diagnostic_write("null"); }
+    else { ___compiler_diagnostic_string(___compiler_diagnostic_path, strlen(___compiler_diagnostic_path)); }
+    ___compiler_diagnostic_write(",\"span\":");
+    if ___compiler_diagnostic_start < 0 || ___compiler_diagnostic_end < ___compiler_diagnostic_start { ___compiler_diagnostic_write("null"); }
     else {
-        diagnostic_write("{\"start\":"); diagnostic_integer(diagnostic_start);
-        diagnostic_write(",\"end\":"); diagnostic_integer(diagnostic_end); diagnostic_write("}");
+        ___compiler_diagnostic_write("{\"start\":"); ___compiler_diagnostic_integer(___compiler_diagnostic_start);
+        ___compiler_diagnostic_write(",\"end\":"); ___compiler_diagnostic_integer(___compiler_diagnostic_end); ___compiler_diagnostic_write("}");
     }
-    diagnostic_write(",\"message\":"); diagnostic_string(diagnostic_message, diagnostic_len);
-    diagnostic_write(",\"truncated\":");
-    if diagnostic_truncated != 0 { diagnostic_write("true"); } else { diagnostic_write("false"); }
-    diagnostic_write("}\n");
-    diagnostic_len = 0; diagnostic_truncated = 0;
-    diagnostic_context(diagnostic_default_code, nil, -1, -1);
+    ___compiler_diagnostic_write(",\"message\":"); ___compiler_diagnostic_string(___compiler_diagnostic_message, ___compiler_diagnostic_len);
+    ___compiler_diagnostic_write(",\"truncated\":");
+    if ___compiler_diagnostic_truncated != 0 { ___compiler_diagnostic_write("true"); } else { ___compiler_diagnostic_write("false"); }
+    ___compiler_diagnostic_write("}\n");
+    ___compiler_diagnostic_len = 0; ___compiler_diagnostic_truncated = 0;
+    ___compiler_diagnostic_context(___compiler_diagnostic_default_code, nil, -1, -1);
 }
 
-func diagnostic_enable() void {
-    if diagnostic_json != 0 { return; }
-    diagnostic_message = alloc(diagnostic_limit);
-    diagnostic_json = 1;
+func ___compiler_diagnostic_enable() void {
+    if ___compiler_diagnostic_json != 0 { return; }
+    ___compiler_diagnostic_message = alloc(___compiler_diagnostic_limit);
+    ___compiler_diagnostic_json = 1;
+    ___compiler_diagnostic_context(___compiler_diagnostic_default_code, nil, -1, -1);
 }
