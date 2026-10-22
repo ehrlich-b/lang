@@ -1,0 +1,16 @@
+// Compiler-owned interpretation of token locations and backend failures.
+include "std/diagnostics.lang"
+func ___compiler_diagnostic_token(code *u8, path *u8, tok *u8) void {
+    if ___compiler_diagnostic_json == 0 { return; }
+    var source *PhaseSource = phase_source_get(phase_origin_source_id(path));
+    var start i64 = -1;
+    var end i64 = -1;
+    if source != nil {
+        start = phase_line_byte(source, tok_line(tok), tok_col(tok));
+        end = start + tok_lexeme_len(tok);
+        if tok_type(tok) == TOKEN_EOF { end = start; }
+        if tok_type(tok) == TOKEN_ERROR { end = start + 1; }
+        if end > source.len { end = source.len; }
+    }
+    ___compiler_diagnostic_context(code, path, start, end);
+}

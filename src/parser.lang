@@ -1,3 +1,5 @@
+include "src/diagnostics.lang"
+
 include "src/stage_node_origin.lang"
 include "src/stage_digest.lang"
 include "src/stage_origin.lang"
@@ -2652,6 +2654,15 @@ pub func parser_tokenize(source *u8) void {
     shape_depth = 0;
     while done == 0 {
         tok = scan_token();
+        // Included files are tokenized here too. Report a lexer failure before
+        // parser recovery can turn it into a cascade of syntax errors. Keep
+        // the established human recovery path when JSON is disabled.
+        if ___compiler_diagnostic_json != 0 && tok_type(tok) == TOKEN_ERROR {
+            ___compiler_diagnostic_context("lexical-error", source_name, lex_start, lex_start + 1);
+            eprint("Error: ");
+            eprintln(tok_lexeme(tok));
+            exit(1);
+        }
         shape_kind = tok_type(tok);
         shape_depth = shape_depth + phase_token_nesting(shape_kind);
         if shape_depth > phase_depth_limit() { phase_error("source-depth", source_name); }
@@ -2710,6 +2721,8 @@ func parse_match(t i64) bool {
 
 func parse_error(msg *u8) void {
     var tok *u8 = parse_peek();
+    ___compiler_diagnostic_token("syntax-error", parse_source_name, tok);
+    if streq(msg, "expected declaration") { ___compiler_diagnostic_code = "trailing-input"; }
     if parse_source_name != nil && *parse_source_name != 0 {
         eprint(parse_source_name);
         eprint(":");
@@ -3406,6 +3419,7 @@ func parse_primary() *u8 {
 
     // Perform expression: perform Effect(args)
     if parse_match(TOKEN_PERFORM) {
+        var perform_tok *u8 = parse_previous();
         var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected effect name after 'perform'");
         parse_expect(TOKEN_LPAREN, "expected '(' after effect name");
 
@@ -3430,6 +3444,10 @@ func parse_primary() *u8 {
         parse_expect(TOKEN_RPAREN, "expected ')' after effect arguments");
 
         var node *u8 = perform_expr_alloc();
+        var perform_source *PhaseSource = phase_source_get(phase_bound_source_id);
+        var perform_start i64 = phase_line_byte(perform_source, tok_line(perform_tok), tok_col(perform_tok));
+        node_set_origin_full(node, parse_source_name, tok_line(perform_tok), tok_col(perform_tok),
+                             perform_start, perform_start + tok_lexeme_len(perform_tok));
         perform_expr_set_name(node, tok_lexeme(name_tok));
         perform_expr_set_name_len(node, tok_lexeme_len(name_tok));
         perform_expr_set_args(node, args);
@@ -4134,9 +4152,10 @@ func parse_include() *u8 {
     var path *u8 = tok_lexeme(path_tok);
     var path_len i64 = tok_lexeme_len(path_tok);
 
-    // Strip quotes from path
-    path = path + 1;
-    path_len = path_len - 2;
+    // Paths use the same escaping as other string literals, including CLI
+    // paths quoted into the synthetic input module.
+    path = parse_string_literal(tok_lexeme(path_tok), tok_lexeme_len(path_tok));
+    path_len = parse_string_literal_len(tok_lexeme(path_tok), tok_lexeme_len(path_tok));
 
     var node *u8 = include_decl_alloc();
     include_decl_set_path(node, path);

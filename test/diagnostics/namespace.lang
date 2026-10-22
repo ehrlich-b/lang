@@ -1,0 +1,12 @@
+include "std/core.lang"
+var diagnostic_json i64 = 17;
+func stderr_write(data *u8, len i64, complete i64) void {
+    file_write(2, data, len);
+}
+func diagnostic_string(data *u8, len i64) void {
+    stderr_write(data, len, 0);
+}
+func main() i64 {
+    diagnostic_string("user stderr\n", 12);
+    return diagnostic_json - 17;
+}

@@ -1,0 +1,2 @@
+func main() i64 {
+    var text *u8 = "unfinished
