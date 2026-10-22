@@ -1,0 +1,2 @@
+include "std/core.lang"
+func main(argc i64, argv **u8) i64 { println("{\"ok\":false}"); return 0; }

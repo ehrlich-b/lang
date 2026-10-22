@@ -1,0 +1,115 @@
+{
+  "baseline": "8fdb5a1",
+  "counted": false,
+  "reason": "Existing public examples are calibration/documentation only. No task packet copies a pack file.",
+  "files": [
+    {
+      "path": "example/c/algorithms.lang",
+      "sha256": "e4e8dbb197803df4768a8124462986bedf98c6c47438c354cc0dc06ed67c0b9f"
+    },
+    {
+      "path": "example/c/c.lang",
+      "sha256": "4bb8a0d078a227fc2bbb87d16452c48e1469a018cee122037e9a87956f42fa60"
+    },
+    {
+      "path": "example/c/test_c.lang",
+      "sha256": "15320d5da02bf7d586f196bd66caeca6119407aa081391e44a8642d5d22806fa"
+    },
+    {
+      "path": "example/calc/answer.calc",
+      "sha256": "f68a5e2890ef0d288e8afddbb979dce4f1ff741315d94d5c1578666352502270"
+    },
+    {
+      "path": "example/calc/calc.lang",
+      "sha256": "c1a2c83abff36f2ed65d4985065d48bc4067bbc68bc571ee874b1fac8c0d9b79"
+    },
+    {
+      "path": "example/calc/test_calc.lang",
+      "sha256": "f44b3a045170975cdcc459143707edc634e97a99b2741fdbef530049b7cd6755"
+    },
+    {
+      "path": "example/fib.lang",
+      "sha256": "232cc4ffb5f1eaa75a4ee969afea300256f07871e44d90afe3ea7e24e3571394"
+    },
+    {
+      "path": "example/flow/flow.lang",
+      "sha256": "0cac9c58e553864311ab458f6de99bef7947e28133a33a3a61ede0f406b7f706"
+    },
+    {
+      "path": "example/flow/flow_runtime.lang",
+      "sha256": "014c7b8a77afe10f871fe5bcf146f7fad46a7331a59457a405625e9bbea24255"
+    },
+    {
+      "path": "example/flow/test_flow.lang",
+      "sha256": "826f7f19b52efff0cdef6a46d88845e3414d2dc9564f1049ce5a4795c8ffc8cc"
+    },
+    {
+      "path": "example/forth/forth.lang",
+      "sha256": "6597c38a8e95fcf44c47f6631ce69a9ba2c5920db28ce3140bb53ff457c2cc5f"
+    },
+    {
+      "path": "example/forth/forth_runtime.lang",
+      "sha256": "19ebb3f2eac52799d66b7c164ca069cb3c3437edf1e50f5d6a552e5e3dfad68e"
+    },
+    {
+      "path": "example/forth/test_forth.lang",
+      "sha256": "abe7c24575b144eeb22edffea694f6dace986887b6f379e1786665cda2aaab2b"
+    },
+    {
+      "path": "example/mandelbrot.lang",
+      "sha256": "fccbf2201943251262945a4c8c31c01ac576f1db49c24fd0af483d02d24c5d13"
+    },
+    {
+      "path": "example/minilisp/lisp_runtime.lang",
+      "sha256": "3b2f0ea3daa4af63622f0c4167e466632385f399b204c7a93f270dfe0a196cb0"
+    },
+    {
+      "path": "example/minilisp/minilisp.lang",
+      "sha256": "140053d182379e575326c4506dacd98699dec9424d8d4be722dd192bcfd0f46a"
+    },
+    {
+      "path": "example/minilisp/test_defun.lang",
+      "sha256": "9746d8ffc0874109713729365410cd752b4d97b6f868383b7f047bc4f16e3055"
+    },
+    {
+      "path": "example/minilisp/test_minilisp.lang",
+      "sha256": "e6749997fa3bec7d6d65196f2fcf883957dc96426c1ec3a5ed393f86273994d6"
+    },
+    {
+      "path": "example/minipy/minipy.lang",
+      "sha256": "8e727421c4909c41bda754ce47e47c93f05a9ccac57620e158e32f2330cd5845"
+    },
+    {
+      "path": "example/minipy/minipy_runtime.lang",
+      "sha256": "b5ae025a016258096f14adf90be8f127c297bcab6b51567ba0dee96839066fb1"
+    },
+    {
+      "path": "example/minipy/test_minipy.lang",
+      "sha256": "bae0af04ba20b95f8555d67a61e2f04699e93aa32e020f0515a9288ef50eecc7"
+    },
+    {
+      "path": "example/polyglot.lang",
+      "sha256": "12a68e5e2e7d55e0545d07b231b1e4ef1c04bed2b7a92bccde11b525896bd95f"
+    },
+    {
+      "path": "example/polyglot_wasm.lang",
+      "sha256": "05c317767b6471ca4747fd8dadd216c6d224b1be3514568541046e208054a776"
+    },
+    {
+      "path": "example/tiny/answer.tiny",
+      "sha256": "a8b8a763dc39012cfa39f84f0ea7c518df6633ecf81d06a57dea0c5499a46df4"
+    },
+    {
+      "path": "example/tiny/test_tiny.lang",
+      "sha256": "39994b24c1af05dd15db722b17956cb8b7f8934bba401ddd35fb732676e9cdd7"
+    },
+    {
+      "path": "example/tiny/tiny.lang",
+      "sha256": "ba5739302f850440b554e96883adb66b6c58dfcc8b0d02deeb0b5833e1ac8d99"
+    },
+    {
+      "path": "example/tree/tree.lang",
+      "sha256": "5328cfe4a7845c4c8f5c6192e687c2f7d294b3b7122e2b9c78d81d8c159e5fd4"
+    }
+  ]
+}

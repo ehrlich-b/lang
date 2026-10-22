@@ -1,0 +1,11 @@
+{
+  "id": "PUBLIC-1",
+  "objective": "Protocol calibration only; excluded from held-out count. Read a decimal token and return twice its value.",
+  "source": "11",
+  "expected": {
+    "ok": true,
+    "value": 22,
+    "start": 0,
+    "end": 2
+  }
+}

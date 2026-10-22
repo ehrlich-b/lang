@@ -1,0 +1,6 @@
+{
+  "source_revision": "8fdb5a13bde1e94c1e81103e5a68b8bdcf007b2b",
+  "compiler_sha256": "9f68ac3b078678b3ef59904360ddcd527020d728d6aa8706de80ee1670780b70",
+  "os_layer": "include \"std/os/libc.lang\"\n",
+  "platform": "Linux x86_64; clang and Python 3 on PATH"
+}
