@@ -34,5 +34,6 @@ const paths = [
 ];
 
 const files = Object.fromEntries(paths.map((path) => [path, fs.readFileSync(path, 'utf8')]));
-fs.writeFileSync('web/stdlib.json', `${JSON.stringify(files)}\n`);
-console.log(`built web/stdlib.json (${fs.statSync('web/stdlib.json').size} bytes)`);
+const output = process.argv[2] || 'web/stdlib.json';
+fs.writeFileSync(output, `${JSON.stringify(files)}\n`);
+console.log(`built ${output} (${fs.statSync(output).size} bytes)`);
