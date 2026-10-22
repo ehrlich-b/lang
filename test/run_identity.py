@@ -100,6 +100,9 @@ else:
         # Test each receipt consumer with all Python optimization entry points.
         # finish consumes a start receipt; it binds a new compiler rather than
         # validating an existing compiler identity.
+        run('control-web-version', [sys.executable, 'scripts/build_receipt.py', 'web-version',
+                                   '--input', 'out/build-receipt.json', '--compiler', compiler,
+                                   '--output', 'out/web_version_info.lang'])
         controls = []
         for mode, flags, optimize in [('normal', [], '0'), ('O', ['-O'], '0'),
                                       ('env', [], '1')]:
