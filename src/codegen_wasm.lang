@@ -124,6 +124,9 @@ func wasm_error(message *u8) void {
             cg_diagnostic_node = wasm_current_decl;
         }
         cg_error_prefix();
+        if diagnostic_contains(message, "not supported") || diagnostic_contains(message, "unsupported") {
+            diagnostic_code = "unsupported-feature";
+        }
         eprintln(message);
     }
     wasm_had_error = 1;

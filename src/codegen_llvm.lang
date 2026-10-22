@@ -4192,7 +4192,8 @@ func llvm_emit_expr(expr *u8) void {
     if k == NODE_HANDLE_EXPR {
         llvm_uses_effects = 1;
         if llvm_is_wasm {
-            cg_error_prefix();
+            cg_error_prefix_at(expr);
+            diagnostic_code = "unsupported-feature";
             eprintln("algebraic effects (handle) are not supported on the wasm target - wasm has no stack switching");
             exit(1);
         }
@@ -4541,7 +4542,8 @@ func llvm_emit_expr(expr *u8) void {
     if k == NODE_PERFORM_EXPR {
         llvm_uses_effects = 1;
         if llvm_is_wasm {
-            cg_error_prefix();
+            cg_error_prefix_at(expr);
+            diagnostic_code = "unsupported-feature";
             eprintln("algebraic effects (perform) are not supported on the wasm target - wasm has no stack switching");
             exit(1);
         }
@@ -4701,7 +4703,8 @@ func llvm_emit_expr(expr *u8) void {
     if k == NODE_RESUME_EXPR {
         llvm_uses_effects = 1;
         if llvm_is_wasm {
-            cg_error_prefix();
+            cg_error_prefix_at(expr);
+            diagnostic_code = "unsupported-feature";
             eprintln("algebraic effects (resume) are not supported on the wasm target - wasm has no stack switching");
             exit(1);
         }
