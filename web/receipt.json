@@ -3,7 +3,7 @@
     "web/compiler.wasm": {
       "bytes": 770138,
       "path": "web/compiler.wasm",
-      "sha256": "49a3891377c1abe00be7162b4752fdb00f41933b00c9cc79e120e2611a5ffdd9"
+      "sha256": "bbc74d984a41e3ae833325276bc685449170c508f341079d20525d3b4facafd9"
     },
     "web/examples/fib.lang": {
       "bytes": 339,
@@ -36,9 +36,9 @@
       "sha256": "78a83a1b3436db5a685db6ba1efcc21406ffb822cc4e10ae6aa14da6dacf29a8"
     },
     "web/stdlib.json": {
-      "bytes": 261661,
+      "bytes": 268142,
       "path": "web/stdlib.json",
-      "sha256": "9c6239f778f4013195b56d43bb63891ad5dcf0582b57f89ef040b4acd021419d"
+      "sha256": "a1641a60e389b99ea8c9bdcd38cc14de055dbc34f7588c01e711c1553534d713"
     }
   },
   "bootstrap": {
@@ -54,8 +54,8 @@
   "builder": {
     "bytes": 618464,
     "path": "out/lang_next",
-    "sha256": "19a55ba9a6c27ba7f377fb6704c4246070f8dcca95d9e0e0b2dc37329f6bd78b",
-    "version": "lang 0.1.0 (c968300)\nbuilt: llvm, linux-x86_64, libc\nbootstrap: from f532c0d\n"
+    "sha256": "06e5ccdc337efe4f8b2965be18099ee5d17c8d5453e2f38003e6d20ef55052af",
+    "version": "lang 0.1.0 (772ff77)\nbuilt: llvm, linux-x86_64, libc\nbootstrap: from f532c0d\n"
   },
   "schema": 1,
   "source": {
@@ -148,9 +148,9 @@
       "test/reader_locations/minipy.minipy": "2df96b1060e1edd61dceaa0578c4a4a407b5d4bea97133937c04b8a77e46da4a",
       "web/build.sh": "b5692204d2698b123eb8b67bcb9ca1fd597a27dca52856610fea05467f34ca2b",
       "web/build_compiler.sh": "c30571967236c1bf065d82350d0aec5d602a2e16a384f9dec324040d63a597e9",
-      "web/build_stdlib.js": "ccac680d87f0df0a57c8282679109a986f5a06e6f9439292617756bc4e5e6336"
+      "web/build_stdlib.js": "029ba42cf3dd17b3c5564bd3fcdb08fb2b77fc6b0d883474115c484959a4e08d"
     },
-    "revision": "c9683003aea33f343808ab47e8180d9567faca4d"
+    "revision": "772ff77a0944a573e8ce786aae570e3285e9d0c5"
   },
-  "version": "var LANG_VERSION *u8 = \"0.1.0\";\nvar LANG_COMMIT *u8 = \"c968300\";\nvar LANG_BUILD_BACKEND *u8 = \"llvm\";\nvar LANG_BUILD_OS *u8 = \"wasm\";\nvar LANG_BUILD_ARCH *u8 = \"wasm32\";\nvar LANG_BUILD_LIBC *u8 = \"system\";\nvar LANG_BOOTSTRAP_FROM *u8 = \"f532c0d\";\n"
+  "version": "var LANG_VERSION *u8 = \"0.1.0\";\nvar LANG_COMMIT *u8 = \"772ff77\";\nvar LANG_BUILD_BACKEND *u8 = \"llvm\";\nvar LANG_BUILD_OS *u8 = \"wasm\";\nvar LANG_BUILD_ARCH *u8 = \"wasm32\";\nvar LANG_BUILD_LIBC *u8 = \"system\";\nvar LANG_BOOTSTRAP_FROM *u8 = \"f532c0d\";\n"
 }
