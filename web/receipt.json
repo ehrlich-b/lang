@@ -1,9 +1,9 @@
 {
   "artifacts": {
     "web/compiler.wasm": {
-      "bytes": 733876,
+      "bytes": 734251,
       "path": "web/compiler.wasm",
-      "sha256": "107933206e7c6994d2facc1aa70d1464dc091f10139396c1c7545daf59b0a27d"
+      "sha256": "479470023878ebf83d849a24785a1c5c827689dff78741dc46b1fe802ad608fa"
     },
     "web/examples/fib.lang": {
       "bytes": 339,
@@ -31,14 +31,14 @@
       "sha256": "05c317767b6471ca4747fd8dadd216c6d224b1be3514568541046e208054a776"
     },
     "web/examples/polyglot_wasm.wasm": {
-      "bytes": 846405,
+      "bytes": 848901,
       "path": "web/examples/polyglot_wasm.wasm",
-      "sha256": "289e0471b0d8241c1335e7d38372d194a71891ce234026a1e48225ac199faca8"
+      "sha256": "ac0ef16224bd500fc8adb1cff4b9028609e83e7b2dbf3bcc961336991a13d372"
     },
     "web/stdlib.json": {
-      "bytes": 261046,
+      "bytes": 262628,
       "path": "web/stdlib.json",
-      "sha256": "4d925e36e72f8ffe5eb88a3f74d5de3b81615a6061be00859df0f8d0b17813bb"
+      "sha256": "fc4288139c7016a678192729c1526a158ba24ae244cb7cd3fe3a25c476a6056f"
     }
   },
   "bootstrap": {
@@ -54,8 +54,8 @@
   "builder": {
     "bytes": 605016,
     "path": "out/lang_next",
-    "sha256": "70816f3faeb8e26c656d73b49ac14702c1f8d31bfc262e7f6b58e1ffa559a406",
-    "version": "lang 0.1.0 (9961c41)\nbuilt: llvm, linux-x86_64, libc\nbootstrap: from f532c0d\n"
+    "sha256": "cf10899151de017d159b34c3baabc4102bab5b15b579901fab4870b5ef0698fb",
+    "version": "lang 0.1.0 (c26f061)\nbuilt: llvm, linux-x86_64, libc\nbootstrap: from f532c0d\n"
   },
   "schema": 1,
   "source": {
@@ -87,7 +87,7 @@
       "example/polyglot_wasm.lang": "05c317767b6471ca4747fd8dadd216c6d224b1be3514568541046e208054a776",
       "example/tiny/answer.tiny": "a8b8a763dc39012cfa39f84f0ea7c518df6633ecf81d06a57dea0c5499a46df4",
       "example/tiny/test_tiny.lang": "39994b24c1af05dd15db722b17956cb8b7f8934bba401ddd35fb732676e9cdd7",
-      "example/tiny/tiny.lang": "5b8ac161d3fc1661f8fc1b1aae721600985cc99584feb5cbfe560c401d2972cc",
+      "example/tiny/tiny.lang": "e8cc9b1517dd15bfe265f1298936675260b2bc5f09515c05431b5c7844a43522",
       "example/tree/tree.lang": "5f7bf3bc0190029a4032bb0b32b14b88b941205c58043e8c4b3398526579fc67",
       "scripts/build_receipt.py": "443a1988ad25df60ecc100464f9d96bd707e81572ccf5e7b831986720741b627",
       "src/ast_emit.lang": "e4c60acae309d652e20c0326612da26229cce7021e70d46d1c6c4be889242eee",
@@ -136,7 +136,7 @@
       "std/rdgen.lang": "de4c857bc343454385139ad5e4af79e90ab5b9be0789c3603227a5461d3045ff",
       "std/sexpr_reader.lang": "1bfe2f94894bf7fcc446b6ce962fe01737bd466c1fe332a02138b1b321ab4ef7",
       "std/stage.lang": "db5394ab68389e5fd73b836f7a6c2cdc1ec3725437eb609d0d136edb07c43e4f",
-      "std/tok.lang": "65a3464974723396af018aba4e2217f79be6a8b8d16d4a62ae9e01c7b857d809",
+      "std/tok.lang": "a9395791147ede3586f3de570b6aec8a7c65f7245a3d3f45fe061a14dc0427e8",
       "std/tools.lang": "e7d0fe0090cde21cb36e5f0af697db1d39a38bea8d8a0f1301bfd9399de3f8d0",
       "test/reader_locations/c.c": "a1cfd7cbf62f87a0bbd600651b5c6c3997aefcb224738d0da6c1f3b57e9ef18a",
       "test/reader_locations/cases.json": "e0c3537a3b7f7d3b20ec5bf2a2f09daa94c88c9dddf8cf8b46b0de2b1f48638c",
@@ -148,7 +148,7 @@
       "web/build_compiler.sh": "c30571967236c1bf065d82350d0aec5d602a2e16a384f9dec324040d63a597e9",
       "web/build_stdlib.js": "ccac680d87f0df0a57c8282679109a986f5a06e6f9439292617756bc4e5e6336"
     },
-    "revision": "9961c41076738a57eca5017580bb5eed69dcd6eb"
+    "revision": "c26f061d1c9eb9ff552552ad3b2e7fbf15570271"
   },
-  "version": "var LANG_VERSION *u8 = \"0.1.0\";\nvar LANG_COMMIT *u8 = \"9961c41\";\nvar LANG_BUILD_BACKEND *u8 = \"llvm\";\nvar LANG_BUILD_OS *u8 = \"wasm\";\nvar LANG_BUILD_ARCH *u8 = \"wasm32\";\nvar LANG_BUILD_LIBC *u8 = \"system\";\nvar LANG_BOOTSTRAP_FROM *u8 = \"f532c0d\";\n"
+  "version": "var LANG_VERSION *u8 = \"0.1.0\";\nvar LANG_COMMIT *u8 = \"c26f061\";\nvar LANG_BUILD_BACKEND *u8 = \"llvm\";\nvar LANG_BUILD_OS *u8 = \"wasm\";\nvar LANG_BUILD_ARCH *u8 = \"wasm32\";\nvar LANG_BUILD_LIBC *u8 = \"system\";\nvar LANG_BOOTSTRAP_FROM *u8 = \"f532c0d\";\n"
 }
