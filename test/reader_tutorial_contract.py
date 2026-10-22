@@ -81,8 +81,10 @@ for reader_name, reader in readers.items():
         source_file.write_text(source)
         # Check both public AST destinations and the executable CLI path.
         output = EVIDENCE / (label + '.ast')
+        ir_output = EVIDENCE / (label + '.ll')
         for mode, args in [('stdout', ['read', reader, source_file]),
                            ('file', ['read', reader, source_file, '-o', output]),
+                           ('compile', [reader, source_file, '-o', ir_output]),
                            ('run', ['run', reader, source_file])]:
             result = run(args, label + '-' + mode)
             if expected is None:
@@ -93,12 +95,16 @@ for reader_name, reader in readers.items():
                 require(not result.stdout.strip(), f'{label}/{mode} emitted usable AST/output')
                 require(not output.exists() or not output.read_bytes().strip(),
                         f'{label}/{mode} left a usable AST file')
+                require(not ir_output.exists(), f'{label}/{mode} emitted executable IR')
             elif mode == 'run':
                 require(result.returncode == expected,
                         f'{label}/run returned {result.returncode}, expected {expected}')
+            elif mode == 'compile':
+                require(result.returncode == 0 and ir_output.stat().st_size > 0,
+                        f'{label}/compile rejected valid source')
             else:
                 require(result.returncode == 0, f'{label}/{mode} rejected valid source')
                 ast = output.read_bytes() if mode == 'file' else result.stdout
                 require(b'(program' in ast, f'{label}/{mode} omitted program AST')
         print(f'PASS {label}: ' + ('reject; no AST' if expected is None else f'return {expected}'))
-print(f'PASS reader tutorial contract ({len(readers)} readers, {len(cases)} cases, 3 CLI paths); evidence: {EVIDENCE}')
+print(f'PASS reader tutorial contract ({len(readers)} readers, {len(cases)} cases, 4 CLI paths); evidence: {EVIDENCE}')

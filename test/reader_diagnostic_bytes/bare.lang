@@ -1,7 +1,7 @@
 include "std/parser_reader.lang"
 include "std/ast.lang"
 #parser{ diagnostic_program = (('go' '!' 'more' | 'go') 'stop') | ('answer' value:number '!' 'more') | ('answer' value:number) }
-reader bare(text *u8) *u8 {
+reader diagnostic(text *u8) *u8 {
     return diagnostic_read(tok_new_comments(text, nil, nil, nil));
 }
 func diagnostic_read(tokens *Tokenizer) *u8 {

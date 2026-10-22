@@ -143,7 +143,7 @@ try {
     assert.deepEqual(await selection(), selected);
     byteReceipts.push({ ...byteNative[index], wasmDiagnostic: diagnostic, selection: selected, staleDownloadsCleared: true });
     console.log(`PASS ${c.name}: native = Wasm, exact byte span and full token, stale downloads cleared`);
-    if (['emoji', 'trailing'].includes(c.name)) {
+    if (['emoji', 'trailing', 'comment-utf8', 'custom-utf8'].includes(c.name)) {
       for (const width of [390, 1440]) {
         await page.setViewportSize({ width, height: 900 });
         await page.screenshot({ path: path.join(evidence, `${c.name}-${width}.png`), fullPage: true });

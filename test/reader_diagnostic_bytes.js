@@ -37,14 +37,19 @@ for (const name of ['comment-opener', 'comment-open', 'comment-truncated', 'comm
   const diagnostic = `diagnostic:${prefix.length}:${Buffer.byteLength(prefix.at(-1)) + 1}: expected ${custom ? '-->' : '*/'}, found unterminated block comment @${start}:${end}`;
   cases.push({ name, file, token, source, start, end, diagnostic,
     reader: custom ? `${directory}/customdiagnostic.lang` : reader,
-    extension: custom ? 'customdiagnostic' : 'diagnostic' });
+    extension: 'diagnostic' });
 }
+cases.push({ name: 'bare-markers', file: `${directory}/comment-open.read`,
+  source: fs.readFileSync(`${directory}/comment-open.read`, 'utf8'),
+  token: '/', start: 10, end: 11,
+  diagnostic: 'diagnostic:1:11: expected end of input, found / @10:11',
+  reader: `${directory}/bare.lang` });
 const controls = [
   { name: 'closed', source: 'answer 42 /* é🧭 */' },
   { name: 'line-eof', source: 'answer 42 // é🧭' },
-  { name: 'custom-closed', source: '<!-- é🧭 --> answer 42 <!-- done -->', reader: `${directory}/customdiagnostic.lang`, extension: 'customdiagnostic' },
-  { name: 'custom-line-eof', source: 'answer 42 # é🧭', reader: `${directory}/customdiagnostic.lang`, extension: 'customdiagnostic' },
-  { name: 'bare', source: 'answer 42', reader: `${directory}/bare.lang`, extension: 'bare' },
+  { name: 'custom-closed', source: '<!-- é🧭 --> answer 42 <!-- done -->', reader: `${directory}/customdiagnostic.lang`, extension: 'diagnostic' },
+  { name: 'custom-line-eof', source: 'answer 42 # é🧭', reader: `${directory}/customdiagnostic.lang`, extension: 'diagnostic' },
+  { name: 'bare', source: 'answer 42', reader: `${directory}/bare.lang`, extension: 'diagnostic' },
 ];
 function nativeDiagnostics() {
   const evidence = fs.mkdtempSync(path.join(process.env.EVIDENCE_DIR || os.tmpdir(), 'diagnostic-bytes-'));
