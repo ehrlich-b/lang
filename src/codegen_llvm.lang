@@ -178,6 +178,8 @@ func llvm_emit_type(type_node *u8) void {
     }
 
     if k == TYPE_ARRAY {
+        // Validate representable scalar-array storage before emitting its type.
+        var storage_size i64 = llvm_storage_size(type_node);
         // LLVM array type: [N x T]
         llvm_emit_str("[");
         llvm_emit_int(array_type_size(type_node));
@@ -734,6 +736,31 @@ func llvm_f64_type() *u8 {
         base_type_set_name_len(llvm_f64_type_cache, 3);
     }
     return llvm_f64_type_cache;
+}
+
+// Fixed-array allocation, type emission and literal stores consume shared
+// scalar storage layouts. Other legacy arrays retain their internal
+// representation; this does not admit them
+// to the shared API or qualify an aggregate/relocation ABI.
+func llvm_storage_size(t *u8) i64 {
+    // Void is an invalid storage leaf even for an empty array.
+    var leaf *u8 = t;
+    while leaf != nil && type_kind(leaf) == TYPE_ARRAY { leaf = array_type_elem(leaf); }
+    var is_void i64 = 0;
+    if leaf != nil && type_kind(leaf) == TYPE_BASE {
+        is_void = base_type_name_len(leaf) == 4 && memcmp(base_type_name(leaf), "void", 4);
+    }
+    if layout_is_scalar_storage(t) == 0 && is_void == 0 { return get_type_size(t); }
+    var profile *u8 = "llvm-linux-x86_64";
+    if llvm_is_wasm { profile = "llvm-wasm32"; }
+    // macOS output is cross-target compatibility only, outside this tranche.
+    if llvm_is_arm64 { return get_type_size(t); }
+    var storage StorageLayout;
+    var status i64 = layout_query(t, profile, &storage);
+    if status != LAYOUT_OK {
+        cg_error_prefix(); eprint("layout: "); eprintln(layout_error(status)); exit(1);
+    }
+    return storage.size;
 }
 
 // Byte size of a struct/enum type, or 0 if the type isn't an aggregate.
@@ -5128,7 +5155,7 @@ func llvm_emit_stmt(stmt *u8) void {
         if var_type != nil {
             if type_kind(var_type) == TYPE_ARRAY {
                 // Array type - allocate full array size
-                alloc_size = get_type_size(var_type);
+                alloc_size = llvm_storage_size(var_type);
                 is_array = 1;
             } else if type_kind(var_type) == TYPE_BASE {
                 var type_name *u8 = base_type_name(var_type);
@@ -5244,7 +5271,7 @@ func llvm_emit_stmt(stmt *u8) void {
                 // Expressions are all i64 here, so narrow back to the element
                 // type on the way in - the mirror of what the index-read path
                 // does with ptrtoint/zext on the way out.
-                var elem_bytes i64 = get_type_size(lit_elem_type);
+                var elem_bytes i64 = llvm_storage_size(lit_elem_type);
                 if type_kind(lit_elem_type) == TYPE_PTR {
                     var cast_temp i64 = llvm_next_temp();
                     llvm_emit_str("    %t");

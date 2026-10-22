@@ -7330,3 +7330,5 @@ func phase_parse_include(text *u8, name *u8, invocation *u8) *u8 {
 }
 
 include "src/numeric.lang"
+
+include "src/layout.lang"
