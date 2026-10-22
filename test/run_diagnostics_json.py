@@ -149,7 +149,18 @@ def a4():
     # Frontend output remains a separate artifact too.
     result, records = invoke(source, flags=['--emit-expanded-ast'], success=True)
     assert result.stdout.startswith(b'Wrote expanded AST') and not records
-    print('A4 PASS: flags/modes rejected, option values respected, success/artifacts separate')
+    # Standard stderr must still work when a program is compiled by the direct
+    # Wasm backend, which does not support function-typed locals or globals.
+    source = fixture('stderr.lang')
+    invoke(source, env={'LANGBE': 'wasm'}, success=True)
+    ran = subprocess.run(['node', str(ROOT / 'test/wasm_host.js'),
+                          str(work / f'output-{counter}.ll')],
+                         capture_output=True, timeout=30)
+    (work / 'direct-stderr.stdout').write_bytes(ran.stdout)
+    (work / 'direct-stderr.stderr').write_bytes(ran.stderr)
+    (work / 'direct-stderr.exit').write_text(str(ran.returncode))
+    assert ran.returncode == 0 and not ran.stdout and ran.stderr == b'hello\n', ran
+    print('A4 PASS: flags/modes rejected, option values respected, success/artifacts separate, direct Wasm stderr')
 
 
 for name, test in [('A1', a1), ('A2', a2), ('A3', a3), ('A4', a4)]:

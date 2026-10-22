@@ -1473,7 +1473,11 @@ func main(argc i64, argv **u8) i64 {
     var diagnostic_arg i64 = 1;
     while diagnostic_arg < argc {
         var option *u8 = get_arg(argv, diagnostic_arg);
-        if streq(option, "--diagnostics=json") { diagnostic_enable(); }
+        if streq(option, "--diagnostics=json") {
+            diagnostic_default_code = "compiler-error";
+            diagnostic_code = diagnostic_default_code;
+            diagnostic_enable();
+        }
         // Option values are data, including a path that resembles a flag.
         if streq(option, "-o") || streq(option, "--ast-source") || streq(option, "--runtime") || streq(option, "-c") {
             diagnostic_arg = diagnostic_arg + 1;

@@ -1,21 +1,5 @@
-// Compiler diagnostic presentation. Source admission and backend policy stay
-// with their existing owners; this adapter only serializes their failures.
-var diagnostic_json i64 = 0;
-var diagnostic_code *u8 = "compiler-error";
-var diagnostic_path *u8 = nil;
-var diagnostic_start i64 = -1;
-var diagnostic_end i64 = -1;
-var diagnostic_message *u8 = nil;
-var diagnostic_len i64 = 0;
-var diagnostic_limit i64 = 1048576;
-var diagnostic_truncated i64 = 0;
-
-pub func diagnostic_context(code *u8, path *u8, start i64, end i64) void {
-    if diagnostic_json == 0 { return; }
-    diagnostic_code = code; diagnostic_path = path;
-    diagnostic_start = start; diagnostic_end = end;
-}
-
+// Compiler-owned interpretation of token locations and backend failures.
+include "std/diagnostics.lang"
 func diagnostic_token(code *u8, path *u8, tok *u8) void {
     if diagnostic_json == 0 { return; }
     var source *PhaseSource = phase_source_get(phase_origin_source_id(path));
@@ -29,93 +13,6 @@ func diagnostic_token(code *u8, path *u8, tok *u8) void {
         if end > source.len { end = source.len; }
     }
     diagnostic_context(code, path, start, end);
-}
-
-func diagnostic_write(s *u8) void { file_write(2, s, strlen(s)); }
-func diagnostic_integer(n i64) void {
-    // Reuse decimal formatting without sending renderer output into its sink.
-    var saved fn(*u8, i64, i64) void = stderr_sink;
-    stderr_sink = nil; eprint_i64(n); stderr_sink = saved;
-}
-
-// Return the width of a valid scalar, or 0 for an invalid leading byte.
-// Invalid bytes are escaped individually, so even arbitrary OS paths and
-// source snippets produce UTF-8 JSON. Valid Unicode is preserved verbatim.
-func diagnostic_utf8_width(s *u8, len i64) i64 {
-    var c i64 = *s;
-    var width i64 = 0;
-    var value i64 = 0;
-    var minimum i64 = 0;
-    if c < 128 { return 1; }
-    if c >= 194 && c <= 223 { width = 2; value = c - 192; minimum = 128; }
-    if c >= 224 && c <= 239 { width = 3; value = c - 224; minimum = 2048; }
-    if c >= 240 && c <= 244 { width = 4; value = c - 240; minimum = 65536; }
-    if width == 0 || width > len { return 0; }
-    var i i64 = 1;
-    while i < width {
-        var next i64 = *(s + i);
-        if next < 128 || next > 191 { return 0; }
-        value = value * 64 + next - 128; i = i + 1;
-    }
-    if value < minimum || value > 1114111 { return 0; }
-    if value >= 55296 && value <= 57343 { return 0; }
-    return width;
-}
-
-func diagnostic_string(s *u8, len i64) void {
-    diagnostic_write("\"");
-    var i i64 = 0;
-    var hex *u8 = "0123456789abcdef";
-    var escape *u8 = alloc(6);
-    memcpy(escape, "\\u00", 4);
-    while i < len {
-        var c i64 = *(s + i);
-        var width i64 = diagnostic_utf8_width(s + i, len - i);
-        if c == 34 || c == 92 {
-            diagnostic_write("\\"); file_write(2, s + i, 1); i = i + 1;
-        } else if c < 32 || width == 0 {
-            *(escape + 4) = *(hex + c / 16);
-            *(escape + 5) = *(hex + c % 16);
-            file_write(2, escape, 6); i = i + 1;
-        } else { file_write(2, s + i, width); i = i + width; }
-    }
-    diagnostic_write("\"");
-}
-
-pub func diagnostic_sink(data *u8, len i64, complete i64) void {
-    // Only eprintln completes a record. Newlines in paths and messages are data.
-    if complete == 0 {
-        var available i64 = diagnostic_limit - diagnostic_len;
-        if len > available { len = available; diagnostic_truncated = 1; }
-        if len > 0 { memcpy(diagnostic_message + diagnostic_len, data, len); }
-        diagnostic_len = diagnostic_len + len;
-        return;
-    }
-    diagnostic_write("{\"version\":1,\"code\":");
-    diagnostic_string(diagnostic_code, strlen(diagnostic_code));
-    diagnostic_write(",\"severity\":\"error\",\"path\":");
-    if diagnostic_path == nil { diagnostic_write("null"); }
-    else { diagnostic_string(diagnostic_path, strlen(diagnostic_path)); }
-    diagnostic_write(",\"span\":");
-    if diagnostic_start < 0 || diagnostic_end < diagnostic_start { diagnostic_write("null"); }
-    else {
-        diagnostic_write("{\"start\":"); diagnostic_integer(diagnostic_start);
-        diagnostic_write(",\"end\":"); diagnostic_integer(diagnostic_end); diagnostic_write("}");
-    }
-    diagnostic_write(",\"message\":"); diagnostic_string(diagnostic_message, diagnostic_len);
-    diagnostic_write(",\"truncated\":");
-    if diagnostic_truncated != 0 { diagnostic_write("true"); } else { diagnostic_write("false"); }
-    diagnostic_write("}\n");
-    diagnostic_len = 0; diagnostic_truncated = 0;
-    diagnostic_context("compiler-error", nil, -1, -1);
-}
-
-func diagnostic_enable() void {
-    if diagnostic_json != 0 { return; }
-    diagnostic_message = alloc(diagnostic_limit);
-    diagnostic_json = 1;
-    stderr_sink = &diagnostic_sink;
-    phase_diagnostic_hook = &diagnostic_context;
 }
 
 func diagnostic_contains(text *u8, needle *u8) i64 {

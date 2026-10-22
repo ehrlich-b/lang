@@ -8,13 +8,11 @@ var phase_work_used i64 = 0;
 var phase_work_limit i64 = 16777216;
 var phase_diagnostic_source *u8 = "<compiler-host>";
 
-// A host client may supply a presentation hook; the default envelope is unchanged.
-var phase_diagnostic_hook fn(*u8, *u8, i64, i64) void = nil;
 pub func phase_error(code *u8, source *u8) void {
     phase_error_at(code, source, -1, -1);
 }
 pub func phase_error_at(code *u8, source *u8, start i64, end i64) void {
-    if phase_diagnostic_hook != nil { phase_diagnostic_hook(code, source, start, end); }
+    diagnostic_context(code, source, start, end);
     eprint("(host-error (version 1) (code "); eprint(code);
     eprint(") (source ");
     phase_error_string(source);

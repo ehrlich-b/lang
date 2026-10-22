@@ -506,10 +506,10 @@ pub func println(s *u8) {
     file_write(1, "\n", 1);
 }
 
-// Optional stderr transport; completion marks eprintln, not embedded newlines.
-var stderr_sink fn(*u8, i64, i64) void = nil;
+// The optional record transport uses direct calls on every backend.
+include "std/diagnostics.lang"
 pub func stderr_write(data *u8, len i64, complete i64) void {
-    if stderr_sink != nil { stderr_sink(data, len, complete); }
+    if diagnostic_json != 0 { diagnostic_sink(data, len, complete); }
     else { file_write(2, data, len); }
 }
 
