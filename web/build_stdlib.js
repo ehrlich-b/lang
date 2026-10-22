@@ -5,11 +5,13 @@ const fs = require('fs');
 
 const paths = [
   'src/limits.lang',
+  'src/diagnostics.lang',
   'std/os.lang',
   'std/os/libc.lang',
   'std/os/libc_macos.lang',
   'std/tools.lang',
   'std/core.lang',
+  'std/diagnostics.lang',
   'std/buffer.lang',
   'std/emit.lang',
   'std/ast.lang',
