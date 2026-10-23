@@ -10,6 +10,7 @@
 //       (block (return (number 42)))))
 
 include "std/tok.lang"
+include "src/stage_tooling.lang"
 
 // ============================================================
 // PNode structure for parse tree (shared with the reader toolkit)

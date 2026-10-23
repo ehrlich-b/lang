@@ -34,6 +34,11 @@ function run(cmd, args, options = {}) {
   const bytes = fs.readFileSync('web/compiler.wasm');
   const version = await runLangCompiler(bytes, ['version'], {});
   assert.strictEqual(version.exit, 0);
+  // A large argument forces memory growth while constructing argv. The host
+  // must reacquire its memory view before writing the argument's pointer.
+  const grown = await runLangCompiler(bytes, ['version', 'x'.repeat(2 * 1024 * 1024)], {});
+  assert.strictEqual(grown.exit, 0);
+  assert.strictEqual(grown.stdout, version.stdout);
   assert.strictEqual(version.stdout, `lang 0.1.0 (${receipt.source.revision.slice(0, 7)})\nbuilt: llvm, wasm-wasm32, libc\nbootstrap: from ${receipt.bootstrap.identity}\n`);
   const nativeVersion = run(compiler, ['version']);
   const stdlib = JSON.parse(fs.readFileSync('web/stdlib.json'));

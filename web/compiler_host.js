@@ -170,7 +170,9 @@ async function runLangCompiler(wasmBytes, args, initialFiles, onWrite, environme
   const argv = ['lang', ...(args || [])];
   const argvPtr = bump(argv.length * 8);
   for (let i = 0; i < argv.length; i++) {
-    view().setBigUint64(argvPtr + i * 8, BigInt(putString(argv[i])), true);
+    // Allocating a string can grow memory and detach its previous buffer.
+    const stringPtr = putString(argv[i]);
+    view().setBigUint64(argvPtr + i * 8, BigInt(stringPtr), true);
   }
 
   let exit = 0;
