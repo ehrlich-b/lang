@@ -162,6 +162,22 @@ func parse_number_value(tok *u8) i64 {
     return result;
 }
 
+// Fixed-array counts are decimal sizes, not wrapping numeric expressions.
+func parse_array_count(tok *u8) i64 {
+    var text *u8 = tok_lexeme(tok); var len i64 = tok_lexeme_len(tok);
+    var result i64 = 0; var i i64 = 0;
+    while i < len {
+        var c i64 = *(text + i);
+        if c < 48 || c > 57 { parse_error("invalid fixed-array count"); return 0; }
+        var digit i64 = c - 48;
+        if result > (9223372036854775807 - digit) / 10 {
+            parse_error("fixed-array count exceeds signed size limit"); return 0;
+        }
+        result = result * 10 + digit; i = i + 1;
+    }
+    return result;
+}
+
 // ============================================================
 // Node accessor functions
 // ============================================================
@@ -2811,7 +2827,7 @@ func parse_type_bounded_inner() *u8 {
     // Array type: [N]T
     if parse_match(TOKEN_LBRACKET) {
         var size_tok *u8 = parse_expect(TOKEN_NUMBER, "expected array size");
-        var size i64 = parse_number_value(size_tok);
+        var size i64 = parse_array_count(size_tok);
         parse_expect(TOKEN_RBRACKET, "expected ']' after array size");
         var elem *u8 = parse_type();
         var t *u8 = array_type_alloc();

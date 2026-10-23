@@ -1,0 +1,69 @@
+// Object storage only. No struct/enum layout, pointer relocation or call ABI.
+// A failed query always clears every output field; callers must check status.
+struct StorageLayout { size i64; alignment i64; stride i64; }
+var LAYOUT_OK i64 = 0;
+var LAYOUT_PROFILE i64 = 1;
+var LAYOUT_UNSUPPORTED i64 = 2;
+var LAYOUT_RELOCATION i64 = 3;
+var LAYOUT_COUNT i64 = 4;
+var LAYOUT_OVERFLOW i64 = 5;
+
+func layout_limit(profile *u8) i64 {
+    if profile == nil { return 0; }
+    if streq(profile, "llvm-linux-x86_64") { return 9223372036854775807; }
+    if streq(profile, "llvm-wasm32") { return 4294967295; }
+    return 0;
+}
+
+func layout_scalar_bytes(t *u8) i64 {
+    if t == nil || type_kind(t) != TYPE_BASE { return 0; }
+    var name *u8 = str_dup_n(base_type_name(t), base_type_name_len(t));
+    if streq(name, "bool") { return 1; }
+    return numeric_bits(name) / 8;
+}
+
+// Select the bounded storage tranche, independently of array count validity.
+// Legacy aggregate/pointer consumers must not mistake this for ABI admission.
+func layout_is_scalar_storage(t *u8) i64 {
+    if t == nil { return 0; }
+    if type_kind(t) == TYPE_ARRAY { return layout_is_scalar_storage(array_type_elem(t)); }
+    return layout_scalar_bytes(t) != 0;
+}
+
+func layout_query(t *u8, profile *u8, out *StorageLayout) i64 {
+    out.size = 0; out.alignment = 0; out.stride = 0;
+    var limit i64 = layout_limit(profile);
+    if limit == 0 { return LAYOUT_PROFILE; }
+    if t == nil { return LAYOUT_UNSUPPORTED; }
+    var kind i64 = type_kind(t);
+    if kind == TYPE_PTR || kind == TYPE_FUNC || kind == TYPE_CLOSURE { return LAYOUT_RELOCATION; }
+    if kind == TYPE_ARRAY {
+        var count i64 = array_type_size(t);
+        if count < 0 { return LAYOUT_COUNT; }
+        var element StorageLayout;
+        var status i64 = layout_query(array_type_elem(t), profile, &element);
+        if status != LAYOUT_OK { return status; }
+        // Divide before multiplying. Even a zero-sized element cannot admit a
+        // count outside the target's address domain.
+        if count > limit { return LAYOUT_OVERFLOW; }
+        if element.stride != 0 {
+            if count > limit / element.stride { return LAYOUT_OVERFLOW; }
+        }
+        out.size = count * element.stride;
+        out.alignment = element.alignment;
+        out.stride = out.size;
+        return LAYOUT_OK;
+    }
+    var size i64 = layout_scalar_bytes(t);
+    if size == 0 { return LAYOUT_UNSUPPORTED; }
+    out.size = size; out.alignment = size; out.stride = size;
+    return LAYOUT_OK;
+}
+
+func layout_error(status i64) *u8 {
+    if status == LAYOUT_PROFILE { return "unsupported target profile"; }
+    if status == LAYOUT_RELOCATION { return "pointer/function relocation storage is not supported"; }
+    if status == LAYOUT_COUNT { return "negative fixed-array count"; }
+    if status == LAYOUT_OVERFLOW { return "fixed-array storage exceeds target size limit"; }
+    return "unsupported storage type (expected scalar or fixed array of scalars)";
+}

@@ -1,0 +1,29 @@
+// Test the production API through its normal parser type representation.
+include "std/core.lang"
+include "src/lexer.lang"
+include "src/parser.lang"
+include "src/codegen.lang"
+include "src/ast_emit.lang"
+include "src/codegen_llvm.lang"
+include "src/codegen_wasm.lang"
+include "src/sexpr_reader.lang"
+include "src/compiler_readers_none.lang"
+var add_reader_mode i64 = 0;
+func find_kernel_builtin(name *u8, len i64) *u8 { return nil; }
+func has_kernel_module(name *u8, len i64) i64 { return 0; }
+func layout_probe(name *u8, profile *u8, count i64, outer i64, form i64, result *StorageLayout) i64 {
+    var t *u8 = numeric_type(name);
+    if form == 1 { var p *u8 = ptr_type_alloc(); ptr_type_set_elem(p, t); t = p; }
+    if form == 2 { t = func_type_alloc(); }
+    if form == 3 { t = closure_type_alloc(); }
+    if form == 7 { var p *u8 = ptr_type_alloc(); ptr_type_set_elem(p, t); t = p; }
+    if form == 4 || form == 5 || form == 7 {
+        var a *u8 = array_type_alloc(); array_type_set_elem(a, t); array_type_set_size(a, count); t = a;
+        if form == 5 {
+            var b *u8 = array_type_alloc(); array_type_set_elem(b, t); array_type_set_size(b, outer); t = b;
+        }
+    }
+    if form == 6 { t = nil; }
+    result.size = 111; result.alignment = 222; result.stride = 333;
+    return layout_query(t, profile, result);
+}

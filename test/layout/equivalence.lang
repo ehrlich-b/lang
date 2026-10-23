@@ -1,0 +1,18 @@
+// Both local allocation and literal/index lowering must retain identical IR.
+var global_array [3]i16 = [10, 20, 12];
+func main() i64 {
+    var a [3]i8 = [10, 20, 12];
+    var b [3]u8 = [10, 20, 12];
+    var c [3]i16 = [10, 20, 12];
+    var d [3]u16 = [10, 20, 12];
+    var e [3]i32 = [10, 20, 12];
+    var f [3]u32 = [10, 20, 12];
+    var g [3]i64 = [10, 20, 12];
+    var h [3]u64 = [10, 20, 12];
+    var zero [0]i64;
+    var nested [2][3]i32;
+    var floats [3]f32;
+    var doubles [3]f64;
+    var flags [3]bool;
+    return a[0] + b[1] + c[2];
+}
