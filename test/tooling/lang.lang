@@ -1,0 +1,10 @@
+include "src/lang_reader.lang"
+reader phase_value(text *u8) *u8 { return lang(text); }
+// é: offsets below are UTF-8 bytes, including both enclosing reader braces.
+func main() i64 {
+    var seed i64 = 0;
+    var f closure() i64 = fn() i64 {
+        return #lang{ let x = 10 in (let x = 32 in x) + x } + seed;
+    };
+    return f() + #phase_value{ 1 } - 1;
+}

@@ -1426,3 +1426,9 @@ pub func phase_syntax_program(syntax *PhaseSyntax) *u8 {
     sexpr_reader_source_name = saved_name; sexpr_reader_source_text = saved_text;
     return program;
 }
+
+// The sole Q0 handoff: all source and binding facts are checked before parsing.
+pub func tooling_program(envelope *ToolEnvelope) *u8 {
+    tooling_validate(envelope);
+    return phase_syntax_program(envelope.syntax);
+}

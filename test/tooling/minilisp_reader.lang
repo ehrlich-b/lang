@@ -1,0 +1,3 @@
+include "example/minilisp/minilisp.lang"
+// Adapt expression output to the read command's program boundary.
+reader q0lisp(text *u8) *u8 { return ast_main_i64(minilisp(text)); }

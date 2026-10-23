@@ -1,0 +1,4 @@
+include "src/lang_reader.lang"
+include "std/ast.lang"
+// The read command expects program AST; the stock reader can emit expressions.
+reader q0lang(text *u8) *u8 { return ast_main_i64(lang(text)); }

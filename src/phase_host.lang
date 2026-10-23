@@ -3,6 +3,7 @@ include "src/stage_buffer.lang"
 include "src/stage_digest.lang"
 include "src/stage_origin.lang"
 include "src/stage_wire.lang"
+include "src/stage_tooling.lang"
 include "src/stage_worker.lang"
 
 // These fields are serialized into every dependency identity.
