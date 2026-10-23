@@ -40,19 +40,22 @@ include "std/ast.lang"
 reader tiny(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
     if tok_kind(tokens) != TOK_IDENT || !streq(tok_text(tokens), "answer") {
-        eprintln("tiny: expected `answer NUMBER`");
+        tok_note_expected(tokens, "answer");
+        tok_print_error(tokens, "tiny");
         return nil;
     }
     tok_next(tokens);
     if tok_kind(tokens) != TOK_NUMBER {
-        eprintln("tiny: expected a number");
+        tok_note_expected(tokens, "number");
+        tok_print_error(tokens, "tiny");
         return nil;
     }
 
     var value *u8 = tok_text(tokens);
     tok_next(tokens);
     if !tok_eof(tokens) {
-        eprintln("tiny: expected end of input");
+        tok_note_expected(tokens, "end of input");
+        tok_print_error(tokens, "tiny");
         return nil;
     }
 
