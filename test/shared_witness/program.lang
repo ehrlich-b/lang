@@ -1,0 +1,19 @@
+// The same closed core is consumed by the Lang and S-expression readers.
+func witness_wrap(a i64, b i64) i64 {
+    var carrier u8 = __core_numeric("add_wrap", "u8", "u8", a, b);
+    return carrier;
+}
+func witness_signed(a i64, b i64) i64 {
+    return __core_numeric("lt", "i64", "i8", a, b);
+}
+func witness_unsigned(a i64, b i64) i64 {
+    return __core_numeric("lt", "i64", "u64", a, b);
+}
+func witness_storage() i64 {
+    var bytes [3]u8 = [10, 20, 12];
+    var zero [0]i64;
+    var nested [2][3]i32;
+    var floats [3]f32;
+    var doubles [3]f64;
+    return bytes[0] + bytes[1] + bytes[2];
+}

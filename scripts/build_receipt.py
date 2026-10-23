@@ -84,10 +84,16 @@ def validate(receipt, finished=False):
 
 def check(receipt, compiler):
     validate(receipt, finished=True)
+    require(receipt['source']['revision'] == git('rev-parse', 'HEAD'), 'stale source revision')
     require(receipt['compiler']['sha256'] == digest(compiler), 'compiler hash mismatch')
+    require(receipt['compiler']['bytes'] == Path(compiler).stat().st_size, 'compiler size mismatch')
     require(receipt['source']['inputs'] == inputs(), 'source inputs changed; rebuild the compiler')
     require(receipt['compiler']['version'] == subprocess.check_output(
         [str(Path(compiler).resolve()), 'version'], text=True), 'compiler version mismatch')
+
+    for path, expected in receipt['artifacts'].items():
+        require(expected['sha256'] == digest(path), 'artifact hash mismatch: ' + path)
+        require(expected['bytes'] == Path(path).stat().st_size, 'artifact size mismatch: ' + path)
 
 
 def main():
