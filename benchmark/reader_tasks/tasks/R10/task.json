@@ -1,0 +1,23 @@
+{
+  "id": "R10",
+  "name": "message",
+  "kind": "evolve",
+  "objective": "Extend identifier messages to double-quoted ASCII identifier text; return payload byte length without quotes. Escapes are outside this task.",
+  "grammar": "root = 'message' body:(symbol | string)",
+  "features": [
+    "std/tok.lang",
+    "std/parser_reader.lang",
+    "std/pnode.lang"
+  ],
+  "contract": "Read UTF-8 source from argv[1]. Output exactly one JSON object. Success: {ok:true,value:integer,start:byte_offset,end:exclusive_byte_offset} for the whole root; failure: {ok:false}. Ignore ASCII whitespace and default // line and /* block */ comments, except invoice uses only # line comments. Consume all tokens. Inputs <=4096 bytes, signed integers and results fit i64. Strings are closed, double quoted ASCII identifiers without escapes; no malformed strings/comments, embedded NUL, or non-ASCII identifiers are in scope.",
+  "Lang": {
+    "specification": "Extend identifier messages to double-quoted ASCII identifier text; return payload byte length without quotes. Escapes are outside this task.",
+    "starter": "starter.lang",
+    "command": "cd ../toolkit && LANGBE=llvm out/lang ../R10/starter.lang -o ../R10/solution.ll && clang -O0 ../R10/solution.ll -o ../R10/solution"
+  },
+  "Python": {
+    "specification": "Extend identifier messages to double-quoted ASCII identifier text; return payload byte length without quotes. Escapes are outside this task.",
+    "starter": "starter.py",
+    "command": "python3 starter.py SOURCE"
+  }
+}

@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "R01",
+      "kind": "create",
+      "name": "point",
+      "path": "tasks/R01/task.json",
+      "signature": "57b676a3052ad70257803ab58d5f41ea0cbc7242329f4808ba274d4b33087aa0"
+    },
+    {
+      "id": "R02",
+      "kind": "create",
+      "name": "window",
+      "path": "tasks/R02/task.json",
+      "signature": "d9ae0cf8e821b4a4009da46b21a84abd0dd9facf07f365b417f500f4ae219f76"
+    },
+    {
+      "id": "R03",
+      "kind": "create",
+      "name": "scores",
+      "path": "tasks/R03/task.json",
+      "signature": "ff527dddd9801a1b9636572da2af3b253612caf9800f8471e8c15d7c550f438e"
+    },
+    {
+      "id": "R04",
+      "kind": "create",
+      "name": "tags",
+      "path": "tasks/R04/task.json",
+      "signature": "134a1772c0decfe5a7bdfaf081d99625d8286c20afcb6ff84ddcb5351f1d82fa"
+    },
+    {
+      "id": "R05",
+      "kind": "create",
+      "name": "route",
+      "path": "tasks/R05/task.json",
+      "signature": "2899997cc0d05f379c45240045b71f3e28f2c6e85c18e3e46f0c2278d84a155e"
+    },
+    {
+      "id": "R06",
+      "kind": "create",
+      "name": "quota",
+      "path": "tasks/R06/task.json",
+      "signature": "558e9091cd99ed3bd2b06b2844941a37ad6d7753670d56d18ab51adf83a74d11"
+    },
+    {
+      "id": "R07",
+      "kind": "create",
+      "name": "basket",
+      "path": "tasks/R07/task.json",
+      "signature": "cd2aed37f73662478eb2aa8fa6c2d49164946000413132fd049452e39af5026e"
+    },
+    {
+      "id": "R08",
+      "kind": "evolve",
+      "name": "vector",
+      "path": "tasks/R08/task.json",
+      "signature": "c3cec6b1c925f2c9a374c8347340bf3274dc7ca0e88ba2cb68038a1a63e37aeb"
+    },
+    {
+      "id": "R09",
+      "kind": "evolve",
+      "name": "status",
+      "path": "tasks/R09/task.json",
+      "signature": "74591ae1b9a2a579a3e6f60e68cd0c01fd381d61e3092b0f7ed87d2bdea03cad"
+    },
+    {
+      "id": "R10",
+      "kind": "evolve",
+      "name": "message",
+      "path": "tasks/R10/task.json",
+      "signature": "45f5668d6e4527bef363d29074f96970ad14d8bf7bb76c821da06a01ad959e1e"
+    },
+    {
+      "id": "R11",
+      "kind": "evolve",
+      "name": "chain",
+      "path": "tasks/R11/task.json",
+      "signature": "19c05229544cfbaee16d0e1e4afecbc128120dc69cccf49f779ff76b816ce02f"
+    },
+    {
+      "id": "R12",
+      "kind": "evolve",
+      "name": "invoice",
+      "path": "tasks/R12/task.json",
+      "signature": "f7777284d2f797b2f06f0a5471372dbee512ff8d3de0fc40499b0cf73ab841e3"
+    },
+    {
+      "id": "R13",
+      "kind": "evolve",
+      "name": "mix",
+      "path": "tasks/R13/task.json",
+      "signature": "09b8427e66c0a246c0e72cee415794a2aeb37e11598cabf2e2279b62d0c819c1"
+    },
+    {
+      "id": "R14",
+      "kind": "repair",
+      "name": "entry",
+      "path": "tasks/R14/task.json",
+      "signature": "a5dde7e49f4b60051ae81a181d0c190e7ef369fb5c6345fde8bcae948e330a1e"
+    },
+    {
+      "id": "R15",
+      "kind": "repair",
+      "name": "ratio",
+      "path": "tasks/R15/task.json",
+      "signature": "62a91f982d3bb95b85d1d12f2ae2ccf7d7d016a4473bb06854a9add051067bbb"
+    },
+    {
+      "id": "R16",
+      "kind": "repair",
+      "name": "choose",
+      "path": "tasks/R16/task.json",
+      "signature": "84953acff8723c9b38c345e6d48e7f2fa8b7600dadd6606bcb9f5dd24dd7d111"
+    },
+    {
+      "id": "R17",
+      "kind": "repair",
+      "name": "batch",
+      "path": "tasks/R17/task.json",
+      "signature": "1d63aee1a51350225d0728efa9f8ef21893347ed46d5b88677c92194d51c2641"
+    },
+    {
+      "id": "R18",
+      "kind": "repair",
+      "name": "rename",
+      "path": "tasks/R18/task.json",
+      "signature": "c8dfda8cddd076cbba4c1eda23c7c3a84ff719ffc1c5959782c519301b1511a0"
+    },
+    {
+      "id": "R19",
+      "kind": "repair",
+      "name": "marks",
+      "path": "tasks/R19/task.json",
+      "signature": "e535b3221f401ef048690ed9bd665a52f44dd39924ba9430394d656566cc1f35"
+    },
+    {
+      "id": "R20",
+      "kind": "repair",
+      "name": "profile",
+      "path": "tasks/R20/task.json",
+      "signature": "cc47097c4e3120754ef7d8a54a992f6a7d877808ab935914bd2251678b4d65af"
+    }
+  ],
+  "heldout_count": 20,
+  "public_examples": [
+    "public/calibration.json"
+  ],
+  "baseline": "8fdb5a1",
+  "trial_status": "No model trials; fixed-fixture validation only."
+}

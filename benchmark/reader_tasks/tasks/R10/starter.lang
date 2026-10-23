@@ -1,0 +1,64 @@
+include "std/core.lang"
+include "std/parser_reader.lang"
+#parser{
+root = 'message' body:symbol
+}
+
+func number_value(text *u8) i64 {
+    var t *Tokenizer = tok_new(text);
+    return tok_number(t);
+}
+func collect(node *PNode, nums *u8, words *u8) void {
+    if node == nil { return; }
+    if node.kind == PNODE_NUMBER { vec_push(nums, number_value(node.text)); }
+    if node.kind == PNODE_SYMBOL || node.kind == PNODE_STRING { vec_push(words, node); }
+    if node.children != nil {
+        var i i64 = 0;
+        while i < vec_len(node.children) {
+            collect(vec_get(node.children, i), nums, words);
+            i = i + 1;
+        }
+    }
+}
+
+func main(argc i64, argv **u8) i64 {
+    if argc != 2 { return 2; }
+    var source *u8 = *(argv + 1);
+    var tokens *Tokenizer = tok_new(source);
+    var tree *PNode = parse_root(tokens);
+    if tree == nil || !tok_eof(tokens) { println("{\"ok\":false}"); return 0; }
+    var nums *u8 = vec_new(8);
+    var words *u8 = vec_new(8);
+    collect(tree, nums, words);
+    var sum i64 = 0;
+    var product i64 = 1;
+    var first i64 = 0;
+    var last i64 = 0;
+    var maximum i64 = -9223372036854775807;
+    var i i64 = 0;
+    while i < vec_len(nums) {
+        var n i64 = vec_get(nums, i);
+        if i == 0 { first = n; }
+        last = n;
+        sum = sum + n;
+        product = product * n;
+        if n > maximum { maximum = n; }
+        i = i + 1;
+    }
+    var signed i64 = sum;
+    if pnode_is(tree, "err") { signed = 0 - sum; }
+    var text_len i64 = 0;
+    if vec_len(words) > 0 {
+        var word *PNode = vec_get(words, vec_len(words) - 1);
+        text_len = strlen(word.text);
+        if word.kind == PNODE_STRING { text_len = text_len - 2; }
+    }
+    var value i64 = text_len;
+    var start i64 = tree.start;
+    var end i64 = tree.end;
+    
+    print("{\"ok\":true,\"value\":"); print_int(value);
+    print(",\"start\":"); print_int(start);
+    print(",\"end\":"); print_int(end); println("}");
+    return 0;
+}
