@@ -1,0 +1,8 @@
+func f32_bits(index i64) i64 {
+    var n i64 = 3;
+    var s f32 = __core_numeric("convert", "f32", "i64", n);
+    var a [4]f32 = [__core_numeric("convert", "f32", "i64", n), s,
+        (__core_numeric("convert", "f32", "i64", 16777217)),
+        __core_numeric("bitcast", "f32", "u32", 1065353216)];
+    return __core_numeric("bitcast", "u32", "f32", a[index]);
+}

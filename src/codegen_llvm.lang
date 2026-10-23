@@ -819,6 +819,14 @@ func llvm_is_numeric_literal(expr *u8) i64 {
     return node_kind(expr) == NODE_NUMBER_EXPR;
 }
 
+func llvm_f32_array_numeric_call(expr *u8) i64 {
+    while node_kind(expr) == NODE_GROUP_EXPR { expr = group_expr_expr(expr); }
+    if !numeric_is_call(expr) { return 0; }
+    numeric_validate(expr);
+    // llvm_get_expr_type describes the double carrier for numeric results.
+    return streq(numeric_meta(expr, 1), "f32");
+}
+
 func llvm_validate_f32_array_elements(init *u8, elem_type *u8, global_init i64) void {
     if !llvm_is_f32_type(elem_type) { return; }
     var elems *u8 = array_literal_elems(init);
@@ -829,12 +837,89 @@ func llvm_validate_f32_array_elements(init *u8, elem_type *u8, global_init i64) 
         if !llvm_is_numeric_literal(*p) {
             if global_init {
                 numeric_fail(*p, "f32 global array element requires a numeric literal");
-            } else if !llvm_numeric_native_f32(*p) {
+            } else if !llvm_numeric_native_f32(*p) && !llvm_f32_array_numeric_call(*p) {
                 numeric_fail(*p, "f32 array element requires a numeric literal or an explicit f32 value");
             }
+        } else {
+            // Check range even for local integer literals and excess elements.
+            llvm_f32_literal_value(*p);
         }
         i = i + 1;
     }
+}
+
+// Produce binary32 bits using decimal digit arithmetic only. Integer division
+// and fractional multiplication by two supply exact bits through 2^-150;
+// remaining decimal digits supply sticky. Round once, ties to even, including
+// subnormals. No intermediate binary64 value can cause double rounding.
+func llvm_f32_decimal_bits(expr *u8, text *u8) i64 {
+    var len i64 = strlen(text);
+    var digits *u8 = str_dup(text);
+    var point i64 = 0;
+    while point < len && *(digits + point) != '.' { point = point + 1; }
+    // Index 150 is 2^0; index 1 is the least subnormal bit, 2^-149.
+    var bits *u8 = alloc(278);
+    var clear i64 = 0;
+    while clear < 278 { *(bits + clear) = 0; clear = clear + 1; }
+    var count i64 = 0;
+    var nonzero i64 = 1;
+    while nonzero {
+        var carry i64 = 0;
+        nonzero = 0;
+        var i i64 = 0;
+        while i < point {
+            var digit i64 = carry * 10 + (*(digits + i) - '0');
+            *(digits + i) = '0' + digit / 2;
+            carry = digit % 2;
+            if *(digits + i) != '0' { nonzero = 1; }
+            i = i + 1;
+        }
+        if count >= 128 { numeric_fail(expr, "f32 array decimal literal is outside finite range"); }
+        *(bits + 150 + count) = carry;
+        count = count + 1;
+    }
+    var position i64 = 1;
+    while position <= 150 {
+        var carry i64 = 0;
+        var i i64 = len - 1;
+        while i > point {
+            var digit i64 = (*(digits + i) - '0') * 2 + carry;
+            *(digits + i) = '0' + digit % 10;
+            carry = digit / 10;
+            i = i - 1;
+        }
+        *(bits + 150 - position) = carry;
+        position = position + 1;
+    }
+    var sticky i64 = 0;
+    var i i64 = point + 1;
+    while i < len {
+        if *(digits + i) != '0' { sticky = 1; }
+        i = i + 1;
+    }
+    var top i64 = 277;
+    while top >= 0 && *(bits + top) == 0 { top = top - 1; }
+    var shift i64 = top - 23;
+    if shift < 1 { shift = 1; }
+    var mantissa i64 = 0;
+    i = top;
+    while i >= shift {
+        mantissa = mantissa * 2 + *(bits + i);
+        i = i - 1;
+    }
+    i = shift - 2;
+    while i >= 0 {
+        if *(bits + i) != 0 { sticky = 1; }
+        i = i - 1;
+    }
+    if *(bits + shift - 1) != 0 && (sticky || (mantissa & 1)) {
+        mantissa = mantissa + 1;
+    }
+    var result i64 = mantissa;
+    if top >= 24 { result = (top - 24) * 8388608 + mantissa; }
+    if result >= 2139095040 { numeric_fail(expr, "f32 array decimal literal is outside finite range"); }
+    free(digits); free(bits);
+    return result;
 }
 
 // LLVM requires a typed floating constant, not an integer token after `float`.
@@ -852,21 +937,41 @@ func llvm_f32_literal_value(expr *u8) *u8 {
     }
     var text *u8 = str_dup_n(number_expr_value(expr), number_expr_value_len(expr));
     if *text == '-' { negative = !negative; text = text + 1; }
+    var bits i64 = 0;
     if llvm_is_float_literal(text) {
-        // Keep decimal spelling and its sign, including -0.0. The core reader
-        // still has no decimal token syntax; no reader-local rule is added.
-        if negative { return str_concat("-", text); }
-        return text;
+        var word i64 = llvm_f32_decimal_bits(expr, text);
+        // Widen the finite binary32 encoding exactly for LLVM hex spelling.
+        // Integer operations also work with the trusted bootstrap's carriers.
+        var exponent i64 = word >> 23;
+        var mantissa i64 = word & 8388607;
+        if exponent == 0 && mantissa != 0 {
+            exponent = 1;
+            while mantissa < 8388608 {
+                mantissa = mantissa * 2;
+                exponent = exponent - 1;
+            }
+            mantissa = mantissa - 8388608;
+        }
+        if word != 0 { bits = ((exponent + 896) << 52) | (mantissa << 29); }
+        if negative { bits = bits | -9223372036854775808; }
+    } else {
+        // Accumulate negatively so INT_MIN is representable without overflow.
+        var value i64 = 0;
+        while *text != 0 {
+            var digit i64 = *text - '0';
+            var last i64 = 7;
+            if negative { last = 8; }
+            if value < -922337203685477580 || (value == -922337203685477580 && digit > last) {
+                numeric_fail(expr, "f32 array integer literal is outside i64 range");
+            }
+            value = value * 10 - digit;
+            text = text + 1;
+        }
+        if !negative { value = 0 - value; }
+        var rounded f32 = cast(f32, value);
+        var widened f64 = cast(f64, rounded);
+        bits = bitcast(i64, widened);
     }
-    var value i64 = 0;
-    while *text != 0 {
-        value = value * 10 + (*text - '0');
-        text = text + 1;
-    }
-    if negative { value = 0 - value; }
-    var rounded f32 = cast(f32, value);
-    var widened f64 = cast(f64, rounded);
-    var bits i64 = bitcast(i64, widened);
     var result *u8 = alloc(19);
     *result = '0'; *(result + 1) = 'x';
     var digits *u8 = "0123456789ABCDEF";
@@ -5409,6 +5514,8 @@ func llvm_emit_stmt(stmt *u8) void {
                     var f32_elem i64 = llvm_is_f32_type(lit_elem_type);
                     if f32_elem && llvm_is_numeric_literal(*lit_ptr) && !llvm_is_integer_literal(*lit_ptr) {
                         elem_val = llvm_f32_literal_value(*lit_ptr);
+                    } else if f32_elem && llvm_f32_array_numeric_call(*lit_ptr) {
+                        elem_val = llvm_numeric_normalize(*lit_ptr, *lit_ptr, "f32");
                     } else {
                         llvm_emit_expr(*lit_ptr);
                         elem_val = str_dup(llvm_expr_result);

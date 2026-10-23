@@ -42,14 +42,20 @@ execute native Linux x86-64 and LLVM-to-Wasm/Node at O0/O2, and check frozen
 IEEE-754 words, including halfway rounding and negative decimal zero. Malformed
 IR and a wrong expected bit must fail the same real assembler/runtime checks.
 
-The shared LLVM emitter accepts integer and supported decimal literals in fixed
+The shared LLVM emitter accepts i64 integer and finite decimal literals in fixed
 f32 arrays, including grouping and unary minus. Integer globals round directly
 from i64 to binary32 and use LLVM's hexadecimal floating constant spelling;
-local integer literals retain their runtime `sitofp`. Decimal signs are kept,
+local integer literals retain their runtime `sitofp`. Decimal digit arithmetic
+rounds directly to binary32, ties to even, including subnormals; hexadecimal
+constants avoid LLVM's restriction on inexact decimal spelling. No intermediate
+binary64 rounding occurs. Decimal signs are kept, including underflow to zero,
 and omitted slots use floating zero (an absent initializer uses
 `zeroinitializer`). Global elements must be literals. Local elements may also
-have an explicit native f32 representation. Integer arithmetic, identifiers,
+have a native f32 representation or an explicit `__core_numeric` result of type
+f32 (including conversion and bitcast). Integer arithmetic, identifiers,
 and calls do not acquire implicit f32 conversion from array context: they
 require an explicit f32 conversion or receive a nonzero diagnostic before any
-module is published. This does not extend f64 aggregates, reader syntax, full
-aggregate layout or the ABI. Decimal core-reader syntax remains unsupported.
+module is published. Integer literals outside i64 and decimals rounding beyond
+finite binary32 receive range diagnostics. This does not extend f64 aggregates,
+reader syntax, full aggregate layout or the ABI. Decimal core-reader syntax
+remains unsupported.

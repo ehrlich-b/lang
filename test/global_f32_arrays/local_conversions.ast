@@ -1,0 +1,14 @@
+(program
+ (func f32_bits ((param index (type_base i64))) (type_base i64)
+  (block
+   (var n (type_base i64) (number 3))
+   (var s (type_base f32) (call (ident __core_numeric) (string "convert")
+    (string "f32") (string "i64") (ident n)))
+   (var a (type_array 4 (type_base f32))
+    (array_literal
+     (call (ident __core_numeric) (string "convert") (string "f32") (string "i64") (ident n))
+     (ident s)
+     (call (ident __core_numeric) (string "convert") (string "f32") (string "i64") (number 16777217))
+     (call (ident __core_numeric) (string "bitcast") (string "f32") (string "u32") (number 1065353216))))
+   (return (call (ident __core_numeric) (string "bitcast") (string "u32") (string "f32")
+    (index (ident a) (ident index)))))))

@@ -1,0 +1,1 @@
+(program (func probe () (type_base i64) (block (var a (type_array 1 (type_base f32)) (array_literal (number 99999999999999999999))) (return (number 0)))))

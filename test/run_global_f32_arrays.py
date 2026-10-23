@@ -4,6 +4,8 @@
 Integer Lang and core-reader inputs are hand-authored independently. Decimal
 fixtures remain Lang-only: the existing core reader cannot parse decimal tokens.
 Both native Linux x86-64 and LLVM-to-Wasm/Node must execute at O0 and O2.
+Decimal cases include inexact values, halfway ties and a value just beyond a
+tie that would round incorrectly through binary64, plus subnormal boundaries.
 """
 import argparse
 import hashlib
@@ -129,6 +131,9 @@ def main():
             module = out / f'{target}-{source.name}.ll'
             diagnostic = ('f32 global array element requires a numeric literal' if 'global' in source.stem else
                           'f32 array element requires a numeric literal or an explicit f32 value')
+            if 'range' in source.stem:
+                diagnostic = ('f32 array decimal literal is outside finite range' if 'decimal' in source.stem else
+                              'f32 array integer literal is outside i64 range')
             run([compiler, source, *(['--from-ast'] if source.suffix == '.ast' else []), '-o', module],
                 target, 1, diagnostic)
             require(not module.exists() or module.stat().st_size == 0, 'rejection published an invalid module')
