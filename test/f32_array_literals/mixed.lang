@@ -1,0 +1,5 @@
+// Decimal tokens remain a Lang-only input; integer slots still need conversion.
+func f32_bits(index i64) i64 {
+    var a [7]f32 = [0, 1.5, 2, -1, 2.5, 3.0];
+    return __core_numeric("bitcast", "u32", "f32", a[index]);
+}

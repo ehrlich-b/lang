@@ -792,6 +792,22 @@ func llvm_is_float_literal(val *u8) i64 {
     return 0;
 }
 
+// Array element context supplies f32 for integer literals, including a
+// parenthesized or negated literal. Keep other expressions on their existing
+// typed path rather than introducing implicit numeric conversions generally.
+func llvm_is_integer_literal(expr *u8) i64 {
+    if expr == nil { return 0; }
+    if node_kind(expr) == NODE_GROUP_EXPR {
+        return llvm_is_integer_literal(group_expr_expr(expr));
+    }
+    if node_kind(expr) == NODE_UNARY_EXPR && unary_expr_op(expr) == TOKEN_MINUS {
+        return llvm_is_integer_literal(unary_expr_expr(expr));
+    }
+    if node_kind(expr) != NODE_NUMBER_EXPR { return 0; }
+    var text *u8 = str_dup_n(number_expr_value(expr), number_expr_value_len(expr));
+    return !llvm_is_float_literal(text);
+}
+
 // Check if type is a signed integer (i8, i16, i32, i64, i128)
 func llvm_is_signed_int(t *u8) i64 {
     if t == nil { return 0; }
@@ -5320,8 +5336,18 @@ func llvm_emit_stmt(stmt *u8) void {
                     var lit_ptr **u8 = lit_elems + (li * 8);
                     llvm_emit_expr(*lit_ptr);
                     elem_val = str_dup(llvm_expr_result);
+                    if type_kind(lit_elem_type) == TYPE_BASE &&
+                        base_type_name_len(lit_elem_type) == 3 &&
+                        memcmp(base_type_name(lit_elem_type), "f32", 3) &&
+                        llvm_is_integer_literal(*lit_ptr) {
+                        // Integer literals use i64 carriers (also after unary
+                        // minus). Convert the numeric value, not its bits;
+                        // LLVM rounds directly to binary32 at the store width.
+                        elem_val = llvm_numeric_cast("sitofp", "i64", elem_val, "f32");
+                    }
                 } else {
                     elem_val = "0";
+                    if llvm_is_float_type(lit_elem_type) { elem_val = "0.0"; }
                 }
 
                 var slot_temp i64 = llvm_next_temp();

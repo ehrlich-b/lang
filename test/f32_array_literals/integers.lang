@@ -1,0 +1,5 @@
+// Integer tokens, signed literals, f32 rounding ties, and trailing zero fill.
+func f32_bits(index i64) i64 {
+    var a [9]f32 = [0, 1, (2), -1, 16777217, 16777219, -16777217];
+    return __core_numeric("bitcast", "u32", "f32", a[index]);
+}

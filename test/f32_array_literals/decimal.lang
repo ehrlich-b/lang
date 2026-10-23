@@ -1,0 +1,5 @@
+// Preserve the decimal-only values covered by layout/f32_literal.lang.
+func f32_bits(index i64) i64 {
+    var a [3]f32 = [1.5, 2.5, 3.0];
+    return __core_numeric("bitcast", "u32", "f32", a[index]);
+}
