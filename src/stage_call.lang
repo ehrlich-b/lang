@@ -1,7 +1,7 @@
 // Opt-in trusted native call engine. Fork isolation supplies fresh compiler and
 // executable state, not confinement. This adapter requires a libc native host.
 include "src/stage_values.lang"
-extern func rename(old *u8, dest *u8) i32;
+// Atomic publication uses the libc rename declaration shared by H adapters.
 
 struct PhaseCallRequest {
     compile *PhaseCompileRequest; arguments *PhaseBuffer;
