@@ -3,8 +3,10 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 import subprocess
+import sys
 
 
 def digest(path):
@@ -35,10 +37,57 @@ def write(path, value):
     Path(path).write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
 
 
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def validate_artifact(value):
+    require(isinstance(value, dict), 'malformed artifact')
+    require(isinstance(value.get('path'), str) and bool(value['path']), 'missing artifact path')
+    require(isinstance(value.get('sha256'), str) and
+            re.fullmatch(r'[0-9a-f]{64}', value['sha256']), 'malformed artifact hash')
+    require(type(value.get('bytes')) is int and value['bytes'] >= 0, 'malformed artifact size')
+
+
+def validate_inputs(value):
+    require(isinstance(value, dict) and bool(value), 'malformed input hashes')
+    for path, sha in value.items():
+        require(isinstance(path, str) and bool(path) and isinstance(sha, str) and
+                re.fullmatch(r'[0-9a-f]{64}', sha), 'malformed input hash')
+
+
+def validate(receipt, finished=False):
+    require(isinstance(receipt, dict), 'malformed receipt')
+    require(type(receipt.get('schema')) is int and receipt['schema'] == 1, 'unsupported receipt schema')
+    require(receipt.get('mode') in ('build', 'verify', 'promotion'), 'malformed build mode')
+    source = receipt.get('source')
+    require(isinstance(source, dict), 'malformed source identity')
+    require(isinstance(source.get('revision'), str) and
+            re.fullmatch(r'[0-9a-f]{40}', source['revision']), 'malformed source revision')
+    require(type(source.get('dirty')) is bool, 'malformed source status')
+    validate_inputs(source.get('inputs'))
+    bootstrap = receipt.get('bootstrap')
+    require(isinstance(bootstrap, dict) and isinstance(bootstrap.get('identity'), str) and
+            bool(bootstrap['identity']), 'malformed bootstrap identity')
+    validate_inputs(bootstrap.get('inputs'))
+    validate_artifact(receipt.get('builder'))
+    if finished:
+        compiler = receipt.get('compiler')
+        validate_artifact(compiler)
+        require(isinstance(compiler.get('version'), str) and bool(compiler['version']),
+                'malformed compiler version')
+        require(isinstance(receipt.get('artifacts'), dict), 'malformed artifact inventory')
+        for item in receipt['artifacts'].values():
+            validate_artifact(item)
+
+
 def check(receipt, compiler):
-    assert receipt['compiler']['sha256'] == digest(compiler), 'compiler hash mismatch'
-    assert receipt['source']['inputs'] == inputs(), 'source inputs changed; rebuild the compiler'
-    assert receipt['compiler']['version'] == subprocess.check_output([str(Path(compiler).resolve()), 'version'], text=True), 'compiler version mismatch'
+    validate(receipt, finished=True)
+    require(receipt['compiler']['sha256'] == digest(compiler), 'compiler hash mismatch')
+    require(receipt['source']['inputs'] == inputs(), 'source inputs changed; rebuild the compiler')
+    require(receipt['compiler']['version'] == subprocess.check_output(
+        [str(Path(compiler).resolve()), 'version'], text=True), 'compiler version mismatch')
 
 
 def main():
@@ -62,7 +111,8 @@ def main():
         return
     value = json.loads(Path(args.input).read_text())
     if args.action == 'finish':
-        assert value['source']['inputs'] == inputs(), 'source changed during build'
+        validate(value)
+        require(value['source']['inputs'] == inputs(), 'source changed during build')
         value['compiler'] = artifact(args.compiler)
         value['compiler']['version'] = subprocess.check_output([str(Path(args.compiler).resolve()), 'version'], text=True)
         value['artifacts'] = {p: artifact(p) for p in args.artifact}
@@ -87,4 +137,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except (ValueError, KeyError, TypeError, OSError, subprocess.CalledProcessError) as error:
+        print(f'receipt validation failed: {error}', file=sys.stderr)
+        sys.exit(1)

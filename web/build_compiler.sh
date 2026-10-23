@@ -10,6 +10,8 @@ fi
 COMPILER_RECEIPT=${COMPILER_RECEIPT:-out/build-receipt.json}
 python3 scripts/build_receipt.py web-version --input "$COMPILER_RECEIPT" \
     --compiler "$COMPILER" --output out/web_version_info.lang
+WEB_OUTPUT_DIR=${WEB_OUTPUT_DIR:-web}
+mkdir -p "$WEB_OUTPUT_DIR"
 WASM_LDFLAGS="-Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined -Wl,-z,stack-size=8388608"
 
 if [ -z "${WASM_CLANG:-}" ]; then
@@ -27,7 +29,7 @@ restore_os() { echo "$OS_LANG_ORIG" > std/os.lang; }
 trap restore_os EXIT
 echo 'include "std/os/libc.lang"' > std/os.lang
 
-node web/build_stdlib.js
+node web/build_stdlib.js "$WEB_OUTPUT_DIR/stdlib.json"
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 trap 'restore_os; rm -rf "$tmp"' EXIT
@@ -36,7 +38,7 @@ LANGOS=wasm LANGBE=llvm "$COMPILER" \
     src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang \
     src/sexpr_reader.lang src/compiler_readers_web.lang src/main.lang -o "$tmp/compiler.ll"
 "$WASM_CLANG" -O2 --target=wasm32-unknown-unknown -nostdlib $WASM_LDFLAGS \
-    "$tmp/compiler.ll" -o web/compiler.wasm
-echo "built web/compiler.wasm ($(wc -c < web/compiler.wasm | tr -d ' ') bytes)"
+    "$tmp/compiler.ll" -o "$WEB_OUTPUT_DIR/compiler.wasm"
+echo "built $WEB_OUTPUT_DIR/compiler.wasm ($(wc -c < "$WEB_OUTPUT_DIR/compiler.wasm" | tr -d ' ') bytes)"
 python3 scripts/build_receipt.py web --input "$COMPILER_RECEIPT" --compiler "$COMPILER" \
-    --output web/compiler-receipt.json --artifact web/compiler.wasm --artifact web/stdlib.json
+    --output "$WEB_OUTPUT_DIR/compiler-receipt.json" --artifact "$WEB_OUTPUT_DIR/compiler.wasm" --artifact "$WEB_OUTPUT_DIR/stdlib.json"

@@ -6,9 +6,9 @@ cd "$(dirname "$0")/.."
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 
-./web/build_compiler.sh
-node test/compiler_direct_wasm_e2e.js web/compiler.wasm
-node test/compiler_wasm_e2e.js web/compiler.wasm "$tmp/output.ll"
+WEB_OUTPUT_DIR="$tmp/web" ./web/build_compiler.sh
+node test/compiler_direct_wasm_e2e.js "$tmp/web/compiler.wasm"
+node test/compiler_wasm_e2e.js "$tmp/web/compiler.wasm" "$tmp/output.ll"
 node test/editor_e2e.js
 
 if [ -x /opt/homebrew/opt/llvm/bin/clang ]; then
@@ -35,7 +35,7 @@ echo "PASS compiler_wasm_e2e"
 
 # Compile the LLVM indexing regressions inside the browser-hosted compiler,
 # then validate and execute their emitted IR on the wasm target.
-node test/compiler_wasm_pointer_index_e2e.js web/compiler.wasm "$tmp/pointer-index"
+node test/compiler_wasm_pointer_index_e2e.js "$tmp/web/compiler.wasm" "$tmp/pointer-index"
 for ir in "$tmp/pointer-index"/*.ll; do
     "$WASM_CLANG" --target=wasm32-unknown-unknown -nostdlib \
         -Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined \
