@@ -3,7 +3,7 @@
     "web/compiler.wasm": {
       "bytes": 806200,
       "path": "web/compiler.wasm",
-      "sha256": "d77aa41fae0e9eb886284d4cf8eaf8e424f11a21b36be572fcd851044f5b98e4"
+      "sha256": "f876f02b79d3bd4872ab5e6039cf51cd2aa31536243d27762348a0066868d011"
     },
     "web/examples/fib.lang": {
       "bytes": 339,
@@ -54,8 +54,8 @@
   "builder": {
     "bytes": 649432,
     "path": "out/lang_next",
-    "sha256": "4cf944b64c7b389a880d27296d918acc03d4bb7aea6ee983b0e844d1f49d6656",
-    "version": "lang 0.1.0 (04c7992)\nbuilt: llvm, linux-x86_64, libc\nbootstrap: from f532c0d\n"
+    "sha256": "cba8fd781b4c1d40a63594e152c935d6ef2f0a28887772f0750114054e4f5061",
+    "version": "lang 0.1.0 (710c032)\nbuilt: llvm, linux-x86_64, libc\nbootstrap: from f532c0d\n"
   },
   "schema": 1,
   "source": {
@@ -115,7 +115,7 @@
       "src/stage_dependencies.lang": "11dce31fdbb78b72ec4761463038d3e32eed735ba7e6f3d612dc2f4eefb4f363",
       "src/stage_digest.lang": "73e305c6672ef81dad4b0ae0f64f05576049904963da860f3abd5ed751b4739f",
       "src/stage_host.py": "89141fb6ed9b135bed0b92adfcb5aa0409238b597794b3e3fd894c880c929694",
-      "src/stage_isolated.lang": "990260dbd7bc55f6784deb961d121d51fa3ad423055d620e57b5cbb7a9f72cf6",
+      "src/stage_isolated.lang": "ca4ac1521c1e83661ed250e94bcfc9716f44515701349e0ded458c1b483a3e4e",
       "src/stage_legacy.lang": "87e5dcbf65ee5d35f4fd44988c9ef2f864241fbe3e418a6b778ecb4fe4925d2c",
       "src/stage_node_origin.lang": "b55c54bebb2bbaa15786f8be2b8d00a9468ebaf040a9e1ff3dcae63c41bacb52",
       "src/stage_origin.lang": "2ebdaf0cd0c7287beda892dcfacf2006b93a5914a2c1d577e6fd20cbbf622de0",
@@ -123,7 +123,7 @@
       "src/stage_tooling.lang": "483dbf11440525f9cf3f4e8028949caf7dc586d5b412b45ab30fdb2787b2aa3c",
       "src/stage_values.lang": "1ad9d58d11b6047596d0df18b5bfac4c9f1766e01c8e2a8152f658aaacacce72",
       "src/stage_wire.lang": "63810a201e7d6113431fbdfb541832297d3720e9c986bc7bf7d9edb7999db868",
-      "src/stage_worker.lang": "56ec0922b203752b542941338933df53100d4f8e0f1ba3c3bb9803eeea431dda",
+      "src/stage_worker.lang": "af9ccbeb4dbf587f06fffc91114b2fde537f3d5ecfdeff3bed8a48d73ee19777",
       "src/standalone.lang": "06841787e462a16f1f2844d0c4dc0bfd8b279c84874685dc9ef53b12a6ed4c4d",
       "std/ast.lang": "27d9b9f239abf9a8d91f656d2748bc064feef7832e28a268d446ef62fe42ce40",
       "std/buffer.lang": "7e4fd0212cd8f826a6dfe96ed9aacefce13926194b07733a0205275951059221",
@@ -154,7 +154,7 @@
       "web/build_compiler.sh": "a9d62b1fd27a4e6e8b3e4fd062f62aafa32a0a7552fc5992b1f7e039b340a6a0",
       "web/build_stdlib.js": "8cc36c596de29034f90ebb0a02f3a151f0ac0675f81f2175c0e706c4a85f3129"
     },
-    "revision": "04c799213558984a3cabfac01b855318b6a98d61"
+    "revision": "710c032c863ec65a898e19e10cc626710d641d62"
   },
-  "version": "var LANG_VERSION *u8 = \"0.1.0\";\nvar LANG_COMMIT *u8 = \"04c7992\";\nvar LANG_BUILD_BACKEND *u8 = \"llvm\";\nvar LANG_BUILD_OS *u8 = \"wasm\";\nvar LANG_BUILD_ARCH *u8 = \"wasm32\";\nvar LANG_BUILD_LIBC *u8 = \"system\";\nvar LANG_BOOTSTRAP_FROM *u8 = \"f532c0d\";\n"
+  "version": "var LANG_VERSION *u8 = \"0.1.0\";\nvar LANG_COMMIT *u8 = \"710c032\";\nvar LANG_BUILD_BACKEND *u8 = \"llvm\";\nvar LANG_BUILD_OS *u8 = \"wasm\";\nvar LANG_BUILD_ARCH *u8 = \"wasm32\";\nvar LANG_BUILD_LIBC *u8 = \"system\";\nvar LANG_BOOTSTRAP_FROM *u8 = \"f532c0d\";\n"
 }
