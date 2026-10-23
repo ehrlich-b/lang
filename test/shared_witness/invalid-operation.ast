@@ -1,0 +1,1 @@
+(program (func main () (type_base i64) (block (return (span 4 7 (call (ident __core_numeric) (string "oops") (string "i64") (string "i64") (number 1) (number 2)))) (return (number 0)))))

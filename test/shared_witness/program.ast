@@ -1,0 +1,21 @@
+(program
+  (func witness_wrap ((param a (type_base i64)) (param b (type_base i64))) (type_base i64)
+    (block
+      (var carrier (type_base u8)
+        (call (ident __core_numeric) (string "add_wrap") (string "u8") (string "u8") (ident a) (ident b)))
+      (return (ident carrier))))
+  (func witness_signed ((param a (type_base i64)) (param b (type_base i64))) (type_base i64)
+    (block (return
+      (call (ident __core_numeric) (string "lt") (string "i64") (string "i8") (ident a) (ident b)))))
+  (func witness_unsigned ((param a (type_base i64)) (param b (type_base i64))) (type_base i64)
+    (block (return
+      (call (ident __core_numeric) (string "lt") (string "i64") (string "u64") (ident a) (ident b)))))
+  (func witness_storage () (type_base i64)
+    (block
+      (var bytes (type_array 3 (type_base u8)) (array_literal (number 10) (number 20) (number 12)))
+      (var zero (type_array 0 (type_base i64)))
+      (var nested (type_array 2 (type_array 3 (type_base i32))))
+      (var floats (type_array 3 (type_base f32)))
+      (var doubles (type_array 3 (type_base f64)))
+      (return (binop + (binop + (index (ident bytes) (number 0)) (index (ident bytes) (number 1)))
+        (index (ident bytes) (number 2)))))))

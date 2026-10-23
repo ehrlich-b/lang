@@ -1,0 +1,1 @@
+(program (func main () (type_base i64) (block (span 4 7 (var a (type_array 4294967296 (type_array 4294967296 (type_base i64))))) (return (number 0)))))

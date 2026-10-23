@@ -1,0 +1,130 @@
+[
+  {
+    "input": "invalid-operation.ast",
+    "diagnostic": "numeric: unknown or incompatible operation",
+    "phase": "numeric-validation",
+    "span": {
+      "start": 4,
+      "end": 7,
+      "line": 2,
+      "column": 3
+    },
+    "located": true,
+    "expected_location": {
+      "line": 2,
+      "column": 3
+    },
+    "span_preserved": true
+  },
+  {
+    "input": "unsupported-zero.ast",
+    "diagnostic": "layout: unsupported storage type",
+    "phase": "layout",
+    "span": {
+      "start": 4,
+      "end": 7,
+      "line": 2,
+      "column": 3
+    },
+    "located": true,
+    "expected_location": {
+      "line": 1,
+      "column": 1
+    },
+    "span_preserved": false
+  },
+  {
+    "input": "signed-overflow.ast",
+    "diagnostic": "(code span-overflow)",
+    "phase": "core-parser",
+    "span": {
+      "start": 4,
+      "end": 7,
+      "line": 2,
+      "column": 3
+    },
+    "located": false,
+    "expected_location": null,
+    "span_preserved": false
+  },
+  {
+    "input": "count-overflow.ast",
+    "diagnostic": "(code span-overflow)",
+    "phase": "core-parser",
+    "span": {
+      "start": 4,
+      "end": 7,
+      "line": 2,
+      "column": 3
+    },
+    "located": false,
+    "expected_location": null,
+    "span_preserved": false
+  },
+  {
+    "input": "nested-overflow.ast",
+    "diagnostic": "(code span-overflow)",
+    "phase": "core-parser",
+    "span": {
+      "start": 4,
+      "end": 7,
+      "line": 2,
+      "column": 3
+    },
+    "located": false,
+    "expected_location": null,
+    "span_preserved": false
+  },
+  {
+    "input": "negative-count.ast",
+    "diagnostic": "(code invalid-span-number)",
+    "phase": "core-parser",
+    "span": {
+      "start": 4,
+      "end": 7,
+      "line": 2,
+      "column": 3
+    },
+    "located": false,
+    "expected_location": null,
+    "span_preserved": false
+  },
+  {
+    "input": "malformed.ast",
+    "diagnostic": "(code unknown-core-operator)",
+    "phase": "core-parser",
+    "span": {
+      "start": 4,
+      "end": 7,
+      "line": 2,
+      "column": 3
+    },
+    "located": false,
+    "expected_location": null,
+    "span_preserved": false
+  },
+  {
+    "input": "negative-span.ast",
+    "diagnostic": "(code invalid-span-number)",
+    "phase": "span-parser",
+    "span": {
+      "start": -1,
+      "end": 7
+    },
+    "located": false,
+    "expected_location": null,
+    "span_preserved": false
+  },
+  {
+    "input": "outside-span.ast",
+    "diagnostic": "(code invalid-span)",
+    "phase": "span-validation",
+    "span": {
+      "start": 4,
+      "end": 99
+    },
+    "located": false,
+    "expected_location": null,
+    "span_preserved": false
+  }
+]
