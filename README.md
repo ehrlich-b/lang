@@ -257,3 +257,5 @@ remains a historical recovery path, but LLVM is the future for Language Forge.
 ## License
 
 [MIT](./LICENSE)
+
+For machine-readable compiler failures, see [compiler diagnostics version 1](docs/compiler-diagnostics.md) and `--diagnostics=json`.

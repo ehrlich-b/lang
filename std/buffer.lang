@@ -9,6 +9,10 @@ var phase_work_limit i64 = 16777216;
 var phase_diagnostic_source *u8 = "<compiler-host>";
 
 pub func phase_error(code *u8, source *u8) void {
+    phase_error_at(code, source, -1, -1);
+}
+pub func phase_error_at(code *u8, source *u8, start i64, end i64) void {
+    ___compiler_diagnostic_context(code, source, start, end);
     eprint("(host-error (version 1) (code "); eprint(code);
     eprint(") (source ");
     phase_error_string(source);
@@ -99,7 +103,7 @@ pub func phase_read_fd(fd i64, limit i64, source *u8) *PhaseBuffer {
     while n > 0 {
         var i i64 = 0;
         while i < n {
-            if *(chunk + i) == 0 { phase_error("embedded-nul", source); }
+            if *(chunk + i) == 0 { phase_error_at("embedded-nul", source, b.len + i, b.len + i + 1); }
             i = i + 1;
         }
         phase_buffer_append(b, chunk, n);

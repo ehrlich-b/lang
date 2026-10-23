@@ -125,19 +125,19 @@ pub func phase_utf8_validate(text *u8, name *u8) void {
             if c <= 223 { count = 2; value = c - 192; minimum = 128; }
             else if c <= 239 { count = 3; value = c - 224; minimum = 2048; }
             else if c <= 244 { count = 4; value = c - 240; minimum = 65536; }
-            else { phase_error("invalid-utf8", name); }
-        } else { phase_error("invalid-utf8", name); }
-        if count > len - i { phase_error("invalid-utf8", name); }
+            else { phase_error_at("invalid-utf8", name, i, i + 1); }
+        } else { phase_error_at("invalid-utf8", name, i, i + 1); }
+        if count > len - i { phase_error_at("invalid-utf8", name, i, i + 1); }
         j = 1;
         while j < count {
             next = *(text + i + j);
-            if next < 128 { phase_error("invalid-utf8", name); }
-            if next > 191 { phase_error("invalid-utf8", name); }
+            if next < 128 { phase_error_at("invalid-utf8", name, i, i + 1); }
+            if next > 191 { phase_error_at("invalid-utf8", name, i, i + 1); }
             value = value * 64 + next - 128; j = j + 1;
         }
-        if value < minimum { phase_error("invalid-utf8", name); }
-        if value > 1114111 { phase_error("invalid-utf8", name); }
-        if value >= 55296 { if value <= 57343 { phase_error("invalid-utf8", name); } }
+        if value < minimum { phase_error_at("invalid-utf8", name, i, i + 1); }
+        if value > 1114111 { phase_error_at("invalid-utf8", name, i, i + 1); }
+        if value >= 55296 { if value <= 57343 { phase_error_at("invalid-utf8", name, i, i + 1); } }
         i = i + count;
     }
 }

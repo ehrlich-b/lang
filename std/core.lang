@@ -506,27 +506,34 @@ pub func println(s *u8) {
     file_write(1, "\n", 1);
 }
 
+// The optional record transport uses direct calls on every backend.
+include "std/diagnostics.lang"
+pub func ___compiler_stderr_write(data *u8, len i64, complete i64) void {
+    if ___compiler_diagnostic_json != 0 { ___compiler_diagnostic_sink(data, len, complete); }
+    else { file_write(2, data, len); }
+}
+
 pub func eprint(s *u8) {
-    file_write(2, s, strlen(s));
+    ___compiler_stderr_write(s, strlen(s), 0);
 }
 
 pub func eprintln(s *u8) {
     eprint(s);
-    file_write(2, "\n", 1);
+    ___compiler_stderr_write("\n", 1, 1);
 }
 
 pub func eprint_buf(buf *u8, len i64) {
-    file_write(2, buf, len);
+    ___compiler_stderr_write(buf, len, 0);
 }
 
 pub func eprint_i64(n i64) {
     if n < 0 {
-        file_write(2, "-", 1);
+        ___compiler_stderr_write("-", 1, 0);
         n = 0 - n;
     }
 
     if n == 0 {
-        file_write(2, "0", 1);
+        ___compiler_stderr_write("0", 1, 0);
         return;
     }
 
@@ -542,7 +549,7 @@ pub func eprint_i64(n i64) {
     while divisor > 0 {
         var digit i64 = n / divisor;
         var c u8 = 48 + digit;  // '0' = 48
-        file_write(2, &c, 1);
+        ___compiler_stderr_write(&c, 1, 0);
         n = n % divisor;
         divisor = divisor / 10;
     }

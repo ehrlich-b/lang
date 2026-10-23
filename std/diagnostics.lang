@@ -1,0 +1,106 @@
+// Optional structured stderr records. Callers own codes and source locations;
+// this transport owns byte-safe JSON encoding and bounded message storage.
+// Direct calls keep this optional transport usable by every backend.
+var ___compiler_diagnostic_json i64 = 0;
+var ___compiler_diagnostic_default_code *u8 = "error";
+var ___compiler_diagnostic_code *u8 = "error";
+var ___compiler_diagnostic_path *u8 = nil;
+var ___compiler_diagnostic_start i64 = -1;
+var ___compiler_diagnostic_end i64 = -1;
+var ___compiler_diagnostic_message *u8 = nil;
+var ___compiler_diagnostic_len i64 = 0;
+var ___compiler_diagnostic_limit i64 = 1048576;
+var ___compiler_diagnostic_truncated i64 = 0;
+
+pub func ___compiler_diagnostic_context(code *u8, path *u8, start i64, end i64) void {
+    if ___compiler_diagnostic_json == 0 { return; }
+    ___compiler_diagnostic_code = code; ___compiler_diagnostic_path = path;
+    ___compiler_diagnostic_start = start; ___compiler_diagnostic_end = end;
+}
+
+
+func ___compiler_diagnostic_write(s *u8) void { file_write(2, s, strlen(s)); }
+func ___compiler_diagnostic_integer(n i64) void {
+    // Reuse decimal formatting without sending renderer output into its sink.
+    var saved i64 = ___compiler_diagnostic_json;
+    ___compiler_diagnostic_json = 0; eprint_i64(n); ___compiler_diagnostic_json = saved;
+}
+
+// Return the width of a valid scalar, or 0 for an invalid leading byte.
+// Invalid bytes are escaped individually, so even arbitrary OS paths and
+// source snippets produce UTF-8 JSON. Valid Unicode is preserved verbatim.
+func ___compiler_diagnostic_utf8_width(s *u8, len i64) i64 {
+    var c i64 = *s;
+    var width i64 = 0;
+    var value i64 = 0;
+    var minimum i64 = 0;
+    if c < 128 { return 1; }
+    if c >= 194 && c <= 223 { width = 2; value = c - 192; minimum = 128; }
+    if c >= 224 && c <= 239 { width = 3; value = c - 224; minimum = 2048; }
+    if c >= 240 && c <= 244 { width = 4; value = c - 240; minimum = 65536; }
+    if width == 0 || width > len { return 0; }
+    var i i64 = 1;
+    while i < width {
+        var next i64 = *(s + i);
+        if next < 128 || next > 191 { return 0; }
+        value = value * 64 + next - 128; i = i + 1;
+    }
+    if value < minimum || value > 1114111 { return 0; }
+    if value >= 55296 && value <= 57343 { return 0; }
+    return width;
+}
+
+func ___compiler_diagnostic_string(s *u8, len i64) void {
+    ___compiler_diagnostic_write("\"");
+    var i i64 = 0;
+    var hex *u8 = "0123456789abcdef";
+    var escape *u8 = alloc(6);
+    memcpy(escape, "\\u00", 4);
+    while i < len {
+        var c i64 = *(s + i);
+        var width i64 = ___compiler_diagnostic_utf8_width(s + i, len - i);
+        if c == 34 || c == 92 {
+            ___compiler_diagnostic_write("\\"); file_write(2, s + i, 1); i = i + 1;
+        } else if c < 32 || width == 0 {
+            *(escape + 4) = *(hex + c / 16);
+            *(escape + 5) = *(hex + c % 16);
+            file_write(2, escape, 6); i = i + 1;
+        } else { file_write(2, s + i, width); i = i + width; }
+    }
+    ___compiler_diagnostic_write("\"");
+}
+
+pub func ___compiler_diagnostic_sink(data *u8, len i64, complete i64) void {
+    // Only eprintln completes a record. Newlines in paths and messages are data.
+    if complete == 0 {
+        var available i64 = ___compiler_diagnostic_limit - ___compiler_diagnostic_len;
+        if len > available { len = available; ___compiler_diagnostic_truncated = 1; }
+        if len > 0 { memcpy(___compiler_diagnostic_message + ___compiler_diagnostic_len, data, len); }
+        ___compiler_diagnostic_len = ___compiler_diagnostic_len + len;
+        return;
+    }
+    ___compiler_diagnostic_write("{\"version\":1,\"code\":");
+    ___compiler_diagnostic_string(___compiler_diagnostic_code, strlen(___compiler_diagnostic_code));
+    ___compiler_diagnostic_write(",\"severity\":\"error\",\"path\":");
+    if ___compiler_diagnostic_path == nil { ___compiler_diagnostic_write("null"); }
+    else { ___compiler_diagnostic_string(___compiler_diagnostic_path, strlen(___compiler_diagnostic_path)); }
+    ___compiler_diagnostic_write(",\"span\":");
+    if ___compiler_diagnostic_start < 0 || ___compiler_diagnostic_end < ___compiler_diagnostic_start { ___compiler_diagnostic_write("null"); }
+    else {
+        ___compiler_diagnostic_write("{\"start\":"); ___compiler_diagnostic_integer(___compiler_diagnostic_start);
+        ___compiler_diagnostic_write(",\"end\":"); ___compiler_diagnostic_integer(___compiler_diagnostic_end); ___compiler_diagnostic_write("}");
+    }
+    ___compiler_diagnostic_write(",\"message\":"); ___compiler_diagnostic_string(___compiler_diagnostic_message, ___compiler_diagnostic_len);
+    ___compiler_diagnostic_write(",\"truncated\":");
+    if ___compiler_diagnostic_truncated != 0 { ___compiler_diagnostic_write("true"); } else { ___compiler_diagnostic_write("false"); }
+    ___compiler_diagnostic_write("}\n");
+    ___compiler_diagnostic_len = 0; ___compiler_diagnostic_truncated = 0;
+    ___compiler_diagnostic_context(___compiler_diagnostic_default_code, nil, -1, -1);
+}
+
+func ___compiler_diagnostic_enable() void {
+    if ___compiler_diagnostic_json != 0 { return; }
+    ___compiler_diagnostic_message = alloc(___compiler_diagnostic_limit);
+    ___compiler_diagnostic_json = 1;
+    ___compiler_diagnostic_context(___compiler_diagnostic_default_code, nil, -1, -1);
+}
