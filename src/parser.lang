@@ -70,6 +70,9 @@ var NODE_MODULES_DECL i64 = 44;   // (modules "m1" "m2" ...) - kernel's baked-in
 var NODE_CAST_EXPR i64 = 45;      // cast(type, expr) - type conversion
 var NODE_BITCAST_EXPR i64 = 46;   // bitcast(type, expr) - reinterpret bits
 
+var NODE_INT_COMPARE i64 = 47;   // explicit common-width integer comparison
+var NODE_INT_CONVERT i64 = 48;   // explicit integer conversion
+
 // Type kinds
 var TYPE_BASE i64 = 1;
 var TYPE_PTR i64 = 2;
@@ -1301,6 +1304,50 @@ pub func unary_expr_expr(node *u8) *u8 {
 func unary_expr_set_expr(node *u8, expr *u8) void {
     var p **u8 = node + 16;
     *p = expr;
+}
+
+// Exact integer nodes: [kind, operation, source type, destination type,
+// left operand, right operand], six pointer-sized bootstrap slots.
+func integer_expr_alloc(kind i64, op *u8, src *u8, dst *u8, left *u8, right *u8) *u8 {
+    var n *u8 = alloc(48);
+    node_set_kind(n, kind);
+    var slots **u8 = n + 8;
+    *slots = op; *(slots + 1) = src; *(slots + 2) = dst;
+    *(slots + 3) = left; *(slots + 4) = right;
+    return n;
+}
+pub func integer_expr_op(n *u8) *u8 { var p **u8 = n + 8; return *p; }
+pub func integer_expr_src(n *u8) *u8 { var p **u8 = n + 16; return *p; }
+pub func integer_expr_dst(n *u8) *u8 { var p **u8 = n + 24; return *p; }
+pub func integer_expr_left(n *u8) *u8 { var p **u8 = n + 32; return *p; }
+pub func integer_expr_right(n *u8) *u8 { var p **u8 = n + 40; return *p; }
+
+func integer_type_bits(t *u8) i64 {
+    if t == nil || type_kind(t) != TYPE_BASE { return 0; }
+    var name *u8 = base_type_name(t);
+    var len i64 = base_type_name_len(t);
+    if len < 2 || (*name != 'i' && *name != 'u') { return 0; }
+    if len == 2 && *(name + 1) == '8' { return 8; }
+    if len == 3 && *(name + 1) == '1' && *(name + 2) == '6' { return 16; }
+    if len == 3 && *(name + 1) == '3' && *(name + 2) == '2' { return 32; }
+    if len == 3 && *(name + 1) == '6' && *(name + 2) == '4' { return 64; }
+    return 0;
+}
+func integer_type_signed(t *u8) i64 { return *base_type_name(t) == 'i'; }
+func integer_expr_valid(n *u8) i64 {
+    var src i64 = integer_type_bits(integer_expr_src(n));
+    if src == 0 || integer_expr_left(n) == nil { return 0; }
+    var op *u8 = integer_expr_op(n);
+    if node_kind(n) == NODE_INT_COMPARE {
+        if integer_expr_right(n) == nil { return 0; }
+        return streq(op, "eq") || streq(op, "ne") || streq(op, "lt") ||
+               streq(op, "le") || streq(op, "gt") || streq(op, "ge");
+    }
+    var dst i64 = integer_type_bits(integer_expr_dst(n));
+    if dst == 0 { return 0; }
+    return (streq(op, "extend") && dst > src) ||
+           (streq(op, "truncate") && dst < src) ||
+           (streq(op, "reinterpret") && dst == src);
 }
 
 // ============================================================

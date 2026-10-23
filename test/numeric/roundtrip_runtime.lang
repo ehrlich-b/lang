@@ -1,0 +1,93 @@
+// Execute the same parse/emit origin checks on native and direct Wasm.
+include "std/core.lang"
+include "src/lexer.lang"
+include "src/parser.lang"
+include "src/ast_emit.lang"
+include "src/sexpr_reader.lang"
+
+func numeric_type(index i64) *u8 {
+    if index == 0 { return "i8"; }
+    if index == 1 { return "u8"; }
+    if index == 2 { return "i16"; }
+    if index == 3 { return "u16"; }
+    if index == 4 { return "i32"; }
+    if index == 5 { return "u32"; }
+    if index == 6 { return "i64"; }
+    return "u64";
+}
+func numeric_predicate(index i64) *u8 {
+    if index == 0 { return "eq"; }
+    if index == 1 { return "ne"; }
+    if index == 2 { return "lt"; }
+    if index == 3 { return "le"; }
+    if index == 4 { return "gt"; }
+    return "ge";
+}
+func numeric_node(program *u8) *u8 {
+    var decl *u8 = get_decl(program_decls(program), 0);
+    var body *u8 = func_decl_body(decl);
+    var statements **u8 = block_stmt_stmts(body);
+    return return_stmt_value(*statements);
+}
+func numeric_roundtrip(src *u8, dst *u8, op *u8, conversion i64) i64 {
+    var text *u8 = "(program (func probe () (type_base i64) (block (return (span 0 7 (";
+    if conversion != 0 { text = str_concat(text, "int_convert "); }
+    else { text = str_concat(text, "int_compare "); }
+    text = str_concat(text, op);
+    text = str_concat(text, " (type_base "); text = str_concat(text, src);
+    text = str_concat(text, ") ");
+    if conversion != 0 {
+        text = str_concat(text, "(type_base "); text = str_concat(text, dst);
+        text = str_concat(text, ") ");
+    }
+    text = str_concat(text, "(number 255)");
+    if conversion == 0 { text = str_concat(text, " (number 128)"); }
+    text = str_concat(text, "))))))");
+    var parsed *u8 = parse_ast_from_reader_string(text, "numeric.runtime", "compare\nconvert\n");
+    if parsed == nil { return 1; }
+    var emitted *u8 = ast_emit_program(parsed);
+    var reparsed *u8 = parse_ast_from_reader_string(emitted, "numeric.runtime", "compare\nconvert\n");
+    if reparsed == nil { return 2; }
+    if streq(emitted, ast_emit_program(reparsed)) == 0 { return 3; }
+    var n *u8 = numeric_node(reparsed);
+    if integer_expr_valid(n) == 0 { return 4; }
+    if streq(integer_expr_op(n), op) == 0 { return 5; }
+    if streq(base_type_name(integer_expr_src(n)), src) == 0 { return 6; }
+    if conversion != 0 {
+        if node_kind(n) != NODE_INT_CONVERT { return 7; }
+        if streq(base_type_name(integer_expr_dst(n)), dst) == 0 { return 8; }
+    } else {
+        if node_kind(n) != NODE_INT_COMPARE { return 9; }
+        if integer_expr_right(n) == nil { return 10; }
+    }
+    if node_origin_start(n) != 0 || node_origin_end(n) != 7 { return 11; }
+    if node_origin_line(n) != 1 || node_origin_column(n) != 1 { return 12; }
+    if streq(node_origin_source(n), "numeric.runtime") == 0 { return 13; }
+    var origin *PhaseOrigin = phase_origin_get(node_origin_id(n));
+    if origin == nil || origin.start != 0 || origin.end != 7 { return 14; }
+    var source *PhaseSource = phase_source_get(origin.source);
+    if source == nil || streq(source.name, "numeric.runtime") == 0 { return 15; }
+    return 0;
+}
+func main() i64 {
+    var i i64 = 0;
+    while i < 8 {
+        var pred i64 = 0;
+        while pred < 6 {
+            var result i64 = numeric_roundtrip(numeric_type(i), "", numeric_predicate(pred), 0);
+            if result != 0 { return result; }
+            pred = pred + 1;
+        }
+        var j i64 = 0;
+        while j < 8 {
+            var op *u8 = "reinterpret";
+            if i / 2 < j / 2 { op = "extend"; }
+            if i / 2 > j / 2 { op = "truncate"; }
+            var result i64 = numeric_roundtrip(numeric_type(i), numeric_type(j), op, 1);
+            if result != 0 { return result; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return 0;
+}

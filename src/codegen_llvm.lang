@@ -1013,6 +1013,9 @@ func llvm_get_expr_type(expr *u8) *u8 {
         return nil;
     }
 
+    if k == NODE_INT_CONVERT { return integer_expr_dst(expr); }
+    if k == NODE_INT_COMPARE { return llvm_i64_type(); }
+
     if k == NODE_CAST_EXPR {
         return cast_expr_type(expr);
     }
@@ -1267,6 +1270,64 @@ func llvm_emit_index_addr(expr *u8) i64 {
 // Result is written to a temp buffer that caller must use immediately
 var llvm_expr_result *u8 = nil;
 var llvm_expr_is_float i64 = 0;  // Track if last expression result is a float type
+
+// Canonicalize a bit pattern at an explicitly declared width into the
+// bootstrap i64 carrier. Never attach poison-producing overflow flags.
+func llvm_integer_normalize(value *u8, t *u8) *u8 {
+    var bits i64 = integer_type_bits(t);
+    if bits == 64 { return value; }
+    var small i64 = llvm_next_temp();
+    llvm_emit_str("    %t"); llvm_emit_int(small);
+    llvm_emit_str(" = trunc i64 "); llvm_emit_str(value);
+    llvm_emit_str(" to i"); llvm_emit_int(bits); llvm_emit_char(10);
+    var wide i64 = llvm_next_temp();
+    llvm_emit_str("    %t"); llvm_emit_int(wide); llvm_emit_str(" = ");
+    if integer_type_signed(t) != 0 { llvm_emit_str("sext"); }
+    else { llvm_emit_str("zext"); }
+    llvm_emit_str(" i"); llvm_emit_int(bits); llvm_emit_str(" %t");
+    llvm_emit_int(small); llvm_emit_line(" to i64");
+    llvm_set_result_temp(wide);
+    return str_dup(llvm_expr_result);
+}
+
+func llvm_emit_integer(expr *u8) void {
+    if integer_expr_valid(expr) == 0 {
+        cg_error_prefix_at(expr); eprintln("unsupported exact integer operation or type");
+        cg_had_error = 1; return;
+    }
+    llvm_emit_expr(integer_expr_left(expr));
+    if llvm_expr_is_float != 0 || integer_type_bits(llvm_get_expr_type(integer_expr_left(expr))) == 0 {
+        cg_error_prefix_at(expr); eprintln("exact integer operand must be an integer");
+        cg_had_error = 1; return;
+    }
+    var left *u8 = llvm_integer_normalize(str_dup(llvm_expr_result), integer_expr_src(expr));
+    if node_kind(expr) == NODE_INT_CONVERT {
+        var result *u8 = llvm_integer_normalize(left, integer_expr_dst(expr));
+        // normalize(64) may return a literal or a previous source temporary.
+        memcpy(llvm_expr_result, result, strlen(result) + 1);
+        return;
+    }
+    llvm_emit_expr(integer_expr_right(expr));
+    if llvm_expr_is_float != 0 || integer_type_bits(llvm_get_expr_type(integer_expr_right(expr))) == 0 {
+        cg_error_prefix_at(expr); eprintln("exact integer operand must be an integer");
+        cg_had_error = 1; return;
+    }
+    var right *u8 = llvm_integer_normalize(str_dup(llvm_expr_result), integer_expr_src(expr));
+    var temp i64 = llvm_next_temp();
+    var op *u8 = integer_expr_op(expr);
+    llvm_emit_str("    %t"); llvm_emit_int(temp); llvm_emit_str(" = icmp ");
+    if streq(op, "eq") || streq(op, "ne") { llvm_emit_str(op); }
+    else {
+        if integer_type_signed(integer_expr_src(expr)) != 0 { llvm_emit_str("s"); }
+        else { llvm_emit_str("u"); }
+        llvm_emit_str(op);
+    }
+    llvm_emit_str(" i64 "); llvm_emit_str(left); llvm_emit_str(", ");
+    llvm_emit_str(right); llvm_emit_char(10);
+    var wide i64 = llvm_next_temp();
+    llvm_emit_str("    %t"); llvm_emit_int(wide); llvm_emit_str(" = zext i1 %t");
+    llvm_emit_int(temp); llvm_emit_line(" to i64"); llvm_set_result_temp(wide);
+}
 
 func llvm_emit_expr(expr *u8) void {
     if llvm_expr_result == nil {
@@ -2714,6 +2775,11 @@ func llvm_emit_expr(expr *u8) void {
     if k == NODE_GROUP_EXPR {
         // Parenthesized expression - just emit the inner expression
         llvm_emit_expr(group_expr_expr(expr));
+        return;
+    }
+
+    if k == NODE_INT_COMPARE || k == NODE_INT_CONVERT {
+        llvm_emit_integer(expr);
         return;
     }
 

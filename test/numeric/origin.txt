@@ -1,0 +1,3 @@
+numeric origin
+compare high bit
+convert low bits
