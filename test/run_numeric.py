@@ -192,7 +192,7 @@ class Runner:
 
 def numeric_reference():
     """Exact numeric reference matrix, cross-reader and core round-trip proof.
-    
+
     Artifacts stay in --evidence (outside the source checkout). Each compile and
     execution has a durable transcript; failures are assertions, never new skips.
     """
@@ -202,7 +202,7 @@ def numeric_reference():
     from pathlib import Path
     import resource
     import subprocess
-    
+
     ROOT = Path(__file__).resolve().parent.parent
     P = argparse.ArgumentParser()
     P.add_argument('mode', choices=['arithmetic', 'validation', 'legacy'])
@@ -216,7 +216,7 @@ def numeric_reference():
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     env = dict(os.environ, LANGBE='llvm', LANG_CACHE=str(out / 'cache'))
     log = (out / 'execution.txt').open('w')
-    
+
     def run(cmd, *, check=True):
         p = subprocess.run([str(x) for x in cmd], cwd=ROOT, env=env, text=True,
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
@@ -225,18 +225,18 @@ def numeric_reference():
         if check:
             assert p.returncode == 0, f'{cmd}: exit {p.returncode}\n{p.stdout}\n{p.stderr}'
         return p
-    
+
     def compile_source(text, name='input', extra=()):
         source = out / (name + '.lang')
         source.write_text(text)
         ll = out / (name + '.ll')
         run([compiler, source, *extra, '-o', ll])
         return source, ll
-    
+
     def signed(x, bits):
         x %= 1 << bits
         return x - (1 << bits) if x >= (1 << (bits - 1)) else x
-    
+
     def integer_reference(c, av, bv):
         op, src, dst = c['op'], c['src'], c['dst']
         if op in ('trap', 'unreachable'):
@@ -274,7 +274,7 @@ def numeric_reference():
                 return None
         r = signed(r, db) if dst[0] == 'i' else r % (1 << db)
         return str(signed(r, 64))
-    
+
     def arithmetic():
         cases = json.loads((ROOT / 'test/numeric/cases.json').read_text())
         declarations, schemas = [], []
@@ -337,7 +337,7 @@ def numeric_reference():
                             assert p.returncode == 0 and p.stdout.strip() == want, (name, opt, c, a, b, want, p.stdout, p.stderr)
                         checks += 1
         print(f'PASS {checks} numeric reference executions; {len(cases)} operations/types; lang + schema + both core round-trips; -O0/-O2')
-    
+
     def reject(text, message, *, ast=False, backend='llvm'):
         suffix = '.ast' if ast else '.lang'
         source = out / ('reject-' + str(reject.count) + suffix)
@@ -350,7 +350,7 @@ def numeric_reference():
         assert p.returncode != 0 and message in p.stderr and str(source) in p.stderr, (source, p.returncode, p.stderr)
         assert not target.exists() or not target.read_bytes(), 'failed compile published an executable module'
     reject.count = 0
-    
+
     def validation():
         calls = [
             ('"oops", "i64", "i64", 1, 2', 'unknown or incompatible operation'),
@@ -405,7 +405,7 @@ def numeric_reference():
         for backend in ['x86', 'wasm']:
             reject('func main() i64 { return __core_numeric("add_wrap", "i8", "i8", 1, 2); }', 'requires LLVM lowering', backend=backend)
         print(f'PASS {reject.count} numeric/type/operator rejections with source origins')
-    
+
     def legacy():
         for fixture in ['158_cast_literal', '260_float_basic', '261_float_composed', '265_cast_basic', '290_pointer_index_floats']:
             source = ROOT / ('test/suite/' + fixture + '.lang')
@@ -424,7 +424,7 @@ def numeric_reference():
                 exe = out / (reader + opt)
                 run(['clang', opt, ll, '-o', exe]); run([exe])
         print('PASS legacy cast/float/pointer ABI fixtures and C/Forth/Minipy/Minilisp readers at -O0/-O2')
-    
+
     {'arithmetic': arithmetic, 'validation': validation, 'legacy': legacy}[args.mode]()
 
 

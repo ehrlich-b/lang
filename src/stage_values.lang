@@ -1,0 +1,81 @@
+// Copied-value ABI v1: little-endian u32 tag, u32 payload length, payload.
+// Tags 1..8 are signed/unsigned 8/16/32/64-bit integers, 9 bool, 10 bytes,
+// 11 UTF-8, 12 an immutable positional record, 13 an origin-granted AST.
+// A record starts with u32 field count, followed by complete child values.
+include "src/phase_host.lang"
+
+pub func phase_value_u32(b *PhaseBuffer, n i64) void {
+    var bytes *u8 = alloc(4);
+    var i i64 = 0;
+    while i < 4 { *(bytes + i) = (n >> (8 * i)) & 255; i = i + 1; }
+    phase_buffer_append(b, bytes, 4);
+}
+pub func phase_value_new(tag i64, data *u8, len i64) *PhaseBuffer {
+    var b *PhaseBuffer = phase_buffer_new(phase_limit(), "copied-value");
+    phase_value_u32(b, tag); phase_value_u32(b, len);
+    phase_buffer_append(b, data, len); return b;
+}
+pub func phase_value_i64(n i64) *PhaseBuffer {
+    var bytes *u8 = alloc(8);
+    var i i64 = 0;
+    while i < 8 { *(bytes + i) = (n >> (8 * i)) & 255; i = i + 1; }
+    return phase_value_new(7, bytes, 8);
+}
+pub func phase_value_integer(value *u8) i64 {
+    var n i64 = 0;
+    var i i64 = 0;
+    while i < 8 { n = n | (*(value + 8 + i) << (8 * i)); i = i + 1; }
+    return n;
+}
+pub func phase_value_validate(data *u8, len i64, origin i64, depth i64) void {
+    // Keep loop storage outside loops for unoptimized workers.
+    var tag i64 = 0;
+    var size i64 = 0;
+    var width i64 = 0;
+    var count i64 = 0;
+    var offset i64 = 0;
+    var child i64 = 0;
+    var i i64 = 0;
+    if len < 8 || len > phase_limit() { phase_error("value-length", phase_diagnostic_source); }
+    if depth > 64 { phase_error("value-depth", phase_diagnostic_source); }
+    phase_work(1);
+    tag = phase_wire_u32(data, 0); size = phase_wire_u32(data, 4);
+    if size != len - 8 { phase_error("value-length", phase_diagnostic_source); }
+    if tag >= 1 && tag <= 8 {
+        width = 1;
+        if tag >= 3 { width = 2; }
+        if tag >= 5 { width = 4; }
+        if tag >= 7 { width = 8; }
+        if size != width { phase_error("value-width", phase_diagnostic_source); }
+        return;
+    }
+    if tag == 9 {
+        if size != 1 { phase_error("value-width", phase_diagnostic_source); }
+        if *(data + 8) > 1 { phase_error("value-bool", phase_diagnostic_source); }
+        return;
+    }
+    if tag == 10 { return; }
+    if tag == 11 { phase_utf8_validate_bytes(data + 8, size, phase_diagnostic_source); return; }
+    if tag == 12 {
+        if size < 4 { phase_error("value-record", phase_diagnostic_source); }
+        count = phase_wire_u32(data, 8); offset = 12; i = 0;
+        if count > (len - offset) / 8 { phase_error("value-record", phase_diagnostic_source); }
+        while i < count {
+            if len - offset < 8 { phase_error("value-record", phase_diagnostic_source); }
+            child = phase_wire_u32(data, offset + 4);
+            if child > len - offset - 8 { phase_error("value-record", phase_diagnostic_source); }
+            phase_value_validate(data + offset, child + 8, origin, depth + 1);
+            offset = offset + child + 8; i = i + 1;
+        }
+        if offset != len { phase_error("value-record", phase_diagnostic_source); }
+        return;
+    }
+    if tag == 13 { phase_wire_decode(data + 8, size, origin); return; }
+    // No pointer, closure, float, mutable object, list or nominal-ID tags yet.
+    phase_error("unsupported-value", phase_diagnostic_source);
+}
+pub func phase_value_copy(data *u8, len i64, origin i64) *PhaseBuffer {
+    phase_value_validate(data, len, origin, 0);
+    var copy *PhaseBuffer = phase_buffer_new(phase_limit(), "copied-value");
+    phase_buffer_append(copy, data, len); return copy;
+}

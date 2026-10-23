@@ -53,10 +53,12 @@ queries describe the output profile, never host sizeof. No foreign-target
 program executes merely because it is an output target. Target descriptors must
 include backend, OS, architecture, ABI/layout version and capabilities.
 
-## Staging wire v1 contract (reserved; no staging execution API yet)
+## Staging wire v1 contract (full service reserved)
 
-A future staging service must use a separate, length-framed envelope. Freeze
-these obligations before admitting source execution:
+The [copied-value call adapter](WORKER_CALLS.md) now supports controlled trusted
+wrappers through H hooks. It implements a bounded subset, not this full
+admission contract. A future untrusted staging service must use a separate,
+length-framed envelope and satisfy these obligations:
 
 * Header: protocol_version=1, core_version, request_id, phase, origin chain,
   execution profile, output target and storage ABI. Unknown versions fail closed.

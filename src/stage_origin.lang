@@ -109,8 +109,10 @@ pub func phase_line_byte(source *PhaseSource, line i64, column i64) i64 {
 }
 
 pub func phase_utf8_validate(text *u8, name *u8) void {
+    phase_utf8_validate_bytes(text, strlen(text), name);
+}
+pub func phase_utf8_validate_bytes(text *u8, len i64, name *u8) void {
     // Keep storage in the entry block, including unoptimized host workers.
-    var len i64 = 0;
     var i i64 = 0;
     var c i64 = 0;
     var count i64 = 0;
@@ -119,7 +121,7 @@ pub func phase_utf8_validate(text *u8, name *u8) void {
     var j i64 = 0;
     var next i64 = 0;
 
-    len = strlen(text); i = 0;
+    i = 0;
     while i < len {
         c = *(text + i); count = 0; value = 0; minimum = 0;
         if c < 128 { count = 1; value = c; }

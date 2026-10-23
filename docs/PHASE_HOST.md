@@ -17,6 +17,10 @@ A hook must set `phase_worker_status` on failure. Neither hook may publish
 partial output. The existing fixed-destination `exec_capture` adapter rejects
 output that does not fit; it never returns a successful prefix.
 
+The opt-in [copied-value call adapter](WORKER_CALLS.md) adds fresh compile/run
+contexts, binary copied values and atomic result publication for controlled,
+explicitly trusted wrappers. It does not change the legacy reader cache.
+
 ## Bytes and budgets
 
 `PhaseBuffer` stores data, payload length, allocated capacity, payload limit and
