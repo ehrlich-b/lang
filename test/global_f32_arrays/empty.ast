@@ -1,0 +1,5 @@
+(program
+ (var g (type_array 3 (type_base f32)) (array_literal))
+ (func f32_bits ((param index (type_base i64))) (type_base i64)
+  (block (return (call (ident __core_numeric) (string "bitcast")
+   (string "u32") (string "f32") (index (ident g) (ident index)))))))

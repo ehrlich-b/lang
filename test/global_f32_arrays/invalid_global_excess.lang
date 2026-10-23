@@ -1,0 +1,4 @@
+var n i64 = 1;
+func integer() i64 { return 1; }
+var a [1]f32 = [2, 1 + 1];
+func probe() i64 { return 0; }

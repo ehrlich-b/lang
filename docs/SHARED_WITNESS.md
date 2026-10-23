@@ -33,3 +33,23 @@ No decimal core round-trip claim is made. Legacy aggregate and relocation
 lowering remains separate; the bounded layout API explicitly refuses those
 forms. Full aggregate layout, relocatable constants, general ABI, reflection,
 phase scheduling and native arm64 qualification remain outstanding.
+
+Fixed f32 literal arrays also have independent runtime oracles:
+`test/run_f32_array_literals.py` covers local initialization, and
+`test/run_global_f32_arrays.py` covers global aggregates and refusal of integer
+expressions. Both require `--compiler` and an external `--evidence` directory,
+execute native Linux x86-64 and LLVM-to-Wasm/Node at O0/O2, and check frozen
+IEEE-754 words, including halfway rounding and negative decimal zero. Malformed
+IR and a wrong expected bit must fail the same real assembler/runtime checks.
+
+The shared LLVM emitter accepts integer and supported decimal literals in fixed
+f32 arrays, including grouping and unary minus. Integer globals round directly
+from i64 to binary32 and use LLVM's hexadecimal floating constant spelling;
+local integer literals retain their runtime `sitofp`. Decimal signs are kept,
+and omitted slots use floating zero (an absent initializer uses
+`zeroinitializer`). Global elements must be literals. Local elements may also
+have an explicit native f32 representation. Integer arithmetic, identifiers,
+and calls do not acquire implicit f32 conversion from array context: they
+require an explicit f32 conversion or receive a nonzero diagnostic before any
+module is published. This does not extend f64 aggregates, reader syntax, full
+aggregate layout or the ABI. Decimal core-reader syntax remains unsupported.

@@ -793,8 +793,8 @@ func llvm_is_float_literal(val *u8) i64 {
 }
 
 // Array element context supplies f32 for integer literals, including a
-// parenthesized or negated literal. Keep other expressions on their existing
-// typed path rather than introducing implicit numeric conversions generally.
+// parenthesized or negated literal. Other integer expressions require an
+// explicit conversion; array context does not supply general coercions.
 func llvm_is_integer_literal(expr *u8) i64 {
     if expr == nil { return 0; }
     if node_kind(expr) == NODE_GROUP_EXPR {
@@ -806,6 +806,77 @@ func llvm_is_integer_literal(expr *u8) i64 {
     if node_kind(expr) != NODE_NUMBER_EXPR { return 0; }
     var text *u8 = str_dup_n(number_expr_value(expr), number_expr_value_len(expr));
     return !llvm_is_float_literal(text);
+}
+
+func llvm_is_numeric_literal(expr *u8) i64 {
+    if expr == nil { return 0; }
+    if node_kind(expr) == NODE_GROUP_EXPR {
+        return llvm_is_numeric_literal(group_expr_expr(expr));
+    }
+    if node_kind(expr) == NODE_UNARY_EXPR && unary_expr_op(expr) == TOKEN_MINUS {
+        return llvm_is_numeric_literal(unary_expr_expr(expr));
+    }
+    return node_kind(expr) == NODE_NUMBER_EXPR;
+}
+
+func llvm_validate_f32_array_elements(init *u8, elem_type *u8, global_init i64) void {
+    if !llvm_is_f32_type(elem_type) { return; }
+    var elems *u8 = array_literal_elems(init);
+    var i i64 = 0;
+    // Validate the entire literal, even elements beyond the storage count.
+    while i < array_literal_count(init) {
+        var p **u8 = elems + i * 8;
+        if !llvm_is_numeric_literal(*p) {
+            if global_init {
+                numeric_fail(*p, "f32 global array element requires a numeric literal");
+            } else if !llvm_numeric_native_f32(*p) {
+                numeric_fail(*p, "f32 array element requires a numeric literal or an explicit f32 value");
+            }
+        }
+        i = i + 1;
+    }
+}
+
+// LLVM requires a typed floating constant, not an integer token after `float`.
+// Use the existing host cast to round i64 directly to f32, then widen exactly
+// to double for LLVM's hexadecimal float spelling. This also works with the
+// bootstrap compiler, without relying on removed sitofp constant expressions.
+func llvm_f32_literal_value(expr *u8) *u8 {
+    if llvm_is_numeric_literal(expr) == 0 {
+        numeric_fail(expr, "f32 global array element requires a numeric literal");
+    }
+    var negative i64 = 0;
+    while node_kind(expr) != NODE_NUMBER_EXPR {
+        if node_kind(expr) == NODE_GROUP_EXPR { expr = group_expr_expr(expr); }
+        else { negative = !negative; expr = unary_expr_expr(expr); }
+    }
+    var text *u8 = str_dup_n(number_expr_value(expr), number_expr_value_len(expr));
+    if *text == '-' { negative = !negative; text = text + 1; }
+    if llvm_is_float_literal(text) {
+        // Keep decimal spelling and its sign, including -0.0. The core reader
+        // still has no decimal token syntax; no reader-local rule is added.
+        if negative { return str_concat("-", text); }
+        return text;
+    }
+    var value i64 = 0;
+    while *text != 0 {
+        value = value * 10 + (*text - '0');
+        text = text + 1;
+    }
+    if negative { value = 0 - value; }
+    var rounded f32 = cast(f32, value);
+    var widened f64 = cast(f64, rounded);
+    var bits i64 = bitcast(i64, widened);
+    var result *u8 = alloc(19);
+    *result = '0'; *(result + 1) = 'x';
+    var digits *u8 = "0123456789ABCDEF";
+    var i i64 = 0;
+    while i < 16 {
+        *(result + 2 + i) = *(digits + ((bits >> ((15 - i) * 4)) & 15));
+        i = i + 1;
+    }
+    *(result + 18) = 0;
+    return result;
 }
 
 // Check if type is a signed integer (i8, i16, i32, i64, i128)
@@ -5313,6 +5384,7 @@ func llvm_emit_stmt(stmt *u8) void {
             var lit_count i64 = array_literal_count(init);
             var lit_size i64 = array_type_size(var_type);
             var lit_elem_type *u8 = array_type_elem(var_type);
+            llvm_validate_f32_array_elements(init, lit_elem_type, 0);
 
             // Bitcast the array alloca to elem* once, then GEP per slot -
             // same shape the index-read path uses.
@@ -5334,12 +5406,14 @@ func llvm_emit_stmt(stmt *u8) void {
                 var elem_val *u8 = nil;
                 if li < lit_count {
                     var lit_ptr **u8 = lit_elems + (li * 8);
-                    llvm_emit_expr(*lit_ptr);
-                    elem_val = str_dup(llvm_expr_result);
-                    if type_kind(lit_elem_type) == TYPE_BASE &&
-                        base_type_name_len(lit_elem_type) == 3 &&
-                        memcmp(base_type_name(lit_elem_type), "f32", 3) &&
-                        llvm_is_integer_literal(*lit_ptr) {
+                    var f32_elem i64 = llvm_is_f32_type(lit_elem_type);
+                    if f32_elem && llvm_is_numeric_literal(*lit_ptr) && !llvm_is_integer_literal(*lit_ptr) {
+                        elem_val = llvm_f32_literal_value(*lit_ptr);
+                    } else {
+                        llvm_emit_expr(*lit_ptr);
+                        elem_val = str_dup(llvm_expr_result);
+                    }
+                    if f32_elem && llvm_is_integer_literal(*lit_ptr) {
                         // Integer literals use i64 carriers (also after unary
                         // minus). Convert the numeric value, not its bits;
                         // LLVM rounds directly to binary32 at the store width.
@@ -7127,6 +7201,7 @@ func llvm_emit_decl(decl *u8) void {
             if init != nil && node_kind(init) == NODE_ARRAY_LITERAL {
                 var elems *u8 = array_literal_elems(init);
                 var count i64 = array_literal_count(init);
+                llvm_validate_f32_array_elements(init, elem_type, 1);
 
                 // Emit [T val1, T val2, ..., T 0/null, ...]
                 llvm_emit_str("[");
@@ -7141,12 +7216,18 @@ func llvm_emit_decl(decl *u8) void {
                         var elem *u8 = *elem_ptr;
                         llvm_emit_type(elem_type);
                         llvm_emit_str(" ");
-                        llvm_emit_global_array_elem(elem, is_ptr_elem);
+                        if llvm_is_f32_type(elem_type) {
+                            llvm_emit_str(llvm_f32_literal_value(elem));
+                        } else {
+                            llvm_emit_global_array_elem(elem, is_ptr_elem);
+                        }
                     } else {
                         // Emit zero/null for remaining elements
                         llvm_emit_type(elem_type);
                         if is_ptr_elem {
                             llvm_emit_str(" null");
+                        } else if llvm_is_f32_type(elem_type) {
+                            llvm_emit_str(" 0.0");
                         } else {
                             llvm_emit_str(" 0");
                         }

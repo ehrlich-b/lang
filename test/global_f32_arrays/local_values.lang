@@ -1,0 +1,7 @@
+// Already typed f32 values still work without implicit expression conversion.
+func single() f32 { return cast(f32, 2.5); }
+func f32_bits(index i64) i64 {
+    var x f32 = cast(f32, 1.5);
+    var a [4]f32 = [x, single(), -0.0];
+    return __core_numeric("bitcast", "u32", "f32", a[index]);
+}

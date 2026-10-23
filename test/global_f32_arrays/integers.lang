@@ -1,0 +1,6 @@
+// Integers include both halfway directions, signs, i64 endpoints and nested groups.
+var g [16]f32 = [0, 1, (2), -1, 16777217, 16777219, -16777217, -16777219,
+    2147483647, -2147483648, 9223372036854775807, -9223372036854775808, -(-3), ((7)), -0];
+func f32_bits(index i64) i64 {
+    return __core_numeric("bitcast", "u32", "f32", g[index]);
+}

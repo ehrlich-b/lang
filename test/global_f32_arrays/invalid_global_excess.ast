@@ -1,0 +1,4 @@
+(program (var n (type_base i64) (number 1))
+ (func integer () (type_base i64) (block (return (number 1))))
+ (var a (type_array 1 (type_base f32)) (array_literal (number 2) (binop + (number 1) (number 1))))
+ (func probe () (type_base i64) (block (return (number 0)))))

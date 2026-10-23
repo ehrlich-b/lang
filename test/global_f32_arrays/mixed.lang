@@ -1,0 +1,4 @@
+var g [10]f32 = [0, 1.5, 2, -1, 2.5, 3.0, -0.0, (-2.5), -(-0.0)];
+func f32_bits(index i64) i64 {
+    return __core_numeric("bitcast", "u32", "f32", g[index]);
+}
