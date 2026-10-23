@@ -5,8 +5,10 @@ var ___compiler_diagnostic_json i64 = 0;
 var ___compiler_diagnostic_default_code *u8 = "error";
 var ___compiler_diagnostic_code *u8 = "error";
 var ___compiler_diagnostic_path *u8 = nil;
-var ___compiler_diagnostic_start i64 = -1;
-var ___compiler_diagnostic_end i64 = -1;
+// Enabling the transport explicitly sets unknown locations to -1. Keep the
+// dormant storage compatible with the compiler's literal-only global profile.
+var ___compiler_diagnostic_start i64 = 0;
+var ___compiler_diagnostic_end i64 = 0;
 var ___compiler_diagnostic_message *u8 = nil;
 var ___compiler_diagnostic_len i64 = 0;
 var ___compiler_diagnostic_limit i64 = 1048576;
