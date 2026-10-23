@@ -104,7 +104,9 @@ try:
             invoke('expression-reader-slice', mode='expression-slice')
             invoke('same-name-slices', mode='two-slices')
             invoke('uncaptured-slices', mode='uncaptured-slices')
-            invoke('immutable-file-id', mode='recaptured-file')
+            invoke('slice-after-recapture', mode='slice-after-recapture')
+            invoke('current-snapshot', mode='current-snapshot')
+            invoke('current-captured-slice', mode='current-captured-slice')
             invoke('capabilities', mode='capabilities', expected=b'compile,Q0\n')
             invoke('require-Q0', mode='Q0', expected=b'Q0\n')
             # The actual compiler runs the same fixture with the reader and closure.
@@ -158,6 +160,10 @@ try:
             changed[offsets['sources.0.digest']] ^= 1
             invoke('wrong-digest', bytes(changed), error='tooling-stale-source')
             invoke('stale-after-decode', mode='stale-after-decode', error='tooling-stale-source')
+            invoke('superseded-wire', mode='recaptured-file', error='tooling-stale-source')
+            invoke('superseded-file', mode='superseded-after-decode', error='tooling-stale-source')
+            invoke('captured-slice-wire', mode='captured-slice-wire', error='tooling-stale-source')
+            invoke('captured-slice-program', mode='captured-slice-program', error='tooling-stale-source')
             invoke('handoff-revalidates', mode='after-decode', error='tooling-binding')
             invoke('truncated', frame[:-1], error='tooling-wire-length')
             invoke('trailing', frame + b'x', error='tooling-wire-length')

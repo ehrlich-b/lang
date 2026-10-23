@@ -1,5 +1,5 @@
 // Registries mint IDs; worker-supplied pointers and source names confer no authority.
-struct PhaseSource { id i64; name *u8; text *u8; len i64; digest *u8; lines *u8; line_count i64; }
+struct PhaseSource { id i64; name *u8; text *u8; len i64; digest *u8; lines *u8; line_count i64; captured i64; }
 struct PhaseOrigin { id i64; source i64; start i64; end i64; include_parent i64; expansion_parent i64; }
 var phase_sources *u8 = nil;
 var phase_origins *u8 = nil;
@@ -12,10 +12,10 @@ pub func phase_source_new(name *u8, text *u8) i64 {
     if name == nil || text == nil { phase_error("missing-source", phase_diagnostic_source); }
     phase_utf8_validate(text, name);
     var len i64 = strlen(text);
-    phase_charge(len + strlen(name) + 58);
+    phase_charge(len + strlen(name) + 66);
     phase_work(1);
     if phase_sources == nil { phase_sources = vec_new(16); }
-    var s *PhaseSource = alloc(56);
+    var s *PhaseSource = alloc(64); s.captured = 0;
     s.id = vec_len(phase_sources) + 1; s.name = str_dup(name);
     s.text = str_dup(text); s.len = len; s.digest = phase_digest(s.text, s.len);
     // Index line starts once instead of rescanning the prefix for every node.
@@ -90,6 +90,8 @@ var phase_file_sources *u8 = nil;
 pub func phase_source_capture(name *u8, text *u8) i64 {
     if phase_file_sources == nil { phase_file_sources = map_new(); }
     var id i64 = phase_source_register(name, text);
+    // Retain capture history even after another snapshot replaces this ID.
+    var source *PhaseSource = phase_source_get(id); source.captured = 1;
     map_set(phase_file_sources, name, id);
     return id;
 }

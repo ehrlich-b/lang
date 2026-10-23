@@ -10,12 +10,14 @@ H (`phase_host`) owns immutable source snapshots and origin IDs. Sources carry
 SHA-256 of exact UTF-8 bytes. Sites use half-open **byte** offsets, never codepoint
 indices, pointers, or line/column guesses. An envelope grants an explicit set of
 source IDs and digests, plus a root origin. All origin ancestors must refer to
-those sources. Freshness is checked per granted source ID and digest, never by
-display name or registration order. File snapshots and distinct reader slices
-can share a name and remain valid simultaneously, including after another file
-capture. A digest from another revision paired with an old ID is stale. Selecting
-the file revision for an invocation belongs to its host caller. IDs are local to
-a host session: a persisted worker frame cannot grant itself source authority.
+those sources. Both wire decoding and the validator at the AST handoff check
+each granted ID and its exact digest against H. H retains whether an ID was ever
+captured as a file snapshot: such an ID must still be that name's current captured
+snapshot, or validation fails with `tooling-stale-source`, even when its historical
+digest matches. Reader slices that were never captured remain valid independently
+of later registrations or captures under the same name. Current file snapshots
+and distinct reader slices can therefore coexist. IDs are local to a host session:
+a persisted worker frame cannot grant itself source authority.
 
 Scopes and bindings use dense IDs starting at 1 within the envelope. Scope 0 is
 no parent. Parents must precede children, ruling out cycles. Each scope has a
@@ -87,8 +89,9 @@ pre-analysis boundary and require nonzero status, a specific diagnostic and no
 handoff marker. A valid neighboring control must still pass. The probe mints its
 slice through `parse_ast_from_reader_string` under the enclosing filename, and
 also tests the expression entry point, multiple same-name slices with and without
-a captured file, and retained immutable IDs after recapture. Stale digest controls
-exercise both wire decoding and revalidation at the AST handoff.
+a captured file, valid slices after recapture, and current snapshots. Superseded
+snapshot controls build facts, recapture edited text, and require rejection both
+during wire decoding and at the AST handoff; forged digest controls remain separate.
 
 Run `python3 test/run_tooling_contract.py` with a compiler built from these sources
 (`COMPILER=out/lang_next` after `make build`). `--acceptance A1`, `A2`, or `A3`

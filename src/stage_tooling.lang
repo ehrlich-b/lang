@@ -71,17 +71,26 @@ func tooling_origin(e *ToolEnvelope, id i64) *PhaseOrigin {
     }
     return o;
 }
+func tooling_validate_source(id i64, digest *u8) void {
+    var known *PhaseSource = phase_source_get(id);
+    if known == nil { phase_error("tooling-source", phase_diagnostic_source); }
+    // A captured ID must still be the current file snapshot. Reader slices
+    // that were never captured retain their authority under the same name.
+    if known.captured != 0 {
+        var current *PhaseSource = phase_source_snapshot(known.name);
+        if current == nil { phase_error("tooling-stale-source", known.name); }
+        if current.id != id { phase_error("tooling-stale-source", known.name); }
+    }
+    if streq(digest, known.digest) == 0 { phase_error("tooling-stale-source", known.name); }
+}
 pub func tooling_validate(e *ToolEnvelope) void {
     if e.version != 1 || e.mapped < 0 || e.mapped > 1 { phase_error("tooling-version", phase_diagnostic_source); }
     var i i64 = 0;
     var j i64 = 0;
     while i < vec_len(e.sources) {
         var s *PhaseSource = vec_get(e.sources, i);
+        tooling_validate_source(s.id, s.digest);
         var known *PhaseSource = phase_source_get(s.id);
-        if known == nil { phase_error("tooling-source", phase_diagnostic_source); }
-        // H records are immutable; a display name can identify a file and many
-        // reader slices. Freshness belongs to the granted ID and exact digest.
-        if streq(s.digest, known.digest) == 0 { phase_error("tooling-stale-source", known.name); }
         j = 0;
         while j < i {
             phase_work(1);
@@ -234,9 +243,7 @@ pub func tooling_wire_decode(frame *u8, len i64, granted_origin i64) *ToolEnvelo
     while i < count {
         phase_charge(65);
         var id i64 = tooling_word(c); var digest *u8 = str_dup_n(tooling_take(c, 64), 64);
-        var known *PhaseSource = phase_source_get(id);
-        if known == nil { phase_error("tooling-source", phase_diagnostic_source); }
-        if streq(digest, known.digest) == 0 { phase_error("tooling-stale-source", known.name); }
+        tooling_validate_source(id, digest);
         tooling_source(e, id); i = i + 1;
     }
     count = tooling_count(c, 12); i = 0;
