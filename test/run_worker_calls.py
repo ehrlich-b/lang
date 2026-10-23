@@ -48,6 +48,9 @@ def record(*fields):
 
 arguments = record(integer(19), integer(23))
 answer = integer(42)
+run('compile-standalone-host', [compiler, 'test/phase_host/call_standalone.lang', '-o', out / 'standalone.ll'])
+run('link-standalone-host', ['clang', '-O0', out / 'standalone.ll', '-o', out / 'standalone'])
+run('execute-standalone-host', [out / 'standalone'])
 run('compile-host', [compiler, 'test/phase_host/call.lang', '-o', out / 'call.ll'])
 run('link-host', ['clang', '-O0', out / 'call.ll', '-o', out / 'call'])
 publication = out / 'published.value'

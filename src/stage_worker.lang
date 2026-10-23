@@ -1,6 +1,8 @@
 // Trusted-native legacy adapter. Isolation, deadlines and cancellation are
 // supplied by future engines through this hook, never implied by a fork.
 extern var ___envp **u8;
+// Both native publication adapters share this libc declaration.
+extern func rename(old *u8, dest *u8) i32;
 var phase_worker_status i64 = 0;
 var phase_worker_output_len i64 = 0;
 var phase_worker_hook fn(*u8, *u8, i64) *u8 = nil;

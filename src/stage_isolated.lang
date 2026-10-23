@@ -78,7 +78,6 @@ func phase_isolated_call(program *u8, input *u8, len i64) *u8 {
 }
 func phase_isolated_enabled() i64 { return phase_compile_hook == &phase_isolated_compile; }
 // A private link output becomes visible only after the linker has succeeded.
-extern func rename(old *u8, new *u8) i32;
 func phase_reader_link_path(path *u8) *u8 {
     if phase_isolated_enabled() == 0 { return path; }
     var b *PhaseBuffer = phase_buffer_new(phase_limit(), path);
