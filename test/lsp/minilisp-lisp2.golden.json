@@ -1,0 +1,189 @@
+{
+  "schema": 1,
+  "session": "fixture-host",
+  "request": "fixture-request",
+  "revision": 3,
+  "phase": 0,
+  "source": "lisp2-source",
+  "core_sha256": "d89f59918a9c12d7c2840f24011b260cce14127217335870068ccaafb6ba8a1e",
+  "sources": [
+    {
+      "id": "lisp2-source",
+      "path": "minilisp-lisp2.minilisp",
+      "sha256": "5f5e8c55f1234a4443d777975fd543e9765b69c39cdc11edaf84bcb612ea0082",
+      "bytes": 69,
+      "slice": null
+    }
+  ],
+  "origins": [
+    {
+      "id": "origin-lisp2",
+      "source": "lisp2-source",
+      "start": 0,
+      "end": 69,
+      "include_parent": null,
+      "expansion_parent": null
+    }
+  ],
+  "scopes": [
+    {
+      "id": "root",
+      "parent": null,
+      "phase": 0,
+      "origin": "origin-lisp2"
+    },
+    {
+      "id": "fn",
+      "parent": "root",
+      "phase": 0,
+      "origin": "origin-lisp2"
+    }
+  ],
+  "bindings": [
+    {
+      "id": "function",
+      "name": "value",
+      "namespace": "function",
+      "scope": "root",
+      "phase": 0,
+      "declaration": "site-0",
+      "generated": false
+    },
+    {
+      "id": "parameter",
+      "name": "value",
+      "namespace": "value",
+      "scope": "fn",
+      "phase": 0,
+      "declaration": "site-1",
+      "generated": false
+    }
+  ],
+  "sites": [
+    {
+      "id": "site-0",
+      "source": "lisp2-source",
+      "start": 40,
+      "end": 45,
+      "name": "value",
+      "role": "declaration",
+      "binding": "function",
+      "namespace": "function",
+      "scope": "root",
+      "phase": 0,
+      "origin": "origin-lisp2",
+      "core": [
+        "core-0"
+      ]
+    },
+    {
+      "id": "site-1",
+      "source": "lisp2-source",
+      "start": 47,
+      "end": 52,
+      "name": "value",
+      "role": "declaration",
+      "binding": "parameter",
+      "namespace": "value",
+      "scope": "fn",
+      "phase": 0,
+      "origin": "origin-lisp2",
+      "core": [
+        "core-1"
+      ]
+    },
+    {
+      "id": "site-2",
+      "source": "lisp2-source",
+      "start": 55,
+      "end": 60,
+      "name": "value",
+      "role": "reference",
+      "binding": "function",
+      "namespace": "function",
+      "scope": "fn",
+      "phase": 0,
+      "origin": "origin-lisp2",
+      "core": [
+        "core-2"
+      ]
+    },
+    {
+      "id": "site-3",
+      "source": "lisp2-source",
+      "start": 61,
+      "end": 66,
+      "name": "value",
+      "role": "reference",
+      "binding": "parameter",
+      "namespace": "value",
+      "scope": "fn",
+      "phase": 0,
+      "origin": "origin-lisp2",
+      "core": [
+        "core-3"
+      ]
+    }
+  ],
+  "core": [
+    {
+      "id": "core-0",
+      "path": [
+        1,
+        1
+      ],
+      "binding": "function",
+      "origin": "origin-lisp2",
+      "generated": false
+    },
+    {
+      "id": "core-1",
+      "path": [
+        1,
+        2,
+        0,
+        1
+      ],
+      "binding": "parameter",
+      "origin": "origin-lisp2",
+      "generated": false
+    },
+    {
+      "id": "core-2",
+      "path": [
+        1,
+        4,
+        1,
+        1,
+        3,
+        1,
+        1
+      ],
+      "binding": "function",
+      "origin": "origin-lisp2",
+      "generated": false
+    },
+    {
+      "id": "core-3",
+      "path": [
+        1,
+        4,
+        1,
+        1,
+        3,
+        2,
+        1
+      ],
+      "binding": "parameter",
+      "origin": "origin-lisp2",
+      "generated": false
+    }
+  ],
+  "capabilities": {
+    "diagnostics": true,
+    "navigation": true,
+    "references": true,
+    "rename": false,
+    "reason": "Q0-contract-only"
+  }
+}

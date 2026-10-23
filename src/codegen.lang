@@ -5,6 +5,7 @@ include "src/limits.lang"
 include "src/phase_host.lang"
 include "src/stage_dependencies.lang"
 include "src/stage_legacy.lang"
+include "src/stage_isolated.lang"
 
 // Environment pointer set by main() - used to inherit environment in exec_run
 extern var ___envp **u8;
@@ -3040,6 +3041,7 @@ func gen_array_addr(expr *u8) void {
 }
 
 func gen_expr(expr *u8) void {
+    if numeric_is_call(expr) { numeric_fail(expr, "exact numeric profile requires LLVM lowering (native or wasm target)"); }
     if expr == nil {
         return;
     }
@@ -4997,6 +4999,7 @@ func gen_stmt(stmt *u8) void {
 
     if k == NODE_VAR_DECL {
         var var_type *u8 = var_decl_type(stmt);
+        numeric_validate_legacy_type(var_type, stmt);
         var var_size i64 = get_type_size(var_type);
         if var_size < 8 {
             var_size = 8;  // Minimum 8 bytes for alignment
@@ -5246,6 +5249,8 @@ func compiler_check_return_type(t *u8) void {
 func gen_func(func_node *u8) void {
     cg_diagnostic_node = func_node;
     compiler_check_return_type(func_decl_ret_type(func_node));
+    numeric_validate_signature(func_node);
+    numeric_validate_tree(func_decl_body(func_node));
     // Extern functions have no body - skip code generation
     if func_decl_is_extern(func_node) {
         return;
@@ -5594,12 +5599,15 @@ func gen_decl(decl *u8) void {
 
     var k i64 = node_kind(decl);
 
+    if k == NODE_EFFECT_DECL { numeric_validate_effect(decl); }
+
     if k == NODE_FUNC_DECL {
         gen_func(decl);
         return;
     }
 
     if k == NODE_VAR_DECL {
+        numeric_validate_legacy_type(var_decl_type(decl), decl);
         // Global variable - already registered
         return;
     }
@@ -7321,3 +7329,5 @@ func phase_parse_include(text *u8, name *u8, invocation *u8) *u8 {
     var result *u8 = parse_program_from_named_string(text, name);
     phase_include_origin = saved; return result;
 }
+
+include "src/numeric.lang"

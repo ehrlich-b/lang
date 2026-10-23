@@ -979,3 +979,17 @@ func ast_main_i64(expr *u8) *u8 {
                  ast_block1(ast_return(expr)))
     );
 }
+
+// Exact numeric profile; no frontend inference or promotions. The operand
+// vector contains expression ASTs, metadata remain literal core strings.
+func ast_numeric(op *u8, result_type *u8, operand_type *u8, operands *u8) *u8 {
+    var args *u8 = ast_vec();
+    ast_push(args, ast_string(op));
+    ast_push(args, ast_string(result_type));
+    ast_push(args, ast_string(operand_type));
+    var i i64 = 0;
+    while i < ast_vec_len(operands) {
+        ast_push(args, ast_vec_get(operands, i)); i = i + 1;
+    }
+    return ast_call(ast_ident("__core_numeric"), args);
+}

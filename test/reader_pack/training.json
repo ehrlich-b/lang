@@ -1,0 +1,50 @@
+[
+  {
+    "id": "create-example",
+    "stage": "create",
+    "source": "answer 42",
+    "expected": 42
+  },
+  {
+    "id": "below",
+    "stage": "evolve",
+    "source": "threshold 10 value 9",
+    "expected": 0
+  },
+  {
+    "id": "equal",
+    "stage": "evolve",
+    "source": "threshold 10 value 10",
+    "expected": 1
+  },
+  {
+    "id": "above",
+    "stage": "evolve",
+    "source": "threshold 10 value 11",
+    "expected": 1
+  },
+  {
+    "id": "tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 11 junk",
+    "diagnostic": "expected end of input"
+  },
+  {
+    "id": "float",
+    "stage": "evolve",
+    "source": "threshold 1.5 value 2",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-unclosed-example",
+    "stage": "create",
+    "source": "answer 42 /*",
+    "diagnostic": "unterminated block comment"
+  },
+  {
+    "id": "evolve-unclosed-example",
+    "stage": "evolve",
+    "source": "threshold 10 value 10 /* threshold 0 value 0",
+    "diagnostic": "unterminated block comment"
+  }
+]

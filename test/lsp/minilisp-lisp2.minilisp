@@ -1,0 +1,2 @@
+; café 🧭 before Lisp-2 names
+(defun value (value) (value value))

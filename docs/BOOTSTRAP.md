@@ -46,6 +46,11 @@ test-direct-wasm` as the matching direct-emitter regression gate. Keep the seed
 unchanged until migration is proved; exercise promotion with PUBLISH_BOOTSTRAP=0
 in a disposable checkout.
 
+`make bootstrap-local` is exactly `make bootstrap PUBLISH_BOOTSTRAP=0`: it still
+archives locally, promotes the seed and installs `out/lang`. The flag disables
+only the remote upload. Successful verification and promotion write distinct
+JSON receipts described in [BUILDING.md](BUILDING.md#choose-and-prove-a-compiler-identity).
+
 ## The one promotion command
 
 After any change under `src/`, run:

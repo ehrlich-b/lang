@@ -1,0 +1,7 @@
+[
+  {"kind":"legacy-unspanned","diagnostics":true,"navigation":false,"references":false,"rename":false,"reason":"legacy-unmapped"},
+  {"kind":"legacy-spanned","diagnostics":true,"navigation":false,"references":false,"rename":false,"reason":"legacy-unmapped"},
+  {"kind":"generated","diagnostics":true,"navigation":true,"references":false,"rename":false,"reason":"generated-name"},
+  {"kind":"unmapped","diagnostics":true,"navigation":false,"references":false,"rename":false,"reason":"incomplete-bindings"},
+  {"kind":"complete","diagnostics":true,"navigation":true,"references":true,"rename":true,"reason":""}
+]

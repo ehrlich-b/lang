@@ -16,6 +16,10 @@ import signal
 import struct
 import subprocess
 import time
+import sys
+import math
+
+from mode_jobs import supervise
 
 HERE = Path(__file__).resolve().parent
 LOCK = json.loads((HERE / 'oracle.lock.json').read_text())
@@ -75,12 +79,17 @@ def run(command, log, timeout=180, env=None, cwd=None):
         p = subprocess.Popen(list(map(str, command)), stdout=f, stderr=f,
                              start_new_session=True, env=env, cwd=cwd)
         try:
-            code = p.wait(timeout=timeout)
-            outcome = 'pass' if code == 0 else 'compile_failure'
-        except subprocess.TimeoutExpired:
-            os.killpg(p.pid, signal.SIGKILL)
+            try:
+                code = p.wait(timeout=timeout)
+                outcome = 'pass' if code == 0 else 'compile_failure'
+            except subprocess.TimeoutExpired:
+                code, outcome = None, 'timeout'
+        finally:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
             p.wait()
-            code, outcome = None, 'timeout'
     return {'command': list(map(str, command)), 'returncode': code,
             'outcome': outcome, 'seconds': time.monotonic() - start,
             'log': str(log)}
@@ -168,8 +177,10 @@ class Runner:
             return {'outcome': 'runtime_failure', 'seconds': time.monotonic() - start}
 
     def close(self):
-        if self.p.poll() is None:
+        try:
             os.killpg(self.p.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         self.p.wait()
         self.sel.close()
         self.p.stdin.close()
@@ -257,6 +268,55 @@ def negative_cases(compiler, source, work, env, timeout):
     return results
 
 
+def mode_worker(args):
+    work, source, compiler, mode = args.work.resolve(), args.source.resolve(), args.compiler.resolve(), args.mode
+    env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(work / 'global-cache'), TMPDIR=str(work))
+    rows = json.loads(args.declarations.read_text())
+    binary, ir = work / f'behavior-{mode}', work / f'behavior-{mode}.ll'
+    branch = run([compiler, 'test', HERE / 'fixtures/backend.zig',
+                  '-target', LOCK['target'], '-mcpu=' + LOCK['cpu'], '-O', mode,
+                  LOCK['backend_flag'], '--cache-dir', work / 'local-cache',
+                  '--test-no-exec', '-femit-bin=' + str(work / f'backend-{mode}')],
+                 work / f'backend-{mode}.txt', args.compile_timeout, env)
+    if branch['outcome'] != 'pass':
+        raise ValueError('builtin.zig_backend compatibility branch proof failed')
+    command = [compiler, 'test', source / LOCK['root'], '-target', LOCK['target'],
+               '-mcpu=' + LOCK['cpu'], '-O', mode, LOCK['backend_flag'],
+               '--cache-dir', work / 'local-cache', '--test-no-exec',
+               '-femit-bin=' + str(binary), '-femit-llvm-ir=' + str(ir)]
+    compile_result = run(command, work / f'compile-{mode}.txt', args.compile_timeout, env)
+    receipt = {'mode': mode, 'compile': compile_result, 'backend_proof': branch, 'instances': []}
+    if compile_result['outcome'] != 'pass':
+        save(work / 'raw.json', receipt)
+        return
+    origins = llvm_origins(ir, source, rows)
+    runner = Runner(binary, work / f'run-{mode}.txt', args.test_timeout)
+    try:
+        names = runner.metadata()
+        save(work / f'discovered-{mode}.json', names)
+        occurrence = Counter()
+        for index, name in enumerate(names):
+            occurrence[name] += 1
+            instance = f'{name}#{occurrence[name]}'
+            item = {'index': index, 'name': name, 'instance': instance,
+                    'declaration_id': None, 'id': None}
+            if runner.p.poll() is not None:
+                runner.close()
+                runner = Runner(binary, work / f'run-{mode}.txt', args.test_timeout)
+                if runner.metadata() != names:
+                    raise ValueError('discovery changed after restart')
+            item.update(runner.test(index))
+            receipt['instances'].append(item)
+    finally:
+        runner.close()
+    receipt['outcomes'] = dict(Counter(i['outcome'] for i in receipt['instances']))
+    receipt['binary_sha256'] = digest(binary)
+    receipt['llvm_ir_sha256'] = digest(ir)
+    # P contains ONLY reference-supported instances. The full discovery list,
+    # including skips, remains published. No candidate result is claimed.
+    save(work / 'raw.json', dict(receipt, names=names, origins=origins))
+
+
 def reference(args):
     work = args.work.resolve()
     work.mkdir(parents=True, exist_ok=True)
@@ -281,76 +341,56 @@ def reference(args):
     save(work / 'identity.json', dict(identity, version=version, profile=LOCK))
     rows = inventory(source)
     save(work / 'declarations.json', rows)
-    receipts = []
-    canonical_origins = {}
-    canonical_names = None
+    commands = []
     for mode in LOCK['modes']:
-        binary, ir = work / f'behavior-{mode}', work / f'behavior-{mode}.ll'
-        branch = run([compiler, 'test', HERE / 'fixtures/backend.zig',
-                      '-target', LOCK['target'], '-mcpu=' + LOCK['cpu'], '-O', mode,
-                      LOCK['backend_flag'], '--cache-dir', work / 'local-cache',
-                      '--test-no-exec', '-femit-bin=' + str(work / f'backend-{mode}')],
-                     work / f'backend-{mode}.txt', args.compile_timeout, env)
-        if branch['outcome'] != 'pass':
-            raise ValueError('builtin.zig_backend compatibility branch proof failed')
-        command = [compiler, 'test', source / LOCK['root'], '-target', LOCK['target'],
-                   '-mcpu=' + LOCK['cpu'], '-O', mode, LOCK['backend_flag'],
-                   '--cache-dir', work / 'local-cache', '--test-no-exec',
-                   '-femit-bin=' + str(binary), '-femit-llvm-ir=' + str(ir)]
-        compile_result = run(command, work / f'compile-{mode}.txt', args.compile_timeout, env)
-        receipt = {'mode': mode, 'compile': compile_result, 'backend_proof': branch, 'instances': []}
-        receipts.append(receipt)
-        if compile_result['outcome'] != 'pass':
-            save(work / f'{mode}.json', receipt)
-            continue
-        origins = llvm_origins(ir, source, rows)
-        runner = Runner(binary, work / f'run-{mode}.txt', args.test_timeout)
-        try:
-            names = runner.metadata()
-            if mode == 'debug':
-                canonical_origins, canonical_names = origins, names
-            elif names != canonical_names:
-                raise ValueError('mode discovery differs; qualify origins before freezing')
-            # Optimized test bodies may disappear from LLVM debug info. The
-            # complete debug-mode metadata list has identical names and order;
-            # join by that verified full identity, never an unqualified name.
-            origins = canonical_origins | origins
-            if any(name not in origins for name in names):
-                raise ValueError('discovered instance has no unique source declaration')
-            save(work / f'discovered-{mode}.json', names)
-            occurrence = Counter()
-            for index, name in enumerate(names):
-                origin = origins.get(name)
-                occurrence[name] += 1
-                instance = f'{name}#{occurrence[name]}'
-                item = {'index': index, 'name': name, 'instance': instance,
-                        'declaration_id': origin['id'] if origin else None,
-                        'id': f"{origin['id']}:{instance}" if origin else None}
-                if runner.p.poll() is not None:
-                    runner = Runner(binary, work / f'run-{mode}.txt', args.test_timeout)
-                    if runner.metadata() != names:
-                        raise ValueError('discovery changed after restart')
-                item.update(runner.test(index))
-                receipt['instances'].append(item)
-        finally:
-            runner.close()
-        receipt['outcomes'] = dict(Counter(i['outcome'] for i in receipt['instances']))
-        receipt['binary_sha256'] = digest(binary)
-        receipt['llvm_ir_sha256'] = digest(ir)
-        # P contains ONLY reference-supported instances. The full discovery list,
-        # including skips, remains published. No candidate result is claimed.
-        receipt['P'] = {'candidate_passes': 0,
-                        'reference_supported': sum(i['outcome'] == 'pass' for i in receipt['instances']),
+        commands.append((mode, [sys.executable, '-B', Path(__file__).resolve(), '_mode',
+                               '--mode', mode, '--source', source, '--compiler', compiler,
+                               '--declarations', work / 'declarations.json',
+                               '--work', work / mode, '--compile-timeout', args.compile_timeout,
+                               '--test-timeout', args.test_timeout]))
+    resources = None
+    if args.mode_jobs > 1 or args.bounded:
+        resources = supervise(commands, args.mode_jobs, work, memory_mib=args.memory_mib,
+                              cpus=args.cpus, processes=args.process_limit, timeout=args.mode_timeout)
+    else:
+        # Preserve serial per-compile/per-instance budgets without a whole-mode
+        # deadline or inherited CPU/resource restrictions.
+        for mode in LOCK['modes']:
+            folder = work / mode
+            folder.mkdir(exist_ok=True)
+            mode_worker(argparse.Namespace(**(vars(args) | {
+                'mode': mode, 'work': folder, 'declarations': work / 'declarations.json'})))
+    receipts = []
+    canonical_names, canonical_origins = None, {}
+    for mode in LOCK['modes']:
+        raw = json.loads((work / mode / 'raw.json').read_text())
+        names, origins = raw.pop('names', []), raw.pop('origins', {})
+        if mode == 'debug':
+            canonical_names, canonical_origins = names, origins
+        elif raw['compile']['outcome'] == 'pass' and names != canonical_names:
+            raise ValueError('mode discovery differs; qualify origins before freezing')
+        origins = canonical_origins | origins
+        if any(name not in origins for name in names):
+            raise ValueError('discovered instance has no unique source declaration')
+        for item in raw['instances']:
+            origin = origins[item['name']]
+            item.update(declaration_id=origin['id'], id=f"{origin['id']}:{item['instance']}")
+        if raw['compile']['outcome'] == 'pass':
+            raw['P'] = {'candidate_passes': 0,
+                        'reference_supported': sum(i['outcome'] == 'pass' for i in raw['instances']),
                         'candidate_status': 'not_implemented'}
-        save(work / f'{mode}.json', receipt)
+        save(work / f'discovered-{mode}.json', names)
+        save(work / f'{mode}.json', raw)
+        receipts.append(raw)
     summary = {'identity': identity, 'profile': LOCK,
                'U': {'candidate_passes': 0, 'denominator': 2137},
                'U_recursive': {'candidate_passes': 0, 'denominator': 2239},
                'candidate_status': 'not_implemented', 'upstream_passes_claimed': False,
                'modes': receipts}
+    summary['resources'] = resources
     summary['generated_builtin_inputs'] = [
         {'file': str(p.relative_to(work)), 'sha256': digest(p)}
-        for p in sorted((work / 'global-cache/b').glob('*/builtin.zig'))]
+        for p in sorted(work.glob('*/global-cache/b/*/builtin.zig'))]
     coverage = []
     for row in rows:
         reached = {r['mode']: [{'id': i['id'], 'reference_outcome': i['outcome']}
@@ -403,13 +443,35 @@ def main():
         ref.add_argument('--' + name, type=Path, required=True)
     ref.add_argument('--compile-timeout', type=float, default=240)
     ref.add_argument('--test-timeout', type=float, default=10)
+    ref.add_argument('--bounded', action='store_true', help='also supervise serial replay with resource and whole-mode limits')
+    ref.add_argument('--mode-jobs', type=int, choices=range(1, 4), default=1)
+    ref.add_argument('--cpus', type=int, choices=range(1, 17), default=4)
+    ref.add_argument('--memory-mib', type=int, choices=range(256, 32769), metavar='MIB', default=12288)
+    ref.add_argument('--process-limit', type=int, choices=range(4, 257), metavar='COUNT', default=128)
+    ref.add_argument('--mode-timeout', type=float, default=600)
+    worker = sub.add_parser('_mode', help=argparse.SUPPRESS)
+    worker.add_argument('--mode', choices=LOCK['modes'], required=True)
+    worker.add_argument('--declarations', type=Path, required=True)
+    worker.add_argument('--source', type=Path, required=True)
+    worker.add_argument('--compiler', type=Path, required=True)
+    worker.add_argument('--work', type=Path, required=True)
+    worker.add_argument('--compile-timeout', type=float, required=True)
+    worker.add_argument('--test-timeout', type=float, required=True)
     for command in [ref, sub.add_parser('selftest')]:
         command.add_argument('--compiler', type=Path, required=True)
         command.add_argument('--work', type=Path, required=True)
         command.add_argument('--receipt', type=Path, required=True)
     args = p.parse_args()
-    {'reference': reference, 'selftest': selftest}[args.command](args)
+    for name in ('compile_timeout', 'test_timeout', 'mode_timeout'):
+        value = getattr(args, name, 1)
+        if not math.isfinite(value) or value <= 0:
+            p.error(name.replace('_', '-') + ' must be finite and positive')
+    {'reference': reference, 'selftest': selftest, '_mode': mode_worker}[args.command](args)
 
 
 if __name__ == '__main__':
+    def cancelled(signum, frame):
+        raise KeyboardInterrupt('oracle cancelled')
+    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
+        signal.signal(sig, cancelled)
     main()

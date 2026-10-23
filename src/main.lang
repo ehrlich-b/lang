@@ -81,6 +81,7 @@ func path_dirname(path *u8) *u8 {
 
 func init_resource_root(argv0 *u8) void {
     phase_compiler_path = argv0;
+    phase_install_isolated_fixture_hook();
     var configured *u8 = getenv("LANG_ROOT");
     if configured != nil && *configured != 0 {
         cg_resource_root = configured;
@@ -497,7 +498,7 @@ func scaffold_reader_source(name *u8) *u8 {
     append_str(&source, &len, &source_cap, "    var tree *PNode = parse_");
     append_str(&source, &len, &source_cap, name);
     append_str(&source, &len, &source_cap, "_program(tokens);\n");
-    append_str(&source, &len, &source_cap, "    if tree == nil || !tok_eof(tokens) {\n");
+    append_str(&source, &len, &source_cap, "    var complete bool = false;\n    if tree != nil { complete = tok_expect_end(tokens); }\n    if !complete {\n");
     append_str(&source, &len, &source_cap, "        tok_print_error(tokens, \"");
     append_str(&source, &len, &source_cap, name);
     append_str(&source, &len, &source_cap, "\"); return nil;\n");

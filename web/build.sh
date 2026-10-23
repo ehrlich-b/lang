@@ -5,7 +5,13 @@ set -e
 cd "$(dirname "$0")/.."
 
 EXAMPLES="fib mandelbrot polyglot_wasm"
-COMPILER=${COMPILER:-./out/lang}
+if [ -z "${COMPILER:-}" ]; then
+    make build
+    COMPILER=./out/lang_next
+fi
+COMPILER_RECEIPT=${COMPILER_RECEIPT:-out/build-receipt.json}
+export COMPILER_RECEIPT
+python3 scripts/build_receipt.py check --input "$COMPILER_RECEIPT" --compiler "$COMPILER"
 WASM_LDFLAGS="-Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined -Wl,-z,stack-size=8388608"
 
 # Apple clang does not ship the wasm target. Match the test suite's tool lookup
@@ -37,3 +43,8 @@ for e in $EXAMPLES; do
 done
 
 COMPILER="$COMPILER" WASM_CLANG="$WASM_CLANG" ./web/build_compiler.sh
+python3 scripts/build_receipt.py web --input "$COMPILER_RECEIPT" --compiler "$COMPILER" \
+    --output web/receipt.json --artifact web/compiler.wasm --artifact web/stdlib.json \
+    --artifact web/examples/fib.wasm --artifact web/examples/fib.lang \
+    --artifact web/examples/mandelbrot.wasm --artifact web/examples/mandelbrot.lang \
+    --artifact web/examples/polyglot_wasm.wasm --artifact web/examples/polyglot_wasm.lang

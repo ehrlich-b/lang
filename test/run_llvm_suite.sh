@@ -81,6 +81,20 @@ run_one_test() {
         fi
     fi
 
+    # Negative fixtures are passes only when compilation rejects with the
+    # specified diagnostic; they do not increase the skip inventory.
+    if head -1 "$f" | grep -q '^// reject: '; then
+        local diagnostic=$(head -1 "$f" | sed 's@^// reject: @@')
+        if LANGBE=llvm LANG_CACHE="$tmpdir/.lang-cache" $COMPILER "$f" -o "$tmpdir/rejected.ll" >"$tmpdir/rejected.out" 2>&1; then
+            echo "FAIL $name (accepted invalid representation)"; rm -rf "$tmpdir"; return 1
+        fi
+        if grep -Fq "$diagnostic" "$tmpdir/rejected.out"; then
+            echo "PASS $name (rejected unsupported representation)"; rm -rf "$tmpdir"; return 0
+        fi
+        cat "$tmpdir/rejected.out"
+        echo "FAIL $name (wrong rejection)"; rm -rf "$tmpdir"; return 1
+    fi
+
     local expected=$(head -1 "$f" | grep -o '[0-9]*')
     local outll="$tmpdir/test.ll"
     local outbin="$tmpdir/test"
@@ -93,7 +107,6 @@ run_one_test() {
             "$outbin" >/dev/null 2>&1
             result=$?
         else
-            # Use ORC JIT for ~13x faster interpretation (if available)
             do_timeout 2 lli $LLI_JIT_FLAG "$outll" >/dev/null 2>&1
             result=$?
         fi
@@ -243,6 +256,17 @@ reader_unicode_locations_e2e() {
     fi
 }
 reader_unicode_locations_e2e
+
+reader_diagnostic_bytes_e2e() {
+    local log=$(mktemp "${TMPDIR:-/tmp}/lang-results.XXXXXX")
+    if node test/reader_diagnostic_bytes.js >"$log" 2>&1; then
+        echo "PASS reader_diagnostic_bytes_e2e" >> "$results_file"
+    else
+        echo "FAIL reader_diagnostic_bytes_e2e" >> "$results_file"
+        cat "$log" >> "$results_file"
+    fi
+}
+reader_diagnostic_bytes_e2e
 
 # Reader authoring errors must be ordinary compiler failures: one diagnostic,
 # a nonzero status, and no stale or partial output that looks usable.
@@ -838,6 +862,14 @@ reader_scaffold_e2e() {
     rm -rf "$tmp"
 }
 reader_scaffold_e2e
+
+# Exercise the shipped reader, copyable guides, browser bundle, and CLI starter
+# against the same full-input contract, including AST output on failure.
+if python3 test/reader_tutorial_contract.py; then
+    echo "PASS reader_tutorial_contract" >> "$results_file"
+else
+    echo "FAIL reader_tutorial_contract" >> "$results_file"
+fi
 
 # Native authors can stop at the reader boundary, inspect/save its AST, and
 # feed that exact artifact back into the kernel without changing semantics.

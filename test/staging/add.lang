@@ -1,0 +1,5 @@
+func add(a i64, b i64) i64 { return a + b; }
+func stage_add(args *StageValue) *StageValue {
+    if stage_count(args) != 2 { stage_fail("wrong-signature"); }
+    return stage_i64(add(stage_integer(stage_at(args, 0), 5), stage_integer(stage_at(args, 1), 5)));
+}

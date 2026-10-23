@@ -74,13 +74,13 @@
       </span></div>
       <textarea id="reader" aria-label="Reader source" spellcheck="false">include "std/parser_runtime.lang"
 include "std/ast.lang"
-#parser{
-    answer_program = 'answer' value:number
-}
+#parser{ answer_program = 'answer' value:number }
 reader read(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
     var tree *PNode = parse_answer_program(tokens);
-    if tree == nil || !tok_eof(tokens) {
+    var complete bool = false;
+    if tree != nil { complete = tok_expect_end(tokens); }
+    if !complete {
         tok_print_error(tokens, "source.read"); return nil;
     }
     var value *PNode = pnode_require(tree, "value");
@@ -334,11 +334,25 @@ function focusDiagnostic(message, sourceLabel) {
     start += char.length;
   }
   let end = start;
-  const word = /[A-Za-z0-9_?]/;
-  const operator = /[+*/%=!<>&|^~\-]/;
-  const token = word.test(target.value[start] || '') ? word : operator;
-  while (end < target.value.length && token.test(target.value[end])) end++;
-  if (end === start) end = Math.min(start + 1, target.value.length);
+  const span = match[0].match(/ @(\d+):(\d+)$/);
+  if (span) {
+    const encoded = encoder.encode(target.value);
+    const from = Number(span[1]);
+    const to = Number(span[2]);
+    if (from > to || to > encoded.length) return false;
+    const decoder = new TextDecoder('utf-8', { fatal: true });
+    try {
+      start = decoder.decode(encoded.subarray(0, from)).length;
+      end = start + decoder.decode(encoded.subarray(from, to)).length;
+    } catch { return false; }
+  } else {
+    const word = /[A-Za-z0-9_?]/;
+    const operator = /[+*/%=!<>&|^~\-]/;
+    const token = word.test(target.value[start] || '') ? word : operator;
+    while (end < target.value.length && token.test(target.value[end])) end++;
+    if (end === start) end = start + (target.value.codePointAt(start) > 0xffff ? 2 : 1);
+    end = Math.min(end, target.value.length);
+  }
   target.focus();
   target.setSelectionRange(start, end);
   const style = getComputedStyle(target);
@@ -366,6 +380,10 @@ function clearDownloads() {
   downloadReader.hidden = true;
   downloadAst.hidden = true;
   downloadProgram.hidden = true;
+  for (const anchor of [downloadReader, downloadAst, downloadProgram]) {
+    anchor.removeAttribute('href');
+    anchor.removeAttribute('download');
+  }
 }
 
 function offerDownload(anchor, bytes, name, type = 'application/wasm') {

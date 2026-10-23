@@ -1,0 +1,6 @@
+var mutable_state i64 = 40;
+func stage_state(args *StageValue) *StageValue {
+    mutable_state = mutable_state + 1;
+    eprintln("fixture diagnostic on stderr");
+    return stage_i64(mutable_state);
+}

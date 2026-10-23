@@ -1,0 +1,738 @@
+[
+  {
+    "id": "create-zero",
+    "stage": "create",
+    "source": "answer 0",
+    "expected": 0
+  },
+  {
+    "id": "create-max",
+    "stage": "create",
+    "source": "answer 255",
+    "expected": 255
+  },
+  {
+    "id": "create-tail",
+    "stage": "create",
+    "source": "answer 42 answer 3",
+    "diagnostic": "expected end of input"
+  },
+  {
+    "id": "new-boundary",
+    "stage": "evolve",
+    "source": "threshold 73 value 73",
+    "expected": 1
+  },
+  {
+    "id": "new-below",
+    "stage": "evolve",
+    "source": "threshold 73 value 72",
+    "expected": 0
+  },
+  {
+    "id": "leading-zero-comment",
+    "stage": "evolve",
+    "source": "/* measurement */ threshold 007\nvalue 008 // done\n",
+    "expected": 1
+  },
+  {
+    "id": "max-below",
+    "stage": "evolve",
+    "source": "threshold 255 value 0",
+    "expected": 0
+  },
+  {
+    "id": "tail-second-query",
+    "stage": "evolve",
+    "source": "threshold 2 value 3 threshold 0 value 0",
+    "diagnostic": "expected end of input"
+  },
+  {
+    "id": "overflow",
+    "stage": "evolve",
+    "source": "threshold 256 value 2",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "huge",
+    "stage": "evolve",
+    "source": "threshold 999999999999999999999999999999 value 2",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "negative",
+    "stage": "evolve",
+    "source": "threshold -1 value 2",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "hex",
+    "stage": "evolve",
+    "source": "threshold 0x10 value 2",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "exponent",
+    "stage": "evolve",
+    "source": "threshold 1e2 value 3",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "quoted",
+    "stage": "evolve",
+    "source": "threshold \"2\" value 3",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "missing",
+    "stage": "evolve",
+    "source": "threshold 2 value",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "keyword",
+    "stage": "evolve",
+    "source": "limit 2 value 3",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "nul-tail",
+    "stage": "evolve",
+    "source": "threshold 1 value 2\u0000junk",
+    "diagnostic": "expected text without NUL"
+  },
+  {
+    "id": "oversized",
+    "stage": "evolve",
+    "source": "threshold 1 value 2 //",
+    "padding": {
+      "text": "x",
+      "repeat": 65535
+    },
+    "diagnostic": "input exceeds 65534 bytes"
+  },
+  {
+    "id": "create-unclosed-start",
+    "stage": "create",
+    "source": "/* answer 42",
+    "diagnostic": "unterminated block comment"
+  },
+  {
+    "id": "create-unclosed-middle",
+    "stage": "create",
+    "source": "answer /* 42",
+    "diagnostic": "unterminated block comment"
+  },
+  {
+    "id": "create-unclosed-after-closed",
+    "stage": "create",
+    "source": "answer 42 /**/ /*/",
+    "diagnostic": "unterminated block comment"
+  },
+  {
+    "id": "create-empty-block",
+    "stage": "create",
+    "source": "answer 42 /**/",
+    "expected": 42
+  },
+  {
+    "id": "create-comment-adjacency",
+    "stage": "create",
+    "source": "answer/**/42",
+    "expected": 42
+  },
+  {
+    "id": "create-line-ignores-block",
+    "stage": "create",
+    "source": "answer 42 // /* unclosed\r still line",
+    "expected": 42
+  },
+  {
+    "id": "create-block-ignores-line",
+    "stage": "create",
+    "source": "answer 42 /* // */",
+    "expected": 42
+  },
+  {
+    "id": "create-block-first-close",
+    "stage": "create",
+    "source": "answer 42 /* /* */",
+    "expected": 42
+  },
+  {
+    "id": "create-ascii-whitespace",
+    "stage": "create",
+    "source": " \t\n\ranswer\r\t42\n",
+    "expected": 42
+  },
+  {
+    "id": "create-comment-unicode",
+    "stage": "create",
+    "source": "answer 42 /*\u00a0\u2028\f*/",
+    "expected": 42
+  },
+  {
+    "id": "create-no-number-gap",
+    "stage": "create",
+    "source": "answer 42x",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-no-keyword-gap",
+    "stage": "create",
+    "source": "answer42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-000c-leading",
+    "stage": "create",
+    "source": "\fanswer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-000c-number",
+    "stage": "create",
+    "source": "answer\f42",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-000c-tail",
+    "stage": "create",
+    "source": "answer 42\f",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-000b-leading",
+    "stage": "create",
+    "source": "\u000banswer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-000b-number",
+    "stage": "create",
+    "source": "answer\u000b42",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-000b-tail",
+    "stage": "create",
+    "source": "answer 42\u000b",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-001c-leading",
+    "stage": "create",
+    "source": "\u001canswer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-001c-number",
+    "stage": "create",
+    "source": "answer\u001c42",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-001c-tail",
+    "stage": "create",
+    "source": "answer 42\u001c",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-001d-leading",
+    "stage": "create",
+    "source": "\u001danswer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-001d-number",
+    "stage": "create",
+    "source": "answer\u001d42",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-001d-tail",
+    "stage": "create",
+    "source": "answer 42\u001d",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-001e-leading",
+    "stage": "create",
+    "source": "\u001eanswer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-001e-number",
+    "stage": "create",
+    "source": "answer\u001e42",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-001e-tail",
+    "stage": "create",
+    "source": "answer 42\u001e",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-001f-leading",
+    "stage": "create",
+    "source": "\u001fanswer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-001f-number",
+    "stage": "create",
+    "source": "answer\u001f42",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-001f-tail",
+    "stage": "create",
+    "source": "answer 42\u001f",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-0085-leading",
+    "stage": "create",
+    "source": "\u0085answer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-0085-number",
+    "stage": "create",
+    "source": "answer\u008542",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-0085-tail",
+    "stage": "create",
+    "source": "answer 42\u0085",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-00a0-leading",
+    "stage": "create",
+    "source": "\u00a0answer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-00a0-number",
+    "stage": "create",
+    "source": "answer\u00a042",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-00a0-tail",
+    "stage": "create",
+    "source": "answer 42\u00a0",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-2000-leading",
+    "stage": "create",
+    "source": "\u2000answer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-2000-number",
+    "stage": "create",
+    "source": "answer\u200042",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-2000-tail",
+    "stage": "create",
+    "source": "answer 42\u2000",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-2028-leading",
+    "stage": "create",
+    "source": "\u2028answer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-2028-number",
+    "stage": "create",
+    "source": "answer\u202842",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-2028-tail",
+    "stage": "create",
+    "source": "answer 42\u2028",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-2029-leading",
+    "stage": "create",
+    "source": "\u2029answer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-2029-number",
+    "stage": "create",
+    "source": "answer\u202942",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-2029-tail",
+    "stage": "create",
+    "source": "answer 42\u2029",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-202f-leading",
+    "stage": "create",
+    "source": "\u202fanswer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-202f-number",
+    "stage": "create",
+    "source": "answer\u202f42",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-202f-tail",
+    "stage": "create",
+    "source": "answer 42\u202f",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-3000-leading",
+    "stage": "create",
+    "source": "\u3000answer 42",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "create-space-3000-number",
+    "stage": "create",
+    "source": "answer\u300042",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "create-space-3000-tail",
+    "stage": "create",
+    "source": "answer 42\u3000",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-unclosed-start",
+    "stage": "evolve",
+    "source": "/* threshold 10 value 10",
+    "diagnostic": "unterminated block comment"
+  },
+  {
+    "id": "evolve-unclosed-middle",
+    "stage": "evolve",
+    "source": "threshold /* 10 value 10",
+    "diagnostic": "unterminated block comment"
+  },
+  {
+    "id": "evolve-unclosed-after-closed",
+    "stage": "evolve",
+    "source": "threshold 10 value 10 /**/ /*/",
+    "diagnostic": "unterminated block comment"
+  },
+  {
+    "id": "evolve-empty-block",
+    "stage": "evolve",
+    "source": "threshold 10 value 10 /**/",
+    "expected": 1
+  },
+  {
+    "id": "evolve-comment-adjacency",
+    "stage": "evolve",
+    "source": "threshold/**/10/**/value/**/10",
+    "expected": 1
+  },
+  {
+    "id": "evolve-line-ignores-block",
+    "stage": "evolve",
+    "source": "threshold 10 value 10 // /* unclosed\r still line",
+    "expected": 1
+  },
+  {
+    "id": "evolve-block-ignores-line",
+    "stage": "evolve",
+    "source": "threshold 10 value 10 /* // */",
+    "expected": 1
+  },
+  {
+    "id": "evolve-block-first-close",
+    "stage": "evolve",
+    "source": "threshold 10 value 10 /* /* */",
+    "expected": 1
+  },
+  {
+    "id": "evolve-ascii-whitespace",
+    "stage": "evolve",
+    "source": " \t\n\rthreshold\r\t10\r\tvalue\r\t10\n",
+    "expected": 1
+  },
+  {
+    "id": "evolve-comment-unicode",
+    "stage": "evolve",
+    "source": "threshold 10 value 10 /*\u00a0\u2028\f*/",
+    "expected": 1
+  },
+  {
+    "id": "evolve-no-number-gap",
+    "stage": "evolve",
+    "source": "threshold 10 value 10x",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-no-keyword-gap",
+    "stage": "evolve",
+    "source": "threshold10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-000c-leading",
+    "stage": "evolve",
+    "source": "\fthreshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-000c-number",
+    "stage": "evolve",
+    "source": "threshold\f10 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-000c-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\f",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-000b-leading",
+    "stage": "evolve",
+    "source": "\u000bthreshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-000b-number",
+    "stage": "evolve",
+    "source": "threshold\u000b10 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-000b-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\u000b",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-001c-leading",
+    "stage": "evolve",
+    "source": "\u001cthreshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-001c-number",
+    "stage": "evolve",
+    "source": "threshold\u001c10 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-001c-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\u001c",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-001d-leading",
+    "stage": "evolve",
+    "source": "\u001dthreshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-001d-number",
+    "stage": "evolve",
+    "source": "threshold\u001d10 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-001d-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\u001d",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-001e-leading",
+    "stage": "evolve",
+    "source": "\u001ethreshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-001e-number",
+    "stage": "evolve",
+    "source": "threshold\u001e10 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-001e-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\u001e",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-001f-leading",
+    "stage": "evolve",
+    "source": "\u001fthreshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-001f-number",
+    "stage": "evolve",
+    "source": "threshold\u001f10 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-001f-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\u001f",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-0085-leading",
+    "stage": "evolve",
+    "source": "\u0085threshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-0085-number",
+    "stage": "evolve",
+    "source": "threshold\u008510 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-0085-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\u0085",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-00a0-leading",
+    "stage": "evolve",
+    "source": "\u00a0threshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-00a0-number",
+    "stage": "evolve",
+    "source": "threshold\u00a010 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-00a0-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\u00a0",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-2000-leading",
+    "stage": "evolve",
+    "source": "\u2000threshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-2000-number",
+    "stage": "evolve",
+    "source": "threshold\u200010 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-2000-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\u2000",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-2028-leading",
+    "stage": "evolve",
+    "source": "\u2028threshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-2028-number",
+    "stage": "evolve",
+    "source": "threshold\u202810 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-2028-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\u2028",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-2029-leading",
+    "stage": "evolve",
+    "source": "\u2029threshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-2029-number",
+    "stage": "evolve",
+    "source": "threshold\u202910 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-2029-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\u2029",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-202f-leading",
+    "stage": "evolve",
+    "source": "\u202fthreshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-202f-number",
+    "stage": "evolve",
+    "source": "threshold\u202f10 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-202f-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\u202f",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-3000-leading",
+    "stage": "evolve",
+    "source": "\u3000threshold 10 value 10",
+    "diagnostic": "expected keyword"
+  },
+  {
+    "id": "evolve-space-3000-number",
+    "stage": "evolve",
+    "source": "threshold\u300010 value 10",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "evolve-space-3000-tail",
+    "stage": "evolve",
+    "source": "threshold 10 value 10\u3000",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "other-overflow",
+    "stage": "evolve",
+    "source": "threshold 300 value 301",
+    "diagnostic": "expected decimal byte"
+  },
+  {
+    "id": "too-many-zeroes",
+    "stage": "evolve",
+    "source": "threshold 0000 value 1",
+    "diagnostic": "expected decimal byte"
+  }
+]

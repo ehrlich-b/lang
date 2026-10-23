@@ -1,11 +1,11 @@
-.PHONY: all init bootstrap bootstrap-local bootstrap-verify verify build release test test-suite test-all test-compiler-wasm test-direct-wasm test-run clean distclean \
+.PHONY: all init bootstrap bootstrap-local bootstrap-verify verify build release test test-lsp test-suite test-all test-worker-confinement test-compiler-wasm test-direct-wasm test-run clean distclean \
 		build-kernel build-lang-reader emit-kernel-ast emit-lang-reader-ast emit-compiler-ast \
 		seed-bootstrap test-composition test-bootstrap generate-os-layer generate-version-info llvm-verify \
 		compile run stdlib-run dev-run dev-stdlib-run status
 
 # Get git info
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-GIT_DIRTY := $(shell test -z "$$(git status --porcelain 2>/dev/null)" || echo "-dirty")
+GIT_DIRTY := $(shell test -z "$$(git status --porcelain -- src std example test/reader_locations Makefile scripts/build_receipt.py web/build.sh web/build_compiler.sh web/build_stdlib.js 2>/dev/null)" || echo "-dirty")
 VERSION := $(GIT_COMMIT)$(GIT_DIRTY)
 BOOTSTRAP_FROM := $(shell cat bootstrap/current/COMMIT 2>/dev/null || echo "unknown")
 
@@ -119,9 +119,11 @@ build:
 		$(MAKE) init; \
 	fi
 	@mkdir -p out
+	python3 scripts/build_receipt.py start --mode build --compiler $(LANG) --output out/build-input.json
 	LANGBE=llvm LANGOS=$(PLATFORM) $(LANG) std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o out/lang_dev_$(VERSION).ll
 	clang -O2 out/lang_dev_$(VERSION).ll -o out/lang_dev_$(VERSION)
 	ln -sf lang_dev_$(VERSION) $(LANG_NEXT)
+	python3 scripts/build_receipt.py finish --input out/build-input.json --compiler $(LANG_NEXT) --output out/build-receipt.json --artifact out/lang_dev_$(VERSION).ll
 	@echo "Created: $(LANG_NEXT) -> lang_dev_$(VERSION)"
 
 # ============================================================
@@ -171,6 +173,7 @@ bootstrap:
 	@echo "Bootstrap: $(BOOTSTRAP_LL)"
 	@if [ ! -f $(BOOTSTRAP_LL) ]; then echo "ERROR: $(BOOTSTRAP_LL) not found"; exit 1; fi
 	clang -O2 $(BOOTSTRAP_LL) -o $(BOOTSTRAP_VERIFY_DIR)/ctrusted
+	python3 scripts/build_receipt.py start --mode promotion --compiler $(BOOTSTRAP_VERIFY_DIR)/ctrusted --output out/bootstrap-input.json
 	@echo "Built: ctrusted from $(BOOTSTRAP_LL)"
 	@echo ""
 	@echo "┌────────────────────────────────────────────────────────────────┐"
@@ -392,6 +395,7 @@ bootstrap:
 	@# archive failure must not replace the user's stable compiler.
 	mv out/.lang_$(VERSION).ll.next out/lang_$(VERSION).ll
 	mv out/.lang.next out/lang
+	python3 scripts/build_receipt.py finish --input out/bootstrap-input.json --compiler out/lang --output out/bootstrap-receipt.json --artifact bootstrap/current/compiler_linux.ll --artifact bootstrap/current/compiler_macos.ll --artifact bootstrap/current/lang_reader/source.ast
 	@echo "Installed: out/lang (from compiler_$(PLATFORM))"
 	@rm -rf $(BOOTSTRAP_VERIFY_DIR)
 	@echo ""
@@ -420,11 +424,13 @@ bootstrap-local:
 
 # Diagnostic fixed-point check only. Promotion always uses bootstrap above.
 bootstrap-verify: LANGBE=llvm
+bootstrap-verify: LANGLIBC=libc
 bootstrap-verify: generate-os-layer generate-version-info
 	@rm -rf $(BOOTSTRAP_VERIFY_DIR)
 	@mkdir -p out out/ast $(BOOTSTRAP_VERIFY_DIR)
 	@if [ ! -f $(BOOTSTRAP_LL) ]; then echo "ERROR: $(BOOTSTRAP_LL) not found"; exit 1; fi
 	clang -O2 $(BOOTSTRAP_LL) -o $(BOOTSTRAP_VERIFY_DIR)/ctrusted
+	python3 scripts/build_receipt.py start --mode verify --compiler $(BOOTSTRAP_VERIFY_DIR)/ctrusted --output out/verify-input.json
 	@echo 'include "$(BOOTSTRAP_LIBC)"' > std/os.lang
 	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/ctrusted std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel1.ll
 	clang -O2 $(BOOTSTRAP_VERIFY_DIR)/kernel1.ll -o $(BOOTSTRAP_VERIFY_DIR)/kernel1
@@ -444,6 +450,8 @@ bootstrap-verify: generate-os-layer generate-version-info
 	@echo "AST FIXED POINT VERIFIED"
 	@shasum -a 256 $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
 	COMPILER=$(BOOTSTRAP_VERIFY_DIR)/kernel2 ./test/run_llvm_suite.sh
+
+	python3 scripts/build_receipt.py finish --input out/verify-input.json --compiler $(BOOTSTRAP_VERIFY_DIR)/kernel2 --output out/verify-receipt.json --artifact $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll --artifact $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll --artifact $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast --artifact $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
 
 # Non-promoting verification alias; never archives, installs or updates the seed.
 verify: bootstrap-verify
@@ -465,12 +473,21 @@ release:
 	@echo "Commit the release state, then run: git tag $(TAG)"
 
 # Run the test suite
-test-suite:
+test-lsp:
+	@./test/run_lsp.sh Q0
+
+test-suite: test-lsp
 	@if [ ! -x $(LANG) ]; then $(MAKE) init; fi
 	@./test/run_llvm_suite.sh
 
+# Retain test-only worker receipts outside the checkout.
+WORKER_EVIDENCE_DIR ?= $(abspath ../worker-confinement-evidence)
+test-worker-confinement:
+	python3 test/run_worker_confinement.py --output "$(WORKER_EVIDENCE_DIR)"
+	python3 test/check_worker_corpus.py --output "$(WORKER_EVIDENCE_DIR)"
+
 # Run ALL tests
-test-all: test-suite
+test-all: test-suite test-worker-confinement
 	@./test/run_wasm_suite.sh
 	@$(MAKE) test-direct-wasm
 	@./test/run_compiler_wasm.sh

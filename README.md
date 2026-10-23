@@ -170,10 +170,11 @@ make bootstrap    # Verify fixed point, run tests, promote stable compiler
 
 ```bash
 make build        # Compile from source → out/lang_next
-make run FILE=... # Compile and run a program
+make dev-run FILE=... # Compile and run with that source candidate
 ```
 
-Or use the compiler directly: `./out/lang run hello.lang`.
+Or use the source candidate directly: `./out/lang_next run hello.lang`.
+`make run` and `./out/lang` use the separately promoted stable compiler.
 
 Reader and tooling authors can inspect the exact lexer stream without parsing
 or compiling:
@@ -183,9 +184,12 @@ or compiling:
 ```
 
 Two compilers live in `out/`: **`out/lang`** is the stable compiler, promoted by
-the last successful `make bootstrap` - use this one. **`out/lang_next`** is
+the last successful `make bootstrap`. **`out/lang_next`** is
 whatever `make build` just compiled from source; it only matters when you are
-testing compiler changes you have not bootstrapped yet.
+testing the selected source before promotion. See the [identity and receipt
+contract](docs/BUILDING.md#choose-and-prove-a-compiler-identity): `make verify`
+preserves the seed and stable compiler; `make bootstrap PUBLISH_BOOTSTRAP=0`
+still promotes locally.
 
 ### Compiling programs
 

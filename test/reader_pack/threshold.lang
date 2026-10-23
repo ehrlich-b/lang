@@ -1,0 +1,14 @@
+include "test/reader_pack/common.lang"
+
+reader threshold(text *u8) *u8 {
+    if !pack_comments(text) { return nil; }
+    var tokens *Tokenizer = tok_new(text);
+    if !pack_word(tokens, "threshold") { return nil; }
+    var limit *u8 = pack_number(tokens);
+    if limit == nil { return nil; }
+    if !pack_word(tokens, "value") { return nil; }
+    var value *u8 = pack_number(tokens);
+    if value == nil { return nil; }
+    if !pack_end(tokens) { return nil; }
+    return ast_main_i64(ast_ge(ast_number(value), ast_number(limit)));
+}

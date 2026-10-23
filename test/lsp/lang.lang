@@ -1,0 +1,10 @@
+// café 🧭 keeps UTF-8 byte offsets honest.
+func outer(value i64) i64 {
+    var result i64 = value;
+    {
+        var value i64 = result;
+        result = value;
+    }
+    return result;
+}
+reader identity(text *u8) *u8 { return text; }

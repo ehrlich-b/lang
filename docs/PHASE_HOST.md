@@ -100,6 +100,11 @@ Forking is not a sandbox. Deadlines, cancellation, confinement, semantic fuel,
 phase-cycle scheduling and complete specialization/result caching are later
 services. No frontend typing or runtime memory/scheduling policy is introduced.
 
+The [worker attack corpus](WORKER_CORPUS.md) prepares bounded authority,
+cancellation and stale-publication cases with independent expected outcomes.
+Its cooperative model is test-only; native isolation remains an explicit
+failing admission outcome. It does not extend the production hook's guarantees.
+
 Run `COMPILER=out/lang_next python3 test/run_phase_host.py` for the production
 boundary tests. `PHASE_HOST_EVIDENCE` selects the artifact directory. The suite
 checks multi-megabyte source/emission/AST fidelity, malformed frames and shape,

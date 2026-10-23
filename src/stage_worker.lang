@@ -2,13 +2,17 @@
 // supplied by future engines through this hook, never implied by a fork.
 extern var ___envp **u8;
 var phase_worker_status i64 = 0;
+var phase_worker_output_len i64 = 0;
 var phase_worker_hook fn(*u8, *u8, i64) *u8 = nil;
 pub func phase_worker_call(program *u8, input *u8, len i64) *u8 {
     if phase_worker_hook == nil { return phase_exec_capture(program, input, len); }
     return phase_worker_hook(program, input, len);
 }
 pub func phase_exec_capture(program *u8, input *u8, input_len i64) *u8 {
-    phase_worker_status = 0;
+    return phase_exec_capture_mode(program, input, input_len, 0);
+}
+pub func phase_exec_capture_mode(program *u8, input *u8, input_len i64, binary i64) *u8 {
+    phase_worker_status = 0; phase_worker_output_len = 0;
     if input_len < 0 || input_len > phase_limit() { phase_error("input-limit", phase_diagnostic_source); }
     // Create pipes - pipe() writes two i32 file descriptors
     var stdin_pipe *u8 = alloc(8);
@@ -83,7 +87,9 @@ pub func phase_exec_capture(program *u8, input *u8, input_len i64) *u8 {
     os_close(stdin_write);
 
     // Continue reading until EOF; a full buffer is never an EOF indication.
-    var captured *PhaseBuffer = phase_read_fd(stdout_read, phase_limit(), phase_diagnostic_source);
+    var captured *PhaseBuffer = nil;
+    if binary == 0 { captured = phase_read_fd(stdout_read, phase_limit(), phase_diagnostic_source); }
+    else { captured = phase_worker_read_bytes(stdout_read); }
     os_close(stdout_read);
 
     // Wait for child
@@ -98,6 +104,7 @@ pub func phase_exec_capture(program *u8, input *u8, input_len i64) *u8 {
         phase_worker_status = 0 - exit_code; return nil;
     }
 
+    phase_worker_output_len = captured.len;
     return captured.data;
 }
 // Stable compatibility entry point for existing fixed-buffer clients.
@@ -113,4 +120,14 @@ pub func phase_process_status(status i64) i64 {
     var sig i64 = status & 127;
     if sig != 0 { return 128 + sig; }
     return (status / 256) % 256;
+}
+
+// Binary RPC has explicit lengths and permits zero bytes. Legacy source/text
+// readers retain the stricter phase_read_fd contract.
+func phase_worker_read_bytes(fd i64) *PhaseBuffer {
+    var b *PhaseBuffer = phase_buffer_new(phase_limit(), phase_diagnostic_source);
+    var chunk *u8 = alloc(4096); var n i64 = file_read(fd, chunk, 4096);
+    while n > 0 { phase_buffer_append(b, chunk, n); n = file_read(fd, chunk, 4096); }
+    if n < 0 { phase_error("read-failed", phase_diagnostic_source); }
+    phase_buffer_reserve(b, 0); return b;
 }

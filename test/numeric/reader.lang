@@ -1,0 +1,39 @@
+// Independent schema reader: NAME OP RESULT OPERAND ARITY STORAGE. No source-language
+// promotions or coercions: the schema supplies every numeric choice.
+include "std/ast.lang"
+include "std/tok.lang"
+reader numeric_fixture(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    var decls *u8 = ast_vec();
+    while !tok_eof(tokens) {
+    var name *u8 = tok_text(tokens); tok_next(tokens);
+    var op *u8 = tok_text(tokens); tok_next(tokens);
+    var dst *u8 = tok_text(tokens); tok_next(tokens);
+    var src *u8 = tok_text(tokens); tok_next(tokens);
+    var arity_text *u8 = tok_text(tokens);
+    var arity i64 = *arity_text - 48; tok_next(tokens);
+    var storage *u8 = tok_text(tokens); tok_next(tokens);
+    var args *u8 = ast_vec();
+    var input_a *u8 = "a"; var input_b *u8 = "b";
+    if *src == 'f' { input_a = "fa"; input_b = "fb"; }
+    if arity > 0 { ast_push(args, ast_ident(input_a)); }
+    if arity > 1 { ast_push(args, ast_ident(input_b)); }
+    var result *u8 = ast_numeric(op, dst, src, args);
+    var stmts *u8 = ast_vec();
+    if !streq(storage, "direct") {
+        ast_push(stmts, ast_var("carrier", ast_type(storage), result));
+        result = ast_ident("carrier");
+    }
+    if *dst == 'f' {
+        var bits *u8 = "u64"; if streq(dst, "f32") { bits = "u32"; }
+        result = ast_call4("__core_numeric", ast_string("bitcast"), ast_string(bits), ast_string(dst), result);
+    }
+    var params *u8 = ast_vec();
+    ast_push(params, ast_param("a", ast_type("i64"))); ast_push(params, ast_param("b", ast_type("i64")));
+    ast_push(params, ast_param("fa", ast_type("f64"))); ast_push(params, ast_param("fb", ast_type("f64")));
+    if streq(dst, "void") { ast_push(stmts, ast_expr_stmt(result)); ast_push(stmts, ast_return(ast_number("0"))); }
+    else { ast_push(stmts, ast_return(result)); }
+    ast_push(decls, ast_func(name, params, ast_type("i64"), ast_block(stmts)));
+    }
+    return ast_program(decls);
+}

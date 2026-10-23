@@ -1,0 +1,13 @@
+include "std/parser_reader.lang"
+include "std/ast.lang"
+#parser{ diagnostic_program = (('go' '!' 'more' | 'go') 'stop') | ('answer' value:number '!' 'more') | ('answer' value:number) }
+reader diagnostic(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    var tree *PNode = parse_diagnostic_program(tokens);
+    var complete bool = false;
+    if tree != nil { complete = tok_expect_end(tokens); }
+    if !complete {
+        tok_print_error(tokens, "diagnostic"); return nil;
+    }
+    return ast_main_i64(ast_int(42));
+}

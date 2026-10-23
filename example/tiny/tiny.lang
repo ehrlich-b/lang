@@ -15,5 +15,12 @@ reader tiny(text *u8) *u8 {
         return nil;
     }
 
-    return ast_main_i64(ast_number(tok_text(tokens)));
+    var value *u8 = tok_text(tokens);
+    tok_next(tokens);
+    if !tok_eof(tokens) {
+        eprintln("tiny: expected end of input");
+        return nil;
+    }
+
+    return ast_main_i64(ast_number(value));
 }
