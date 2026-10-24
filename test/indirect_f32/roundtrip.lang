@@ -1,0 +1,52 @@
+// Independent binary32 pointer oracle; the host checks frozen words.
+var cell f32 = 0;
+func write_value(p *f32, v f32) { *p = v; }
+func read_value(p *f32) f32 { return *p; }
+func f32_bits(index i64) i64 {
+    var p *f32 = &cell;
+    var alias *f32 = p;
+    if index == 0 { *p = 0.1; }
+    if index == 1 { *alias = -0.0; }
+    if index == 2 { *p = 0.0; }
+    if index == 3 { *alias = 16777217; }
+    if index == 4 { *p = 16777219; }
+    if index == 5 { *p = -16777217; }
+    if index == 6 { *p = 0.00000000000000000000000000000000000000000000140129846432481707092372958328991613128026194187651577175706828388979108268586060148663818836212158203125; }
+    if index == 7 { *p = 340282346638528859811704183484516925440.0; }
+    if index == 8 { *p = __core_numeric("bitcast", "f32", "u32", 1075838976); }
+    if index == 9 {
+        var local f32 = __core_numeric("bitcast", "f32", "u32", 0);
+        var lp *f32 = &local;
+        var la *f32 = lp;
+        *la = 0.1;
+        *p = *lp;
+    }
+    if index == 10 {
+        var explicit f32 = __core_numeric("bitcast", "f32", "u32", 2147483648);
+        write_value(alias, explicit);
+    }
+    if index == 11 { *p = cast(f32, 16777219); }
+    if index == 12 { *(&*p) = 1.000000059604644775390625000000000001; }
+    if index == 13 {
+        var local f32 = read_value(p);
+        var lp *f32 = &local;
+        *lp = 16777217;
+        write_value(alias, *lp);
+    }
+    if index == 14 { (*p) = 2.5; }
+    if index == 15 { *(&cell) = 0.1; }
+    if index == 16 {
+        *p = 2.5;
+        var wide f64 = __core_numeric("convert", "f64", "f32", *p);
+        *p = __core_numeric("convert", "f32", "f64", wide);
+    }
+    var result f32 = *alias;
+    return __core_numeric("bitcast", "u32", "f32", result);
+}
+func i64_control() i64 {
+    var n i64 = 16777219;
+    var p *i64 = &n;
+    var alias *i64 = p;
+    *alias = *p + 23;
+    return n;
+}

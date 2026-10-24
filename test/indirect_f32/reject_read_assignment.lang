@@ -1,0 +1,1 @@
+func bad(p *f32) { var n i64 = 0; n = *p; }

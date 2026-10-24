@@ -1,0 +1,51 @@
+{
+  "format": "Handwritten IEEE-754 binary32 words, independent of compiler output and host float arithmetic. Integer ties use 24 significant bits and ties to even.",
+  "roundtrip.lang": [
+    "3dcccccd",
+    "80000000",
+    "00000000",
+    "4b800000",
+    "4b800002",
+    "cb800000",
+    "00000001",
+    "7f7fffff",
+    "40200000",
+    "3dcccccd",
+    "80000000",
+    "4b800002",
+    "3f800001",
+    "4b800000",
+    "40200000",
+    "3dcccccd",
+    "40200000"
+  ],
+  "roundtrip.ast": [
+    "4b800000",
+    "4b800002",
+    "80000000",
+    "00000001",
+    "cb800000"
+  ],
+  "i64_control": 16777242,
+  "rejections": {
+    "reject_integer.lang": "f32 pointer assignment requires a numeric literal or an explicit f32 value",
+    "reject_double.lang": "f32 pointer assignment requires a numeric literal or an explicit f32 value",
+    "reject_nil.lang": "f32 pointer assignment requires a numeric literal or an explicit f32 value",
+    "reject_string.lang": "f32 pointer assignment requires a numeric literal or an explicit f32 value",
+    "reject_expression.lang": "f32 pointer assignment requires a numeric literal or an explicit f32 value",
+    "reject_f32_unary.lang": "f32 pointer assignment does not support this unary expression",
+    "reject_double_call.lang": "f32 pointer assignment requires a numeric literal or an explicit f32 value",
+    "reject_overflow.lang": "outside finite range",
+    "reject_integer.ast": "f32 pointer assignment requires a numeric literal or an explicit f32 value",
+    "reject_read_i64.lang": "f32 pointer read requires an f32 destination or an explicit numeric conversion",
+    "reject_read_f64.lang": "f32 pointer read requires an f32 destination or an explicit numeric conversion",
+    "reject_read_assignment.lang": "f32 pointer read requires an f32 destination or an explicit numeric conversion",
+    "reject_read_return.lang": "f32 pointer read requires an f32 destination or an explicit numeric conversion",
+    "reject_read_argument.lang": "f32 pointer read requires an f32 destination or an explicit numeric conversion",
+    "reject_read_negation.lang": "f32 pointer read requires an f32 destination or an explicit numeric conversion",
+    "reject_read_if.lang": "f32 pointer read requires an f32 destination or an explicit numeric conversion",
+    "reject_read_while.lang": "f32 pointer read requires an f32 destination or an explicit numeric conversion",
+    "reject_read_index.lang": "f32 pointer read requires an f32 destination or an explicit numeric conversion",
+    "reject_read_let.lang": "f32 pointer read requires an f32 destination or an explicit numeric conversion"
+  }
+}

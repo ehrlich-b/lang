@@ -1,0 +1,1 @@
+func bad(p *f32) { while *p {} }

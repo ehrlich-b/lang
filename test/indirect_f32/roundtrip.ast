@@ -1,0 +1,27 @@
+(program
+ (var cell (type_base f32) (number 0))
+ (func put ((param p (type_ptr (type_base f32))) (param v (type_base f32))) (type_base void)
+  (block (assign (unop * (ident p)) (ident v))))
+ (func f32_bits ((param index (type_base i64))) (type_base i64)
+  (block
+   (var p (type_ptr (type_base f32)) (unop & (ident cell)))
+   (var alias (type_ptr (type_base f32)) (ident p))
+   (if (binop == (ident index) (number 0)) (block (assign (unop * (ident p)) (number 16777217))))
+   (if (binop == (ident index) (number 1)) (block (assign (unop * (ident alias)) (number 16777219))))
+   (if (binop == (ident index) (number 2))
+    (block
+     (var explicit (type_base f32) (call (ident __core_numeric) (string "bitcast") (string "f32") (string "u32") (number 2147483648)))
+     (expr_stmt (call (ident put) (ident p) (ident explicit)))))
+   (if (binop == (ident index) (number 3))
+    (block
+     (var local (type_base f32) (call (ident __core_numeric) (string "bitcast") (string "f32") (string "u32") (number 1)))
+     (var lp (type_ptr (type_base f32)) (unop & (ident local)))
+     (assign (unop * (ident alias)) (unop * (ident lp)))))
+   (if (binop == (ident index) (number 4)) (block (assign (unop * (ident p)) (unop - (number 16777217)))))
+   (return (call (ident __core_numeric) (string "bitcast") (string "u32") (string "f32") (unop * (ident alias))))))
+ (func i64_control () (type_base i64)
+  (block
+   (var n (type_base i64) (number 16777219))
+   (var p (type_ptr (type_base i64)) (unop & (ident n)))
+   (assign (unop * (ident p)) (binop + (unop * (ident p)) (number 23)))
+   (return (ident n)))))

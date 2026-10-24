@@ -827,6 +827,17 @@ func llvm_is_numeric_literal(expr *u8) i64 {
     return node_kind(expr) == NODE_NUMBER_EXPR;
 }
 
+// A dereferenced f32 is a float SSA value. Legacy storage and call sites
+// cannot supply an implicit integer/double conversion for it.
+func llvm_validate_f32_pointer_read(expr *u8, destination *u8) void {
+    if expr == nil { return; }
+    while node_kind(expr) == NODE_GROUP_EXPR { expr = group_expr_expr(expr); }
+    if node_kind(expr) == NODE_UNARY_EXPR && unary_expr_op(expr) == TOKEN_STAR &&
+       llvm_is_f32_type(llvm_get_expr_type(expr)) && !llvm_is_f32_type(destination) {
+        numeric_fail(expr, "f32 pointer read requires an f32 destination or an explicit numeric conversion");
+    }
+}
+
 func llvm_f32_array_numeric_call(expr *u8) i64 {
     while node_kind(expr) == NODE_GROUP_EXPR { expr = group_expr_expr(expr); }
     if !numeric_is_call(expr) { return 0; }
@@ -1456,6 +1467,7 @@ func llvm_emit_index_addr(expr *u8) i64 {
     var elem_type *u8 = llvm_get_expr_type(expr);
     var is_array i64 = base_type != nil && type_kind(base_type) == TYPE_ARRAY;
 
+    llvm_validate_f32_pointer_read(index_expr_index(expr), nil);
     llvm_emit_expr(index_expr_index(expr));
     var index_val *u8 = str_dup(llvm_expr_result);
     if is_array {
@@ -2121,6 +2133,11 @@ func llvm_emit_expr_inner(expr *u8) void {
         while i < arg_count {
             var arg_ptr *u8 = args + (i * 8);
             var arg **u8 = arg_ptr;
+            var destination *u8 = nil;
+            if known_func != nil && i < func_decl_param_count(known_func) {
+                destination = param_type(func_decl_params(known_func) + i * 24);
+            }
+            llvm_validate_f32_pointer_read(*arg, destination);
             llvm_emit_expr(*arg);
             *(arg_vals + i) = str_dup(llvm_expr_result);
             i = i + 1;
@@ -2640,6 +2657,7 @@ func llvm_emit_expr_inner(expr *u8) void {
 
         // Check for assignment first (op == 32 is TOKEN_EQ)
         if op == 32 {
+            llvm_validate_f32_pointer_read(right, llvm_get_expr_type(left));
             // Assignment: store to left (must be ident)
             if node_kind(left) == NODE_IDENT_EXPR {
                 var name *u8 = ident_expr_name(left);
@@ -3267,7 +3285,14 @@ func llvm_emit_expr_inner(expr *u8) void {
                     // ptrtoint converts pointer to integer
                     llvm_emit_str("    %t");
                     llvm_emit_int(temp);
-                    if alloc_size > 8 {
+                    if llvm_is_f32_type(inner_type) {
+                        llvm_emit_str(" = ptrtoint float* ");
+                        if find_local(name, len) < 0 && find_global(name, len) >= 0 {
+                            llvm_emit_str("@");
+                        } else {
+                            llvm_emit_str("%");
+                        }
+                    } else if alloc_size > 8 {
                         llvm_emit_str(" = ptrtoint [");
                         llvm_emit_int(alloc_size);
                         llvm_emit_str(" x i8]* %");
@@ -3373,13 +3398,18 @@ func llvm_emit_expr_inner(expr *u8) void {
                         }
                     }
                 }
+            } else if node_kind(inner) == NODE_UNARY_EXPR && unary_expr_op(inner) == TOKEN_STAR &&
+                      llvm_is_f32_type(llvm_get_expr_type(inner)) {
+                // &*p preserves the address without loading the f32 value.
+                llvm_emit_expr(unary_expr_expr(inner));
             } else {
-                // For other cases (like &*ptr), evaluate inner
                 llvm_emit_expr(inner);
             }
             return;
         }
 
+        // Legacy negation/logical operators consume integer carriers.
+        if op != TOKEN_STAR { llvm_validate_f32_pointer_read(inner, nil); }
         // For other unary ops, evaluate inner first
         llvm_emit_expr(inner);
         var inner_val *u8 = str_dup(llvm_expr_result);
@@ -3409,7 +3439,7 @@ func llvm_emit_expr_inner(expr *u8) void {
             llvm_set_result_temp(temp);
         } else if op == 27 {  // TOKEN_STAR (dereference *p)
             // Get the type of what we're dereferencing
-            var ptr_type *u8 = get_expr_type(inner);
+            var ptr_type *u8 = llvm_get_expr_type(inner);
             var elem_type *u8 = get_pointed_type(ptr_type);
             var size i64 = 8;
             if elem_type != nil {
@@ -3418,7 +3448,20 @@ func llvm_emit_expr_inner(expr *u8) void {
 
             var ptr_temp i64 = llvm_next_temp();
 
-            if size == 1 {
+            if llvm_is_f32_type(elem_type) {
+                // Pointer values use integer carriers; the pointee stays float.
+                llvm_emit_str("    %t");
+                llvm_emit_int(ptr_temp);
+                llvm_emit_str(" = inttoptr i64 ");
+                llvm_emit_str(inner_val);
+                llvm_emit_line(" to float*");
+                llvm_emit_str("    %t");
+                llvm_emit_int(temp);
+                llvm_emit_str(" = load float, float* %t");
+                llvm_emit_int(ptr_temp);
+                llvm_emit_char(10);
+                llvm_expr_is_float = 1;
+            } else if size == 1 {
                 // Load i8, then zext to i64
                 llvm_emit_str("    %t");
                 llvm_emit_int(ptr_temp);
@@ -3542,6 +3585,7 @@ func llvm_emit_expr_inner(expr *u8) void {
         llvm_emit_char(10);
 
         // Generate init expression
+        llvm_validate_f32_pointer_read(let_expr_init(expr), var_type);
         llvm_emit_expr(let_expr_init(expr));
         var init_val *u8 = str_dup(llvm_expr_result);
 
@@ -5166,6 +5210,7 @@ func llvm_emit_stmt_inner(stmt *u8) void {
         if ret_expr == nil {
             llvm_emit_line("    ret void");
         } else {
+            llvm_validate_f32_pointer_read(ret_expr, llvm_current_ret_type);
             llvm_emit_expr(ret_expr);
             var val *u8 = str_dup(llvm_expr_result);
 
@@ -5232,6 +5277,7 @@ func llvm_emit_stmt_inner(stmt *u8) void {
         var end_label i64 = llvm_next_label();
 
         // Emit condition
+        llvm_validate_f32_pointer_read(cond, nil);
         llvm_emit_expr(cond);
         var cond_val *u8 = str_dup(llvm_expr_result);
 
@@ -5323,6 +5369,7 @@ func llvm_emit_stmt_inner(stmt *u8) void {
         llvm_emit_str("L");
         llvm_emit_int(cond_label);
         llvm_emit_line(":");
+        llvm_validate_f32_pointer_read(cond, nil);
         llvm_emit_expr(cond);
         var cond_val *u8 = str_dup(llvm_expr_result);
 
@@ -5632,6 +5679,7 @@ func llvm_emit_stmt_inner(stmt *u8) void {
                 }
             }
 
+            llvm_validate_f32_pointer_read(init, var_type);
             var init_val *u8 = nil;
             if numeric_is_call(init) && var_type != nil && llvm_is_float_type(var_type) {
                 var target_type *u8 = str_dup_n(base_type_name(var_type), base_type_name_len(var_type));
@@ -5799,6 +5847,7 @@ func llvm_emit_stmt_inner(stmt *u8) void {
     if k == NODE_ASSIGN_STMT {
         var target *u8 = assign_stmt_target(stmt);
         var value *u8 = assign_stmt_value(stmt);
+        llvm_validate_f32_pointer_read(value, llvm_get_expr_type(target));
 
         // Global f32 storage consumes a float, rather than the legacy double
         // carrier. Literal assignments use the same exact rounding as their
@@ -5820,6 +5869,30 @@ func llvm_emit_stmt_inner(stmt *u8) void {
                 }
             }
         }
+        // An indirect f32 store has the same exact literal and explicit-value
+        // policy as direct f32 storage. Validate before evaluating either side.
+        var indirect_target *u8 = target;
+        while node_kind(indirect_target) == NODE_GROUP_EXPR {
+            indirect_target = group_expr_expr(indirect_target);
+        }
+        if node_kind(indirect_target) == NODE_UNARY_EXPR && unary_expr_op(indirect_target) == TOKEN_STAR {
+            var pointee *u8 = llvm_get_expr_type(indirect_target);
+            if llvm_is_f32_type(pointee) {
+                target = indirect_target;
+                if llvm_is_numeric_literal(value) {
+                    val = llvm_f32_literal_value(value);
+                } else if llvm_numeric_native_f32(value) || llvm_f32_array_numeric_call(value) {
+                    var operand *u8 = value;
+                    while node_kind(operand) == NODE_GROUP_EXPR { operand = group_expr_expr(operand); }
+                    if node_kind(operand) == NODE_UNARY_EXPR && unary_expr_op(operand) != TOKEN_STAR {
+                        numeric_fail(value, "f32 pointer assignment does not support this unary expression; use an explicit numeric operation");
+                    }
+                    val = llvm_numeric_normalize(stmt, value, "f32");
+                } else {
+                    numeric_fail(value, "f32 pointer assignment requires a numeric literal or an explicit f32 value");
+                }
+            }
+        }
         if val == nil {
             llvm_emit_expr(value);
             val = str_dup(llvm_expr_result);
@@ -5831,7 +5904,7 @@ func llvm_emit_stmt_inner(stmt *u8) void {
             if target_op == 27 {  // TOKEN_STAR (dereference)
                 // Get the pointer value and type info
                 var ptr_expr *u8 = unary_expr_expr(target);
-                var ptr_type *u8 = get_expr_type(ptr_expr);
+                var ptr_type *u8 = llvm_get_expr_type(ptr_expr);
                 var elem_type *u8 = get_pointed_type(ptr_type);
                 var size i64 = 8;
                 if elem_type != nil {
@@ -5843,7 +5916,18 @@ func llvm_emit_stmt_inner(stmt *u8) void {
 
                 var ptr_temp i64 = llvm_next_temp();
 
-                if size == 1 {
+                if llvm_is_f32_type(elem_type) {
+                    llvm_emit_str("    %t");
+                    llvm_emit_int(ptr_temp);
+                    llvm_emit_str(" = inttoptr i64 ");
+                    llvm_emit_str(ptr_val);
+                    llvm_emit_line(" to float*");
+                    llvm_emit_str("    store float ");
+                    llvm_emit_str(val);
+                    llvm_emit_str(", float* %t");
+                    llvm_emit_int(ptr_temp);
+                    llvm_emit_char(10);
+                } else if size == 1 {
                     // Truncate value to i8 and store
                     var trunc_temp i64 = llvm_next_temp();
                     llvm_emit_str("    %t");

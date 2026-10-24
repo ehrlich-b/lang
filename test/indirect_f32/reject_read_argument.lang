@@ -1,0 +1,1 @@
+func consume(n i64) {} func bad(p *f32) { consume(*p); }
