@@ -1,0 +1,5 @@
+// Unsupported storage is rejected at the declaration.
+func main() i64 {
+    var bad [0]void;
+    return 0;
+}

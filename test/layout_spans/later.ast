@@ -1,0 +1,1 @@
+(program (func main () (type_base i64) (block (span 12 17 (var bad (type_array 0 (type_base void)))) (return (number 0)))))

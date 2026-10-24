@@ -28,9 +28,15 @@ strides, unsupported types and wasm32 layout constants.
 
 `rejections.json` specifies handwritten inputs, diagnostics, supplied spans and
 expected diagnostic locations. In `diagnostic.read`, [4,7) is `bad`, line 2,
-column 3. Invalid numeric operations preserve that span. The current layout
-rejection of `[0]void` loses the declaration span and reports line 1, column 1;
-the checker records and verifies that limitation. Counts 2^63, 2^64-1 and nested
+column 3. Invalid numeric operations preserve that span. The baseline layout
+rejection of `[0]void` reported line 1, column 1 despite the supplied span.
+The emitter now carries the originating node to layout failures, and the
+candidate expectation for `unsupported-zero.ast` is the preserved 2:3.
+`test/run_layout_spans.py` independently checks core and Lang locations,
+nested declarations, shifted valid spans and invalid-span refusal. Unwrapped
+core nodes bound with `--ast-source` retain the reader invocation's 1:1 origin;
+genuinely spanless core without that source uses the plain `error:` fallback.
+Counts 2^63, 2^64-1 and nested
 2^32 counts reject in the core parser with `span-overflow`; negative counts use
 `invalid-span-number`. These are current parser diagnostics, not proof that
 layout accepted those counts. Lang's signed-count rejection is checked under

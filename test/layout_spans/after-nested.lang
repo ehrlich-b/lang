@@ -1,0 +1,8 @@
+func main() i64 {
+    if 1 {
+        var good [1]i64;
+    }
+
+    var bad [0]void;
+    return 0;
+}

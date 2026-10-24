@@ -28,10 +28,10 @@
     },
     "located": true,
     "expected_location": {
-      "line": 1,
-      "column": 1
+      "line": 2,
+      "column": 3
     },
-    "span_preserved": false
+    "span_preserved": true
   },
   {
     "input": "signed-overflow.ast",

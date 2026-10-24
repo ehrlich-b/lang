@@ -1,0 +1,15 @@
+{
+  "explicit.ast": [2, 3],
+  "shifted.ast": [2, 2],
+  "later.ast": [3, 5],
+  "nested.ast": [3, 5],
+  "after-nested.ast": [4, 7],
+  "global.ast": [2, 3],
+  "signature.ast": [3, 5],
+  "invocation-fallback.ast": [1, 1],
+  "spanless.ast": null,
+  "local.lang": [3, 9],
+  "nested.lang": [4, 13],
+  "after-nested.lang": [6, 9],
+  "global.lang": [2, 1]
+}
