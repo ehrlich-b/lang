@@ -1,0 +1,14 @@
+var g f32 = 0.1;
+var source f32 = 1.000000059604644775390625000000000001;
+func f32_bits(index i64) i64 {
+    if index == 1 { g = 16777219; }
+    if index == 2 { g = -0.0; }
+    if index == 3 { g = source; }
+    if index == 4 { g = __core_numeric("bitcast", "f32", "u32", 1); }
+    if index == 5 {
+        var local f32 = __core_numeric("bitcast", "f32", "u32", 1075838976);
+        g = local;
+    }
+    if index == 6 { g = 1.000000059604644775390625000000000001; }
+    return __core_numeric("bitcast", "u32", "f32", g);
+}

@@ -59,3 +59,13 @@ module is published. Integer literals outside i64 and decimals rounding beyond
 finite binary32 receive range diagnostics. This does not extend f64 aggregates,
 reader syntax, full aggregate layout or the ABI. Decimal core-reader syntax
 remains unsupported.
+
+Global f32 scalars use the same literal conversion and float storage. Their
+loads and assignments retain float representation; literal assignments also
+round through the shared conversion, while other assignments require an
+explicit f32 value. Nonliteral global initializers are rejected before module
+publication. `test/run_global_f32_scalars.py --compiler /path/to/compiler
+--evidence /path/outside/checkout` executes frozen scalar words and mutation
+checks on native x86-64 and LLVM-to-Wasm/Node at O0/O2, including malformed IR
+and wrong-bit controls. Integer fixtures have independent handwritten core
+inputs; decimal fixtures remain Lang-only.

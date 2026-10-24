@@ -5800,9 +5800,30 @@ func llvm_emit_stmt_inner(stmt *u8) void {
         var target *u8 = assign_stmt_target(stmt);
         var value *u8 = assign_stmt_value(stmt);
 
-        // Emit value
-        llvm_emit_expr(value);
-        var val *u8 = str_dup(llvm_expr_result);
+        // Global f32 storage consumes a float, rather than the legacy double
+        // carrier. Literal assignments use the same exact rounding as their
+        // declarations; other values must already have an f32 representation.
+        var val *u8 = nil;
+        if node_kind(target) == NODE_IDENT_EXPR {
+            var target_name *u8 = ident_expr_name(target);
+            var target_len i64 = ident_expr_name_len(target);
+            if find_local(target_name, target_len) < 0 {
+                var target_global i64 = find_global(target_name, target_len);
+                if target_global >= 0 && llvm_is_f32_type(global_get_type(target_global)) {
+                    if llvm_is_numeric_literal(value) {
+                        val = llvm_f32_literal_value(value);
+                    } else if llvm_numeric_native_f32(value) || llvm_f32_array_numeric_call(value) {
+                        val = llvm_numeric_normalize(stmt, value, "f32");
+                    } else {
+                        numeric_fail(value, "f32 global assignment requires a numeric literal or an explicit f32 value");
+                    }
+                }
+            }
+        }
+        if val == nil {
+            llvm_emit_expr(value);
+            val = str_dup(llvm_expr_result);
+        }
 
         // Check for dereference assignment (*p = value)
         if node_kind(target) == NODE_UNARY_EXPR {
@@ -7312,6 +7333,21 @@ func llvm_emit_decl_inner(decl *u8) void {
 
         // Skip extern vars - they reference codegen-defined globals like ___envp
         if is_extern {
+            return;
+        }
+
+        if llvm_is_f32_type(var_type) {
+            var scalar_value *u8 = "0.0";
+            if init != nil {
+                if !llvm_is_numeric_literal(init) {
+                    numeric_fail(init, "f32 global initializer requires a numeric literal");
+                }
+                scalar_value = llvm_f32_literal_value(init);
+            }
+            llvm_emit_str("@");
+            llvm_emit_n(name, name_len);
+            llvm_emit_str(" = global float ");
+            llvm_emit_line(scalar_value);
             return;
         }
 

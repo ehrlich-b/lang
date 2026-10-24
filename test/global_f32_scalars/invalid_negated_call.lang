@@ -1,0 +1,3 @@
+var other f32 = 1;
+func get() f32 { return other; }
+var g f32 = -get();

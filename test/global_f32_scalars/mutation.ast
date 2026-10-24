@@ -1,0 +1,9 @@
+(program
+ (var value (type_base f32) (number 0))
+ (var source (type_base f32) (number 16777219))
+ (func f32_bits ((param index (type_base i64))) (type_base i64)
+  (block
+   (if (binop == (ident index) (number 1)) (block (assign (ident value) (number 16777217))))
+   (if (binop == (ident index) (number 2)) (block (assign (ident value) (ident source))))
+   (if (binop == (ident index) (number 3)) (block (assign (ident value) (call (ident __core_numeric) (string "bitcast") (string "f32") (string "u32") (number 2147483648)))))
+   (return (call (ident __core_numeric) (string "bitcast") (string "u32") (string "f32") (ident value))))))

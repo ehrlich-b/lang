@@ -1,0 +1,31 @@
+// Independent scalar declarations exercise the shared integer-to-binary32 path.
+var g0 f32 = 0;
+var g1 f32 = 1;
+var g2 f32 = -1;
+var g3 f32 = (16777217);
+var g4 f32 = 16777219;
+var g5 f32 = -16777217;
+var g6 f32 = -(16777219);
+var g7 f32 = 33554435;
+var g8 f32 = 2147483647;
+var g9 f32 = -2147483648;
+var g10 f32 = 9223372036854775807;
+var g11 f32 = -9223372036854775808;
+var g12 f32 = -(-3);
+var g13 f32;
+func f32_bits(index i64) i64 {
+    if index == 0 { return __core_numeric("bitcast", "u32", "f32", g0); }
+    if index == 1 { return __core_numeric("bitcast", "u32", "f32", g1); }
+    if index == 2 { return __core_numeric("bitcast", "u32", "f32", g2); }
+    if index == 3 { return __core_numeric("bitcast", "u32", "f32", g3); }
+    if index == 4 { return __core_numeric("bitcast", "u32", "f32", g4); }
+    if index == 5 { return __core_numeric("bitcast", "u32", "f32", g5); }
+    if index == 6 { return __core_numeric("bitcast", "u32", "f32", g6); }
+    if index == 7 { return __core_numeric("bitcast", "u32", "f32", g7); }
+    if index == 8 { return __core_numeric("bitcast", "u32", "f32", g8); }
+    if index == 9 { return __core_numeric("bitcast", "u32", "f32", g9); }
+    if index == 10 { return __core_numeric("bitcast", "u32", "f32", g10); }
+    if index == 11 { return __core_numeric("bitcast", "u32", "f32", g11); }
+    if index == 12 { return __core_numeric("bitcast", "u32", "f32", g12); }
+    return __core_numeric("bitcast", "u32", "f32", g13);
+}
