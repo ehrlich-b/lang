@@ -13,6 +13,7 @@ import platform
 from pathlib import Path
 import re
 import resource
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,32 @@ def require(condition, message):
 
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def command_inputs(command, cwd, inputs):
+    """Hash the executable and explicitly declared file operands before execution.
+
+    Operand roles belong to the call site: flags, scalar arguments and output
+    destinations must never become inputs merely because a file exists there.
+    Resolve relative operands exactly where the subprocess will execute them.
+    """
+    cwd = Path(cwd)
+    executable = command[0]
+    if not Path(executable).is_absolute() and '/' not in executable:
+        search_path = os.pathsep.join(str((cwd / entry).resolve())
+                                      for entry in os.get_exec_path())
+        executable = shutil.which(executable, path=search_path)
+        require(executable is not None, 'missing executable: ' + command[0])
+    paths = [executable, *inputs]
+    hashes = {}
+    for operand in paths:
+        require(str(operand) in command or operand == executable,
+                'declared input absent from argv: ' + str(operand))
+        path = Path(operand)
+        path = (path if path.is_absolute() else cwd / path).resolve()
+        require(path.is_file(), 'missing command input: ' + str(path))
+        hashes[str(path)] = digest(path)
+    return hashes
 
 
 def audit(root):
@@ -84,12 +111,12 @@ def main():
         require(hashlib.sha256(committed).hexdigest() == sha,
                 'witness input differs from committed HEAD: ' + name)
 
-    def run(command, expected=0, diagnostic=None):
+    def run(command, expected=0, diagnostic=None, *, inputs=()):
         command = [str(x) for x in command]
         if '--emit-expanded-ast' in command:
-            require(Path(command[command.index('-o') + 1]).resolve().is_relative_to(out),
+            require((ROOT / command[command.index('-o') + 1]).resolve().is_relative_to(out),
                     'generated AST must stay in external evidence')
-        input_hashes = {str(Path(x).resolve()): digest(x) for x in command if Path(x).is_file()}
+        input_hashes = command_inputs(command, ROOT, inputs)
         r = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, timeout=240)
         n = len(rows)
         stdout, stderr = out / f'{n}.stdout', out / f'{n}.stderr'
@@ -105,12 +132,14 @@ def main():
 
     audit(ROOT)
     # The real receipt checker must run before any compiler evidence is trusted.
-    run([sys.executable, 'scripts/build_receipt.py', 'check', '--input', receipt, '--compiler', compiler])
+    run([sys.executable, 'scripts/build_receipt.py', 'check', '--input', receipt, '--compiler', compiler],
+        inputs=['scripts/build_receipt.py', receipt, compiler])
     original = json.loads(receipt.read_text())
     require(not original['source']['dirty'], 'witness requires a clean committed build')
     for optimized in (False, True):
         python = [sys.executable] + (['-O'] if optimized else [])
-        run(python + ['scripts/build_receipt.py', 'check', '--input', receipt, '--compiler', compiler])
+        run(python + ['scripts/build_receipt.py', 'check', '--input', receipt, '--compiler', compiler],
+            inputs=['scripts/build_receipt.py', receipt, compiler])
         mutations = [
             ('compiler', lambda x: x['compiler'].update(sha256='0' * 64), 'compiler hash mismatch'),
             ('source', lambda x: x['source']['inputs'].update({'src/layout.lang': '0' * 64}), 'source inputs changed'),
@@ -121,10 +150,12 @@ def main():
             value = copy.deepcopy(original); mutate(value)
             bad = out / f'bad-{label}-{optimized}.json'
             bad.write_text(json.dumps(value))
-            run(python + ['scripts/build_receipt.py', 'check', '--input', bad, '--compiler', compiler], 1, message)
+            run(python + ['scripts/build_receipt.py', 'check', '--input', bad, '--compiler', compiler], 1, message,
+                inputs=['scripts/build_receipt.py', bad, compiler])
         # Actual previous compiler bytes, not only a tampered receipt field.
         run(python + ['scripts/build_receipt.py', 'check', '--input', receipt,
-                      '--compiler', ROOT / 'out/bootstrap_verify/ctrusted'], 1, 'compiler hash mismatch')
+                      '--compiler', ROOT / 'out/bootstrap_verify/ctrusted'], 1, 'compiler hash mismatch',
+            inputs=['scripts/build_receipt.py', receipt, ROOT / 'out/bootstrap_verify/ctrusted'])
     # Introduce a reader-local implementation into an external copy. Neither
     # timestamp tricks nor rewriting the source checkout can hide duplication.
     audit_root = out / 'duplicate'
@@ -149,7 +180,10 @@ def main():
     def execute_leg(label, input_path, extra, expected_vectors):
         module = out / (label + '.ll')
         first_command = len(rows)
-        run([compiler, input_path, *extra, '-o', module])
+        inputs = [input_path]
+        if '--ast-source' in extra:
+            inputs.append(extra[extra.index('--ast-source') + 1])
+        run([compiler, input_path, *extra, '-o', module], inputs=inputs)
         ir = module.read_text()
         require('add i8' in ir or label == 'operator-control',
                 'shared wrap lowering missing')
@@ -158,7 +192,8 @@ def main():
         results = []
         for opt in ('-O0', '-O2'):
             exe = out / (label + opt)
-            run(['clang', opt, module, FIXTURES / 'driver.c', '-o', exe])
+            run(['clang', opt, module, FIXTURES / 'driver.c', '-o', exe],
+                inputs=[module, FIXTURES / 'driver.c'])
             for function, a, b, expected in expected_vectors:
                 r = run([exe, function, a, b])
                 results.append(dict(optimization=opt, function=function, a=a, b=b,
@@ -179,7 +214,7 @@ def main():
     if not args.controls_only:
         check_results(execute_leg('lang', source, [], vectors))
         generated = out / 'generated-roundtrip.ast'
-        run([compiler, source, '--emit-expanded-ast', '-o', generated])
+        run([compiler, source, '--emit-expanded-ast', '-o', generated], inputs=[source])
         check_results(execute_leg('generated-roundtrip', generated,
                                  ['--from-ast', '--ast-source', source], vectors))
 
@@ -221,7 +256,7 @@ def main():
         inp = FIXTURES / case['input']
         module = out / (inp.stem + '.ll')
         r = run([compiler, inp, '--from-ast', '--ast-source', span_source,
-                 '-o', module], 1, case['diagnostic'])
+                 '-o', module], 1, case['diagnostic'], inputs=[inp, span_source])
         require(not module.exists() or module.stat().st_size == 0, 'rejection published output')
         require(str(span_source).encode() in r.stderr, 'missing core input origin')
         if case['located']:
@@ -236,7 +271,8 @@ def main():
     span_control.write_text((FIXTURES / 'invalid-operation.ast').read_text().replace('span 4 7', 'span 3 7'))
     module = out / 'shifted-span.ll'
     r = run([compiler, span_control, '--from-ast', '--ast-source', span_source,
-             '-o', module], 1, 'numeric: unknown or incompatible operation')
+             '-o', module], 1, 'numeric: unknown or incompatible operation',
+            inputs=[span_control, span_source])
     check_location(r.stderr, {'line': 2, 'column': 2})
     try:
         check_location(r.stderr, {'line': 2, 'column': 3})
@@ -252,10 +288,10 @@ def main():
         # keep its literal regression on the Lang reader, explicitly labelled.
         for fixture in ('test/layout/f32_literal.lang', 'test/layout/equivalence.lang'):
             module = out / (Path(fixture).stem + '.ll')
-            run([compiler, fixture, '-o', module])
+            run([compiler, fixture, '-o', module], inputs=[fixture])
             for opt in ('-O0', '-O2'):
                 exe = module.with_name(module.stem + opt)
-                run(['clang', opt, module, '-o', exe]); run([exe], 42)
+                run(['clang', opt, module, '-o', exe], inputs=[module]); run([exe], 42)
         invalid = [
             ('func main() i64 {\n return __core_numeric("oops", "i64", "i64", 1, 2);\n}', 'unknown or incompatible operation'),
             ('func main() i64 { var a [9223372036854775808]u8; return 0; }', 'fixed-array count exceeds signed size limit'),
@@ -264,7 +300,7 @@ def main():
         for n, (text, diagnostic) in enumerate(invalid):
             source = out / f'invalid-{n}.lang'; source.write_text(text)
             module = out / f'invalid-{n}-lang.ll'
-            r = run([compiler, source, '-o', module], 1, diagnostic)
+            r = run([compiler, source, '-o', module], 1, diagnostic, inputs=[source])
             require(str(source).encode() in r.stderr, 'missing source origin')
             require(not module.exists() or module.stat().st_size == 0, 'rejection published output')
             report['rejections'].append(dict(input=str(source), input_sha256=digest(source),
@@ -273,10 +309,10 @@ def main():
         # The independent C oracle rejects aggregates, pointer/function/closure
         # relocations, unknown profiles, overflow and invalid counts explicitly.
         run([sys.executable, 'test/run_storage_layout.py', 'api', '--compiler', compiler,
-             '--evidence', out / 'storage-api'])
+             '--evidence', out / 'storage-api'], inputs=['test/run_storage_layout.py', compiler])
         for mode in ('arithmetic', 'validation'):
             run([sys.executable, 'test/run_numeric.py', mode, '--compiler', compiler,
-                 '--evidence', out / ('numeric-' + mode)])
+                 '--evidence', out / ('numeric-' + mode)], inputs=['test/run_numeric.py', compiler])
     for name, sha in report['sources'].items():
         require(digest(ROOT / name) == sha, 'witness input changed during execution: ' + name)
     report['status'] = 'PASS'

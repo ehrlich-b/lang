@@ -1,12 +1,39 @@
 # Independent core witness
 
-After committing the candidate, run `make bootstrap-verify JOBS=2`, then:
+After committing the candidate, generate a fresh source-bound receipt around
+`make bootstrap-verify JOBS=2`. Use `scripts/build_receipt.py start` before the
+build and `finish` afterwards, retaining the compiler, fixed-point artifacts,
+full source revision and input hashes. Historical receipts remain historical;
+never rewrite one to name a new revision. Retain command argv, execution cwd,
+exit codes and SHA-256 hashes of receipts and build logs outside the checkout.
+With the compiler and receipt specified (or the defaults below), run:
 
 ```
 python3 scripts/check_shared_witness.py --evidence ../evidence/witness
 python3 scripts/check_shared_witness.py --controls-only --evidence ../evidence/controls
 python3 -O scripts/check_shared_witness.py --controls-only --evidence ../evidence/optimized
 ```
+
+Invocation is independent of the caller's working directory. From another
+working directory, use an absolute path to this checker and pass absolute
+`--compiler`, `--receipt` and `--evidence` paths; relative CLI paths refer to the
+caller. Recorded subprocess commands always execute in the repository root.
+Each command hashes its resolved executable (including PATH lookup) and its
+explicitly declared file operands before execution. Relative operands such as
+`scripts/build_receipt.py`, `test/run_numeric.py` and `test/layout/*.lang` resolve
+against that recorded execution cwd. Absolute operands retain their absolute
+identity. Caller-directory shadow files are never consulted. Flags, scalar
+arguments, `-o` outputs and `--evidence` destinations are excluded even when
+those destinations already exist. These are direct argv inputs; transitive
+compiler sources and fixtures remain bound by the receipt and source manifest.
+
+Run `python3 test/run_witness_provenance.py --compiler /absolute/compiler
+--receipt /absolute/receipt.json --evidence /absolute/evidence` (on one shell
+line), and repeat with `python3 -O`. The verifier compares independently listed
+input identities and hashes from real checker executions in the repository and
+an external directory with spaces and different shadow bytes. It also checks
+absolute inputs, preexisting outputs and an old-resolution mutation, and
+retains dirty-fixture and semantic refusal evidence in external copies.
 
 Evidence must be outside the checkout. Qualification requires native Linux
 x86-64. Three labelled legs execute the same frozen `expected.json` vectors at
