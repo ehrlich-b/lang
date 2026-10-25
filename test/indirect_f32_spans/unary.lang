@@ -1,0 +1,6 @@
+var cell f32 = 0;
+func bad() {
+    var p *f32 = &cell;
+    var n f32 = __core_numeric("bitcast", "f32", "u32", 1065353216);
+    *p = -n;
+}

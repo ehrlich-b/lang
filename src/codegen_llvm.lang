@@ -5953,6 +5953,10 @@ func llvm_emit_stmt_inner(stmt *u8) void {
         if node_kind(indirect_target) == NODE_UNARY_EXPR && unary_expr_op(indirect_target) == TOKEN_STAR {
             var pointee *u8 = llvm_get_expr_type(indirect_target);
             if llvm_is_f32_type(pointee) {
+                // Type rejection belongs to the assignment, not an unlocated
+                // operand or the enclosing function. A spanless core assignment
+                // must also clear any unrelated declaration provenance.
+                cg_diagnostic_node = stmt;
                 target = indirect_target;
                 if llvm_is_numeric_literal(value) {
                     val = llvm_f32_literal_value(value);
@@ -5960,11 +5964,11 @@ func llvm_emit_stmt_inner(stmt *u8) void {
                     var operand *u8 = value;
                     while node_kind(operand) == NODE_GROUP_EXPR { operand = group_expr_expr(operand); }
                     if node_kind(operand) == NODE_UNARY_EXPR && unary_expr_op(operand) != TOKEN_STAR {
-                        numeric_fail(value, "f32 pointer assignment does not support this unary expression; use an explicit numeric operation");
+                        numeric_fail(stmt, "f32 pointer assignment does not support this unary expression; use an explicit numeric operation");
                     }
                     val = llvm_numeric_normalize(stmt, value, "f32");
                 } else {
-                    numeric_fail(value, "f32 pointer assignment requires a numeric literal or an explicit f32 value");
+                    numeric_fail(stmt, "f32 pointer assignment requires a numeric literal or an explicit f32 value");
                 }
             }
         }

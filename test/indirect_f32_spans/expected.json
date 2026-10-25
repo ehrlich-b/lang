@@ -1,0 +1,79 @@
+{
+  "ordinary.lang": {
+    "source": "ordinary.lang",
+    "location": [
+      5,
+      5
+    ],
+    "diagnostic": "f32 pointer assignment requires a numeric literal or an explicit f32 value"
+  },
+  "nested.lang": {
+    "source": "nested.lang",
+    "location": [
+      8,
+      13
+    ],
+    "diagnostic": "f32 pointer assignment requires a numeric literal or an explicit f32 value"
+  },
+  "scalar.lang": {
+    "source": "scalar.lang",
+    "location": [
+      5,
+      5
+    ],
+    "diagnostic": "f32 pointer assignment requires a numeric literal or an explicit f32 value"
+  },
+  "unary.lang": {
+    "source": "unary.lang",
+    "location": [
+      5,
+      5
+    ],
+    "diagnostic": "f32 pointer assignment does not support this unary expression; use an explicit numeric operation"
+  },
+  "ordinary.ast": {
+    "source": "diagnostic.read",
+    "location": [
+      3,
+      5
+    ],
+    "diagnostic": "f32 pointer assignment requires a numeric literal or an explicit f32 value"
+  },
+  "nested.ast": {
+    "source": "diagnostic.read",
+    "location": [
+      4,
+      7
+    ],
+    "diagnostic": "f32 pointer assignment requires a numeric literal or an explicit f32 value"
+  },
+  "scalar.ast": {
+    "source": "diagnostic.read",
+    "location": [
+      3,
+      5
+    ],
+    "diagnostic": "f32 pointer assignment requires a numeric literal or an explicit f32 value"
+  },
+  "spanless.ast": {
+    "source": "spanless.ast",
+    "location": null,
+    "diagnostic": "f32 pointer assignment requires a numeric literal or an explicit f32 value"
+  },
+  "negative.ast": {
+    "source": "diagnostic.read",
+    "invalid_span": "invalid-span-number"
+  },
+  "reversed.ast": {
+    "source": "diagnostic.read",
+    "invalid_span": "invalid-span"
+  },
+  "outside.ast": {
+    "source": "diagnostic.read",
+    "invalid_span": "invalid-span"
+  },
+  "missing-source.ast": {
+    "source": null,
+    "invalid_span": "missing-span-source"
+  }
+}

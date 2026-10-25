@@ -1,0 +1,6 @@
+var cell f32 = 0;
+func bad() {
+    var p *f32 = &cell;
+    var n f64 = 1.5;
+    *p = n;
+}

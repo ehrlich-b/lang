@@ -3931,6 +3931,7 @@ func parse_return_stmt() *u8 {
 }
 
 func parse_expr_stmt() *u8 {
+    var start_tok *u8 = parse_peek();
     var expr *u8 = parse_expression();
     parse_expect(TOKEN_SEMICOLON, "expected ';' after expression");
 
@@ -3941,6 +3942,12 @@ func parse_expr_stmt() *u8 {
             var node *u8 = assign_stmt_alloc();
             assign_stmt_set_target(node, binary_expr_left(expr));
             assign_stmt_set_value(node, binary_expr_right(expr));
+            // Preserve syntax provenance when replacing the binary expression.
+            var source *PhaseSource = phase_source_get(phase_bound_source_id);
+            var end_tok *u8 = parse_previous();
+            var start i64 = phase_line_byte(source, tok_line(start_tok), tok_col(start_tok));
+            var end i64 = phase_line_byte(source, tok_line(end_tok), tok_col(end_tok)) + tok_lexeme_len(end_tok);
+            node_set_origin_full(node, parse_source_name, tok_line(start_tok), tok_col(start_tok), start, end);
             return node;
         }
     }

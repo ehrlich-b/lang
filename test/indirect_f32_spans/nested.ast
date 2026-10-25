@@ -1,0 +1,1 @@
+(program (var cell (type_base f32) (number 0)) (span 4 12 (func bad () (type_base void) (block (var p (type_ptr (type_base f32)) (unop & (ident cell))) (var n (type_base i64) (number 1)) (if (number 1) (block (span 17 27 (assign (unop * (ident p)) (number 0))) (if (number 1) (block (span 34 40 (assign (unop * (ident p)) (span 48 53 (ident n))))))))))))

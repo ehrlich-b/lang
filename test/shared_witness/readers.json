@@ -1,5 +1,5 @@
 {
-  "src/parser.lang": "65ddfb53268291dccb383c6396724c2f6493cb5a3bce33fb64b306b0a116a2cb",
+  "src/parser.lang": "4d078778944aa537e6838d60d85516881858bf41112da6330daad0225d7254f9",
   "src/sexpr_reader.lang": "ffe40230b30dcc2aeb80b3d2241b381d71d1fcc74421427dc52043a608996dba",
   "test/numeric/reader.lang": "4b6364d7270d5d68028e82d7099d28835933875d6d6f135910756be7d8e07ecb"
 }
