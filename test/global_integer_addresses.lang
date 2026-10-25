@@ -1,0 +1,53 @@
+// Handwritten address-of regression; return 0 only when all frozen checks pass.
+var before_i i64 = 31;
+var global_i i64 = 1234567;
+var after_i i64 = 47;
+var before_u u8 = 13;
+var global_u u8 = 23;
+var after_u u8 = 29;
+var global_f f32 = 1;
+
+func write_i(p *i64, value i64) { *p = value; }
+func write_u(p *u8, value i64) { *p = value; }
+func target() i64 { return 42; }
+
+func main() i64 {
+    var ip *i64 = &global_i;
+    var ia *i64 = ip;
+    write_i(ia, -7654321);
+    if global_i != -7654321 { return 1; }
+    if *ip != -7654321 { return 2; }
+    if before_i != 31 { return 3; }
+    if after_i != 47 { return 4; }
+
+    var up *u8 = &global_u;
+    var ua *u8 = up;
+    write_u(ua, 201);
+    if global_u != 201 { return 5; }
+    if *up != 201 { return 6; }
+    if before_u != 13 { return 7; }
+    if after_u != 29 { return 8; }
+
+    var local_i i64 = -9;
+    var local_ip *i64 = &local_i;
+    *local_ip = -19;
+    if local_i != -19 { return 9; }
+    var local_u u8 = 37;
+    var local_up *u8 = &local_u;
+    *local_up = 41;
+    if local_u != 41 { return 10; }
+
+    // Local shadowing must retain its stack address.
+    var global_i i64 = 71;
+    var shadow *i64 = &global_i;
+    *shadow = -71;
+    if global_i != -71 { return 11; }
+    if before_i != 31 { return 12; }
+
+    var fp *f32 = &global_f;
+    *fp = 2;
+
+    var function_pointer fn() i64 = &target;
+    if function_pointer() != 42 { return 14; }
+    return 0;
+}

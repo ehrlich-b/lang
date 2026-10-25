@@ -682,6 +682,22 @@ func llvm_is_u8_type(t *u8) i64 {
     return 0;
 }
 
+func llvm_is_i64_type(t *u8) i64 {
+    if t == nil {
+        return 0;
+    }
+    if type_kind(t) == TYPE_BASE {
+        var name *u8 = base_type_name(t);
+        var len i64 = base_type_name_len(t);
+        if len == 3 {
+            if memcmp(name, "i64", 3) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 func llvm_is_f32_type(t *u8) i64 {
     if t == nil {
         return 0;
@@ -3344,6 +3360,13 @@ func llvm_emit_expr_inner(expr *u8) void {
                         } else {
                             llvm_emit_str("%");
                         }
+                    } else if (llvm_is_i64_type(inner_type) || llvm_is_u8_type(inner_type)) &&
+                              let_entry == nil && find_local(name, len) < 0 &&
+                              find_global(name, len) >= 0 {
+                        // Scalar integer globals use the existing i64 backing
+                        // storage (including u8 globals); take their address
+                        // from the global symbol, not a same-named local.
+                        llvm_emit_str(" = ptrtoint i64* @");
                     } else if alloc_size > 8 {
                         llvm_emit_str(" = ptrtoint [");
                         llvm_emit_int(alloc_size);
