@@ -1,0 +1,17 @@
+// expect: 0
+include "std/core.lang"
+
+func arli_buffer_field() i64 {
+var b *PhaseBuffer = phase_buffer_new(256, "fields");
+phase_buffer_field(b, "");
+phase_buffer_field(b, "abc");
+phase_buffer_field(b, "é🦋");
+phase_buffer_field(b, ":\n");
+phase_buffer_field(b, "abcdefghijkl");
+var expected *u8 = "0:3:abc6:é🦋2::\n12:abcdefghijkl";
+if !streq(b.data, expected) { return 1; }
+if b.len != 34 || *(b.data + b.len) != 0 { return 2; }
+return 0;
+}
+
+func main() i64 { return arli_buffer_field(); }
