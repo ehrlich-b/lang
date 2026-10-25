@@ -1,0 +1,1 @@
+(program (span 4 7 (extern_func take ((param x (type_array 2 (type_array 0 (type_base void))))) (type_base i64) nil)) (func main () (type_base i64) (block (return (number 0)))))

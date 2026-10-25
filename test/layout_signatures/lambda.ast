@@ -1,0 +1,1 @@
+(program (func main () (type_base i64) (block (var f (type_func ((type_array 0 (type_base void))) (type_base i64)) (span 4 7 (lambda ((param x (type_array 0 (type_base void)))) (type_base i64) (block (return (number 42)))))) (return (number 0)))))

@@ -1,0 +1,2 @@
+func take(x [2]i64) i64 { return 42; }
+func main() i64 { var a [2]i64; return take(a); }

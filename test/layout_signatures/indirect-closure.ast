@@ -1,0 +1,5 @@
+(program
+  (func main () (type_base i64)
+    (block
+      (var f (type_closure ((type_array 0 (type_base void))) (type_base i64)) (number 0))
+      (return (span 12 17 (call (ident f) (number 0)))))))

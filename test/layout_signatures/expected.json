@@ -1,0 +1,406 @@
+{
+  "zero-definition.lang": {
+    "error": "unsupported",
+    "location": [
+      2,
+      1
+    ]
+  },
+  "zero-definition.ast": {
+    "error": "unsupported",
+    "location": null
+  },
+  "zero-extern.lang": {
+    "error": "unsupported",
+    "location": [
+      2,
+      1
+    ]
+  },
+  "zero-extern.ast": {
+    "error": "unsupported",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "zero-forward.lang": {
+    "error": "unsupported",
+    "location": [
+      3,
+      1
+    ]
+  },
+  "zero-forward.ast": {
+    "error": "unsupported",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "zero-after.lang": {
+    "error": "unsupported",
+    "location": [
+      2,
+      1
+    ]
+  },
+  "zero-after.ast": {
+    "error": "unsupported",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "nested-definition.lang": {
+    "error": "unsupported",
+    "location": [
+      2,
+      1
+    ]
+  },
+  "nested-definition.ast": {
+    "error": "unsupported",
+    "location": null
+  },
+  "nested-extern.lang": {
+    "error": "unsupported",
+    "location": [
+      2,
+      1
+    ]
+  },
+  "nested-extern.ast": {
+    "error": "unsupported",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "nested-forward.lang": {
+    "error": "unsupported",
+    "location": [
+      3,
+      1
+    ]
+  },
+  "nested-forward.ast": {
+    "error": "unsupported",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "nested-after.lang": {
+    "error": "unsupported",
+    "location": [
+      2,
+      1
+    ]
+  },
+  "nested-after.ast": {
+    "error": "unsupported",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "nonempty-definition.lang": {
+    "error": "unsupported",
+    "location": [
+      2,
+      1
+    ]
+  },
+  "nonempty-definition.ast": {
+    "error": "unsupported",
+    "location": null
+  },
+  "nonempty-extern.lang": {
+    "error": "unsupported",
+    "location": [
+      2,
+      1
+    ]
+  },
+  "nonempty-extern.ast": {
+    "error": "unsupported",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "nonempty-forward.lang": {
+    "error": "unsupported",
+    "location": [
+      3,
+      1
+    ]
+  },
+  "nonempty-forward.ast": {
+    "error": "unsupported",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "nonempty-after.lang": {
+    "error": "unsupported",
+    "location": [
+      2,
+      1
+    ]
+  },
+  "nonempty-after.ast": {
+    "error": "unsupported",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "overflow-definition.lang": {
+    "error": "overflow",
+    "location": [
+      2,
+      1
+    ]
+  },
+  "overflow-definition.ast": {
+    "error": "overflow",
+    "location": null
+  },
+  "overflow-extern.lang": {
+    "error": "overflow",
+    "location": [
+      2,
+      1
+    ]
+  },
+  "overflow-extern.ast": {
+    "error": "overflow",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "overflow-forward.lang": {
+    "error": "overflow",
+    "location": [
+      3,
+      1
+    ]
+  },
+  "overflow-forward.ast": {
+    "error": "overflow",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "overflow-after.lang": {
+    "error": "overflow",
+    "location": [
+      2,
+      1
+    ]
+  },
+  "overflow-after.ast": {
+    "error": "overflow",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "negative.ast": {
+    "error": "span",
+    "code": "invalid-span-number"
+  },
+  "outside.ast": {
+    "error": "span",
+    "code": "invalid-span"
+  },
+  "reversed.ast": {
+    "error": "span",
+    "code": "invalid-span"
+  },
+  "valid-zero.lang": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 0)"
+    ]
+  },
+  "valid-zero.ast": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 0)"
+    ],
+    "ast_source": true
+  },
+  "valid-scalar-array.lang": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 %"
+    ]
+  },
+  "valid-scalar-array.ast": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 %"
+    ],
+    "ast_source": true
+  },
+  "valid-nested-array.lang": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 %"
+    ]
+  },
+  "valid-nested-array.ast": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 %"
+    ],
+    "ast_source": true
+  },
+  "valid-float-array.lang": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 %"
+    ]
+  },
+  "valid-float-array.ast": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 %"
+    ],
+    "ast_source": true
+  },
+  "valid-scalar.lang": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 0)"
+    ]
+  },
+  "valid-scalar.ast": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 0)"
+    ],
+    "ast_source": true
+  },
+  "valid-pointer.lang": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 0)"
+    ]
+  },
+  "valid-pointer.ast": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 0)"
+    ],
+    "ast_source": true
+  },
+  "valid-extern.lang": {
+    "exit": 42,
+    "link": "external.ll",
+    "ir": [
+      "declare i64 @take(i64)",
+      "call i64 @take(i64 7)"
+    ]
+  },
+  "valid-extern.ast": {
+    "exit": 42,
+    "link": "external.ll",
+    "ir": [
+      "declare i64 @take(i64)",
+      "call i64 @take(i64 7)"
+    ]
+  },
+  "values.lang": {
+    "exit": 42,
+    "ir": [
+      "define i64 @scalar(i64 %x.arg)",
+      "define i64 @pointer(i64 %x.arg)",
+      "call i64 @pointer(i64",
+      "call i64 @scalar(i64"
+    ]
+  },
+  "indirect-func.ast": {
+    "error": "unsupported",
+    "location": [
+      3,
+      5
+    ]
+  },
+  "indirect-closure.ast": {
+    "error": "unsupported",
+    "location": [
+      3,
+      5
+    ]
+  },
+  "lambda.ast": {
+    "error": "unsupported",
+    "location": [
+      2,
+      3
+    ]
+  },
+  "negative-count.ast": {
+    "error": "span",
+    "code": "invalid-span-number"
+  },
+  "values.ast": {
+    "exit": 42,
+    "ir": [
+      "define i64 @scalar(i64 %x.arg)",
+      "define i64 @pointer(i64 %x.arg)",
+      "call i64 @pointer(i64",
+      "call i64 @scalar(i64"
+    ]
+  },
+  "lambda.lang": {
+    "error": "unsupported",
+    "location": null
+  },
+  "grouped-lambda.lang": {
+    "error": "unsupported",
+    "location": null
+  },
+  "valid-grouped-lambda.lang": {
+    "exit": 42,
+    "ir": [
+      "define i64 @__lambda_",
+      "call i64 %"
+    ]
+  },
+  "target-limit.ast": {
+    "error": "overflow",
+    "location": [
+      2,
+      3
+    ],
+    "target": "wasm"
+  },
+  "valid-target-limit.ast": {
+    "exit": 42,
+    "ir": [
+      "define i64 @take(i64 %x.arg)",
+      "call i64 @take(i64 0)"
+    ],
+    "ast_source": true
+  }
+}

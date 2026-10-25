@@ -1,0 +1,1 @@
+(program (span 4 7 (func take ((param x (type_array 2 (type_array 3 (type_base u8))))) (type_base i64) (block (return (number 42))))) (func main () (type_base i64) (block (var a (type_array 2 (type_array 3 (type_base u8)))) (return (call (ident take) (ident a))))))

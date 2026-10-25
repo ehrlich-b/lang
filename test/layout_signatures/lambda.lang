@@ -1,0 +1,4 @@
+func main() i64 {
+    var f fn([0]void) i64 = fn(x [0]void) i64 { return 42; };
+    return 0;
+}

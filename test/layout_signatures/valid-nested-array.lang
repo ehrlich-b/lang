@@ -1,0 +1,2 @@
+func take(x [2][3]u8) i64 { return 42; }
+func main() i64 { var a [2][3]u8; return take(a); }

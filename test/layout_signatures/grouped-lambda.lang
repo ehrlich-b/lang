@@ -1,0 +1,3 @@
+func main() i64 {
+    return (fn(x [0]void) i64 { return 42; })(0);
+}

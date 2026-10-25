@@ -1,0 +1,3 @@
+// Parameter storage rejection.
+func main() i64 { return take(0); }
+func take(x [0]void) i64 { return 42; }

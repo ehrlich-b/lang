@@ -771,6 +771,49 @@ func llvm_storage_size(t *u8, node *u8) i64 {
     return storage.size;
 }
 
+// Parameter slots use the legacy integer/address calling convention, so they
+// bypass llvm_emit_type. Check their array storage through the same policy as
+// object storage before lowering the signature; this does not select an ABI.
+func llvm_validate_parameter_type(t *u8, node *u8) void {
+    if t == nil { return; }
+    var kind i64 = type_kind(t);
+    if kind == TYPE_ARRAY {
+        var storage_size i64 = llvm_storage_size(t, node);
+    } else if kind == TYPE_FUNC || kind == TYPE_CLOSURE {
+        var params *u8 = func_type_params(t);
+        var count i64 = func_type_param_count(t);
+        if kind == TYPE_CLOSURE {
+            params = closure_type_params(t);
+            count = closure_type_param_count(t);
+        }
+        var i i64 = 0;
+        while i < count {
+            llvm_validate_parameter_type(vec_get(params, i), node);
+            i = i + 1;
+        }
+    }
+}
+
+func llvm_validate_parameters(params *u8, count i64, node *u8) void {
+    var i i64 = 0;
+    while i < count {
+        llvm_validate_parameter_type(param_type(params + i * 24), node);
+        i = i + 1;
+    }
+}
+
+func llvm_validate_callable(expr *u8, node *u8) void {
+    if node_kind(expr) == NODE_GROUP_EXPR {
+        llvm_validate_callable(group_expr_expr(expr), node);
+    } else if node_kind(expr) == NODE_LAMBDA_EXPR {
+        // Lambda parameter records are not the type vector of TYPE_FUNC.
+        llvm_validate_parameters(lambda_expr_params(expr),
+                                 lambda_expr_param_count(expr), expr);
+    } else {
+        llvm_validate_parameter_type(get_expr_type(expr), node);
+    }
+}
+
 // Byte size of a struct/enum type, or 0 if the type isn't an aggregate.
 // Aggregates live in memory and are passed around as addresses.
 func llvm_aggregate_type_size(t *u8) i64 {
@@ -2125,6 +2168,15 @@ func llvm_emit_expr_inner(expr *u8) void {
             // Emit the function expression to get the pointer value
             llvm_emit_expr(func_expr);
             indirect_ptr_val = str_dup(llvm_expr_result);
+        }
+
+        // Validate a consumed signature before arguments or call IR. A direct
+        // call retains the declaration's origin, including forward references.
+        if known_func != nil {
+            llvm_validate_parameters(func_decl_params(known_func),
+                                     func_decl_param_count(known_func), known_func);
+        } else if is_indirect != 0 {
+            llvm_validate_callable(func_expr, expr);
         }
 
         // First, emit all argument expressions and collect their values
@@ -6704,6 +6756,8 @@ func llvm_emit_func(func_node *u8) void {
     cg_diagnostic_node = func_node;
     compiler_check_return_type(func_decl_ret_type(func_node));
     numeric_validate_signature(func_node);
+    llvm_validate_parameters(func_decl_params(func_node),
+                             func_decl_param_count(func_node), func_node);
     numeric_validate_tree(func_decl_body(func_node));
     // Register this function for return type lookup
     var name *u8 = func_decl_name(func_node);
@@ -7806,6 +7860,8 @@ func llvm_register_all_decls(prog *u8) void {
 func llvm_gen_lambda(lambda_node *u8, lambda_id i64, captures *u8, capture_count i64) void {
     cg_diagnostic_node = lambda_node;
     compiler_check_return_type(lambda_expr_ret_type(lambda_node));
+    llvm_validate_parameters(lambda_expr_params(lambda_node),
+                             lambda_expr_param_count(lambda_node), lambda_node);
     llvm_current_function = alloc(32);
     memcpy(llvm_current_function, "__lambda_", 9);
     itoa(lambda_id, llvm_current_function + 9);
