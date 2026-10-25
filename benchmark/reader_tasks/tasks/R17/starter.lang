@@ -57,7 +57,7 @@ func main(argc i64, argv **u8) i64 {
     if vec_len(nums) == 0 { value = 1; }
     var start i64 = tree.start;
     var end i64 = tree.end;
-    
+
     print("{\"ok\":true,\"value\":"); print_int(value);
     print(",\"start\":"); print_int(start);
     print(",\"end\":"); print_int(end); println("}");
