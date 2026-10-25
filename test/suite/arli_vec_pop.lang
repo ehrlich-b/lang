@@ -1,0 +1,15 @@
+// expect: 0
+include "std/core.lang"
+
+func main() i64 {
+    var v *u8 = vec_new(4);
+    if vec_pop(v) != 0 || vec_len(v) != 0 { return 1; }
+    if vec_pop(v) != 0 || vec_len(v) != 0 { return 2; }
+    vec_push(v, 42); vec_push(v, 0); vec_push(v, -7);
+    if vec_pop(v) != -7 || vec_len(v) != 2 { return 3; }
+    if vec_pop(v) != 0 || vec_len(v) != 1 { return 4; }
+    if vec_pop(v) != 42 || vec_len(v) != 0 { return 5; }
+    vec_push(v, 9);
+    if vec_pop(v) != 9 || vec_len(v) != 0 { return 6; }
+    vec_free(v); return 0;
+}
