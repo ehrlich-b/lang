@@ -75,5 +75,21 @@
   "missing-source.ast": {
     "source": null,
     "invalid_span": "missing-span-source"
+  },
+  "valid-then-global.lang": {
+    "source": "valid-then-global.lang",
+    "location": [
+      2,
+      1
+    ],
+    "diagnostic": "f32 global assignment requires a numeric literal or an explicit f32 value"
+  },
+  "valid-then-read.lang": {
+    "source": "valid-then-read.lang",
+    "location": [
+      2,
+      1
+    ],
+    "diagnostic": "f32 pointer read requires an f32 destination or an explicit numeric conversion"
   }
 }
