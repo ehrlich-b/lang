@@ -172,12 +172,47 @@ func lisp_lambda_binds(params *PNode, i i64, count i64, argexpr *u8, body *u8) *
 // boxes the pointer so the lambda is first-class. The holding var is uniquely
 // named per node (block_expr vars leak to the enclosing scope, like `if` temps).
 func lisp_lambda(params *PNode, bodynode *PNode) *u8 {
+    if !pnode_is(params, "list") { return ml_fail("invalid lambda parameter", params); }
+    var count i64 = list_len(params);
+    var i i64 = 0;
+    while i < count {
+        var param *PNode = list_get(params, i);
+        if !pnode_is(param, "sym") || is_sym(param, "nil") {
+            return ml_fail("invalid lambda parameter", param);
+        }
+        var j i64 = 0;
+        while j < i {
+            var previous *PNode = list_get(params, j);
+            if streq(param.text, previous.text) { return ml_fail("invalid lambda parameter", param); }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, "__arli_ml_lambda_shape_args_");
+    var addr i64 = params;
+    sb_int(sb, addr);
+    var cursor *u8 = sb_finish(sb);
+    var body_stmts *u8 = ast_vec();
+    ast_push(body_stmts, ast_var(cursor, ast_type_i64(), ast_ident("__args")));
+    var failure *u8 = ast_vec();
+    ast_push(failure, ast_expr_stmt(ast_call_named1("eprintln", ast_string("minilisp: lambda argument count"))));
+    ast_push(failure, ast_expr_stmt(ast_call_named1("exit", ast_int(1))));
+    i = 0;
+    while i < count {
+        ast_push(body_stmts, ast_if_then(ast_ne(ast_call_named1("lisp_tag", ast_ident(cursor)), ast_int(2)), ast_block(failure)));
+        ast_push(body_stmts, ast_assign(ast_ident(cursor), ast_call_named1("lisp_cdr", ast_ident(cursor))));
+        i = i + 1;
+    }
+    ast_push(body_stmts, ast_if_then(ast_ne(ast_call_named1("lisp_tag", ast_ident(cursor)), ast_int(1)), ast_block(failure)));
     var cvar *u8 = lisp_tmp(bodynode);
     var pvec *u8 = ast_vec();
     ast_push(pvec, ast_param("__args", ast_type_i64()));
-    var inner *u8 = lisp_lambda_binds(params, 0, list_len(params),
+    var inner *u8 = lisp_lambda_binds(params, 0, count,
                                       ast_ident("__args"), lisp_expr(bodynode));
-    var lam *u8 = ast_lambda(pvec, ast_type_i64(), ast_block1(ast_return(inner)));
+    ast_push(body_stmts, ast_return(inner));
+    var lam *u8 = ast_lambda(pvec, ast_type_i64(), ast_block(body_stmts));
     var stmts *u8 = ast_vec();
     ast_push(stmts, ast_var(cvar, lisp_closure_type(), lam));
     return ast_block_expr(stmts, ast_call_named1("lisp_closure", ast_ident(cvar)));
