@@ -1,0 +1,14 @@
+// expect: 0
+include "std/core.lang"
+
+func main() i64 {
+    var m *u8 = map_new();
+    map_set(m, "alpha", 7); map_set(m, "", 17); map_set(m, "zero", 0);
+    var query *u8 = str_dup("alphaTAIL");
+    if map_get_n(m, query, 5) != 7 { return 1; }
+    if map_get_n(m, query, 9) != 0 { return 2; }
+    if map_get_n(m, query, 0) != 17 { return 3; }
+    if map_get_n(m, "zeroTAIL", 4) != 0 || map_has(m, "zero") != 1 { return 4; }
+    if streq(query, "alphaTAIL") != 1 || map_size(m) != 3 { return 5; }
+    free(query); map_free(m); return 0;
+}
