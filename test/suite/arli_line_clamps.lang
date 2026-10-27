@@ -1,0 +1,24 @@
+// expect: 0
+include "std/core.lang"
+include "src/stage_digest.lang"
+include "src/stage_origin.lang"
+
+func arli_line_clamps() i64 {
+var id i64 = phase_source_new("lines", "é\r\n\nz\n");
+var s *PhaseSource = phase_source_get(id);
+if s.len != 7 || s.line_count != 4 { return 1; }
+if phase_line_byte(s, 1, 1) != 0 || phase_line_byte(s, 1, 2) != 1 { return 2; }
+if phase_line_byte(s, 1, 3) != 2 || phase_line_byte(s, 1, 999) != 3 { return 3; }
+if phase_line_byte(s, 2, 1) != 4 || phase_line_byte(s, 2, 999) != 4 { return 4; }
+if phase_line_byte(s, 3, 1) != 5 || phase_line_byte(s, 3, 999) != 6 { return 5; }
+if phase_line_byte(s, 4, 1) != 7 || phase_line_byte(s, 4, 2) != 7 { return 6; }
+if phase_line_byte(s, 0, 1) != 7 || phase_line_byte(s, 5, 1) != 7 { return 7; }
+if phase_line_byte(s, 1, 0) != 7 || phase_line_byte(s, -1, -1) != 7 { return 8; }
+var empty *PhaseSource = phase_source_get(phase_source_new("empty", ""));
+if phase_line_byte(empty, 1, 1) != 0 || empty.line_count != 1 { return 9; }
+var one *PhaseSource = phase_source_get(phase_source_new("one", "x"));
+if phase_line_byte(one, 1, 2) != 1 || phase_line_byte(one, 1, 999) != 1 { return 10; }
+return 0;
+}
+
+func main() i64 { return arli_line_clamps(); }
