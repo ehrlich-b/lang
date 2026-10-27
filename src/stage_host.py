@@ -165,6 +165,7 @@ class Host:
         return Artifact(executable, digest, tuple(spec['params']), spec['result'], self.host, output_target)
 
     def call(self, token, args):
+        if type(token) is not str: raise StageError('unknown-artifact')
         artifact = self.artifacts.get(token)
         if artifact is None: raise StageError('unknown-artifact')
         # Frame first to reject cycles/foreign native values before traversal.
