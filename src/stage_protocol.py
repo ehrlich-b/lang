@@ -157,7 +157,10 @@ def read_frame(stream):
     def exact(n):
         chunks = bytearray()
         while len(chunks) < n:
-            part = stream.read(n-len(chunks))
+            remaining = n-len(chunks)
+            part = stream.read(remaining)
+            if not isinstance(part, (bytes, bytearray)) or len(part) > remaining:
+                raise WireError('invalid-stream-read')
             if not part: raise WireError('truncated-frame')
             chunks.extend(part)
         return bytes(chunks)
