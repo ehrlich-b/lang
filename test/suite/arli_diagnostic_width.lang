@@ -1,0 +1,53 @@
+// expect: 0
+include "std/core.lang"
+
+func arli_diagnostic_width() i64 {
+var bytes *u8 = alloc(4);
+var c i64 = 0;
+while c < 256 {
+    *bytes = c;
+    var expected i64 = 0;
+    if c < 128 { expected = 1; }
+    if ___compiler_diagnostic_utf8_width(bytes, 1) != expected { return 1; }
+    c = c + 1;
+}
+*(bytes + 0) = 194; *(bytes + 1) = 128;
+    if ___compiler_diagnostic_utf8_width(bytes, 2) != 2 { return 2; }
+    *(bytes + 0) = 223; *(bytes + 1) = 191;
+    if ___compiler_diagnostic_utf8_width(bytes, 2) != 2 { return 3; }
+    *(bytes + 0) = 224; *(bytes + 1) = 160; *(bytes + 2) = 128;
+    if ___compiler_diagnostic_utf8_width(bytes, 3) != 3 { return 4; }
+    *(bytes + 0) = 237; *(bytes + 1) = 159; *(bytes + 2) = 191;
+    if ___compiler_diagnostic_utf8_width(bytes, 3) != 3 { return 5; }
+    *(bytes + 0) = 238; *(bytes + 1) = 128; *(bytes + 2) = 128;
+    if ___compiler_diagnostic_utf8_width(bytes, 3) != 3 { return 6; }
+    *(bytes + 0) = 239; *(bytes + 1) = 191; *(bytes + 2) = 191;
+    if ___compiler_diagnostic_utf8_width(bytes, 3) != 3 { return 7; }
+    *(bytes + 0) = 240; *(bytes + 1) = 144; *(bytes + 2) = 128; *(bytes + 3) = 128;
+    if ___compiler_diagnostic_utf8_width(bytes, 4) != 4 { return 8; }
+    *(bytes + 0) = 244; *(bytes + 1) = 143; *(bytes + 2) = 191; *(bytes + 3) = 191;
+    if ___compiler_diagnostic_utf8_width(bytes, 4) != 4 { return 9; }
+    *(bytes + 0) = 192; *(bytes + 1) = 128;
+    if ___compiler_diagnostic_utf8_width(bytes, 2) != 0 { return 10; }
+    *(bytes + 0) = 224; *(bytes + 1) = 159; *(bytes + 2) = 191;
+    if ___compiler_diagnostic_utf8_width(bytes, 3) != 0 { return 11; }
+    *(bytes + 0) = 237; *(bytes + 1) = 160; *(bytes + 2) = 128;
+    if ___compiler_diagnostic_utf8_width(bytes, 3) != 0 { return 12; }
+    *(bytes + 0) = 240; *(bytes + 1) = 143; *(bytes + 2) = 191; *(bytes + 3) = 191;
+    if ___compiler_diagnostic_utf8_width(bytes, 4) != 0 { return 13; }
+    *(bytes + 0) = 244; *(bytes + 1) = 144; *(bytes + 2) = 128; *(bytes + 3) = 128;
+    if ___compiler_diagnostic_utf8_width(bytes, 4) != 0 { return 14; }
+    *(bytes + 0) = 226; *(bytes + 1) = 65; *(bytes + 2) = 128;
+    if ___compiler_diagnostic_utf8_width(bytes, 3) != 0 { return 15; }
+    *(bytes + 0) = 245; *(bytes + 1) = 128; *(bytes + 2) = 128; *(bytes + 3) = 128;
+    if ___compiler_diagnostic_utf8_width(bytes, 4) != 0 { return 16; }
+*bytes = 244; *(bytes + 1) = 143; *(bytes + 2) = 191; *(bytes + 3) = 191;
+var len i64 = 1;
+while len < 4 {
+    if ___compiler_diagnostic_utf8_width(bytes, len) != 0 { return 30; }
+    len = len + 1;
+}
+return 0;
+}
+
+func main() i64 { return arli_diagnostic_width(); }
