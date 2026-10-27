@@ -134,7 +134,12 @@ func lisp_let(bindings *PNode, i i64, count i64, body *PNode) *u8 {
         return lisp_expr(body);
     }
     var binding *PNode = list_get(bindings, i);
+    if !pnode_is(binding, "list") { return ml_fail("invalid let binding", binding); }
+    if list_len(binding) != 2 { return ml_fail("invalid let binding", binding); }
     var name *PNode = list_get(binding, 0);
+    if !pnode_is(name, "sym") || is_sym(name, "nil") {
+        return ml_fail("invalid let binding", name);
+    }
     var valexpr *PNode = list_get(binding, 1);
     return ast_let(name.text, ast_type_i64(), lisp_expr(valexpr),
                    lisp_let(bindings, i + 1, count, body));
