@@ -68,7 +68,7 @@ def encode(value):
             if len(data) > MAX_ITEMS: raise WireError('wire-budget')
             payload = struct.pack('<I', len(data)) + b''.join(visit(x, depth+1) for x in data)
         active.remove(ident)
-        if len(payload) > MAX_BYTES: raise WireError('wire-length')
+        if len(payload) + 5 > MAX_BYTES: raise WireError('wire-length')
         return bytes([tag]) + struct.pack('<I', len(payload)) + payload
     return visit(value, 0)
 
