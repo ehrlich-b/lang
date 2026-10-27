@@ -723,19 +723,48 @@ func emit_global(tv *PNode) *u8 {
 
 // params = paramitem* ; paramitem = param | ',' ; param = type symbol
 // Returns a vec of (param name type) for ast_func.
+func arli_c_params_fail(message *u8, node *PNode) void {
+    pnode_print_error(node, c_src, "c", message);
+    exit(1);
+}
+
 func emit_params(params *PNode) *u8 {
     var pv *u8 = ast_vec();
     if params == nil { return pv; }
     var items *u8 = params.children;
+    var names *u8 = vec_new(8);
     var n i64 = vec_len(items);
+    var expect_param bool = true;
     var i i64 = 0;
     while i < n {
         var it *PNode = vec_get(items, i);
-        if pnode_is(it, "param") {         // ',' separators carry no label
+        if pnode_is(it, "param") {
+            if !expect_param { arli_c_params_fail("expected parameter separator", it); }
             var pname *PNode = pnode_require(it, "name");
-            ast_push(pv, ast_param(pname.text, emit_type(pnode_require(it, "type"))));
+            var j i64 = 0;
+            while j < vec_len(names) {
+                if streq(vec_get(names, j), pname.text) {
+                    arli_c_params_fail("duplicate parameter", pname);
+                }
+                j = j + 1;
+            }
+            vec_push(names, pname.text);
+            var type_node *PNode = pnode_require(it, "type");
+            var base *PNode = pnode_require(type_node, "type");
+            var stars *PNode = pnode_require(type_node, "stars");
+            if pnode_is(base, "base") && streq(base.text, "void") && vec_len(stars.children) == 0 {
+                arli_c_params_fail("void parameter", base);
+            }
+            ast_push(pv, ast_param(pname.text, emit_type(type_node)));
+            expect_param = false;
+        } else {
+            if expect_param { arli_c_params_fail("unexpected parameter separator", it); }
+            expect_param = true;
         }
         i = i + 1;
+    }
+    if n > 0 && expect_param {
+        arli_c_params_fail("trailing parameter separator", vec_get(items, n - 1));
     }
     return pv;
 }
