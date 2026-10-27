@@ -657,20 +657,22 @@ func py_for_into(node *PNode, stmts *u8, locals *u8) void {
     }
     if step == 0 { py_fail("range's step may not be zero", node); }
 
+    var start_name *u8 = py_gensym("__py_start", node.start);
     var lim_name *u8 = py_gensym("__py_lim", node.start);
+    var cursor_name *u8 = py_gensym("__py_cursor", node.start);
+    ast_push(stmts, ast_var(start_name, ast_type_i64(), start));
     ast_push(stmts, ast_var(lim_name, ast_type_i64(), limit));
-    ast_push(stmts, ast_assign(ast_ident(vname),
-                               ast_binop("-", start, ast_int(step))));
+    ast_push(stmts, ast_var(cursor_name, ast_type_i64(), ast_ident(start_name)));
 
     var body *u8 = ast_vec();
-    ast_push(body, ast_assign(ast_ident(vname),
-                              ast_binop("+", ast_ident(vname), ast_int(step))));
-    var cmp *u8 = ">=";
-    if step < 0 { cmp = "<="; }
-    ast_push(body, ast_if(ast_binop(cmp, ast_ident(vname), ast_ident(lim_name)),
-                          ast_block1(ast_break(nil)), nil));
+    ast_push(body, ast_assign(ast_ident(vname), ast_ident(cursor_name)));
+    ast_push(body, ast_assign(ast_ident(cursor_name),
+                              ast_binop("+", ast_ident(cursor_name), ast_int(step))));
     py_suite_into(pnode_require(node, "body"), body, locals);
-    ast_push(stmts, ast_while(ast_int(1), ast_block(body)));
+    var cmp *u8 = "<";
+    if step < 0 { cmp = ">"; }
+    ast_push(stmts, ast_while(ast_binop(cmp, ast_ident(cursor_name), ast_ident(lim_name)),
+                              ast_block(body)));
 }
 
 func py_stmt_into(node *PNode, stmts *u8, locals *u8) void {
