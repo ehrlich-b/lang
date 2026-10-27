@@ -230,6 +230,7 @@ func lisp_return(node *PNode) *u8 {
     if node != nil && pnode_is(node, "list") {
         var first *PNode = list_get(node, 0);
         if is_sym(first, "if") {
+            if list_len(node) != 4 { return ml_fail("form arity", node); }
             return ast_if(ast_call_named1("lisp_truthy", lisp_expr(list_get(node, 1))),
                           ast_block1(lisp_return(list_get(node, 2))),
                           ast_block1(lisp_return(list_get(node, 3))));
@@ -265,6 +266,7 @@ func lisp_expr(node *PNode) *u8 {
         var op *u8 = first.text;
         var af *u8 = arith_fn(op);
         if af != nil {
+            if count < 2 { return ml_fail("form arity", node); }
             if count == 2 {                          // unary, e.g. (- x) -> lisp_sub(0, x)
                 return ast_call_named2(af, lisp_num_lit(0), lisp_expr(list_get(node, 1)));
             }
@@ -272,16 +274,48 @@ func lisp_expr(node *PNode) *u8 {
         }
         var cf *u8 = cmp_fn(op);
         if cf != nil {
+            if count != 3 { return ml_fail("form arity", node); }
             return ast_call_named2(cf, lisp_expr(list_get(node, 1)), lisp_expr(list_get(node, 2)));
         }
         return ml_fail("unknown operator", first);
     }
+
+    // Validate fixed-arity forms before reading operands.
+    if (is_sym(first, "if") || is_sym(first, "defun")) && count != 4 {
+        return ml_fail("form arity", node);
+    }
+    if (is_sym(first, "quote") || is_sym(first, "not") || is_sym(first, "car") || is_sym(first, "cdr")) && count != 2 {
+        return ml_fail("form arity", node);
+    }
+    if (is_sym(first, "let") || is_sym(first, "lambda") || is_sym(first, "apply") ||
+        is_sym(first, "and") || is_sym(first, "or") || is_sym(first, "cons") || is_sym(first, "eq")) && count != 3 {
+        return ml_fail("form arity", node);
+    }
+    if is_sym(first, "funcall") && count < 2 { return ml_fail("form arity", node); }
 
     // (defun name (params) body) -> (program (func name (params) i64 (block ...)))
     if is_sym(first, "defun") {
         var name *PNode = list_get(node, 1);
         var params *PNode = list_get(node, 2);
         var body *PNode = list_get(node, 3);
+        if !pnode_is(name, "sym") || !pnode_is(params, "list") {
+            return ml_fail("invalid defun", node);
+        }
+        var check_count i64 = list_len(params);
+        var check_i i64 = 0;
+        while check_i < check_count {
+            var param *PNode = list_get(params, check_i);
+            if !pnode_is(param, "sym") || is_sym(param, "nil") {
+                return ml_fail("invalid defun", node);
+            }
+            var check_j i64 = 0;
+            while check_j < check_i {
+                var previous *PNode = list_get(params, check_j);
+                if streq(param.text, previous.text) { return ml_fail("invalid defun", node); }
+                check_j = check_j + 1;
+            }
+            check_i = check_i + 1;
+        }
         var pvec *u8 = ast_vec();
         var pc i64 = list_len(params);
         var pi i64 = 0;
@@ -314,6 +348,7 @@ func lisp_expr(node *PNode) *u8 {
     // (let ((n v)...) body)
     if is_sym(first, "let") {
         var bindings *PNode = list_get(node, 1);
+        if !pnode_is(bindings, "list") { return ml_fail("invalid let form", node); }
         var body *PNode = list_get(node, 2);
         return lisp_let(bindings, 0, list_len(bindings), body);
     }
