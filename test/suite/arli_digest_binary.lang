@@ -1,0 +1,31 @@
+// expect: 0
+include "std/core.lang"
+include "src/stage_digest.lang"
+
+func arli_digest_binary() i64 {
+var input *u8 = alloc(66);
+var i i64 = 0;
+while i < 66 { *(input + i) = (i * 37) % 256; i = i + 1; }
+var d1 *u8 = phase_digest(input, 0);
+    if !streq(d1, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") || strlen(d1) != 64 || *(d1 + 64) != 0 { return 1; }
+    var d2 *u8 = phase_digest(input, 1);
+    if !streq(d2, "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d") || strlen(d2) != 64 || *(d2 + 64) != 0 { return 2; }
+    var d3 *u8 = phase_digest(input, 3);
+    if !streq(d3, "2e815fcec63d3682617b43b177da21a355e10cfd9dcf3d5a5e23d2b80db898d2") || strlen(d3) != 64 || *(d3 + 64) != 0 { return 3; }
+    var d4 *u8 = phase_digest(input, 55);
+    if !streq(d4, "3b453d648ef01a1ddbc30ef4cee00724bb53fe40b38a08c04cfd6009235c09bf") || strlen(d4) != 64 || *(d4 + 64) != 0 { return 4; }
+    var d5 *u8 = phase_digest(input, 56);
+    if !streq(d5, "a5f1426b20451b15d1c92aef1b27b36b038d13a77874409d73889c02fa1ca778") || strlen(d5) != 64 || *(d5 + 64) != 0 { return 5; }
+    var d6 *u8 = phase_digest(input, 63);
+    if !streq(d6, "b728e1a944ecf6d47629afefa1656cbe11fd7bf23145fcba144af99ea5ec14f5") || strlen(d6) != 64 || *(d6 + 64) != 0 { return 6; }
+    var d7 *u8 = phase_digest(input, 64);
+    if !streq(d7, "17ff3615c8f2285b470ee569e15b37503eae49e36882b63ccc1aceb055d7f082") || strlen(d7) != 64 || *(d7 + 64) != 0 { return 7; }
+    var d8 *u8 = phase_digest(input, 65);
+    if !streq(d8, "f747a3be9b4a85941804d77e333783b22f194e6252b37570fd51bc2bc7886a57") || strlen(d8) != 64 || *(d8 + 64) != 0 { return 8; }
+var before *u8 = phase_digest(input, 55);
+*(input + 55) = 255; *(input + 65) = 128;
+if !streq(before, phase_digest(input, 55)) { return 20; }
+return 0;
+}
+
+func main() i64 { return arli_digest_binary(); }
