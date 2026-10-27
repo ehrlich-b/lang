@@ -60,16 +60,25 @@ def encode(value):
             if type(data) is not dict or any(type(k) is not str for k in data):
                 raise WireError('record-value')
             if len(data) > MAX_ITEMS: raise WireError('wire-budget')
-            payload = struct.pack('<I', len(data))
+            payload = bytearray(struct.pack('<I', len(data)))
             for key in sorted(data):
-                payload += visit(Value('text', key), depth+1) + visit(data[key], depth+1)
+                for child in (Value('text', key), data[key]):
+                    encoded = visit(child, depth+1)
+                    if len(payload) + len(encoded) + 5 > MAX_BYTES:
+                        raise WireError('wire-length')
+                    payload.extend(encoded)
         else:
             if type(data) is not list: raise WireError('list-value')
             if len(data) > MAX_ITEMS: raise WireError('wire-budget')
-            payload = struct.pack('<I', len(data)) + b''.join(visit(x, depth+1) for x in data)
+            payload = bytearray(struct.pack('<I', len(data)))
+            for child in data:
+                encoded = visit(child, depth+1)
+                if len(payload) + len(encoded) + 5 > MAX_BYTES:
+                    raise WireError('wire-length')
+                payload.extend(encoded)
         active.remove(ident)
         if len(payload) + 5 > MAX_BYTES: raise WireError('wire-length')
-        return bytes([tag]) + struct.pack('<I', len(payload)) + payload
+        return bytes([tag]) + struct.pack('<I', len(payload)) + bytes(payload)
     return visit(value, 0)
 
 
