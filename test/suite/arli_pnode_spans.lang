@@ -1,0 +1,27 @@
+// expect: 0
+include "std/core.lang"
+include "std/pnode.lang"
+
+func arli_pnode_spans() i64 {
+var empty *PNode = pnode_list(vec_new(1));
+if empty.kind != PNODE_LIST || empty.start != -1 || empty.end != -1 { return 1; }
+var children *u8 = vec_new(6);
+vec_push(children, nil);
+vec_push(children, pnode_atom(PNODE_SYMBOL, "unknown"));
+var unspanned *PNode = pnode_list(children);
+if unspanned.start != -1 || unspanned.end != -1 { return 2; }
+vec_push(children, pnode_atom_span(PNODE_SYMBOL, "first", 7, 9));
+vec_push(children, pnode_atom_span(PNODE_NUMBER, "last", 2, 4));
+vec_push(children, nil);
+var list *PNode = pnode_list(children);
+if list.start != 7 || list.end != 4 { return 3; }
+if list.children != children || vec_len(children) != 5 { return 4; }
+var partial *u8 = vec_new(2);
+vec_push(partial, pnode_atom_span(PNODE_SYMBOL, "end", -1, 8));
+vec_push(partial, pnode_atom_span(PNODE_SYMBOL, "start", 3, -1));
+var independently *PNode = pnode_list(partial);
+if independently.start != 3 || independently.end != 8 { return 5; }
+return 0;
+}
+
+func main() i64 { return arli_pnode_spans(); }
