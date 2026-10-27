@@ -657,9 +657,25 @@ func py_for_into(node *PNode, stmts *u8, locals *u8) void {
     }
     if step == 0 { py_fail("range's step may not be zero", node); }
 
+    // Choose names absent from the entire reader input, including parameters
+    // and locals that are discovered later. Appending underscores preserves
+    // uniqueness between loops, whose source offsets differ.
     var start_name *u8 = py_gensym("__py_start", node.start);
     var lim_name *u8 = py_gensym("__py_lim", node.start);
     var cursor_name *u8 = py_gensym("__py_cursor", node.start);
+    var scan i64 = 0;
+    while *(py_src + scan) != 0 {
+        if py_starts(py_src + scan, start_name) ||
+           py_starts(py_src + scan, lim_name) ||
+           py_starts(py_src + scan, cursor_name) {
+            start_name = str_concat(start_name, "_");
+            lim_name = str_concat(lim_name, "_");
+            cursor_name = str_concat(cursor_name, "_");
+            scan = 0;
+        } else {
+            scan = scan + 1;
+        }
+    }
     ast_push(stmts, ast_var(start_name, ast_type_i64(), start));
     ast_push(stmts, ast_var(lim_name, ast_type_i64(), limit));
     ast_push(stmts, ast_var(cursor_name, ast_type_i64(), ast_ident(start_name)));
