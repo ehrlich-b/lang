@@ -52,6 +52,8 @@ class Host:
     by exec, with private working storage and a sanitized host-target environment.
     Output-target data is opaque to the execution engine.
     """
+    worker_timeout = 90
+
     def __init__(self, compiler, storage, *, controlled_fixtures=False):
         if not controlled_fixtures: raise StageError('native-confinement-unavailable')
         self.compiler = Path(compiler).resolve(strict=True)
@@ -76,19 +78,30 @@ class Host:
             process = subprocess.Popen(argv, cwd=directory, env=env, stdin=subprocess.PIPE,
                                        stdout=stdout, stderr=stderr, close_fds=True,
                                        start_new_session=True, preexec_fn=limits)
-            try: process.communicate(data, timeout=90)
+            timed_out = False
+            try: process.communicate(data, timeout=self.worker_timeout)
             except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.communicate()
-                raise StageError('worker-deadline')
-            stdout.seek(0); stderr.seek(0)
-            output = stdout.read(MAX_BYTES + 17)
-            diagnostic = stderr.read(MAX_BYTES)
-        self.diagnostic_index += 1
-        prefix = directory / ('process-' + str(self.diagnostic_index))
-        prefix.with_suffix('.stderr').write_bytes(diagnostic)
-        prefix.with_suffix('.stdout').write_bytes(output)
-        prefix.with_suffix('.json').write_text(json.dumps({'argv': list(map(str, argv)), 'exit': process.returncode})+'\n')
+                timed_out = True
+                try:
+                    try: os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError: pass
+                finally:
+                    process.communicate()
+            try:
+                stdout.seek(0); stderr.seek(0)
+                output = stdout.read(MAX_BYTES + 17)
+                diagnostic = stderr.read(MAX_BYTES)
+                self.diagnostic_index += 1
+                prefix = directory / ('process-' + str(self.diagnostic_index))
+                prefix.with_suffix('.stderr').write_bytes(diagnostic)
+                prefix.with_suffix('.stdout').write_bytes(output)
+                receipt = {'argv': list(map(str, argv)), 'exit': process.returncode}
+                if timed_out: receipt['timed_out'] = True
+                prefix.with_suffix('.json').write_text(json.dumps(receipt)+'\n')
+            except Exception:
+                if not timed_out: raise
+                # Publication is best effort after the worker has been reaped.
+            if timed_out: raise StageError('worker-deadline')
         if process.returncode: raise StageError('worker-failed: ' + diagnostic.decode(errors='replace')[:2000])
         if len(output) > MAX_BYTES + 16: raise StageError('worker-output-limit')
         return output
