@@ -84,6 +84,7 @@ def encode(value):
 
 
 def decode(data):
+    if type(data) not in (bytes, bytearray): raise WireError('wire-type')
     if len(data) > MAX_BYTES: raise WireError('wire-length')
     count = 0
     def visit(pos, end, depth):
@@ -145,6 +146,7 @@ def frame(value, kind=1):
 def unframe(data, kind=None):
     if kind is not None and (type(kind) is not int or kind not in (1, 2, 3)):
         raise WireError('frame-kind')
+    if type(data) not in (bytes, bytearray): raise WireError('wire-type')
     if len(data) < HEADER.size: raise WireError('frame-header')
     magic, size, actual, reserved = HEADER.unpack_from(data)
     if magic != b'STG1' or reserved or actual not in (1, 2, 3): raise WireError('frame-version')
