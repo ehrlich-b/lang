@@ -62,6 +62,10 @@ func sb_str(sb *StringBuilder, s *u8) void {
 }
 
 func sb_int(sb *StringBuilder, n i64) void {
+    if n == (0 - 9223372036854775807) - 1 {
+        sb_str(sb, "-9223372036854775808");
+        return;
+    }
     if n < 0 {
         sb_char(sb, 45);  // '-'
         n = 0 - n;

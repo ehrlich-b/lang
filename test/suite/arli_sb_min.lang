@@ -1,0 +1,19 @@
+// expect: 0
+include "std/core.lang"
+include "std/emit.lang"
+
+func arli_sb_min() i64 {
+var sb *StringBuilder = sb_new();
+sb_str(sb, "prefix:");
+sb_int(sb, (0 - 9223372036854775807) - 1);
+sb_char(sb, 124); sb_int(sb, 0);
+sb_char(sb, 124); sb_int(sb, -1);
+sb_char(sb, 124); sb_int(sb, 9223372036854775807);
+sb_char(sb, 124); sb_int(sb, -17);
+var result *u8 = sb_finish(sb);
+if !streq(result, "prefix:-9223372036854775808|0|-1|9223372036854775807|-17") { return 1; }
+if sb.len != strlen(result) + 1 { return 2; }
+return 0;
+}
+
+func main() i64 { return arli_sb_min(); }
