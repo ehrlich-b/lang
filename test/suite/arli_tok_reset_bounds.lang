@@ -1,0 +1,35 @@
+// expect: 0
+include "std/core.lang"
+include "std/tok.lang"
+
+func arli_tok_reset_bounds() i64 {
+var t *Tokenizer = tok_new("a /*x*/ b");
+tok_next(t);
+var mark i64 = tok_mark(t);
+if mark != 8 { return 1; }
+tok_note_expected(t, "number");
+tok_reset(t, -99);
+if !streq(tok_text(t), "a") || tok_start_offset(t) != 0 { return 2; }
+tok_reset(t, 999);
+if !tok_eof(t) || tok_start_offset(t) != 9 { return 3; }
+tok_reset(t, mark);
+if !streq(tok_text(t), "b") || tok_end_offset(t) != 9 { return 4; }
+if tok_error_offset(t) != 8 || tok_error_end_offset(t) != 9 { return 5; }
+if !streq(tok_error_expected(t), "number") { return 6; }
+var stream *u8 = tok_stream_new();
+tok_stream_push(stream, TOK_USER, 0, 0, "synthetic");
+tok_stream_push(stream, TOK_NUMBER, 1, 1, nil);
+var s *Tokenizer = tok_new_stream("x7", stream);
+tok_next(s); tok_note_expected(s, "identifier");
+tok_reset(s, -99);
+if tok_kind(s) != TOK_USER || !streq(tok_text(s), "synthetic") { return 7; }
+tok_reset(s, 999);
+if !tok_eof(s) || tok_start_offset(s) != 2 { return 8; }
+tok_reset(s, 1);
+if tok_kind(s) != TOK_NUMBER || !streq(tok_text(s), "7") { return 9; }
+if tok_error_offset(s) != 1 || tok_error_end_offset(s) != 2 { return 10; }
+if !streq(tok_error_expected(s), "identifier") { return 11; }
+return 0;
+}
+
+func main() i64 { return arli_tok_reset_bounds(); }
