@@ -1,0 +1,27 @@
+// expect: 0
+include "std/core.lang"
+
+func arli_buffer_reserve() i64 {
+var z *PhaseBuffer = phase_buffer_new(0, "zero");
+phase_buffer_reserve(z, 0);
+if z.cap != 1 || z.len != 0 || *z.data != 0 { return 1; }
+var tiny *PhaseBuffer = phase_buffer_new(3, "tiny");
+phase_buffer_append(tiny, "abc", 3);
+var old *u8 = tiny.data;
+phase_buffer_reserve(tiny, 0);
+if tiny.data != old || tiny.cap != 4 || tiny.len != 3 || *(tiny.data + 3) != 0 { return 2; }
+var b *PhaseBuffer = phase_buffer_new(600, "grow");
+phase_buffer_reserve(b, 0);
+if b.cap != 256 || *b.data != 0 { return 3; }
+var i i64 = 0;
+while i < 300 { phase_buffer_append(b, "x", 1); i = i + 1; }
+if b.cap != 512 || b.len != 300 { return 4; }
+phase_buffer_reserve(b, 300);
+if b.cap != 601 || b.len != 300 || *(b.data + 300) != 0 { return 5; }
+i = 0;
+while i < 300 { if *(b.data + i) != 120 { return 6; } i = i + 1; }
+if !streq(b.source, "grow") { return 7; }
+return 0;
+}
+
+func main() i64 { return arli_buffer_reserve(); }
