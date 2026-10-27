@@ -618,6 +618,25 @@ func py_str_to_int(s *u8) i64 {
     return n;
 }
 
+// Mark every decimal prefix following a matching base. A source of N bytes
+// cannot contain all N+1 distinct candidates, so a free slot always exists.
+func arli_py_range_order_mark(src *u8, base *u8, used *u8, size i64) void {
+    if !py_starts(src, base) { return; }
+    *used = 1;
+    var p *u8 = src + strlen(base);
+    if *p != 95 { return; }
+    p = p + 1;
+    var n i64 = 0;
+    while *p >= 48 && *p <= 57 {
+        var digit i64 = *p - 48;
+        if n > (size - digit) / 10 { return; }
+        n = n * 10 + digit;
+        if n > size { return; }
+        *(used + n) = 1;
+        p = p + 1;
+    }
+}
+
 // `for v in range(start, limit, step): body`
 //
 //     __lim = limit
@@ -663,26 +682,27 @@ func py_for_into(node *PNode, stmts *u8, locals *u8) void {
     var start_base *u8 = py_gensym("__py_start", node.start);
     var lim_base *u8 = py_gensym("__py_lim", node.start);
     var cursor_base *u8 = py_gensym("__py_cursor", node.start);
+    var size i64 = strlen(py_src);
+    var used *u8 = malloc(size + 1);
+    var scan i64 = 0;
+    while scan <= size { *(used + scan) = 0; scan = scan + 1; }
+    scan = 0;
+    while scan < size {
+        arli_py_range_order_mark(py_src + scan, start_base, used, size);
+        arli_py_range_order_mark(py_src + scan, lim_base, used, size);
+        arli_py_range_order_mark(py_src + scan, cursor_base, used, size);
+        scan = scan + 1;
+    }
+    var retry i64 = 0;
+    while retry <= size && *(used + retry) != 0 { retry = retry + 1; }
+    if retry > size { py_fail("range temporary names exhausted", node); }
     var start_name *u8 = start_base;
     var lim_name *u8 = lim_base;
     var cursor_name *u8 = cursor_base;
-    var retry i64 = 0;
-    var scan i64 = 0;
-    while *(py_src + scan) != 0 {
-        if py_starts(py_src + scan, start_name) ||
-           py_starts(py_src + scan, lim_name) ||
-           py_starts(py_src + scan, cursor_name) {
-            if retry == 9223372036854775807 {
-                py_fail("range temporary names exhausted", node);
-            }
-            retry = retry + 1;
-            start_name = py_gensym(str_concat(start_base, "_"), retry);
-            lim_name = py_gensym(str_concat(lim_base, "_"), retry);
-            cursor_name = py_gensym(str_concat(cursor_base, "_"), retry);
-            scan = 0;
-        } else {
-            scan = scan + 1;
-        }
+    if retry != 0 {
+        start_name = py_gensym(str_concat(start_base, "_"), retry);
+        lim_name = py_gensym(str_concat(lim_base, "_"), retry);
+        cursor_name = py_gensym(str_concat(cursor_base, "_"), retry);
     }
     ast_push(stmts, ast_var(start_name, ast_type_i64(), start));
     ast_push(stmts, ast_var(lim_name, ast_type_i64(), limit));
