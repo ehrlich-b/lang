@@ -174,19 +174,29 @@ func fo_effect_split(eff *PNode, pnames *u8) i64 {
     while i < n {
         var it *PNode = vec_get(items, i);
         if pnode_is(it, "op") {
-            if streq(it.text, "--") { past = 1; }
+            if !streq(it.text, "--") || past == 1 {
+                fo_fail("invalid stack effect", nil, it);
+            }
+            past = 1;
         } else if pnode_is(it, "sym") {
             if past == 1 {
+                if nres == 1 { fo_fail("invalid stack effect", nil, it); }
                 nres = nres + 1;
             } else {
+                var j i64 = 0;
+                while j < vec_len(pnames) {
+                    var name *u8 = vec_get(pnames, j);
+                    if streq(name, it.text) { fo_fail("invalid stack effect", nil, it); }
+                    j = j + 1;
+                }
                 vec_push(pnames, it.text);
             }
+        } else {
+            fo_fail("invalid stack effect", nil, it);
         }
         i = i + 1;
     }
-    if past == 0 {
-        eprint("forth: warning: stack effect is missing '--'; treating every name as a parameter\n");
-    }
+    if past == 0 { fo_fail("invalid stack effect", nil, eff); }
     return nres;
 }
 
