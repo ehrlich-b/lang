@@ -1,0 +1,17 @@
+// expect: 0
+include "std/core.lang"
+
+func main() i64 {
+    var src *u8 = malloc(5);
+    *src = 97; *(src + 1) = 98; *(src + 2) = 0; *(src + 3) = 99; *(src + 4) = 100;
+    var copy *u8 = str_dup_n(src, 5);
+    if copy == src { return 1; }
+    var i i64 = 0;
+    while i < 5 { if *(copy + i) != *(src + i) { return 2; } i = i + 1; }
+    if *(copy + 5) != 0 { return 3; }
+    *src = 120;
+    if *copy != 97 { return 4; }
+    var empty *u8 = str_dup_n(src, 0);
+    if *empty != 0 { return 5; }
+    free(empty); free(copy); free(src); return 0;
+}
