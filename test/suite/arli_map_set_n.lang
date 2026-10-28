@@ -1,0 +1,18 @@
+// expect: 0
+include "std/core.lang"
+
+func main() i64 {
+    var m *u8 = map_new();
+    var src *u8 = str_dup("alphaTAIL");
+    map_set_n(m, src, 5, 7);
+    *src = 88;
+    if map_get(m, "alpha") != 7 || map_has(m, "alphaTAIL") != 0 { return 1; }
+    map_set_n(m, "alphaOTHER", 5, 9);
+    if map_get(m, "alpha") != 9 || map_size(m) != 1 { return 2; }
+    map_set_n(m, "ignored", 0, 17);
+    if map_get(m, "") != 17 || map_size(m) != 2 { return 3; }
+    var owned *u8 = map_keys(m);
+    var i i64 = 0;
+    while i < vec_len(owned) { var key *u8 = vec_get(owned, i); free(key); i = i + 1; }
+    vec_free(owned); map_free(m); free(src); return 0;
+}
