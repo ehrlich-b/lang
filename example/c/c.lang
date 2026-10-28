@@ -809,23 +809,55 @@ func c_atoi(s *u8) i64 {
 // implicit values count up from 0 (or from the last explicit value + 1), so
 // `enum { A, B, C }` is 0/1/2 and `enum { X = 10, Y }` is 10/11. The tag name is
 // cosmetic (the kernel has no enum type; `enum Tag` lowers to i64 in emit_type).
+func arli_c_enum_shape_fail(message *u8, node *PNode) void {
+    pnode_print_error(node, c_src, "c", message);
+    exit(1);
+}
+
 func emit_enumdef(d *PNode, decls *u8) void {
     var items *PNode = pnode_require(d, "items");
     var n i64 = vec_len(items.children);
+    if n == 0 { arli_c_enum_shape_fail("empty enum", d); }
+    var names *u8 = vec_new(8);
+    var expect_member bool = true;
     var counter i64 = 0;
     var i i64 = 0;
     while i < n {
         var it *PNode = vec_get(items.children, i);   // c_enumitem = member:... | ','
         if pnode_is(it, "member") {
+            if !expect_member { arli_c_enum_shape_fail("expected enum separator", it); }
             var namep *PNode = pnode_require(it, "name");
+            var j i64 = 0;
+            while j < vec_len(names) {
+                if streq(vec_get(names, j), namep.text) {
+                    arli_c_enum_shape_fail("duplicate enum member", namep);
+                }
+                j = j + 1;
+            }
+            vec_push(names, namep.text);
             var valopt *PNode = pnode_require(it, "value");   // c_enumvalopt = c_enumval*
+            if vec_len(valopt.children) > 1 {
+                arli_c_enum_shape_fail("repeated enum value", vec_get(valopt.children, 1));
+            }
             var value i64 = counter;
             if vec_len(valopt.children) > 0 {
                 var ev *PNode = vec_get(valopt.children, 0);
-                value = c_atoi(pnode_require(ev, "value").text);
+                var number *PNode = pnode_require(ev, "value");
+                var k i64 = 0;
+                if *number.text == 0 { arli_c_enum_shape_fail("decimal enum value required", number); }
+                while *(number.text + k) != 0 {
+                    var c i64 = *(number.text + k);
+                    if c < 48 || c > 57 { arli_c_enum_shape_fail("decimal enum value required", number); }
+                    k = k + 1;
+                }
+                value = c_atoi(number.text);
             }
             ast_push(decls, ast_var(namep.text, ast_type_i64(), ast_int(value)));
             counter = value + 1;
+            expect_member = false;
+        } else {
+            if expect_member { arli_c_enum_shape_fail("unexpected enum separator", it); }
+            expect_member = true;
         }
         i = i + 1;
     }
