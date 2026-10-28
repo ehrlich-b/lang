@@ -300,6 +300,11 @@ func deref_paren_inner(primary *PNode) *PNode {
     return nil;
 }
 
+func arli_c_call_args_fail(message *u8, node *PNode) void {
+    pnode_print_error(node, c_src, "c", message);
+    exit(1);
+}
+
 // postfix = primary postfixop*  ->  fold the chain left-to-right. Each op is a
 // call (c_callargs = ['(', args, ')'], so children[1] is the args list, kind 4)
 // or a member access (c_member = ['.', name], so children[1] is the name, kind 2).
@@ -333,13 +338,29 @@ func emit_postfix_str(pf *PNode) *u8 {
         } else if pnode_is(op, "index") {         // a[i] -> (index base idx)
             base = ast_index(base, emit_expr_str(pnode_require(op, "index")));
         } else if pnode_is(op, "call") {          // f(a, b) -> (call base args...)
-            var args *u8 = ast_vec();
             var items *u8 = pnode_require(op, "args").children;
             var n i64 = vec_len(items);
             var i i64 = 0;
+            var expect_arg i64 = 1;
             while i < n {
                 var it *PNode = vec_get(items, i);
-                if pnode_is(it, "arg") {          // ',' separators carry no label
+                if pnode_is(it, "arg") {
+                    if expect_arg == 0 { arli_c_call_args_fail("expected argument separator", it); }
+                    expect_arg = 0;
+                } else {
+                    if expect_arg == 1 { arli_c_call_args_fail("unexpected argument separator", it); }
+                    expect_arg = 1;
+                }
+                i = i + 1;
+            }
+            if n > 0 && expect_arg == 1 {
+                arli_c_call_args_fail("trailing argument separator", vec_get(items, n - 1));
+            }
+            var args *u8 = ast_vec();
+            i = 0;
+            while i < n {
+                var it *PNode = vec_get(items, i);
+                if pnode_is(it, "arg") {
                     ast_push(args, emit_expr_str(it));
                 }
                 i = i + 1;
