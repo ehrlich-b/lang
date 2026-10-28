@@ -1,0 +1,15 @@
+// expect: 0
+include "std/core.lang"
+
+func main() i64 {
+    var a *u8 = malloc(3); var b *u8 = malloc(3);
+    *a = 97; *(a + 1) = 0; *(a + 2) = 120;
+    *b = 97; *(b + 1) = 0; *(b + 2) = 120;
+    if !str_eq_n(a, 3, b, 3) { return 1; }
+    *(b + 2) = 121;
+    if str_eq_n(a, 3, b, 3) { return 2; }
+    if !str_eq_n(a, 2, b, 2) { return 3; }
+    if str_eq_n(a, 2, b, 3) || str_eq_n(a, 3, b, 2) { return 4; }
+    if !str_eq_n(a, 0, b, 0) { return 5; }
+    free(a); free(b); return 0;
+}
