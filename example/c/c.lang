@@ -593,6 +593,11 @@ func switch_finalize(conds *u8, bodies *u8, svname *u8, vals *u8, is_default i64
 // not flow into the next). Stacked empty labels (case 2: case 3:) share one body.
 // A top-level break just terminates its case (it is the idiomatic terminator).
 //   c_switchstmt = ['switch','(',expr,')','{', items, '}']  -> children[2]=expr, [5]=items
+func arli_c_switch_default_fail(message *u8, node *PNode) void {
+    pnode_print_error(node, c_src, "c", message);
+    exit(1);
+}
+
 func emit_switch(s *PNode) *u8 {
     var svname *u8 = c_gensym("__sw", s);
     var scrut *u8 = emit_expr_str(pnode_require(s, "scrut"));
@@ -604,6 +609,7 @@ func emit_switch(s *PNode) *u8 {
 
     var pend_vals *u8 = ast_vec();  // case-value expr strings for the current stacked labels
     var pend_default i64 = 0;
+    var default_seen i64 = 0;
     var pend_body *u8 = ast_vec();
     var have_body i64 = 0;          // current group has started collecting body statements?
     var have_group i64 = 0;         // any label seen for the current group?
@@ -618,9 +624,14 @@ func emit_switch(s *PNode) *u8 {
                 pend_vals = ast_vec(); pend_default = 0; pend_body = ast_vec(); have_body = 0;
             }
             have_group = 1;
-            if lab == 2 { pend_default = 1; }
+            if lab == 2 {
+                if default_seen != 0 { arli_c_switch_default_fail("duplicate default", it); }
+                default_seen = 1;
+                pend_default = 1;
+            }
             else { ast_push(pend_vals, emit_expr_str(pnode_require(it, "value"))); }
         } else {
+            if have_group == 0 { arli_c_switch_default_fail("statement before switch label", it); }
             if switch_is_break(it) == 0 {       // drop the case-terminating break
                 ast_push(pend_body, emit_stmt(it));
             }
@@ -657,8 +668,19 @@ func emit_switch(s *PNode) *u8 {
 // ['[', number, ']'] = 1-D array `T[N]` -> (type_array N ELEM), no initializer).
 // initopt is the stable-slot optional init for scalars (absent -> no store, as in
 // C / a top-level zero). Shared by local decls and globals.
+func arli_c_decl_loss_fail(message *u8, node *PNode) void {
+    pnode_print_error(node, c_src, "c", message);
+    exit(1);
+}
+
 func emit_var(name *PNode, typenode *PNode, arrdim *PNode, initopt *PNode) *u8 {
+    if vec_len(arrdim.children) > 1 {
+        arli_c_decl_loss_fail("multidimensional array", vec_get(arrdim.children, 1));
+    }
     if vec_len(arrdim.children) > 0 {
+        if vec_len(initopt.children) > 0 {
+            arli_c_decl_loss_fail("array initializer", vec_get(initopt.children, 0));
+        }
         var dim0 *PNode = vec_get(arrdim.children, 0);
         var sizenode *PNode = pnode_require(dim0, "size");
         return ast_var(name.text, ast_type_array(sizenode.text, emit_type(typenode)), nil);

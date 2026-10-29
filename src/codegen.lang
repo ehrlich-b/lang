@@ -571,6 +571,7 @@ func get_parent_capture_type(index i64) *u8 {
 // ============================================================
 
 func analyze_captures_block(block *u8) void {
+    var saved_local_count i64 = cg_local_count;
     var stmts *u8 = block_stmt_stmts(block);
     var count i64 = block_stmt_count(block);
     var i i64 = 0;
@@ -579,6 +580,7 @@ func analyze_captures_block(block *u8) void {
         analyze_captures_stmt(*stmt_p);
         i = i + 1;
     }
+    cg_local_count = saved_local_count;
 }
 
 func analyze_captures_stmt(stmt *u8) void {
@@ -605,12 +607,11 @@ func analyze_captures_stmt(stmt *u8) void {
     } else if k == NODE_EXPR_STMT {
         analyze_captures_expr(expr_stmt_expr(stmt));
     } else if k == NODE_VAR_DECL {
-        // Note: The local is ADDED to scope by normal codegen
-        // We need to analyze the initializer expression
         var init *u8 = var_decl_init(stmt);
         if init != nil {
             analyze_captures_expr(init);
         }
+        add_local(var_decl_name(stmt), var_decl_name_len(stmt), 0, var_decl_type(stmt));
     } else if k == NODE_ASSIGN_STMT {
         analyze_captures_expr(assign_stmt_target(stmt));
         analyze_captures_expr(assign_stmt_value(stmt));
@@ -672,13 +673,37 @@ func analyze_captures_expr(expr *u8) void {
         analyze_captures_expr(group_expr_expr(expr));
     } else if k == NODE_LET_EXPR {
         analyze_captures_expr(let_expr_init(expr));
-        // let bindings create a new local, but analyze body for more captures
+        var saved_local_count i64 = cg_local_count;
+        add_local(let_expr_name(expr), let_expr_name_len(expr), 0, let_expr_type(expr));
         analyze_captures_expr(let_expr_body(expr));
+        cg_local_count = saved_local_count;
+    } else if k == NODE_BLOCK_EXPR {
+        var saved_local_count i64 = cg_local_count;
+        var stmts *u8 = block_expr_stmts(expr);
+        var count i64 = block_expr_count(expr);
+        var i i64 = 0;
+        while i < count {
+            var stmt_p **u8 = stmts + (i * 8);
+            analyze_captures_stmt(*stmt_p);
+            i = i + 1;
+        }
+        analyze_captures_expr(block_expr_tail(expr));
+        cg_local_count = saved_local_count;
     } else if k == NODE_LAMBDA_EXPR {
         // Nested lambda - we need to analyze its body for captures
         // This ensures that variables used by inner lambdas get captured by outer too
         // We don't register the nested lambda here - that happens when gen_expr processes it
+        var saved_local_count i64 = cg_local_count;
+        var params *u8 = lambda_expr_params(expr);
+        var param_count i64 = lambda_expr_param_count(expr);
+        var i i64 = 0;
+        while i < param_count {
+            var p *u8 = params + (i * 24);
+            add_local(param_name(p), param_name_len(p), 0, param_type(p));
+            i = i + 1;
+        }
         analyze_captures_block(lambda_expr_body(expr));
+        cg_local_count = saved_local_count;
     } else if k == NODE_MATCH_EXPR {
         analyze_captures_expr(match_expr_scrutinee(expr));
         var arms *u8 = match_expr_arms(expr);
@@ -703,8 +728,16 @@ func analyze_lambda_captures(lambda_node *u8, param_count i64) i64 {
     // Mark current scope start - variables at or above this index are outer scope
     cg_lambda_scope_start = cg_local_count;
 
-    // Walk the lambda body to find captures
+    // Parameters shadow outer locals throughout the body.
+    var params *u8 = lambda_expr_params(lambda_node);
+    var i i64 = 0;
+    while i < param_count {
+        var p *u8 = params + (i * 24);
+        add_local(param_name(p), param_name_len(p), 0, param_type(p));
+        i = i + 1;
+    }
     analyze_captures_block(lambda_expr_body(lambda_node));
+    cg_local_count = cg_lambda_scope_start;
 
     return cg_current_capture_count;
 }

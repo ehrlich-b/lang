@@ -255,6 +255,23 @@ func lisp_quote_list(node *PNode, i i64, count i64) *u8 {
 
 // Emit a call to runtime function `fnname` with the node's args 1..count-1.
 func lisp_runtime_call(fnname *u8, node *PNode, count i64) *u8 {
+    if streq(fnname, "lisp_and") || streq(fnname, "lisp_or") {
+        var t *u8 = lisp_tmp(node);
+        var first *u8 = lisp_expr(list_get(node, 1));
+        var second *u8 = lisp_expr(list_get(node, 2));
+        var first_name *u8 = str_concat(t, "_first");
+        var stmts *u8 = ast_vec();
+        ast_push(stmts, ast_var(t, ast_type_i64(), ast_ident(first_name)));
+        var update *u8 = ast_block1(ast_assign(ast_ident(t), second));
+        var keep *u8 = ast_block1(ast_assign(ast_ident(t), ast_ident(t)));
+        if streq(fnname, "lisp_and") {
+            ast_push(stmts, ast_if(ast_call_named1("lisp_truthy", ast_ident(t)), update, keep));
+        } else {
+            ast_push(stmts, ast_if(ast_call_named1("lisp_truthy", ast_ident(t)), keep, update));
+        }
+        return ast_let(first_name, ast_type_i64(), first,
+                       ast_block_expr(stmts, ast_ident(t)));
+    }
     var args *u8 = ast_vec();
     var i i64 = 1;
     while i < count {

@@ -31,7 +31,7 @@ def encode(value):
         count += 1
         if depth > MAX_DEPTH or count > MAX_ITEMS:
             raise WireError('wire-budget')
-        if type(v) is not Value or v.kind not in TAGS:
+        if type(v) is not Value or type(v.kind) is not str or v.kind not in TAGS:
             raise WireError('non-wire-value')
         ident = id(v)
         if ident in active: raise WireError('cyclic-wire-object')
@@ -53,7 +53,8 @@ def encode(value):
             payload = data
         elif v.kind in ('text', 'syntax'):
             if type(data) is not str: raise WireError('text-value')
-            payload = data.encode('utf-8', errors='strict')
+            try: payload = data.encode('utf-8', errors='strict')
+            except UnicodeError as e: raise WireError('invalid-utf8') from e
             if v.kind == 'syntax' and ('\0' in data or not data.startswith('(program')):
                 raise WireError('syntax-value')
         elif v.kind in ('record', 'descriptor'):
@@ -135,13 +136,15 @@ def decode(data):
 
 
 def frame(value, kind=1):
-    if kind not in (1, 2, 3): raise WireError('frame-kind')
+    if type(kind) is not int or kind not in (1, 2, 3): raise WireError('frame-kind')
     payload = encode(value)
     if len(payload) > MAX_BYTES: raise WireError('wire-length')
     return HEADER.pack(b'STG1', len(payload), kind, 0) + payload
 
 
 def unframe(data, kind=None):
+    if kind is not None and (type(kind) is not int or kind not in (1, 2, 3)):
+        raise WireError('frame-kind')
     if len(data) < HEADER.size: raise WireError('frame-header')
     magic, size, actual, reserved = HEADER.unpack_from(data)
     if magic != b'STG1' or reserved or actual not in (1, 2, 3): raise WireError('frame-version')

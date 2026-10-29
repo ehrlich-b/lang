@@ -341,12 +341,108 @@ func py_push_prefix(e *PrecExpr, pre *PNode) void {
 // Python's `a < b < c` means `a < b and b < c`, not `(a < b) < c`. Rather than
 // quietly compile the wrong program, refuse it - and count per chain, since any
 // operator looser than a comparison ends one: `a < b or c < d` is two chains.
+// Reader-local Pratt climb keeps source operator nodes alongside the flat items.
+// Avoid every spelling present in the reader input, including locals and parameters.
+func arli_py_floor_mod_name(part *u8, offset i64) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, "arli_py_floor_mod_");
+    sb_str(sb, part);
+    sb_str(sb, "_");
+    sb_int(sb, offset);
+    var name *u8 = sb_finish(sb);
+    while arli_py_floor_mod_contains(py_src, name) {
+        var next *StringBuilder = sb_new();
+        sb_str(next, name);
+        sb_str(next, "_");
+        name = sb_finish(next);
+    }
+    return name;
+}
+
+func arli_py_floor_mod_contains(source *u8, name *u8) bool {
+    var i i64 = 0;
+    while *(source + i) != 0 {
+        var j i64 = 0;
+        while *(name + j) != 0 && *(source + i + j) == *(name + j) {
+            j = j + 1;
+        }
+        if *(name + j) == 0 { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+func arli_py_floor_mod_binary(op *u8, node *PNode, left *u8, right *u8) *u8 {
+    if !streq(op, "//") && !streq(op, "%") {
+        return ast_binop(py_op_ast(op), left, right);
+    }
+    var a *u8 = arli_py_floor_mod_name("a", node.start);
+    var b *u8 = arli_py_floor_mod_name("b", node.start);
+    var q *u8 = arli_py_floor_mod_name("q", node.start);
+    var r *u8 = arli_py_floor_mod_name("r", node.start);
+    var stmts *u8 = ast_vec();
+    ast_push(stmts, ast_var(a, ast_type_i64(), left));
+    ast_push(stmts, ast_var(b, ast_type_i64(), right));
+    ast_push(stmts, ast_var(q, ast_type_i64(), ast_binop("/", ast_ident(a), ast_ident(b))));
+    ast_push(stmts, ast_var(r, ast_type_i64(), ast_binop("%", ast_ident(a), ast_ident(b))));
+    var differs *u8 = ast_binop("!=", ast_binop("<", ast_ident(a), ast_int(0)),
+                               ast_binop("<", ast_ident(b), ast_int(0)));
+    var cond *u8 = ast_binop("&&", ast_binop("!=", ast_ident(r), ast_int(0)), differs);
+    var target *u8 = q;
+    var adjustment *u8 = ast_binop("-", ast_ident(q), ast_int(1));
+    if streq(op, "%") {
+        target = r;
+        adjustment = ast_binop("+", ast_ident(r), ast_ident(b));
+    }
+    ast_push(stmts, ast_if(cond, ast_block1(ast_assign(ast_ident(target), adjustment)), nil));
+    return ast_block_expr(stmts, ast_ident(target));
+}
+
+func arli_py_floor_mod_parse(e *PrecExpr, nodes *u8, pos *i64, minlevel i64) *u8 {
+    var n i64 = vec_len(e.items);
+    if *pos >= n { return nil; }
+    var left *u8 = nil;
+    if vec_get(e.kinds, *pos) == PREC_OP {
+        var raw *u8 = vec_get(e.items, *pos);
+        var pre *PrecOp = prec_find_prefix(e.table, py_op_ast(raw));
+        if pre == nil { return nil; }
+        if pre.level < minlevel {
+            eprint("reader lowering error: operator '");
+            eprint(py_op_ast(raw));
+            eprintln("' binds too loosely to be an operand here");
+            return nil;
+        }
+        *pos = *pos + 1;
+        var operand *u8 = arli_py_floor_mod_parse(e, nodes, pos, pre.level);
+        if operand == nil { return nil; }
+        left = ast_unop(py_op_ast(raw), operand);
+    } else {
+        left = vec_get(e.items, *pos);
+        *pos = *pos + 1;
+    }
+    while *pos < n {
+        if vec_get(e.kinds, *pos) != PREC_OP { return nil; }
+        var op *u8 = vec_get(e.items, *pos);
+        var level i64 = prec_of(e.table, py_op_ast(op));
+        if level == 0 { return nil; }
+        if level < minlevel { return left; }
+        var opnode *PNode = vec_get(nodes, *pos);
+        *pos = *pos + 1;
+        var right *u8 = arli_py_floor_mod_parse(e, nodes, pos, level + 1);
+        if right == nil { return nil; }
+        left = arli_py_floor_mod_binary(op, opnode, left, right);
+    }
+    return left;
+}
+
 func py_expr_of(node *PNode) *u8 {
     var t *PrecTable = py_table();
     var cmp_level i64 = prec_of(t, "==");
     var e *PrecExpr = prec_expr(t);
+    var nodes *u8 = vec_new(8);
     py_push_prefix(e, pnode_require(node, "pre"));
     prec_operand(e, py_unary_of(pnode_require(node, "first")));
+    while vec_len(nodes) < vec_len(e.items) { vec_push(nodes, nil); }
 
     var rest *PNode = pnode_require(node, "rest");
     var n i64 = vec_len(rest.children);
@@ -365,12 +461,15 @@ func py_expr_of(node *PNode) *u8 {
         } else if level < cmp_level {
             cmps = 0;
         }
-        prec_op(e, spelled);
+        prec_op(e, op.text);
+        vec_push(nodes, op);
         py_push_prefix(e, pnode_require(item, "pre"));
         prec_operand(e, py_unary_of(pnode_require(item, "right")));
+        while vec_len(nodes) < vec_len(e.items) { vec_push(nodes, nil); }
         i = i + 1;
     }
-    var built *u8 = prec_build(e);
+    var pos i64 = 0;
+    var built *u8 = arli_py_floor_mod_parse(e, nodes, &pos, 1);
     if built == nil { py_fail("this operator is not in the minipy subset", node); }
     return built;
 }
@@ -762,7 +861,17 @@ func py_def_of(node *PNode) *u8 {
     var np i64 = vec_len(plist.children);
     var i i64 = 0;
     while i < np {
-        var p *PNode = pnode_require(vec_get(plist.children, i), "name");
+        var item *PNode = vec_get(plist.children, i);
+        var p *PNode = pnode_require(item, "name");
+        if i + 1 < np {
+            if vec_len(item.children) < 2 || pnode_child(item, 1) == nil {
+                py_fail("parameter separator required", p);
+            }
+        }
+        if streq(p.text, "True") || streq(p.text, "False") || streq(p.text, "None") {
+            py_fail("reserved parameter", p);
+        }
+        if py_name_in(pnames, p.text) != 0 { py_fail("duplicate parameter", p); }
         ast_push(params, ast_param(p.text, ast_type_i64()));
         vec_push(pnames, p.text);
         i = i + 1;
