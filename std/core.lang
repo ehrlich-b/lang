@@ -569,6 +569,12 @@ pub func print_digit(d i64) {
 }
 
 pub func print_int(n i64) {
+    // Its positive magnitude is not representable as an i64.
+    if n == (0 - 9223372036854775807 - 1) {
+        file_write(1, "-9223372036854775808", 20);
+        return;
+    }
+
     if n < 0 {
         file_write(1, "-", 1);
         n = 0 - n;
@@ -603,6 +609,17 @@ pub func print_f64(val f64) void {
 
 // Convert integer to string, write to buffer, return length
 pub func itoa(n i64, buf *u8) i64 {
+    // Its positive magnitude is not representable as an i64.
+    if n == (0 - 9223372036854775807 - 1) {
+        var min_text *u8 = "-9223372036854775808";
+        var i i64 = 0;
+        while i < 20 {
+            *(buf + i) = *(min_text + i);
+            i = i + 1;
+        }
+        return 20;
+    }
+
     var pos i64 = 0;
 
     if n < 0 {

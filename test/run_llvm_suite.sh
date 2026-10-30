@@ -1603,6 +1603,30 @@ pointer_index_ffi_e2e() {
 }
 pointer_index_ffi_e2e
 
+# Check integer formatting bytes and return values under optimized native code.
+int_format_e2e() {
+    local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
+    local opt
+    if ! LANGBE=llvm $COMPILER test/suite/291_int_format.lang -o "$tmp/format.ll" >"$tmp/compile.log" 2>&1; then
+        echo "FAIL int_format (compile error)" >> "$results_file"
+        cat "$tmp/compile.log" >&2
+        rm -rf "$tmp"
+        return
+    fi
+    for opt in 0 2; do
+        if clang -O"$opt" "$tmp/format.ll" -o "$tmp/format" >"$tmp/clang.log" 2>&1 &&
+           do_timeout 10 "$tmp/format" >"$tmp/stdout" &&
+           cmp -s test/int_format.expected "$tmp/stdout"; then
+            echo "PASS int_format_O$opt" >> "$results_file"
+        else
+            echo "FAIL int_format_O$opt" >> "$results_file"
+            cat "$tmp/clang.log" >&2
+        fi
+    done
+    rm -rf "$tmp"
+}
+int_format_e2e
+
 # Count results (grep -c returns 1 if no matches, so handle that)
 passed=$(grep -c '^PASS' "$results_file" 2>/dev/null) || passed=0
 failed=$(grep -c '^FAIL' "$results_file" 2>/dev/null) || failed=0

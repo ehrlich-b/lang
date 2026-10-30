@@ -1,0 +1,33 @@
+// expect: 0
+include "std/core.lang"
+
+func check(n i64, expected *u8, len i64) i64 {
+    var buf *u8 = alloc(32);
+    var i i64 = 0;
+    while i < 32 { *(buf + i) = 88; i = i + 1; }
+    if itoa(n, buf + 1) != len { return 1; }
+    if *buf != 88 { return 2; }
+    i = 0;
+    while i < len {
+        if *(buf + 1 + i) != *(expected + i) { return 3; }
+        i = i + 1;
+    }
+    while i < 31 {
+        if *(buf + 1 + i) != 88 { return 4; }
+        i = i + 1;
+    }
+    print_int(n);
+    file_write(1, "\n", 1);
+    return 0;
+}
+
+func main() i64 {
+    var max i64 = 9223372036854775807;
+    if check(0 - max - 1, "-9223372036854775808", 20) != 0 { return 1; }
+    if check(0, "0", 1) != 0 { return 2; }
+    if check(-1, "-1", 2) != 0 { return 3; }
+    if check(1, "1", 1) != 0 { return 4; }
+    if check(max, "9223372036854775807", 19) != 0 { return 5; }
+    if check(0 - max, "-9223372036854775807", 20) != 0 { return 6; }
+    return 0;
+}
