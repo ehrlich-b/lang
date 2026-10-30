@@ -688,3 +688,9 @@ test-bootstrap:
 .PHONY: borders
 borders: build
 	python3 test/borders/run.py
+# Score a Lox executable against the Crafting Interpreters suite.
+LOX_SUITE ?= ../craftinginterpreters
+LOX_INTERPRETER ?= out/lox
+.PHONY: lox-score
+lox-score:
+	python3 test/lox/score.py --suite "$(LOX_SUITE)" --interpreter "$(LOX_INTERPRETER)"
