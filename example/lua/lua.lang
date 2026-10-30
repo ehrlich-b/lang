@@ -1,0 +1,107 @@
+// A deliberately small Lua 5.4 integer-assertion reader. Unsupported syntax
+// is rejected; the expressions are evaluated by the generated target program.
+include "std/tok.lang"
+include "std/ast.lang"
+
+func lua_primary(t *Tokenizer) *u8 {
+    if tok_kind(t) == TOK_NUMBER {
+        var n *u8 = tok_text(t);
+        // Only decimal integers fitting comfortably in i64 are admitted.
+        var i i64 = 0;
+        if *n == 45 { i = 1; }
+        var start i64 = i;
+        while *(n + i) != 0 {
+            if *(n + i) < 48 || *(n + i) > 57 { return nil; }
+            i = i + 1;
+        }
+        if i == start || i - start > 9 { return nil; }
+        tok_next(t);
+        return ast_number(n);
+    }
+    if streq(tok_text(t), "-") {
+        tok_next(t);
+        var value *u8 = lua_primary(t);
+        if value == nil { return nil; }
+        return ast_neg(value);
+    }
+    if tok_match(t, TOK_LPAREN) {
+        var value *u8 = lua_sum(t);
+        if value == nil || !tok_expect(t, TOK_RPAREN) { return nil; }
+        return value;
+    }
+    return nil;
+}
+
+func lua_product(t *Tokenizer) *u8 {
+    var left *u8 = lua_primary(t);
+    if left == nil { return nil; }
+    while streq(tok_text(t), "*") {
+        tok_next(t);
+        var right *u8 = lua_primary(t);
+        if right == nil { return nil; }
+        left = ast_mul(left, right);
+    }
+    return left;
+}
+
+func lua_sum(t *Tokenizer) *u8 {
+    var left *u8 = lua_product(t);
+    if left == nil { return nil; }
+    while streq(tok_text(t), "+") || streq(tok_text(t), "-") {
+        var op *u8 = tok_text(t);
+        tok_next(t);
+        var right *u8 = lua_product(t);
+        if right == nil { return nil; }
+        if streq(op, "+") { left = ast_add(left, right); }
+        else { left = ast_sub(left, right); }
+    }
+    return left;
+}
+
+func lua_comparison(t *Tokenizer) *u8 {
+    var left *u8 = lua_sum(t);
+    if left == nil { return nil; }
+    var op *u8 = tok_text(t);
+    if !streq(op, "==") && !streq(op, "<") && !streq(op, ">") && !streq(op, "<=") && !streq(op, ">=") { return nil; }
+    tok_next(t);
+    var right *u8 = lua_sum(t);
+    if right == nil { return nil; }
+    if streq(op, "==") { return ast_eq(left, right); }
+    if streq(op, "<") { return ast_lt(left, right); }
+    if streq(op, ">") { return ast_gt(left, right); }
+    if streq(op, "<=") { return ast_le(left, right); }
+    return ast_ge(left, right);
+}
+
+reader lua(text *u8) *u8 {
+    // The shared tokenizer's line comment mode cannot distinguish a Lua long
+    // comment; reject that spelling conservatively instead of misreading it.
+    var p *u8 = text;
+    while *p != 0 {
+        if *p == 45 && *(p + 1) == 45 && *(p + 2) == 91 {
+            eprintln("lua: long comments are not supported");
+            return nil;
+        }
+        p = p + 1;
+    }
+    var t *Tokenizer = tok_new_comments(text, "--", nil, nil);
+    var statements *u8 = ast_vec();
+    while !tok_eof(t) {
+        if streq(tok_text(t), ";") { tok_next(t); }
+        else if streq(tok_text(t), "assert") {
+            tok_next(t);
+            if !tok_expect(t, TOK_LPAREN) { return nil; }
+            var condition *u8 = lua_comparison(t);
+            if condition == nil || !tok_expect(t, TOK_RPAREN) {
+                eprintln("lua: expected an integer comparison in assert");
+                return nil;
+            }
+            ast_push(statements, ast_if_then(ast_not(condition), ast_block1(ast_return(ast_int(1)))));
+        } else {
+            eprintln("lua: unsupported statement");
+            return nil;
+        }
+    }
+    ast_push(statements, ast_return(ast_int(0)));
+    return ast_program1(ast_func("main", ast_vec(), ast_type_i64(), ast_block(statements)));
+}
