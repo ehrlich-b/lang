@@ -1,0 +1,21 @@
+// Arithmetic, precedence, equality, truthiness and strings.
+print 1 + 2 * 3;
+print (1 + 2) * 3;
+print 9 - 3 - 2;
+print 8 / 2;
+print -2.5;
+print -0;
+print !nil;
+print !false;
+print !0;
+print "hello" + " world";
+print 1 < 2;
+print 2 <= 2;
+print 3 > 2;
+print 3 >= 3;
+print nil == nil;
+print nil != false;
+print 1 == "1";
+print "a" == "a";
+print true != false;
+42;

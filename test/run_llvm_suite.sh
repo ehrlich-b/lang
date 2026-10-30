@@ -1626,6 +1626,12 @@ int_format_e2e() {
     rm -rf "$tmp"
 }
 int_format_e2e
+# Compile and exercise the standalone Lox reader and its target runtime.
+if bash example/lox/test/run.sh; then
+    echo "PASS reader_lox_e2e" >> "$results_file"
+else
+    echo "FAIL reader_lox_e2e" >> "$results_file"
+fi
 
 # Count results (grep -c returns 1 if no matches, so handle that)
 passed=$(grep -c '^PASS' "$results_file" 2>/dev/null) || passed=0

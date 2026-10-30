@@ -1,0 +1,114 @@
+// Lox expressions lowered to calls in the target runtime.
+include "std/ast.lang"
+
+struct LoxParser { text *u8; pos i64; line i64; failed i64; }
+func lx_at(p *LoxParser, i i64) u8 { var text *u8 = p.text; return *(text + i); }
+func lx_char(p *LoxParser) u8 { return lx_at(p, p.pos); }
+func lx_skip(p *LoxParser) void {
+    while true {
+        var c u8 = lx_char(p);
+        if c == ' ' || c == '\r' || c == '\t' { p.pos = p.pos + 1; }
+        else if c == '\n' { p.line = p.line + 1; p.pos = p.pos + 1; }
+        else if c == '/' && lx_at(p, p.pos + 1) == '/' {
+            while lx_char(p) != 0 && lx_char(p) != '\n' { p.pos = p.pos + 1; }
+        } else { return; }
+    }
+}
+func lx_error(p *LoxParser) void {
+    if p.failed == 0 { eprint("lox: line "); eprint_i64(p.line); eprintln(": syntax error"); }
+    p.failed = 1;
+}
+func lx_digit(c u8) bool { return c >= '0' && c <= '9'; }
+func lx_alpha(c u8) bool { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
+func lx_slice(p *LoxParser, start i64, end i64) *u8 {
+    var s *u8 = alloc(end - start + 1); var i i64 = 0;
+    while start + i < end { *(s + i) = lx_at(p, start + i); i = i + 1; }
+    *(s + i) = 0; return s;
+}
+func lx_primary(p *LoxParser) *u8 {
+    lx_skip(p); var c u8 = lx_char(p); var start i64 = p.pos;
+    if lx_digit(c) {
+        while lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
+        if lx_char(p) == '.' && lx_digit(lx_at(p, p.pos + 1)) {
+            p.pos = p.pos + 1; while lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
+        }
+        return ast_call1("lox_number", ast_string(lx_slice(p, start, p.pos)));
+    }
+    if c == '"' {
+        p.pos = p.pos + 1; start = p.pos;
+        while lx_char(p) != 0 && lx_char(p) != '"' {
+            if lx_char(p) == '\n' { p.line = p.line + 1; }
+            p.pos = p.pos + 1;
+        }
+        if lx_char(p) == 0 { lx_error(p); return nil; }
+        var s *u8 = lx_slice(p, start, p.pos); p.pos = p.pos + 1;
+        return ast_call1("lox_string", ast_string(s));
+    }
+    if lx_alpha(c) {
+        while lx_alpha(lx_char(p)) || lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
+        var word *u8 = lx_slice(p, start, p.pos);
+        if streq(word, "true") { return ast_call1("lox_bool", ast_number("1")); }
+        if streq(word, "false") { return ast_call1("lox_bool", ast_number("0")); }
+        if streq(word, "nil") { return ast_call0("lox_nil"); }
+        lx_error(p); return nil;
+    }
+    if c == '(' {
+        p.pos = p.pos + 1; var value *u8 = lx_expr(p, 1); lx_skip(p);
+        if lx_char(p) != ')' { lx_error(p); return nil; }
+        p.pos = p.pos + 1; return value;
+    }
+    lx_error(p); return nil;
+}
+func lx_unary(p *LoxParser) *u8 {
+    lx_skip(p); var c u8 = lx_char(p);
+    if c == '!' || c == '-' {
+        p.pos = p.pos + 1; var v *u8 = lx_unary(p); if v == nil { return nil; }
+        if c == '!' { return ast_call1("lox_not", v); }
+        return ast_call1("lox_negate", v);
+    }
+    return lx_primary(p);
+}
+// Return an operator code and consume it only after checking precedence.
+func lx_operator(p *LoxParser) i64 {
+    var c u8 = lx_char(p); var n u8 = lx_at(p, p.pos + 1);
+    if c == '=' && n == '=' { return 1; } if c == '!' && n == '=' { return 2; }
+    if c == '<' { if n == '=' { return 4; } return 3; }
+    if c == '>' { if n == '=' { return 6; } return 5; }
+    if c == '+' { return 7; } if c == '-' { return 8; }
+    if c == '*' { return 9; } if c == '/' { return 10; } return 0;
+}
+func lx_prec(op i64) i64 {
+    if op <= 2 { return 1; } if op <= 6 { return 2; }
+    if op <= 8 { return 3; } return 4;
+}
+func lx_expr(p *LoxParser, min i64) *u8 {
+    var left *u8 = lx_unary(p); if left == nil { return nil; }
+    while true {
+        lx_skip(p); var op i64 = lx_operator(p);
+        if op == 0 || lx_prec(op) < min { return left; }
+        p.pos = p.pos + 1;
+        if op == 1 || op == 2 || op == 4 || op == 6 { p.pos = p.pos + 1; }
+        var right *u8 = lx_expr(p, lx_prec(op) + 1); if right == nil { return nil; }
+        var ops *u8 = "";
+        if op == 1 { ops = "1"; } else if op == 2 { ops = "2"; } else if op == 3 { ops = "3"; } else if op == 4 { ops = "4"; } else if op == 5 { ops = "5"; } else if op == 6 { ops = "6"; } else if op == 7 { ops = "7"; } else if op == 8 { ops = "8"; } else if op == 9 { ops = "9"; } else { ops = "10"; }
+        left = ast_call3("lox_binary", ast_number(ops), left, right);
+    }
+    return left;
+}
+reader lox(text *u8) *u8 {
+    var p *LoxParser = alloc(32); p.text = text; p.pos = 0; p.line = 1; p.failed = 0;
+    var stmts *u8 = ast_vec(); lx_skip(p);
+    while lx_char(p) != 0 {
+        var isprint i64 = 0; var start i64 = p.pos;
+        if lx_alpha(lx_char(p)) {
+            while lx_alpha(lx_char(p)) || lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
+            if streq(lx_slice(p, start, p.pos), "print") { isprint = 1; } else { p.pos = start; }
+        }
+        var v *u8 = lx_expr(p, 1); if v == nil { return nil; }
+        lx_skip(p); if lx_char(p) != ';' { lx_error(p); return nil; } p.pos = p.pos + 1;
+        if isprint == 1 { v = ast_call1("lox_print", v); }
+        ast_push(stmts, ast_expr_stmt(v)); lx_skip(p);
+    }
+    ast_push(stmts, ast_return(ast_number("0")));
+    return ast_program1(ast_func("main", ast_vec(), ast_type_i64(), ast_block(stmts)));
+}

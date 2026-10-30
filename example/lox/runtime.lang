@@ -1,0 +1,66 @@
+include "std/core.lang"
+extern func fflush(stream *u8) i64;
+extern func strtod(s *u8, end **u8) f64;
+struct LoxValue { tag i64; data i64; }
+// Tags: 0 nil, 1 boolean, 2 number, 3 string.
+func lox_box(tag i64, data i64) i64 {
+    var v *LoxValue = alloc(16); v.tag = tag; v.data = data; return v;
+}
+func lox_nil() i64 { return lox_box(0, 0); }
+func lox_bool(b i64) i64 { return lox_box(1, b); }
+func lox_string(s *u8) i64 { return lox_box(3, s); }
+func lox_num(n f64) i64 {
+    var slot *f64 = alloc(8); slot[0] = n; return lox_box(2, slot);
+}
+func lox_number(s *u8) i64 { return lox_num(strtod(s, nil)); }
+func lox_value(v *LoxValue) f64 { var slot *f64 = v.data; return slot[0]; }
+func lox_error(message *u8) void { eprintln(message); exit(70); }
+func lox_not(x i64) i64 {
+    var a *LoxValue = x;
+    if a.tag == 0 || (a.tag == 1 && a.data == 0) { return lox_bool(1); }
+    return lox_bool(0);
+}
+func lox_negate(x i64) i64 {
+    var a *LoxValue = x;
+    if a.tag != 2 { lox_error("Operand must be a number."); }
+    return lox_num(lox_value(a) * strtod("-1", nil));
+}
+func lox_binary(op i64, x i64, y i64) i64 {
+    var a *LoxValue = x; var b *LoxValue = y;
+    if op == 1 || op == 2 {
+        var eq i64 = 0;
+        if a.tag == b.tag {
+            if a.tag == 0 { eq = 1; }
+            else if a.tag == 1 { if a.data == b.data { eq = 1; } }
+            else if a.tag == 2 { if lox_value(a) == lox_value(b) { eq = 1; } }
+            else { var s *u8 = a.data; var t *u8 = b.data; if streq(s, t) { eq = 1; } }
+        }
+        if op == 2 { if eq == 0 { eq = 1; } else { eq = 0; } }
+        return lox_bool(eq);
+    }
+    if op == 7 && a.tag == 3 && b.tag == 3 {
+        var s *u8 = a.data; var t *u8 = b.data;
+        var n i64 = strlen(s); var m i64 = strlen(t); var out *u8 = alloc(n + m + 1);
+        var i i64 = 0; while i < n { *(out + i) = *(s + i); i = i + 1; }
+        i = 0; while i < m { *(out + n + i) = *(t + i); i = i + 1; } *(out + n + m) = 0;
+        return lox_string(out);
+    }
+    if a.tag != 2 || b.tag != 2 {
+        if op == 7 { lox_error("Operands must be two numbers or two strings."); }
+        lox_error("Operands must be numbers.");
+    }
+    var av f64 = lox_value(a); var bv f64 = lox_value(b);
+    if op == 3 { if av < bv { return lox_bool(1); } return lox_bool(0); }
+    if op == 4 { if av <= bv { return lox_bool(1); } return lox_bool(0); }
+    if op == 5 { if av > bv { return lox_bool(1); } return lox_bool(0); }
+    if op == 6 { if av >= bv { return lox_bool(1); } return lox_bool(0); }
+    if op == 7 { return lox_num(av + bv); } if op == 8 { return lox_num(av - bv); }
+    if op == 9 { return lox_num(av * bv); } return lox_num(av / bv);
+}
+func lox_print(x i64) void {
+    var a *LoxValue = x;
+    if a.tag == 0 { println("nil"); }
+    else if a.tag == 1 { if a.data == 0 { println("false"); } else { println("true"); } }
+    else if a.tag == 2 { printf("%g\n", lox_value(a)); fflush(nil); }
+    else { var s *u8 = a.data; println(s); }
+}
