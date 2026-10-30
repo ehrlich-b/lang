@@ -1,0 +1,5 @@
+{
+  "comment-cr.lua": "-- comment\rassert(1 == 2)\r",
+  "comment-crlf.lua": "-- comment\r\nassert(1 == 2)\r\n",
+  "comment-lfcr.lua": "-- comment\n\rassert(1 == 2)\n\r"
+}

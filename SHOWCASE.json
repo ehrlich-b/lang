@@ -1,0 +1,7 @@
+{
+  "product": "lang",
+  "metrics": [
+    {"name": "Lua tests passing", "value": 0, "unit": "files per target", "direction": "higher", "detail": "0/33 LLVM, 0/33 direct Wasm; Lua 5.4.8 official files"},
+    {"name": "Readers in lang", "value": 6, "unit": "readers", "direction": "higher", "detail": "Five established polyglot examples (C, flow, forth, minilisp, minipy) plus the experimental Lua subset"}
+  ]
+}

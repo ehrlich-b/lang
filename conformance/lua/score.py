@@ -25,7 +25,7 @@ def run(args, env, cwd=ROOT):
 
 
 def compile_and_run(compiler, source, temp, target):
-    env = dict(os.environ, LANG_CACHE=str(temp / 'cache'))
+    env = dict(os.environ, LANG_CACHE=str(temp / 'cache'), LANGBE='llvm', LANGOS='linux')
     ast = temp / 'program.ast'
     status, detail = run([compiler, 'read', READER, source, '-o', ast], env)
     if status:
@@ -64,6 +64,8 @@ def main():
         if args.smoke:
             for name in ['arithmetic.lua', 'false.lua', 'unsupported.lua', 'long-comment.lua']:
                 cases.append((name, (ROOT / 'test/lua' / name).read_bytes()))
+            endings = json.loads((ROOT / 'test/lua/comment-newlines.json').read_text())
+            cases.extend((name, source.encode('utf-8')) for name, source in endings.items())
         else:
             with tarfile.open(ARCHIVE, 'r:gz') as tar:
                 for member in sorted(tar.getmembers(), key=lambda m: m.name):
@@ -85,11 +87,13 @@ def main():
                              for target in ('llvm', 'wasm')}}
         Path(args.report).write_text(json.dumps(report, indent=2) + '\n')
         if args.smoke:
-            expected = [True, False, False, False]
+            expected = [True, False, False, False, False, False, False]
             if any([r[t]['passed'] for r in rows] != expected for t in ('llvm', 'wasm')):
                 raise SystemExit('smoke outcomes did not match expectations')
             if any(rows[1][t].get('exit') != 1 for t in ('llvm', 'wasm')):
                 raise SystemExit('false assertion did not execute and fail')
+            if any(rows[i][t].get('exit') != 1 for i in (4, 5, 6) for t in ('llvm', 'wasm')):
+                raise SystemExit('assertion after comment did not execute and fail')
 
 
 if __name__ == '__main__':

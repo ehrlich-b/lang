@@ -3,7 +3,7 @@
 `example/lua/lua.lang` is a Lang reader plugin for a deliberately small Lua
 5.4 subset: whole chunks of `assert` calls with comparisons of decimal integers,
 unary minus, parentheses, and binary `+`, `-`, and `*`, plus semicolons and
-line comments. Operators are evaluated in the generated program, not during
+line comments with LF, CR, CRLF, or LFCR endings. Operators are evaluated in the generated program, not during
 reading. The shared tokenizer currently treats a minus followed immediately by
 digits as part of a number, so write binary subtraction with whitespace after
 `-`. Long comments, strings, floating-point numbers, variables, calls other
@@ -15,6 +15,9 @@ Build a current compiler (`make verify`) and run the smoke test:
 ```
 python3 conformance/lua/score.py --compiler out/bootstrap_verify/kernel2 --smoke --report ../lua-smoke.json
 ```
+
+The reader runs on native LLVM regardless of the target selected for the
+generated program or the caller's `LANGBE` and `LANGOS` environment.
 
 For the official corpus replace `--smoke` with nothing. The included archive is
 the unmodified [Lua 5.4.8 official test suite](https://www.lua.org/tests/),

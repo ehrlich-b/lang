@@ -74,6 +74,17 @@ func lua_comparison(t *Tokenizer) *u8 {
 }
 
 reader lua(text *u8) *u8 {
+    // The shared tokenizer ends line comments only at LF. Normalize Lua's
+    // CR line endings in a private copy before giving it the source.
+    var size i64 = strlen(text);
+    var normalized *u8 = alloc(size + 1);
+    var i i64 = 0;
+    while i < size {
+        if *(text + i) == 13 { *(normalized + i) = 10; }
+        else { *(normalized + i) = *(text + i); }
+        i = i + 1;
+    }
+    *(normalized + size) = 0;
     // The shared tokenizer's line comment mode cannot distinguish a Lua long
     // comment; reject that spelling conservatively instead of misreading it.
     var p *u8 = text;
@@ -84,7 +95,7 @@ reader lua(text *u8) *u8 {
         }
         p = p + 1;
     }
-    var t *Tokenizer = tok_new_comments(text, "--", nil, nil);
+    var t *Tokenizer = tok_new_comments(normalized, "--", nil, nil);
     var statements *u8 = ast_vec();
     while !tok_eof(t) {
         if streq(tok_text(t), ";") { tok_next(t); }
