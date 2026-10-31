@@ -20,4 +20,6 @@ for name in expressions unary_error numeric_error add_error; do
 done
 if "$tmp/loxc" example/lox/test/syntax_error.lox -o "$tmp/bad.ll" >"$tmp/out" 2>"$tmp/err"; then exit 1; fi
 grep -q 'line 2' "$tmp/err"
+if "$tmp/loxc" example/lox/test/eof_error.lox -o "$tmp/bad.ll" >"$tmp/out" 2>"$tmp/err"; then exit 1; fi
+grep -q 'line 1' "$tmp/err"
 echo 'PASS lox fixtures'
