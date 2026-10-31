@@ -18,8 +18,7 @@ strings. Variables, control flow, functions and classes are not yet supported.
 
 The runtime uses indexed `f64` slots because storing an `f64` through a pointer
 or struct field is not supported by this compiler. The reader copies pointers
-out of struct fields before accessing bytes, and the runtime negates doubles by
-multiplication because direct floating-point unary negation emits invalid LLVM.
+out of struct fields before accessing bytes, and the runtime flips the stored double's sign bit because direct floating-point unary negation emits invalid LLVM.
 The runtime uses libc `strtod` and `printf` for numeric conversion and output.
 The compiler only emits a variadic ABI for `printf`, so numeric output uses it
 and flushes immediately to preserve ordering with the standard library writes.

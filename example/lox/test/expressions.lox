@@ -19,3 +19,9 @@ print 1 == "1";
 print "a" == "a";
 print true != false;
 42;
+// Unordered comparisons and sign-flipping NaNs match clox.
+print (0 / 0) <= 0;
+print (0 / 0) >= 0;
+print -(0 / 0);
+print -(-(0 / 0));
+print -(-0);

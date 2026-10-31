@@ -23,7 +23,9 @@ func lox_not(x i64) i64 {
 func lox_negate(x i64) i64 {
     var a *LoxValue = x;
     if a.tag != 2 { lox_error("Operand must be a number."); }
-    return lox_num(lox_value(a) * strtod("-1", nil));
+    var src *i64 = a.data; var bits *i64 = alloc(8);
+    bits[0] = src[0] ^ (1 << 63);
+    return lox_box(2, bits);
 }
 func lox_binary(op i64, x i64, y i64) i64 {
     var a *LoxValue = x; var b *LoxValue = y;
@@ -51,9 +53,9 @@ func lox_binary(op i64, x i64, y i64) i64 {
     }
     var av f64 = lox_value(a); var bv f64 = lox_value(b);
     if op == 3 { if av < bv { return lox_bool(1); } return lox_bool(0); }
-    if op == 4 { if av <= bv { return lox_bool(1); } return lox_bool(0); }
+    if op == 4 { if av > bv { return lox_bool(0); } return lox_bool(1); }
     if op == 5 { if av > bv { return lox_bool(1); } return lox_bool(0); }
-    if op == 6 { if av >= bv { return lox_bool(1); } return lox_bool(0); }
+    if op == 6 { if av < bv { return lox_bool(0); } return lox_bool(1); }
     if op == 7 { return lox_num(av + bv); } if op == 8 { return lox_num(av - bv); }
     if op == 9 { return lox_num(av * bv); } return lox_num(av / bv);
 }
