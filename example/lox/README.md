@@ -14,7 +14,7 @@ lli /tmp/program.ll
 The reader accepts expression and `print` statements, `//` comments, numbers,
 strings, booleans and `nil`, parentheses, unary `-` and `!`, arithmetic,
 comparisons and equality. It uses Lox precedence and truthiness; `+` joins two
-strings. Variables, control flow, functions and classes are not yet supported.
+strings. Control flow and classes are not yet supported.
 
 The runtime uses indexed `f64` slots because storing an `f64` through a pointer
 or struct field is not supported by this compiler. The reader copies pointers
@@ -25,7 +25,7 @@ and flushes immediately to preserve ordering with the standard library writes.
 Run `bash example/lox/test/run.sh` for the fixtures.
 
 Variables can be declared with `var`, assigned, and shadowed in nested blocks.
-The generated program owns the scope stack and resolves values at runtime.
+The generated program owns the scope stack and resolves values at runtime. Function declarations, calls and returns are lowered to runtime operations; closures retain their defining scope.
 
 To score against the pinned Crafting Interpreters checkout, build its `clox`
 executable and run `make lox-score LOX_SUITE=/path/to/craftinginterpreters`.

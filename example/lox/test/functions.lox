@@ -1,0 +1,17 @@
+fun makeCounter(start) {
+  var n = start;
+  fun next() { n = n + 1; return n; }
+  return next;
+}
+var counter = makeCounter(40);
+print counter();
+print counter();
+print counter;
+print counter == counter;
+var a = "global";
+{
+  fun show() { print a; }
+  show();
+  var a = "local";
+  show();
+}

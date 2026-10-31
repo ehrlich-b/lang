@@ -2,7 +2,7 @@ include "std/core.lang"
 extern func fflush(stream *u8) i64;
 extern func strtod(s *u8, end **u8) f64;
 struct LoxValue { tag i64; data i64; }
-// Tags: 0 nil, 1 boolean, 2 number, 3 string.
+// Tags: 0 nil, 1 boolean, 2 number, 3 string, 4 function.
 func lox_box(tag i64, data i64) i64 {
     var v *LoxValue = alloc(16); v.tag = tag; v.data = data; return v;
 }
@@ -35,7 +35,8 @@ func lox_binary(op i64, x i64, y i64) i64 {
             if a.tag == 0 { eq = 1; }
             else if a.tag == 1 { if a.data == b.data { eq = 1; } }
             else if a.tag == 2 { if lox_value(a) == lox_value(b) { eq = 1; } }
-            else { var s *u8 = a.data; var t *u8 = b.data; if streq(s, t) { eq = 1; } }
+            else if a.tag == 3 { var s *u8 = a.data; var t *u8 = b.data; if streq(s, t) { eq = 1; } }
+            else { if a.data == b.data { eq = 1; } }
         }
         if op == 2 { if eq == 0 { eq = 1; } else { eq = 0; } }
         return lox_bool(eq);
@@ -64,7 +65,8 @@ func lox_print(x i64) void {
     if a.tag == 0 { println("nil"); }
     else if a.tag == 1 { if a.data == 0 { println("false"); } else { println("true"); } }
     else if a.tag == 2 { printf("%g\n", lox_value(a)); fflush(nil); }
-    else { var s *u8 = a.data; println(s); }
+    else if a.tag == 3 { var s *u8 = a.data; println(s); }
+    else { var f *LoxFunction = a.data; print("<fn "); print(f.name); println(">"); }
 }
 
 // Scope frames and bindings belong to the target program, not the reader.
@@ -106,4 +108,33 @@ func lox_assign(name *u8, value i64, line i64) i64 {
     var b *LoxBinding = lox_find(name);
     if b == nil { lox_undefined(name, line); }
     b.value = value; return value;
+}
+
+// Function values retain their defining environment; argument lists are per call.
+struct LoxFunction { id i64; arity i64; scope *LoxScope; name *u8; }
+struct LoxArgs { count i64; values *i64; }
+var lox_current_args *LoxArgs = nil;
+func lox_args() i64 { var a *LoxArgs = alloc(16); a.count = 0; a.values = alloc(2040); return a; }
+func lox_arg_add(list i64, value i64) i64 {
+    var a *LoxArgs = list; var values *i64 = a.values; values[a.count] = value; a.count = a.count + 1; return list;
+}
+func lox_return(value i64) i64 { return value; }
+func lox_argument(index i64) i64 { var values *i64 = lox_current_args.values; return values[index]; }
+func lox_call(value i64, list i64) i64 {
+    var v *LoxValue = value; if v.tag != 4 { lox_error("Can only call functions and classes."); }
+    var f *LoxFunction = v.data; var a *LoxArgs = list;
+    if a.count != f.arity { lox_error("Incorrect argument count."); }
+    var saved *LoxScope = lox_scope; var saved_args *LoxArgs = lox_current_args;
+    lox_scope = f.scope; lox_begin(); lox_current_args = a;
+    var result i64 = lox_dispatch(f.id);
+    lox_scope = saved; lox_current_args = saved_args; return result;
+}
+
+// Freeze the visible binding heads, while sharing the mutable bindings themselves.
+func lox_capture(scope *LoxScope) *LoxScope {
+    if scope == nil || scope.parent == nil { return scope; }
+    var copy *LoxScope = alloc(16); copy.bindings = scope.bindings; copy.parent = lox_capture(scope.parent); return copy;
+}
+func lox_function(id i64, arity i64, name *u8) i64 {
+    var f *LoxFunction = alloc(32); f.id = id; f.arity = arity; f.scope = lox_capture(lox_scope); f.name = name; return lox_box(4, f);
 }

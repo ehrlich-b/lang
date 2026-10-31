@@ -2,7 +2,7 @@
 include "std/ast.lang"
 
 struct LoxLocal { name *u8; depth i64; initializing i64; next *LoxLocal; }
-struct LoxParser { text *u8; pos i64; line i64; last_line i64; failed i64; depth i64; locals *LoxLocal; }
+struct LoxParser { text *u8; pos i64; line i64; last_line i64; failed i64; depth i64; locals *LoxLocal; decls *u8; dispatch *u8; functions i64; in_function i64; }
 func lx_at(p *LoxParser, i i64) u8 { var text *u8 = p.text; return *(text + i); }
 func lx_char(p *LoxParser) u8 { return lx_at(p, p.pos); }
 func lx_skip(p *LoxParser) void {
@@ -75,6 +75,24 @@ func lx_primary(p *LoxParser) *u8 {
     }
     lx_error(p); return nil;
 }
+func lx_call(p *LoxParser) *u8 {
+    var value *u8 = lx_primary(p);
+    while value != nil {
+        lx_skip(p); if lx_char(p) != '(' { return value; }
+        p.pos = p.pos + 1; var args *u8 = ast_call0("lox_args"); var count i64 = 0;
+        lx_skip(p);
+        while lx_char(p) != ')' {
+            if count >= 255 { lx_error(p); return nil; }
+            var arg *u8 = lx_assignment(p); if arg == nil { return nil; }
+            args = ast_call2("lox_arg_add", args, arg); count = count + 1; lx_skip(p);
+            if lx_char(p) != ',' { break; } p.pos = p.pos + 1; lx_skip(p);
+            if lx_char(p) == ')' { lx_error(p); return nil; }
+        }
+        if lx_char(p) != ')' { lx_error(p); return nil; }
+        p.pos = p.pos + 1; value = ast_call2("lox_call", value, args);
+    }
+    return nil;
+}
 func lx_unary(p *LoxParser) *u8 {
     lx_skip(p); var c u8 = lx_char(p);
     if c == '!' || c == '-' {
@@ -82,7 +100,7 @@ func lx_unary(p *LoxParser) *u8 {
         if c == '!' { return ast_call1("lox_not", v); }
         return ast_call1("lox_negate", v);
     }
-    return lx_primary(p);
+    return lx_call(p);
 }
 // Return an operator code and consume it only after checking precedence.
 func lx_operator(p *LoxParser) i64 {
@@ -129,6 +147,46 @@ func lx_assignment(p *LoxParser) *u8 {
     }
     p.pos = start; p.line = line; return lx_expr(p, 1);
 }
+func lx_numtext(n i64) *u8 { var sb *StringBuilder = sb_new(); sb_int(sb, n); return sb_finish(sb); }
+func lx_function(p *LoxParser, stmts *u8) i64 {
+    lx_skip(p); var start i64 = p.pos;
+    if !lx_alpha(lx_char(p)) { lx_error(p); return 0; }
+    while lx_alpha(lx_char(p)) || lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
+    var name *u8 = lx_slice(p, start, p.pos); lx_skip(p);
+    if p.depth > 0 {
+        var local *LoxLocal = p.locals;
+        while local != nil && local.depth == p.depth {
+            if streq(local.name, name) { lx_error(p); return 0; } local = local.next;
+        }
+        local = alloc(32); local.name = name; local.depth = p.depth; local.initializing = 0; local.next = p.locals; p.locals = local;
+    }
+    if lx_char(p) != '(' { lx_error(p); return 0; } p.pos = p.pos + 1;
+    p.functions = p.functions + 1; var id i64 = p.functions; var idtext *u8 = lx_numtext(id);
+    var sb *StringBuilder = sb_new(); sb_str(sb, "lox_guest_"); sb_str(sb, idtext); var fname *u8 = sb_finish(sb);
+    var body *u8 = ast_vec(); var count i64 = 0; lx_skip(p);
+    var oldlocals *LoxLocal = p.locals; var olddepth i64 = p.depth; p.depth = p.depth + 1;
+    while lx_char(p) != ')' {
+        if count >= 255 || !lx_alpha(lx_char(p)) { lx_error(p); return 0; }
+        start = p.pos; while lx_alpha(lx_char(p)) || lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
+        var param *u8 = lx_slice(p, start, p.pos); var l *LoxLocal = p.locals;
+        while l != nil && l.depth == p.depth { if streq(l.name, param) { lx_error(p); return 0; } l = l.next; }
+        l = alloc(32); l.name = param; l.depth = p.depth; l.initializing = 0; l.next = p.locals; p.locals = l;
+        ast_push(body, ast_expr_stmt(ast_call2("lox_define", ast_string(param), ast_call1("lox_argument", ast_number(lx_numtext(count))))));
+        count = count + 1; lx_skip(p); if lx_char(p) != ',' { break; } p.pos = p.pos + 1; lx_skip(p);
+        if lx_char(p) == ')' { lx_error(p); return 0; }
+    }
+    if lx_char(p) != ')' { lx_error(p); return 0; } p.pos = p.pos + 1; lx_skip(p);
+    if lx_char(p) != '{' { lx_error(p); return 0; } p.pos = p.pos + 1; p.in_function = p.in_function + 1;
+    lx_skip(p); while lx_char(p) != '}' && lx_char(p) != 0 { if lx_statement(p, body) == 0 { return 0; } lx_skip(p); }
+    if lx_char(p) != '}' { lx_error(p); return 0; } p.pos = p.pos + 1; p.in_function = p.in_function - 1;
+    p.locals = oldlocals; p.depth = olddepth;
+    ast_push(body, ast_return(ast_call1("lox_return", ast_call0("lox_nil"))));
+    ast_push(p.decls, ast_func(fname, ast_vec(), ast_type_i64(), ast_block(body)));
+    ast_push(p.dispatch, ast_if_then(ast_binop("==", ast_ident("id"), ast_number(idtext)), ast_block1(ast_return(ast_call0(fname)))));
+    ast_push(stmts, ast_expr_stmt(ast_call2("lox_define", ast_string(name), ast_call0("lox_nil"))));
+    ast_push(stmts, ast_expr_stmt(ast_call2("lox_assign", ast_string(name), ast_call3("lox_function", ast_number(idtext), ast_number(lx_numtext(count)), ast_string(name)))));
+    return 1;
+}
 func lx_statement(p *LoxParser, stmts *u8) i64 {
     lx_skip(p);
     if lx_char(p) == '{' {
@@ -146,6 +204,14 @@ func lx_statement(p *LoxParser, stmts *u8) i64 {
     if lx_alpha(lx_char(p)) {
         while lx_alpha(lx_char(p)) || lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
         var word *u8 = lx_slice(p, start, p.pos);
+        if streq(word, "fun") { return lx_function(p, stmts); }
+        if streq(word, "return") {
+            if p.in_function == 0 { lx_error(p); return 0; }
+            lx_skip(p); var result *u8 = ast_call0("lox_nil");
+            if lx_char(p) != ';' { result = lx_assignment(p); }
+            lx_skip(p); if result == nil || lx_char(p) != ';' { lx_error(p); return 0; }
+            p.pos = p.pos + 1; ast_push(stmts, ast_return(ast_call1("lox_return", result))); return 1;
+        }
         if streq(word, "print") { isprint = 1; }
         else if streq(word, "var") { isvar = 1; }
         else { p.pos = start; }
@@ -177,11 +243,15 @@ func lx_statement(p *LoxParser, stmts *u8) i64 {
     ast_push(stmts, ast_expr_stmt(v)); return 1;
 }
 reader lox(text *u8) *u8 {
-    var p *LoxParser = alloc(56); p.text = text; p.pos = 0; p.line = 1; p.last_line = 1; p.failed = 0; p.depth = 0; p.locals = nil;
+    var p *LoxParser = alloc(88); p.text = text; p.pos = 0; p.line = 1; p.last_line = 1; p.failed = 0; p.depth = 0; p.locals = nil; p.decls = ast_vec(); p.dispatch = ast_vec(); p.functions = 0; p.in_function = 0;
     var stmts *u8 = ast_vec(); ast_push(stmts, ast_expr_stmt(ast_call0("lox_begin"))); lx_skip(p);
     while lx_char(p) != 0 {
         if lx_statement(p, stmts) == 0 { return nil; } lx_skip(p);
     }
     ast_push(stmts, ast_return(ast_number("0")));
-    return ast_program1(ast_func("main", ast_vec(), ast_type_i64(), ast_block(stmts)));
+    ast_push(p.decls, ast_func("main", ast_vec(), ast_type_i64(), ast_block(stmts)));
+    ast_push(p.dispatch, ast_return(ast_call0("lox_nil")));
+    var params *u8 = ast_vec(); ast_push(params, ast_param("id", ast_type_i64()));
+    ast_push(p.decls, ast_func("lox_dispatch", params, ast_type_i64(), ast_block(p.dispatch)));
+    return ast_program(p.decls);
 }
