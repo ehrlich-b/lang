@@ -37,8 +37,9 @@ for path in sorted((args.suite / 'test').rglob('*.lox')):
         stderr = result.stderr.splitlines()
         ok = result.stdout.splitlines() == output
         if runtime:
-            stack = next((m for line in stderr[1:] if (m := re.search(r'\[line (\d+)\]', line))), None)
-            ok &= result.returncode == 70 and bool(stderr) and stderr[0] == runtime[1] and stack is not None and int(stack[1]) == runtime[0]
+            frames = [re.fullmatch(r'\[line (\d+)\] in (?:script|[^\s]+\(\))', line) for line in stderr[1:]]
+            ok &= (result.returncode == 70 and len(stderr) >= 2 and stderr[0] == runtime[1]
+                   and all(frames) and int(frames[0][1]) == runtime[0])
         else:
             actual = set()
             for line in stderr:

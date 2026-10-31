@@ -93,13 +93,17 @@ func lox_find(name *u8) *LoxBinding {
     }
     return nil;
 }
-func lox_get(name *u8) i64 {
+func lox_undefined(name *u8, line i64) void {
+    eprint("Undefined variable '"); eprint(name); eprintln("'.");
+    eprint("[line "); eprint_i64(line); eprintln("] in script"); exit(70);
+}
+func lox_get(name *u8, line i64) i64 {
     var b *LoxBinding = lox_find(name);
-    if b == nil { lox_error("Undefined variable."); }
+    if b == nil { lox_undefined(name, line); }
     return b.value;
 }
-func lox_assign(name *u8, value i64) i64 {
+func lox_assign(name *u8, value i64, line i64) i64 {
     var b *LoxBinding = lox_find(name);
-    if b == nil { lox_error("Undefined variable."); }
+    if b == nil { lox_undefined(name, line); }
     b.value = value; return value;
 }

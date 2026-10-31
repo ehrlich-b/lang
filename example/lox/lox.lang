@@ -26,6 +26,10 @@ func lx_slice(p *LoxParser, start i64, end i64) *u8 {
     while start + i < end { *(s + i) = lx_at(p, start + i); i = i + 1; }
     *(s + i) = 0; return s;
 }
+func lx_line(n i64) *u8 { var buf *u8 = alloc(32); itoa(n, buf); return ast_number(buf); }
+func lx_reserved(s *u8) bool {
+    return streq(s, "and") || streq(s, "class") || streq(s, "else") || streq(s, "false") || streq(s, "for") || streq(s, "fun") || streq(s, "if") || streq(s, "nil") || streq(s, "or") || streq(s, "print") || streq(s, "return") || streq(s, "super") || streq(s, "this") || streq(s, "true") || streq(s, "var") || streq(s, "while");
+}
 func lx_primary(p *LoxParser) *u8 {
     lx_skip(p); var c u8 = lx_char(p); var start i64 = p.pos;
     if lx_digit(c) {
@@ -47,16 +51,17 @@ func lx_primary(p *LoxParser) *u8 {
     }
     if lx_alpha(c) {
         while lx_alpha(lx_char(p)) || lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
-        var word *u8 = lx_slice(p, start, p.pos);
+        var word *u8 = lx_slice(p, start, p.pos); var line i64 = p.line;
         if streq(word, "true") { return ast_call1("lox_bool", ast_number("1")); }
         if streq(word, "false") { return ast_call1("lox_bool", ast_number("0")); }
         if streq(word, "nil") { return ast_call0("lox_nil"); }
+        if lx_reserved(word) { lx_error(p); return nil; }
         var local *LoxLocal = p.locals;
         while local != nil {
-            if streq(local.name, word) { if local.initializing == 1 { lx_error(p); return nil; } return ast_call1("lox_get", ast_string(word)); }
+            if streq(local.name, word) { if local.initializing == 1 { lx_error(p); return nil; } return ast_call2("lox_get", ast_string(word), lx_line(line)); }
             local = local.next;
         }
-        return ast_call1("lox_get", ast_string(word));
+        return ast_call2("lox_get", ast_string(word), lx_line(line));
     }
     if c == '(' {
         p.pos = p.pos + 1; var value *u8 = lx_assignment(p); lx_skip(p);
@@ -109,9 +114,12 @@ func lx_assignment(p *LoxParser) *u8 {
         while lx_alpha(lx_char(p)) || lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
         var name *u8 = lx_slice(p, start, p.pos); lx_skip(p);
         if lx_char(p) == '=' && lx_at(p, p.pos + 1) != '=' {
+            if lx_reserved(name) { lx_error(p); return nil; }
+            var local *LoxLocal = p.locals;
+            while local != nil { if streq(local.name, name) { if local.initializing == 1 { lx_error(p); return nil; } } local = local.next; }
             p.pos = p.pos + 1; var value *u8 = lx_assignment(p);
             if value == nil { return nil; }
-            return ast_call2("lox_assign", ast_string(name), value);
+            return ast_call3("lox_assign", ast_string(name), value, lx_line(line));
         }
     }
     p.pos = start; p.line = line; return lx_expr(p, 1);
@@ -143,6 +151,7 @@ func lx_statement(p *LoxParser, stmts *u8) i64 {
         if !lx_alpha(lx_char(p)) { lx_error(p); return 0; }
         while lx_alpha(lx_char(p)) || lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
         var name *u8 = lx_slice(p, start, p.pos); lx_skip(p);
+        if lx_reserved(name) { lx_error(p); return 0; }
         var local *LoxLocal = nil;
         if p.depth > 0 {
             local = p.locals;
