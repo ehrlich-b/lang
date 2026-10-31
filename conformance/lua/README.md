@@ -16,8 +16,10 @@ Build a current compiler (`make verify`) and run the smoke test:
 python3 conformance/lua/score.py --compiler out/bootstrap_verify/kernel2 --smoke --report ../lua-smoke.json
 ```
 
-The reader runs on native LLVM regardless of the target selected for the
-generated program or the caller's `LANGBE` and `LANGOS` environment.
+The scorer runs the reader on native LLVM regardless of the target selected
+for the generated program or the caller's `LANGBE` and `LANGOS` environment.
+When invoking `read` directly, select a native host backend, for example with
+`LANGBE=llvm LANGOS=linux` on Linux.
 
 For the official corpus replace `--smoke` with nothing. The included archive is
 the unmodified [Lua 5.4.8 official test suite](https://www.lua.org/tests/),
