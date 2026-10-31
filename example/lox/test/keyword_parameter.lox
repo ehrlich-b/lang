@@ -1,0 +1,1 @@
+fun f(nil) { print nil; } f(42);

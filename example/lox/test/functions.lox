@@ -15,3 +15,6 @@ var a = "global";
   var a = "local";
   show();
 }
+
+fun trueValue(nilValue) { return nilValue; }
+print trueValue(42);

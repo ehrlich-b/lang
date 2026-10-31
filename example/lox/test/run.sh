@@ -22,7 +22,14 @@ if "$tmp/loxc" example/lox/test/syntax_error.lox -o "$tmp/bad.ll" >"$tmp/out" 2>
 grep -q 'line 2' "$tmp/err"
 if "$tmp/loxc" example/lox/test/eof_error.lox -o "$tmp/bad.ll" >"$tmp/out" 2>"$tmp/err"; then exit 1; fi
 grep -q 'line 1' "$tmp/err"
-for name in duplicate_local self_initializer reserved assign_initializer duplicate_fun_var duplicate_var_fun duplicate_fun_fun trailing_argument trailing_parameter; do
+for name in duplicate_local self_initializer reserved assign_initializer duplicate_fun_var duplicate_var_fun duplicate_fun_fun trailing_argument trailing_parameter keyword_function keyword_parameter; do
     if "$tmp/loxc" "example/lox/test/$name.lox" -o "$tmp/bad.ll" >"$tmp/out" 2>"$tmp/err"; then exit 1; fi
+done
+# Every reserved word must fail in both declaration positions; prefixes remain identifiers.
+for word in and class else false for fun if nil or print return super this true var while; do
+    printf 'fun %s() {}\n' "$word" > "$tmp/keyword.lox"
+    if "$tmp/loxc" "$tmp/keyword.lox" -o "$tmp/bad.ll" >"$tmp/out" 2>"$tmp/err"; then echo "accepted function keyword: $word" >&2; exit 1; fi
+    printf 'fun f(%s) {}\n' "$word" > "$tmp/keyword.lox"
+    if "$tmp/loxc" "$tmp/keyword.lox" -o "$tmp/bad.ll" >"$tmp/out" 2>"$tmp/err"; then echo "accepted parameter keyword: $word" >&2; exit 1; fi
 done
 echo 'PASS lox fixtures'

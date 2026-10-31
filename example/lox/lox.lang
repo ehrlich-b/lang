@@ -26,6 +26,14 @@ func lx_error(p *LoxParser) void {
 }
 func lx_digit(c u8) bool { return c >= '0' && c <= '9'; }
 func lx_alpha(c u8) bool { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
+func lx_keyword(word *u8) bool {
+    return streq(word, "and") || streq(word, "class") || streq(word, "else") ||
+        streq(word, "false") || streq(word, "for") || streq(word, "fun") ||
+        streq(word, "if") || streq(word, "nil") || streq(word, "or") ||
+        streq(word, "print") || streq(word, "return") || streq(word, "super") ||
+        streq(word, "this") || streq(word, "true") || streq(word, "var") ||
+        streq(word, "while");
+}
 func lx_slice(p *LoxParser, start i64, end i64) *u8 {
     var s *u8 = alloc(end - start + 1); var i i64 = 0;
     while start + i < end { *(s + i) = lx_at(p, start + i); i = i + 1; }
@@ -152,7 +160,8 @@ func lx_function(p *LoxParser, stmts *u8) i64 {
     lx_skip(p); var start i64 = p.pos;
     if !lx_alpha(lx_char(p)) { lx_error(p); return 0; }
     while lx_alpha(lx_char(p)) || lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
-    var name *u8 = lx_slice(p, start, p.pos); lx_skip(p);
+    var name *u8 = lx_slice(p, start, p.pos);
+    if lx_keyword(name) { lx_error(p); return 0; } lx_skip(p);
     if p.depth > 0 {
         var local *LoxLocal = p.locals;
         while local != nil && local.depth == p.depth {
@@ -168,7 +177,8 @@ func lx_function(p *LoxParser, stmts *u8) i64 {
     while lx_char(p) != ')' {
         if count >= 255 || !lx_alpha(lx_char(p)) { lx_error(p); return 0; }
         start = p.pos; while lx_alpha(lx_char(p)) || lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
-        var param *u8 = lx_slice(p, start, p.pos); var l *LoxLocal = p.locals;
+        var param *u8 = lx_slice(p, start, p.pos);
+        if lx_keyword(param) { lx_error(p); return 0; } var l *LoxLocal = p.locals;
         while l != nil && l.depth == p.depth { if streq(l.name, param) { lx_error(p); return 0; } l = l.next; }
         l = alloc(32); l.name = param; l.depth = p.depth; l.initializing = 0; l.next = p.locals; p.locals = l;
         ast_push(body, ast_expr_stmt(ast_call2("lox_define", ast_string(param), ast_call1("lox_argument", ast_number(lx_numtext(count))))));
