@@ -1,0 +1,1 @@
+func main() i64 { var s *u8 = "*"; return *s; }

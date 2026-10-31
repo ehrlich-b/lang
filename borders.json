@@ -1,0 +1,274 @@
+{
+  "cells": [
+    {
+      "reader": "lang",
+      "feature": "integers",
+      "target": "llvm",
+      "status": "supported",
+      "fixture": "test/borders/cases/lang_integers.lang",
+      "exit_code": 42,
+      "detail": ""
+    },
+    {
+      "reader": "lang",
+      "feature": "integers",
+      "target": "wasm",
+      "status": "supported",
+      "fixture": "test/borders/cases/lang_integers.lang",
+      "exit_code": 42,
+      "detail": ""
+    },
+    {
+      "reader": "lang",
+      "feature": "floats",
+      "target": "llvm",
+      "status": "supported",
+      "fixture": "test/borders/cases/lang_floats.lang",
+      "exit_code": 42,
+      "detail": ""
+    },
+    {
+      "reader": "lang",
+      "feature": "floats",
+      "target": "wasm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/lang_floats.lang",
+      "exit_code": 1,
+      "detail": "test/borders/cases/lang_floats.lang:1:1: error: direct wasm currently supports only scalar and pointer locals\nerror: direct wasm compilation failed\n"
+    },
+    {
+      "reader": "lang",
+      "feature": "strings",
+      "target": "llvm",
+      "status": "supported",
+      "fixture": "test/borders/cases/lang_strings.lang",
+      "exit_code": 42,
+      "detail": ""
+    },
+    {
+      "reader": "lang",
+      "feature": "strings",
+      "target": "wasm",
+      "status": "supported",
+      "fixture": "test/borders/cases/lang_strings.lang",
+      "exit_code": 42,
+      "detail": ""
+    },
+    {
+      "reader": "lang",
+      "feature": "functions",
+      "target": "llvm",
+      "status": "supported",
+      "fixture": "test/borders/cases/lang_functions.lang",
+      "exit_code": 42,
+      "detail": ""
+    },
+    {
+      "reader": "lang",
+      "feature": "functions",
+      "target": "wasm",
+      "status": "supported",
+      "fixture": "test/borders/cases/lang_functions.lang",
+      "exit_code": 42,
+      "detail": ""
+    },
+    {
+      "reader": "lang",
+      "feature": "structs",
+      "target": "llvm",
+      "status": "supported",
+      "fixture": "test/borders/cases/lang_structs.lang",
+      "exit_code": 42,
+      "detail": ""
+    },
+    {
+      "reader": "lang",
+      "feature": "structs",
+      "target": "wasm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/lang_structs.lang",
+      "exit_code": 1,
+      "detail": "test/borders/cases/lang_structs.lang:2:1: error: direct wasm currently supports only scalar and pointer locals\ntest/borders/cases/lang_structs.lang:2:1: error: cannot access field 'a' of an expression with no type\n  note: only a struct, or a pointer to one, has fields; bind the value to a typed local first, as in\n  note:   var it *Item = <expr>;  then  it.a\ntest/borders/cases/lang_structs.lang:2:1: error: cannot access field 'b' of an expression with no type\n  note: only a struct, or a pointer to one, has fields; bind the value to a typed local first, as in\n  note:   var it *Item = <expr>;  then  it.b\ntest/borders/cases/lang_structs.lang:2:1: error: cannot access field 'a' of an expression with no type\n  note: only a struct, or a pointer to one, has fields; bind the value to a typed local first, as in\n  note:   var it *Item = <expr>;  then  it.a\ntest/borders/cases/lang_structs.lang:2:1: error: cannot access field 'b' of an expression with no type\n  note: only a struct, or a pointer to one, has fields; bind the value to a typed local first, as in\n  note:   var it *Item = <expr>;  then  it.b\nerror: direct wasm compilation failed\n"
+    },
+    {
+      "reader": "minipy",
+      "feature": "integers",
+      "target": "llvm",
+      "status": "supported",
+      "fixture": "test/borders/cases/minipy_integers.lang",
+      "exit_code": 42,
+      "detail": ""
+    },
+    {
+      "reader": "minipy",
+      "feature": "integers",
+      "target": "wasm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minipy_integers.lang",
+      "exit_code": 1,
+      "detail": "example/minipy/minipy.lang:267:1: error: reader macro is not available to the direct wasm compiler\n"
+    },
+    {
+      "reader": "minipy",
+      "feature": "floats",
+      "target": "llvm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minipy_floats.lang",
+      "exit_code": 1,
+      "detail": "minipy:2:1: expected end of input, found def @1:4\ntest/borders/cases/minipy_floats.lang:6:1: error: reader 'minipy' exited with status 1\nerror: compilation failed\n"
+    },
+    {
+      "reader": "minipy",
+      "feature": "floats",
+      "target": "wasm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minipy_floats.lang",
+      "exit_code": 1,
+      "detail": "example/minipy/minipy.lang:267:1: error: reader macro is not available to the direct wasm compiler\n"
+    },
+    {
+      "reader": "minipy",
+      "feature": "strings",
+      "target": "llvm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minipy_strings.lang",
+      "exit_code": 1,
+      "detail": "minipy:3:12: a string may only be an argument to print in this subset\ntest/borders/cases/minipy_strings.lang:6:1: error: reader 'minipy' exited with status 1\nerror: compilation failed\n"
+    },
+    {
+      "reader": "minipy",
+      "feature": "strings",
+      "target": "wasm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minipy_strings.lang",
+      "exit_code": 1,
+      "detail": "example/minipy/minipy.lang:267:1: error: reader macro is not available to the direct wasm compiler\n"
+    },
+    {
+      "reader": "minipy",
+      "feature": "functions",
+      "target": "llvm",
+      "status": "supported",
+      "fixture": "test/borders/cases/minipy_functions.lang",
+      "exit_code": 42,
+      "detail": ""
+    },
+    {
+      "reader": "minipy",
+      "feature": "functions",
+      "target": "wasm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minipy_functions.lang",
+      "exit_code": 1,
+      "detail": "example/minipy/minipy.lang:267:1: error: reader macro is not available to the direct wasm compiler\n"
+    },
+    {
+      "reader": "minipy",
+      "feature": "structs",
+      "target": "llvm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minipy_structs.lang",
+      "exit_code": 1,
+      "detail": "minipy:2:1: expected end of input, found class @1:6\ntest/borders/cases/minipy_structs.lang:10:1: error: reader 'minipy' exited with status 1\nerror: compilation failed\n"
+    },
+    {
+      "reader": "minipy",
+      "feature": "structs",
+      "target": "wasm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minipy_structs.lang",
+      "exit_code": 1,
+      "detail": "example/minipy/minipy.lang:267:1: error: reader macro is not available to the direct wasm compiler\n"
+    },
+    {
+      "reader": "minilisp",
+      "feature": "integers",
+      "target": "llvm",
+      "status": "supported",
+      "fixture": "test/borders/cases/minilisp_integers.lang",
+      "exit_code": 42,
+      "detail": ""
+    },
+    {
+      "reader": "minilisp",
+      "feature": "integers",
+      "target": "wasm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minilisp_integers.lang",
+      "exit_code": 1,
+      "detail": "example/minilisp/minilisp.lang:35:1: error: reader macro is not available to the direct wasm compiler\n"
+    },
+    {
+      "reader": "minilisp",
+      "feature": "floats",
+      "target": "llvm",
+      "status": "wrong",
+      "fixture": "test/borders/bugs/minilisp_floats_llvm.lang",
+      "exit_code": 0,
+      "detail": ""
+    },
+    {
+      "reader": "minilisp",
+      "feature": "floats",
+      "target": "wasm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minilisp_floats.lang",
+      "exit_code": 1,
+      "detail": "example/minilisp/minilisp.lang:35:1: error: reader macro is not available to the direct wasm compiler\n"
+    },
+    {
+      "reader": "minilisp",
+      "feature": "strings",
+      "target": "llvm",
+      "status": "wrong",
+      "fixture": "test/borders/bugs/minilisp_strings_llvm.lang",
+      "exit_code": 1,
+      "detail": ""
+    },
+    {
+      "reader": "minilisp",
+      "feature": "strings",
+      "target": "wasm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minilisp_strings.lang",
+      "exit_code": 1,
+      "detail": "example/minilisp/minilisp.lang:35:1: error: reader macro is not available to the direct wasm compiler\n"
+    },
+    {
+      "reader": "minilisp",
+      "feature": "functions",
+      "target": "llvm",
+      "status": "supported",
+      "fixture": "test/borders/cases/minilisp_functions.lang",
+      "exit_code": 42,
+      "detail": ""
+    },
+    {
+      "reader": "minilisp",
+      "feature": "functions",
+      "target": "wasm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minilisp_functions.lang",
+      "exit_code": 1,
+      "detail": "example/minilisp/minilisp.lang:35:1: error: reader macro is not available to the direct wasm compiler\n"
+    },
+    {
+      "reader": "minilisp",
+      "feature": "structs",
+      "target": "llvm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minilisp_structs.lang",
+      "exit_code": 1,
+      "detail": "minilisp:1:16: operator used as a value '-'\ntest/borders/cases/minilisp_structs.lang:4:1: error: reader 'minilisp' exited with status 1\nerror: compilation failed\n"
+    },
+    {
+      "reader": "minilisp",
+      "feature": "structs",
+      "target": "wasm",
+      "status": "rejected",
+      "fixture": "test/borders/cases/minilisp_structs.lang",
+      "exit_code": 1,
+      "detail": "example/minilisp/minilisp.lang:35:1: error: reader macro is not available to the direct wasm compiler\n"
+    }
+  ]
+}

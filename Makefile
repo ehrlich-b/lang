@@ -684,3 +684,7 @@ test-composition:
 test-bootstrap:
 	@echo "test-bootstrap is deprecated; running the non-promoting verifier."
 	@$(MAKE) bootstrap-verify
+
+.PHONY: borders
+borders: build
+	python3 test/borders/run.py

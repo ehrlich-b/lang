@@ -128,7 +128,10 @@ WebAssembly.instantiate(bytes, { env, lang }).then(({ instance: inst }) => {
     if (e instanceof ExitTrap) process.exit(e.code);
     // A wasm trap (bad indirect call, OOB access) is the sandbox's SIGSEGV;
     // report it as 128+11 so segfault-expecting tests mean the same thing here.
-    if (e instanceof WebAssembly.RuntimeError) process.exit(139);
+    if (e instanceof WebAssembly.RuntimeError) {
+      if (process.env.LANG_BORDERS_TRAPS) console.error("borders: wasm trap");
+      process.exit(139);
+    }
     console.error(e);
     process.exit(120);
   }

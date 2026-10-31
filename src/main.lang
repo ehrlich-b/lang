@@ -703,6 +703,10 @@ func read_run_reader(name *u8, source_path *u8, content *u8) *u8 {
         var reader_decl *u8 = find_reader(name, name_len);
         if reader_decl == nil {
             read_error_prefix(source_path);
+            if streq(name, "zig") {
+                eprintln("Zig input unsupported: no Zig reader or AIR-to-core importer is installed");
+                return nil;
+            }
             eprint("reader '");
             eprint(name);
             eprintln("' not found");

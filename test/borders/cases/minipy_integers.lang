@@ -1,0 +1,7 @@
+include "std/core.lang"
+include "example/minipy/minipy.lang"
+#minipy{
+def g():
+    return 19 + 23
+}
+func main() i64 { return g(); }

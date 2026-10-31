@@ -1,0 +1,11 @@
+include "std/core.lang"
+include "example/minipy/minipy.lang"
+#minipy{
+class Pair:
+    a = 19
+    b = 23
+def g():
+    p = Pair()
+    return p.a + p.b
+}
+func main() i64 { return g(); }

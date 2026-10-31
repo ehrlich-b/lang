@@ -1,0 +1,2 @@
+struct Pair { a i64; b i64; }
+func main() i64 { var p Pair; p.a = 19; p.b = 23; return p.a + p.b; }
