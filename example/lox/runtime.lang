@@ -66,3 +66,40 @@ func lox_print(x i64) void {
     else if a.tag == 2 { printf("%g\n", lox_value(a)); fflush(nil); }
     else { var s *u8 = a.data; println(s); }
 }
+
+// Scope frames and bindings belong to the target program, not the reader.
+struct LoxBinding { name *u8; value i64; next *LoxBinding; }
+struct LoxScope { bindings *LoxBinding; parent *LoxScope; }
+var lox_scope *LoxScope = nil;
+func lox_begin() void {
+    var scope *LoxScope = alloc(16); scope.bindings = nil; scope.parent = lox_scope; lox_scope = scope;
+}
+func lox_end() void { lox_scope = lox_scope.parent; }
+func lox_define(name *u8, value i64) i64 {
+    if lox_scope == nil { lox_begin(); }
+    var b *LoxBinding = lox_scope.bindings;
+    // Global redeclarations replace the old binding.
+    if lox_scope.parent == nil {
+        while b != nil { if streq(b.name, name) { b.value = value; return value; } b = b.next; }
+    }
+    b = alloc(24); b.name = name; b.value = value; b.next = lox_scope.bindings; lox_scope.bindings = b; return value;
+}
+func lox_find(name *u8) *LoxBinding {
+    var scope *LoxScope = lox_scope;
+    while scope != nil {
+        var b *LoxBinding = scope.bindings;
+        while b != nil { if streq(b.name, name) { return b; } b = b.next; }
+        scope = scope.parent;
+    }
+    return nil;
+}
+func lox_get(name *u8) i64 {
+    var b *LoxBinding = lox_find(name);
+    if b == nil { lox_error("Undefined variable."); }
+    return b.value;
+}
+func lox_assign(name *u8, value i64) i64 {
+    var b *LoxBinding = lox_find(name);
+    if b == nil { lox_error("Undefined variable."); }
+    b.value = value; return value;
+}

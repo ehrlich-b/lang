@@ -690,7 +690,7 @@ borders: build
 	python3 test/borders/run.py
 # Score a Lox executable against the Crafting Interpreters suite.
 LOX_SUITE ?= ../craftinginterpreters
-LOX_INTERPRETER ?= out/lox
 .PHONY: lox-score
-lox-score:
-	python3 test/lox/score.py --suite "$(LOX_SUITE)" --interpreter "$(LOX_INTERPRETER)"
+lox-score: init
+	@$(MAKE) generate-os-layer LANGLIBC=libc
+	LOX_SUITE="$(LOX_SUITE)" sh test/lox/run-score.sh

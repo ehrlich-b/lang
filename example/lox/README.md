@@ -23,3 +23,10 @@ The runtime uses libc `strtod` and `printf` for numeric conversion and output.
 The compiler only emits a variadic ABI for `printf`, so numeric output uses it
 and flushes immediately to preserve ordering with the standard library writes.
 Run `bash example/lox/test/run.sh` for the fixtures.
+
+Variables can be declared with `var`, assigned, and shadowed in nested blocks.
+The generated program owns the scope stack and resolves values at runtime.
+
+To score against the pinned Crafting Interpreters checkout, build its `clox`
+executable and run `make lox-score LOX_SUITE=/path/to/craftinginterpreters`.
+The scorer verifies clox first and then reports the supported suite count.
