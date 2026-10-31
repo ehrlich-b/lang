@@ -160,7 +160,7 @@ func lx_function(p *LoxParser, stmts *u8) i64 {
     lx_skip(p); var start i64 = p.pos;
     if !lx_alpha(lx_char(p)) { lx_error(p); return 0; }
     while lx_alpha(lx_char(p)) || lx_digit(lx_char(p)) { p.pos = p.pos + 1; }
-    var name *u8 = lx_slice(p, start, p.pos);
+    var name *u8 = lx_slice(p, start, p.pos); var name_line i64 = p.line;
     if lx_keyword(name) { lx_error(p); return 0; } lx_skip(p);
     if p.depth > 0 {
         var local *LoxLocal = p.locals;
@@ -194,7 +194,7 @@ func lx_function(p *LoxParser, stmts *u8) i64 {
     ast_push(p.decls, ast_func(fname, ast_vec(), ast_type_i64(), ast_block(body)));
     ast_push(p.dispatch, ast_if_then(ast_binop("==", ast_ident("id"), ast_number(idtext)), ast_block1(ast_return(ast_call0(fname)))));
     ast_push(stmts, ast_expr_stmt(ast_call2("lox_define", ast_string(name), ast_call0("lox_nil"))));
-    ast_push(stmts, ast_expr_stmt(ast_call2("lox_assign", ast_string(name), ast_call3("lox_function", ast_number(idtext), ast_number(lx_numtext(count)), ast_string(name)))));
+    ast_push(stmts, ast_expr_stmt(ast_call3("lox_assign", ast_string(name), ast_call3("lox_function", ast_number(idtext), ast_number(lx_numtext(count)), ast_string(name)), lx_line(name_line))));
     return 1;
 }
 func lx_statement(p *LoxParser, stmts *u8) i64 {
