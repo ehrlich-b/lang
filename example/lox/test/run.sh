@@ -4,7 +4,7 @@ compiler=${COMPILER:-./out/lang}
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/lox-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 LANGBE=llvm "$compiler" compiler lox example/lox/lox.lang --runtime example/lox/runtime.lang -o "$tmp/loxc" >"$tmp/build.log" 2>&1 || { cat "$tmp/build.log"; exit 1; }
-for name in expressions variables unary_error numeric_error add_error undefined_get undefined_assign; do
+for name in expressions variables unary_error numeric_error add_error undefined_get undefined_assign undefined_assign_multiline; do
     "$tmp/loxc" "example/lox/test/$name.lox" -o "$tmp/program.ll" >"$tmp/compile.log" 2>&1 || { cat "$tmp/compile.log"; exit 1; }
     status=0
     lli "$tmp/program.ll" >"$tmp/out" 2>"$tmp/err" || status=$?

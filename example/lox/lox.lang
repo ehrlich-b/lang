@@ -2,10 +2,15 @@
 include "std/ast.lang"
 
 struct LoxLocal { name *u8; depth i64; initializing i64; next *LoxLocal; }
-struct LoxParser { text *u8; pos i64; line i64; failed i64; depth i64; locals *LoxLocal; }
+struct LoxParser { text *u8; pos i64; line i64; last_line i64; failed i64; depth i64; locals *LoxLocal; }
 func lx_at(p *LoxParser, i i64) u8 { var text *u8 = p.text; return *(text + i); }
 func lx_char(p *LoxParser) u8 { return lx_at(p, p.pos); }
 func lx_skip(p *LoxParser) void {
+    // Preserve the last token line when lookahead skips whitespace or comments.
+    if p.pos > 0 {
+        var prev u8 = lx_at(p, p.pos - 1);
+        if prev != ' ' && prev != '\r' && prev != '\t' && prev != '\n' { p.last_line = p.line; }
+    }
     while true {
         var c u8 = lx_char(p);
         if c == ' ' || c == '\r' || c == '\t' { p.pos = p.pos + 1; }
@@ -119,7 +124,7 @@ func lx_assignment(p *LoxParser) *u8 {
             while local != nil { if streq(local.name, name) { if local.initializing == 1 { lx_error(p); return nil; } } local = local.next; }
             p.pos = p.pos + 1; var value *u8 = lx_assignment(p);
             if value == nil { return nil; }
-            return ast_call3("lox_assign", ast_string(name), value, lx_line(line));
+            return ast_call3("lox_assign", ast_string(name), value, lx_line(p.last_line));
         }
     }
     p.pos = start; p.line = line; return lx_expr(p, 1);
@@ -172,7 +177,7 @@ func lx_statement(p *LoxParser, stmts *u8) i64 {
     ast_push(stmts, ast_expr_stmt(v)); return 1;
 }
 reader lox(text *u8) *u8 {
-    var p *LoxParser = alloc(48); p.text = text; p.pos = 0; p.line = 1; p.failed = 0; p.depth = 0; p.locals = nil;
+    var p *LoxParser = alloc(56); p.text = text; p.pos = 0; p.line = 1; p.last_line = 1; p.failed = 0; p.depth = 0; p.locals = nil;
     var stmts *u8 = ast_vec(); ast_push(stmts, ast_expr_stmt(ast_call0("lox_begin"))); lx_skip(p);
     while lx_char(p) != 0 {
         if lx_statement(p, stmts) == 0 { return nil; } lx_skip(p);
