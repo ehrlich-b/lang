@@ -23,7 +23,7 @@ def run(args, env=None):
 with tempfile.TemporaryDirectory(prefix='borders-zig-') as zig_cache:
     zig_code, zig_detail = run([compiler, 'read', 'example/c/c.lang', 'test/borders/missing.zig'],
                                dict(os.environ, LANG_CACHE=zig_cache))
-if zig_code == 0 or 'test/borders/missing.zig:1:1: error:' not in zig_detail or 'Zig input unsupported: no Zig reader' not in zig_detail:
+if zig_code == 0 or 'test/borders/missing.zig:1:1: error:' not in zig_detail or "reader 'zig' not found" not in zig_detail:
     raise SystemExit('Zig missing-reader check failed: ' + zig_detail)
 
 cells = []
