@@ -93,6 +93,10 @@
   .lang-card h3 { margin: 0 0 .3rem; font-size: 1rem; color: var(--accent); }
   .lang-card h3 .meta { color: var(--dim); font-weight: normal; font-size: .85rem; }
   .lang-card p { margin: .3rem 0; color: var(--text); }
+  .border-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: .5rem; }
+  .border-cell { border: 1px solid var(--border); background: var(--panel); padding: .6rem; border-radius: 6px; font-size: .8rem; }
+  .border-cell b { color: var(--accent2); }
+  .border-cell span { display:block; color:var(--dim); }
   footer { margin-top: 3rem; color: var(--dim); max-width: 78ch; }
   .cta { display:inline-block; padding:.45rem .8rem; border:1px solid var(--accent); border-radius:6px; text-decoration:none; color:var(--accent); }
   a { color: var(--accent2); }
@@ -118,7 +122,7 @@
     native/wasm backends. The result is a compiler for your language.
   </p>
   <p>
-    C, Lisp, flow, Forth, and minipy ship as source you can steal, not a closed
+    C, Lisp, Lox, Lua, flow, Forth, and minipy ship as source you can steal, not a closed
     language list. The polyglot demo shows reader boundaries disappear in one
     wasm module &mdash; no VM, FFI, or glue.
   </p>
@@ -207,6 +211,45 @@
     syntax. lang itself is built the same way: kernel + lang reader, verified to
     a fixed point.
   </p>
+
+  <!-- borders:start -->
+  <section id="borders" aria-labelledby="borders-title">
+    <h2 id="borders-title">where the borders are</h2>
+    <p>30 tested combinations · 16 rejected · 12 supported · 2 wrong</p>
+    <div class="border-grid">
+      <div class="border-cell"><b>lang / integers</b><span>llvm · supported</span></div>
+      <div class="border-cell"><b>lang / integers</b><span>wasm · supported</span></div>
+      <div class="border-cell"><b>lang / floats</b><span>llvm · supported</span></div>
+      <div class="border-cell"><b>lang / floats</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>lang / strings</b><span>llvm · supported</span></div>
+      <div class="border-cell"><b>lang / strings</b><span>wasm · supported</span></div>
+      <div class="border-cell"><b>lang / functions</b><span>llvm · supported</span></div>
+      <div class="border-cell"><b>lang / functions</b><span>wasm · supported</span></div>
+      <div class="border-cell"><b>lang / structs</b><span>llvm · supported</span></div>
+      <div class="border-cell"><b>lang / structs</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minipy / integers</b><span>llvm · supported</span></div>
+      <div class="border-cell"><b>minipy / integers</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minipy / floats</b><span>llvm · rejected</span></div>
+      <div class="border-cell"><b>minipy / floats</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minipy / strings</b><span>llvm · rejected</span></div>
+      <div class="border-cell"><b>minipy / strings</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minipy / functions</b><span>llvm · supported</span></div>
+      <div class="border-cell"><b>minipy / functions</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minipy / structs</b><span>llvm · rejected</span></div>
+      <div class="border-cell"><b>minipy / structs</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minilisp / integers</b><span>llvm · supported</span></div>
+      <div class="border-cell"><b>minilisp / integers</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minilisp / floats</b><span>llvm · wrong</span></div>
+      <div class="border-cell"><b>minilisp / floats</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minilisp / strings</b><span>llvm · wrong</span></div>
+      <div class="border-cell"><b>minilisp / strings</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minilisp / functions</b><span>llvm · supported</span></div>
+      <div class="border-cell"><b>minilisp / functions</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minilisp / structs</b><span>llvm · rejected</span></div>
+      <div class="border-cell"><b>minilisp / structs</b><span>wasm · rejected</span></div>
+    </div>
+  </section>
+  <!-- borders:end -->
 
   <footer>
     <p>
