@@ -1,0 +1,4 @@
+// expect: 0
+include "std/core.lang"
+var x i64 = 42;
+func main() i64 { { var x i64 = 1; if x != 1 { return 1; } } print_int(x); println(""); if x != 42 { return 2; } return 0; }

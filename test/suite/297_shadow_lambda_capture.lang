@@ -1,0 +1,3 @@
+// expect: 0
+include "std/core.lang"
+func main() i64 { var x i64 = 2; var f closure() i64 = fn() i64 { var result i64 = x; { var x i64 = 40; result = result + x; } return result + x; }; var result i64 = f(); print_int(result); println(""); if result != 44 { return 1; } return 0; }

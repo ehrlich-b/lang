@@ -242,6 +242,16 @@ func llvm_next_temp() i64 {
 // Counter for anonymous locals (enums, etc.)
 var llvm_anon_local_counter i64 = 0;
 
+// One counter names every source binding and anonymous stack slot in a function.
+func llvm_binding_name(name *u8, len i64) *u8 {
+    var unique *u8 = alloc(len + 32);
+    memcpy(unique, name, len);
+    *(unique + len) = 46;
+    itoa(llvm_anon_local_counter, unique + len + 1);
+    llvm_anon_local_counter = llvm_anon_local_counter + 1;
+    return unique;
+}
+
 // Allocate an anonymous local with given size, returns LLVM variable name
 func llvm_alloc_local_size(size i64) *u8 {
     var name *u8 = alloc(32);
@@ -294,8 +304,8 @@ func llvm_add_local(name *u8, len i64) void {
 }
 
 func llvm_is_local(name *u8, len i64) i64 {
-    var key *u8 = str_dup_n(name, len);
-    return map_has(llvm_locals, key);
+    // Both registries are scoped; the historical name map outlives blocks.
+    return find_local(name, len) >= 0 || llvm_find_let_binding(name, len) != nil;
 }
 
 // Let binding stack for name remapping (SSA unique names)
@@ -3618,35 +3628,8 @@ func llvm_emit_expr_inner(expr *u8) void {
         var name_len i64 = let_expr_name_len(expr);
         var var_type *u8 = let_expr_type(expr);
 
-        // Generate unique name for this let binding (SSA requires unique names)
-        var let_id i64 = llvm_next_temp();
-        var unique_name *u8 = alloc(64);
-        var pos i64 = 0;
-        var i i64 = 0;
-        while i < name_len {
-            *(unique_name + pos) = *(name + i);
-            pos = pos + 1;
-            i = i + 1;
-        }
-        *(unique_name + pos) = 46;  // '.'
-        pos = pos + 1;
-        // Append number
-        var tmp *u8 = alloc(16);
-        itoa(let_id, tmp);
-        i = 0;
-        while *(tmp + i) != 0 {
-            *(unique_name + pos) = *(tmp + i);
-            pos = pos + 1;
-            i = i + 1;
-        }
-        *(unique_name + pos) = 0;
-        var unique_len i64 = pos;
-
-        // Register type info for get_expr_type
-        add_local(name, name_len, 0, var_type);
-
-        // Push let binding for name->unique_name mapping
-        llvm_push_let_binding(name, name_len, unique_name, unique_len);
+        var unique_name *u8 = llvm_binding_name(name, name_len);
+        var unique_len i64 = strlen(unique_name);
 
         // Allocate stack slot for let binding - use proper type for floats
         llvm_emit_str("    %");
@@ -3663,6 +3646,11 @@ func llvm_emit_expr_inner(expr *u8) void {
         llvm_validate_f32_pointer_read(let_expr_init(expr), var_type);
         llvm_emit_expr(let_expr_init(expr));
         var init_val *u8 = str_dup(llvm_expr_result);
+
+        // The initializer resolves in the enclosing scope; the new binding
+        // is visible only in the body.
+        add_local(name, name_len, 0, var_type);
+        llvm_push_let_binding(name, name_len, unique_name, unique_len);
 
         // Store init value - use proper type for floats
         llvm_emit_str("    store ");
@@ -4432,6 +4420,7 @@ func llvm_emit_expr_inner(expr *u8) void {
                 llvm_emit_line(":");
 
                 // If we have a binding, bind the payload
+                var saved_match_locals i64 = cg_local_count;
                 if binding != nil {
                     var payload_type *u8 = enum_variant_type(variant);
                     var payload_size i64 = 8;
@@ -4439,19 +4428,11 @@ func llvm_emit_expr_inner(expr *u8) void {
                         payload_size = get_type_size(payload_type);
                     }
 
-                    // Create local for binding with unique suffix to avoid collisions
-                    var bind_var *u8 = alloc(64);
+                    // Match bindings share the function-local identity counter.
+                    var bind_name *u8 = llvm_binding_name(binding, binding_len);
+                    var bind_var *u8 = alloc(strlen(bind_name) + 2);
                     *bind_var = 37;  // %
-                    var bp *u8 = bind_var + 1;
-                    var bj i64 = 0;
-                    while bj < binding_len {
-                        *(bp + bj) = *(binding + bj);
-                        bj = bj + 1;
-                    }
-                    // Add unique suffix: name.N
-                    *(bp + binding_len) = 46;  // '.'
-                    itoa(llvm_anon_local_counter, bp + binding_len + 1);
-                    llvm_anon_local_counter = llvm_anon_local_counter + 1;
+                    memcpy(bind_var + 1, bind_name, strlen(bind_name) + 1);
 
                     // Get pointer to payload (scrutinee + 8)
                     var payload_ptr_temp i64 = llvm_next_temp();
@@ -4581,6 +4562,7 @@ func llvm_emit_expr_inner(expr *u8) void {
                 if binding != nil {
                     llvm_pop_let_binding();
                 }
+                cg_local_count = saved_match_locals;
 
                 llvm_emit_str("    br label %L");
                 llvm_emit_int(end_label);
@@ -4804,28 +4786,8 @@ func llvm_emit_expr_inner(expr *u8) void {
             // Create local for effect value binding (e) - allocate, store, push let binding
             var bind_pushed i64 = 0;
             if bind_len > 0 {
-                // Build unique name like "e.eff5"
-                var bind_id i64 = case_label;
-                var bind_unique *u8 = alloc(32);
-                var bpos i64 = 0;
-                var bi i64 = 0;
-                while bi < bind_len {
-                    *(bind_unique + bpos) = *(bind_ptr + bi);
-                    bpos = bpos + 1;
-                    bi = bi + 1;
-                }
-                *(bind_unique + bpos) = 46;  // '.'
-                bpos = bpos + 1;
-                var btmp *u8 = alloc(16);
-                itoa(bind_id, btmp);
-                bi = 0;
-                while *(btmp + bi) != 0 {
-                    *(bind_unique + bpos) = *(btmp + bi);
-                    bpos = bpos + 1;
-                    bi = bi + 1;
-                }
-                *(bind_unique + bpos) = 0;
-                var bind_unique_len i64 = bpos;
+                var bind_unique *u8 = llvm_binding_name(bind_ptr, bind_len);
+                var bind_unique_len i64 = strlen(bind_unique);
 
                 // Allocate local
                 llvm_emit_str("    %");
@@ -4853,28 +4815,8 @@ func llvm_emit_expr_inner(expr *u8) void {
             // Create local for continuation binding (k) - allocate, store, push let binding
             var k_pushed i64 = 0;
             if k_len > 0 {
-                // Build unique name like "k.eff5"
-                var k_id i64 = case_label;
-                var k_unique *u8 = alloc(32);
-                var kpos i64 = 0;
-                var ki i64 = 0;
-                while ki < k_len {
-                    *(k_unique + kpos) = *(k_ptr + ki);
-                    kpos = kpos + 1;
-                    ki = ki + 1;
-                }
-                *(k_unique + kpos) = 46;  // '.'
-                kpos = kpos + 1;
-                var ktmp *u8 = alloc(16);
-                itoa(k_id, ktmp);
-                ki = 0;
-                while *(ktmp + ki) != 0 {
-                    *(k_unique + kpos) = *(ktmp + ki);
-                    kpos = kpos + 1;
-                    ki = ki + 1;
-                }
-                *(k_unique + kpos) = 0;
-                var k_unique_len i64 = kpos;
+                var k_unique *u8 = llvm_binding_name(k_ptr, k_len);
+                var k_unique_len i64 = strlen(k_unique);
 
                 // Allocate local (store pointer as i64)
                 llvm_emit_str("    %");
@@ -5580,17 +5522,8 @@ func llvm_emit_stmt_inner(stmt *u8) void {
             }
         }
 
-        // ALWAYS use unique names to avoid SSA conflicts in branches/loops
-        var unique_name *u8 = alloc(64);
-        var up *u8 = unique_name;
-        var ui i64 = 0;
-        while ui < name_len {
-            *(up + ui) = *(name + ui);
-            ui = ui + 1;
-        }
-        *(up + name_len) = 46;  // '.'
-        itoa(llvm_anon_local_counter, up + name_len + 1);
-        llvm_anon_local_counter = llvm_anon_local_counter + 1;
+        // All bindings share the same function-local identity counter.
+        var unique_name *u8 = llvm_binding_name(name, name_len);
         var actual_name *u8 = unique_name;
         var actual_name_len i64 = strlen(unique_name);
         // Register let binding: name -> unique_name
@@ -6761,6 +6694,8 @@ func llvm_emit_block(block *u8) void {
         return;
     }
 
+    var saved_depth i64 = llvm_let_depth;
+    var saved_count i64 = cg_local_count;
     var stmts *u8 = block_stmt_stmts(block);
     var count i64 = block_stmt_count(block);
 
@@ -6771,10 +6706,14 @@ func llvm_emit_block(block *u8) void {
         llvm_emit_stmt(*stmt);
         // Stop emitting if we hit a terminator (return, break, continue)
         if llvm_emitted_terminator == 1 {
+            llvm_let_depth = saved_depth;
+            cg_local_count = saved_count;
             return;
         }
         i = i + 1;
     }
+    llvm_let_depth = saved_depth;
+    cg_local_count = saved_count;
 }
 
 // ============================================================
@@ -6952,16 +6891,7 @@ func llvm_emit_func(func_node *u8) void {
         add_local(pname, pname_len, 0, ptype);
 
         // Create unique name for SSA
-        var unique_name *u8 = alloc(64);
-        var up *u8 = unique_name;
-        var ui i64 = 0;
-        while ui < pname_len {
-            *(up + ui) = *(pname + ui);
-            ui = ui + 1;
-        }
-        *(up + pname_len) = 46;  // '.'
-        itoa(llvm_anon_local_counter, up + pname_len + 1);
-        llvm_anon_local_counter = llvm_anon_local_counter + 1;
+        var unique_name *u8 = llvm_binding_name(pname, pname_len);
         var actual_name_len i64 = strlen(unique_name);
 
         // Register let binding: pname -> unique_name
@@ -7154,16 +7084,7 @@ func llvm_emit_reader(reader_node *u8) void {
     add_local(pname, param_len, 0, ptr_u8_type);
 
     // Create unique name for SSA
-    var unique_name *u8 = alloc(64);
-    var up *u8 = unique_name;
-    var ui i64 = 0;
-    while ui < param_len {
-        *(up + ui) = *(pname + ui);
-        ui = ui + 1;
-    }
-    *(up + param_len) = 46;  // '.'
-    itoa(llvm_anon_local_counter, up + param_len + 1);
-    llvm_anon_local_counter = llvm_anon_local_counter + 1;
+    var unique_name *u8 = llvm_binding_name(pname, param_len);
     var actual_name_len i64 = strlen(unique_name);
 
     // Register let binding
@@ -7963,9 +7884,12 @@ func llvm_gen_lambda(lambda_node *u8, lambda_id i64, captures *u8, capture_count
 
             var cap_offset i64 = 16 + (i * 8);
 
-            // Allocate local for captured variable
+            // Captures participate in the same binding identity space.
+            var cap_unique *u8 = llvm_binding_name(cap_name, cap_len);
+            var cap_unique_len i64 = strlen(cap_unique);
+            llvm_push_let_binding(cap_name, cap_len, cap_unique, cap_unique_len);
             llvm_emit_str("    %");
-            llvm_emit_n(cap_name, cap_len);
+            llvm_emit_n(cap_unique, cap_unique_len);
             llvm_emit_line(" = alloca i64");
 
             // Calculate address in closure: getelementptr i8, i8* %closure, i64 offset
@@ -7996,7 +7920,7 @@ func llvm_gen_lambda(lambda_node *u8, lambda_id i64, captures *u8, capture_count
             llvm_emit_str("    store i64 %t");
             llvm_emit_int(val_temp);
             llvm_emit_str(", i64* %");
-            llvm_emit_n(cap_name, cap_len);
+            llvm_emit_n(cap_unique, cap_unique_len);
             llvm_emit_char(10);
 
             // Register as local with type (for field access)
@@ -8014,16 +7938,19 @@ func llvm_gen_lambda(lambda_node *u8, lambda_id i64, captures *u8, capture_count
         var pname *u8 = param_name(p);
         var plen i64 = param_name_len(p);
 
-        // %name = alloca i64
+        var param_unique *u8 = llvm_binding_name(pname, plen);
+        var param_unique_len i64 = strlen(param_unique);
+        llvm_push_let_binding(pname, plen, param_unique, param_unique_len);
+        add_local(pname, plen, 0, param_type(p));
         llvm_emit_str("    %");
-        llvm_emit_n(pname, plen);
+        llvm_emit_n(param_unique, param_unique_len);
         llvm_emit_line(" = alloca i64");
 
         // store i64 %name.arg, i64* %name
         llvm_emit_str("    store i64 %");
         llvm_emit_n(pname, plen);
         llvm_emit_str(".arg, i64* %");
-        llvm_emit_n(pname, plen);
+        llvm_emit_n(param_unique, param_unique_len);
         llvm_emit_char(10);
 
         // Register local

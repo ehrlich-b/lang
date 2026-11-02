@@ -1,0 +1,5 @@
+// expect: 0
+include "example/minilisp/lisp_runtime.lang"
+include "example/minilisp/minilisp.lang"
+#minilisp{ (defun shadow_parameter (x) (let ((x 42)) x)) }
+func main() i64 { var result i64 = lisp_to_int(shadow_parameter(lisp_int(1))); print_int(result); println(""); if result != 42 { return 1; } return 0; }
