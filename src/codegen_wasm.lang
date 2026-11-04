@@ -1771,6 +1771,7 @@ func wasm_emit_data_section() void {
 }
 
 func generate_wasm(prog *u8, output_file *u8) void {
+    if timings_enabled != 0 { timings_begin(3); }
     cg_has_wasm_backend = 1;
     cg_generate_wasm_fn = &generate_wasm;
     wasm_had_error = 0;
@@ -1794,6 +1795,8 @@ func generate_wasm(prog *u8, output_file *u8) void {
     wasm_prune_unreachable();
     if wasm_had_error != 0 { os_unlink(output_file); exit(1); }
 
+    if timings_enabled != 0 { timings_end(wasm_func_count + wasm_global_count + wasm_struct_count); timings_begin(4); }
+
     // \0asm followed by binary format version 1.
     wasm_put(wasm_module, 0); wasm_put(wasm_module, 97);
     wasm_put(wasm_module, 115); wasm_put(wasm_module, 109);
@@ -1815,6 +1818,7 @@ func generate_wasm(prog *u8, output_file *u8) void {
         exit(1);
     }
 
+    if timings_enabled != 0 { timings_end(wasm_func_count + wasm_global_count + wasm_struct_count); timings_begin(5); }
     var fd i64 = file_open(output_file, O_WRONLY_CREAT_TRUNC);
     if fd < 0 {
         eprint("Error: cannot open output file: ");
@@ -1823,4 +1827,5 @@ func generate_wasm(prog *u8, output_file *u8) void {
     }
     compiler_write_all(fd, wasm_module.data, wasm_module.len);
     file_close(fd);
+    if timings_enabled != 0 { timings_end(wasm_module.len); }
 }

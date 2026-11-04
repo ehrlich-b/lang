@@ -11,10 +11,8 @@
 //   x86:  movq $42, %rax; ret
 //   LLVM: ret i64 42
 
-// ============================================================
-// Output buffer
-// ============================================================
-
+// =====================================================// Output buffer
+// =====================================================
 var llvm_out_fd i64 = 0;
 var llvm_buf *u8 = nil;
 var llvm_len i64 = 0;
@@ -322,10 +320,8 @@ func llvm_flush() void {
     file_close(llvm_out_fd);
 }
 
-// ============================================================
-// Type emission
-// ============================================================
-
+// =====================================================// Type emission
+// =====================================================
 func llvm_emit_type(type_node *u8) void {
     numeric_validate_legacy_type(type_node, cg_diagnostic_node);
     if type_node == nil {
@@ -403,10 +399,8 @@ func llvm_is_pointer_type(t *u8) i64 {
     return type_kind(t) == TYPE_PTR;
 }
 
-// ============================================================
-// Expression emission
-// ============================================================
-
+// =====================================================// Expression emission
+// =====================================================
 // Label counter for generating unique labels
 var llvm_label_counter i64 = 0;
 
@@ -5369,10 +5363,8 @@ func llvm_emit_expr_inner(expr *u8) void {
     exit(1);
 }
 
-// ============================================================
-// Statement emission
-// ============================================================
-
+// =====================================================// Statement emission
+// =====================================================
 func llvm_emit_stmt(stmt *u8) void {
     var saved_layout_node *u8 = llvm_layout_node;
     llvm_layout_node = stmt;
@@ -6908,10 +6900,8 @@ func llvm_emit_block(block *u8) void {
     cg_local_count = saved_count;
 }
 
-// ============================================================
-// Function emission
-// ============================================================
-
+// =====================================================// Function emission
+// =====================================================
 func llvm_emit_func(func_node *u8) void {
     cg_diagnostic_node = func_node;
     compiler_check_return_type(func_decl_ret_type(func_node));
@@ -7227,10 +7217,8 @@ func llvm_emit_func(func_node *u8) void {
     llvm_emit_char(10);
 }
 
-// ============================================================
-// Program emission
-// ============================================================
-
+// =====================================================// Program emission
+// =====================================================
 // Track which files have been included (to avoid duplicates)
 var llvm_included_files *u8 = nil;
 
@@ -8188,6 +8176,7 @@ func llvm_gen_all_lambdas() void {
 
 func generate_llvm(prog *u8, output_file *u8) void {
     llvm_debug_init();
+    if timings_enabled != 0 { timings_begin(3); }
     cg_had_error = 0;
     cg_has_llvm_backend = 1;  // Mark LLVM backend available for reader compilation
     cg_generate_llvm_fn = &generate_llvm;  // Set function pointer for fork-self
@@ -8223,6 +8212,8 @@ func generate_llvm(prog *u8, output_file *u8) void {
         eprintln("error: compilation failed");
         exit(1);
     }
+
+    if timings_enabled != 0 { timings_end(cg_func_count + cg_global_count + cg_struct_count + cg_enum_count); timings_begin(4); }
 
     // Do not create the requested output until registration, included-file
     // parsing, and reader compilation have all succeeded.
@@ -8327,7 +8318,9 @@ func generate_llvm(prog *u8, output_file *u8) void {
     }
 
     llvm_debug_finish();
+    if timings_enabled != 0 { timings_end(cg_func_count + cg_global_count + cg_struct_count + cg_enum_count); timings_begin(5); }
     llvm_flush();
+    if timings_enabled != 0 { timings_end(llvm_len); }
 }
 
 include "src/numeric_llvm.lang"

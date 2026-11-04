@@ -1,0 +1,1 @@
+func timing_value(n i64) i64 { return n * 7; }

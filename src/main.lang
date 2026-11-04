@@ -9,10 +9,8 @@ include "src/project_watch.lang"
 include "src/package.lang"
 include "src/inspect.lang"
 
-// ============================================================
-// CLI helpers
-// ============================================================
-
+// =====================================================// CLI helpers
+// =====================================================
 // Check if string contains a dot (has extension)
 func has_extension(s *u8) i64 {
     while *s != 0 {
@@ -54,7 +52,15 @@ func is_lang_extension(ext *u8) i64 {
 }
 
 func read_file(path *u8) *u8 {
-    var text *u8 = phase_read_file(path);
+    var text *u8 = nil;
+    if timings_enabled == 0 { text = phase_read_file(path); }
+    else {
+        timings_begin(0);
+        text = phase_read_file(path);
+        var bytes i64 = 0;
+        if text != nil { bytes = strlen(text); }
+        timings_end(bytes);
+    }
     if text == nil { eprint("Error: cannot open file: "); eprintln(path); }
     return text;
 }
@@ -162,6 +168,11 @@ func append_str(buf **u8, len *i64, cap *i64, s *u8) void {
 // The full compiler always includes both optional backends. Keeping this
 // dispatch in main lets smaller standalone compilers continue to omit them.
 func main_generate_selected(prog *u8, output_file *u8) void {
+    main_generate_backend(prog, output_file);
+    if timings_enabled != 0 { timings_report(); }
+}
+
+func main_generate_backend(prog *u8, output_file *u8) void {
     if cg_backend_is_wasm() != 0 {
         cg_has_llvm_backend = 1;
         cg_generate_llvm_fn = &generate_llvm;
@@ -520,10 +531,8 @@ func build_embedded_runtime_ast(runtime_files *u8) *u8 {
     return result;
 }
 
-// ============================================================
-// Subcommands
-// ============================================================
-
+// =====================================================// Subcommands
+// =====================================================
 func scaffold_valid_name(name *u8) i64 {
     var len i64 = strlen(name);
     if len == 0 || len > 64 { return 0; }
@@ -1102,6 +1111,7 @@ func cmd_help_compile() i64 {
     println("  --ast-source <file> Bind reader-relative AST spans to this source");
     println("  --runtime <file>    Add Lang runtime to a compiler or AST input");
     println("  --embed-self        Inject AST file into self_kernel variable");
+    println("  --timings           Report phase CPU milliseconds and input counts to stderr");
     println("  --expand-macros     Print macro expansions to stderr");
     println("  --dump-tokens       Print the lexer's tokens and stop");
     println("  --diagnostics=json Version 1 JSON Lines errors on stderr");
@@ -1431,10 +1441,8 @@ func cmd_tools() i64 {
     return 0;
 }
 
-// ============================================================
-// Compose command - create compiler with embedded reader ASTs
-// ============================================================
-
+// =====================================================// Compose command - create compiler with embedded reader ASTs
+// =====================================================
 // Escape string for embedding as lang string literal
 func escape_string_literal(s *u8) *u8 {
     var len i64 = 0;
@@ -1691,6 +1699,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
         var handled i64 = 0;
 
         if streq(arg, "-g") { llvm_debug_enabled = 1; handled = 1; }
+        if streq(arg, "--timings") { timings_enabled = 1; handled = 1; }
         if streq(arg, "--diagnostics=json") { handled = 1; }
         if str_starts_with(arg, "--diagnostics=") && handled == 0 {
             ___compiler_diagnostic_context("invalid-option", nil, -1, -1);

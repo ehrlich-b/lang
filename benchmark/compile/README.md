@@ -32,3 +32,33 @@ the plan lists their commands separately from the deferred measurements.
 
 See [SIZE_LIMITS.md](../../docs/SIZE_LIMITS.md) for resource and diagnostic
 contracts. Leave preserved seed and generated browser artifacts unchanged.
+
+Run `make build`, then `COMPILER=out/lang_next python3 benchmark/compile/phases.py
+--output /path/to/baseline.json` from the repository root. This runs the same
+source list as `make build` three times, emitting LLVM IR without invoking clang.
+The JSON contains each run, median CPU milliseconds and stable input counts.
+The three compiler processes together must consume less than 120 CPU seconds.
+
+`lang compile --timings ...` writes six records to stderr. CPU time is process
+user plus system time (`getrusage(RUSAGE_SELF)`), excluding reader subprocesses
+and any subsequent clang/link step. Milliseconds retain microsecond precision.
+Nested phases are subtracted from their caller so time is not counted twice.
+When disabled, hooks only test the flag at phase boundaries; they do no clock
+reads, counting, allocation, or AST walks. Timer storage is fixed and bounded.
+
+| Phase | Input count |
+| --- | --- |
+| reading | Source bytes supplied, including cached snapshots and repeated reads |
+| tokens | Tokens produced, including EOF and synthetic input wrappers |
+| parsing | Top-level declarations parsed, including included sources |
+| expansion-registration | Registered functions/globals/structs/enums (LLVM); root declarations (x86); collected functions/globals/structs (Wasm) |
+| type-checking-lowering-ir-emission | The same backend input count |
+| output | Buffered output bytes consumed (x86 code buffer excludes streamed data) |
+
+The compiler does not have separate whole-program type-checking, lowering and
+IR-emission passes. Those operations are interleaved in its AST walk, including
+expression macro expansion. Includes and declaration readers expand during
+registration and may be visited again during emission. The combined names
+reflect those boundaries; they do not imply independent passes or invented
+zero-duration measurements. Reading/tokenization/parsing include work nested
+inside either backend phase. Counts measure work performed, not unique files.

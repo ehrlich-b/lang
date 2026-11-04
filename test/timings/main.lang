@@ -1,0 +1,2 @@
+include "test/timings/value.lang"
+func main() i64 { return timing_value(6); }

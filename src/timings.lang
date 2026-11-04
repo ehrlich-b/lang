@@ -1,0 +1,71 @@
+// Optional compiler instrumentation. Phases are exclusive: nested source work
+// is charged to reading/tokens/parsing, not again to its backend caller.
+var timings_enabled i64 = 0;
+var timings_us [6]i64 = [];
+var timings_counts [6]i64 = [];
+var timings_starts [64]i64 = [];
+var timings_children [64]i64 = [];
+var timings_phases [64]i64 = [];
+var timings_depth i64 = 0;
+var timings_usage [144]u8 = [];
+
+func timings_cpu_us() i64 {
+    // getrusage(RUSAGE_SELF): process user + system CPU, excluding children.
+    // Both native hosts have 64-bit timeval seconds; Darwin uses 32-bit usec.
+    var number i64 = 98;
+    var macos i64 = streq(os_platform_name(), "macos");
+    if macos != 0 { number = 117; }
+    var data *u8 = timings_usage;
+    if syscall(number, 0, data) != 0 {
+        eprintln("error: cannot measure compiler CPU time"); exit(1);
+    }
+    var user_sec *i64 = data;
+    var sys_sec *i64 = data + 16;
+    var user_us *i64 = data + 8;
+    var sys_us *i64 = data + 24;
+    if macos != 0 {
+        var user_short *u32 = data + 8;
+        var sys_short *u32 = data + 24;
+        return (*user_sec + *sys_sec) * 1000000 + *user_short + *sys_short;
+    }
+    return (*user_sec + *sys_sec) * 1000000 + *user_us + *sys_us;
+}
+
+func timings_begin(phase i64) void {
+    if timings_depth >= 64 { eprintln("error: timing nesting limit"); exit(1); }
+    timings_phases[timings_depth] = phase;
+    timings_children[timings_depth] = 0;
+    timings_starts[timings_depth] = timings_cpu_us();
+    timings_depth = timings_depth + 1;
+}
+
+func timings_end(count i64) void {
+    var now i64 = timings_cpu_us();
+    timings_depth = timings_depth - 1;
+    var elapsed i64 = now - timings_starts[timings_depth];
+    var phase i64 = timings_phases[timings_depth];
+    timings_us[phase] = timings_us[phase] + elapsed - timings_children[timings_depth];
+    timings_counts[phase] = timings_counts[phase] + count;
+    if timings_depth > 0 {
+        timings_children[timings_depth - 1] = timings_children[timings_depth - 1] + elapsed;
+    }
+}
+
+func timings_line(phase i64, name *u8) void {
+    var us i64 = timings_us[phase];
+    eprint("timing phase="); eprint(name); eprint(" cpu_ms=");
+    eprint_i64(us / 1000); eprint(".");
+    var fraction i64 = us % 1000;
+    if fraction < 100 { eprint("0"); }
+    if fraction < 10 { eprint("0"); }
+    eprint_i64(fraction); eprint(" count="); eprint_i64(timings_counts[phase]); eprintln("");
+}
+
+func timings_report() void {
+    timings_line(0, "reading");
+    timings_line(1, "tokens");
+    timings_line(2, "parsing");
+    timings_line(3, "expansion-registration");
+    timings_line(4, "type-checking-lowering-ir-emission");
+    timings_line(5, "output");
+}

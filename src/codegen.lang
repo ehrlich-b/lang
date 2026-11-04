@@ -7300,6 +7300,7 @@ func interp_call_reader(reader_decl *u8, content *u8, content_len i64) *u8 {
 // ============================================================
 
 func generate(prog *u8, out_path *u8) void {
+    if timings_enabled != 0 { timings_begin(3); }
     codegen_init();
 
     var decls *u8 = program_decls(prog);
@@ -7328,6 +7329,8 @@ func generate(prog *u8, out_path *u8) void {
         exit(1);
     }
 
+    if timings_enabled != 0 { timings_end(decl_count); timings_begin(4); }
+
     // Reset included files map for second pass
     cg_included_files = map_new();
 
@@ -7340,6 +7343,8 @@ func generate(prog *u8, out_path *u8) void {
 
     // Third pass: generate collected lambdas
     gen_all_lambdas();
+
+    if timings_enabled != 0 { timings_end(decl_count); timings_begin(5); }
 
     // Open output file
     cg_out_fd = file_open(out_path, O_WRONLY_CREAT_TRUNC);
@@ -7429,6 +7434,7 @@ func generate(prog *u8, out_path *u8) void {
     compiler_write_all(cg_out_fd, cg_code_buf, cg_code_len);
 
     file_close(cg_out_fd);
+    if timings_enabled != 0 { timings_end(cg_code_len); }
 }
 
 func write_ascii_string(ptr *u8, len i64) void {
@@ -7465,6 +7471,16 @@ func write_ascii_string(ptr *u8, len i64) void {
 }
 
 func phase_read_resource(path *u8, len i64) *u8 {
+    if timings_enabled == 0 { return phase_read_resource_impl(path, len); }
+    timings_begin(0);
+    var result *u8 = phase_read_resource_impl(path, len);
+    var bytes i64 = 0;
+    if result != nil { bytes = strlen(result); }
+    timings_end(bytes);
+    return result;
+}
+
+func phase_read_resource_impl(path *u8, len i64) *u8 {
     var name *u8 = str_dup_n(path, len);
     var input *PhaseSourceInput = phase_source_input(name);
     if input != nil { return input.text; }

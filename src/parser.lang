@@ -1,3 +1,4 @@
+include "src/timings.lang"
 include "src/diagnostics.lang"
 
 include "src/stage_node_origin.lang"
@@ -2726,6 +2727,13 @@ func parser_add_token(tok *u8) void {
 
 // Tokenize source and fill token array
 pub func parser_tokenize(source *u8) void {
+    if timings_enabled == 0 { parser_tokenize_impl(source); return; }
+    timings_begin(1);
+    parser_tokenize_impl(source);
+    timings_end(parser_token_count());
+}
+
+func parser_tokenize_impl(source *u8) void {
     // Keep storage in the entry block, including unoptimized host workers.
     var source_name *u8 = nil;
     var done i64 = 0;
@@ -4456,6 +4464,14 @@ func parse_declaration() *u8 {
 // Program: [decls:8][decl_count:8] = 16 bytes
 
 pub func parse_program() *u8 {
+    if timings_enabled == 0 { return parse_program_impl(); }
+    timings_begin(2);
+    var result *u8 = parse_program_impl();
+    timings_end(program_decl_count(result));
+    return result;
+}
+
+func parse_program_impl() *u8 {
     // Declaration storage grows independently of the source byte budget.
     var capacity i64 = COMPILER_TABLE_INITIAL;
     var decls *u8 = compiler_table_new(capacity, 8);
