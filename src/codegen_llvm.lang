@@ -32,8 +32,8 @@ var llvm_current_function *u8 = nil;
 var llvm_layout_node *u8 = nil;
 
 func llvm_init_output(output_file *u8) void {
-    llvm_buf_size = 0;
-    llvm_buf = nil;
+    llvm_buf_size = 65536;  // Grow geometrically under the host output budget
+    llvm_buf = compiler_table_new(llvm_buf_size, 1);
     llvm_len = 0;
 
     llvm_out_fd = file_open(output_file, O_WRONLY_CREAT_TRUNC);
@@ -44,20 +44,29 @@ func llvm_init_output(output_file *u8) void {
     }
 }
 
-func llvm_emit_char(c u8) void {
-    if llvm_len + 1 >= llvm_buf_size {
-        llvm_buf = phase_grow(llvm_buf, llvm_len, &llvm_buf_size, 1, phase_diagnostic_source);
+func llvm_reserve_output(extra i64) void {
+    var maximum i64 = phase_limit();
+    if extra < 0 || extra > maximum - llvm_len {
+        phase_error("byte-limit", "LLVM output buffer overflow (host output budget)");
     }
+    var need i64 = llvm_len + extra;
+    if need <= llvm_buf_size { return; }
+    var capacity i64 = llvm_buf_size;
+    while capacity < need { capacity = capacity * 2; }
+    if capacity > maximum { capacity = maximum; }
+    var storage *u8 = compiler_table_new(capacity, 1);
+    memcpy(storage, llvm_buf, llvm_len);
+    llvm_buf = storage; llvm_buf_size = capacity;
+}
+
+func llvm_emit_char(c u8) void {
+    llvm_reserve_output(1);
     *(llvm_buf + llvm_len) = c;
     llvm_len = llvm_len + 1;
 }
 
 func llvm_emit_str(s *u8) void {
-    var i i64 = 0;
-    while *(s + i) != 0 {
-        llvm_emit_char(*(s + i));
-        i = i + 1;
-    }
+    llvm_emit_n(s, strlen(s));
 }
 
 func llvm_emit_line(s *u8) void {
@@ -111,11 +120,9 @@ func llvm_emit_int(n i64) void {
 }
 
 func llvm_emit_n(s *u8, len i64) void {
-    var i i64 = 0;
-    while i < len {
-        llvm_emit_char(*(s + i));
-        i = i + 1;
-    }
+    llvm_reserve_output(len);
+    memcpy(llvm_buf + llvm_len, s, len);
+    llvm_len = llvm_len + len;
 }
 
 func llvm_flush() void {
@@ -405,44 +412,56 @@ func llvm_is_global(name *u8, len i64) i64 {
 // Each entry: [ptr:8][len:8] = 16 bytes
 var llvm_strings *u8 = nil;
 var llvm_string_count i64 = 0;
+var llvm_string_capacity i64 = 0;
+var llvm_string_index *u8 = nil;
 
 // Lambda registry
 // Each entry: [lambda_node:8][lambda_id:8][captures:8][capture_count:8] = 32 bytes
 var llvm_lambdas *u8 = nil;
 var llvm_lambda_count i64 = 0;
+var llvm_lambda_capacity i64 = 0;
 
 func llvm_init_lambdas() void {
-    llvm_lambdas = alloc(500 * 32);  // Max 500 lambdas
+    llvm_lambda_capacity = COMPILER_TABLE_INITIAL;
+    llvm_lambdas = compiler_table_new(llvm_lambda_capacity, 32);
     llvm_lambda_count = 0;
 }
 
 func llvm_init_strings() void {
-    llvm_strings = alloc(3000 * 16);  // Max 3000 strings
+    llvm_string_capacity = COMPILER_TABLE_INITIAL;
+    llvm_strings = compiler_table_new(llvm_string_capacity, 16);
+    llvm_string_index = map_new();
     llvm_string_count = 0;
 }
 
-func llvm_add_string(ptr *u8, len i64) i64 {
-    // Check if this string already exists (dedup)
+// Maps use NUL-terminated keys, while literal identity includes every byte.
+// Hex encoding is injective even for embedded NULs and differing lengths.
+func llvm_string_key(ptr *u8, len i64) *u8 {
+    if len < 0 || len > (COMPILER_TABLE_MAX_BYTES - 1) / 2 {
+        phase_error("table-byte-limit", "LLVM string key");
+    }
+    var key *u8 = compiler_table_new(len * 2 + 1, 1);
+    var digits *u8 = "0123456789abcdef";
     var i i64 = 0;
-    while i < llvm_string_count {
-        var entry *u8 = llvm_strings + (i * 16);
-        var existing_ptr **u8 = entry;
-        var existing_len *i64 = entry + 8;
-        if *existing_len == len {
-            var j i64 = 0;
-            var same i64 = 1;
-            while j < len {
-                if *(*existing_ptr + j) != *(ptr + j) {
-                    same = 0;
-                }
-                j = j + 1;
-            }
-            if same != 0 {
-                return i;
-            }
-        }
+    while i < len {
+        var byte u8 = *(ptr + i);
+        *(key + i * 2) = *(digits + byte / 16);
+        *(key + i * 2 + 1) = *(digits + byte % 16);
         i = i + 1;
     }
+    *(key + len * 2) = 0;
+    return key;
+}
+
+func llvm_add_string(ptr *u8, len i64) i64 {
+    var key *u8 = llvm_string_key(ptr, len);
+    var found i64 = map_get(llvm_string_index, key);
+    if found != 0 { return found - 1; }
+    if llvm_string_count >= llvm_string_capacity {
+        llvm_strings = compiler_table_grow(llvm_strings, llvm_string_capacity, 16);
+        llvm_string_capacity = llvm_string_capacity * 2;
+    }
+    map_set(llvm_string_index, key, llvm_string_count + 1);
 
     // Add new string
     var entry *u8 = llvm_strings + (llvm_string_count * 16);
@@ -595,13 +614,19 @@ func llvm_loop_continue_label(entry *u8) i64 {
 // Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
 var llvm_effects *u8 = nil;
 var llvm_effect_count i64 = 0;
+var llvm_effect_capacity i64 = 0;
 
 func llvm_init_effects() void {
-    llvm_effects = alloc(100 * 24);  // Max 100 effects
+    llvm_effect_capacity = COMPILER_TABLE_INITIAL;
+    llvm_effects = compiler_table_new(llvm_effect_capacity, 24);
     llvm_effect_count = 0;
 }
 
 func llvm_add_effect(decl *u8) void {
+    if llvm_effect_count >= llvm_effect_capacity {
+        llvm_effects = compiler_table_grow(llvm_effects, llvm_effect_capacity, 24);
+        llvm_effect_capacity = llvm_effect_capacity * 2;
+    }
     var name *u8 = effect_decl_name(decl);
     var name_len i64 = effect_decl_name_len(decl);
 
@@ -4070,6 +4095,10 @@ func llvm_emit_expr_inner(expr *u8) void {
         }
 
         // Store lambda info
+        if llvm_lambda_count >= llvm_lambda_capacity {
+            llvm_lambdas = compiler_table_grow(llvm_lambdas, llvm_lambda_capacity, 32);
+            llvm_lambda_capacity = llvm_lambda_capacity * 2;
+        }
         var entry *u8 = llvm_lambdas + (llvm_lambda_count * 32);
         var p_node **u8 = entry;
         *p_node = expr;
@@ -7957,34 +7986,8 @@ func generate_llvm(prog *u8, output_file *u8) void {
     llvm_init_lambdas();
     llvm_init_let_bindings();
 
-    // Initialize x86 backend's shared tracking
-    cg_locals = alloc(LIMIT_LOCALS * 32);
-    cg_local_count = 0;
-    cg_globals = alloc(LIMIT_GLOBALS * 32);
-    cg_global_count = 0;
-    cg_structs = alloc(LIMIT_STRUCTS * 24);
-    cg_struct_count = 0;
-    init_func_registry();
-    cg_enums = alloc(LIMIT_ENUMS * 24);
-    cg_enum_count = 0;
-    cg_readers = alloc(LIMIT_READERS * 24);
-    cg_reader_count = 0;
-    cg_macros = alloc(LIMIT_MACROS * 24);
-    cg_macro_count = 0;
-
-    // Initialize visibility tracking arrays
-    cg_func_is_pub = alloc(LIMIT_FUNCS * 8);
-    cg_global_is_pub = alloc(LIMIT_GLOBALS * 8);
-    cg_struct_is_pub = alloc(LIMIT_STRUCTS * 8);
-    cg_enum_is_pub = alloc(LIMIT_ENUMS * 8);
-    cg_effect_is_pub = alloc(LIMIT_EFFECTS * 8);
-    cg_reader_is_pub = alloc(LIMIT_READERS * 8);
-
-    // Initialize module tracking arrays
-    cg_func_module = alloc(LIMIT_FUNCS * 8);
-    cg_global_module = alloc(LIMIT_GLOBALS * 8);
-    cg_struct_module = alloc(LIMIT_STRUCTS * 8);
-    cg_enum_module = alloc(LIMIT_ENUMS * 8);
+    // Shared registry initialization also resets lookup indices and capacities.
+    cg_init_tables();
     cg_current_module = 0;
     cg_next_module = 1;
 

@@ -1,0 +1,24 @@
+// Geometric compiler storage. Old allocations remain owned by the compilation
+// arena, so growth never invalidates pointers held by recursive lowering.
+include "std/buffer.lang"
+var COMPILER_TABLE_INITIAL i64 = 64;
+var COMPILER_TABLE_MAX_BYTES i64 = 1073741824;
+
+func compiler_table_new(capacity i64, width i64) *u8 {
+    if width < 1 || capacity < 0 || capacity > COMPILER_TABLE_MAX_BYTES / width {
+        phase_error("table-byte-limit", phase_diagnostic_source);
+    }
+    phase_charge(capacity * width);
+    var data *u8 = alloc(capacity * width);
+    if data == nil { phase_error("allocation-failed", phase_diagnostic_source); }
+    return data;
+}
+
+func compiler_table_grow(data *u8, capacity i64, width i64) *u8 {
+    if capacity > COMPILER_TABLE_MAX_BYTES / width / 2 {
+        phase_error("table-byte-limit", phase_diagnostic_source);
+    }
+    var storage *u8 = compiler_table_new(capacity * 2, width);
+    memcpy(storage, data, capacity * width);
+    return storage;
+}

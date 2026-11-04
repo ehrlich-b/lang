@@ -8,6 +8,7 @@ include "src/stage_wire.lang"
 // Recursive descent parser with precedence climbing for expressions
 
 include "src/limits.lang"
+include "src/compiler_tables.lang"
 require "src/lexer"
 
 // ============================================================
@@ -3157,6 +3158,7 @@ func parse_finish_call(callee *u8, start_tok *u8) *u8 {
     if !parse_check(TOKEN_RPAREN) {
         var done i64 = 0;
         while done == 0 {
+            if arg_count >= LIMIT_CALL_ARGS { parse_error("call argument limit exceeded (maximum 16)"); exit(1); }
             var arg *u8 = parse_expression();
             var p **u8 = args + (arg_count * 8);
             *p = arg;
@@ -3415,6 +3417,7 @@ func parse_primary() *u8 {
         if !parse_check(TOKEN_RPAREN) {
             var done i64 = 0;
             while done == 0 {
+                if param_count >= LIMIT_FUNC_PARAMS { parse_error("parameter limit exceeded (maximum 16)"); exit(1); }
                 var pname_tok *u8 = parse_expect(TOKEN_IDENT, "expected parameter name");
                 var ptype *u8 = parse_type();
 
@@ -3998,6 +4001,7 @@ func parse_func_decl_impl(is_extern i64) *u8 {
     if !parse_check(TOKEN_RPAREN) {
         var done i64 = 0;
         while done == 0 {
+            if param_count >= LIMIT_FUNC_PARAMS { parse_error("parameter limit exceeded (maximum 16)"); exit(1); }
             var pname_tok *u8 = parse_expect(TOKEN_IDENT, "expected parameter name");
             // Failed included parses must return nil, without dereferencing a
             // missing token before the isolated error count can be checked.
@@ -4178,6 +4182,7 @@ func parse_macro_decl() *u8 {
     if !parse_check(TOKEN_RPAREN) {
         var done i64 = 0;
         while done == 0 {
+            if param_count >= LIMIT_FUNC_PARAMS { parse_error("parameter limit exceeded (maximum 16)"); exit(1); }
             var pname_tok *u8 = parse_expect(TOKEN_IDENT, "expected parameter name");
 
             // Store param (no type for macros, set type to nil)
@@ -4413,8 +4418,9 @@ func parse_declaration() *u8 {
 // Program: [decls:8][decl_count:8] = 16 bytes
 
 pub func parse_program() *u8 {
-    // Allocate decls array (max 1000)
-    var decls *u8 = alloc(LIMIT_TOP_DECLS * 8);
+    // Declaration storage grows independently of the source byte budget.
+    var capacity i64 = COMPILER_TABLE_INITIAL;
+    var decls *u8 = compiler_table_new(capacity, 8);
     var decl_count i64 = 0;
 
     while !parse_is_at_end() {
@@ -4423,6 +4429,10 @@ pub func parse_program() *u8 {
         if decl != nil {
             if node_origin_id(decl) == 0 {
                 node_set_origin(decl, parse_source_name, tok_line(start_tok), tok_col(start_tok));
+            }
+            if decl_count >= capacity {
+                decls = compiler_table_grow(decls, capacity, 8);
+                capacity = capacity * 2;
             }
             var p **u8 = decls + (decl_count * 8);
             *p = decl;

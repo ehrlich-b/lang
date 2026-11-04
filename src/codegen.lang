@@ -2,6 +2,7 @@
 // Emits GNU as compatible assembly
 
 include "src/limits.lang"
+include "src/compiler_tables.lang"
 include "src/phase_host.lang"
 include "src/stage_dependencies.lang"
 include "src/stage_legacy.lang"
@@ -104,18 +105,18 @@ var cg_generate_llvm_fn *u8 = nil;
 var cg_generate_wasm_fn *u8 = nil;
 
 // Locals array: each entry is [name_ptr:8][name_len:8][offset:8][type_ptr:8] = 32 bytes
-// Max 1024 locals
+// Growable registry
 var cg_locals *u8 = nil;
 var cg_local_count i64 = 0;
 var cg_stack_size i64 = 0;
 
-// Globals array: each entry is [name_ptr:8][name_len:8][type_ptr:8][init_ptr:8] = 32 bytes
-// Max 1000 globals
+// Globals array: [name_ptr:8][name_len:8][type_ptr:8][init_ptr:8][is_extern:8] = 40 bytes
+// Growable registry
 var cg_globals *u8 = nil;
 var cg_global_count i64 = 0;
 
 // Strings array: each entry is [str_ptr:8][str_len:8] = 16 bytes
-// Max 1000 strings
+// Growable registry
 var cg_strings *u8 = nil;
 var cg_string_count i64 = 0;
 
@@ -132,31 +133,31 @@ var cg_in_func_body i64 = 0;  // 1 = emit to func_buf, 0 = emit to code_buf
 
 // Struct registry: simple array of struct decls
 // Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
-// Max 100 structs
+// Growable registry
 var cg_structs *u8 = nil;
 var cg_struct_count i64 = 0;
 
 // Enum registry: simple array of enum decls
 // Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
-// Max 100 enums
+// Growable registry
 var cg_enums *u8 = nil;
 var cg_enum_count i64 = 0;
 
 // Macro registry: simple array of macro decls
 // Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
-// Max 100 macros
+// Growable registry
 var cg_macros *u8 = nil;
 var cg_macro_count i64 = 0;
 
 // Reader registry: simple array of reader decls
 // Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
-// Max 100 readers
+// Growable registry
 var cg_readers *u8 = nil;
 var cg_reader_count i64 = 0;
 
 // Embedded reader registry: AST strings for readers baked into composed compilers
 // Each entry: [name_ptr:8][name_len:8][ast_ptr:8][ast_len:8] = 32 bytes
-// Max 20 embedded readers
+// Growable registry
 var cg_embedded_readers *u8 = nil;
 var cg_embedded_reader_count i64 = 0;
 
@@ -167,7 +168,7 @@ var embedded_reader_funcs [1024]*u8 = [];    // [reader_lang, reader_lisp, nil, 
 
 // Function registry: declaration order remains authoritative
 // Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
-// Capacity is LIMIT_FUNCS declarations
+// Growable registry
 var cg_funcs *u8 = nil;
 var cg_func_count i64 = 0;
 // Open-addressed slots hold registry index + 1; zero is empty. Keeping separate
@@ -197,7 +198,7 @@ var cg_enum_module *u8 = nil;      // Parallel array: module ID for each enum
 
 // Lambda registry: collect lambdas during codegen, emit at end
 // Each entry: [lambda_node:8][name_id:8][captures_ptr:8][capture_count:8] = 32 bytes
-// Max 500 lambdas
+// Growable registry
 var cg_lambdas *u8 = nil;
 var cg_lambda_count i64 = 0;
 
@@ -221,7 +222,7 @@ var cg_closure_capture_count i64 = 0;     // Number of captures
 
 // Effect registry: simple array of effect decls
 // Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
-// Max 100 effects
+// Growable registry
 var cg_effects *u8 = nil;
 var cg_effect_count i64 = 0;
 
@@ -333,17 +334,147 @@ var cg_flatten_require_modules i64 = 0;
 // Initialization
 // ============================================================
 
+
+// Registry capacities are storage state, never source-language limits.
+var cg_local_capacity i64 = 0;
+func cg_reserve_local() void {
+    if cg_local_count < cg_local_capacity { return; }
+    cg_locals = compiler_table_grow(cg_locals, cg_local_capacity, 32);
+    cg_local_capacity = cg_local_capacity * 2;
+}
+var cg_global_capacity i64 = 0;
+func cg_reserve_global() void {
+    if cg_global_count < cg_global_capacity { return; }
+    cg_globals = compiler_table_grow(cg_globals, cg_global_capacity, 40);
+    cg_global_is_pub = compiler_table_grow(cg_global_is_pub, cg_global_capacity, 8);
+    cg_global_module = compiler_table_grow(cg_global_module, cg_global_capacity, 8);
+    cg_global_capacity = cg_global_capacity * 2;
+}
+var cg_string_capacity i64 = 0;
+func cg_reserve_string() void {
+    if cg_string_count < cg_string_capacity { return; }
+    cg_strings = compiler_table_grow(cg_strings, cg_string_capacity, 16);
+    cg_string_capacity = cg_string_capacity * 2;
+}
+var cg_struct_capacity i64 = 0;
+func cg_reserve_struct() void {
+    if cg_struct_count < cg_struct_capacity { return; }
+    cg_structs = compiler_table_grow(cg_structs, cg_struct_capacity, 24);
+    cg_struct_is_pub = compiler_table_grow(cg_struct_is_pub, cg_struct_capacity, 8);
+    cg_struct_module = compiler_table_grow(cg_struct_module, cg_struct_capacity, 8);
+    cg_struct_capacity = cg_struct_capacity * 2;
+}
+var cg_enum_capacity i64 = 0;
+func cg_reserve_enum() void {
+    if cg_enum_count < cg_enum_capacity { return; }
+    cg_enums = compiler_table_grow(cg_enums, cg_enum_capacity, 24);
+    cg_enum_is_pub = compiler_table_grow(cg_enum_is_pub, cg_enum_capacity, 8);
+    cg_enum_module = compiler_table_grow(cg_enum_module, cg_enum_capacity, 8);
+    cg_enum_capacity = cg_enum_capacity * 2;
+}
+var cg_effect_capacity i64 = 0;
+func cg_reserve_effect() void {
+    if cg_effect_count < cg_effect_capacity { return; }
+    cg_effects = compiler_table_grow(cg_effects, cg_effect_capacity, 24);
+    cg_effect_is_pub = compiler_table_grow(cg_effect_is_pub, cg_effect_capacity, 8);
+    cg_effect_capacity = cg_effect_capacity * 2;
+}
+var cg_macro_capacity i64 = 0;
+func cg_reserve_macro() void {
+    if cg_macro_count < cg_macro_capacity { return; }
+    cg_macros = compiler_table_grow(cg_macros, cg_macro_capacity, 24);
+    cg_macro_capacity = cg_macro_capacity * 2;
+}
+var cg_reader_capacity i64 = 0;
+func cg_reserve_reader() void {
+    if cg_reader_count < cg_reader_capacity { return; }
+    cg_readers = compiler_table_grow(cg_readers, cg_reader_capacity, 24);
+    cg_reader_is_pub = compiler_table_grow(cg_reader_is_pub, cg_reader_capacity, 8);
+    cg_reader_capacity = cg_reader_capacity * 2;
+}
+var cg_embedded_reader_capacity i64 = 0;
+func cg_reserve_embedded_reader() void {
+    if cg_embedded_reader_count < cg_embedded_reader_capacity { return; }
+    cg_embedded_readers = compiler_table_grow(cg_embedded_readers, cg_embedded_reader_capacity, 32);
+    cg_embedded_reader_capacity = cg_embedded_reader_capacity * 2;
+}
+var cg_func_capacity i64 = 0;
+func cg_reserve_func() void {
+    if cg_func_count < cg_func_capacity { return; }
+    cg_funcs = compiler_table_grow(cg_funcs, cg_func_capacity, 24);
+    cg_func_is_pub = compiler_table_grow(cg_func_is_pub, cg_func_capacity, 8);
+    cg_func_module = compiler_table_grow(cg_func_module, cg_func_capacity, 8);
+    cg_func_capacity = cg_func_capacity * 2;
+}
+var cg_lambda_capacity i64 = 0;
+func cg_reserve_lambda() void {
+    if cg_lambda_count < cg_lambda_capacity { return; }
+    cg_lambdas = compiler_table_grow(cg_lambdas, cg_lambda_capacity, 32);
+    cg_lambda_capacity = cg_lambda_capacity * 2;
+}
+var cg_func_index *u8 = nil;
+var cg_func_arity_index *u8 = nil;
+var cg_struct_index *u8 = nil;
+var cg_global_index *u8 = nil;
+func cg_arity_key(name *u8, len i64, arity i64) *u8 {
+    var key *u8 = alloc(len + 32);
+    memcpy(key, name, len); *(key + len) = 58;
+    itoa(arity, key + len + 1); return key;
+}
+func cg_init_tables() void {
+    cg_local_capacity = COMPILER_TABLE_INITIAL;
+    cg_local_count = 0;
+    cg_locals = compiler_table_new(cg_local_capacity, 32);
+    cg_global_capacity = COMPILER_TABLE_INITIAL;
+    cg_global_count = 0;
+    cg_globals = compiler_table_new(cg_global_capacity, 40);
+    cg_global_is_pub = compiler_table_new(cg_global_capacity, 8);
+    cg_global_module = compiler_table_new(cg_global_capacity, 8);
+    cg_string_capacity = COMPILER_TABLE_INITIAL;
+    cg_string_count = 0;
+    cg_strings = compiler_table_new(cg_string_capacity, 16);
+    cg_struct_capacity = COMPILER_TABLE_INITIAL;
+    cg_struct_count = 0;
+    cg_structs = compiler_table_new(cg_struct_capacity, 24);
+    cg_struct_is_pub = compiler_table_new(cg_struct_capacity, 8);
+    cg_struct_module = compiler_table_new(cg_struct_capacity, 8);
+    cg_enum_capacity = COMPILER_TABLE_INITIAL;
+    cg_enum_count = 0;
+    cg_enums = compiler_table_new(cg_enum_capacity, 24);
+    cg_enum_is_pub = compiler_table_new(cg_enum_capacity, 8);
+    cg_enum_module = compiler_table_new(cg_enum_capacity, 8);
+    cg_effect_capacity = COMPILER_TABLE_INITIAL;
+    cg_effect_count = 0;
+    cg_effects = compiler_table_new(cg_effect_capacity, 24);
+    cg_effect_is_pub = compiler_table_new(cg_effect_capacity, 8);
+    cg_macro_capacity = COMPILER_TABLE_INITIAL;
+    cg_macro_count = 0;
+    cg_macros = compiler_table_new(cg_macro_capacity, 24);
+    cg_reader_capacity = COMPILER_TABLE_INITIAL;
+    cg_reader_count = 0;
+    cg_readers = compiler_table_new(cg_reader_capacity, 24);
+    cg_reader_is_pub = compiler_table_new(cg_reader_capacity, 8);
+    cg_embedded_reader_capacity = COMPILER_TABLE_INITIAL;
+    cg_embedded_reader_count = 0;
+    cg_embedded_readers = compiler_table_new(cg_embedded_reader_capacity, 32);
+    cg_func_capacity = COMPILER_TABLE_INITIAL;
+    cg_func_count = 0;
+    cg_funcs = compiler_table_new(cg_func_capacity, 24);
+    cg_func_is_pub = compiler_table_new(cg_func_capacity, 8);
+    cg_func_module = compiler_table_new(cg_func_capacity, 8);
+    cg_lambda_capacity = COMPILER_TABLE_INITIAL;
+    cg_lambda_count = 0;
+    cg_lambdas = compiler_table_new(cg_lambda_capacity, 32);
+    cg_func_index = map_new();
+    cg_func_arity_index = map_new();
+    cg_struct_index = map_new();
+    cg_global_index = map_new();
+}
+
 func codegen_init() void {
     cg_had_error = 0;
-    cg_locals = alloc(LIMIT_LOCALS * 32);
-    cg_local_count = 0;
+    cg_init_tables();
     cg_stack_size = 0;
-
-    cg_globals = alloc(LIMIT_GLOBALS * 32);
-    cg_global_count = 0;
-
-    cg_strings = alloc(LIMIT_STRINGS * 16);
-    cg_string_count = 0;
 
     cg_code_buf = alloc(SIZE_CODE_BUF);
     cg_code_len = 0;
@@ -356,39 +487,6 @@ func codegen_init() void {
 
     cg_label_num = 0;
 
-    cg_structs = alloc(LIMIT_STRUCTS * 24);
-    cg_struct_count = 0;
-
-    cg_enums = alloc(LIMIT_ENUMS * 24);
-    cg_enum_count = 0;
-
-    cg_effects = alloc(LIMIT_EFFECTS * 24);
-    cg_effect_count = 0;
-
-    cg_macros = alloc(LIMIT_MACROS * 24);
-    cg_macro_count = 0;
-
-    cg_readers = alloc(LIMIT_READERS * 24);
-    cg_reader_count = 0;
-
-    cg_embedded_readers = alloc(LIMIT_EMBEDDED_READERS * 32);
-    cg_embedded_reader_count = 0;
-
-    init_func_registry();
-
-    // Initialize visibility tracking arrays
-    cg_func_is_pub = alloc(LIMIT_FUNCS * 8);
-    cg_global_is_pub = alloc(LIMIT_GLOBALS * 8);
-    cg_struct_is_pub = alloc(LIMIT_STRUCTS * 8);
-    cg_enum_is_pub = alloc(LIMIT_ENUMS * 8);
-    cg_effect_is_pub = alloc(LIMIT_EFFECTS * 8);
-    cg_reader_is_pub = alloc(LIMIT_READERS * 8);
-
-    // Initialize module tracking arrays
-    cg_func_module = alloc(LIMIT_FUNCS * 8);
-    cg_global_module = alloc(LIMIT_GLOBALS * 8);
-    cg_struct_module = alloc(LIMIT_STRUCTS * 8);
-    cg_enum_module = alloc(LIMIT_ENUMS * 8);
     cg_current_module = 0;
     cg_next_module = 1;
 
@@ -457,6 +555,7 @@ func find_local(name *u8, name_len i64) i64 {
 }
 
 func add_local(name *u8, name_len i64, offset i64, t *u8) void {
+    cg_reserve_local();
     local_set_name(cg_local_count, name);
     local_set_name_len(cg_local_count, name_len);
     local_set_offset(cg_local_count, offset);
@@ -863,19 +962,11 @@ func global_set_is_extern(index i64, is_extern i64) void {
 }
 
 func find_global(name *u8, name_len i64) i64 {
-    var i i64 = 0;
-    while i < cg_global_count {
-        if global_get_name_len(i) == name_len {
-            if memcmp(global_get_name(i), name, name_len) {
-                return i;
-            }
-        }
-        i = i + 1;
-    }
-    return 0 - 1;  // -1 not found
+    return map_get_n(cg_global_index, name, name_len) - 1;
 }
 
 func add_global(name *u8, name_len i64, t *u8, init *u8, is_extern i64, is_pub i64) void {
+    cg_reserve_global();
     global_set_name(cg_global_count, name);
     global_set_name_len(cg_global_count, name_len);
     global_set_type(cg_global_count, t);
@@ -890,6 +981,8 @@ func add_global(name *u8, name_len i64, t *u8, init *u8, is_extern i64, is_pub i
     var mod_ptr *i64 = cg_global_module + (cg_global_count * 8);
     *mod_ptr = cg_current_module;
 
+    var key *u8 = str_dup_n(name, name_len);
+    if map_has(cg_global_index, key) == 0 { map_set(cg_global_index, key, cg_global_count + 1); }
     cg_global_count = cg_global_count + 1;
 }
 
@@ -933,6 +1026,7 @@ func compiler_check_audited_layout(decl *u8) void {
 }
 
 func add_struct(decl *u8) void {
+    cg_reserve_struct();
     compiler_check_audited_layout(decl);
     var name *u8 = struct_decl_name(decl);
     var name_len i64 = struct_decl_name_len(decl);
@@ -959,29 +1053,15 @@ func add_struct(decl *u8) void {
     var mod_ptr *i64 = cg_struct_module + (cg_struct_count * 8);
     *mod_ptr = cg_current_module;
 
+    var key *u8 = str_dup_n(name, name_len);
+    if map_has(cg_struct_index, key) == 0 { map_set(cg_struct_index, key, cg_struct_count + 1); }
     cg_struct_count = cg_struct_count + 1;
 }
 
 func find_struct(name *u8, name_len i64) *u8 {
-    var i i64 = 0;
-    while i < cg_struct_count {
-        var entry *u8 = cg_structs + (i * 24);
-
-        var np **u8 = entry;
-        var sname *u8 = *np;
-
-        var nl *i64 = entry + 8;
-        var slen i64 = *nl;
-
-        if slen == name_len {
-            if memcmp(sname, name, name_len) {
-                var dp **u8 = entry + 16;
-                return *dp;
-            }
-        }
-        i = i + 1;
-    }
-    return nil;
+    var index i64 = map_get_n(cg_struct_index, name, name_len) - 1;
+    if index < 0 { return nil; }
+    var slot **u8 = cg_structs + index * 24 + 16; return *slot;
 }
 
 // ============================================================
@@ -989,6 +1069,7 @@ func find_struct(name *u8, name_len i64) *u8 {
 // ============================================================
 
 func add_enum(decl *u8) void {
+    cg_reserve_enum();
     var name *u8 = enum_decl_name(decl);
     var name_len i64 = enum_decl_name_len(decl);
 
@@ -1059,6 +1140,7 @@ func find_variant(enum_decl *u8, name *u8, name_len i64) *u8 {
 // ============================================================
 
 func add_effect(decl *u8) void {
+    cg_reserve_effect();
     var name *u8 = effect_decl_name(decl);
     var name_len i64 = effect_decl_name_len(decl);
 
@@ -1107,6 +1189,7 @@ func find_effect(name *u8, name_len i64) *u8 {
 // ============================================================
 
 func add_macro(decl *u8) void {
+    cg_reserve_macro();
     var name *u8 = macro_decl_name(decl);
     var name_len i64 = macro_decl_name_len(decl);
 
@@ -1337,6 +1420,7 @@ func reader_expr_uses_sibling_reader(expr *u8) i64 {
 
 
 func add_reader(decl *u8) void {
+    cg_reserve_reader();
     var name *u8 = reader_decl_name(decl);
     var name_len i64 = reader_decl_name_len(decl);
 
@@ -1461,6 +1545,7 @@ func find_reader(name *u8, name_len i64) *u8 {
 // ============================================================
 
 func add_embedded_reader(name *u8, name_len i64, ast *u8, ast_len i64) void {
+    cg_reserve_embedded_reader();
     var entry *u8 = cg_embedded_readers + (cg_embedded_reader_count * 32);
 
     // Store name_ptr
@@ -1564,6 +1649,7 @@ func func_registry_slot(name *u8, name_len i64, arity i64) *i64 {
 }
 
 func add_func(decl *u8) void {
+    cg_reserve_func();
     var name *u8 = func_decl_name(decl);
     var name_len i64 = func_decl_name_len(decl);
 
@@ -1589,21 +1675,18 @@ func add_func(decl *u8) void {
     var mod_ptr *i64 = cg_func_module + (cg_func_count * 8);
     *mod_ptr = cg_current_module;
 
-    // Never replace an existing key: duplicate declarations resolve to the
-    // earliest registry entry, just as the ordered scan did.
-    var name_slot *i64 = func_registry_slot(name, name_len, 0 - 1);
-    if *name_slot == 0 { *name_slot = cg_func_count + 1; }
-    var arity_slot *i64 = func_registry_slot(name, name_len, func_decl_param_count(decl));
-    if *arity_slot == 0 { *arity_slot = cg_func_count + 1; }
+    var key *u8 = str_dup_n(name, name_len);
+    if map_has(cg_func_index, key) == 0 { map_set(cg_func_index, key, cg_func_count + 1); }
+    var arity_key *u8 = cg_arity_key(name, name_len, func_decl_param_count(decl));
+    if map_has(cg_func_arity_index, arity_key) == 0 { map_set(cg_func_arity_index, arity_key, cg_func_count + 1); }
     cg_func_count = cg_func_count + 1;
 }
 
 // Look up a function by name in function registry
 func find_func(name *u8, name_len i64) *u8 {
-    var i i64 = find_func_index(name, name_len);
-    if i < 0 { return nil; }
-    var dp **u8 = cg_funcs + i * 24 + 16;
-    return *dp;
+    var index i64 = find_func_index(name, name_len);
+    if index < 0 { return nil; }
+    var slot **u8 = cg_funcs + index * 24 + 16; return *slot;
 }
 
 // Both backends report a wrong-arity call, so they say it the same way. The
@@ -1626,16 +1709,14 @@ func cg_arity_error(name *u8, name_len i64, declared i64, actual i64) void {
 // one-parameter reader named `read` coexists with libc's three-parameter one -
 // so the call shape, not the name alone, picks the declaration.
 func find_func_arity(name *u8, name_len i64, arity i64) *u8 {
-    var cell *i64 = func_registry_slot(name, name_len, arity);
-    if *cell == 0 { return nil; }
-    var dp **u8 = cg_funcs + (*cell - 1) * 24 + 16;
-    return *dp;
+    var index i64 = map_get(cg_func_arity_index, cg_arity_key(name, name_len, arity)) - 1;
+    if index < 0 { return nil; }
+    var slot **u8 = cg_funcs + index * 24 + 16; return *slot;
 }
 
 // Find function index by name (returns -1 if not found).
 func find_func_index(name *u8, name_len i64) i64 {
-    var cell *i64 = func_registry_slot(name, name_len, 0 - 1);
-    return *cell - 1;
+    return map_get_n(cg_func_index, name, name_len) - 1;
 }
 
 // Check visibility for a function call - returns 1 if allowed, 0 if error
@@ -2173,6 +2254,7 @@ func string_set_len(index i64, len i64) void {
 }
 
 func add_string(ptr *u8, len i64) i64 {
+    cg_reserve_string();
     var idx i64 = cg_string_count;
     string_set_ptr(idx, ptr);
     string_set_len(idx, len);
@@ -4187,9 +4269,7 @@ func gen_expr(expr *u8) void {
         cg_parent_capture_count = saved_parent_count;
 
         // Register lambda for later emission
-        if cg_lambdas == nil {
-            cg_lambdas = alloc(LIMIT_LAMBDAS * 32);
-        }
+        cg_reserve_lambda();
         var lambda_id i64 = cg_lambda_count;
         var entry *u8 = cg_lambdas + (cg_lambda_count * 32);
         var p_node **u8 = entry;

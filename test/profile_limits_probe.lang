@@ -58,6 +58,7 @@ func main(argc i64, argv **u8) i64 {
         return 7;
     }
     if streq(mode, "llvm-output") {
+        phase_configured_limit = 16;
         llvm_buf = alloc(16);
         llvm_buf_size = 16;
         llvm_len = 16;
