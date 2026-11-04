@@ -27,13 +27,14 @@ echo 'include "std/os/libc.lang"' > std/os.lang
 export COMPILER=${COMPILER:-./out/lang}
 export LANGOS=wasm
 export LANGBE=llvm
-JOBS=${JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8)}
+source "$(dirname "${BASH_SOURCE[0]}")/suite_workers.sh"
 
 WASM_LDFLAGS="-Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined -Wl,-z,stack-size=8388608"
 export WASM_LDFLAGS
 
 run_one_test() {
     local f=$1
+    export LANG_SUITE_WORKER=1 JOBS=1
     local name=$(basename "$f" .lang)
     local tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 

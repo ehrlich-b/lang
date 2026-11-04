@@ -22,12 +22,12 @@ esac
 # Use COMPILER from environment, or default to ./out/lang
 export COMPILER=${COMPILER:-./out/lang}
 
-# Parallel jobs - default to nproc or 8
-JOBS=${JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8)}
+source "$(dirname "${BASH_SOURCE[0]}")/suite_workers.sh"
 
 # Run a single test - called by xargs
 run_one_test() {
     local f=$1
+    export LANG_SUITE_WORKER=1 JOBS=1
     local name=$(basename "$f" .lang)
     local tmpdir=$(mktemp -d)
 
