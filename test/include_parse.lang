@@ -1,0 +1,57 @@
+// expect: 0
+include "std/core.lang"
+include "src/lexer.lang"
+include "src/parser.lang"
+include "src/ast_emit.lang"
+include "src/include_parse.lang"
+
+func main() i64 {
+    var root *u8 = parse_program_from_named_string("include \"child.lang\"\ninclude \"child.lang\"\n", "root.lang");
+    var first *u8 = get_decl(program_decls(root), 0);
+    var second *u8 = get_decl(program_decls(root), 1);
+    var text *u8 = "include \"leaf.lang\"\nfunc answer() i64 { return 42; }\n";
+    phase_source_capture("child.lang", text);
+    var snapshot *PhaseSource = phase_source_snapshot("child.lang");
+    var snapshot_digest *u8 = str_dup(snapshot.digest);
+    phase_include_origin = node_origin_id(second);
+    var a *u8 = phase_parse_include(snapshot.text, "child.lang", first);
+    var count i64 = node_origin_count;
+    if a == nil { return 1; }
+    if phase_parse_include(snapshot.text, "child.lang", first) != a { return 2; }
+    if phase_include_origin != node_origin_id(second) { return 19; }
+    phase_include_origin = 0;
+    if node_origin_count != count { return 3; }
+    var before *u8 = str_dup(ast_emit_program(a));
+    var nested *u8 = get_decl(program_decls(a), 0);
+    var leaf *u8 = phase_parse_include("func leaf() i64 { return 7; }", "leaf.lang", nested);
+    var leaf_decl *u8 = get_decl(program_decls(leaf), 0);
+    var origin *PhaseOrigin = phase_origin_get(node_origin_id(leaf_decl));
+    if origin.include_parent != node_origin_id(nested) { return 4; }
+    origin = phase_origin_get(origin.include_parent);
+    if origin.include_parent != node_origin_id(first) { return 5; }
+
+    // Same bytes through a different include site must have a different chain.
+    var b *u8 = phase_parse_include(snapshot.text, "child.lang", second);
+    if b == a { return 6; }
+    origin = phase_origin_get(node_origin_id(get_decl(program_decls(b), 0)));
+    if origin.include_parent != node_origin_id(second) { return 7; }
+    phase_expansion_origin = node_origin_id(second);
+    var c *u8 = phase_parse_include(snapshot.text, "child.lang", first);
+    if c == a { return 8; }
+    origin = phase_origin_get(node_origin_id(get_decl(program_decls(c), 0)));
+    if origin.expansion_parent != node_origin_id(second) { return 9; }
+    phase_expansion_origin = 0;
+    if phase_parse_include(snapshot.text, "child.lang", first) != a { return 10; }
+    // Reader slices with the same display name cannot replace captured bytes.
+    var changed *u8 = phase_parse_include("func changed() i64 { return 9; }", "child.lang", first);
+    if changed == a { return 11; }
+    if !streq(snapshot.text, text) { return 12; }
+    if !streq(snapshot.digest, snapshot_digest) { return 20; }
+    if phase_source_snapshot("child.lang") != snapshot { return 13; }
+    if !streq(before, ast_emit_program(a)) { return 14; }
+    if phase_include_origin != 0 { return 15; }
+    if phase_parse_include("func broken( {", "bad.lang", first) != nil { return 16; }
+    if phase_include_origin != 0 { return 17; }
+    if phase_parse_include("func fixed() i64 { return 0; }", "bad.lang", first) == nil { return 18; }
+    return 0;
+}

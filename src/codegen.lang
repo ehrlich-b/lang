@@ -7365,12 +7365,7 @@ func phase_read_resource(path *u8, len i64) *u8 {
     return snapshot.text;
 }
 
-func phase_parse_include(text *u8, name *u8, invocation *u8) *u8 {
-    var saved i64 = phase_include_origin;
-    phase_include_origin = node_origin_id(invocation);
-    var result *u8 = parse_program_from_named_string(text, name);
-    phase_include_origin = saved; return result;
-}
+include "src/include_parse.lang"
 
 include "src/numeric.lang"
 

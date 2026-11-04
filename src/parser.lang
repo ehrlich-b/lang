@@ -3973,6 +3973,9 @@ func parse_func_decl_impl(is_extern i64) *u8 {
         var done i64 = 0;
         while done == 0 {
             var pname_tok *u8 = parse_expect(TOKEN_IDENT, "expected parameter name");
+            // Failed included parses must return nil, without dereferencing a
+            // missing token before the isolated error count can be checked.
+            if pname_tok == nil { return nil; }
             var ptype *u8 = parse_type();
 
             var p *u8 = params + (param_count * 24);
