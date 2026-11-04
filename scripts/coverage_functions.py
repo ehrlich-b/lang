@@ -144,7 +144,9 @@ def main():
     # previous measurements rather than cleaning somebody else's artifacts.
     import tempfile
     run_dir = Path(tempfile.mkdtemp(prefix="run-", dir=work))
-    env = dict(os.environ, JOBS=os.environ.get("JOBS", "2"))
+    # Keep verification and measurement on the same scheduling policy.
+    # Both suites retain their existing assertions and execution budgets.
+    env = dict(os.environ, JOBS=os.environ.get("JOBS", "2"), SEQUENTIAL="1")
 
     def run(command, log, run_env=env):
         print("+ " + shlex.join(map(str, command)), flush=True)

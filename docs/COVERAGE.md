@@ -7,10 +7,10 @@ with `clang -O0 -fprofile-generate`, runs the complete LLVM suite again with
 `llvm-profdata`. Clang and llvm-profdata must have compatible profile formats.
 No compiler source or emitted IR is rewritten.
 
-The instrumented suite uses the runner's existing sequential mode so that the
-unoptimized compiler cannot contend with a neighboring test's two-second JIT
-budget. All assertions, timeouts and skip rules remain unchanged. `JOBS` still
-controls the preliminary verifier's concurrency.
+Verification and the instrumented suite use the runner's existing sequential
+mode to avoid concurrent JIT timeouts and keep the unoptimized compiler from
+contending with a neighboring test's two-second JIT budget. All assertions, timeouts and skip rules remain unchanged. The separate
+`env JOBS=2 make verify` gate keeps its ordinary scheduling.
 
 The report prints executed/total functions for each source file and lists
 the twenty largest unreached functions. Every defined IR function must have
