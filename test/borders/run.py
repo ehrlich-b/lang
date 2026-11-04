@@ -58,12 +58,6 @@ with tempfile.TemporaryDirectory(prefix='borders-') as temp:
                     fixture = bug
                 cells.append(dict(reader=reader, feature=feature, target=target, status=status, fixture=fixture, exit_code=code, detail=detail))
 (OUTPUT / 'borders.json').write_text(json.dumps({'cells': cells}, indent=2) + '\n')
-lines = ['# Borders', '', 'Zig has no current reader or AIR importer.', 'The previous experimental approaches were removed.', 'A maintained frontend for a defined subset is needed.', '', 'See [Zig status](../ZIG-STATUS.md) for the history.', '', '| Reader | Feature | LLVM x86-64 | Wasm |', '| --- | --- | --- | --- |']
-for reader in readers:
-    for feature in features:
-        pair = [c for c in cells if c['reader'] == reader and c['feature'] == feature]
-        links = [f"[{c['status']}](../{c['fixture']})" for c in pair]
-        lines.append(f'| {reader} | {feature} | {links[0]} | {links[1]} |')
-lines += ['| Zig | missing reader | [rejected at line 1](../test/borders/missing.zig#L1) | [rejected at line 1](../test/borders/missing.zig#L1) |', '', 'Zig is rejected before target selection.', '', 'Each result is from compiling and running its fixture; a rejection is a compiler or linker error. Exit 42 is the expected result. See `borders.json` for diagnostics and exit codes.']
-(OUTPUT / 'docs/BORDERS.md').write_text('\n'.join(lines) + '\n')
+from render import render
+(OUTPUT / 'docs/BORDERS.md').write_text(render({'cells': cells}))
 print('Wrote borders.json and docs/BORDERS.md')
