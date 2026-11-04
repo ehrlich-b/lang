@@ -17,7 +17,7 @@ class DevelopmentBuild(unittest.TestCase):
             for name in ['scripts', 'std', 'src', 'bootstrap/current', 'out']:
                 (root / name).mkdir(parents=True, exist_ok=True)
             for name in ['Makefile', 'scripts/dev_build.py', 'scripts/write_if_changed.py',
-                         'scripts/build_receipt.py']:
+                         'scripts/build_receipt.py', 'scripts/build_inputs.py']:
                 shutil.copyfile(ROOT / name, root / name)
             sources = ['lexer', 'parser', 'codegen', 'codegen_llvm', 'codegen_wasm',
                        'ast_emit', 'sexpr_reader', 'compiler_readers_none', 'main']
@@ -94,6 +94,11 @@ else:
             once('source revert')
             leaf = root / 'std/leaf.lang'; leaf.write_text('// changed leaf\n')
             once('transitive require/include')
+            (root / 'std/new_leaf.lang').write_text('// new untracked leaf\n')
+            (root / 'std/middle.lang').write_text('include "std/new_leaf.lang"\n')
+            once('include graph change')
+            (root / 'std/new_leaf.lang').write_text('// changed untracked leaf\n')
+            once('untracked transitive include')
             seed = root / 'out/lang'; seed.write_text(seed.read_text() + '\n# seed changed\n')
             once('seed content')
             twin = root / 'out/other-seed'; shutil.copy2(seed, twin)

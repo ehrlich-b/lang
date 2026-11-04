@@ -11,6 +11,7 @@ import shlex
 import shutil
 import subprocess
 
+from build_inputs import write_version
 from build_receipt import git, inputs
 from write_if_changed import write_if_changed
 
@@ -23,7 +24,16 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def dependencies(sources):
+def dependencies(sources, previous=None):
+    # A graph cannot gain an edge without changing one of its files. Hash every
+    # old node first; unchanged bytes let us skip lexing the compiler again.
+    if isinstance(previous, dict) and all(p in previous for p in sources):
+        try:
+            current = {p: digest(p) for p in previous}
+            if current == previous:
+                return current
+        except (OSError, TypeError):
+            pass
     pending = list(sources)
     hashes = {}
     while pending:
@@ -59,6 +69,9 @@ def main():
     parser.add_argument('--langflags', required=True)
     parser.add_argument('--version', required=True)
     parser.add_argument('--platform', required=True)
+    parser.add_argument('--arch', required=True)
+    parser.add_argument('--bootstrap', required=True)
+    parser.add_argument('--os-layer', required=True)
     parser.add_argument('sources', nargs='+')
     args = parser.parse_args()
     cc = shlex.split(args.cc)
@@ -68,13 +81,27 @@ def main():
     # Serialize compiler invocations; failed builds never install a valid identity.
     with Path('out/dev-build.lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
+        write_if_changed('std/os.lang', f'include "{args.os_layer}"\n'.encode())
+        libc = 'system' if args.platform == 'macos' or 'libc' in args.os_layer else 'none'
+        write_version(args.version, 'llvm', args.platform, args.arch, libc, args.bootstrap)
+        if not Path(args.seed).exists() and not Path(args.seed).is_symlink():
+            run(['make', '-j1', 'init'])
+        state = Path('out/dev-build.json')
+        try:
+            previous = json.loads(state.read_text())
+            old_identity = previous['identity']
+        except (OSError, ValueError, KeyError, TypeError):
+            previous, old_identity = {}, {}
+        old_sources = (old_identity.get('sources') if isinstance(old_identity, dict)
+                       and old_identity.get('source_order') == args.sources else None)
         identity = {
-            'schema': 1, 'sources': dependencies(args.sources),
+            'schema': 1, 'sources': dependencies(args.sources, old_sources),
             # Keep the existing broader receipt fresh even when an unrelated
             # source changes twice while the checkout is already dirty.
             'receipt': {'revision': git('rev-parse', 'HEAD'), 'inputs': inputs()},
             'recipe': {p: digest(p) for p in ['Makefile', 'scripts/dev_build.py',
-                       'scripts/write_if_changed.py', 'scripts/build_receipt.py']},
+                       'scripts/write_if_changed.py', 'scripts/build_inputs.py',
+                       'scripts/build_receipt.py']},
             'seed': {'path': str(Path(args.seed).resolve()), 'sha256': digest(args.seed)},
             'toolchain': tool(cc), 'cc': cc, 'cflags': cflags, 'langflags': langflags,
             'source_order': args.sources, 'version': args.version, 'platform': args.platform,
@@ -83,12 +110,10 @@ def main():
                             ('LANG', 'LANGBE', 'LANGOS', 'LANGLIBC', 'LANG_ROOT', 'PATH', 'CPATH', 'C_INCLUDE_PATH', 'LIBRARY_PATH',
                              'SDKROOT', 'MACOSX_DEPLOYMENT_TARGET', 'LD_LIBRARY_PATH')},
         }
-        state = Path('out/dev-build.json')
         binary = f'out/lang_dev_{args.version}'
         ir = binary + '.ll'
         artifacts = [binary, ir, 'out/build-input.json', 'out/build-receipt.json']
         try:
-            previous = json.loads(state.read_text())
             if (previous['identity'] == identity and
                     Path('out/lang_next').resolve() == Path(binary).resolve() and
                     previous['artifacts'] == {p: digest(p) for p in artifacts}):
