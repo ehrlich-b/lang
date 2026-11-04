@@ -99,6 +99,23 @@ else:
             once('include graph change')
             (root / 'std/new_leaf.lang').write_text('// changed untracked leaf\n')
             once('untracked transitive include')
+            extra = root / 'out/extra source.lang'
+            extra.write_text('include "out/extra-leaf.lang"\n')
+            extra_leaf = root / 'out/extra-leaf.lang'
+            extra_leaf.write_text('// extra leaf\n')
+            flags = 'DEV_LANGFLAGS="out/extra source.lang"'
+            once('additional source from flags', flags)
+            stamp = extra.stat()
+            extra.write_text(extra.read_text() + '// changed extra source\n')
+            os.utime(extra, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+            once('flag source with preserved mtime', flags)
+            extra_leaf.write_text('// changed extra leaf\n')
+            once('transitive include from flag source', flags)
+            # Reader names and output paths must not be treated as input files.
+            once('reader file operand', 'DEV_LANGFLAGS=-r reader out/extra-leaf.lang')
+            extra_leaf.write_text('// changed reader source\n')
+            once('reader file edit', 'DEV_LANGFLAGS=-r reader out/extra-leaf.lang')
+            once('non-file option operands', 'DEV_LANGFLAGS=-c reader -o out/unused.ll')
             seed = root / 'out/lang'; seed.write_text(seed.read_text() + '\n# seed changed\n')
             once('seed content')
             twin = root / 'out/other-seed'; shutil.copy2(seed, twin)

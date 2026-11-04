@@ -56,6 +56,24 @@ def tool(command):
             'version': subprocess.check_output([*command, '--version'], text=True)}
 
 
+def flag_sources(flags):
+    # Mirror the compiler's file operands; reader names and output paths are
+    # options, while positional inputs may have any extension.
+    sources = []
+    operands = iter(flags)
+    for arg in operands:
+        if arg in ('-o', '-c'):
+            next(operands)
+        elif arg == '-r':
+            next(operands)  # reader name
+            sources.append(next(operands))
+        elif arg in ('--ast-source', '--runtime'):
+            sources.append(next(operands))
+        elif not arg.startswith('-'):
+            sources.append(arg)
+    return sources
+
+
 def run(argv, **kwargs):
     print(shlex.join(argv), flush=True)
     subprocess.run(argv, check=True, **kwargs)
@@ -77,6 +95,7 @@ def main():
     cc = shlex.split(args.cc)
     cflags = shlex.split(args.cflags)
     langflags = shlex.split(args.langflags)
+    sources = [*args.sources, *flag_sources(langflags)]
     Path('out').mkdir(exist_ok=True)
     # Serialize compiler invocations; failed builds never install a valid identity.
     with Path('out/dev-build.lock').open('w') as lock:
@@ -93,9 +112,9 @@ def main():
         except (OSError, ValueError, KeyError, TypeError):
             previous, old_identity = {}, {}
         old_sources = (old_identity.get('sources') if isinstance(old_identity, dict)
-                       and old_identity.get('source_order') == args.sources else None)
+                       and old_identity.get('source_order') == sources else None)
         identity = {
-            'schema': 1, 'sources': dependencies(args.sources, old_sources),
+            'schema': 1, 'sources': dependencies(sources, old_sources),
             # Keep the existing broader receipt fresh even when an unrelated
             # source changes twice while the checkout is already dirty.
             'receipt': {'revision': git('rev-parse', 'HEAD'), 'inputs': inputs()},
@@ -104,7 +123,7 @@ def main():
                        'scripts/build_receipt.py']},
             'seed': {'path': str(Path(args.seed).resolve()), 'sha256': digest(args.seed)},
             'toolchain': tool(cc), 'cc': cc, 'cflags': cflags, 'langflags': langflags,
-            'source_order': args.sources, 'version': args.version, 'platform': args.platform,
+            'source_order': sources, 'version': args.version, 'platform': args.platform,
             'environment': {k: v for k, v in os.environ.items()
                             if k.startswith(('LC_', 'CCC_', 'CLANG_')) or k in
                             ('LANG', 'LANGBE', 'LANGOS', 'LANGLIBC', 'LANG_ROOT', 'PATH', 'CPATH', 'C_INCLUDE_PATH', 'LIBRARY_PATH',
@@ -131,7 +150,7 @@ def main():
         run(['python3', 'scripts/build_receipt.py', 'finish', '--input',
              'out/build-input.json', '--compiler', 'out/lang_next', '--output',
              'out/build-receipt.json', '--artifact', ir])
-        if (identity['sources'] != dependencies(args.sources) or
+        if (identity['sources'] != dependencies(sources) or
                 identity['seed']['sha256'] != digest(args.seed)):
             raise RuntimeError('Build inputs changed during compilation; retry the build')
         write_if_changed(state, (json.dumps({'identity': identity, 'artifacts':
