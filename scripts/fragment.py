@@ -95,7 +95,8 @@ def run_test(name, compiler, mapping, scratch):
                 expected = lines[0][len("// reject: "):]
                 ok = status != 0 and expected in detail
             else:
-                marker = re.fullmatch(r"// expect: (\d+)", lines[0])
+                # Suite headers also use Expected, expect:0 and trailing //clang.
+                marker = re.fullmatch(r"// expect(?:ed)?:\s*(\d+)(?:\s+//.*)?", lines[0], re.IGNORECASE)
                 expected = case.get("exit", int(marker[1]) if marker else None)
                 if expected is None:
                     raise ValueError("fixture needs // expect: N or an explicit exit oracle")
