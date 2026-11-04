@@ -218,7 +218,7 @@ func emit_expr_str(e *PNode) *u8 {
 
 // Per-node-unique temp name (block/block_expr vars leak to the enclosing scope,
 // so ternary temps and switch scrutinees each need their own; derive it from the
-// node's address). Distinct prefixes + distinct node pointers => no collisions.
+// node's source byte offset). Distinct prefixes separate each use.
 func c_gensym(prefix *u8, node *PNode) *u8 {
     var sb *StringBuilder = sb_new();
     sb_str(sb, prefix);

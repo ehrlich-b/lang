@@ -98,7 +98,7 @@ func cmp_fn(op *u8) *u8 {
     return nil;
 }
 
-// Per-node-unique temp name, derived from the node's address (each `if` node is
+// Per-node-unique temp name, derived from its source byte offset (each `if` node is
 // distinct). Avoids a module-global counter: the reader-build path drops globals
 // declared in the reader's OWN file - only included-file globals survive.
 func lisp_tmp(node *PNode) *u8 {
@@ -191,7 +191,7 @@ func lisp_lambda(params *PNode, bodynode *PNode) *u8 {
 
     var sb *StringBuilder = sb_new();
     sb_str(sb, "__arli_ml_lambda_shape_args_");
-    var addr i64 = params;
+    var offset i64 = params.start;
     sb_int(sb, offset);
     var cursor *u8 = sb_finish(sb);
     var body_stmts *u8 = ast_vec();
