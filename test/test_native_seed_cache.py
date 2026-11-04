@@ -22,9 +22,7 @@ class NativeSeedCache(unittest.TestCase):
             checkouts = []
             for name in ('first', 'second'):
                 checkout = base / name
-                (checkout / 'scripts').mkdir(parents=True)
-                shutil.copyfile(ROOT / 'Makefile', checkout / 'Makefile')
-                shutil.copyfile(ROOT / 'scripts/native_seed_cache.py', checkout / 'scripts/native_seed_cache.py')
+                subprocess.run(['git', 'clone', '--shared', '--quiet', str(ROOT), str(checkout)], check=True)
                 (checkout / 'seed.ll').write_text('define i32 @main() { ret i32 7 }\n')
                 checkouts.append(checkout)
             tool = shutil.which('clang')
