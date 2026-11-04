@@ -41,6 +41,19 @@ func main() void {
 
 Functions, structs, pointers, algebraic effects. See [LANG.md](./LANG.md).
 
+## First run
+
+```bash
+git clone https://gitlab.com/ehrlich-b/lang
+cd lang
+make init
+./out/lang new reader tiny
+./out/lang run tiny.lang answer.tiny
+echo $?
+```
+
+The run returns exit status 42, which `echo` prints.
+
 ## It outputs compilers
 
 That makes lang a **compiler compiler**: you write one reader function—source

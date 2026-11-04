@@ -105,6 +105,7 @@ generate-version-info:
 
 # Init: build from bootstrap LLVM IR (cross-platform)
 init:
+	@$(MAKE) generate-os-layer LANGBE=llvm LANGOS=$(PLATFORM) LANGLIBC=libc
 	@mkdir -p out
 	@echo "Initializing from $(BOOTSTRAP_LL)..."
 	clang -O2 $(BOOTSTRAP_LL) -o out/lang_bootstrap
