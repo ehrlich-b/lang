@@ -1,0 +1,6 @@
+func main() i64 {
+    var total i64 = 0;
+    var i i64 = 0;
+    while i < 100 { total = total + i; i = i + 1; }
+    return total % 256;
+}
