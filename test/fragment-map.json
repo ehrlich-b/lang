@@ -1,0 +1,33 @@
+{
+  "groups": {
+    "compiler-smoke": ["test/suite/002_return_42.lang", "test/suite/015_arith_precedence.lang", "test/suite/074_func_recursion.lang"],
+    "readers": ["tiny-reader", "calc-reader", "test/suite/276_reader_declaration_order.lang", "test/suite/292_reader_diagnostic_spans.lang", "test/suite/293_unterminated_reader_comments.lang"],
+    "dispatch": ["missing-reader", "tiny-reader", "calc-reader"],
+    "llvm-bindings": ["test/suite/294_shadow_parameter.lang", "test/suite/295_shadow_nested_lets.lang", "test/suite/296_shadow_sibling_blocks.lang", "test/suite/297_shadow_lambda_capture.lang", "test/suite/298_shadow_loop.lang", "test/suite/299_shadow_minilisp.lang", "test/suite/300_shadow_global.lang", "test/suite/081_ptr_deref.lang", "test/suite/283_call_arity.lang"],
+    "parser": ["test/suite/015_arith_precedence.lang", "test/suite/283_call_arity.lang", "test/suite/285_comment_syntax.lang", "test/suite/292_reader_diagnostic_spans.lang", "test/suite/293_unterminated_reader_comments.lang"]
+  },
+  "cases": {
+    "tiny-reader": {"source": "example/tiny/test_tiny.lang", "exit": 42},
+    "calc-reader": {"source": "example/calc/test_calc.lang", "exit": 20},
+    "missing-reader": {"command": ["bash", "test/borders/check_zig.sh"]}
+  },
+  "paths": [
+    {"glob": "src/codegen_llvm.lang", "tests": ["llvm-bindings"]},
+    {"glob": "src/lexer.lang", "tests": ["parser"]},
+    {"glob": "src/parser.lang", "tests": ["parser", "readers"]},
+    {"glob": "src/lang_reader.lang", "tests": ["readers"]},
+    {"glob": "src/sexpr_reader.lang", "tests": ["readers"]},
+    {"glob": "src/main.lang", "tests": ["dispatch", "readers"]},
+    {"glob": "std/tok.lang", "tests": ["parser"]},
+    {"glob": "std/parser_runtime.lang", "tests": ["readers", "parser"]},
+    {"glob": "example/tiny/*", "tests": ["tiny-reader"]},
+    {"glob": "example/calc/*", "tests": ["calc-reader"]},
+    {"glob": "example/minilisp/*", "tests": ["test/suite/299_shadow_minilisp.lang"]},
+    {"glob": "test/borders/*", "tests": ["dispatch"]},
+    {"glob": "test/check_shadow_bindings.py", "tests": ["llvm-bindings"]},
+    {"glob": "Makefile", "tests": ["compiler-smoke", "readers", "llvm-bindings"]},
+    {"glob": "scripts/fragment.py", "tests": ["compiler-smoke", "readers", "llvm-bindings"]},
+    {"glob": "test/fragment-map.json", "tests": ["compiler-smoke", "readers", "llvm-bindings"]}
+  ],
+  "no_tests": ["*.md", "docs/*", "designs/*", "LICENSE", "LICENSE.*", "*.png", "*.svg"]
+}

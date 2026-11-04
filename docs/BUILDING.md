@@ -41,6 +41,54 @@ Two compiler names are intentional:
 Use `out/lang_next` while developing compiler changes. A successful
 `make bootstrap` promotes the verified compiler to `out/lang`.
 
+## Test a change in seconds
+
+Build your candidate once with `make build`, then reuse it:
+
+```bash
+make fragment
+make fragment FILES='src/parser.lang src/lexer.lang' JOBS=2
+make fragment COMPILER=out/lang_next FILES='src/codegen_llvm.lang'
+```
+
+With no `FILES`, fragment diffs the working tree (including staged changes and
+untracked files) against `git merge-base HEAD origin/main`. Set `FRAGMENT_BASE`
+to use another integration ref. Explicit `FILES` names changed paths, separated
+by spaces (shell quoting inside the value supports spaces in a path); an empty
+value selects nothing. Deleted and renamed paths are included in the diff.
+`FRAGMENT_COMMIT=<sha>` selects the paths changed by an existing commit relative
+to its first parent, while testing the current compiler and fixtures. It does
+not check out or rebuild that historical compiler.
+
+[test/fragment-map.json](../test/fragment-map.json) maps paths to named groups
+and individual fixtures. Reader changes exercise tiny/calc reader construction
+and parser diagnostics; LLVM changes exercise lexical bindings, calls and
+pointers. Changed `test/suite/*.lang` fixtures run directly. Docs and images
+run zero tests, without needing a compiler. Every other unmapped path, including
+an unknown compiler source, prints a fallback notice and runs the named
+`compiler-smoke` set (return value, precedence, recursion). Add focused fixtures
+and mappings with each new compiler feature; the fallback is only early feedback.
+
+Fragment never builds the compiler. It chooses `COMPILER`, then `out/lang_next`,
+then `out/lang`, resolves that binary once and reports it. Rebuild explicitly
+after changing compiler sources: using a stale binary tests stale behavior.
+It runs at most four workers (`JOBS=1` for serial execution), uses `clang -O0`
+for generated programs whose oracles do not depend on optimization, isolates
+each reader cache, and checks exit values or rejection diagnostics. Existing
+reader helper construction keeps the compiler's own build policy. Each test
+has a timeout; compilation, linking, execution and oracle failures fail the
+target. Output includes selected test count, aggregate process/child CPU seconds
+and wall seconds. `FRAGMENT_REPORT=/path/report.json` saves machine-readable
+results. Use `TMPDIR` to place temporary artifacts outside the checkout.
+
+This is selective feedback, not proof of complete impact coverage. Integration
+still runs the unchanged `make verify`, `make bootstrap` and
+`test/run_llvm_suite.sh`. Bootstrap must still reach both the LLVM and AST fixed
+points. Run full integration verification before promotion or release, for
+cross-cutting compiler/runtime/ABI changes, optimization-dependent behavior,
+backend portability, and whenever the small mapping or fallback cannot establish
+coverage. Fragment does not replace optimization or Wasm oracles.
+
 ## Compile a program
 
 ```bash

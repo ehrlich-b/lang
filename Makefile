@@ -491,6 +491,19 @@ verify: bootstrap-verify
 	python3 -B test/reader_author/demo.py --case stranger
 endif
 
+# Fast feedback with one compiler built beforehand; no implicit build or suite.
+.PHONY: fragment
+FRAGMENT_FILES_EXPLICIT := $(if $(filter undefined,$(origin FILES)),0,1)
+fragment: export FILES := $(FILES)
+fragment: export FRAGMENT_EXPLICIT := $(FRAGMENT_FILES_EXPLICIT)
+fragment: export COMPILER := $(COMPILER)
+fragment: export JOBS := $(JOBS)
+fragment: export FRAGMENT_BASE := $(FRAGMENT_BASE)
+fragment: export FRAGMENT_COMMIT := $(FRAGMENT_COMMIT)
+fragment: export FRAGMENT_REPORT := $(FRAGMENT_REPORT)
+fragment:
+	@python3 scripts/fragment.py
+
 # Compatibility alias for the old Mac-only verifier. The historical recipe
 # overwrote out/lang before its fixed-point comparison and tests completed.
 llvm-verify:
