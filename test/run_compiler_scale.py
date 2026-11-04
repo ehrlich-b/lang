@@ -78,6 +78,21 @@ def main():
                 assert len(text.splitlines()) == size
                 assert 'struct S0 {' in text and 'func work32(' in text and 'work0(p.a + p.b)' in text
             print('PASS generator shape at 10k/100k/1M; full-size emission/timing DEFERRED')
+            # Count only tiny samples: each later group adds the same tokens,
+            # while the last sample measures the 1M input's 28 padding lines.
+            counts = {}
+            for size in (36, 68, 96):
+                import io
+                stream = io.StringIO()
+                generate(size, stream)
+                sample = source(f'token-shape-{size}', stream.getvalue())
+                result = check(f'token-shape-{size}', [compiler, sample, '--dump-tokens'])
+                counts[size] = len(result.stdout.splitlines())
+            groups = (1000000 - 4) // 32
+            required = counts[36] + (groups - 1) * (counts[68] - counts[36]) + counts[96] - counts[68]
+            assert counts[68] - counts[36] == 179, counts
+            assert 1048576 < required < 16777216, required
+            print(f'PASS inferred 1M token count {required} fits explicit benchmark node budget')
 
         if args.group == 'tables':
             # One small input crosses the old 4000 declarations, 3000 functions,
@@ -123,6 +138,20 @@ def main():
             native('profile-probe', probe, execute=False)
             binary = output / 'profile-probe'
             check('profile-probe-link', ['clang', '-O0', output / 'profile-probe.ll', '-o', binary])
+            # Tiny exact-boundary and over-limit cases exercise every consumer
+            # of the same host node setting, without emitting the deferred sizes.
+            for mode, diagnostic in [('source-nodes', 'source-nodes'), ('origin-nodes', 'origin-budget'),
+                                     ('validate-nodes', 'ast-nodes'), ('emit-nodes', 'ast-nodes')]:
+                check(mode + '-boundary', [binary, mode], run_env=dict(env, LANG_HOST_MAX_NODES='3'))
+                check(mode + '-over', [binary, mode], success=False, diagnostic=diagnostic,
+                      run_env=dict(env, LANG_HOST_MAX_NODES='2'))
+            for setting, expected in [('', 1048576), ('1', 1), ('16777216', 16777216)]:
+                result = check('node-setting-' + (setting or 'default'), [binary, 'node-setting'],
+                               run_env=dict(env, LANG_HOST_MAX_NODES=setting))
+                assert result.stdout.strip() == str(expected).encode(), result.stdout
+            for i, setting in enumerate(['0', '-1', 'x', '16777217', '999999999999999999999999999999']):
+                check(f'node-setting-invalid-{i}', [binary, 'node-setting'], success=False,
+                      diagnostic='invalid-node-limit', run_env=dict(env, LANG_HOST_MAX_NODES=setting))
             check('llvm-output-budget', [binary, 'llvm-output'], success=False, diagnostic='LLVM output buffer overflow')
             # Memory and multiplication guards call the production storage functions.
             prefix = '''include "std/core.lang"\ninclude "src/compiler_tables.lang"\n'''

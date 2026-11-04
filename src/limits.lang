@@ -7,6 +7,8 @@ var LIMIT_CALL_ARGS i64 = 16;
 var LIMIT_FUNC_PARAMS i64 = 16;
 // Top-level declarations and shared/LLVM registries grow geometrically.
 // Their initial capacity and checked byte ceiling live in compiler_tables.lang.
+// Source tokens, origins and AST nodes use phase_node_limit() in stage_wire.lang:
+// 1,048,576 by default, LANG_HOST_MAX_NODES accepts 1 through 16,777,216.
 
 // Legacy direct-Wasm registry limits (shared/LLVM registries are growable).
 // Locals, captures and control nesting also retain their backend-specific bounds.

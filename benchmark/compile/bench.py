@@ -65,11 +65,13 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     compiler = args.compiler.resolve()
     env = dict(os.environ, LANGBE='llvm', LANGOS='macos' if os.uname().sysname == 'Darwin' else 'linux',
-               LANG_HOST_MAX_BYTES='134217728', LANG_CACHE=str(output / 'cache'))
+               LANG_HOST_MAX_BYTES='134217728', LANG_HOST_MAX_NODES='16777216',
+               LANG_CACHE=str(output / 'cache'))
     candidate_receipt = pinned_build(ROOT, compiler, output, 'candidate')
     report = {'candidate_build': candidate_receipt, 'compiler_sha256': digest(compiler), 'head': subprocess.check_output(
         ['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(), 'host': os.uname().nodename,
-        'host_max_bytes': env['LANG_HOST_MAX_BYTES'], 'programs': [], 'self_compile': {},
+        'host_max_bytes': env['LANG_HOST_MAX_BYTES'], 'host_max_nodes': env['LANG_HOST_MAX_NODES'],
+        'programs': [], 'self_compile': {},
         'full_scale_verdict': 'DEFERRED', 'self_compile_timing_verdict': 'DEFERRED'}
     try:
         for size in args.sizes:

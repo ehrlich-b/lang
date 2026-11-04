@@ -15,6 +15,41 @@ func main(argc i64, argv **u8) i64 {
     var base *u8 = argv;
     var args **u8 = base + 8;
     var mode *u8 = *args;
+    if streq(mode, "node-setting") {
+        print_int(phase_node_limit());
+        println("");
+        return 0;
+    }
+    if streq(mode, "source-nodes") {
+        parser_set_source_name("node-probe");
+        parser_tokenize("x y");
+        if parser_token_count() != 3 { return 11; }
+        return 0;
+    }
+    if streq(mode, "origin-nodes") {
+        phase_bound_source_id = phase_source_register("node-probe", "");
+        var i i64 = 0;
+        while i < 3 {
+            node_set_origin(alloc(8), "node-probe", 1, 1);
+            i = i + 1;
+        }
+        if node_origin_count != 3 || node_origin_capacity != 3 { return 12; }
+        return 0;
+    }
+    if streq(mode, "validate-nodes") {
+        phase_validate_ast("(x y)", 5, "node-probe");
+        return 0;
+    }
+    if streq(mode, "emit-nodes") {
+        ast_emit_init();
+        var node *u8 = number_expr_alloc();
+        number_expr_set_value(node, "0");
+        number_expr_set_value_len(node, 1);
+        var i i64 = 0;
+        while i < 3 { ast_emit_node(node); i = i + 1; }
+        if phase_emit_nodes != 3 { return 13; }
+        return 0;
+    }
     if streq(mode, "ast") || streq(mode, "ast-over") {
         ast_emit_init();
         ast_emit_cap = 16;
