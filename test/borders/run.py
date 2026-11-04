@@ -61,6 +61,6 @@ for reader in readers:
         pair = [c for c in cells if c['reader'] == reader and c['feature'] == feature]
         links = [f"[{c['status']}](../{c['fixture']})" for c in pair]
         lines.append(f'| {reader} | {feature} | {links[0]} | {links[1]} |')
-lines += ['| Zig | missing reader | [rejected at line 1](../test/borders/missing.zig#L1) | [rejected at line 1](../test/borders/missing.zig#L1) |', '', 'Zig is rejected before target selection. Reader-macro rejections in the Wasm column are pipeline limitations, not feature-specific results.', '', 'Each result is from compiling and running its fixture; a rejection is a compiler or linker error. Exit 42 is the expected result. See `borders.json` for diagnostics and exit codes.']
+lines += ['| Zig | missing reader | [rejected at line 1](../test/borders/missing.zig#L1) | [rejected at line 1](../test/borders/missing.zig#L1) |', '', 'Zig is rejected before target selection.', '', 'Each result is from compiling and running its fixture; a rejection is a compiler or linker error. Exit 42 is the expected result. See `borders.json` for diagnostics and exit codes.']
 Path('docs/BORDERS.md').write_text('\n'.join(lines) + '\n')
 print('Wrote borders.json and docs/BORDERS.md')

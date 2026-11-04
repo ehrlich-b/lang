@@ -4,13 +4,13 @@
 const fs = require('fs');
 const { runLangCompiler } = require('../web/compiler_host.js');
 const { formatLangAst, runLangProgram } = require('../web/program_host.js');
-const stdlibFiles = JSON.parse(fs.readFileSync('web/stdlib.json', 'utf8'));
 
 const compilerPath = process.argv[2];
 if (!compilerPath) {
   console.error('usage: compiler_direct_wasm_e2e.js compiler.wasm');
   process.exit(2);
 }
+const stdlibFiles = JSON.parse(fs.readFileSync(require('path').join(require('path').dirname(compilerPath), 'stdlib.json'), 'utf8'));
 
 async function compileAndRun(sourcePath, dependencies = {}) {
   const source = fs.readFileSync(sourcePath, 'utf8');

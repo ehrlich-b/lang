@@ -13,7 +13,7 @@ if (!compilerPath || !outputDir) {
 
 (async () => {
   const compiler = fs.readFileSync(compilerPath);
-  const stdlibFiles = JSON.parse(fs.readFileSync('web/stdlib.json', 'utf8'));
+  const stdlibFiles = JSON.parse(fs.readFileSync(path.join(path.dirname(compilerPath), 'stdlib.json'), 'utf8'));
   fs.mkdirSync(outputDir, { recursive: true });
   const sources = fs.readdirSync('test/suite')
     .filter((name) => /^(28[6-9]|29[01])_pointer_index_.*\.lang$/.test(name))

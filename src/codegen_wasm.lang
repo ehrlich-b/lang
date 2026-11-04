@@ -43,6 +43,8 @@ var wasm_loop_count i64 = 0;
 var wasm_had_error i64 = 0;
 var wasm_current_decl *u8 = nil;
 var wasm_included_files *u8 = nil;
+var wasm_reader_exprs *u8 = nil;
+var wasm_reader_expansions *u8 = nil;
 var wasm_i64_type *u8 = nil;
 var wasm_u8_type *u8 = nil;
 var wasm_u8_ptr_type *u8 = nil;
@@ -499,6 +501,7 @@ func wasm_collect_locals(stmt *u8) void {
 // before emission so those bindings can live in a per-call memory frame.
 func wasm_scan_address_expr(expr *u8) void {
     if expr == nil { return; }
+    if node_kind(expr) == NODE_READER_EXPR { wasm_scan_address_expr(wasm_expand_reader_expr(expr)); return; }
     var kind i64 = node_kind(expr);
     if kind == NODE_UNARY_EXPR {
         var inner *u8 = unary_expr_expr(expr);
@@ -603,8 +606,31 @@ func wasm_parse_integer(text *u8, len i64) i64 {
     return value;
 }
 
+func wasm_expand_reader_expr(expr *u8) *u8 {
+    var i i64 = 0;
+    while i < vec_len(wasm_reader_exprs) {
+        if vec_get(wasm_reader_exprs, i) == expr { return vec_get(wasm_reader_expansions, i); }
+        i = i + 1;
+    }
+    cg_diagnostic_node = expr;
+    var content *u8 = reader_expr_content(expr);
+    var output *u8 = compiler_expand_direct_reader(reader_expr_name(expr), reader_expr_name_len(expr), content, reader_expr_content_len(expr));
+    var expanded *u8 = nil;
+    if output != nil {
+        expanded = parse_ast_expression_from_reader_string(output, node_origin_source(expr), content);
+    }
+    if expanded == nil {
+        if cg_had_error != 0 { wasm_had_error = 1; }
+        else { wasm_error("reader did not return a valid expression AST"); }
+    }
+    vec_push(wasm_reader_exprs, expr);
+    vec_push(wasm_reader_expansions, expanded);
+    return expanded;
+}
+
 func wasm_expr_type(expr *u8) *u8 {
     if expr == nil { return nil; }
+    if node_kind(expr) == NODE_READER_EXPR { return wasm_expr_type(wasm_expand_reader_expr(expr)); }
     var kind i64 = node_kind(expr);
     if kind == NODE_NUMBER_EXPR || kind == NODE_BOOL_EXPR { return wasm_i64_type; }
     if kind == NODE_STRING_EXPR { return wasm_u8_ptr_type; }
@@ -860,6 +886,7 @@ func wasm_emit_integer(expr *u8, out *WasmBuf) void {
 func wasm_emit_expr(expr *u8, out *WasmBuf) void {
     if numeric_is_call(expr) { numeric_fail(expr, "exact numeric profile requires LLVM lowering (native or wasm target)"); }
     if expr == nil { wasm_put(out, 66); wasm_put_sleb(out, 0); return; }
+    if node_kind(expr) == NODE_READER_EXPR { wasm_emit_expr(wasm_expand_reader_expr(expr), out); return; }
     var kind i64 = node_kind(expr);
 
     if kind == NODE_NUMBER_EXPR {
@@ -1062,6 +1089,7 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
 
 func wasm_expr_has_value(expr *u8) i64 {
     if expr == nil { return 0; }
+    if node_kind(expr) == NODE_READER_EXPR { return wasm_expr_has_value(wasm_expand_reader_expr(expr)); }
     if node_kind(expr) == NODE_CALL_EXPR {
         var callee *u8 = call_expr_func(expr);
         if callee != nil && node_kind(callee) == NODE_IDENT_EXPR {
@@ -1229,7 +1257,7 @@ func wasm_reader_function(decl *u8) *u8 {
 func wasm_collect_path(path *u8, path_len i64) void {
     // compiler.wasm already owns the #parser{} generator. A reader module
     // needs only the generated parser's token/PNode runtime.
-    if wasm_name_eq(path, path_len, "std/parser_reader.lang", 22) != 0 {
+    if compiler_direct_reader_runtime_only() != 0 && wasm_name_eq(path, path_len, "std/parser_reader.lang", 22) != 0 {
         path = "std/parser_runtime.lang";
         path_len = 23;
     }
@@ -1247,11 +1275,17 @@ func wasm_collect_path(path *u8, path_len i64) void {
         return;
     }
     var decls *u8 = program_decls(included);
+    var saved_decls *u8 = cg_current_file_decls;
+    var saved_count i64 = cg_current_file_decl_count;
+    cg_current_file_decls = decls;
+    cg_current_file_decl_count = program_decl_count(included);
     var i i64 = 0;
     while i < program_decl_count(included) {
         wasm_collect_decl(get_decl(decls, i));
         i = i + 1;
     }
+    cg_current_file_decls = saved_decls;
+    cg_current_file_decl_count = saved_count;
 }
 
 func wasm_collect_decl(decl *u8) void {
@@ -1277,6 +1311,8 @@ func wasm_collect_decl(decl *u8) void {
         return;
     }
     if kind == NODE_READER_DECL {
+        compiler_register_direct_reader(decl);
+        if cg_had_error != 0 { wasm_had_error = 1; return; }
         if wasm_func_count >= LIMIT_FUNCS {
             wasm_error("too many readers for direct wasm output");
         } else {
@@ -1321,10 +1357,11 @@ func wasm_collect_decl(decl *u8) void {
         var name *u8 = reader_expr_name(decl);
         var name_len i64 = reader_expr_name_len(decl);
         var output *u8 = compiler_expand_direct_reader(
-            name, name_len, reader_expr_content(decl)
+            name, name_len, reader_expr_content(decl), reader_expr_content_len(decl)
         );
         if output == nil {
-            wasm_error("reader macro is not available to the direct wasm compiler");
+            if cg_had_error != 0 { wasm_had_error = 1; }
+            else { wasm_error("reader macro is not available to the direct wasm compiler"); }
             return;
         }
         var generated *u8 = parse_ast_from_reader_string(
@@ -1372,6 +1409,8 @@ func wasm_collect_functions(prog *u8) void {
     wasm_string_count = 0;
     wasm_data_end = 1024;
     wasm_included_files = map_new();
+    wasm_reader_exprs = vec_new(16);
+    wasm_reader_expansions = vec_new(16);
     var decls *u8 = program_decls(prog);
     var i i64 = 0;
     while i < program_decl_count(prog) {
@@ -1382,6 +1421,7 @@ func wasm_collect_functions(prog *u8) void {
 
 func wasm_mark_expr(expr *u8) void {
     if expr == nil { return; }
+    if node_kind(expr) == NODE_READER_EXPR { wasm_mark_expr(wasm_expand_reader_expr(expr)); return; }
     var kind i64 = node_kind(expr);
     if kind == NODE_CALL_EXPR {
         var callee *u8 = call_expr_func(expr);
@@ -1747,6 +1787,9 @@ func generate_wasm(prog *u8, output_file *u8) void {
     wasm_u8_ptr_type = ptr_type_alloc();
     ptr_type_set_elem(wasm_u8_ptr_type, wasm_u8_type);
 
+    codegen_init();
+    cg_current_file_decls = program_decls(prog);
+    cg_current_file_decl_count = program_decl_count(prog);
     wasm_collect_functions(prog);
     wasm_prune_unreachable();
     if wasm_had_error != 0 { os_unlink(output_file); exit(1); }

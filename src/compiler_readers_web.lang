@@ -2,7 +2,10 @@
 // fork the native helper process used by an ordinary compiler.
 include "std/parser_reader.lang"
 
-func compiler_expand_direct_reader(name *u8, name_len i64, text *u8) *u8 {
+func compiler_register_direct_reader(decl *u8) void {}
+func compiler_direct_reader_runtime_only() i64 { return 1; }
+
+func compiler_expand_direct_reader(name *u8, name_len i64, text *u8, text_len i64) *u8 {
     if name_len == 6 && memcmp(name, "parser", 6) { return parser(text); }
     return nil;
 }

@@ -103,10 +103,10 @@
       "reader": "minipy",
       "feature": "integers",
       "target": "wasm",
-      "status": "rejected",
+      "status": "supported",
       "fixture": "test/borders/cases/minipy_integers.lang",
-      "exit_code": 1,
-      "detail": "example/minipy/minipy.lang:267:1: error: reader macro is not available to the direct wasm compiler\n"
+      "exit_code": 42,
+      "detail": ""
     },
     {
       "reader": "minipy",
@@ -124,7 +124,7 @@
       "status": "rejected",
       "fixture": "test/borders/cases/minipy_floats.lang",
       "exit_code": 1,
-      "detail": "example/minipy/minipy.lang:267:1: error: reader macro is not available to the direct wasm compiler\n"
+      "detail": "minipy:2:1: expected end of input, found def @1:4\ntest/borders/cases/minipy_floats.lang:6:1: error: reader 'minipy' failed or returned no AST\n"
     },
     {
       "reader": "minipy",
@@ -142,7 +142,7 @@
       "status": "rejected",
       "fixture": "test/borders/cases/minipy_strings.lang",
       "exit_code": 1,
-      "detail": "example/minipy/minipy.lang:267:1: error: reader macro is not available to the direct wasm compiler\n"
+      "detail": "minipy:3:12: a string may only be an argument to print in this subset\ntest/borders/cases/minipy_strings.lang:6:1: error: reader 'minipy' failed or returned no AST\n"
     },
     {
       "reader": "minipy",
@@ -157,10 +157,10 @@
       "reader": "minipy",
       "feature": "functions",
       "target": "wasm",
-      "status": "rejected",
+      "status": "supported",
       "fixture": "test/borders/cases/minipy_functions.lang",
-      "exit_code": 1,
-      "detail": "example/minipy/minipy.lang:267:1: error: reader macro is not available to the direct wasm compiler\n"
+      "exit_code": 42,
+      "detail": ""
     },
     {
       "reader": "minipy",
@@ -178,7 +178,7 @@
       "status": "rejected",
       "fixture": "test/borders/cases/minipy_structs.lang",
       "exit_code": 1,
-      "detail": "example/minipy/minipy.lang:267:1: error: reader macro is not available to the direct wasm compiler\n"
+      "detail": "minipy:2:1: expected end of input, found class @1:6\ntest/borders/cases/minipy_structs.lang:10:1: error: reader 'minipy' failed or returned no AST\n"
     },
     {
       "reader": "minilisp",
@@ -193,10 +193,10 @@
       "reader": "minilisp",
       "feature": "integers",
       "target": "wasm",
-      "status": "rejected",
+      "status": "supported",
       "fixture": "test/borders/cases/minilisp_integers.lang",
-      "exit_code": 1,
-      "detail": "example/minilisp/minilisp.lang:35:1: error: reader macro is not available to the direct wasm compiler\n"
+      "exit_code": 42,
+      "detail": ""
     },
     {
       "reader": "minilisp",
@@ -211,10 +211,10 @@
       "reader": "minilisp",
       "feature": "floats",
       "target": "wasm",
-      "status": "rejected",
-      "fixture": "test/borders/cases/minilisp_floats.lang",
-      "exit_code": 1,
-      "detail": "example/minilisp/minilisp.lang:35:1: error: reader macro is not available to the direct wasm compiler\n"
+      "status": "wrong",
+      "fixture": "test/borders/bugs/minilisp_floats_wasm.lang",
+      "exit_code": 0,
+      "detail": ""
     },
     {
       "reader": "minilisp",
@@ -229,10 +229,10 @@
       "reader": "minilisp",
       "feature": "strings",
       "target": "wasm",
-      "status": "rejected",
-      "fixture": "test/borders/cases/minilisp_strings.lang",
+      "status": "wrong",
+      "fixture": "test/borders/bugs/minilisp_strings_wasm.lang",
       "exit_code": 1,
-      "detail": "example/minilisp/minilisp.lang:35:1: error: reader macro is not available to the direct wasm compiler\n"
+      "detail": ""
     },
     {
       "reader": "minilisp",
@@ -247,10 +247,10 @@
       "reader": "minilisp",
       "feature": "functions",
       "target": "wasm",
-      "status": "rejected",
+      "status": "supported",
       "fixture": "test/borders/cases/minilisp_functions.lang",
-      "exit_code": 1,
-      "detail": "example/minilisp/minilisp.lang:35:1: error: reader macro is not available to the direct wasm compiler\n"
+      "exit_code": 42,
+      "detail": ""
     },
     {
       "reader": "minilisp",
@@ -268,7 +268,7 @@
       "status": "rejected",
       "fixture": "test/borders/cases/minilisp_structs.lang",
       "exit_code": 1,
-      "detail": "example/minilisp/minilisp.lang:35:1: error: reader macro is not available to the direct wasm compiler\n"
+      "detail": "minilisp:1:16: operator used as a value '-'\nerror: reader 'minilisp' failed or returned no AST\n"
     }
   ]
 }

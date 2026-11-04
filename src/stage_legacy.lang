@@ -31,7 +31,7 @@ pub func compile_reader_to_executable(decl *u8) void {
     // Backend selection: LLVM if requested-or-default AND available
     // (standalone compilers don't include codegen_llvm.lang)
     var use_llvm i64 = 0;
-    if cg_backend_is_llvm() != 0 && cg_has_llvm_backend != 0 {
+    if (cg_backend_is_llvm() != 0 || cg_backend_is_wasm() != 0) && cg_has_llvm_backend != 0 {
         use_llvm = 1;
     }
 

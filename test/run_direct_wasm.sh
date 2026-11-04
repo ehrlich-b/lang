@@ -36,6 +36,9 @@ run_case test/direct_wasm_reader_e2e.lang 40
 run_case test/direct_wasm_calc_reader_e2e.lang 40
 run_case test/suite/286_local_address_shadows_function.lang 0
 run_case test/suite/287_node_origins_index.lang 0
+# A declaration reader and an expression reader must expand before reachability.
+run_case test/borders/cases/minipy_functions.lang 42
+run_case test/borders/cases/minilisp_integers.lang 42
 
 unsupported="$tmp/unsupported.wasm"
 if LANGBE=wasm LANGOS=wasm "$COMPILER" test/suite/250_arrays.lang -o "$unsupported" \
