@@ -122,6 +122,9 @@ def main():
             ('lang', ['test/debug_info/native.lang'],
              {'test/debug_info/native.lang': ['return n * 2;', 'var value i64 = twice(21);',
                                                'println("debug native");', 'return value - 42;']}),
+            ('native-lambda', ['test/debug_info/lambda.lang'],
+             {'test/debug_info/lambda.lang': ['return n * 3;', 'return value + offset;',
+                                               'return inner(10);', 'return outer() - 22;']}),
             ('minilisp', ['std/core.lang', 'example/minilisp/lisp_runtime.lang',
                           'example/minilisp/minilisp.lang', 'test/debug_info/program.minilisp',
                           'test/debug_info/lisp_host.lang'],
@@ -156,6 +159,23 @@ def main():
             text = ir.read_text()
             for required in ('!DICompileUnit(', '!DISubprogram(', '!DILocation('):
                 assert required in text, (name, required)
+            if name == 'native-lambda':
+                # Deferred functions need their own scopes, including lambdas
+                # discovered while emitting another lambda's body.
+                for index, statement in enumerate(('return n * 3;', 'return inner(10);',
+                                                   'return value + offset;')):
+                    symbol = f'__lambda_{index}'
+                    function = re.search(rf'^define [^\n]*@{symbol}\([^\n]* !dbg !(\d+) \{{\n(.*?)^}}',
+                                         text, re.M | re.S)
+                    assert function, (symbol, 'missing subprogram attachment')
+                    scope, body = function.groups()
+                    assert re.search(rf'^!{scope} = distinct !DISubprogram\(name: "{symbol}"',
+                                     text, re.M), (symbol, scope)
+                    location = re.search(r'ret i64 [^\n]*, !dbg !(\d+)', body)
+                    assert location, (symbol, 'missing return location')
+                    line = line_of('test/debug_info/lambda.lang', statement)
+                    assert re.search(rf'^!{location[1]} = !DILocation\(line: {line}, column: \d+, scope: !{scope}\)',
+                                     text, re.M), (symbol, line, location[1])
             run(['opt', '-passes=verify', '-disable-output', ir], f'{name}-verify')
             checked = {}
             for level in ('O0', 'O2'):

@@ -1,0 +1,15 @@
+include "std/core.lang"
+func main() i64 {
+    var triple fn(i64) i64 = fn(n i64) i64 {
+        return n * 3;
+    };
+    var offset i64 = 12;
+    var outer closure() i64 = fn() i64 {
+        var inner closure(i64) i64 = fn(value i64) i64 {
+            return value + offset;
+        };
+        return inner(10);
+    };
+    if triple(14) != 42 { return 1; }
+    return outer() - 22;
+}

@@ -3422,6 +3422,7 @@ func parse_primary() *u8 {
     // Uses TOKEN_FN which is already used for fn(T) R type syntax
     // In primary position, this is a lambda value, not a type
     if parse_match(TOKEN_FN) {
+        var fn_tok *u8 = parse_previous();
         parse_expect(TOKEN_LPAREN, "expected '(' after 'fn' in lambda");
 
         // Parse parameters (similar to func params)
@@ -3462,6 +3463,9 @@ func parse_primary() *u8 {
         lambda_expr_set_param_count(node, param_count);
         lambda_expr_set_ret_type(node, ret_type);
         lambda_expr_set_body(node, body);
+        // Lambda bodies are emitted after their enclosing function; retain
+        // the expression's own origin for that deferred debug scope.
+        node_set_origin(node, parse_source_name, tok_line(fn_tok), tok_col(fn_tok));
         return node;
     }
 
