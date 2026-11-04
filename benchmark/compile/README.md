@@ -50,9 +50,9 @@ reads, counting, allocation, or AST walks. Timer storage is fixed and bounded.
 | --- | --- |
 | reading | Source bytes supplied, including cached snapshots and repeated reads |
 | tokens | Tokens produced, including EOF and synthetic input wrappers |
-| parsing | Top-level declarations parsed, including included sources |
+| parsing | Top-level declarations parsed, including included sources and S-expression ASTs; inline AST expressions count as one |
 | expansion-registration | Registered functions/globals/structs/enums (LLVM); root declarations (x86); collected functions/globals/structs (Wasm) |
-| type-checking-lowering-ir-emission | The same backend input count |
+| type-checking-lowering-ir-emission | The same backend input count; root declarations serialized on AST output paths |
 | output | Buffered output bytes consumed (x86 code buffer excludes streamed data) |
 
 The compiler does not have separate whole-program type-checking, lowering and
@@ -62,3 +62,9 @@ registration and may be visited again during emission. The combined names
 reflect those boundaries; they do not imply independent passes or invented
 zero-duration measurements. Reading/tokenization/parsing include work nested
 inside either backend phase. Counts measure work performed, not unique files.
+
+AST output modes report the same six records. Expansion is timed when requested;
+the emission record measures S-expression serialization and output measures file
+writing. Unused phases have zero counts. AST input uses a streaming tokenizer,
+so its validation, tokenization and AST construction are charged to parsing;
+the tokens record counts only the source-language tokenizer's buffered tokens.

@@ -14,6 +14,52 @@ SPEC.loader.exec_module(phases)
 
 
 class CompileTimingsTest(unittest.TestCase):
+    def check_output(self, command, output, env):
+        plain = subprocess.run(command, cwd=ROOT, env=env, capture_output=True,
+                               text=True, timeout=15, check=True)
+        expected = output.read_bytes()
+        timed = subprocess.run(command + ['--timings'], cwd=ROOT, env=env,
+                               capture_output=True, text=True, timeout=15, check=True)
+        rows = phases.parse_timings(timed.stderr)
+        self.assertEqual(plain.stderr, '')
+        self.assertEqual(timed.stdout, plain.stdout)
+        self.assertEqual(output.read_bytes(), expected)
+        for row in rows.values():
+            self.assertGreaterEqual(row['cpu_ms'], 0)
+        self.assertEqual(rows['output']['count'], len(expected))
+        print(f'{command[2:]}: identical output ({len(expected)} bytes)')
+        print(timed.stderr, end='')
+        return rows
+
+    def test_ast_paths(self):
+        compiler = str((ROOT / os.environ.get('COMPILER', 'out/lang_next')).resolve())
+        env = dict(os.environ, LANGBE='llvm')
+        with tempfile.TemporaryDirectory(prefix='test-ast-timings-') as directory:
+            for mode in ('--emit-ast', '--emit-expanded-ast', '--emit-exe-ast'):
+                with self.subTest(mode=mode):
+                    output = Path(directory) / f'{mode}.ast'
+                    command = [compiler, 'compile', 'test/timings/main.lang', mode,
+                               '-o', str(output)]
+                    rows = self.check_output(command, output, env)
+                    self.assertGreater(rows['parsing']['count'], 0)
+                    self.assertGreater(rows['type-checking-lowering-ir-emission']['count'], 0)
+                    if mode != '--emit-ast':
+                        self.assertGreater(rows['expansion-registration']['count'], 0)
+
+            # The expanded fixture has two user functions plus module metadata.
+            # Exercise both plain AST parsing and the reader source-context path.
+            ast_input = Path(directory) / '--emit-expanded-ast.ast'
+            for context in ([], ['--ast-source', 'test/timings/main.lang']):
+                for mode in ([], ['--emit-ast']):
+                    with self.subTest(context=context, mode=mode):
+                        target = Path(directory) / 'from-ast'
+                        command = [compiler, 'compile', '--from-ast', str(ast_input),
+                                   *context, *mode, '-o', str(target)]
+                        rows = self.check_output(command, target, env)
+                        self.assertEqual(rows['parsing']['count'], 3)
+                        self.assertGreater(rows['parsing']['cpu_ms'], 0)
+                        self.assertGreater(rows['type-checking-lowering-ir-emission']['count'], 0)
+
     def test_phases_and_unchanged_output(self):
         compiler = str((ROOT / os.environ.get('COMPILER', 'out/lang_next')).resolve())
         # Respect TMPDIR so callers can retain all evidence outside the checkout.

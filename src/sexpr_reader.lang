@@ -1330,6 +1330,16 @@ func sexpr_to_program(node *PNode) *u8 {
 // ============================================================
 
 func parse_ast_from_string(source *u8) *u8 {
+    if timings_enabled == 0 { return parse_ast_from_string_impl(source); }
+    timings_begin(2);
+    var prog *u8 = parse_ast_from_string_impl(source);
+    var count i64 = 0;
+    if prog != nil { count = program_decl_count(prog); }
+    timings_end(count);
+    return prog;
+}
+
+func parse_ast_from_string_impl(source *u8) *u8 {
     phase_validate_ast(source, strlen(source), phase_diagnostic_source);
     var t *Tokenizer = tok_new(source);
     var node *PNode = parse_sexpr(t);
@@ -1370,6 +1380,16 @@ func parse_ast_from_reader_string(source *u8, source_name *u8,
 
 // Parse a single expression from S-expr AST text (for inline readers)
 func parse_ast_expression_from_string(source *u8) *u8 {
+    if timings_enabled == 0 { return parse_ast_expression_from_string_impl(source); }
+    timings_begin(2);
+    var expr *u8 = parse_ast_expression_from_string_impl(source);
+    var count i64 = 0;
+    if expr != nil { count = 1; }
+    timings_end(count);
+    return expr;
+}
+
+func parse_ast_expression_from_string_impl(source *u8) *u8 {
     phase_validate_ast(source, strlen(source), phase_diagnostic_source);
     var t *Tokenizer = tok_new(source);
     var node *PNode = parse_sexpr(t);

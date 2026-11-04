@@ -172,6 +172,25 @@ func main_generate_selected(prog *u8, output_file *u8) void {
     if timings_enabled != 0 { timings_report(); }
 }
 
+func main_emit_ast(prog *u8) *u8 {
+    if timings_enabled == 0 { return ast_emit_program(prog); }
+    timings_begin(4);
+    var text *u8 = ast_emit_program(prog);
+    timings_end(program_decl_count(prog));
+    return text;
+}
+
+func main_write_ast(output_file *u8, text *u8) i64 {
+    if timings_enabled != 0 { timings_begin(5); }
+    var fd i64 = file_open(output_file, O_WRONLY_CREAT_TRUNC);
+    if fd < 0 { return 1; }
+    var bytes i64 = strlen(text);
+    compiler_write_all(fd, text, bytes);
+    file_close(fd);
+    if timings_enabled != 0 { timings_end(bytes); timings_report(); }
+    return 0;
+}
+
 func main_generate_backend(prog *u8, output_file *u8) void {
     if cg_backend_is_wasm() != 0 {
         cg_has_llvm_backend = 1;
@@ -2060,11 +2079,8 @@ func main_dispatch(argc i64, argv **u8) i64 {
         }
 
         if emit_ast_mode != 0 {
-            var ast_text *u8 = ast_emit_program(prog);
-            var ast_fd i64 = file_open(output_file, O_WRONLY_CREAT_TRUNC);
-            if ast_fd < 0 { eprintln("Error: cannot open AST output"); return 1; }
-            compiler_write_all(ast_fd, ast_text, strlen(ast_text));
-            file_close(ast_fd);
+            var ast_text *u8 = main_emit_ast(prog);
+            if main_write_ast(output_file, ast_text) != 0 { eprintln("Error: cannot open AST output"); return 1; }
             return 0;
         }
 
@@ -2557,6 +2573,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
 
     // Output based on mode
     if emit_expanded_ast_mode != 0 || emit_exe_ast_mode != 0 {
+        if timings_enabled != 0 { timings_begin(3); }
         // Emit FULLY EXPANDED AST (all includes resolved inline)
         // emit_expanded_ast: for composition (no ___main)
         // emit_exe_ast: for standalone compilation (has ___main)
@@ -2580,35 +2597,30 @@ func main_dispatch(argc i64, argv **u8) i64 {
 
         // Build expanded program
         var expanded_prog *u8 = build_expanded_program();
+        if timings_enabled != 0 { timings_end(program_decl_count(expanded_prog)); }
 
         // Emit as S-expressions
-        var ast_str *u8 = ast_emit_program(expanded_prog);
+        var ast_str *u8 = main_emit_ast(expanded_prog);
 
         // Write to output file
-        var fd i64 = file_open(output_file, O_WRONLY_CREAT_TRUNC);
-        if fd < 0 {
+        if main_write_ast(output_file, ast_str) != 0 {
             eprint("Error: cannot open output file: ");
             eprintln(output_file);
             return 1;
         }
-        compiler_write_all(fd, ast_str, strlen(ast_str));
-        file_close(fd);
 
         print("Wrote expanded AST to ");
         println(output_file);
     } else if emit_ast_mode != 0 {
         // Emit AST as S-expressions (includes stay as directives)
-        var ast_str *u8 = ast_emit_program(prog);
+        var ast_str *u8 = main_emit_ast(prog);
 
         // Write to output file
-        var fd i64 = file_open(output_file, O_WRONLY_CREAT_TRUNC);
-        if fd < 0 {
+        if main_write_ast(output_file, ast_str) != 0 {
             eprint("Error: cannot open output file: ");
             eprintln(output_file);
             return 1;
         }
-        compiler_write_all(fd, ast_str, strlen(ast_str));
-        file_close(fd);
 
         print("Wrote AST to ");
         println(output_file);
