@@ -405,7 +405,11 @@ func c_expr(e *u8) *u8 {
             if llvm_is_f32_type(dst) { return c_temp(dst, c_join("((double)(float)(", value, "))")); }
             return c_temp(dst, c_join("((double)(", value, "))"));
         }
-        if llvm_is_float_type(c_type(inner)) { value = c_join("((uint64_t)(int64_t)(", value, "))"); }
+        if llvm_is_float_type(c_type(inner)) {
+            // Unsigned destinations include values beyond INT64_MAX.
+            if llvm_is_unsigned_int(dst) { value = c_join("((uint64_t)(", value, "))"); }
+            else { value = c_join("((uint64_t)(int64_t)(", value, "))"); }
+        }
         var size i64 = c_size(dst);
         if size < 8 {
             value = c_join(c_join("c_narrow(", value, ","), c_decimal(size * 8), ")");
@@ -465,7 +469,14 @@ func c_expr(e *u8) *u8 {
 }
 func c_match(e *u8) *u8 {
     var scrut *u8 = c_expr(match_expr_scrutinee(e)); var tag *u8 = c_load(scrut, nil);
-    var result *u8 = c_temp(c_type(e), "0"); var i i64 = 0;
+    var t *u8 = c_type(e); var result *u8 = nil; var i i64 = 0;
+    if c_aggregate(t) {
+        // Arm bindings expire at the closing brace; own the result outside it.
+        var storage *u8 = c_fresh("cm"); emit_str("unsigned char "); emit_str(storage);
+        emit_str("["); emit_int(c_size(t)); emit_line("] = {0};");
+        result = c_join("((uint64_t)(uintptr_t)", storage, ")");
+    }
+    else { result = c_temp(t, "0"); }
     while i < match_expr_arm_count(e) {
         var arm *u8 = get_match_arm(match_expr_arms(e), i); var pat *u8 = match_arm_pattern(arm);
         var saved i64 = cg_local_count;
@@ -481,7 +492,10 @@ func c_match(e *u8) *u8 {
                 var addr *u8 = c_bind(pattern_variant_binding(pat), pattern_variant_binding_len(pat), t); c_store(addr, v, t);
             }
         }
-        var value *u8 = c_expr(match_arm_body(arm)); emit_str(result); emit_str(" = "); emit_str(value); emit_line("; }");
+        var value *u8 = c_expr(match_arm_body(arm));
+        if c_aggregate(t) { c_store(result, value, t); }
+        else { emit_str(result); emit_str(" = "); emit_str(value); emit_line(";"); }
+        emit_line("}");
         cg_local_count = saved; i = i + 1;
     }
     return result;

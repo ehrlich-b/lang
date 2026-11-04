@@ -1,0 +1,49 @@
+// expect: 42
+struct Pair { x i64; y i64; }
+enum MaybePair { Some(Pair), None, }
+enum Wrapped { Pair(MaybePair), None, }
+enum Bytes { Some([3]u8), None, }
+func main() i64 {
+    var pair Pair;
+    pair.x = 17; pair.y = 25;
+    var some MaybePair = MaybePair.Some(pair);
+    var none MaybePair = MaybePair.None;
+    var extracted Pair = match &some {
+        MaybePair.Some(x) => x,
+        MaybePair.None => pair,
+    };
+    if extracted.x != 17 || extracted.y != 25 { return 1; }
+    var fallback Pair = match &none {
+        MaybePair.Some(x) => x,
+        _ => { var local Pair = pair; local },
+    };
+    if fallback.x != 17 || fallback.y != 25 { return 2; }
+    var nested Pair = match &some {
+        MaybePair.Some(x) => match &some {
+            MaybePair.Some(y) => y,
+            _ => x,
+        },
+        _ => pair,
+    };
+    if nested.x != 17 || nested.y != 25 { return 3; }
+    var wrapped Wrapped = Wrapped.Pair(some);
+    var copied MaybePair = match &wrapped {
+        Wrapped.Pair(x) => x,
+        _ => none,
+    };
+    var sum i64 = match &copied {
+        MaybePair.Some(x) => x.x + x.y,
+        _ => 0,
+    };
+    if sum != 42 { return 4; }
+    var bytes [3]u8 = [7, 17, 25];
+    var source Bytes = Bytes.Some(bytes);
+    var result [3]u8 = match &source {
+        Bytes.Some(x) => x,
+        _ => bytes,
+    };
+    if result[0] != 7 || result[1] != 17 || result[2] != 25 { return 5; }
+    pair.x = 0;
+    if extracted.x != 17 || fallback.x != 17 || nested.x != 17 { return 6; }
+    return extracted.x + extracted.y;
+}

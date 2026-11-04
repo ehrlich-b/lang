@@ -1,0 +1,20 @@
+// expect: 42
+func main() i64 {
+    var large f64 = 13835058055282163712.0;
+    var high u64 = cast(u64, large);
+    if high != cast(u64, 3) << 62 { return 1; }
+    var upper f64 = 18446744073709549568.0;
+    if cast(u64, upper) != cast(u64, -2048) { return 2; }
+    var single f32 = 13835058055282163712.0;
+    if cast(u64, single) != high { return 3; }
+    var negative f64 = -42.75;
+    if cast(i64, negative) != -42 { return 4; }
+    if cast(i8, negative) != -42 { return 5; }
+    var byte f64 = 255.75;
+    if cast(u8, byte) != 255 { return 6; }
+    var zero f64 = 0.0;
+    if cast(u64, zero) != 0 { return 7; }
+    var minimum f64 = -9223372036854775808.0;
+    if cast(i64, minimum) != -9223372036854775807 - 1 { return 8; }
+    return 42;
+}

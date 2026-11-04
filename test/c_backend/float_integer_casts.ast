@@ -1,0 +1,18 @@
+(program
+  (func main () (type_base i64)
+    (block
+      (var large (type_base f64)
+        (bitcast (type_base f64) (number 4893160995138043904)))
+      (var high (type_base u64) (cast (type_base u64) (ident large)))
+      (if (binop != (ident high)
+            (binop << (cast (type_base u64) (number 3)) (number 62)))
+        (block (return (number 1))))
+      (var single (type_base f32)
+        (bitcast (type_base f32) (number 1598029824)))
+      (if (binop != (cast (type_base u64) (ident single)) (ident high))
+        (block (return (number 2))))
+      (var negative (type_base f64)
+        (bitcast (type_base f64) (number 13854585381791465472)))
+      (if (binop != (cast (type_base i64) (ident negative)) (unop - (number 42)))
+        (block (return (number 3))))
+      (return (number 42)))))
