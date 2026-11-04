@@ -49,6 +49,35 @@ class ManifestTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'')
 
+    def test_embedded_nul_fails_batch_and_workers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            compiler = root / 'compiler'
+            called = root / 'called'
+            compiler.write_text(f'#!/bin/sh\ntouch "{called}"\necho embedded-nul\nexit 1\n')
+            compiler.chmod(0o755)
+            path = root / 'nul.lang'
+            for header in (b'// reject: \0mandatory diagnostic\n',
+                           b'// expect: 0\n//linux\0\n',
+                           b'// expect: 0\n\n//clang\0\n'):
+                path.write_bytes(header)
+                with self.assertRaisesRegex(ValueError, 'embedded NUL'):
+                    classify(str(path))
+                result = subprocess.run(['python3', 'test/suite_manifest.py',
+                                         'test/suite/001_return_0.lang', str(path)],
+                                        capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, b'')
+                for jobs in ('1', '2'):
+                    env = dict(os.environ, JOBS=jobs, COMPILER=str(compiler))
+                    result = subprocess.run(['bash', 'test/run_llvm_suite.sh',
+                                             'test/suite/001_return_0.lang', str(path)],
+                                            env=env, capture_output=True, text=True)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertIn('embedded NUL', result.stderr)
+                    self.assertNotIn('All tests passed!', result.stdout)
+                    self.assertFalse(called.exists())
+
     def test_worker_routes_and_fragment(self):
         # Tool doubles isolate routing and assertion behavior; real compiler
         # fragment checks are run separately with the same production runner.

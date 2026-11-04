@@ -16,6 +16,8 @@ def classify(path):
         lines = [source.readline() for _ in range(3)]
     first = lines[0]
     header = b''.join(lines)
+    if b'\0' in header:
+        raise ValueError(f'{path}: embedded NUL in suite header')
     markers = ''.join(flag for flag, present in (
         ('i', b'//ignore' in first),
         ('l', b'//linux' in header),
