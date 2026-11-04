@@ -28,7 +28,7 @@
   #reader-diagnostics { border-top:1px solid var(--border); }
   #reader-diagnostics summary { padding:.45rem .8rem; cursor:pointer; color:var(--blue); font-size:.85rem; }
   #reader-diagnostics p { padding:0 .8rem; margin:0; font-size:.75rem; }
-  #reader-stderr { height:auto; max-height:300px; font-size:12px; }
+  #reader-stderr { height:auto; max-height:calc(11.6em + 1.6rem); overflow:auto; font-size:12px; line-height:1.45; }
   textarea:focus { outline:1px solid var(--blue); outline-offset:-1px; }
   pre { white-space:pre; }
   button { border:0; border-radius:5px; padding:.3rem .8rem; color:#04260f; background:var(--green); font:inherit; font-weight:bold; cursor:pointer; }
@@ -97,6 +97,7 @@ reader read(text *u8) *u8 {
       <div class="head"><span>source.read</span><span id="status" aria-live="polite">loading…</span></div>
       <textarea id="custom-source" aria-label="Source in your language" spellcheck="false">answer 42</textarea>
       <div class="head"><span>result</span><span class="downloads">
+        <button id="cancel-reader" hidden>cancel</button>
         <button id="jump-error" hidden>jump to error</button>
         <a class="download" id="download-reader" hidden>reader ↓</a>
         <a class="download" id="download-ast" hidden>AST ↓</a>
@@ -115,7 +116,12 @@ reader read(text *u8) *u8 {
 <script src="compiler_host.js?v=workbench10"></script>
 <script src="program_host.js?v=workbench10"></script>
 <script src="editor.js?v=workbench10"></script>
+<script src="reader_runner.js"></script>
 <script>
+let activeReader;
+let runGeneration = 0;
+// Hosts may set this before starting a run; invalid values are rejected.
+window.readerDeadlineMs = 2000;
 let compilerBytes;
 let stdlibFiles;
 let cachedReaderSource;
@@ -127,6 +133,16 @@ let astDownloadUrl;
 let programDownloadUrl;
 let workspaceDownloadUrl;
 const button = document.getElementById('compile');
+const cancelReader = document.getElementById('cancel-reader');
+function cancelRun() {
+  runGeneration++;
+  if (activeReader) activeReader.cancel();
+}
+cancelReader.onclick = cancelRun;
+for (const id of ['reader', 'custom-source', 'runtime', 'preset']) {
+  document.getElementById(id).addEventListener('input', cancelRun);
+  document.getElementById(id).addEventListener('change', cancelRun);
+}
 const jumpError = document.getElementById('jump-error');
 const preset = document.getElementById('preset');
 const reader = document.getElementById('reader');
@@ -365,7 +381,7 @@ function showReaderDiagnostics(stderr) {
   readerStderr.textContent = stderr;
   readerDiagnostics.hidden = !stderr;
   const lines = stderr.trimEnd().split('\n').length;
-  readerDiagnosticsLabel.textContent = `reader diagnostics / tree · ${lines} ${lines === 1 ? 'line' : 'lines'}`;
+  readerDiagnosticsLabel.textContent = `reader diagnostics / tree · ${lines} ${lines === 1 ? 'line' : 'lines'}${lines > 8 ? ` · +${lines - 8} more` : ''}`;
 }
 
 function clearDownloads() {
@@ -407,6 +423,8 @@ async function compile(args, files) {
 button.onclick = async () => {
   if (!compilerBytes || !stdlibFiles) return;
   button.disabled = true;
+  const generation = ++runGeneration;
+  const checkCurrent = () => { if (generation !== runGeneration) throw new Error('reader cancelled'); };
   status.textContent = 'building reader…';
   output.textContent = '';
   showReaderDiagnostics('');
@@ -440,6 +458,7 @@ func main() *u8 {
         ['reader.lang', '-o', 'reader.wasm'],
         { ...stdlibFiles, 'reader.lang': harness },
       );
+      checkCurrent();
       readerProgram = readerBuild.files.get('reader.wasm');
       if (!readerProgram) throw new Error('reader compiler wrote no module');
       cachedReaderSource = reader.value;
@@ -449,14 +468,19 @@ func main() *u8 {
 
     phase = 'reader run';
     status.textContent = `${phase}…`;
-    const readerRun = await runLangProgram(readerProgram, undefined, customSource.value, structuredDiagnostics ? {
+    cancelReader.hidden = false;
+    activeReader = startReader(readerProgram, customSource.value, window.readerDeadlineMs, structuredDiagnostics ? {
       key: name, path: 'source.read', sourceId: 1, text: customSource.value,
     } : undefined);
+    const readerRun = await activeReader.promise;
+    activeReader = undefined;
+    cancelReader.hidden = true;
+    checkCurrent();
     showReaderDiagnostics(readerRun.stderr);
-    if (readerRun.value === 0n) {
+    if (readerRun.ast === null) {
       throw new Error(readerRun.stderr || readerRun.stdout || 'reader returned nil');
     }
-    const ast = readCString(readerRun.instance, readerRun.value);
+    const ast = readerRun.ast;
     const formattedAst = formatLangAst(ast);
     astDownloadUrl = offerDownload(
       downloadAst, `${formattedAst}\n`, `${name}.ast`, 'text/plain',
@@ -479,12 +503,14 @@ func main() *u8 {
       programArgs,
       programFiles,
     );
+    checkCurrent();
     const program = programBuild.files.get('program.wasm');
     if (!program) throw new Error('kernel wrote no module');
     programDownloadUrl = offerDownload(downloadProgram, program, `${name}-program.wasm`);
     phase = 'program run';
     status.textContent = `${phase}…`;
     const ran = await runLangProgram(program);
+    checkCurrent();
     const elapsed = Math.round(performance.now() - started);
     const astPreview = formattedAst.length > 320
       ? `${formattedAst.slice(0, 320)}…`
@@ -502,6 +528,8 @@ func main() *u8 {
     }
     status.innerHTML = `<span class="bad">${phase} failed</span>`;
   }
+  activeReader = undefined;
+  cancelReader.hidden = true;
   button.disabled = false;
 };
 
