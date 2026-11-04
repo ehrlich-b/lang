@@ -163,11 +163,16 @@ var cg_embedded_reader_count i64 = 0;
 var embedded_reader_names [1024]*u8 = [];    // ["lang", "lisp", nil, ...]
 var embedded_reader_funcs [1024]*u8 = [];    // [reader_lang, reader_lisp, nil, ...]
 
-// Function registry: simple array of func decls
+// Function registry: declaration order remains authoritative
 // Each entry: [name_ptr:8][name_len:8][decl_ptr:8] = 24 bytes
-// Max 500 functions
+// Capacity is LIMIT_FUNCS declarations
 var cg_funcs *u8 = nil;
 var cg_func_count i64 = 0;
+// Open-addressed slots hold registry index + 1; zero is empty. Keeping separate
+// name and call-shape indexes preserves both first-name and first-arity lookup.
+var cg_func_names *u8 = nil;
+var cg_func_arities *u8 = nil;
+var cg_func_index_capacity i64 = 0;
 
 // Visibility tracking for pub enforcement
 // Parallel arrays - one i64 per entry (0 = private, 1 = public)
@@ -367,8 +372,7 @@ func codegen_init() void {
     cg_embedded_readers = alloc(LIMIT_EMBEDDED_READERS * 32);
     cg_embedded_reader_count = 0;
 
-    cg_funcs = alloc(LIMIT_FUNCS * 24);
-    cg_func_count = 0;
+    init_func_registry();
 
     // Initialize visibility tracking arrays
     cg_func_is_pub = alloc(LIMIT_FUNCS * 8);
@@ -1507,6 +1511,56 @@ func find_embedded_reader(name *u8, name_len i64) *u8 {
 // Function registry
 // ============================================================
 
+func init_func_registry() void {
+    cg_funcs = alloc(LIMIT_FUNCS * 24);
+    cg_func_count = 0;
+    cg_func_index_capacity = 1;
+    while cg_func_index_capacity < LIMIT_FUNCS * 2 {
+        cg_func_index_capacity = cg_func_index_capacity * 2;
+    }
+    cg_func_names = alloc(cg_func_index_capacity * 8);
+    cg_func_arities = alloc(cg_func_index_capacity * 8);
+    var i i64 = 0;
+    while i < cg_func_index_capacity {
+        var n *i64 = cg_func_names + i * 8;
+        var a *i64 = cg_func_arities + i * 8;
+        *n = 0;
+        *a = 0;
+        i = i + 1;
+    }
+}
+
+// Names are byte spans, not necessarily NUL terminated. A power-of-two table
+// keeps wrapped hash arithmetic nonnegative without division or signed abs.
+func func_registry_slot(name *u8, name_len i64, arity i64) *i64 {
+    var table *u8 = cg_func_names;
+    if arity >= 0 { table = cg_func_arities; }
+    var h i64 = 5381;
+    var j i64 = 0;
+    while j < name_len {
+        var ch *u8 = name + j;
+        h = h * 33 + *ch;
+        j = j + 1;
+    }
+    h = h * 33 + arity;
+    var slot i64 = h & (cg_func_index_capacity - 1);
+    while true {
+        var cell *i64 = table + slot * 8;
+        if *cell == 0 { return cell; }
+        var entry *u8 = cg_funcs + (*cell - 1) * 24;
+        var np **u8 = entry;
+        var nl *i64 = entry + 8;
+        if *nl == name_len && memcmp(*np, name, name_len) {
+            var dp **u8 = entry + 16;
+            if arity < 0 { return cell; }
+            if func_decl_param_count(*dp) == arity { return cell; }
+        }
+        slot = slot + 1;
+        if slot == cg_func_index_capacity { slot = 0; }
+    }
+    return nil;
+}
+
 func add_func(decl *u8) void {
     var name *u8 = func_decl_name(decl);
     var name_len i64 = func_decl_name_len(decl);
@@ -1533,28 +1587,21 @@ func add_func(decl *u8) void {
     var mod_ptr *i64 = cg_func_module + (cg_func_count * 8);
     *mod_ptr = cg_current_module;
 
+    // Never replace an existing key: duplicate declarations resolve to the
+    // earliest registry entry, just as the ordered scan did.
+    var name_slot *i64 = func_registry_slot(name, name_len, 0 - 1);
+    if *name_slot == 0 { *name_slot = cg_func_count + 1; }
+    var arity_slot *i64 = func_registry_slot(name, name_len, func_decl_param_count(decl));
+    if *arity_slot == 0 { *arity_slot = cg_func_count + 1; }
     cg_func_count = cg_func_count + 1;
 }
 
 // Look up a function by name in function registry
 func find_func(name *u8, name_len i64) *u8 {
-    var i i64 = 0;
-    while i < cg_func_count {
-        var entry *u8 = cg_funcs + (i * 24);
-
-        var np **u8 = entry;
-        var fname *u8 = *np;
-
-        var nl *i64 = entry + 8;
-        var flen i64 = *nl;
-
-        if flen == name_len && memcmp(fname, name, name_len) {
-            var dp **u8 = entry + 16;
-            return *dp;
-        }
-        i = i + 1;
-    }
-    return nil;
+    var i i64 = find_func_index(name, name_len);
+    if i < 0 { return nil; }
+    var dp **u8 = cg_funcs + i * 24 + 16;
+    return *dp;
 }
 
 // Both backends report a wrong-arity call, so they say it the same way. The
@@ -1577,44 +1624,16 @@ func cg_arity_error(name *u8, name_len i64, declared i64, actual i64) void {
 // one-parameter reader named `read` coexists with libc's three-parameter one -
 // so the call shape, not the name alone, picks the declaration.
 func find_func_arity(name *u8, name_len i64, arity i64) *u8 {
-    var i i64 = 0;
-    while i < cg_func_count {
-        var entry *u8 = cg_funcs + (i * 24);
-
-        var np **u8 = entry;
-        var fname *u8 = *np;
-
-        var nl *i64 = entry + 8;
-        var flen i64 = *nl;
-
-        if flen == name_len && memcmp(fname, name, name_len) {
-            var dp **u8 = entry + 16;
-            var decl *u8 = *dp;
-            if func_decl_param_count(decl) == arity { return decl; }
-        }
-        i = i + 1;
-    }
-    return nil;
+    var cell *i64 = func_registry_slot(name, name_len, arity);
+    if *cell == 0 { return nil; }
+    var dp **u8 = cg_funcs + (*cell - 1) * 24 + 16;
+    return *dp;
 }
 
-// Find function index by name (returns -1 if not found)
+// Find function index by name (returns -1 if not found).
 func find_func_index(name *u8, name_len i64) i64 {
-    var i i64 = 0;
-    while i < cg_func_count {
-        var entry *u8 = cg_funcs + (i * 24);
-
-        var np **u8 = entry;
-        var fname *u8 = *np;
-
-        var nl *i64 = entry + 8;
-        var flen i64 = *nl;
-
-        if flen == name_len && memcmp(fname, name, name_len) {
-            return i;
-        }
-        i = i + 1;
-    }
-    return 0 - 1;
+    var cell *i64 = func_registry_slot(name, name_len, 0 - 1);
+    return *cell - 1;
 }
 
 // Check visibility for a function call - returns 1 if allowed, 0 if error

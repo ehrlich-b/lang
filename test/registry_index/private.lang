@@ -1,0 +1,2 @@
+func hidden(a i64) i64 { return a; }
+pub func visible() i64 { return hidden(0); }

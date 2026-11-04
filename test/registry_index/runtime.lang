@@ -1,0 +1,2 @@
+func main() i64 { return later(4) - 9; }
+func later(n i64) i64 { return n + 5; }

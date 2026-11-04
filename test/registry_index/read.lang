@@ -1,0 +1,3 @@
+include "std/core.lang"
+reader read(text *u8) *u8 { return text; }
+func main() i64 { return read(0, nil, 0); }

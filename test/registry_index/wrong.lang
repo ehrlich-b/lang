@@ -1,0 +1,3 @@
+extern func shape(a i64) i64;
+extern func shape(a i64, b i64, c i64) i64;
+func main() i64 { return shape(1, 2); }

@@ -8018,8 +8018,7 @@ func generate_llvm(prog *u8, output_file *u8) void {
     cg_global_count = 0;
     cg_structs = alloc(LIMIT_STRUCTS * 24);
     cg_struct_count = 0;
-    cg_funcs = alloc(LIMIT_FUNCS * 24);
-    cg_func_count = 0;
+    init_func_registry();
     cg_enums = alloc(LIMIT_ENUMS * 24);
     cg_enum_count = 0;
     cg_readers = alloc(LIMIT_READERS * 24);

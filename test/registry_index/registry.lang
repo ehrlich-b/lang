@@ -1,0 +1,89 @@
+func declaration(name *u8, len i64, arity i64) *u8 {
+    var decl *u8 = alloc(72);
+    var np **u8 = decl + 8;
+    *np = name;
+    var nl *i64 = decl + 16;
+    *nl = len;
+    var ac *i64 = decl + 32;
+    *ac = arity;
+    return decl;
+}
+
+func main() i64 {
+    LIMIT_FUNCS = 32;
+    cg_func_is_pub = alloc(32 * 8);
+    cg_func_module = alloc(32 * 8);
+    init_func_registry();
+    var first *u8 = declaration("read", 4, 1);
+    var libc *u8 = declaration("read", 4, 3);
+    var duplicate *u8 = declaration("read", 4, 1);
+    add_func(first);
+    add_func(libc);
+    add_func(duplicate);
+    if find_func("read", 4) != first { return 1; }
+    if find_func_index("read", 4) != 0 { return 2; }
+    if find_func_arity("read", 4, 1) != first { return 3; }
+    if find_func_arity("read", 4, 3) != libc { return 4; }
+    if find_func_arity("read", 4, 2) != nil { return 5; }
+    if find_func("absent", 6) != nil { return 6; }
+    if find_func_index("absent", 6) != 0 - 1 { return 7; }
+    // One-byte names differing by the capacity collide, at both arities.
+    var a *u8 = alloc(2);
+    *a = 65;
+    *(a + 1) = 99;
+    var b *u8 = alloc(2);
+    *b = 129;
+    *(b + 1) = 100;
+    var da *u8 = declaration(a, 1, 0);
+    var db *u8 = declaration(b, 1, 0);
+    add_func(da);
+    add_func(db);
+    if find_func_arity(b, 1, 0) != db { return 8; }
+    if find_func(a, 1) != da { return 9; }
+    var long_name *u8 = alloc(200);
+    var k i64 = 0;
+    while k < 200 {
+        *(long_name + k) = 120;
+        k = k + 1;
+    }
+    var long_decl *u8 = declaration(long_name, 200, 7);
+    add_func(long_decl);
+    if find_func_arity(long_name, 200, 7) != long_decl { return 14; }
+    // Fill to the declared registry bound and exercise clustered probes.
+    k = 0;
+    while k < 26 {
+        var name *u8 = alloc(1);
+        *name = k + 1;
+        add_func(declaration(name, 1, k));
+        k = k + 1;
+    }
+    // An independent ordered scan is the oracle for every populated entry.
+    var i i64 = 0;
+    while i < cg_func_count {
+        var entry *u8 = cg_funcs + i * 24;
+        var np **u8 = entry;
+        var nl *i64 = entry + 8;
+        var dp **u8 = entry + 16;
+        var arity i64 = func_decl_param_count(*dp);
+        var j i64 = 0;
+        var expected *u8 = nil;
+        while j <= i {
+            var earlier *u8 = cg_funcs + j * 24;
+            var en **u8 = earlier;
+            var el *i64 = earlier + 8;
+            var ed **u8 = earlier + 16;
+            if *el == *nl && memcmp(*en, *np, *nl) && func_decl_param_count(*ed) == arity {
+                if expected == nil { expected = *ed; }
+            }
+            j = j + 1;
+        }
+        if find_func_arity(*np, *nl, arity) != expected { return 10; }
+        i = i + 1;
+    }
+    init_func_registry();
+    if find_func("read", 4) != nil { return 11; }
+    add_func(libc);
+    if find_func_index("read", 4) != 0 { return 12; }
+    if find_func_arity("read", 4, 1) != nil { return 13; }
+    return 0;
+}
