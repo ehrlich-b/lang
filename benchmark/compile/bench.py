@@ -22,18 +22,22 @@ def digest(path):
 
 def measure(compiler, source, output, name, env, cwd=ROOT):
     ir = output / (name + '.ll')
-    usage = output / (name + '.usage')
-    command = ['/usr/bin/time', '-f', '%e %M', '-o', str(usage), str(compiler), *source, '-o', str(ir)]
+    command = [str(compiler), *source, '-o', str(ir)]
     start = time.perf_counter()
     with (output / (name + '.stdout')).open('w') as stdout, (output / (name + '.stderr')).open('w') as stderr:
-        result = subprocess.run(command, cwd=cwd, env=env, stdout=stdout, stderr=stderr)
+        # wait4 returns usage for this exact child, avoiding cumulative RUSAGE_CHILDREN
+        # peaks from an earlier, larger run and any external time utility.
+        child = subprocess.Popen(command, cwd=cwd, env=env, stdout=stdout, stderr=stderr)
+        _, status, usage = os.wait4(child.pid, 0)
+        child.returncode = os.waitstatus_to_exitcode(status)
     elapsed = time.perf_counter() - start
-    if result.returncode:
-        raise RuntimeError(f'{name}: emit failed ({result.returncode}); see {name}.stderr')
-    seconds, rss = usage.read_text().split()
+    if child.returncode:
+        raise RuntimeError(f'{name}: emit failed ({child.returncode}); see {name}.stderr')
+    rss_kib = usage.ru_maxrss / 1024 if os.uname().sysname == 'Darwin' else usage.ru_maxrss
     return {'name': name, 'command': command, 'emit_seconds': elapsed,
-            'time_seconds': float(seconds), 'peak_rss_kib': int(rss), 'ir_bytes': ir.stat().st_size,
-            'ir_sha256': digest(ir), 'exit': result.returncode}
+            'user_seconds': usage.ru_utime, 'system_seconds': usage.ru_stime,
+            'peak_rss_kib': int(rss_kib), 'ir_bytes': ir.stat().st_size,
+            'ir_sha256': digest(ir), 'exit': child.returncode}
 
 
 def pinned_build(root, compiler, output, label):
