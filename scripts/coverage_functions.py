@@ -160,7 +160,10 @@ def main():
     run(["clang", "-O0", "-fprofile-generate", ir_path, "-o", binary], "instrument.log")
     # %p isolates concurrent compiler invocations; %m separates binary images.
     # Reader executables linked by the compiler are not instrumented.
-    suite_env = dict(env, COMPILER=str(binary), LANG_CACHE=str(run_dir / "cache"),
+    # An unoptimized compiler must not compete with the neighboring test's
+    # two-second JIT budget. Use the suite's existing sequential scheduling;
+    # keep every assertion, timeout and skip rule unchanged.
+    suite_env = dict(env, SEQUENTIAL="1", COMPILER=str(binary), LANG_CACHE=str(run_dir / "cache"),
                      LLVM_PROFILE_FILE=str(run_dir / "%m-%p.profraw"))
     run(["bash", "test/run_llvm_suite.sh"], "suite.log", suite_env)
     raw = sorted(run_dir.glob("*.profraw"))
@@ -177,6 +180,7 @@ def main():
     (logs / "measurement.json").write_text(json.dumps({
         "ir_sha256": hashlib.sha256(ir_bytes).hexdigest(),
         "profiles": len(raw),
+        "suite_mode": "sequential",
     }, indent=2) + "\n")
     (logs / "coverage.json").write_text(json.dumps(report, indent=2) + "\n")
     for source, row in report["per_source"].items():
