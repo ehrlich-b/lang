@@ -1,0 +1,1 @@
+/* trivia */ (program (func main () (type_base i64) (block (expr_stmt (string "paren ) quote: \" slash: \\ newline: \n tab: \t snowman: ☃")) (return (number 42)))))

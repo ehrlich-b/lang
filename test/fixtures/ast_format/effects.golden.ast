@@ -1,0 +1,12 @@
+(program
+  (effect Ask ((type_base i64)) (type_base i64))
+  (func main () (type_base i64)
+    (block
+      (return
+        (handle
+          (handle
+            (perform Ask (number 1))
+            (return_handler x (ident x))
+            (effect_handler Ask value k (resume (ident k) (ident value))))
+          (return_handler y (ident y))
+          (effect_handler Ask v k (resume (ident k) (ident v))))))))
