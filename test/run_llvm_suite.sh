@@ -53,27 +53,27 @@ export LLI_JIT_FLAG
 
 # Run a single test - called by xargs
 run_one_test() {
-    local f=$1
+    local f=$1 markers=$2 expected=$3 diagnostic=$4
     export LANG_SUITE_WORKER=1 JOBS=1
     local name=$(basename "$f" .lang)
     local tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 
     # Check for //ignore marker
-    if head -1 "$f" | grep -q '//ignore'; then
+    if [[ "$markers" == *i* ]]; then
         echo "SKIP $name (ignored)"
         rm -rf "$tmpdir"
         return 0
     fi
 
     # Check for platform-specific markers
-    if head -3 "$f" | grep -q '//linux'; then
+    if [[ "$markers" == *l* ]]; then
         if [ "$LANGOS" != "linux" ]; then
             echo "SKIP $name (linux only)"
             rm -rf "$tmpdir"
             return 0
         fi
     fi
-    if head -3 "$f" | grep -q '//macos'; then
+    if [[ "$markers" == *m* ]]; then
         if [ "$LANGOS" != "macos" ]; then
             echo "SKIP $name (macos only)"
             rm -rf "$tmpdir"
@@ -83,8 +83,7 @@ run_one_test() {
 
     # Negative fixtures are passes only when compilation rejects with the
     # specified diagnostic; they do not increase the skip inventory.
-    if head -1 "$f" | grep -q '^// reject: '; then
-        local diagnostic=$(head -1 "$f" | sed 's@^// reject: @@')
+    if [[ "$markers" == *r* ]]; then
         if LANGBE=llvm LANG_CACHE="$tmpdir/.lang-cache" $COMPILER "$f" -o "$tmpdir/rejected.ll" >"$tmpdir/rejected.out" 2>&1; then
             echo "FAIL $name (accepted invalid representation)"; rm -rf "$tmpdir"; return 1
         fi
@@ -95,14 +94,13 @@ run_one_test() {
         echo "FAIL $name (wrong rejection)"; rm -rf "$tmpdir"; return 1
     fi
 
-    local expected=$(head -1 "$f" | grep -o '[0-9]*')
     local outll="$tmpdir/test.ll"
     local outbin="$tmpdir/test"
 
     # Compile to LLVM IR (use per-test cache dir to avoid parallel races)
     if LANG_CACHE="$tmpdir/.lang-cache" LANGBE=llvm $COMPILER "$f" -o "$outll" >/dev/null 2>&1; then
         # Use clang for tests marked //clang (inline asm), lli for rest
-        if head -3 "$f" | grep -q '//clang'; then
+        if [[ "$markers" == *c* ]]; then
             clang -O0 "$outll" -o "$outbin" 2>/dev/null
             "$outbin" >/dev/null 2>&1
             result=$?
@@ -134,16 +132,24 @@ fi
 # Run tests
 results_file=$(mktemp "${TMPDIR:-/tmp}/lang-results.XXXXXX")
 
+# Paths select a suite fragment; the default still includes every e2e guard.
+manifest_file=$(mktemp "${TMPDIR:-/tmp}/lang-manifest.XXXXXX")
+trap 'rm -f "$manifest_file" "$results_file"' EXIT
+if ! python3 test/suite_manifest.py "$@" > "$manifest_file"; then
+    exit 1
+fi
 if [ "$JOBS" -gt 1 ]; then
-    # Parallel execution
-    printf '%s\n' test/suite/*.lang | xargs -P"$JOBS" -I{} bash -c 'run_one_test "$@"' _ {} > "$results_file" 2>&1
+    xargs -0 -n4 -P"$JOBS" bash -c 'run_one_test "$@"' _ < "$manifest_file" > "$results_file" 2>&1
+    worker_status=$?
 else
-    # Sequential execution (for debugging or SEQUENTIAL=1)
-    for f in test/suite/*.lang; do
-        run_one_test "$f"
-    done > "$results_file" 2>&1
+    worker_status=0
+    while IFS= read -r -d '' f && IFS= read -r -d '' markers &&
+          IFS= read -r -d '' expected && IFS= read -r -d '' diagnostic; do
+        run_one_test "$f" "$markers" "$expected" "$diagnostic" || worker_status=1
+    done < "$manifest_file" > "$results_file" 2>&1
 fi
 
+if [ "$#" -eq 0 ]; then
 # Reader e2e guards (the crown jewel): build AND run readers whose bodies use
 # #parser{}. This nested path (compile_reader_to_executable embedding #parser{}
 # output) silently rotted once, and no test/suite/ test covers it -- the others
@@ -1639,6 +1645,7 @@ if python3 test/run_node_limits.py; then
 else
     echo "FAIL node_limits_e2e" >> "$results_file"
 fi
+fi # default suite e2e guards
 
 # Count results (grep -c returns 1 if no matches, so handle that)
 passed=$(grep -c '^PASS' "$results_file" 2>/dev/null) || passed=0
@@ -1654,7 +1661,7 @@ echo "Passed: $passed / $((passed + failed))"
 if [ "$skipped" -gt 0 ]; then
     echo "Skipped: $skipped"
 fi
-if [ $failed -eq 0 ]; then
+if [ $failed -eq 0 ] && [ "$worker_status" -eq 0 ]; then
     echo "All tests passed!"
     exit 0
 else
