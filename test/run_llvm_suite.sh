@@ -1,6 +1,6 @@
 #!/bin/bash
 # Test the LLVM backend on the test suite
-# Optimized with: lli --jit-kind=orc (13x faster) + parallel execution (5x faster)
+# Use lazy ORC when available to avoid eagerly compiling unused library code.
 
 set -o pipefail
 
@@ -44,11 +44,16 @@ do_timeout() {
 }
 export -f do_timeout
 
-# Check if lli supports ORC JIT (LLVM 10+)
+# Drain help output before matching: grep -q can SIGPIPE lli under pipefail.
+# Lazy ORC keeps JIT startup for large parser fixtures within the same timeout.
 LLI_JIT_FLAG=""
-if lli --help 2>&1 | grep -q 'jit-kind'; then
+LLI_HELP=$(lli --help 2>&1)
+if [[ "$LLI_HELP" == *'=orc-lazy'* ]]; then
+    LLI_JIT_FLAG="--jit-kind=orc-lazy"
+elif [[ "$LLI_HELP" == *'--jit-kind='* ]]; then
     LLI_JIT_FLAG="--jit-kind=orc"
 fi
+unset LLI_HELP
 export LLI_JIT_FLAG
 
 # Run a single test - called by xargs
