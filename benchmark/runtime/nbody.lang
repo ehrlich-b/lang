@@ -1,4 +1,7 @@
-extern func sqrt(x f64) f64;
+extern func bench_sqrt_bits(bits i64) i64;
+func root(x f64) f64 {
+    return bitcast(f64, bench_sqrt_bits(bitcast(i64, x)));
+}
 extern func malloc(n i64) *u8;
 extern func free(p *u8) void;
 extern func atol(s *u8) i64;
@@ -27,7 +30,7 @@ func main(argc i64, argv **u8) i64 {
                 var dy f64 = pos[j * 3 + 1] - pos[i * 3 + 1];
                 var dz f64 = pos[j * 3 + 2] - pos[i * 3 + 2];
                 var distance f64 = 1.0 + dx * dx + dy * dy + dz * dz;
-                var inv f64 = 0.0001 / (distance * sqrt(distance));
+                var inv f64 = 0.0001 / (distance * root(distance));
                 ax = ax + dx * inv;
                 ay = ay + dy * inv;
                 az = az + dz * inv;

@@ -28,8 +28,13 @@ def sha(path):
 
 def command(args, env=None):
     print('+', ' '.join(map(str, args)), flush=True)
-    return subprocess.run(list(map(str, args)), check=True, capture_output=True,
-                          timeout=300, cwd=ROOT, env=env)
+    result = subprocess.run(list(map(str, args)), capture_output=True,
+                            timeout=300, cwd=ROOT, env=env)
+    if result.returncode:
+        print(result.stdout.decode(errors='replace'), end='', flush=True)
+        print(result.stderr.decode(errors='replace'), end='', flush=True)
+        result.check_returncode()
+    return result
 
 
 def write_json(path, data):
@@ -43,14 +48,16 @@ def measure(compiler, output, smoke):
     compiler_hash = sha(compiler)
     for name, settings in manifest.items():
         lang, c = SOURCES / (name + '.lang'), SOURCES / (name + '.c')
-        source_hashes = {'lang': sha(lang), 'c': sha(c)}
+        support = [SOURCES / 'math_bridge.c'] if name == 'nbody' else []
+        source_hashes = {'lang': sha(lang), 'c': sha(c),
+                         **{p.name: sha(p) for p in support}}
         ir = output / (name + '.ll')
         binaries = {kind: output / (name + '-' + kind) for kind in ('lang', 'c')}
         env = dict(os.environ, LANGBE='llvm', LANGOS='linux',
                    LANG_CACHE=str(output / 'cache'))
         command([compiler, lang.relative_to(ROOT), '-o', ir], env)
-        command(['clang', *FLAGS, ir, *LINK_FLAGS, '-o', binaries['lang']])
-        command(['clang', *FLAGS, c, *LINK_FLAGS, '-o', binaries['c']])
+        command(['clang', *FLAGS, ir, *support, *LINK_FLAGS, '-o', binaries['lang']])
+        command(['clang', *FLAGS, c, *support, *LINK_FLAGS, '-o', binaries['c']])
         size = settings['smoke_size' if smoke else 'size']
         samples = {'lang': [], 'c': []}
         outputs = {'lang': [], 'c': []}
@@ -69,7 +76,8 @@ def measure(compiler, output, smoke):
             raise RuntimeError(f'{name}: output mismatch {outputs}')
         if smoke and reference != settings['smoke_output']:
             raise RuntimeError(f'{name}: expected {settings["smoke_output"]!r}, got {reference!r}')
-        if source_hashes != {'lang': sha(lang), 'c': sha(c)}:
+        if source_hashes != {'lang': sha(lang), 'c': sha(c),
+                             **{p.name: sha(p) for p in support}}:
             raise RuntimeError(f'{name}: source changed during execution')
         row = {'size': size, 'output': reference,
                'source_sha256': source_hashes,

@@ -7,6 +7,12 @@ string scan. Each accepts one workload size and prints a checksum. The checked-i
 explicit 64-bit integers to match Lang, identical loop order and array layouts.
 Inputs avoid signed overflow, out-of-bounds access and overlapping copies.
 
+The n-body pair calls the identical `math_bridge.c` adapter to libm sqrt through
+an i64 bit carrier. The preserved baseline declares floating extern parameters
+as i64 even when its call site uses double; using a shared integer-ABI adapter
+keeps that compiler unchanged and both programs correct. The bit copies optimize
+away, and both sides pay the same external call. Its source hash is recorded.
+
 Both versions are compiled with clang `-O2 -ffp-contract=off`, linked against libm, without LTO or fast math. Disabling contraction keeps C's floating-point evaluation consistent with
 Lang's uncontracted LLVM operations. Timing covers process startup and the
 checksum print; compilation is excluded. Five fresh processes per language are

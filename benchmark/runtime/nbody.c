@@ -1,7 +1,15 @@
-#include <math.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+extern int64_t bench_sqrt_bits(int64_t bits);
+static double root(double value) {
+    int64_t bits;
+    memcpy(&bits, &value, sizeof bits);
+    bits = bench_sqrt_bits(bits);
+    memcpy(&value, &bits, sizeof value);
+    return value;
+}
 int main(int argc, char **argv) {
     int64_t n = 2000;
     if (argc > 1) { n = atol(argv[1]); }
@@ -26,7 +34,7 @@ int main(int argc, char **argv) {
                 double dy = pos[j * 3 + 1] - pos[i * 3 + 1];
                 double dz = pos[j * 3 + 2] - pos[i * 3 + 2];
                 double distance = 1.0 + dx * dx + dy * dy + dz * dz;
-                double inv = 0.0001 / (distance * sqrt(distance));
+                double inv = 0.0001 / (distance * root(distance));
                 ax = ax + dx * inv;
                 ay = ay + dy * inv;
                 az = az + dz * inv;
