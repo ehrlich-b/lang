@@ -14,6 +14,9 @@ func main() i64 {
     if bitcast(i32, narrow) != 1069547520 { return 5; }
     if bitcast(f32, 1069547520) != 1.5 { return 6; }
     if narrow + -1 != 0.5 { return 7; }
+    var negative f32 = -1.5;
+    var signed_bits i64 = bitcast(i32, negative);
+    if signed_bits != -1077936128 { return 8; }
     var whole i64 = cast(i64, 42.5);
     return whole;
 }

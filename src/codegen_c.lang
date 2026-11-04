@@ -387,8 +387,12 @@ func c_expr(e *u8) *u8 {
         c_check_type(dst, e); var value *u8 = c_expr(inner);
         if k == NODE_BITCAST_EXPR {
             if llvm_is_float_type(c_type(inner)) {
-                if llvm_is_f32_type(c_type(inner)) { return c_temp(dst, c_join("c_float32_bits(", value, ")")); }
-                return c_temp(dst, c_join("c_float_bits(", value, ")"));
+                var bits *u8 = c_join("c_float_bits(", value, ")");
+                if llvm_is_f32_type(c_type(inner)) { bits = c_join("c_float32_bits(", value, ")"); }
+                if llvm_is_signed_int(dst) && c_size(dst) < 8 {
+                    bits = c_join(c_join("c_sign(", bits, ","), c_decimal(c_size(dst) * 8), ")");
+                }
+                return c_temp(dst, bits);
             }
             if llvm_is_float_type(dst) {
                 if llvm_is_f32_type(dst) { return c_temp(dst, c_join("c_bits_float32(", value, ")")); }
