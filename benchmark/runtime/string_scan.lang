@@ -1,0 +1,25 @@
+extern func malloc(n i64) *u8;
+extern func free(p *u8) void;
+extern func atol(s *u8) i64;
+extern func printf(fmt *u8, value i64) i64;
+func main(argc i64, argv **u8) i64 {
+    var n i64 = 100;
+    if argc > 1 { n = atol(argv[1]); }
+    var text *u8 = malloc(1048576);
+    var i i64 = 0;
+    while i < 1048576 { text[i] = cast(u8, 32 + (i * 17) % 95); i = i + 1; }
+    var result i64 = 0;
+    var round i64 = 0;
+    while round < n {
+        var cursor *u8 = text;
+        var end *u8 = text + 1048576;
+        while cursor < end {
+            if *cursor == 97 || *cursor == 101 { result = result + 1; }
+            cursor = cursor + 1;
+        }
+        round = round + 1;
+    }
+    free(text);
+    printf("%lld\n", result);
+    return 0;
+}

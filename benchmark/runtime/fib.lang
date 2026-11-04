@@ -1,0 +1,15 @@
+extern func malloc(n i64) *u8;
+extern func free(p *u8) void;
+extern func atol(s *u8) i64;
+extern func printf(fmt *u8, value i64) i64;
+func fib(n i64) i64 {
+    if n < 2 { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+func main(argc i64, argv **u8) i64 {
+    var n i64 = 38;
+    if argc > 1 { n = atol(argv[1]); }
+    var result i64 = fib(n);
+    printf("%lld\n", result);
+    return 0;
+}

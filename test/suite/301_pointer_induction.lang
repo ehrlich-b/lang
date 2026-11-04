@@ -1,0 +1,44 @@
+// expect: 42
+// Pointer arithmetic keeps typed GEPs, including negative and struct strides.
+struct Pair { first i64; second i64; }
+func main() i64 {
+    var a [4]i64 = [3, 5, 7, 9];
+    var p *i64 = &a[0];
+    var end *i64 = p + 4;
+    var sum i64 = 0;
+    while p < end { sum = sum + *p; p = p + 1; }
+    if sum != 24 { return 1; }
+    p = p + 100000;
+    p = p - 100000;
+    p = p - 2;
+    if *p != 7 { return 2; }
+    p = p + -1;
+    if *p != 5 { return 3; }
+    var pairs [2]Pair;
+    pairs[0].first = 11;
+    pairs[1].first = 13;
+    var q *Pair = &pairs[0];
+    q = q + 1;
+    if q.first != 13 { return 4; }
+    q = q - 1;
+    if q.first != 11 { return 5; }
+    var f [2]f64 = [1.5, 2.5];
+    var fp *f64 = &f[0];
+    fp = fp + 1;
+    if fp[0] != 2.5 { return 6; }
+    var flags [2]bool = [false, true];
+    var flag *bool = &flags[0];
+    flag = flag + 1;
+    if !flag[0] { return 7; }
+    var raw *void = &a[0];
+    raw = raw + 1;
+    raw = raw - 1;
+    if raw != &a[0] { return 8; }
+    var wrap *u8 = -1;
+    wrap = wrap + 1;
+    if wrap != nil { return 9; }
+    var carrier *u8 = 1;
+    carrier = carrier + 4294967296;
+    if carrier != 4294967297 { return 10; }
+    return 42;
+}

@@ -1,0 +1,25 @@
+extern func malloc(n i64) *u8;
+extern func free(p *u8) void;
+extern func atol(s *u8) i64;
+extern func printf(fmt *u8, value i64) i64;
+func main(argc i64, argv **u8) i64 {
+    var n i64 = 20000000;
+    if argc > 1 { n = atol(argv[1]); }
+    var flags *u8 = malloc(n + 1);
+    var i i64 = 0;
+    while i <= n { flags[i] = 1; i = i + 1; }
+    i = 2;
+    while i * i <= n {
+        if flags[i] != 0 {
+            var j i64 = i * i;
+            while j <= n { flags[j] = 0; j = j + i; }
+        }
+        i = i + 1;
+    }
+    var result i64 = 0;
+    i = 2;
+    while i <= n { result = result + flags[i]; i = i + 1; }
+    free(flags);
+    printf("%lld\n", result);
+    return 0;
+}

@@ -1,0 +1,28 @@
+extern func malloc(n i64) *u8;
+extern func free(p *u8) void;
+extern func atol(s *u8) i64;
+extern func printf(fmt *u8, value i64) i64;
+func main(argc i64, argv **u8) i64 {
+    var n i64 = 5000000;
+    if argc > 1 { n = atol(argv[1]); }
+    var keys *i64 = malloc(65536 * 8);
+    var values *i64 = malloc(65536 * 8);
+    var i i64 = 0;
+    while i < 65536 { keys[i] = -1; values[i] = 0; i = i + 1; }
+    i = 0;
+    while i < n {
+        var key i64 = ((i * 48271) % 1000003) % 32768;
+        var slot i64 = (key * 4051) % 65536;
+        while keys[slot] != -1 && keys[slot] != key { slot = (slot + 1) % 65536; }
+        keys[slot] = key;
+        values[slot] = values[slot] + i % 97;
+        i = i + 1;
+    }
+    var result i64 = 0;
+    i = 0;
+    while i < 65536 { result = result + values[i]; i = i + 1; }
+    free(keys);
+    free(values);
+    printf("%lld\n", result);
+    return 0;
+}

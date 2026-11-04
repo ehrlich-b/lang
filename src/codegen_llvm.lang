@@ -1527,6 +1527,16 @@ func llvm_emit_index_storage_type(t *u8) void {
     }
 }
 
+// Legacy zero-size pointee arithmetic advances by bytes (the old integer
+// path did not scale). LLVM also cannot form a GEP over void.
+func llvm_emit_pointer_step_type(t *u8) void {
+    if t != nil && get_type_size(t) == 0 {
+        llvm_emit_str("i8");
+    } else {
+        llvm_emit_index_storage_type(t);
+    }
+}
+
 // Both reads and assignments need the same typed memory boundary. Expressions
 // carry pointers as i64; array addresses are already LLVM pointers.
 func llvm_emit_index_addr(expr *u8) i64 {
@@ -2841,31 +2851,52 @@ func llvm_emit_expr_inner(expr *u8) void {
         var left_is_float i64 = left_type != nil && llvm_is_float_type(left_type);
         var right_is_float i64 = right_type != nil && llvm_is_float_type(right_type);
 
-        // Pointer arithmetic scaling: ptr + n -> ptr + (n * sizeof(*ptr))
-        if op == 25 || op == 26 {  // TOKEN_PLUS or TOKEN_MINUS
-            // left_type already computed above
-            if left_type != nil && type_kind(left_type) == TYPE_PTR {
-                var elem_type *u8 = ptr_type_elem(left_type);
-                var elem_size i64 = 8;  // default
-                if elem_type != nil {
-                    elem_size = get_type_size(elem_type);
-                }
-                if elem_size > 1 {
-                    // Multiply right operand by element size
-                    var scale_temp i64 = llvm_next_temp();
-                    llvm_emit_str("    %t");
-                    llvm_emit_int(scale_temp);
-                    llvm_emit_str(" = mul i64 ");
-                    llvm_emit_str(right_val);
-                    llvm_emit_str(", ");
-                    llvm_emit_int(elem_size);
-                    llvm_emit_char(10);
-                    // Replace right_val with scaled value
-                    var buf *u8 = alloc(32);
-                    *buf = 37; *(buf+1) = 116;  // "%t"
-                    itoa(scale_temp, buf + 2);
-                    right_val = buf;
-                }
+        // Keep pointer induction in LLVM's pointer domain. Integer address
+        // arithmetic hides the base object from alias analysis/vectorization.
+        // A plain GEP has wrapping address arithmetic: no inbounds/nsw/nuw
+        // promise is justified by LANG.md for intermediate pointer values.
+        if llvm_is_wasm == 0 && (op == 25 || op == 26) && left_type != nil && type_kind(left_type) == TYPE_PTR {
+            var elem_type *u8 = ptr_type_elem(left_type);
+            var offset *u8 = right_val;
+            if op == 26 {
+                var neg i64 = llvm_next_temp();
+                llvm_emit_str("    %t"); llvm_emit_int(neg);
+                llvm_emit_str(" = sub i64 0, "); llvm_emit_line(right_val);
+                llvm_set_result_temp(neg);
+                offset = str_dup(llvm_expr_result);
+            }
+            var base i64 = llvm_next_temp();
+            llvm_emit_str("    %t"); llvm_emit_int(base);
+            llvm_emit_str(" = inttoptr i64 "); llvm_emit_str(left_val);
+            llvm_emit_str(" to "); llvm_emit_pointer_step_type(elem_type);
+            llvm_emit_line("*");
+            var addr i64 = llvm_next_temp();
+            llvm_emit_str("    %t"); llvm_emit_int(addr);
+            llvm_emit_str(" = getelementptr "); llvm_emit_pointer_step_type(elem_type);
+            llvm_emit_str(", "); llvm_emit_pointer_step_type(elem_type);
+            llvm_emit_str("* %t"); llvm_emit_int(base);
+            llvm_emit_str(", i64 "); llvm_emit_line(offset);
+            var result i64 = llvm_next_temp();
+            llvm_emit_str("    %t"); llvm_emit_int(result);
+            llvm_emit_str(" = ptrtoint "); llvm_emit_pointer_step_type(elem_type);
+            llvm_emit_str("* %t"); llvm_emit_int(addr);
+            llvm_emit_line(" to i64");
+            llvm_set_result_temp(result);
+            return;
+        }
+
+        // Wasm retains the existing i64 address carrier, including high bits.
+        // A pointer-valued GEP there would truncate it to the target's i32.
+        if (op == 25 || op == 26) && left_type != nil && type_kind(left_type) == TYPE_PTR {
+            var elem_type *u8 = ptr_type_elem(left_type);
+            var elem_size i64 = get_type_size(elem_type);
+            if elem_size > 1 {
+                var scale i64 = llvm_next_temp();
+                llvm_emit_str("    %t"); llvm_emit_int(scale);
+                llvm_emit_str(" = mul i64 "); llvm_emit_str(right_val);
+                llvm_emit_str(", "); llvm_emit_int(elem_size); llvm_emit_char(10);
+                llvm_set_result_temp(scale);
+                right_val = str_dup(llvm_expr_result);
             }
         }
 

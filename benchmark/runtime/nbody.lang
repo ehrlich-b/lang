@@ -1,0 +1,49 @@
+extern func malloc(n i64) *u8;
+extern func free(p *u8) void;
+extern func atol(s *u8) i64;
+extern func printf(fmt *u8, value i64) i64;
+func main(argc i64, argv **u8) i64 {
+    var n i64 = 2000;
+    if argc > 1 { n = atol(argv[1]); }
+    var pos [192]f64;
+    var vel [192]f64;
+    var i i64 = 0;
+    while i < 192 {
+        pos[i] = cast(f64, i % 17) * 0.125;
+        vel[i] = 0.0;
+        i = i + 1;
+    }
+    var step i64 = 0;
+    while step < n {
+        i = 0;
+        while i < 64 {
+            var j i64 = 0;
+            var ax f64 = 0.0;
+            var ay f64 = 0.0;
+            var az f64 = 0.0;
+            while j < 64 {
+                var dx f64 = pos[j * 3] - pos[i * 3];
+                var dy f64 = pos[j * 3 + 1] - pos[i * 3 + 1];
+                var dz f64 = pos[j * 3 + 2] - pos[i * 3 + 2];
+                var inv f64 = 0.0001 / (1.0 + dx * dx + dy * dy + dz * dz);
+                ax = ax + dx * inv;
+                ay = ay + dy * inv;
+                az = az + dz * inv;
+                j = j + 1;
+            }
+            vel[i * 3] = vel[i * 3] + ax;
+            vel[i * 3 + 1] = vel[i * 3 + 1] + ay;
+            vel[i * 3 + 2] = vel[i * 3 + 2] + az;
+            i = i + 1;
+        }
+        i = 0;
+        while i < 192 { pos[i] = pos[i] + vel[i]; i = i + 1; }
+        step = step + 1;
+    }
+    var total f64 = 0.0;
+    i = 0;
+    while i < 192 { total = total + pos[i] * pos[i]; i = i + 1; }
+    var result i64 = cast(i64, total * 1000.0);
+    printf("%lld\n", result);
+    return 0;
+}

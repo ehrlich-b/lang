@@ -1,0 +1,32 @@
+{
+  "fib": {
+    "size": 38,
+    "smoke_size": 15,
+    "smoke_output": "610\n"
+  },
+  "sieve": {
+    "size": 20000000,
+    "smoke_size": 2000,
+    "smoke_output": "303\n"
+  },
+  "nbody": {
+    "size": 2000,
+    "smoke_size": 3,
+    "smoke_output": "256312\n"
+  },
+  "mandelbrot": {
+    "size": 1000,
+    "smoke_size": 24,
+    "smoke_output": "33200\n"
+  },
+  "hashmap": {
+    "size": 5000000,
+    "smoke_size": 2000,
+    "smoke_output": "94890\n"
+  },
+  "string_scan": {
+    "size": 100,
+    "smoke_size": 1,
+    "smoke_output": "22076\n"
+  }
+}
