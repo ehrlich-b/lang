@@ -581,6 +581,15 @@ func py_print_into(node *PNode, stmts *u8) void {
 
 // Statements that cannot contain a block.
 func py_simple_into(node *PNode, stmts *u8, locals *u8) void {
+    var start i64 = ast_vec_len(stmts);
+    py_simple_into_inner(node, stmts, locals);
+    while start < ast_vec_len(stmts) {
+        vec_set(stmts, start, ast_span(ast_vec_get(stmts, start), node.start, node.end));
+        start = start + 1;
+    }
+}
+
+func py_simple_into_inner(node *PNode, stmts *u8, locals *u8) void {
     if pnode_is(node, "pass") { return; }
     if pnode_is(node, "brk") { ast_push(stmts, ast_break(nil)); return; }
     if pnode_is(node, "cont") { ast_push(stmts, ast_continue(nil)); return; }
@@ -904,7 +913,7 @@ func py_def_of(node *PNode) *u8 {
     }
     if tail_returns == 0 { ast_push(all, ast_return(ast_int(0))); }
 
-    return ast_func(name.text, params, ast_type_i64(), ast_block(all));
+    return ast_span(ast_func(name.text, params, ast_type_i64(), ast_block(all)), node.start, node.end);
 }
 
 reader minipy(text *u8) *u8 {

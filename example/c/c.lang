@@ -222,8 +222,8 @@ func emit_expr_str(e *PNode) *u8 {
 func c_gensym(prefix *u8, node *PNode) *u8 {
     var sb *StringBuilder = sb_new();
     sb_str(sb, prefix);
-    var addr i64 = node;
-    sb_int(sb, addr);
+    var offset i64 = node.start;
+    sb_int(sb, offset);
     return sb_finish(sb);
 }
 
@@ -419,6 +419,10 @@ func char_literal_value(text *u8) i64 {
 // c_forinit labels its two alternatives `decl` and `expr` as well, so a for
 // loop's initializer arrives here answering the same two questions.
 func emit_stmt(s *PNode) *u8 {
+    return ast_span(emit_stmt_inner(s), s.start, s.end);
+}
+
+func emit_stmt_inner(s *PNode) *u8 {
     if pnode_is(s, "block") { return emit_block(s); }
     if pnode_is(s, "break") { return ast_break(nil); }
     if pnode_is(s, "continue") { return ast_continue(nil); }
@@ -751,10 +755,10 @@ func emit_type(t *PNode) *u8 {
 // A c_topvar whose tail is a c_functail is a function definition.
 func emit_func(tv *PNode) *u8 {
     var tail *PNode = pnode_require(tv, "tail");
-    return ast_func(pnode_require(tv, "name").text,
+    return ast_span(ast_func(pnode_require(tv, "name").text,
                     emit_params(pnode_require(tail, "params")),
                     emit_type(pnode_require(tv, "type")),
-                    emit_block(pnode_require(tail, "body")));
+                    emit_block(pnode_require(tail, "body"))), tv.start, tv.end);
 }
 
 // A c_topvar whose tail is a c_globaltail is a global (var ...).

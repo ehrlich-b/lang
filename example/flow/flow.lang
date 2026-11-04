@@ -204,12 +204,12 @@ func fl_emit_args(args *PNode) *u8 {
 // Statements
 // ============================================================
 
-// Per-node-unique name (handler bindings + block vars; derive from node address).
+// Per-node-unique name (handler bindings + block vars; derive from the stable source byte offset).
 func fl_gensym(prefix *u8, node *PNode) *u8 {
     var sb *StringBuilder = sb_new();
     sb_str(sb, prefix);
-    var addr i64 = node;
-    sb_int(sb, addr);
+    var offset i64 = node.start;
+    sb_int(sb, offset);
     return sb_finish(sb);
 }
 
@@ -228,6 +228,10 @@ func fl_emit_block(block *PNode, send_target *u8) *u8 {
 }
 
 func fl_emit_stmt(s *PNode, send_target *u8) *u8 {
+    return ast_span(fl_emit_stmt_inner(s, send_target), s.start, s.end);
+}
+
+func fl_emit_stmt_inner(s *PNode, send_target *u8) *u8 {
     if pnode_is(s, "var") {
         var name *PNode = pnode_require(s, "name");
         return ast_var(name.text, ast_type_i64(), fl_emit_expr(pnode_require(s, "value")));
@@ -363,7 +367,7 @@ func fl_emit_func(d *PNode) *u8 {
     if fl_ends_in_return(sl) == 0 {
         ast_push(stmts, ast_return(ast_int(0)));
     }
-    return ast_func(name.text, fl_emit_params(params), ast_type_i64(), ast_block(stmts));
+    return ast_span(ast_func(name.text, fl_emit_params(params), ast_type_i64(), ast_block(stmts)), d.start, d.end);
 }
 
 func fl_emit_program(prog *PNode) *u8 {

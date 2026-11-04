@@ -1,0 +1,6 @@
+# A distinct Python source in the mixed native binary.
+def debug_py(n):
+    return n + 2
+
+def helper_py(n):
+    return debug_py(n)

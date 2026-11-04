@@ -3795,7 +3795,18 @@ func parse_block_expr() *u8 {
 var parse_pending_label *u8 = nil;
 var parse_pending_label_len i64 = 0;
 
+// Statements without a more specific origin retain their source keyword. This
+// also locates returns and control flow whose operands need no instructions.
 func parse_statement() *u8 {
+    var start *u8 = parse_peek();
+    var node *u8 = parse_statement_inner();
+    if node != nil && node_origin_source(node) == nil {
+        node_set_origin(node, parse_source_name, tok_line(start), tok_col(start));
+    }
+    return node;
+}
+
+func parse_statement_inner() *u8 {
     // Check for label: IDENT followed by COLON
     if parse_check(TOKEN_IDENT) {
         var tok *u8 = parse_peek();

@@ -1093,6 +1093,7 @@ func cmd_help_compile() i64 {
     println("");
     println("Options:");
     println("  -o <file>           Output path (default: a.s)");
+    println("  -g                  Emit LLVM source line debug information");
     println("  -c <reader>         Generate a compiler using the named reader function");
     println("  --emit-ast          Emit AST S-expressions instead of target code");
     println("  --emit-expanded-ast Emit fully expanded AST (for composition, no ___main)");
@@ -1689,6 +1690,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
         var arg *u8 = get_arg(argv, i);
         var handled i64 = 0;
 
+        if streq(arg, "-g") { llvm_debug_enabled = 1; handled = 1; }
         if streq(arg, "--diagnostics=json") { handled = 1; }
         if str_starts_with(arg, "--diagnostics=") && handled == 0 {
             ___compiler_diagnostic_context("invalid-option", nil, -1, -1);

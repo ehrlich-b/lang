@@ -1,0 +1,3 @@
+func main() i64 {
+    return lisp_to_int(debug_lisp(lisp_int(40))) - 42;
+}

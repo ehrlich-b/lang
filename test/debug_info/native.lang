@@ -1,0 +1,9 @@
+include "std/core.lang"
+func twice(n i64) i64 {
+    return n * 2;
+}
+func main() i64 {
+    var value i64 = twice(21);
+    println("debug native");
+    return value - 42;
+}

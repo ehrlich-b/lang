@@ -1,0 +1,3 @@
+; UTF-8 byte offsets survive skipped comments: λ
+(defun debug_lisp (x)
+  (+ x 2))

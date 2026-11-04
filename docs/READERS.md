@@ -381,3 +381,39 @@ unsupported. Choose core or LLVM for such readers.
 Syntax requests are activated only by the reader worker entry point. Embedded
 readers, including minted standalone compilers, produce their normal core even
 when the caller has inherited `LANG_INSPECT_STAGE=tree` or `tokens`.
+
+## Native debug lines
+
+Pass `-g` when emitting LLVM IR, then link that IR with clang:
+
+```bash
+LANGBE=llvm ./out/lang -g example/polyglot.lang -o polyglot.ll
+clang -O0 polyglot.ll -o polyglot
+llvm-dwarfdump --debug-line polyglot
+```
+
+Each source file gets a DWARF compile unit and each located function a
+subprogram. Instructions carry line locations from the shared node origins;
+LLVM turns these into native address-to-source line tables. Reader names and
+syntax rules are absent from this backend policy. Minted reader compilers also
+accept `-g`.
+
+`ast_span(node, start, end)` preserves a half-open UTF-8 byte range in the
+reader's original input. The adapter binds that range to the input's source ID;
+the backend uses its immutable line index to derive 1-based lines and byte
+columns. Inline `#reader{...}` offsets are rebased to the containing source
+file, including the opening line's column. Separate custom input files retain
+their own names, even when several readers contribute to one binary. Forth
+retains definition and call spans; the other shipped readers also preserve
+statement and definition spans where they lower those constructs.
+
+Generated children without explicit spans inherit their enclosing location.
+Unspanned reader output has only the adapter's invocation fallback; emit spans
+for statements that need exact stepping. Plain AST without source origins gets
+no invented locations. For saved reader AST, supply `--from-ast --ast-source
+original.ext` to bind its spans. This emits line tables and function names,
+without variable inspection or a promise that optimized-away statements remain
+steppable. The existing effects restriction still requires `-O0` for polyglot.
+Without `-g`, LLVM output is unchanged. `python3 test/run_debug_info.py` checks
+exact unoptimized line rows, optimized file retention, IR verification, and
+native execution; add `--base-ref REV` to compare non-debug IR byte for byte.

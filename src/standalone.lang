@@ -90,6 +90,7 @@ func standalone_help() void {
     println("  --emit=llvm    Write LLVM IR without a native toolchain");
     println("  --emit=native  Build Linux x86-64 at -O0 using LANG_CLANG or clang in PATH");
     println("  -o <file>      Output path (default: a.ll/a.s, or a.out for native)");
+    println("  -g             Emit LLVM source line debug information");
     println("  -h, --help Show this help");
 }
 
@@ -177,6 +178,8 @@ func main(argc i64, argv **u8) i64 {
                 i = i + 1;
                 if duplicate == 0 { output_file = standalone_get_arg(argv, i); }
             }
+        } else if streq(arg, "-g") {
+            llvm_debug_enabled = 1;
         } else if str_starts_with(arg, "--emit=") {
             if streq(arg + 7, "native") { native = 1; }
             if emit != nil { eprintln("Error: duplicate --emit"); invalid = 1; }

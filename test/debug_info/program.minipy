@@ -1,0 +1,7 @@
+# UTF-8 byte offsets survive skipped comments: λ
+def debug_py(n):
+    return n + 2
+
+def main():
+    value = debug_py(40)
+    return value - 42

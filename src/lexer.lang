@@ -695,6 +695,7 @@ func scan_reader_macro() *u8 {
     lex_advance();  // consume '{'
 
     // Read balanced content
+    var reader_start_line i64 = lex_line;
     var content_start i64 = lex_current;
     var brace_depth i64 = 1;
     // Keep loop storage in the entry block for large source packages, including
@@ -770,7 +771,7 @@ func scan_reader_macro() *u8 {
     tok_set_type(tok, TOKEN_READER_MACRO);
     tok_set_lexeme(tok, lex_source + name_start);
     tok_set_lexeme_len(tok, name_len);
-    tok_set_line(tok, lex_line);
+    tok_set_line(tok, reader_start_line);
     tok_set_col(tok, lex_start_col);
     tok_set_content(tok, lex_source + content_start);
     tok_set_content_len(tok, content_end - content_start);

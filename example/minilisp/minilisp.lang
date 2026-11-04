@@ -104,8 +104,8 @@ func cmp_fn(op *u8) *u8 {
 func lisp_tmp(node *PNode) *u8 {
     var sb *StringBuilder = sb_new();
     sb_str(sb, "__lt");
-    var addr i64 = node;
-    sb_int(sb, addr);
+    var offset i64 = node.start;
+    sb_int(sb, offset);
     return sb_finish(sb);
 }
 
@@ -192,7 +192,7 @@ func lisp_lambda(params *PNode, bodynode *PNode) *u8 {
     var sb *StringBuilder = sb_new();
     sb_str(sb, "__arli_ml_lambda_shape_args_");
     var addr i64 = params;
-    sb_int(sb, addr);
+    sb_int(sb, offset);
     var cursor *u8 = sb_finish(sb);
     var body_stmts *u8 = ast_vec();
     ast_push(body_stmts, ast_var(cursor, ast_type_i64(), ast_ident("__args")));
@@ -284,6 +284,11 @@ func lisp_runtime_call(fnname *u8, node *PNode, count i64) *u8 {
 // Emit a body in return (tail) position. A tail `if` becomes real control flow
 // with a return in each branch, so recursive base cases actually stop.
 func lisp_return(node *PNode) *u8 {
+    if node == nil { return lisp_return_inner(node); }
+    return ast_span(lisp_return_inner(node), node.start, node.end);
+}
+
+func lisp_return_inner(node *PNode) *u8 {
     if node != nil && pnode_is(node, "list") {
         var first *PNode = list_get(node, 0);
         if is_sym(first, "if") {
@@ -381,8 +386,8 @@ func lisp_expr(node *PNode) *u8 {
             ast_push(pvec, ast_param(pnode.text, ast_type_i64()));
             pi = pi + 1;
         }
-        return ast_program1(ast_func(name.text, pvec, ast_type_i64(),
-                                     ast_block1(lisp_return(body))));
+        return ast_program1(ast_span(ast_func(name.text, pvec, ast_type_i64(),
+                                     ast_block1(lisp_return(body))), node.start, node.end));
     }
 
     // (if cond then else) -> value-returning block_expr; only the taken branch

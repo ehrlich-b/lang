@@ -294,12 +294,12 @@ func fo_stack_load(dst *u8, src *u8) void {
 }
 
 // Per-node-unique temp name (reader globals are dropped, so derive uniqueness
-// from the node address plus a slot tag).
+// from the source byte offset plus a slot tag).
 func fo_gensym(prefix *u8, node *PNode, tag i64) *u8 {
     var sb *StringBuilder = sb_new();
     sb_str(sb, prefix);
-    var addr i64 = node;
-    sb_int(sb, addr);
+    var offset i64 = node.start;
+    sb_int(sb, offset);
     sb_str(sb, "_");
     sb_int(sb, tag);
     return sb_finish(sb);
@@ -468,7 +468,7 @@ func fo_emit_call(name *u8, stack *u8, stmts *u8, sigs *u8, node *PNode) void {
         ast_push(args, vec_get(popped, k));
         k = k - 1;
     }
-    var call *u8 = ast_call_named(name, args);
+    var call *u8 = ast_span(ast_call_named(name, args), node.start, node.end);
     if nr == 0 {
         ast_push(stmts, ast_expr_stmt(call));
     } else {
@@ -664,7 +664,7 @@ func fo_emit_worddef(d *PNode, sigs *u8) *u8 {
     } else {
         ast_push(stmts, ast_return(ast_int(0)));
     }
-    return ast_func(wname, params, ast_type_i64(), ast_block(stmts));
+    return ast_span(ast_func(wname, params, ast_type_i64(), ast_block(stmts)), d.start, d.end);
 }
 
 // `extern` contributes only a signature (so calls get the right arity); the
