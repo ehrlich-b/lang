@@ -408,75 +408,132 @@ func skip_whitespace() void {
 // Keyword lookup
 // ============================================================
 
-// Check if lexeme matches a keyword, accounting for length
-func lexeme_eq(kw *u8) bool {
-    var kw_len i64 = strlen(kw);
-    var lex_len i64 = lex_current - lex_start;
-    if kw_len != lex_len {
-        return false;
-    }
-    var i i64 = 0;
-    while i < kw_len {
-        if *(lex_source + lex_start + i) != *(kw + i) {
-            return false;
-        }
-        i = i + 1;
-    }
-    return true;
-}
-
+// Dispatch by byte length before reading the prefix or keyword suffix.
 func check_keyword() i64 {
-    // Keywords
-    if lexeme_eq("func") { return TOKEN_FUNC; }
-    if lexeme_eq("var") { return TOKEN_VAR; }
-    if lexeme_eq("struct") { return TOKEN_STRUCT; }
-    if lexeme_eq("macro") { return TOKEN_MACRO; }
-    if lexeme_eq("reader") { return TOKEN_READER; }
-    if lexeme_eq("import") { return TOKEN_IMPORT; }
-    if lexeme_eq("include") { return TOKEN_INCLUDE; }
-    if lexeme_eq("require") { return TOKEN_REQUIRE; }
-    if lexeme_eq("if") { return TOKEN_IF; }
-    if lexeme_eq("else") { return TOKEN_ELSE; }
-    if lexeme_eq("while") { return TOKEN_WHILE; }
-    if lexeme_eq("return") { return TOKEN_RETURN; }
-    if lexeme_eq("break") { return TOKEN_BREAK; }
-    if lexeme_eq("continue") { return TOKEN_CONTINUE; }
-    if lexeme_eq("let") { return TOKEN_LET; }
-    if lexeme_eq("in") { return TOKEN_IN; }
-    if lexeme_eq("fn") { return TOKEN_FN; }
-    if lexeme_eq("enum") { return TOKEN_ENUM; }
-    if lexeme_eq("match") { return TOKEN_MATCH; }
-    if lexeme_eq("effect") { return TOKEN_EFFECT; }
-    if lexeme_eq("perform") { return TOKEN_PERFORM; }
-    if lexeme_eq("handle") { return TOKEN_HANDLE; }
-    if lexeme_eq("with") { return TOKEN_WITH; }
-    if lexeme_eq("resume") { return TOKEN_RESUME; }
-    if lexeme_eq("closure") { return TOKEN_CLOSURE; }
-    if lexeme_eq("extern") { return TOKEN_EXTERN; }
-    if lexeme_eq("pub") { return TOKEN_PUB; }
-    if lexeme_eq("true") { return TOKEN_TRUE; }
-    if lexeme_eq("false") { return TOKEN_FALSE; }
-    if lexeme_eq("nil") { return TOKEN_NIL; }
-
-    // Type keywords
-    if lexeme_eq("i8") { return TOKEN_I8; }
-    if lexeme_eq("i16") { return TOKEN_I16; }
-    if lexeme_eq("i32") { return TOKEN_I32; }
-    if lexeme_eq("i64") { return TOKEN_I64; }
-    if lexeme_eq("u8") { return TOKEN_U8; }
-    if lexeme_eq("u16") { return TOKEN_U16; }
-    if lexeme_eq("u32") { return TOKEN_U32; }
-    if lexeme_eq("u64") { return TOKEN_U64; }
-    if lexeme_eq("f32") { return TOKEN_F32; }
-    if lexeme_eq("f64") { return TOKEN_F64; }
-    if lexeme_eq("bool") { return TOKEN_BOOL; }
-    if lexeme_eq("void") { return TOKEN_VOID; }
-    if lexeme_eq("cast") { return TOKEN_CAST; }
-    if lexeme_eq("bitcast") { return TOKEN_BITCAST; }
-
-    // Built-in (treated like keyword)
-    if lexeme_eq("syscall") { return TOKEN_IDENT; }
-
+    var len i64 = lex_current - lex_start;
+    var text *u8 = lex_source + lex_start;
+    if len == 2 {
+        if *text == 102 {  // f
+            if *(text + 1) == 110 { return TOKEN_FN; }  // fn
+        }
+        if *text == 105 {  // i
+            if *(text + 1) == 102 { return TOKEN_IF; }  // if
+            if *(text + 1) == 110 { return TOKEN_IN; }  // in
+            if *(text + 1) == 56 { return TOKEN_I8; }  // i8
+        }
+        if *text == 117 {  // u
+            if *(text + 1) == 56 { return TOKEN_U8; }  // u8
+        }
+    }
+    if len == 3 {
+        if *text == 102 {  // f
+            if *(text + 1) == 51 && *(text + 2) == 50 { return TOKEN_F32; }  // f32
+            if *(text + 1) == 54 && *(text + 2) == 52 { return TOKEN_F64; }  // f64
+        }
+        if *text == 105 {  // i
+            if *(text + 1) == 49 && *(text + 2) == 54 { return TOKEN_I16; }  // i16
+            if *(text + 1) == 51 && *(text + 2) == 50 { return TOKEN_I32; }  // i32
+            if *(text + 1) == 54 && *(text + 2) == 52 { return TOKEN_I64; }  // i64
+        }
+        if *text == 108 {  // l
+            if *(text + 1) == 101 && *(text + 2) == 116 { return TOKEN_LET; }  // let
+        }
+        if *text == 110 {  // n
+            if *(text + 1) == 105 && *(text + 2) == 108 { return TOKEN_NIL; }  // nil
+        }
+        if *text == 112 {  // p
+            if *(text + 1) == 117 && *(text + 2) == 98 { return TOKEN_PUB; }  // pub
+        }
+        if *text == 117 {  // u
+            if *(text + 1) == 49 && *(text + 2) == 54 { return TOKEN_U16; }  // u16
+            if *(text + 1) == 51 && *(text + 2) == 50 { return TOKEN_U32; }  // u32
+            if *(text + 1) == 54 && *(text + 2) == 52 { return TOKEN_U64; }  // u64
+        }
+        if *text == 118 {  // v
+            if *(text + 1) == 97 && *(text + 2) == 114 { return TOKEN_VAR; }  // var
+        }
+    }
+    if len == 4 {
+        if *text == 98 {  // b
+            if *(text + 1) == 111 && *(text + 2) == 111 && *(text + 3) == 108 { return TOKEN_BOOL; }  // bool
+        }
+        if *text == 99 {  // c
+            if *(text + 1) == 97 && *(text + 2) == 115 && *(text + 3) == 116 { return TOKEN_CAST; }  // cast
+        }
+        if *text == 101 {  // e
+            if *(text + 1) == 108 && *(text + 2) == 115 && *(text + 3) == 101 { return TOKEN_ELSE; }  // else
+            if *(text + 1) == 110 && *(text + 2) == 117 && *(text + 3) == 109 { return TOKEN_ENUM; }  // enum
+        }
+        if *text == 102 {  // f
+            if *(text + 1) == 117 && *(text + 2) == 110 && *(text + 3) == 99 { return TOKEN_FUNC; }  // func
+        }
+        if *text == 116 {  // t
+            if *(text + 1) == 114 && *(text + 2) == 117 && *(text + 3) == 101 { return TOKEN_TRUE; }  // true
+        }
+        if *text == 118 {  // v
+            if *(text + 1) == 111 && *(text + 2) == 105 && *(text + 3) == 100 { return TOKEN_VOID; }  // void
+        }
+        if *text == 119 {  // w
+            if *(text + 1) == 105 && *(text + 2) == 116 && *(text + 3) == 104 { return TOKEN_WITH; }  // with
+        }
+    }
+    if len == 5 {
+        if *text == 98 {  // b
+            if *(text + 1) == 114 && *(text + 2) == 101 && *(text + 3) == 97 && *(text + 4) == 107 { return TOKEN_BREAK; }  // break
+        }
+        if *text == 102 {  // f
+            if *(text + 1) == 97 && *(text + 2) == 108 && *(text + 3) == 115 && *(text + 4) == 101 { return TOKEN_FALSE; }  // false
+        }
+        if *text == 109 {  // m
+            if *(text + 1) == 97 && *(text + 2) == 99 && *(text + 3) == 114 && *(text + 4) == 111 { return TOKEN_MACRO; }  // macro
+            if *(text + 1) == 97 && *(text + 2) == 116 && *(text + 3) == 99 && *(text + 4) == 104 { return TOKEN_MATCH; }  // match
+        }
+        if *text == 119 {  // w
+            if *(text + 1) == 104 && *(text + 2) == 105 && *(text + 3) == 108 && *(text + 4) == 101 { return TOKEN_WHILE; }  // while
+        }
+    }
+    if len == 6 {
+        if *text == 101 {  // e
+            if *(text + 1) == 102 && *(text + 2) == 102 && *(text + 3) == 101 && *(text + 4) == 99 && *(text + 5) == 116 { return TOKEN_EFFECT; }  // effect
+            if *(text + 1) == 120 && *(text + 2) == 116 && *(text + 3) == 101 && *(text + 4) == 114 && *(text + 5) == 110 { return TOKEN_EXTERN; }  // extern
+        }
+        if *text == 104 {  // h
+            if *(text + 1) == 97 && *(text + 2) == 110 && *(text + 3) == 100 && *(text + 4) == 108 && *(text + 5) == 101 { return TOKEN_HANDLE; }  // handle
+        }
+        if *text == 105 {  // i
+            if *(text + 1) == 109 && *(text + 2) == 112 && *(text + 3) == 111 && *(text + 4) == 114 && *(text + 5) == 116 { return TOKEN_IMPORT; }  // import
+        }
+        if *text == 114 {  // r
+            if *(text + 1) == 101 && *(text + 2) == 97 && *(text + 3) == 100 && *(text + 4) == 101 && *(text + 5) == 114 { return TOKEN_READER; }  // reader
+            if *(text + 1) == 101 && *(text + 2) == 116 && *(text + 3) == 117 && *(text + 4) == 114 && *(text + 5) == 110 { return TOKEN_RETURN; }  // return
+            if *(text + 1) == 101 && *(text + 2) == 115 && *(text + 3) == 117 && *(text + 4) == 109 && *(text + 5) == 101 { return TOKEN_RESUME; }  // resume
+        }
+        if *text == 115 {  // s
+            if *(text + 1) == 116 && *(text + 2) == 114 && *(text + 3) == 117 && *(text + 4) == 99 && *(text + 5) == 116 { return TOKEN_STRUCT; }  // struct
+        }
+    }
+    if len == 7 {
+        if *text == 98 {  // b
+            if *(text + 1) == 105 && *(text + 2) == 116 && *(text + 3) == 99 && *(text + 4) == 97 && *(text + 5) == 115 && *(text + 6) == 116 { return TOKEN_BITCAST; }  // bitcast
+        }
+        if *text == 99 {  // c
+            if *(text + 1) == 108 && *(text + 2) == 111 && *(text + 3) == 115 && *(text + 4) == 117 && *(text + 5) == 114 && *(text + 6) == 101 { return TOKEN_CLOSURE; }  // closure
+        }
+        if *text == 105 {  // i
+            if *(text + 1) == 110 && *(text + 2) == 99 && *(text + 3) == 108 && *(text + 4) == 117 && *(text + 5) == 100 && *(text + 6) == 101 { return TOKEN_INCLUDE; }  // include
+        }
+        if *text == 112 {  // p
+            if *(text + 1) == 101 && *(text + 2) == 114 && *(text + 3) == 102 && *(text + 4) == 111 && *(text + 5) == 114 && *(text + 6) == 109 { return TOKEN_PERFORM; }  // perform
+        }
+        if *text == 114 {  // r
+            if *(text + 1) == 101 && *(text + 2) == 113 && *(text + 3) == 117 && *(text + 4) == 105 && *(text + 5) == 114 && *(text + 6) == 101 { return TOKEN_REQUIRE; }  // require
+        }
+    }
+    if len == 8 {
+        if *text == 99 {  // c
+            if *(text + 1) == 111 && *(text + 2) == 110 && *(text + 3) == 116 && *(text + 4) == 105 && *(text + 5) == 110 && *(text + 6) == 117 && *(text + 7) == 101 { return TOKEN_CONTINUE; }  // continue
+        }
+    }
     return TOKEN_IDENT;
 }
 
