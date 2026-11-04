@@ -405,7 +405,14 @@ bootstrap-local:
 # Diagnostic fixed-point check only. Promotion always uses bootstrap above.
 bootstrap-verify: LANGBE=llvm
 bootstrap-verify: LANGLIBC=libc
-bootstrap-verify: generate-os-layer generate-version-info
+bootstrap-verify:
+	python3 scripts/gate_receipt.py -- $(MAKE) _verify-complete
+
+# Only this complete fixed-point and suite recipe can issue a reusable success.
+.PHONY: _verify-complete
+_verify-complete: LANGBE=llvm
+_verify-complete: LANGLIBC=libc
+_verify-complete: generate-os-layer generate-version-info
 	@rm -rf $(BOOTSTRAP_VERIFY_DIR)
 	@mkdir -p out out/ast $(BOOTSTRAP_VERIFY_DIR)
 	@if [ ! -f $(BOOTSTRAP_LL) ]; then echo "ERROR: $(BOOTSTRAP_LL) not found"; exit 1; fi
