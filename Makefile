@@ -504,6 +504,12 @@ fragment: export FRAGMENT_REPORT := $(FRAGMENT_REPORT)
 fragment:
 	@python3 scripts/fragment.py
 
+# Instrument the verified compiler IR, not the programs produced by the suite.
+# COVERAGE_ARGS can select artifact/log directories or compare/update a baseline.
+.PHONY: coverage
+coverage:
+	python3 scripts/coverage_functions.py $(COVERAGE_ARGS)
+
 # Compatibility alias for the old Mac-only verifier. The historical recipe
 # overwrote out/lang before its fixed-point comparison and tests completed.
 llvm-verify:

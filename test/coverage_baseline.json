@@ -1,0 +1,1876 @@
+{
+  "schema": 1,
+  "workload": "test/run_llvm_suite.sh",
+  "instrumentation": "clang -O0 -fprofile-generate",
+  "size_unit": "LLVM body lines excluding blanks, comments and labels",
+  "executed": 966,
+  "total": 1256,
+  "per_source": {
+    "src/ast_emit.lang": {
+      "executed": 16,
+      "total": 20
+    },
+    "src/codegen.lang": {
+      "executed": 120,
+      "total": 180
+    },
+    "src/codegen_llvm.lang": {
+      "executed": 93,
+      "total": 101
+    },
+    "src/codegen_wasm.lang": {
+      "executed": 62,
+      "total": 75
+    },
+    "src/compiler_readers_none.lang": {
+      "executed": 1,
+      "total": 2
+    },
+    "src/diagnostics.lang": {
+      "executed": 1,
+      "total": 1
+    },
+    "src/layout.lang": {
+      "executed": 4,
+      "total": 5
+    },
+    "src/lexer.lang": {
+      "executed": 37,
+      "total": 39
+    },
+    "src/main.lang": {
+      "executed": 40,
+      "total": 55
+    },
+    "src/numeric.lang": {
+      "executed": 7,
+      "total": 13
+    },
+    "src/numeric_llvm.lang": {
+      "executed": 2,
+      "total": 16
+    },
+    "src/parser.lang": {
+      "executed": 441,
+      "total": 472
+    },
+    "src/phase_host.lang": {
+      "executed": 2,
+      "total": 2
+    },
+    "src/sexpr_reader.lang": {
+      "executed": 19,
+      "total": 26
+    },
+    "src/stage_dependencies.lang": {
+      "executed": 5,
+      "total": 5
+    },
+    "src/stage_digest.lang": {
+      "executed": 4,
+      "total": 4
+    },
+    "src/stage_isolated.lang": {
+      "executed": 4,
+      "total": 6
+    },
+    "src/stage_legacy.lang": {
+      "executed": 2,
+      "total": 4
+    },
+    "src/stage_node_origin.lang": {
+      "executed": 3,
+      "total": 3
+    },
+    "src/stage_origin.lang": {
+      "executed": 14,
+      "total": 14
+    },
+    "src/stage_tooling.lang": {
+      "executed": 0,
+      "total": 19
+    },
+    "src/stage_wire.lang": {
+      "executed": 2,
+      "total": 6
+    },
+    "src/stage_worker.lang": {
+      "executed": 5,
+      "total": 7
+    },
+    "std/buffer.lang": {
+      "executed": 12,
+      "total": 17
+    },
+    "std/core.lang": {
+      "executed": 36,
+      "total": 43
+    },
+    "std/diagnostics.lang": {
+      "executed": 1,
+      "total": 7
+    },
+    "std/os/libc.lang": {
+      "executed": 12,
+      "total": 23
+    },
+    "std/pnode.lang": {
+      "executed": 3,
+      "total": 25
+    },
+    "std/stage.lang": {
+      "executed": 0,
+      "total": 17
+    },
+    "std/tok.lang": {
+      "executed": 16,
+      "total": 44
+    },
+    "std/tools.lang": {
+      "executed": 2,
+      "total": 5
+    }
+  },
+  "never_executed": [
+    {
+      "name": "gen_expr",
+      "ir_body_lines": 3882,
+      "source": "src/codegen.lang",
+      "line": 3079
+    },
+    {
+      "name": "tooling_validate",
+      "ir_body_lines": 829,
+      "source": "src/stage_tooling.lang",
+      "line": 86
+    },
+    {
+      "name": "gen_lvalue_store",
+      "ir_body_lines": 675,
+      "source": "src/codegen.lang",
+      "line": 4763
+    },
+    {
+      "name": "compile_from_embedded_ast",
+      "ir_body_lines": 602,
+      "source": "src/stage_legacy.lang",
+      "line": 387
+    },
+    {
+      "name": "gen_decl",
+      "ir_body_lines": 531,
+      "source": "src/codegen.lang",
+      "line": 5635
+    },
+    {
+      "name": "gen_stmt",
+      "ir_body_lines": 529,
+      "source": "src/codegen.lang",
+      "line": 5035
+    },
+    {
+      "name": "stage_validate",
+      "ir_body_lines": 491,
+      "source": "std/stage.lang",
+      "line": 48
+    },
+    {
+      "name": "print_expr_ast",
+      "ir_body_lines": 473,
+      "source": "src/codegen.lang",
+      "line": 6999
+    },
+    {
+      "name": "llvm_numeric_emit",
+      "ir_body_lines": 414,
+      "source": "src/numeric_llvm.lang",
+      "line": 190
+    },
+    {
+      "name": "numeric_validate",
+      "ir_body_lines": 404,
+      "source": "src/numeric.lang",
+      "line": 40
+    },
+    {
+      "name": "llvm_f32_decimal_bits",
+      "ir_body_lines": 392,
+      "source": "src/codegen_llvm.lang",
+      "line": 943
+    },
+    {
+      "name": "llvm_numeric_convert",
+      "ir_body_lines": 376,
+      "source": "src/numeric_llvm.lang",
+      "line": 125
+    },
+    {
+      "name": "eval_constant",
+      "ir_body_lines": 345,
+      "source": "src/codegen.lang",
+      "line": 2875
+    },
+    {
+      "name": "tooling_wire_decode",
+      "ir_body_lines": 334,
+      "source": "src/stage_tooling.lang",
+      "line": 232
+    },
+    {
+      "name": "phase_isolated_compile",
+      "ir_body_lines": 321,
+      "source": "src/stage_isolated.lang",
+      "line": 5
+    },
+    {
+      "name": "llvm_f32_literal_value",
+      "ir_body_lines": 290,
+      "source": "src/codegen_llvm.lang",
+      "line": 1017
+    },
+    {
+      "name": "tooling_wire_encode",
+      "ir_body_lines": 285,
+      "source": "src/stage_tooling.lang",
+      "line": 181
+    },
+    {
+      "name": "gen_lambda",
+      "ir_body_lines": 258,
+      "source": "src/codegen.lang",
+      "line": 5414
+    },
+    {
+      "name": "gen_func",
+      "ir_body_lines": 256,
+      "source": "src/codegen.lang",
+      "line": 5291
+    },
+    {
+      "name": "generate",
+      "ir_body_lines": 232,
+      "source": "src/codegen.lang",
+      "line": 7189
+    },
+    {
+      "name": "llvm_numeric_float_carrier",
+      "ir_body_lines": 229,
+      "source": "src/numeric_llvm.lang",
+      "line": 34
+    },
+    {
+      "name": "stage_utf8",
+      "ir_body_lines": 225,
+      "source": "std/stage.lang",
+      "line": 19
+    },
+    {
+      "name": "integer_type_bits",
+      "ir_body_lines": 204,
+      "source": "src/parser.lang",
+      "line": 1341
+    },
+    {
+      "name": "llvm_emit_integer",
+      "ir_body_lines": 196,
+      "source": "src/codegen_llvm.lang",
+      "line": 1601
+    },
+    {
+      "name": "tok_utf8_width",
+      "ir_body_lines": 196,
+      "source": "std/tok.lang",
+      "line": 314
+    },
+    {
+      "name": "___compiler_diagnostic_utf8_width",
+      "ir_body_lines": 194,
+      "source": "std/diagnostics.lang",
+      "line": 34
+    },
+    {
+      "name": "integer_expr_valid",
+      "ir_body_lines": 191,
+      "source": "src/parser.lang",
+      "line": 1353
+    },
+    {
+      "name": "tok_note_expected",
+      "ir_body_lines": 187,
+      "source": "std/tok.lang",
+      "line": 625
+    },
+    {
+      "name": "emit_ascii_string",
+      "ir_body_lines": 185,
+      "source": "src/codegen.lang",
+      "line": 2994
+    },
+    {
+      "name": "llvm_numeric_checked",
+      "ir_body_lines": 168,
+      "source": "src/numeric_llvm.lang",
+      "line": 177
+    },
+    {
+      "name": "wasm_emit_integer",
+      "ir_body_lines": 160,
+      "source": "src/codegen_wasm.lang",
+      "line": 826
+    },
+    {
+      "name": "phase_isolated_call",
+      "ir_body_lines": 157,
+      "source": "src/stage_isolated.lang",
+      "line": 60
+    },
+    {
+      "name": "tooling_origin",
+      "ir_body_lines": 149,
+      "source": "src/stage_tooling.lang",
+      "line": 53
+    },
+    {
+      "name": "compute_nested_field_offset",
+      "ir_body_lines": 144,
+      "source": "src/codegen.lang",
+      "line": 2370
+    },
+    {
+      "name": "tok_string_value",
+      "ir_body_lines": 141,
+      "source": "std/tok.lang",
+      "line": 758
+    },
+    {
+      "name": "phase_wire_decode",
+      "ir_body_lines": 136,
+      "source": "src/stage_wire.lang",
+      "line": 87
+    },
+    {
+      "name": "pnode_print_error",
+      "ir_body_lines": 135,
+      "source": "std/pnode.lang",
+      "line": 101
+    },
+    {
+      "name": "___compiler_diagnostic_string",
+      "ir_body_lines": 131,
+      "source": "std/diagnostics.lang",
+      "line": 55
+    },
+    {
+      "name": "tok_expected_has",
+      "ir_body_lines": 131,
+      "source": "std/tok.lang",
+      "line": 604
+    },
+    {
+      "name": "tok_stream_load",
+      "ir_body_lines": 131,
+      "source": "std/tok.lang",
+      "line": 177
+    },
+    {
+      "name": "sexpr_to_pattern",
+      "ir_body_lines": 126,
+      "source": "src/sexpr_reader.lang",
+      "line": 370
+    },
+    {
+      "name": "___compiler_diagnostic_sink",
+      "ir_body_lines": 125,
+      "source": "std/diagnostics.lang",
+      "line": 75
+    },
+    {
+      "name": "llvm_numeric_normalize",
+      "ir_body_lines": 125,
+      "source": "src/numeric_llvm.lang",
+      "line": 82
+    },
+    {
+      "name": "cmd_env",
+      "ir_body_lines": 122,
+      "source": "src/main.lang",
+      "line": 1224
+    },
+    {
+      "name": "pnode_dump_at",
+      "ir_body_lines": 121,
+      "source": "std/pnode.lang",
+      "line": 303
+    },
+    {
+      "name": "gen_syscall",
+      "ir_body_lines": 118,
+      "source": "src/codegen.lang",
+      "line": 4731
+    },
+    {
+      "name": "llvm_numeric_bound",
+      "ir_body_lines": 111,
+      "source": "src/numeric_llvm.lang",
+      "line": 112
+    },
+    {
+      "name": "loop_stack_find",
+      "ir_body_lines": 111,
+      "source": "src/codegen.lang",
+      "line": 265
+    },
+    {
+      "name": "phase_wire_encode",
+      "ir_body_lines": 111,
+      "source": "src/stage_wire.lang",
+      "line": 107
+    },
+    {
+      "name": "write_ascii_string",
+      "ir_body_lines": 107,
+      "source": "src/codegen.lang",
+      "line": 7321
+    },
+    {
+      "name": "gen_reader_func",
+      "ir_body_lines": 104,
+      "source": "src/codegen.lang",
+      "line": 5564
+    },
+    {
+      "name": "pnode_first_visible_capture",
+      "ir_body_lines": 99,
+      "source": "std/pnode.lang",
+      "line": 180
+    },
+    {
+      "name": "exec_run_env",
+      "ir_body_lines": 98,
+      "source": "src/codegen.lang",
+      "line": 1186
+    },
+    {
+      "name": "cmd_tooling",
+      "ir_body_lines": 95,
+      "source": "src/main.lang",
+      "line": 1474
+    },
+    {
+      "name": "stage_integer",
+      "ir_body_lines": 94,
+      "source": "std/stage.lang",
+      "line": 106
+    },
+    {
+      "name": "cmd_tools",
+      "ir_body_lines": 93,
+      "source": "src/main.lang",
+      "line": 1282
+    },
+    {
+      "name": "compiler_read_text_fd",
+      "ir_body_lines": 93,
+      "source": "src/codegen.lang",
+      "line": 1706
+    },
+    {
+      "name": "pnode_dump_text",
+      "ir_body_lines": 91,
+      "source": "std/pnode.lang",
+      "line": 284
+    },
+    {
+      "name": "pnode_collect_capture_chain",
+      "ir_body_lines": 89,
+      "source": "std/pnode.lang",
+      "line": 124
+    },
+    {
+      "name": "pnode_count_capture_chain",
+      "ir_body_lines": 89,
+      "source": "std/pnode.lang",
+      "line": 135
+    },
+    {
+      "name": "pnode_first_capture_chain",
+      "ir_body_lines": 88,
+      "source": "std/pnode.lang",
+      "line": 145
+    },
+    {
+      "name": "pnode_get_all",
+      "ir_body_lines": 87,
+      "source": "std/pnode.lang",
+      "line": 200
+    },
+    {
+      "name": "stage_blob",
+      "ir_body_lines": 85,
+      "source": "std/stage.lang",
+      "line": 118
+    },
+    {
+      "name": "stage_read",
+      "ir_body_lines": 85,
+      "source": "std/stage.lang",
+      "line": 142
+    },
+    {
+      "name": "tooling_require",
+      "ir_body_lines": 85,
+      "source": "src/stage_tooling.lang",
+      "line": 162
+    },
+    {
+      "name": "has_kernel_module",
+      "ir_body_lines": 82,
+      "source": "src/main.lang",
+      "line": 207
+    },
+    {
+      "name": "wasm_loop_branch_depth",
+      "ir_body_lines": 81,
+      "source": "src/codegen_wasm.lang",
+      "line": 402
+    },
+    {
+      "name": "tooling_validate_source",
+      "ir_body_lines": 80,
+      "source": "src/stage_tooling.lang",
+      "line": 74
+    },
+    {
+      "name": "phase_syntax_program",
+      "ir_body_lines": 77,
+      "source": "src/sexpr_reader.lang",
+      "line": 1413
+    },
+    {
+      "name": "pnode_visible_capture_count",
+      "ir_body_lines": 77,
+      "source": "std/pnode.lang",
+      "line": 165
+    },
+    {
+      "name": "pnode_kind_name",
+      "ir_body_lines": 76,
+      "source": "std/pnode.lang",
+      "line": 272
+    },
+    {
+      "name": "tok_print_error",
+      "ir_body_lines": 74,
+      "source": "std/tok.lang",
+      "line": 711
+    },
+    {
+      "name": "tooling_new",
+      "ir_body_lines": 74,
+      "source": "src/stage_tooling.lang",
+      "line": 10
+    },
+    {
+      "name": "ast_emit_pattern",
+      "ir_body_lines": 72,
+      "source": "src/ast_emit.lang",
+      "line": 957
+    },
+    {
+      "name": "tok_number",
+      "ir_body_lines": 72,
+      "source": "std/tok.lang",
+      "line": 734
+    },
+    {
+      "name": "gen_array_addr",
+      "ir_body_lines": 70,
+      "source": "src/codegen.lang",
+      "line": 3045
+    },
+    {
+      "name": "llvm_integer_normalize",
+      "ir_body_lines": 70,
+      "source": "src/codegen_llvm.lang",
+      "line": 1584
+    },
+    {
+      "name": "numeric_meta",
+      "ir_body_lines": 69,
+      "source": "src/numeric.lang",
+      "line": 18
+    },
+    {
+      "name": "stage_copy",
+      "ir_body_lines": 69,
+      "source": "std/stage.lang",
+      "line": 98
+    },
+    {
+      "name": "llvm_is_integer_literal",
+      "ir_body_lines": 68,
+      "source": "src/codegen_llvm.lang",
+      "line": 875
+    },
+    {
+      "name": "sexpr_strip_quotes",
+      "ir_body_lines": 68,
+      "source": "src/sexpr_reader.lang",
+      "line": 47
+    },
+    {
+      "name": "interp_set_binding",
+      "ir_body_lines": 67,
+      "source": "src/codegen.lang",
+      "line": 5932
+    },
+    {
+      "name": "phase_legacy_worker_compile",
+      "ir_body_lines": 67,
+      "source": "src/stage_legacy.lang",
+      "line": 569
+    },
+    {
+      "name": "read_file_contents",
+      "ir_body_lines": 67,
+      "source": "src/codegen.lang",
+      "line": 1743
+    },
+    {
+      "name": "numeric_compare",
+      "ir_body_lines": 66,
+      "source": "src/numeric.lang",
+      "line": 34
+    },
+    {
+      "name": "skip_block_comment",
+      "ir_body_lines": 66,
+      "source": "src/lexer.lang",
+      "line": 357
+    },
+    {
+      "name": "ast_emit_int",
+      "ir_body_lines": 65,
+      "source": "src/ast_emit.lang",
+      "line": 86
+    },
+    {
+      "name": "find_effect",
+      "ir_body_lines": 65,
+      "source": "src/codegen.lang",
+      "line": 1077
+    },
+    {
+      "name": "find_embedded_reader",
+      "ir_body_lines": 65,
+      "source": "src/codegen.lang",
+      "line": 1480
+    },
+    {
+      "name": "llvm_numeric_result",
+      "ir_body_lines": 65,
+      "source": "src/numeric_llvm.lang",
+      "line": 99
+    },
+    {
+      "name": "wasm_expr_has_value",
+      "ir_body_lines": 65,
+      "source": "src/codegen_wasm.lang",
+      "line": 1063
+    },
+    {
+      "name": "pnode_unwrap",
+      "ir_body_lines": 64,
+      "source": "std/pnode.lang",
+      "line": 84
+    },
+    {
+      "name": "find_kernel_builtin",
+      "ir_body_lines": 63,
+      "source": "src/main.lang",
+      "line": 187
+    },
+    {
+      "name": "phase_error_string",
+      "ir_body_lines": 63,
+      "source": "std/buffer.lang",
+      "line": 22
+    },
+    {
+      "name": "tooling_site",
+      "ir_body_lines": 63,
+      "source": "src/stage_tooling.lang",
+      "line": 37
+    },
+    {
+      "name": "stage_at",
+      "ir_body_lines": 61,
+      "source": "std/stage.lang",
+      "line": 128
+    },
+    {
+      "name": "emit_int",
+      "ir_body_lines": 60,
+      "source": "src/codegen.lang",
+      "line": 2206
+    },
+    {
+      "name": "gen_all_lambdas",
+      "ir_body_lines": 60,
+      "source": "src/codegen.lang",
+      "line": 5546
+    },
+    {
+      "name": "loop_stack_push",
+      "ir_body_lines": 60,
+      "source": "src/codegen.lang",
+      "line": 243
+    },
+    {
+      "name": "out_int",
+      "ir_body_lines": 60,
+      "source": "src/codegen.lang",
+      "line": 2276
+    },
+    {
+      "name": "parse_number_value",
+      "ir_body_lines": 60,
+      "source": "src/parser.lang",
+      "line": 150
+    },
+    {
+      "name": "find_closure_capture",
+      "ir_body_lines": 59,
+      "source": "src/codegen.lang",
+      "line": 747
+    },
+    {
+      "name": "stage_exact",
+      "ir_body_lines": 58,
+      "source": "std/stage.lang",
+      "line": 134
+    },
+    {
+      "name": "wasm_push_loop",
+      "ir_body_lines": 58,
+      "source": "src/codegen_wasm.lang",
+      "line": 384
+    },
+    {
+      "name": "cmd_help_compile",
+      "ir_body_lines": 57,
+      "source": "src/main.lang",
+      "line": 995
+    },
+    {
+      "name": "tooling_put",
+      "ir_body_lines": 57,
+      "source": "src/stage_tooling.lang",
+      "line": 171
+    },
+    {
+      "name": "tooling_take",
+      "ir_body_lines": 57,
+      "source": "src/stage_tooling.lang",
+      "line": 214
+    },
+    {
+      "name": "wasm_reader_function",
+      "ir_body_lines": 56,
+      "source": "src/codegen_wasm.lang",
+      "line": 1211
+    },
+    {
+      "name": "add_effect",
+      "ir_body_lines": 55,
+      "source": "src/codegen.lang",
+      "line": 1055
+    },
+    {
+      "name": "integer_expr_alloc",
+      "ir_body_lines": 54,
+      "source": "src/parser.lang",
+      "line": 1327
+    },
+    {
+      "name": "tok_error_column",
+      "ir_body_lines": 54,
+      "source": "std/tok.lang",
+      "line": 696
+    },
+    {
+      "name": "wasm_struct_size",
+      "ir_body_lines": 54,
+      "source": "src/codegen_wasm.lang",
+      "line": 191
+    },
+    {
+      "name": "tooling_binding",
+      "ir_body_lines": 53,
+      "source": "src/stage_tooling.lang",
+      "line": 31
+    },
+    {
+      "name": "llvm_is_numeric_literal",
+      "ir_body_lines": 52,
+      "source": "src/codegen_llvm.lang",
+      "line": 888
+    },
+    {
+      "name": "tok_error_line",
+      "ir_body_lines": 52,
+      "source": "std/tok.lang",
+      "line": 684
+    },
+    {
+      "name": "emit_char",
+      "ir_body_lines": 50,
+      "source": "src/codegen.lang",
+      "line": 2172
+    },
+    {
+      "name": "phase_read_bytes_fd",
+      "ir_body_lines": 50,
+      "source": "std/buffer.lang",
+      "line": 139
+    },
+    {
+      "name": "pnode_lookup_one",
+      "ir_body_lines": 50,
+      "source": "std/pnode.lang",
+      "line": 219
+    },
+    {
+      "name": "add_embedded_reader",
+      "ir_body_lines": 49,
+      "source": "src/codegen.lang",
+      "line": 1457
+    },
+    {
+      "name": "print_tool_status",
+      "ir_body_lines": 49,
+      "source": "src/main.lang",
+      "line": 1261
+    },
+    {
+      "name": "str_eq_n",
+      "ir_body_lines": 49,
+      "source": "std/core.lang",
+      "line": 437
+    },
+    {
+      "name": "stage_reader_text",
+      "ir_body_lines": 48,
+      "source": "std/stage.lang",
+      "line": 160
+    },
+    {
+      "name": "tooling_string",
+      "ir_body_lines": 48,
+      "source": "src/stage_tooling.lang",
+      "line": 219
+    },
+    {
+      "name": "tok_reset",
+      "ir_body_lines": 46,
+      "source": "std/tok.lang",
+      "line": 596
+    },
+    {
+      "name": "exec_capture",
+      "ir_body_lines": 45,
+      "source": "src/stage_worker.lang",
+      "line": 126
+    },
+    {
+      "name": "parse_expression_from_string",
+      "ir_body_lines": 45,
+      "source": "src/parser.lang",
+      "line": 4429
+    },
+    {
+      "name": "stage_write",
+      "ir_body_lines": 43,
+      "source": "std/stage.lang",
+      "line": 152
+    },
+    {
+      "name": "vec_pop",
+      "ir_body_lines": 43,
+      "source": "std/core.lang",
+      "line": 106
+    },
+    {
+      "name": "stage_i64",
+      "ir_body_lines": 42,
+      "source": "std/stage.lang",
+      "line": 113
+    },
+    {
+      "name": "layout_error",
+      "ir_body_lines": 41,
+      "source": "src/layout.lang",
+      "line": 63
+    },
+    {
+      "name": "tooling_scope",
+      "ir_body_lines": 41,
+      "source": "src/stage_tooling.lang",
+      "line": 25
+    },
+    {
+      "name": "wasm_integer_normalize",
+      "ir_body_lines": 41,
+      "source": "src/codegen_wasm.lang",
+      "line": 815
+    },
+    {
+      "name": "flush_func_body",
+      "ir_body_lines": 40,
+      "source": "src/codegen.lang",
+      "line": 2249
+    },
+    {
+      "name": "pnode_child",
+      "ir_body_lines": 40,
+      "source": "std/pnode.lang",
+      "line": 92
+    },
+    {
+      "name": "tok_expect_end",
+      "ir_body_lines": 40,
+      "source": "std/tok.lang",
+      "line": 657
+    },
+    {
+      "name": "tooling_has_source",
+      "ir_body_lines": 40,
+      "source": "src/stage_tooling.lang",
+      "line": 44
+    },
+    {
+      "name": "pnode_branch_matches",
+      "ir_body_lines": 39,
+      "source": "std/pnode.lang",
+      "line": 158
+    },
+    {
+      "name": "wasm_find_global",
+      "ir_body_lines": 39,
+      "source": "src/codegen_wasm.lang",
+      "line": 435
+    },
+    {
+      "name": "llvm_numeric_guard",
+      "ir_body_lines": 38,
+      "source": "src/numeric_llvm.lang",
+      "line": 68
+    },
+    {
+      "name": "phase_wire_u32",
+      "ir_body_lines": 38,
+      "source": "src/stage_wire.lang",
+      "line": 83
+    },
+    {
+      "name": "cmd_help_reader",
+      "ir_body_lines": 37,
+      "source": "src/main.lang",
+      "line": 1057
+    },
+    {
+      "name": "cmd_version",
+      "ir_body_lines": 37,
+      "source": "src/main.lang",
+      "line": 1197
+    },
+    {
+      "name": "stage_equal",
+      "ir_body_lines": 37,
+      "source": "std/stage.lang",
+      "line": 6
+    },
+    {
+      "name": "wasm_emit_spill_pointer",
+      "ir_body_lines": 37,
+      "source": "src/codegen_wasm.lang",
+      "line": 665
+    },
+    {
+      "name": "gen_block",
+      "ir_body_lines": 35,
+      "source": "src/codegen.lang",
+      "line": 5262
+    },
+    {
+      "name": "llvm_numeric_select",
+      "ir_body_lines": 35,
+      "source": "src/numeric_llvm.lang",
+      "line": 26
+    },
+    {
+      "name": "compiler_read_text_file",
+      "ir_body_lines": 34,
+      "source": "src/codegen.lang",
+      "line": 1724
+    },
+    {
+      "name": "pnode_is",
+      "ir_body_lines": 34,
+      "source": "std/pnode.lang",
+      "line": 260
+    },
+    {
+      "name": "llvm_numeric_min",
+      "ir_body_lines": 33,
+      "source": "src/numeric_llvm.lang",
+      "line": 107
+    },
+    {
+      "name": "tok_new_comments",
+      "ir_body_lines": 33,
+      "source": "std/tok.lang",
+      "line": 121
+    },
+    {
+      "name": "find_as",
+      "ir_body_lines": 32,
+      "source": "std/tools.lang",
+      "line": 109
+    },
+    {
+      "name": "find_ld",
+      "ir_body_lines": 32,
+      "source": "std/tools.lang",
+      "line": 122
+    },
+    {
+      "name": "find_lli",
+      "ir_body_lines": 32,
+      "source": "std/tools.lang",
+      "line": 135
+    },
+    {
+      "name": "tooling_count",
+      "ir_body_lines": 32,
+      "source": "src/stage_tooling.lang",
+      "line": 227
+    },
+    {
+      "name": "phase_read_into",
+      "ir_body_lines": 31,
+      "source": "std/buffer.lang",
+      "line": 124
+    },
+    {
+      "name": "interp_call_reader",
+      "ir_body_lines": 30,
+      "source": "src/codegen.lang",
+      "line": 7164
+    },
+    {
+      "name": "llvm_f32_array_numeric_call",
+      "ir_body_lines": 30,
+      "source": "src/codegen_llvm.lang",
+      "line": 910
+    },
+    {
+      "name": "llvm_numeric_cast",
+      "ir_body_lines": 30,
+      "source": "src/numeric_llvm.lang",
+      "line": 17
+    },
+    {
+      "name": "cmd_help_env",
+      "ir_body_lines": 29,
+      "source": "src/main.lang",
+      "line": 1079
+    },
+    {
+      "name": "llvm_numeric_binary",
+      "ir_body_lines": 29,
+      "source": "src/numeric_llvm.lang",
+      "line": 22
+    },
+    {
+      "name": "llvm_numeric_temp",
+      "ir_body_lines": 29,
+      "source": "src/numeric_llvm.lang",
+      "line": 7
+    },
+    {
+      "name": "sexpr_is",
+      "ir_body_lines": 29,
+      "source": "src/sexpr_reader.lang",
+      "line": 173
+    },
+    {
+      "name": "parse_import",
+      "ir_body_lines": 28,
+      "source": "src/parser.lang",
+      "line": 4179
+    },
+    {
+      "name": "phase_worker_buffer_call",
+      "ir_body_lines": 28,
+      "source": "src/stage_worker.lang",
+      "line": 23
+    },
+    {
+      "name": "pnode_capture",
+      "ir_body_lines": 28,
+      "source": "std/pnode.lang",
+      "line": 75
+    },
+    {
+      "name": "stage_put32",
+      "ir_body_lines": 28,
+      "source": "std/stage.lang",
+      "line": 15
+    },
+    {
+      "name": "stage_u32",
+      "ir_body_lines": 28,
+      "source": "std/stage.lang",
+      "line": 12
+    },
+    {
+      "name": "emit_str",
+      "ir_body_lines": 27,
+      "source": "src/codegen.lang",
+      "line": 2190
+    },
+    {
+      "name": "pnode_atom_span",
+      "ir_body_lines": 27,
+      "source": "std/pnode.lang",
+      "line": 46
+    },
+    {
+      "name": "tooling_source",
+      "ir_body_lines": 27,
+      "source": "src/stage_tooling.lang",
+      "line": 19
+    },
+    {
+      "name": "llvm_numeric_type",
+      "ir_body_lines": 26,
+      "source": "src/numeric_llvm.lang",
+      "line": 12
+    },
+    {
+      "name": "tok_text_ptr",
+      "ir_body_lines": 26,
+      "source": "std/tok.lang",
+      "line": 555
+    },
+    {
+      "name": "vec_set",
+      "ir_body_lines": 26,
+      "source": "std/core.lang",
+      "line": 55
+    },
+    {
+      "name": "cmd_help_compiler",
+      "ir_body_lines": 25,
+      "source": "src/main.lang",
+      "line": 1041
+    },
+    {
+      "name": "cmd_help_help",
+      "ir_body_lines": 25,
+      "source": "src/main.lang",
+      "line": 1124
+    },
+    {
+      "name": "compiler_wrapper_put",
+      "ir_body_lines": 25,
+      "source": "src/codegen.lang",
+      "line": 1700
+    },
+    {
+      "name": "emit_n",
+      "ir_body_lines": 25,
+      "source": "src/codegen.lang",
+      "line": 2198
+    },
+    {
+      "name": "error_token",
+      "ir_body_lines": 25,
+      "source": "src/lexer.lang",
+      "line": 343
+    },
+    {
+      "name": "phase_error_at",
+      "ir_body_lines": 25,
+      "source": "std/buffer.lang",
+      "line": 14
+    },
+    {
+      "name": "tok_new_stream",
+      "ir_body_lines": 25,
+      "source": "std/tok.lang",
+      "line": 167
+    },
+    {
+      "name": "tok_stream_push",
+      "ir_body_lines": 23,
+      "source": "std/tok.lang",
+      "line": 156
+    },
+    {
+      "name": "node_origin_end",
+      "ir_body_lines": 22,
+      "source": "src/parser.lang",
+      "line": 2636
+    },
+    {
+      "name": "node_origin_start",
+      "ir_body_lines": 22,
+      "source": "src/parser.lang",
+      "line": 2629
+    },
+    {
+      "name": "os_mmap",
+      "ir_body_lines": 22,
+      "source": "std/os/libc.lang",
+      "line": 123
+    },
+    {
+      "name": "cmd_help_run",
+      "ir_body_lines": 21,
+      "source": "src/main.lang",
+      "line": 1027
+    },
+    {
+      "name": "cmd_help_version",
+      "ir_body_lines": 21,
+      "source": "src/main.lang",
+      "line": 1097
+    },
+    {
+      "name": "map_free",
+      "ir_body_lines": 21,
+      "source": "std/core.lang",
+      "line": 323
+    },
+    {
+      "name": "map_get_n",
+      "ir_body_lines": 21,
+      "source": "std/core.lang",
+      "line": 374
+    },
+    {
+      "name": "tok_text_len",
+      "ir_body_lines": 21,
+      "source": "std/tok.lang",
+      "line": 560
+    },
+    {
+      "name": "tok_mark",
+      "ir_body_lines": 20,
+      "source": "std/tok.lang",
+      "line": 591
+    },
+    {
+      "name": "cmd_help_tools",
+      "ir_body_lines": 19,
+      "source": "src/main.lang",
+      "line": 1111
+    },
+    {
+      "name": "map_set_n",
+      "ir_body_lines": 19,
+      "source": "std/core.lang",
+      "line": 369
+    },
+    {
+      "name": "tok_error_found",
+      "ir_body_lines": 19,
+      "source": "std/tok.lang",
+      "line": 679
+    },
+    {
+      "name": "tok_expect",
+      "ir_body_lines": 19,
+      "source": "std/tok.lang",
+      "line": 800
+    },
+    {
+      "name": "tok_match",
+      "ir_body_lines": 19,
+      "source": "std/tok.lang",
+      "line": 791
+    },
+    {
+      "name": "add_string",
+      "ir_body_lines": 18,
+      "source": "src/codegen.lang",
+      "line": 2145
+    },
+    {
+      "name": "numeric_float",
+      "ir_body_lines": 18,
+      "source": "src/numeric.lang",
+      "line": 33
+    },
+    {
+      "name": "os_getcwd",
+      "ir_body_lines": 18,
+      "source": "std/os/libc.lang",
+      "line": 145
+    },
+    {
+      "name": "phase_wire_publish",
+      "ir_body_lines": 18,
+      "source": "src/stage_wire.lang",
+      "line": 103
+    },
+    {
+      "name": "tooling_capabilities",
+      "ir_body_lines": 18,
+      "source": "src/stage_tooling.lang",
+      "line": 157
+    },
+    {
+      "name": "closure_capture_type",
+      "ir_body_lines": 17,
+      "source": "src/codegen.lang",
+      "line": 765
+    },
+    {
+      "name": "get_parent_capture_type",
+      "ir_body_lines": 17,
+      "source": "src/codegen.lang",
+      "line": 561
+    },
+    {
+      "name": "numeric_arg",
+      "ir_body_lines": 17,
+      "source": "src/numeric.lang",
+      "line": 15
+    },
+    {
+      "name": "stage_count",
+      "ir_body_lines": 17,
+      "source": "std/stage.lang",
+      "line": 124
+    },
+    {
+      "name": "___compiler_diagnostic_enable",
+      "ir_body_lines": 16,
+      "source": "std/diagnostics.lang",
+      "line": 103
+    },
+    {
+      "name": "compiler_size_error",
+      "ir_body_lines": 16,
+      "source": "src/codegen.lang",
+      "line": 1691
+    },
+    {
+      "name": "numeric_type",
+      "ir_body_lines": 16,
+      "source": "src/numeric.lang",
+      "line": 37
+    },
+    {
+      "name": "pnode_set_branch",
+      "ir_body_lines": 16,
+      "source": "std/pnode.lang",
+      "line": 253
+    },
+    {
+      "name": "string_set_len",
+      "ir_body_lines": 16,
+      "source": "src/codegen.lang",
+      "line": 2140
+    },
+    {
+      "name": "pnode_branch",
+      "ir_body_lines": 15,
+      "source": "std/pnode.lang",
+      "line": 267
+    },
+    {
+      "name": "string_set_ptr",
+      "ir_body_lines": 15,
+      "source": "src/codegen.lang",
+      "line": 2130
+    },
+    {
+      "name": "capture_get_type",
+      "ir_body_lines": 14,
+      "source": "src/codegen.lang",
+      "line": 496
+    },
+    {
+      "name": "global_get_init",
+      "ir_body_lines": 14,
+      "source": "src/codegen.lang",
+      "line": 839
+    },
+    {
+      "name": "capture_get_outer_offset",
+      "ir_body_lines": 13,
+      "source": "src/codegen.lang",
+      "line": 486
+    },
+    {
+      "name": "global_get_is_extern",
+      "ir_body_lines": 13,
+      "source": "src/codegen.lang",
+      "line": 849
+    },
+    {
+      "name": "import_decl_set_path",
+      "ir_body_lines": 13,
+      "source": "src/parser.lang",
+      "line": 1954
+    },
+    {
+      "name": "import_decl_set_path_len",
+      "ir_body_lines": 13,
+      "source": "src/parser.lang",
+      "line": 1964
+    },
+    {
+      "name": "index_expr_set_base",
+      "ir_body_lines": 13,
+      "source": "src/parser.lang",
+      "line": 2469
+    },
+    {
+      "name": "index_expr_set_index",
+      "ir_body_lines": 13,
+      "source": "src/parser.lang",
+      "line": 2479
+    },
+    {
+      "name": "reader_decl_set_is_ast",
+      "ir_body_lines": 13,
+      "source": "src/parser.lang",
+      "line": 2045
+    },
+    {
+      "name": "string_get_len",
+      "ir_body_lines": 13,
+      "source": "src/codegen.lang",
+      "line": 2135
+    },
+    {
+      "name": "string_get_ptr",
+      "ir_body_lines": 13,
+      "source": "src/codegen.lang",
+      "line": 2125
+    },
+    {
+      "name": "tok_check",
+      "ir_body_lines": 13,
+      "source": "std/tok.lang",
+      "line": 786
+    },
+    {
+      "name": "unquote_string_expr_set_name",
+      "ir_body_lines": 13,
+      "source": "src/parser.lang",
+      "line": 1747
+    },
+    {
+      "name": "unquote_string_expr_set_name_len",
+      "ir_body_lines": 13,
+      "source": "src/parser.lang",
+      "line": 1757
+    },
+    {
+      "name": "wasm_local_spill_offset",
+      "ir_body_lines": 13,
+      "source": "src/codegen_wasm.lang",
+      "line": 363
+    },
+    {
+      "name": "wasm_mark_local_spilled",
+      "ir_body_lines": 13,
+      "source": "src/codegen_wasm.lang",
+      "line": 368
+    },
+    {
+      "name": "tok_end_offset",
+      "ir_body_lines": 12,
+      "source": "std/tok.lang",
+      "line": 569
+    },
+    {
+      "name": "tooling_program",
+      "ir_body_lines": 12,
+      "source": "src/sexpr_reader.lang",
+      "line": 1432
+    },
+    {
+      "name": "tooling_text",
+      "ir_body_lines": 12,
+      "source": "src/stage_tooling.lang",
+      "line": 178
+    },
+    {
+      "name": "wasm_emit_truth",
+      "ir_body_lines": 12,
+      "source": "src/codegen_wasm.lang",
+      "line": 809
+    },
+    {
+      "name": "___compiler_diagnostic_integer",
+      "ir_body_lines": 11,
+      "source": "std/diagnostics.lang",
+      "line": 25
+    },
+    {
+      "name": "import_decl_path",
+      "ir_body_lines": 11,
+      "source": "src/parser.lang",
+      "line": 1949
+    },
+    {
+      "name": "integer_expr_dst",
+      "ir_body_lines": 11,
+      "source": "src/parser.lang",
+      "line": 1337
+    },
+    {
+      "name": "integer_expr_left",
+      "ir_body_lines": 11,
+      "source": "src/parser.lang",
+      "line": 1338
+    },
+    {
+      "name": "integer_expr_op",
+      "ir_body_lines": 11,
+      "source": "src/parser.lang",
+      "line": 1335
+    },
+    {
+      "name": "integer_expr_right",
+      "ir_body_lines": 11,
+      "source": "src/parser.lang",
+      "line": 1339
+    },
+    {
+      "name": "integer_expr_src",
+      "ir_body_lines": 11,
+      "source": "src/parser.lang",
+      "line": 1336
+    },
+    {
+      "name": "integer_type_signed",
+      "ir_body_lines": 11,
+      "source": "src/parser.lang",
+      "line": 1352
+    },
+    {
+      "name": "os_execve",
+      "ir_body_lines": 11,
+      "source": "std/os/libc.lang",
+      "line": 173
+    },
+    {
+      "name": "unquote_string_expr_name",
+      "ir_body_lines": 11,
+      "source": "src/parser.lang",
+      "line": 1742
+    },
+    {
+      "name": "effect_decl_is_pub",
+      "ir_body_lines": 10,
+      "source": "src/parser.lang",
+      "line": 766
+    },
+    {
+      "name": "get_effect_case",
+      "ir_body_lines": 10,
+      "source": "src/ast_emit.lang",
+      "line": 35
+    },
+    {
+      "name": "import_decl_alloc",
+      "ir_body_lines": 10,
+      "source": "src/parser.lang",
+      "line": 1943
+    },
+    {
+      "name": "import_decl_path_len",
+      "ir_body_lines": 10,
+      "source": "src/parser.lang",
+      "line": 1959
+    },
+    {
+      "name": "index_expr_alloc",
+      "ir_body_lines": 10,
+      "source": "src/parser.lang",
+      "line": 2458
+    },
+    {
+      "name": "loop_entry_break_label",
+      "ir_body_lines": 10,
+      "source": "src/codegen.lang",
+      "line": 298
+    },
+    {
+      "name": "loop_entry_continue_label",
+      "ir_body_lines": 10,
+      "source": "src/codegen.lang",
+      "line": 303
+    },
+    {
+      "name": "loop_stack_pop",
+      "ir_body_lines": 10,
+      "source": "src/codegen.lang",
+      "line": 259
+    },
+    {
+      "name": "pattern_wildcard_alloc",
+      "ir_body_lines": 10,
+      "source": "src/parser.lang",
+      "line": 697
+    },
+    {
+      "name": "phase_error",
+      "ir_body_lines": 10,
+      "source": "std/buffer.lang",
+      "line": 11
+    },
+    {
+      "name": "pnode_get",
+      "ir_body_lines": 10,
+      "source": "std/pnode.lang",
+      "line": 239
+    },
+    {
+      "name": "pnode_require",
+      "ir_body_lines": 10,
+      "source": "std/pnode.lang",
+      "line": 243
+    },
+    {
+      "name": "unquote_string_expr_alloc",
+      "ir_body_lines": 10,
+      "source": "src/parser.lang",
+      "line": 1736
+    },
+    {
+      "name": "unquote_string_expr_name_len",
+      "ir_body_lines": 10,
+      "source": "src/parser.lang",
+      "line": 1752
+    },
+    {
+      "name": "ast_emit_expression",
+      "ir_body_lines": 9,
+      "source": "src/ast_emit.lang",
+      "line": 1016
+    },
+    {
+      "name": "ast_to_string",
+      "ir_body_lines": 9,
+      "source": "src/codegen.lang",
+      "line": 6888
+    },
+    {
+      "name": "out_n",
+      "ir_body_lines": 9,
+      "source": "src/codegen.lang",
+      "line": 2272
+    },
+    {
+      "name": "stage_tag",
+      "ir_body_lines": 9,
+      "source": "std/stage.lang",
+      "line": 105
+    },
+    {
+      "name": "compiler_expand_direct_reader",
+      "ir_body_lines": 8,
+      "source": "src/compiler_readers_none.lang",
+      "line": 3
+    },
+    {
+      "name": "llvm_push_loop",
+      "ir_body_lines": 8,
+      "source": "src/codegen_llvm.lang",
+      "line": 544
+    },
+    {
+      "name": "os_dup2",
+      "ir_body_lines": 8,
+      "source": "std/os/libc.lang",
+      "line": 185
+    },
+    {
+      "name": "out_str",
+      "ir_body_lines": 8,
+      "source": "src/codegen.lang",
+      "line": 2268
+    },
+    {
+      "name": "parse_program_from_string",
+      "ir_body_lines": 8,
+      "source": "src/parser.lang",
+      "line": 4501
+    },
+    {
+      "name": "stage_fail",
+      "ir_body_lines": 8,
+      "source": "std/stage.lang",
+      "line": 11
+    },
+    {
+      "name": "tok_error_expected",
+      "ir_body_lines": 8,
+      "source": "std/tok.lang",
+      "line": 675
+    },
+    {
+      "name": "___compiler_diagnostic_write",
+      "ir_body_lines": 7,
+      "source": "std/diagnostics.lang",
+      "line": 24
+    },
+    {
+      "name": "emit_label",
+      "ir_body_lines": 7,
+      "source": "src/codegen.lang",
+      "line": 2238
+    },
+    {
+      "name": "print_f64",
+      "ir_body_lines": 7,
+      "source": "std/core.lang",
+      "line": 606
+    },
+    {
+      "name": "tok_error_end_offset",
+      "ir_body_lines": 7,
+      "source": "std/tok.lang",
+      "line": 667
+    },
+    {
+      "name": "tok_error_offset",
+      "ir_body_lines": 7,
+      "source": "std/tok.lang",
+      "line": 671
+    },
+    {
+      "name": "tok_start_offset",
+      "ir_body_lines": 7,
+      "source": "std/tok.lang",
+      "line": 565
+    },
+    {
+      "name": "tooling_word",
+      "ir_body_lines": 7,
+      "source": "src/stage_tooling.lang",
+      "line": 218
+    },
+    {
+      "name": "emit_line",
+      "ir_body_lines": 6,
+      "source": "src/codegen.lang",
+      "line": 2233
+    },
+    {
+      "name": "out_char",
+      "ir_body_lines": 6,
+      "source": "src/codegen.lang",
+      "line": 2264
+    },
+    {
+      "name": "out_line",
+      "ir_body_lines": 6,
+      "source": "src/codegen.lang",
+      "line": 2301
+    },
+    {
+      "name": "tok_stream_count",
+      "ir_body_lines": 6,
+      "source": "std/tok.lang",
+      "line": 163
+    },
+    {
+      "name": "wasm_unsupported",
+      "ir_body_lines": 6,
+      "source": "src/codegen_wasm.lang",
+      "line": 137
+    },
+    {
+      "name": "ast_set_version",
+      "ir_body_lines": 5,
+      "source": "src/sexpr_reader.lang",
+      "line": 40
+    },
+    {
+      "name": "new_label",
+      "ir_body_lines": 5,
+      "source": "src/codegen.lang",
+      "line": 2243
+    },
+    {
+      "name": "os__exit",
+      "ir_body_lines": 5,
+      "source": "std/os/libc.lang",
+      "line": 189
+    },
+    {
+      "name": "os_exit",
+      "ir_body_lines": 5,
+      "source": "std/os/libc.lang",
+      "line": 127
+    },
+    {
+      "name": "os_rmdir",
+      "ir_body_lines": 5,
+      "source": "std/os/libc.lang",
+      "line": 161
+    },
+    {
+      "name": "pnode_dump",
+      "ir_body_lines": 5,
+      "source": "std/pnode.lang",
+      "line": 342
+    },
+    {
+      "name": "tok_stream_new",
+      "ir_body_lines": 4,
+      "source": "std/tok.lang",
+      "line": 148
+    },
+    {
+      "name": "init_environ",
+      "ir_body_lines": 3,
+      "source": "std/os/libc.lang",
+      "line": 209
+    },
+    {
+      "name": "os_default_backend",
+      "ir_body_lines": 3,
+      "source": "std/os/libc.lang",
+      "line": 216
+    },
+    {
+      "name": "ast_get_version",
+      "ir_body_lines": 2,
+      "source": "src/sexpr_reader.lang",
+      "line": 36
+    },
+    {
+      "name": "os_getpid",
+      "ir_body_lines": 2,
+      "source": "std/os/libc.lang",
+      "line": 137
+    },
+    {
+      "name": "os_getppid",
+      "ir_body_lines": 2,
+      "source": "std/os/libc.lang",
+      "line": 141
+    }
+  ]
+}

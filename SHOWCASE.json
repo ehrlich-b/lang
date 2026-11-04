@@ -20,6 +20,13 @@
       "value": 58,
       "unit": "tests",
       "direction": "higher"
+    },
+    {
+      "name": "Compiler functions executed by LLVM suite",
+      "value": 966,
+      "unit": "functions",
+      "direction": "higher",
+      "detail": "966/1256 at IR-level O0; 290 never executed; test/coverage_baseline.json"
     }
   ]
 }
