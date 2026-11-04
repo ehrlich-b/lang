@@ -162,6 +162,12 @@ func wasm_type_is_value(t *u8) i64 {
     return 0;
 }
 
+func wasm_type_is_unsigned(t *u8) i64 {
+    if t == nil || type_kind(t) != TYPE_BASE { return 0; }
+    var name *u8 = base_type_name(t);
+    return base_type_name_len(t) >= 2 && *name == 'u';
+}
+
 func wasm_type_size(t *u8) i64 {
     if t == nil { return 8; }
     if type_kind(t) == TYPE_PTR { return 8; }
@@ -1021,10 +1027,10 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         else if op == TOKEN_GTGT { wasm_put(out, 135); }
         else if op == TOKEN_EQEQ { wasm_put(out, 81); wasm_put(out, 173); }
         else if op == TOKEN_BANGEQ { wasm_put(out, 82); wasm_put(out, 173); }
-        else if op == TOKEN_LT { wasm_put(out, 83); wasm_put(out, 173); }
-        else if op == TOKEN_GT { wasm_put(out, 85); wasm_put(out, 173); }
-        else if op == TOKEN_LTEQ { wasm_put(out, 87); wasm_put(out, 173); }
-        else if op == TOKEN_GTEQ { wasm_put(out, 89); wasm_put(out, 173); }
+        else if op == TOKEN_LT { if wasm_type_is_unsigned(left_type) { wasm_put(out, 84); } else { wasm_put(out, 83); } wasm_put(out, 173); }
+        else if op == TOKEN_GT { if wasm_type_is_unsigned(left_type) { wasm_put(out, 86); } else { wasm_put(out, 85); } wasm_put(out, 173); }
+        else if op == TOKEN_LTEQ { if wasm_type_is_unsigned(left_type) { wasm_put(out, 88); } else { wasm_put(out, 87); } wasm_put(out, 173); }
+        else if op == TOKEN_GTEQ { if wasm_type_is_unsigned(left_type) { wasm_put(out, 90); } else { wasm_put(out, 89); } wasm_put(out, 173); }
         else { wasm_unsupported("unsupported binary operator in direct wasm"); }
         return;
     }
