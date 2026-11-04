@@ -136,7 +136,8 @@ func main(argc i64, argv **u8) i64 {
     }
 
     if output_file == nil {
-        output_file = "a.s";
+        if cg_backend_is_c() != 0 { output_file = "a.c"; }
+        else { output_file = "a.s"; }
     }
 
     // ================================================================
@@ -193,7 +194,9 @@ func main(argc i64, argv **u8) i64 {
         combined = combine_programs(combined, compiler_prog);
 
         // Generate
-        if cg_backend_is_llvm() != 0 {
+        if cg_backend_is_c() != 0 {
+            generate_c(combined, output_file);
+        } else if cg_backend_is_llvm() != 0 {
             generate_llvm(combined, output_file);
         } else {
             generate(combined, output_file);
@@ -224,7 +227,9 @@ func main(argc i64, argv **u8) i64 {
         return 1;
     }
 
-    if cg_backend_is_llvm() != 0 {
+    if cg_backend_is_c() != 0 {
+        generate_c(prog, output_file);
+    } else if cg_backend_is_llvm() != 0 {
         generate_llvm(prog, output_file);
     } else {
         generate(prog, output_file);

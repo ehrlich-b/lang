@@ -108,7 +108,7 @@ init:
 DEV_CC ?= clang
 DEV_CFLAGS ?= -O2
 DEV_LANGFLAGS ?=
-DEV_SOURCES := std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang
+DEV_SOURCES := std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/codegen_c.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang
 
 build: OS_LAYER = $(BOOTSTRAP_LIBC)
 build:
@@ -162,7 +162,7 @@ bootstrap:
 	@# Set up OS layer for LLVM compilation
 	@echo 'include "$(BOOTSTRAP_LIBC)"' | python3 scripts/write_if_changed.py std/os.lang
 	@# Build kernel1 using LLVM backend
-	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/ctrusted std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel1.ll
+	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/ctrusted std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/codegen_c.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel1.ll
 	clang -O2 $(BOOTSTRAP_VERIFY_DIR)/kernel1.ll -o $(BOOTSTRAP_VERIFY_DIR)/kernel1
 	@echo "Built: kernel1 (LLVM)"
 	@# Emit reader AST 1 using kernel1
@@ -173,11 +173,11 @@ bootstrap:
 	@echo "│ STAGE 3: GENERATION 2 + 3 (LLVM FIXED POINT)                   │"
 	@echo "└────────────────────────────────────────────────────────────────┘"
 	@# Build kernel2 (kernel1 compiles sources)
-	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/kernel1 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll
+	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/kernel1 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/codegen_c.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll
 	clang -O2 $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll -o $(BOOTSTRAP_VERIFY_DIR)/kernel2
 	@echo "Built: kernel2 (LLVM)"
 	@# Build kernel3 (kernel2 compiles sources) for true fixed point
-	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/kernel2 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll
+	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/kernel2 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/codegen_c.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll
 	@echo ""
 	@echo "Checking LLVM FIXED POINT (kernel2.ll === kernel3.ll)..."
 	@if diff -q $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll > /dev/null; then \
@@ -224,7 +224,7 @@ bootstrap:
 	@echo 'var LANG_BUILD_ARCH *u8 = "x86_64";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang
 	@echo 'var LANG_BUILD_LIBC *u8 = "system";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang
 	@echo 'var LANG_BOOTSTRAP_FROM *u8 = "$(BOOTSTRAP_FROM)";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang
-	LANGBE=llvm LANGOS=linux $(BOOTSTRAP_VERIFY_DIR)/kernel2 std/core.lang $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/compiler_linux.ll
+	LANGBE=llvm LANGOS=linux $(BOOTSTRAP_VERIFY_DIR)/kernel2 std/core.lang $(BOOTSTRAP_VERIFY_DIR)/version_info_linux.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/codegen_c.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/compiler_linux.ll
 	@echo "Cross-checking compiler_linux.ll as x86_64 Linux object..."
 	clang -O2 -c -target x86_64-unknown-linux-gnu $(BOOTSTRAP_VERIFY_DIR)/compiler_linux.ll -o $(BOOTSTRAP_VERIFY_DIR)/compiler_linux.o || { echo "ERROR: compiler_linux.ll failed cross-target verification"; exit 1; }
 	@echo "✓ compiler_linux.ll cross-target verified"
@@ -238,7 +238,7 @@ bootstrap:
 	@echo 'var LANG_BUILD_ARCH *u8 = "arm64";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang
 	@echo 'var LANG_BUILD_LIBC *u8 = "system";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang
 	@echo 'var LANG_BOOTSTRAP_FROM *u8 = "$(BOOTSTRAP_FROM)";' >> $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang
-	LANGBE=llvm LANGOS=macos $(BOOTSTRAP_VERIFY_DIR)/kernel2 std/core.lang $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/compiler_macos.ll
+	LANGBE=llvm LANGOS=macos $(BOOTSTRAP_VERIFY_DIR)/kernel2 std/core.lang $(BOOTSTRAP_VERIFY_DIR)/version_info_macos.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/codegen_c.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/compiler_macos.ll
 	@echo "Cross-checking compiler_macos.ll as arm64 macOS object..."
 	clang -O2 -c -target arm64-apple-macosx $(BOOTSTRAP_VERIFY_DIR)/compiler_macos.ll -o $(BOOTSTRAP_VERIFY_DIR)/compiler_macos.o || { echo "ERROR: compiler_macos.ll failed cross-target verification"; exit 1; }
 	@echo "✓ compiler_macos.ll cross-target verified"
@@ -419,12 +419,12 @@ _verify-complete: generate-os-layer generate-version-info
 	clang -O2 $(BOOTSTRAP_LL) -o $(BOOTSTRAP_VERIFY_DIR)/ctrusted
 	python3 scripts/build_receipt.py start --mode verify --compiler $(BOOTSTRAP_VERIFY_DIR)/ctrusted --output out/verify-input.json
 	@echo 'include "$(BOOTSTRAP_LIBC)"' | python3 scripts/write_if_changed.py std/os.lang
-	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/ctrusted std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel1.ll
+	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/ctrusted std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/codegen_c.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel1.ll
 	clang -O2 $(BOOTSTRAP_VERIFY_DIR)/kernel1.ll -o $(BOOTSTRAP_VERIFY_DIR)/kernel1
 	$(BOOTSTRAP_VERIFY_DIR)/kernel1 src/lang_reader.lang --emit-expanded-ast -o $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast
-	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/kernel1 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll
+	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/kernel1 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/codegen_c.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll
 	clang -O2 $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll -o $(BOOTSTRAP_VERIFY_DIR)/kernel2
-	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/kernel2 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll
+	LANGBE=llvm LANGOS=$(PLATFORM) $(BOOTSTRAP_VERIFY_DIR)/kernel2 std/core.lang out/version_info.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/codegen_c.lang src/ast_emit.lang src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang -o $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll
 	@if ! diff -q $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll > /dev/null; then \
 		echo "LLVM FIXED POINT FAILED"; exit 1; \
 	fi
@@ -644,7 +644,7 @@ status:
 # Kernel core (for composition - no main)
 # Note: parser.lang needed for AST node accessors used by codegen and sexpr_reader
 # Note: limits.lang is included by std/core.lang, don't list explicitly
-KERNEL_CORE := std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/sexpr_reader.lang
+KERNEL_CORE := std/core.lang src/lexer.lang src/parser.lang src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/codegen_c.lang src/sexpr_reader.lang $(COMPILER_READERS)
 
 # Kernel binary sources (core + main for standalone kernel)
 KERNEL_SOURCES := $(KERNEL_CORE) src/kernel_main.lang
@@ -716,7 +716,7 @@ test-composition:
 	@echo "┌─ Step 1: Build kernel AST (--emit-exe-ast, with ___main) ──────┐"
 	LANGBE=llvm LANGOS=$(PLATFORM) ./out/lang --emit-exe-ast \
 		std/core.lang out/version_info.lang src/lexer.lang src/parser.lang \
-		src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang \
+		src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/codegen_c.lang src/ast_emit.lang \
 		src/sexpr_reader.lang $(COMPILER_READERS) src/main.lang \
 		-o /tmp/compose_test/kernel.ast
 	@echo "  Kernel AST: $$(wc -l < /tmp/compose_test/kernel.ast) lines"

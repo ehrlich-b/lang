@@ -1,0 +1,21 @@
+// expect: 42
+// Wrapping is required even at -O2 without signed overflow flags.
+func main() i64 {
+    var max i64 = 9223372036854775807;
+    var min i64 = max + 1;
+    if min >= 0 { return 1; }
+    if -min != min { return 2; }
+    if min / -1 != min { return 3; }
+    if min % -1 != 0 { return 4; }
+    if (max * 2) + 2 != 0 { return 5; }
+    if (min >> 63) != -1 { return 6; }
+    if (1 << 64) != 1 { return 7; }
+    if cast(i8, 255) != -1 { return 8; }
+    if cast(u8, 258) != 2 { return 9; }
+    var all u64 = 18446744073709551615;
+    if all < 1 { return 10; }
+    if all / 2 != 9223372036854775807 { return 11; }
+    if all % 2 != 1 { return 12; }
+    if all >> 63 != 1 { return 13; }
+    return 42;
+}

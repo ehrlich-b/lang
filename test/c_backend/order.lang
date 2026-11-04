@@ -1,0 +1,15 @@
+// expect: 42
+var sequence i64 = 0;
+func next() i64 { sequence = sequence * 10 + 1; return sequence; }
+func pair(a i64, b i64) i64 { if a != 1 { return 1; } if b != 11 { return 2; } return 42; }
+func main() i64 {
+    var result i64 = pair(next(), next());
+    if result != 42 { return 1; }
+    sequence = 0;
+    if 0 && next() { return 2; }
+    if 1 || next() { if sequence != 0 { return 3; } }
+    var x i64 = 7;
+    var y i64 = (let x i64 = x + 1 in x) + x;
+    if y != 15 { return 4; }
+    return 42;
+}

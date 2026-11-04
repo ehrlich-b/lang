@@ -1,0 +1,9 @@
+// expect: 42
+func source() i64 { return 7; }
+func main() i64 {
+    var result i64 = let source i64 = 42 in *(&source);
+    { var result i64 = let x i64 = 5 in x; if result != 5 { return 1; } }
+    var f fn() i64 = &source;
+    if f() != 7 { return 2; }
+    return result;
+}

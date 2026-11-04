@@ -1,0 +1,19 @@
+// expect: 42
+struct Samples { head u8; value f32; tail f64; }
+enum Reading { Value(f64), Empty, }
+func main() i64 {
+    var a f64 = let x f64 = 1.5 in x;
+    var b f64 = match Reading.Empty { Reading.Empty => { var x f64 = 2.5; x }, _ => 0.0, };
+    if a + b != 4.0 { return 1; }
+    var reading Reading = Reading.Value(3.5);
+    var c f64 = match &reading { Reading.Value(x) => x, Reading.Empty => 0.0, };
+    if c != 3.5 { return 2; }
+    var s Samples;
+    s.head = 7; s.value = 1.5; s.tail = 2.5;
+    var p *Samples = &s;
+    if (&s).value != 1.5 { return 3; }
+    if (let q *Samples = p in q).tail != 2.5 { return 4; }
+    var f fn(f64) f64 = fn(x f64) f64 { return x + 0.5; };
+    if f(1.5) != 2.0 { return 5; }
+    return 42;
+}

@@ -7,6 +7,7 @@ These profiles describe present behavior. They are not a C11 conformance claim, 
 | LLVM, Linux x86-64 | [llvm-linux-x86_64](profiles/llvm-linux-x86_64.md) | Native baseline |
 | LLVM, macOS arm64 | [llvm-macos-arm64](profiles/llvm-macos-arm64.md) | Native baseline required on a Mac; Linux object cross-check alone is insufficient |
 | LLVM, wasm32 | [llvm-wasm32](profiles/llvm-wasm32.md) | LLVM-to-Wasm suite |
+| C11 source, 64-bit word layout | [c11-core](profiles/c11-core.md) | gcc and clang at `-O2`, differential suite |
 | Direct binary, wasm32 | [direct-wasm32](profiles/direct-wasm32.md) | Direct emitter and compiler-host suites |
 | Assembly, Linux x86-64 | [x86-linux-legacy](profiles/x86-linux-legacy.md) | Frozen, legacy/internal |
 

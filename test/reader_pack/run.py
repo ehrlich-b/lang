@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PACK = ROOT / 'test/reader_pack'
 os.chdir(ROOT)
 SOURCES = ['std/core.lang', 'src/lexer.lang', 'src/parser.lang', 'src/codegen.lang',
-           'src/codegen_llvm.lang', 'src/codegen_wasm.lang', 'src/ast_emit.lang', 'src/sexpr_reader.lang']
+           'src/codegen_llvm.lang', 'src/codegen_wasm.lang', 'src/codegen_c.lang', 'src/ast_emit.lang', 'src/sexpr_reader.lang']
 READ = '''    var text *u8 = alloc(65536);
     var length i64 = 0;
     var count i64 = file_read(0, text, 65535);

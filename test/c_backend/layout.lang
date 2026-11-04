@@ -1,0 +1,19 @@
+// expect: 42
+struct Record { byte u8; value i64; tail u8; }
+func main() i64 {
+    var a Record;
+    a.byte = 255; a.value = 42; a.tail = 3;
+    var address *u8 = &a;
+    if address[0] != 255 { return 1; }
+    if address[8] != 42 { return 2; }
+    if address[16] != 3 { return 3; }
+    var b Record = a;
+    b.value = 9;
+    if a.value != 42 { return 4; }
+    var bytes [10]u8;
+    var unaligned *i64 = &bytes[1];
+    *unaligned = 258;
+    if bytes[1] != 2 || bytes[2] != 1 { return 5; }
+    if *unaligned != 258 { return 6; }
+    return a.value;
+}

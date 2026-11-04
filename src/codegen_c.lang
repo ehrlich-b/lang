@@ -1,0 +1,745 @@
+// C11 lowering of the core AST. Values are words; storage is explicitly
+// little endian, with fixed core offsets, never a host C struct or alias cast.
+// The frontend registries and type queries are shared; no LLVM IR is emitted.
+var c_serial i64 = 0;
+var c_prototypes *u8 = nil;
+var c_environments *u8 = nil;
+var c_last_lambda_captures i64 = 0;
+var c_ret *u8 = nil;
+var c_loop *u8 = nil;
+var c_loop_count i64 = 0;
+
+func cg_backend_is_c() i64 {
+    var be *u8 = getenv("LANGBE");
+    if be == nil { return 0; }
+    return streq(be, "c");
+}
+func c_error(n *u8, message *u8) void {
+    cg_error_prefix_at(n); eprint("C target: "); eprintln(message);
+    cg_had_error = 1;
+}
+func c_decimal(n i64) *u8 { var buffer *u8 = alloc(32); itoa(n, buffer); return buffer; }
+func c_fresh(prefix *u8) *u8 {
+    c_serial = c_serial + 1;
+    return str_concat(prefix, c_decimal(c_serial));
+}
+func c_join(a *u8, b *u8, d *u8) *u8 { return str_concat(str_concat(a, b), d); }
+func c_word(t *u8) *u8 {
+    if t != nil && llvm_is_float_type(t) { return "double"; }
+    return "uint64_t";
+}
+func c_check_type(t *u8, n *u8) void {
+    if t == nil { return; }
+
+    if type_kind(t) == TYPE_ARRAY {
+        var elem *u8 = array_type_elem(t); c_check_type(elem, n);
+        var count i64 = array_type_size(t); var size i64 = c_size(elem);
+        if count < 0 || (size > 0 && count > 9223372036854775807 / size) { c_error(n, "invalid or overflowing array storage"); }
+    }
+    if type_kind(t) == TYPE_BASE {
+        var name *u8 = str_dup_n(base_type_name(t), base_type_name_len(t));
+        if streq(name, "i128") || streq(name, "u128") { c_error(n, "128-bit values are outside this profile"); }
+        else if numeric_bits(name) == 0 && streq(name, "void") == 0 && streq(name, "bool") == 0 && find_struct(base_type_name(t), base_type_name_len(t)) == nil && find_enum(base_type_name(t), base_type_name_len(t)) == nil { c_error(n, "unknown storage type"); }
+    }
+}
+func c_aggregate(t *u8) i64 {
+    if t == nil { return 0; }
+    if type_kind(t) == TYPE_ARRAY { return 1; }
+    return llvm_aggregate_type_size(t) > 0;
+}
+func c_size(t *u8) i64 {
+    if t == nil { return 8; }
+    if type_kind(t) == TYPE_ARRAY { return array_type_size(t) * c_size(array_type_elem(t)); }
+    var scalar i64 = layout_scalar_bytes(t); if scalar > 0 { return scalar; }
+    return get_type_size(t);
+}
+func c_temp(t *u8, value *u8) *u8 {
+    var name *u8 = c_fresh("ct");
+    emit_str(c_word(t)); emit_str(" "); emit_str(name); emit_str(" = ");
+    emit_str(value); emit_line(";"); return name;
+}
+func c_address_name(prefix *u8, id i64) *u8 {
+    return c_join("((uint64_t)(uintptr_t)", str_concat(prefix, c_decimal(id)), ")");
+}
+func c_bind(name *u8, len i64, t *u8) *u8 {
+    c_serial = c_serial + 1;
+    add_local(name, len, c_serial, t);
+    var storage *u8 = str_concat("cl", c_decimal(c_serial));
+    emit_str("unsigned char "); emit_str(storage); emit_str("[");
+    var bytes i64 = c_size(t); if bytes < 1 { bytes = 1; }
+    emit_int(bytes); emit_line("] = {0};");
+    return c_join("((uint64_t)(uintptr_t)", storage, ")");
+}
+func c_load(addr *u8, t *u8) *u8 {
+    if c_aggregate(t) { return addr; }
+    var call *u8 = "c_read(";
+    if t != nil && llvm_is_float_type(t) { call = "c_read_float("; }
+    var value *u8 = c_join(call, addr, ", ");
+    value = c_join(value, c_decimal(c_size(t)), ")");
+    // Scalar loads carry their declared sign, without signed C conversions.
+    if t != nil && llvm_is_signed_int(t) && c_size(t) < 8 {
+        value = c_join("c_sign(", value, ", ");
+        value = c_join(value, c_decimal(c_size(t) * 8), ")");
+    }
+    return c_temp(t, value);
+}
+func c_store(addr *u8, value *u8, t *u8) void {
+    if c_aggregate(t) { emit_str("c_copy("); }
+    else if t != nil && llvm_is_float_type(t) { emit_str("c_write_float("); }
+    else { emit_str("c_write("); }
+    emit_str(addr); emit_str(", "); emit_str(value); emit_str(", ");
+    emit_int(c_size(t)); emit_line(");");
+}
+// Composite type queries preserve lexical bindings without emitting code.
+func c_type(e *u8) *u8 {
+    if e == nil { return nil; }
+    var k i64 = node_kind(e);
+    if k == NODE_GROUP_EXPR { return c_type(group_expr_expr(e)); }
+    if k == NODE_LET_EXPR {
+        var saved i64 = cg_local_count;
+        add_local(let_expr_name(e), let_expr_name_len(e), 0, let_expr_type(e));
+        var result *u8 = c_type(let_expr_body(e)); cg_local_count = saved; return result;
+    }
+    if k == NODE_BLOCK_EXPR {
+        var saved i64 = cg_local_count; var i i64 = 0;
+        while i < block_expr_count(e) {
+            var s *u8 = cg_ast_ptr_at(block_expr_stmts(e), i);
+            if node_kind(s) == NODE_VAR_DECL { add_local(var_decl_name(s), var_decl_name_len(s), 0, var_decl_type(s)); }
+            i = i + 1;
+        }
+        var result *u8 = c_type(block_expr_tail(e)); cg_local_count = saved; return result;
+    }
+    if k == NODE_MATCH_EXPR && match_expr_arm_count(e) > 0 {
+        var saved i64 = cg_local_count; var arm *u8 = get_match_arm(match_expr_arms(e), 0); var pat *u8 = match_arm_pattern(arm);
+        if node_kind(pat) == NODE_PATTERN_VARIANT && pattern_variant_binding(pat) != nil {
+            var ed *u8 = find_enum(pattern_variant_enum_name(pat), pattern_variant_enum_len(pat));
+            var v *u8 = find_variant(ed, pattern_variant_name(pat), pattern_variant_name_len(pat));
+            if v != nil { add_local(pattern_variant_binding(pat), pattern_variant_binding_len(pat), 0, enum_variant_type(v)); }
+        }
+        var result *u8 = c_type(match_arm_body(arm)); cg_local_count = saved; return result;
+    }
+    if k == NODE_CALL_EXPR {
+        var callee *u8 = call_expr_func(e); var ft *u8 = c_type(callee);
+        if ft != nil && type_kind(ft) == TYPE_FUNC { return func_type_ret(ft); }
+        if ft != nil && type_kind(ft) == TYPE_CLOSURE { return closure_type_ret(ft); }
+    }
+    if k == NODE_INDEX_EXPR {
+        var bp **u8 = e + 8; var t *u8 = c_type(*bp);
+        if t != nil && type_kind(t) == TYPE_ARRAY { return array_type_elem(t); }
+        if t != nil && type_kind(t) == TYPE_PTR { return ptr_type_elem(t); }
+        return nil;
+    }
+    if k == NODE_FIELD_EXPR {
+        var t *u8 = c_type(field_expr_expr(e));
+        if t != nil && type_kind(t) == TYPE_PTR { t = ptr_type_elem(t); }
+        if t != nil && type_kind(t) == TYPE_BASE {
+            var sd *u8 = find_struct(base_type_name(t), base_type_name_len(t));
+            if sd != nil { return get_field_type(sd, field_expr_field(e), field_expr_field_len(e)); }
+        }
+        return nil;
+    }
+    if k == NODE_UNARY_EXPR {
+        var t *u8 = c_type(unary_expr_expr(e)); var op i64 = unary_expr_op(e);
+        if op == TOKEN_STAR { if t != nil && type_kind(t) == TYPE_PTR { return ptr_type_elem(t); } return nil; }
+        if op == TOKEN_AMP { var pointer *u8 = ptr_type_alloc(); ptr_type_set_elem(pointer, t); return pointer; }
+        return t;
+    }
+    if k == NODE_BINARY_EXPR {
+        var op i64 = binary_expr_op(e);
+        if (op >= TOKEN_EQEQ && op <= TOKEN_GTEQ) || op == TOKEN_AMPAMP || op == TOKEN_PIPEPIPE { return llvm_i64_type(); }
+        var lt *u8 = c_type(binary_expr_left(e)); var rt *u8 = c_type(binary_expr_right(e));
+        if llvm_is_float_type(lt) || llvm_is_float_type(rt) { return llvm_f64_type(); }
+        if lt != nil { return lt; } return rt;
+    }
+    if k == NODE_LAMBDA_EXPR {
+        var t *u8 = func_type_alloc(); var types *u8 = vec_new(lambda_expr_param_count(e) + 1); var i i64 = 0;
+        while i < lambda_expr_param_count(e) { vec_push(types, param_type(lambda_expr_params(e) + i * 24)); i = i + 1; }
+        func_type_set_params(t, types); func_type_set_param_count(t, i); func_type_set_ret(t, lambda_expr_ret_type(e)); return t;
+    }
+    return llvm_get_expr_type(e);
+}
+func c_addr(e *u8) *u8 {
+    if e == nil { return "0"; }
+    var k i64 = node_kind(e);
+    if k == NODE_GROUP_EXPR { return c_addr(group_expr_expr(e)); }
+    if k == NODE_IDENT_EXPR {
+        var name *u8 = ident_expr_name(e);
+        var len i64 = ident_expr_name_len(e);
+        var idx i64 = find_local(name, len);
+        if idx >= 0 { return c_address_name("cl", local_get_offset(idx)); }
+        idx = find_global(name, len);
+        if idx >= 0 { return c_address_name("cg", idx); }
+        c_error(e, "unknown storage name"); return "0";
+    }
+    if k == NODE_UNARY_EXPR && unary_expr_op(e) == TOKEN_STAR { return c_expr(unary_expr_expr(e)); }
+    if k == NODE_INDEX_EXPR {
+        var bp **u8 = e + 8; var ip **u8 = e + 16;
+        var base *u8 = c_expr(*bp); var index *u8 = c_expr(*ip);
+        var t *u8 = c_type(e);
+        if t == nil { c_error(e, "index requires a typed array or pointer"); }
+        return c_temp(nil, c_join(c_join("(", base, " + "), c_join(index, " * ", c_decimal(c_size(t))), ")"));
+    }
+    if k == NODE_FIELD_EXPR {
+        var base *u8 = field_expr_expr(e); var t *u8 = c_type(base);
+        if t != nil && type_kind(t) == TYPE_PTR { t = ptr_type_elem(t); }
+        if t == nil || type_kind(t) != TYPE_BASE { c_error(e, "field requires a typed struct"); return "0"; }
+        var decl *u8 = find_struct(base_type_name(t), base_type_name_len(t));
+        var offset i64 = get_field_offset(decl, field_expr_field(e), field_expr_field_len(e));
+        if offset < 0 { c_error(e, "unknown struct field"); return "0"; }
+        return c_temp(nil, c_join(c_join("(", c_expr(base), " + "), c_decimal(offset), ")"));
+    }
+    c_error(e, "expression has no storage address"); return "0";
+}
+func c_fn_name(d *u8) *u8 {
+    var name *u8 = str_dup_n(func_decl_name(d), func_decl_name_len(d));
+    if func_decl_is_extern(d) { return name; }
+    return c_join("lf_", name, str_concat("_", c_decimal(func_decl_param_count(d))));
+}
+func c_external_type(t *u8) *u8 {
+    if t == nil { return "uint64_t"; }
+    if type_kind(t) == TYPE_PTR { return "void *"; }
+    if llvm_is_void_type(t) { return "void"; }
+    if llvm_is_float_type(t) { if llvm_is_f32_type(t) { return "float"; } return "double"; }
+    if llvm_is_signed_int(t) { return "int64_t"; }
+    return "uint64_t";
+}
+func c_call(e *u8) *u8 {
+    var callee *u8 = call_expr_func(e);
+    while node_kind(callee) == NODE_GROUP_EXPR { callee = group_expr_expr(callee); }
+    var count i64 = call_expr_arg_count(e); var args *u8 = call_expr_args(e);
+    if node_kind(callee) == NODE_IDENT_EXPR {
+        var macro_def *u8 = find_macro(ident_expr_name(callee), ident_expr_name_len(callee));
+        if macro_def != nil {
+            var expanded *u8 = interp_call_macro(macro_def, args, count);
+            if expanded == nil { c_error(e, "macro_def returned no expression"); return "0"; }
+            return c_expr(expanded);
+        }
+    }
+    // Enum construction uses the core tag + payload storage layout.
+    if node_kind(callee) == NODE_FIELD_EXPR && node_kind(field_expr_expr(callee)) == NODE_IDENT_EXPR {
+        var base *u8 = field_expr_expr(callee);
+        var ed *u8 = find_enum(ident_expr_name(base), ident_expr_name_len(base));
+        if ed != nil {
+            var v *u8 = find_variant(ed, field_expr_field(callee), field_expr_field_len(callee));
+            if v == nil { c_error(e, "unknown enum variant"); return "0"; }
+            var data *u8 = c_fresh("ce"); emit_str("unsigned char "); emit_str(data);
+            emit_str("["); emit_int(get_enum_size(ed)); emit_line("] = {0};");
+            var addr *u8 = c_join("((uint64_t)(uintptr_t)", data, ")");
+            c_store(addr, str_concat(c_decimal(enum_variant_tag(v)), "ULL"), nil);
+            if count == 1 { c_store(c_join("(", addr, " + 8)"), c_expr(cg_ast_ptr_at(args, 0)), enum_variant_type(v)); }
+            else if count != 0 { c_error(e, "invalid enum argument count"); }
+            return addr;
+        }
+    }
+    var decl *u8 = nil; var name *u8 = nil;
+    if node_kind(callee) == NODE_IDENT_EXPR && find_local(ident_expr_name(callee), ident_expr_name_len(callee)) < 0 && find_global(ident_expr_name(callee), ident_expr_name_len(callee)) < 0 {
+        decl = find_func_arity(ident_expr_name(callee), ident_expr_name_len(callee), count);
+    }
+    if decl != nil { check_func_visibility(func_decl_name(decl), func_decl_name_len(decl)); name = c_fn_name(decl); }
+    else {
+        var ft *u8 = c_type(callee);
+        if ft != nil && type_kind(ft) == TYPE_CLOSURE { return c_closure_call(e, ft); }
+        if ft == nil || (type_kind(ft) != TYPE_FUNC && type_kind(ft) != TYPE_PTR) { c_error(e, str_concat("unknown function or unsupported call signature: ", ast_to_string(callee))); return "0"; }
+        var target *u8 = c_expr(callee);
+        var return_word *u8 = "uint64_t";
+        if type_kind(ft) == TYPE_FUNC {
+            if func_type_param_count(ft) != count { c_error(e, "indirect call arity mismatch"); return "0"; }
+            if llvm_is_void_type(func_type_ret(ft)) { return_word = "void"; }
+            else { return_word = c_word(func_type_ret(ft)); }
+        }
+        name = c_join("((", return_word, " (*)(");
+        var pi i64 = 0;
+        while pi < count { if pi > 0 { name = str_concat(name, ","); } var pt_word *u8 = "uint64_t";
+            if type_kind(ft) == TYPE_FUNC { pt_word = c_word(vec_get(func_type_params(ft), pi)); }
+            name = str_concat(name, pt_word); pi = pi + 1; }
+        if count == 0 { name = str_concat(name, "void"); }
+        name = c_join(name, "))(uintptr_t)", str_concat(target, ")"));
+    }
+    var values *u8 = vec_new(count + 1); var i i64 = 0;
+    while i < count {
+        var destination *u8 = nil;
+        if decl != nil { destination = param_type(func_decl_params(decl) + i * 24); }
+        else { var ft *u8 = c_type(callee); if ft != nil && type_kind(ft) == TYPE_FUNC { destination = vec_get(func_type_params(ft), i); } }
+        vec_push(values, c_value(cg_ast_ptr_at(args, i), destination)); i = i + 1;
+    }
+    var call *u8 = str_concat(name, "("); i = 0;
+    while i < count {
+        if i > 0 { call = str_concat(call, ", "); }
+        var value *u8 = vec_get(values, i);
+        if decl != nil && func_decl_is_extern(decl) {
+            var pt *u8 = param_type(func_decl_params(decl) + i * 24);
+            if type_kind(pt) == TYPE_PTR { value = c_join("(void *)(uintptr_t)(", value, ")"); }
+        }
+        call = str_concat(call, value); i = i + 1;
+    }
+    call = str_concat(call, ")");
+    var ret *u8 = c_type(e);
+    if decl == nil {
+        var ft *u8 = c_type(callee);
+        if ft != nil && type_kind(ft) == TYPE_FUNC { ret = func_type_ret(ft); }
+        else { ret = llvm_i64_type(); }
+    }
+    if decl != nil { ret = func_decl_ret_type(decl); }
+    if llvm_is_void_type(ret) { emit_str(call); emit_line(";"); return "0"; }
+    if decl != nil && func_decl_is_extern(decl) && type_kind(ret) == TYPE_PTR { call = c_join("((uint64_t)(uintptr_t)", call, ")"); }
+    return c_temp(ret, call);
+}
+func c_expr(e *u8) *u8 {
+    if e == nil { return "0"; }
+    var k i64 = node_kind(e);
+    if numeric_is_call(e) { c_error(e, "numeric intrinsics are outside this profile"); return "0"; }
+    if k == NODE_NUMBER_EXPR {
+        var text *u8 = str_dup_n(number_expr_value(e), number_expr_value_len(e));
+        if llvm_is_float_type(c_type(e)) { return text; }
+        return str_concat(text, "ULL");
+    }
+    if k == NODE_BOOL_EXPR { return c_decimal(bool_expr_value(e)); }
+    if k == NODE_NIL_EXPR { return "0ULL"; }
+    if k == NODE_GROUP_EXPR { return c_expr(group_expr_expr(e)); }
+    if k == NODE_STRING_EXPR {
+        var name *u8 = c_fresh("cs"); emit_str("static unsigned char "); emit_str(name); emit_str("[] = {");
+        var i i64 = 0; while i < string_expr_value_len(e) { emit_int(*(string_expr_value(e) + i)); emit_str(","); i = i + 1; }
+        emit_line("0};"); return c_join("((uint64_t)(uintptr_t)", name, ")");
+    }
+    if k == NODE_IDENT_EXPR {
+        var name *u8 = ident_expr_name(e); var len i64 = ident_expr_name_len(e);
+        if find_local(name, len) < 0 && find_global(name, len) < 0 {
+            var d *u8 = find_func(name, len);
+            if d != nil { return c_join("((uint64_t)(uintptr_t)&", c_fn_name(d), ")"); }
+        }
+        return c_load(c_addr(e), c_type(e));
+    }
+    if k == NODE_FIELD_EXPR {
+        var b *u8 = field_expr_expr(e);
+        if node_kind(b) == NODE_IDENT_EXPR {
+            var ed *u8 = find_enum(ident_expr_name(b), ident_expr_name_len(b));
+            if ed != nil {
+                var call *u8 = call_expr_alloc(); call_expr_set_func(call, e); call_expr_set_arg_count(call, 0);
+                return c_call(call);
+            }
+        }
+        return c_load(c_addr(e), c_type(e));
+    }
+    if k == NODE_INDEX_EXPR { return c_load(c_addr(e), c_type(e)); }
+    if k == NODE_CALL_EXPR { return c_call(e); }
+    if k == NODE_UNARY_EXPR {
+        var op i64 = unary_expr_op(e); var inner *u8 = unary_expr_expr(e);
+        if op == TOKEN_AMP {
+            if node_kind(inner) == NODE_IDENT_EXPR && find_local(ident_expr_name(inner), ident_expr_name_len(inner)) < 0 && find_global(ident_expr_name(inner), ident_expr_name_len(inner)) < 0 { return c_expr(inner); }
+            return c_addr(inner);
+        }
+        if op == TOKEN_STAR { return c_load(c_expr(inner), c_type(e)); }
+        var v *u8 = c_expr(inner);
+        if op == TOKEN_MINUS { return c_temp(c_type(e), c_join("(0 - ", v, ")")); }
+        if op == TOKEN_BANG { return c_temp(nil, c_join("(!", v, ")")); }
+
+        c_error(e, "unknown unary operation"); return "0";
+    }
+    if k == NODE_BINARY_EXPR {
+        var op i64 = binary_expr_op(e); var l *u8 = binary_expr_left(e); var r *u8 = binary_expr_right(e);
+        if op == TOKEN_EQ { var value *u8 = c_expr(r); c_store(c_addr(l), value, c_type(l)); return value; }
+        var left *u8 = c_expr(l);
+        if op == TOKEN_AMPAMP || op == TOKEN_PIPEPIPE {
+            var result *u8 = c_temp(nil, c_join("!!(", left, ")"));
+            emit_str("if ("); if op == TOKEN_PIPEPIPE { emit_str("!"); } emit_str(result); emit_line(") {");
+            var right *u8 = c_expr(r); emit_str(result); emit_str(" = !!("); emit_str(right); emit_line("); }"); return result;
+        }
+        var right *u8 = c_expr(r);
+        var lt *u8 = c_type(l);
+        if lt != nil && type_kind(lt) == TYPE_PTR && (op == TOKEN_PLUS || op == TOKEN_MINUS) {
+            right = c_join(c_join("(", right, " * "), c_decimal(c_size(ptr_type_elem(lt))), ")");
+        }
+        var symbol *u8 = nil;
+        if op == TOKEN_PLUS { symbol = "+"; } else if op == TOKEN_MINUS { symbol = "-"; }
+        else if op == TOKEN_STAR { symbol = "*"; } else if op == TOKEN_SLASH { symbol = "/"; }
+        else if op == TOKEN_PERCENT { symbol = "%"; } else if op == TOKEN_EQEQ { symbol = "=="; }
+        else if op == TOKEN_BANGEQ { symbol = "!="; } else if op == TOKEN_LT { symbol = "<"; }
+        else if op == TOKEN_GT { symbol = ">"; } else if op == TOKEN_LTEQ { symbol = "<="; }
+        else if op == TOKEN_GTEQ { symbol = ">="; } else if op == TOKEN_AMP { symbol = "&"; }
+        else if op == TOKEN_PIPE { symbol = "|"; } else if op == TOKEN_CARET { symbol = "^"; }
+        else if op == TOKEN_LTLT { symbol = "<<"; } else if op == TOKEN_GTGT { symbol = ">>"; }
+        if symbol == nil { c_error(e, "unknown binary operation"); return "0"; }
+        var floating i64 = llvm_is_float_type(c_type(l)) || llvm_is_float_type(c_type(r));
+        if floating != 0 {
+            if llvm_is_float_type(c_type(l)) == 0 && llvm_is_unsigned_int(c_type(l)) == 0 { left = c_join("c_signed(", left, ")"); }
+            if llvm_is_float_type(c_type(r)) == 0 && llvm_is_unsigned_int(c_type(r)) == 0 { right = c_join("c_signed(", right, ")"); }
+        }
+        if floating == 0 {
+            if op == TOKEN_SLASH || op == TOKEN_PERCENT || op == TOKEN_GTGT {
+                if llvm_is_unsigned_int(c_type(l)) {
+                    var helper *u8 = "c_udiv(";
+                    if op == TOKEN_PERCENT { helper = "c_umod("; }
+                    if op == TOKEN_GTGT { helper = "c_ushift("; }
+                    return c_temp(nil, c_join(c_join(helper, left, ","), right, ")"));
+                }
+                var helper *u8 = "c_div("; if op == TOKEN_PERCENT { helper = "c_mod("; } if op == TOKEN_GTGT { helper = "c_shift("; }
+                return c_temp(nil, c_join(c_join(helper, left, ","), right, ")"));
+            }
+            if op == TOKEN_LTLT { right = c_join("(", right, " & 63)"); }
+            if (op == TOKEN_LT || op == TOKEN_GT || op == TOKEN_LTEQ || op == TOKEN_GTEQ) && llvm_is_unsigned_int(c_type(l)) == 0 && llvm_is_unsigned_int(c_type(r)) == 0 {
+                left = c_join("c_signed(", left, ")"); right = c_join("c_signed(", right, ")");
+            }
+        }
+        return c_temp(c_type(e), c_join(c_join("(", left, str_concat(" ", symbol)), str_concat(" ", right), ")"));
+    }
+    if k == NODE_CAST_EXPR || k == NODE_BITCAST_EXPR {
+        var inner *u8 = cast_expr_expr(e); var dst *u8 = cast_expr_type(e);
+        c_check_type(dst, e); var value *u8 = c_expr(inner);
+        if k == NODE_BITCAST_EXPR {
+            if llvm_is_float_type(c_type(inner)) {
+                if llvm_is_f32_type(c_type(inner)) { return c_temp(dst, c_join("c_float32_bits(", value, ")")); }
+                return c_temp(dst, c_join("c_float_bits(", value, ")"));
+            }
+            if llvm_is_float_type(dst) {
+                if llvm_is_f32_type(dst) { return c_temp(dst, c_join("c_bits_float32(", value, ")")); }
+                return c_temp(dst, c_join("c_bits_float(", value, ")"));
+            }
+            return value;
+        }
+        if llvm_is_float_type(dst) {
+            if llvm_is_float_type(c_type(inner)) == 0 && llvm_is_unsigned_int(c_type(inner)) == 0 { value = c_join("c_signed(", value, ")"); }
+            if llvm_is_f32_type(dst) { return c_temp(dst, c_join("((double)(float)(", value, "))")); }
+            return c_temp(dst, c_join("((double)(", value, "))"));
+        }
+        if llvm_is_float_type(c_type(inner)) { value = c_join("((uint64_t)(int64_t)(", value, "))"); }
+        var size i64 = c_size(dst);
+        if size < 8 {
+            value = c_join(c_join("c_narrow(", value, ","), c_decimal(size * 8), ")");
+            if llvm_is_signed_int(dst) { value = c_join(c_join("c_sign(", value, ","), c_decimal(size * 8), ")"); }
+        }
+        return c_temp(dst, value);
+    }
+    if k == NODE_LET_EXPR {
+        var saved i64 = cg_local_count; var value *u8 = c_expr(let_expr_init(e));
+        var t *u8 = let_expr_type(e); c_check_type(t, e);
+        var addr *u8 = c_bind(let_expr_name(e), let_expr_name_len(e), t); c_store(addr, value, t);
+        var result *u8 = c_expr(let_expr_body(e)); cg_local_count = saved; return result;
+    }
+    if k == NODE_BLOCK_EXPR {
+        var saved i64 = cg_local_count; var i i64 = 0;
+        while i < block_expr_count(e) { c_stmt(cg_ast_ptr_at(block_expr_stmts(e), i)); i = i + 1; }
+        var result *u8 = c_expr(block_expr_tail(e)); cg_local_count = saved; return result;
+    }
+    if k == NODE_INT_COMPARE || k == NODE_INT_CONVERT {
+        if integer_expr_valid(e) == 0 { c_error(e, "invalid integer operation"); return "0"; }
+        var src *u8 = integer_expr_src(e); var bits i64 = integer_type_bits(src);
+        var left *u8 = c_expr(integer_expr_left(e));
+        left = c_join(c_join("c_narrow(", left, ","), c_decimal(bits), ")");
+        if k == NODE_INT_CONVERT {
+            if integer_type_signed(src) && streq(integer_expr_op(e), "extend") { left = c_join(c_join("c_sign(", left, ","), c_decimal(bits), ")"); }
+            var dst *u8 = integer_expr_dst(e); bits = integer_type_bits(dst);
+            left = c_join(c_join("c_narrow(", left, ","), c_decimal(bits), ")");
+            if integer_type_signed(dst) { left = c_join(c_join("c_sign(", left, ","), c_decimal(bits), ")"); }
+            return c_temp(dst, left);
+        }
+        var right *u8 = c_expr(integer_expr_right(e));
+        right = c_join(c_join("c_narrow(", right, ","), c_decimal(bits), ")");
+        if integer_type_signed(src) {
+            left = c_join(c_join("c_signed(c_sign(", left, ","), c_decimal(bits), "))");
+            right = c_join(c_join("c_signed(c_sign(", right, ","), c_decimal(bits), "))");
+        }
+        var op *u8 = integer_expr_op(e); var symbol *u8 = "==";
+        if streq(op, "ne") { symbol = "!="; } else if streq(op, "lt") { symbol = "<"; }
+        else if streq(op, "le") { symbol = "<="; } else if streq(op, "gt") { symbol = ">"; } else if streq(op, "ge") { symbol = ">="; }
+        return c_temp(nil, c_join(c_join("(", left, str_concat(" ", symbol)), str_concat(" ", right), ")"));
+    }
+    if k == NODE_READER_EXPR {
+        var name *u8 = reader_expr_name(e); var len i64 = reader_expr_name_len(e);
+        var content *u8 = reader_expr_content(e); var output *u8 = nil;
+        var embedded *u8 = find_embedded_reader_func(name, len);
+        if embedded != nil { var reader_fn fn(*u8) *u8 = embedded; output = reader_fn(content); }
+        else if find_reader(name, len) != nil { output = phase_worker_call(build_reader_cache_path(name, len), content, reader_expr_content_len(e)); }
+        if output == nil || *output == 0 { c_error(e, "reader returned no AST"); return "0"; }
+        var expanded *u8 = parse_ast_expression_from_reader_string(output, node_origin_source(e), content);
+        if expanded == nil { c_error(e, "reader returned invalid expression AST"); return "0"; }
+        return c_expr(expanded);
+    }
+    if k == NODE_MATCH_EXPR { return c_match(e); }
+    if k == NODE_PERFORM_EXPR || k == NODE_HANDLE_EXPR || k == NODE_RESUME_EXPR { c_error(e, "effects require CPS lowering"); return "0"; }
+    if k == NODE_LAMBDA_EXPR { return c_lambda(e); }
+    c_error(e, "unsupported core expression"); return "0";
+}
+func c_match(e *u8) *u8 {
+    var scrut *u8 = c_expr(match_expr_scrutinee(e)); var tag *u8 = c_load(scrut, nil);
+    var result *u8 = c_temp(c_type(e), "0"); var i i64 = 0;
+    while i < match_expr_arm_count(e) {
+        var arm *u8 = get_match_arm(match_expr_arms(e), i); var pat *u8 = match_arm_pattern(arm);
+        var saved i64 = cg_local_count;
+        if i > 0 { emit_str("else "); }
+        if node_kind(pat) == NODE_PATTERN_WILDCARD { emit_line("{"); }
+        else {
+            var ed *u8 = find_enum(pattern_variant_enum_name(pat), pattern_variant_enum_len(pat));
+            var variant *u8 = find_variant(ed, pattern_variant_name(pat), pattern_variant_name_len(pat));
+            if variant == nil { c_error(e, "unknown match variant"); return "0"; }
+            emit_str("if ("); emit_str(tag); emit_str(" == "); emit_int(enum_variant_tag(variant)); emit_line(") {");
+            if pattern_variant_binding(pat) != nil {
+                var t *u8 = enum_variant_type(variant); var v *u8 = c_load(c_join("(", scrut, " + 8)"), t);
+                var addr *u8 = c_bind(pattern_variant_binding(pat), pattern_variant_binding_len(pat), t); c_store(addr, v, t);
+            }
+        }
+        var value *u8 = c_expr(match_arm_body(arm)); emit_str(result); emit_str(" = "); emit_str(value); emit_line("; }");
+        cg_local_count = saved; i = i + 1;
+    }
+    return result;
+}
+func c_initialize(addr *u8, t *u8, init *u8) void {
+    if init == nil { return; }
+    if t != nil && type_kind(t) == TYPE_ARRAY && node_kind(init) == NODE_ARRAY_LITERAL {
+        var et *u8 = array_type_elem(t); var i i64 = 0;
+        if array_literal_count(init) > array_type_size(t) { c_error(init, "too many array elements"); return; }
+        while i < array_literal_count(init) {
+            c_initialize(c_join(c_join("(", addr, " + "), c_decimal(i * c_size(et)), ")"), et, cg_ast_ptr_at(array_literal_elems(init), i)); i = i + 1;
+        }
+        return;
+    }
+    c_store(addr, c_value(init, t), t);
+}
+func c_stmt(s *u8) void {
+    if s == nil { return; }
+    var k i64 = node_kind(s);
+    if k == NODE_BLOCK_STMT {
+        var saved i64 = cg_local_count; emit_line("{"); var i i64 = 0;
+        while i < block_stmt_count(s) { c_stmt(cg_ast_ptr_at(block_stmt_stmts(s), i)); i = i + 1; }
+        emit_line("}"); cg_local_count = saved; return;
+    }
+    if k == NODE_VAR_DECL {
+        var t *u8 = var_decl_type(s); c_check_type(t, s);
+        // Initializers resolve before the new binding becomes visible.
+        var before i64 = cg_local_count; var addr *u8 = c_bind(var_decl_name(s), var_decl_name_len(s), t);
+        var identity i64 = local_get_offset(before);
+        var after i64 = cg_local_count; cg_local_count = before;
+        c_initialize(addr, t, var_decl_init(s)); cg_local_count = before;
+        add_local(var_decl_name(s), var_decl_name_len(s), identity, t);
+        cg_local_count = after; return;
+    }
+    if k == NODE_ASSIGN_STMT {
+        var target *u8 = assign_stmt_target(s); var value *u8 = c_expr(assign_stmt_value(s));
+        c_store(c_addr(target), value, c_type(target)); return;
+    }
+    if k == NODE_EXPR_STMT { c_expr(expr_stmt_expr(s)); return; }
+    if k == NODE_RETURN_STMT {
+        if llvm_is_void_type(c_ret) { emit_line("return;"); }
+        else { var value *u8 = c_value(return_stmt_value(s), c_ret); emit_str("return "); emit_str(value); emit_line(";"); }
+        return;
+    }
+    if k == NODE_IF_STMT {
+        var cond *u8 = c_expr(if_stmt_cond(s)); emit_str("if ("); emit_str(cond); emit_line(")");
+        emit_line("{"); c_stmt(if_stmt_then(s)); emit_line("}"); if if_stmt_else(s) != nil { emit_line("else {"); c_stmt(if_stmt_else(s)); emit_line("}"); } return;
+    }
+    if k == NODE_WHILE_STMT {
+        var id i64 = c_serial + 1; c_serial = id;
+        var entry *u8 = alloc(24); var np **u8 = entry; *np = while_stmt_label(s); var lp *i64 = entry + 8; *lp = while_stmt_label_len(s); var ip *i64 = entry + 16; *ip = id;
+        var slot **u8 = c_loop + c_loop_count * 8; *slot = entry; c_loop_count = c_loop_count + 1;
+        emit_line("for (;;) {"); emit_str("cc"); emit_int(id); emit_line(": ;");
+        var cond *u8 = c_expr(while_stmt_cond(s)); emit_str("if (!("); emit_str(cond); emit_line(")) break;");
+        c_stmt(while_stmt_body(s)); emit_line("}"); emit_str("cb"); emit_int(id); emit_line(": ;"); c_loop_count = c_loop_count - 1; return;
+    }
+    if k == NODE_BREAK_STMT || k == NODE_CONTINUE_STMT {
+        var name *u8 = break_stmt_label(s); var len i64 = break_stmt_label_len(s); var i i64 = c_loop_count - 1;
+        while i >= 0 {
+            var slot **u8 = c_loop + i * 8; var entry *u8 = *slot; var np **u8 = entry; var lp *i64 = entry + 8; var ip *i64 = entry + 16;
+            if name == nil || (len == *lp && memcmp(name, *np, len)) {
+                if k == NODE_BREAK_STMT { emit_str("goto cb"); } else { emit_str("goto cc"); } emit_int(*ip); emit_line(";"); return;
+            }
+            i = i - 1;
+        }
+        c_error(s, "loop label not found"); return;
+    }
+    c_error(s, "unsupported core statement");
+}
+func c_signature(d *u8) void {
+    var ext i64 = func_decl_is_extern(d);
+    if ext && streq(str_dup_n(func_decl_name(d), func_decl_name_len(d)), "printf") { emit_str("extern int printf(const char *, ...)"); return; }
+    var ret *u8 = func_decl_ret_type(d); c_check_type(ret, d);
+    if c_aggregate(ret) { c_error(d, "aggregate returns are outside this profile"); }
+    if ext { emit_str("extern "); emit_str(c_external_type(ret)); }
+    else { emit_str("static "); if llvm_is_void_type(ret) { emit_str("void"); } else { emit_str(c_word(ret)); } }
+    emit_str(" "); emit_str(c_fn_name(d)); emit_str("("); var i i64 = 0;
+    while i < func_decl_param_count(d) {
+        if i > 0 { emit_str(", "); }
+        var t *u8 = param_type(func_decl_params(d) + i * 24); c_check_type(t, d);
+        if ext && c_aggregate(t) { c_error(d, "external aggregate parameters are outside this profile"); }
+        if ext { emit_str(c_external_type(t)); } else { emit_str(c_word(t)); }
+        emit_str(" ca"); emit_int(i); i = i + 1;
+    }
+    if i == 0 { emit_str("void"); } emit_str(")");
+}
+func generate_c(prog *u8, output_file *u8) void {
+    codegen_init(); interp_init();
+    cg_has_llvm_backend = 1; cg_generate_llvm_fn = &generate_llvm;
+    cg_emit_module = 0; c_environments = map_new(); c_prototypes = ""; c_serial = 0; c_loop_count = 0; c_loop = alloc(8192);
+    cg_decls = program_decls(prog); cg_decl_count = program_decl_count(prog);
+    cg_current_file_decls = cg_decls; cg_current_file_decl_count = cg_decl_count;
+    var i i64 = 0; while i < cg_decl_count { process_decl_first_pass(get_decl(cg_decls, i)); i = i + 1; }
+    if cg_effect_count > 0 {
+        var effectp **u8 = cg_effects + 16;
+        c_error(*effectp, "effects require CPS lowering");
+    }
+    if cg_had_error { os_unlink(output_file); eprintln("error: C compilation refused"); exit(1); }
+    emit_line("/* C11 generated from lang core; fixed little-endian storage. */");
+    emit_line("#include <stdint.h>\n#include <stddef.h>\n#include <limits.h>\n#include <float.h>");
+    emit_line("_Static_assert(CHAR_BIT == 8 && sizeof(uintptr_t) == 8, \"C target requires 8-bit bytes and 64-bit addresses\");");
+    emit_line("_Static_assert(sizeof(float)==4 && sizeof(double)==8 && FLT_RADIX==2 && FLT_MANT_DIG==24 && DBL_MANT_DIG==53, \"C target requires IEEE floats\");");
+    emit_line("extern void abort(void);");
+    emit_line("extern void *memcpy(void *, const void *, size_t);");
+    emit_line("static uint64_t c_read(uint64_t p, unsigned n) { uint64_t v=0; const unsigned char *b=(const unsigned char *)(uintptr_t)p; for(unsigned i=0;i<n;i++) v |= (uint64_t)b[i] << (i*8); return v; }");
+    emit_line("static void c_write(uint64_t p, uint64_t v, unsigned n) { unsigned char *b=(unsigned char *)(uintptr_t)p; for(unsigned i=0;i<n;i++) b[i]=(unsigned char)(v >> (i*8)); }");
+    emit_line("static void c_copy(uint64_t d, uint64_t s, unsigned n) { unsigned char *a=(unsigned char *)(uintptr_t)d; const unsigned char *b=(const unsigned char *)(uintptr_t)s; if(d<s) { for(unsigned i=0;i<n;i++) a[i]=b[i]; } else { while(n) { n--; a[n]=b[n]; } } }");
+    emit_line("static int64_t c_signed(uint64_t v) { return v<=INT64_MAX ? (int64_t)v : -1-(int64_t)(UINT64_MAX-v); }");
+    emit_line("static uint64_t c_narrow(uint64_t v, unsigned n) { return n==64?v:v&((UINT64_C(1)<<n)-1); }");
+    emit_line("static uint64_t c_sign(uint64_t v, unsigned n) { v=c_narrow(v,n); uint64_t s=UINT64_C(1)<<(n-1); return (v^s)-s; }");
+    emit_line("static uint64_t c_div(uint64_t a,uint64_t b) { if(!b) abort(); uint64_t x=(a>>63)?0-a:a, y=(b>>63)?0-b:b; uint64_t q=x/y; return ((a^b)>>63)?0-q:q; }");
+    emit_line("static uint64_t c_mod(uint64_t a,uint64_t b) { if(!b) abort(); uint64_t x=(a>>63)?0-a:a, y=(b>>63)?0-b:b; uint64_t r=x%y; return (a>>63)?0-r:r; }");
+    emit_line("static uint64_t c_udiv(uint64_t a,uint64_t b) { if(!b) abort(); return a/b; }
+static uint64_t c_umod(uint64_t a,uint64_t b) { if(!b) abort(); return a%b; }
+static uint64_t c_ushift(uint64_t a,uint64_t b) { return a>>(b&63); }");
+    emit_line("static uint64_t c_shift(uint64_t a,uint64_t b) { unsigned n=b&63; return !n?a:(a>>n)|((a>>63)?(UINT64_MAX<<(64-n)):0); }");
+    emit_line("static uint64_t c_float_bits(double v) { uint64_t u; memcpy(&u,&v,8); return u; }\nstatic double c_bits_float(uint64_t u) { double v; memcpy(&v,&u,8); return v; }");
+    emit_line("static uint64_t c_float32_bits(double v) { float f=(float)v; uint32_t u; memcpy(&u,&f,4); return u; }\nstatic double c_bits_float32(uint64_t u) { uint32_t x=(uint32_t)u; float f; memcpy(&f,&x,4); return f; }");
+    emit_line("static double c_read_float(uint64_t p,unsigned n) { uint64_t u=c_read(p,n); if(n==4) { uint32_t x=(uint32_t)u; float f; memcpy(&f,&x,4); return f; } return c_bits_float(u); }");
+    emit_line("static void c_write_float(uint64_t p,double v,unsigned n) { if(n==4) { float f=(float)v; uint32_t x; memcpy(&x,&f,4); c_write(p,x,4); } else c_write(p,c_float_bits(v),8); }");
+    i = 0; while i < cg_func_count { var dp **u8 = cg_funcs + i * 24 + 16; c_signature(*dp); emit_line(";"); i = i + 1; }
+    i = 0; while i < cg_global_count { c_check_type(global_get_type(i), prog); if global_get_is_extern(i) { c_error(prog, "extern globals are outside this profile"); }
+        emit_str("static unsigned char cg"); emit_int(i); emit_str("["); var bytes i64 = c_size(global_get_type(i)); if bytes < 1 { bytes = 1; } emit_int(bytes); emit_line("] = {0};"); i = i + 1; }
+    emit_line("static void c_initialize_globals(void) {"); i = 0;
+    while i < cg_global_count { c_initialize(c_address_name("cg", i), global_get_type(i), global_get_init(i)); i = i + 1; } emit_line("}");
+    i = 0; while i < cg_func_count {
+        var dp **u8 = cg_funcs + i * 24 + 16; var d *u8 = *dp;
+        if func_decl_is_extern(d) == 0 {
+            cg_diagnostic_node = d; var module_slot *i64 = cg_func_module + i * 8; cg_current_module = *module_slot; cg_emit_module = *module_slot; cg_local_count = 0; c_ret = func_decl_ret_type(d);
+            c_signature(d); emit_line(" {"); var pi i64 = 0;
+            while pi < func_decl_param_count(d) {
+                var p *u8 = func_decl_params(d) + pi * 24;
+                var addr *u8 = c_bind(param_name(p), param_name_len(p), param_type(p));
+                c_store(addr, str_concat("ca", c_decimal(pi)), param_type(p)); pi = pi + 1;
+            }
+            var info *u8 = map_get(c_environments, c_fn_name(d));
+            if info != nil {
+                var countp *i64 = info; var capturesp **u8 = info + 8; var captures *u8 = *capturesp;
+                var ci i64 = 0; var offset i64 = 16;
+                while ci < *countp {
+                    var entry *u8 = captures + ci * 32;
+                    var np **u8 = entry; var lp *i64 = entry + 8; var tp **u8 = entry + 24;
+                    var value *u8 = c_load(c_join(c_join("(ca0 + ", c_decimal(offset), ")"), "", ""), *tp);
+                    var addr *u8 = c_bind(*np, *lp, *tp); c_store(addr, value, *tp);
+                    offset = offset + c_capture_size(*tp); ci = ci + 1;
+                }
+            }
+            c_stmt(func_decl_body(d)); if llvm_is_void_type(c_ret) == 0 { emit_line("return 0;"); } emit_line("}");
+        }
+        i = i + 1;
+    }
+    var main_decl *u8 = find_func("main", 4);
+    if main_decl != nil {
+        emit_line("int main(int argc, char **argv) { c_initialize_globals();"); emit_str("return (int)"); emit_str(c_fn_name(main_decl)); emit_str("(");
+        if func_decl_param_count(main_decl) > 0 { emit_str("(uint64_t)argc"); }
+        if func_decl_param_count(main_decl) > 1 { emit_str(", (uint64_t)(uintptr_t)argv"); }
+        if func_decl_param_count(main_decl) > 2 { c_error(main_decl, "main accepts at most argc and argv"); }
+        emit_line("); }");
+    }
+    if cg_had_error { os_unlink(output_file); eprintln("error: C compilation refused"); exit(1); }
+    var fd i64 = file_open(output_file, O_WRONLY_CREAT_TRUNC);
+    if fd < 0 { c_error(prog, "cannot open output"); exit(1); }
+    var header *u8 = "#include <stdint.h>\n";
+    compiler_write_all(fd, header, strlen(header));
+    compiler_write_all(fd, c_prototypes, strlen(c_prototypes));
+    compiler_write_all(fd, cg_code_buf, cg_code_len); file_close(fd);
+}
+
+// Environments are explicit heap objects containing by-value snapshots. They
+// use core storage, so escaping a lambda never retains a C stack address.
+func c_capture_size(t *u8) i64 {
+    var size i64 = c_size(t); if size < 8 { return 8; }
+    return ((size + 7) / 8) * 8;
+}
+func c_box(value *u8, tag i64, size i64, n *u8) *u8 {
+    var allocator *u8 = find_func("alloc", 5);
+    if allocator == nil { c_error(n, "closure allocation requires the alloc runtime function"); return "0"; }
+    var object *u8 = c_temp(nil, c_join(str_concat(c_fn_name(allocator), "("), c_decimal(size), "ULL)"));
+    c_store(object, c_decimal(tag), nil);
+    c_store(c_join("(", object, " + 8)"), value, nil);
+    return object;
+}
+func c_value(e *u8, destination *u8) *u8 {
+    var value *u8 = c_expr(e);
+    if destination != nil && llvm_is_float_type(destination) {
+        if llvm_is_float_type(c_type(e)) == 0 && llvm_is_unsigned_int(c_type(e)) == 0 { value = c_join("c_signed(", value, ")"); }
+        if llvm_is_f32_type(destination) { return c_temp(destination, c_join("((double)(float)(", value, "))")); }
+        return c_temp(destination, c_join("((double)(", value, "))"));
+    }
+    if destination != nil && type_kind(destination) == TYPE_FUNC && node_kind(e) == NODE_LAMBDA_EXPR && c_last_lambda_captures > 0 { c_error(e, "capturing lambdas require a closure type"); }
+    if destination != nil && type_kind(destination) == TYPE_CLOSURE {
+        if node_kind(e) == NODE_LAMBDA_EXPR && c_last_lambda_captures > 0 { return value; }
+        var source *u8 = c_type(e);
+        if source != nil && type_kind(source) == TYPE_CLOSURE { return value; }
+        return c_box(value, 0, 16, e);
+    }
+    return value;
+}
+func c_lambda(e *u8) *u8 {
+    var count i64 = lambda_expr_param_count(e);
+    var captures_count i64 = analyze_lambda_captures(e, count);
+    var captures *u8 = alloc(captures_count * 32);
+    memcpy(captures, cg_current_captures, captures_count * 32);
+    var d *u8 = func_decl_alloc(); var name *u8 = c_fresh("c_lambda_");
+    func_decl_set_name(d, name); func_decl_set_name_len(d, strlen(name));
+    var params *u8 = lambda_expr_params(e); var added i64 = 0;
+    if captures_count > 0 {
+        params = alloc((count + 1) * 24); added = 1;
+        param_set_name(params, "c_environment"); param_set_name_len(params, 13); param_set_type(params, llvm_i64_type());
+        memcpy(params + 24, lambda_expr_params(e), count * 24);
+    }
+    func_decl_set_params(d, params); func_decl_set_param_count(d, count + added);
+    func_decl_set_ret_type(d, lambda_expr_ret_type(e)); func_decl_set_body(d, lambda_expr_body(e));
+    node_copy_origin(d, e); add_func(d);
+    var saved_len i64 = cg_code_len;
+    c_signature(d); emit_line(";");
+    c_prototypes = str_concat(c_prototypes, str_dup_n(cg_code_buf + saved_len, cg_code_len - saved_len));
+    cg_code_len = saved_len;
+    var pointer *u8 = c_join("((uint64_t)(uintptr_t)&", c_fn_name(d), ")");
+    c_last_lambda_captures = captures_count;
+    if captures_count == 0 { return pointer; }
+    var info *u8 = alloc(16); var countp *i64 = info; *countp = captures_count;
+    var capturesp **u8 = info + 8; *capturesp = captures; map_set(c_environments, c_fn_name(d), info);
+    var size i64 = 16; var i i64 = 0;
+    while i < captures_count { var tp **u8 = captures + i * 32 + 24; size = size + c_capture_size(*tp); i = i + 1; }
+    var object *u8 = c_box(pointer, 1, size, e); var offset i64 = 16; i = 0;
+    while i < captures_count {
+        var entry *u8 = captures + i * 32;
+        var np **u8 = entry; var lp *i64 = entry + 8; var tp **u8 = entry + 24;
+        var idx i64 = find_local(*np, *lp);
+        if idx < 0 { c_error(e, "capture binding is not available"); return "0"; }
+        var value *u8 = c_load(c_address_name("cl", local_get_offset(idx)), *tp);
+        c_store(c_join(c_join("(", object, " + "), c_decimal(offset), ")"), value, *tp);
+        offset = offset + c_capture_size(*tp); i = i + 1;
+    }
+    c_last_lambda_captures = captures_count;
+    return object;
+}
+func c_closure_call(e *u8, t *u8) *u8 {
+    var count i64 = call_expr_arg_count(e);
+    if count != closure_type_param_count(t) { c_error(e, "closure call arity mismatch"); return "0"; }
+    var object *u8 = c_expr(call_expr_func(e)); var tag *u8 = c_load(object, nil);
+    var pointer *u8 = c_load(c_join("(", object, " + 8)"), nil);
+    var values *u8 = vec_new(count + 1); var i i64 = 0;
+    while i < count { vec_push(values, c_value(cg_ast_ptr_at(call_expr_args(e), i), vec_get(closure_type_params(t), i))); i = i + 1; }
+    var ret *u8 = closure_type_ret(t); var result_type *u8 = c_word(ret);
+    if llvm_is_void_type(ret) { result_type = "void"; }
+    var plain *u8 = c_join("((", result_type, " (*)(");
+    var captured *u8 = str_concat(plain, "uint64_t"); i = 0;
+    while i < count {
+        var word *u8 = c_word(vec_get(closure_type_params(t), i));
+        if i > 0 { plain = str_concat(plain, ","); }
+        plain = str_concat(plain, word); captured = c_join(captured, ",", word); i = i + 1;
+    }
+    if count == 0 { plain = str_concat(plain, "void"); }
+    plain = c_join(c_join(plain, "))(uintptr_t)", pointer), ")(", "");
+    captured = c_join(c_join(captured, "))(uintptr_t)", pointer), ")(", object); i = 0;
+    while i < count {
+        if i > 0 { plain = str_concat(plain, ","); }
+        plain = str_concat(plain, vec_get(values, i)); captured = c_join(captured, ",", vec_get(values, i)); i = i + 1;
+    }
+    var call *u8 = c_join(c_join(c_join("(", tag, " ? "), str_concat(captured, ")"), " : "), str_concat(plain, ")"), ")");
+    if llvm_is_void_type(ret) { emit_str(call); emit_line(";"); return "0"; }
+    return c_temp(ret, call);
+}

@@ -35,7 +35,7 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 trap 'restore_os; rm -rf "$tmp"' EXIT
 LANGOS=wasm LANGBE=llvm "$COMPILER" \
     std/core.lang out/web_version_info.lang src/lexer.lang src/parser.lang \
-    src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/ast_emit.lang \
+    src/codegen.lang src/codegen_llvm.lang src/codegen_wasm.lang src/codegen_c.lang src/ast_emit.lang \
     src/sexpr_reader.lang src/compiler_readers_web.lang src/main.lang -o "$tmp/compiler.ll"
 "$WASM_CLANG" -O2 --target=wasm32-unknown-unknown -nostdlib $WASM_LDFLAGS \
     "$tmp/compiler.ll" -o "$WEB_OUTPUT_DIR/compiler.wasm"

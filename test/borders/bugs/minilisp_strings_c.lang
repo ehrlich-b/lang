@@ -1,0 +1,4 @@
+include "std/core.lang"
+include "example/minilisp/lisp_runtime.lang"
+include "example/minilisp/minilisp.lang"
+func main() i64 { if lisp_to_int(#minilisp{ (strlen "hello") }) == 5 { return 42; } return 1; }

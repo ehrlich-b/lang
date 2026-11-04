@@ -112,6 +112,13 @@ func cg_backend_is_llvm() i64 {
     return 0;
 }
 
+// C target programs still expand native readers using the host LLVM compiler.
+func cg_host_reader_uses_llvm() i64 {
+    var be *u8 = getenv("LANGBE");
+    if be != nil && streq(be, "c") { return 1; }
+    return cg_backend_is_llvm();
+}
+
 func cg_backend_is_wasm() i64 {
     var langbe *u8 = getenv("LANGBE");
     if langbe != nil && streq(langbe, "wasm") { return 1; }
