@@ -53,6 +53,7 @@ try {
     await page.locator('#custom-source').fill(`edit ${i}`);
   }
   assert.equal(await page.evaluate(() => window.readerBuilds), 1);
+  await page.evaluate(() => { window.readerDeadlineMs = 5000; });
   await page.locator('#reader').fill(tiny);
   await page.locator('#custom-source').fill('answer 42');
   await run(/ran/);
