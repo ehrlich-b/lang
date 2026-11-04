@@ -1,14 +1,13 @@
 # Native runtime comparison
 
 Six independent C/Lang pairs exercise recursive fib, a byte sieve, n-body
-integration over f64 arrays, mandelbrot, a linear-probing hash map, and a pointer
+integration with softened inverse-cube acceleration over f64 arrays, mandelbrot, a linear-probing hash map, and a pointer
 string scan. Each accepts one workload size and prints a checksum. The checked-in
 `workloads.json` fixes all sizes and smoke outputs; there is no randomness. C uses
 explicit 64-bit integers to match Lang, identical loop order and array layouts.
 Inputs avoid signed overflow, out-of-bounds access and overlapping copies.
 
-Both versions are compiled with clang `-O2 -ffp-contract=off`, without LTO or fast
-math. Disabling contraction keeps C's floating-point evaluation consistent with
+Both versions are compiled with clang `-O2 -ffp-contract=off`, linked against libm, without LTO or fast math. Disabling contraction keeps C's floating-point evaluation consistent with
 Lang's uncontracted LLVM operations. Timing covers process startup and the
 checksum print; compilation is excluded. Five fresh processes per language are
 measured, alternating execution order. Raw samples, medians, Lang/C ratios,

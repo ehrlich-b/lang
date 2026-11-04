@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -24,7 +25,8 @@ int main(int argc, char **argv) {
                 double dx = pos[j * 3] - pos[i * 3];
                 double dy = pos[j * 3 + 1] - pos[i * 3 + 1];
                 double dz = pos[j * 3 + 2] - pos[i * 3 + 2];
-                double inv = 0.0001 / (1.0 + dx * dx + dy * dy + dz * dz);
+                double distance = 1.0 + dx * dx + dy * dy + dz * dz;
+                double inv = 0.0001 / (distance * sqrt(distance));
                 ax = ax + dx * inv;
                 ay = ay + dy * inv;
                 az = az + dz * inv;

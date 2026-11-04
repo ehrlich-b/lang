@@ -12,7 +12,7 @@
   "nbody": {
     "size": 2000,
     "smoke_size": 3,
-    "smoke_output": "256312\n"
+    "smoke_output": "256914\n"
   },
   "mandelbrot": {
     "size": 1000,

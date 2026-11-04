@@ -1,3 +1,4 @@
+extern func sqrt(x f64) f64;
 extern func malloc(n i64) *u8;
 extern func free(p *u8) void;
 extern func atol(s *u8) i64;
@@ -25,7 +26,8 @@ func main(argc i64, argv **u8) i64 {
                 var dx f64 = pos[j * 3] - pos[i * 3];
                 var dy f64 = pos[j * 3 + 1] - pos[i * 3 + 1];
                 var dz f64 = pos[j * 3 + 2] - pos[i * 3 + 2];
-                var inv f64 = 0.0001 / (1.0 + dx * dx + dy * dy + dz * dz);
+                var distance f64 = 1.0 + dx * dx + dy * dy + dz * dz;
+                var inv f64 = 0.0001 / (distance * sqrt(distance));
                 ax = ax + dx * inv;
                 ay = ay + dy * inv;
                 az = az + dz * inv;

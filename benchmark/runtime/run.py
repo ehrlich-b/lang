@@ -18,6 +18,7 @@ SOURCES = Path(__file__).resolve().parent
 BASE = '4b93dcaa32c177ed827fb7597b02d8431ace2dec'
 NOT_BEFORE = datetime(2026, 11, 6, 18, 27, tzinfo=ZoneInfo('America/New_York'))
 FLAGS = ['-O2', '-ffp-contract=off']
+LINK_FLAGS = ['-lm']
 RUNS = 5
 
 
@@ -48,8 +49,8 @@ def measure(compiler, output, smoke):
         env = dict(os.environ, LANGBE='llvm', LANGOS='linux',
                    LANG_CACHE=str(output / 'cache'))
         command([compiler, lang.relative_to(ROOT), '-o', ir], env)
-        command(['clang', *FLAGS, ir, '-o', binaries['lang']])
-        command(['clang', *FLAGS, c, '-o', binaries['c']])
+        command(['clang', *FLAGS, ir, *LINK_FLAGS, '-o', binaries['lang']])
+        command(['clang', *FLAGS, c, *LINK_FLAGS, '-o', binaries['c']])
         size = settings['smoke_size' if smoke else 'size']
         samples = {'lang': [], 'c': []}
         outputs = {'lang': [], 'c': []}
@@ -84,7 +85,7 @@ def measure(compiler, output, smoke):
             'compiler_sha256': compiler_hash, 'base': BASE,
             'head': command(['git', 'rev-parse', 'HEAD']).stdout.decode().strip(),
             'clang': command(['clang', '--version']).stdout.decode(),
-            'flags': FLAGS, 'runs': 1 if smoke else RUNS,
+            'flags': FLAGS, 'link_flags': LINK_FLAGS, 'runs': 1 if smoke else RUNS,
             'host': platform.node(), 'machine': platform.machine(),
             'timestamp': datetime.now().astimezone().isoformat(),
             'workloads_sha256': sha(SOURCES / 'workloads.json'), 'workloads': rows}
