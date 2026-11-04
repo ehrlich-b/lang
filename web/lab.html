@@ -138,7 +138,11 @@ function cancelRun() {
   runGeneration++;
   if (activeReader) activeReader.cancel();
 }
-cancelReader.onclick = cancelRun;
+cancelReader.onclick = () => {
+  cancelRun();
+  output.textContent = 'reader cancelled';
+  status.innerHTML = '<span class="bad">reader run failed</span>';
+};
 for (const id of ['reader', 'custom-source', 'runtime', 'preset']) {
   document.getElementById(id).addEventListener('input', cancelRun);
   document.getElementById(id).addEventListener('change', cancelRun);
@@ -228,6 +232,7 @@ function saveDraft() {
 }
 
 function queueSave() {
+  cancelRun();
   jumpError.hidden = true;
   jumpError.onclick = null;
   clearTimeout(saveTimer);
@@ -292,6 +297,7 @@ openWorkspace.onchange = async () => {
         typeof data.runtime !== 'string') {
       throw new Error('not a Lang reader workspace');
     }
+    cancelRun();
     activePreset = 'workspace';
     preset.value = activePreset;
     reader.value = data.reader;
@@ -433,12 +439,13 @@ button.onclick = async () => {
   let phase = 'reader build';
   let name;
   try {
-    name = readerName(reader.value);
+    const readerSource = reader.value;
+    name = readerName(readerSource);
     const structuredDiagnostics = !!stdlibFiles['std/reader_diagnostics.lang'];
     let readerProgram = cachedReaderProgram;
-    if (!readerProgram || cachedReaderSource !== reader.value) {
+    if (!readerProgram || cachedReaderSource !== readerSource) {
       const harness = `include "std/core.lang"
-${reader.value}
+${readerSource}
 func main() *u8 {
     var text *u8 = alloc(4194304);
     var length i64 = 0;
@@ -461,7 +468,7 @@ func main() *u8 {
       checkCurrent();
       readerProgram = readerBuild.files.get('reader.wasm');
       if (!readerProgram) throw new Error('reader compiler wrote no module');
-      cachedReaderSource = reader.value;
+      cachedReaderSource = readerSource;
       cachedReaderProgram = readerProgram;
     }
     readerDownloadUrl = offerDownload(downloadReader, readerProgram, `${name}-reader.wasm`);
@@ -519,6 +526,12 @@ func main() *u8 {
     output.textContent = `${printed ? printed + '\n' : ''}main() → ${ran.value}\n\nAST\n${astPreview}`;
     status.innerHTML = `<span class="ok">ran · ${elapsed}ms</span>`;
   } catch (error) {
+    if (generation !== runGeneration) {
+      activeReader = undefined;
+      cancelReader.hidden = true;
+      button.disabled = false;
+      return;
+    }
     const message = String(error).replace(/^Error: /, '');
     output.textContent = message;
     const sourceLabel = phase === 'reader run' ? name : undefined;

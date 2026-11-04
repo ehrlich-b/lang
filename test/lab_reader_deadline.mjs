@@ -37,6 +37,7 @@ try {
   await page.waitForFunction(() => !document.querySelector('#compile').disabled);
   await page.evaluate(() => { window.readerDeadlineMs = 300; window.readerBuilds = 0;
     const compile = window.runLangCompiler;
+    window.originalCompiler = compile;
     window.runLangCompiler = (...args) => { if (args[1][0] === 'reader.lang') window.readerBuilds++; return compile(...args); };
   });
   const run = async status => {
@@ -76,6 +77,52 @@ try {
   await page.waitForFunction(() => !document.querySelector('#compile').disabled);
   assert.match(await page.locator('#status').textContent(), /reader run failed/);
   assert.equal(await page.locator('#download-ast').isVisible(), false);
+  // Hold a build open while a workspace replaces its source.
+  await page.evaluate(() => {
+    const compile = window.runLangCompiler;
+    window.runLangCompiler = async (...args) => {
+      const result = await compile(...args);
+      if (args[1][0] === 'reader.lang') {
+        window.buildHeld = true;
+        await new Promise(resolve => { window.releaseBuild = resolve; });
+      }
+      return result;
+    };
+  });
+  await page.locator('#reader').fill('reader read(text *u8) *u8 { while true { } return nil; }\n# changed');
+  await page.locator('#compile').click();
+  await page.waitForFunction(() => window.buildHeld);
+  await page.locator('#open-workspace').setInputFiles({
+    name: 'workspace.json', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ format: 'lang-reader-workspace', version: 1, reader: tiny, source: 'answer 42', runtime: '' })),
+  });
+  await page.waitForFunction(() => document.querySelector('#status').textContent === 'loaded');
+  await page.evaluate(() => window.releaseBuild());
+  await page.waitForFunction(() => !document.querySelector('#compile').disabled);
+  assert.equal(await page.locator('#status').textContent(), 'loaded');
+  await page.evaluate(() => { window.runLangCompiler = window.originalCompiler; });
+  await run(/ran/);
+  assert.match(await page.locator('#output').textContent(), /main\(\) → 42/);
+  // Editing with the editor's Enter and Tab handlers must cancel an active run.
+  for (const key of ['Enter', 'Tab']) {
+    await page.evaluate(() => {
+      window.originalStartReader = window.startReader;
+      window.startReader = () => {
+        let reject;
+        const promise = new Promise((_, fail) => { reject = fail; });
+        return { promise, cancel() { window.editCancelled = true; reject(new Error('reader cancelled')); } };
+      };
+      window.editCancelled = false;
+    });
+    // Restore the normal compiler wrapper without holding the build.
+    await page.locator('#compile').click();
+    await page.locator('#cancel-reader').waitFor({ state: 'visible' });
+    await page.locator('#custom-source').press(key);
+    await page.waitForFunction(() => !document.querySelector('#compile').disabled);
+    assert.equal(await page.evaluate(() => window.editCancelled), true);
+    assert.equal(await page.locator('#download-ast').isVisible(), false);
+    await page.evaluate(() => { window.startReader = window.originalStartReader; });
+  }
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     for (const lines of [0, 1, 8, 10]) {
