@@ -49,9 +49,11 @@ def main():
             run(['clang', opt, ir, '-o', binary])
             run([binary], expected=42)
     text = (output / 'candidate.ll').read_text()
-    # Byte, bool, i64, double and complete Pair storage have native GEP strides.
+    # Preserve complete Pair storage through every fixed-array dimension.
     for spelling in ['getelementptr i8,', 'getelementptr i1,', 'getelementptr i64,',
-                     'getelementptr double,', 'getelementptr [16 x i8],']:
+                     'getelementptr double,', 'getelementptr [16 x i8],',
+                     'getelementptr [2 x [16 x i8]],',
+                     'getelementptr [2 x [2 x [16 x i8]]],']:
         assert spelling in text, spelling
     assert 'nsw' not in text and 'nuw' not in text
     (output / 'native-ir.diff').write_text(''.join(difflib.unified_diff(

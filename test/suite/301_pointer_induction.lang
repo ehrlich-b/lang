@@ -1,5 +1,6 @@
 // expect: 42
 // Pointer arithmetic keeps typed GEPs, including negative and struct strides.
+include "std/core.lang"
 struct Pair { first i64; second i64; }
 func main() i64 {
     var a [4]i64 = [3, 5, 7, 9];
@@ -14,7 +15,7 @@ func main() i64 {
     if *p != 7 { return 2; }
     p = p + -1;
     if *p != 5 { return 3; }
-    var pairs [2]Pair;
+    var pairs *Pair = alloc(32);
     pairs[0].first = 11;
     pairs[1].first = 13;
     var q *Pair = &pairs[0];
@@ -40,5 +41,26 @@ func main() i64 {
     var carrier *u8 = 1;
     carrier = carrier + 4294967296;
     if carrier != 4294967297 { return 10; }
+    // Use heap storage so array strides cannot alias an undersized local array.
+    var heap *Pair = alloc(128);
+    var i i64 = 0;
+    while i < 8 {
+        heap[i].first = 100 + i;
+        heap[i].second = 200 + i;
+        i = i + 1;
+    }
+    var rows *[2]Pair = heap;
+    var bytes *u8 = heap;
+    if rows + 1 != bytes + 32 { return 11; }
+    if (rows + 1)[0][0].first != 102 { return 12; }
+    if (rows + 1)[0][1].second != 203 { return 13; }
+    rows = rows + 2;
+    rows = rows - 1;
+    if rows[0][0].first != 102 { return 14; }
+    var blocks *[2][2]Pair = heap;
+    if blocks + 1 != bytes + 64 { return 15; }
+    if (blocks + 1)[0][0][0].second != 204 { return 16; }
+    var tail *Pair = blocks + 1;
+    if tail[3].first != 107 { return 17; }
     return 42;
 }

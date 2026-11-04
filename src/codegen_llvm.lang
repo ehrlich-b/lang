@@ -1515,6 +1515,17 @@ func llvm_emit_array_addr(expr *u8) void {
 // Structs/enums are byte buffers in LLVM, not the fallback scalar i64 type.
 // GEP must step over the complete buffer and aggregate reads return its address.
 func llvm_emit_index_storage_type(t *u8) void {
+    // Recurse here: llvm_emit_type uses scalar address carriers for named
+    // aggregates, which would understate an array's element stride.
+    if t != nil && type_kind(t) == TYPE_ARRAY {
+        var storage_size i64 = llvm_storage_size(t, llvm_layout_node);
+        llvm_emit_str("[");
+        llvm_emit_int(array_type_size(t));
+        llvm_emit_str(" x ");
+        llvm_emit_index_storage_type(array_type_elem(t));
+        llvm_emit_str("]");
+        return;
+    }
     var size i64 = llvm_aggregate_type_size(t);
     if size > 0 {
         llvm_emit_str("[");

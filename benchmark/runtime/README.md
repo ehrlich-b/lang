@@ -62,6 +62,7 @@ locals and allocation lifetimes are unchanged. Wasm retains the existing i64
 carrier arithmetic to preserve high bits until an actual memory access.
 
 `test/runtime_codegen.py` checks byte/bool/integer/f64/aggregate pointer strides,
+including heap reads and recursive fixed-array strides over multi-field structs,
 subtraction, negative offsets, intermediate out-of-object addresses, wrapping,
 and Wasm carrier high bits at O0/O2. It also executes an expanding reader,
 cross-compiles the positive fixture to arm64, executes it on Wasm, and confirms
