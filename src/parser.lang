@@ -2107,6 +2107,20 @@ func reader_expr_set_content(node *u8, ptr *u8) void {
     n.content = ptr;
 }
 
+// The Lang frontend owns the relation between an inline reader's invocation
+// origin and its content slice. Backends consume this offset without knowing
+// the host syntax. CLI custom-source invocations already index the whole file.
+pub func reader_expr_source_start(node *u8) i64 {
+    var origin *PhaseOrigin = phase_origin_get(node_origin_id(node));
+    if origin == nil { return 0 - 1; }
+    var source *PhaseSource = phase_source_get(origin.source);
+    var start i64 = origin.start;
+    if start >= source.len || *(source.text + start) != '#' { return 0 - 1; }
+    while start < source.len && *(source.text + start) != '{' { start = start + 1; }
+    if start >= source.len { return 0 - 1; }
+    return start + 1;
+}
+
 pub func reader_expr_content_len(node *u8) i64 {
     var n *ReaderExpr = node;
     return n.content_len;

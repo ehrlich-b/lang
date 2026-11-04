@@ -92,10 +92,8 @@ func llvm_debug_bind_reader(invocation *u8, content *u8) void {
     var parent *PhaseSource = phase_source_get(origin.source);
     var child i64 = phase_source_latest(parent.name);
     if child == origin.source { return; }
-    var start i64 = origin.start;
-    if start >= parent.len || *(parent.text + start) != '#' { return; }
-    while start < parent.len && *(parent.text + start) != '{' { start = start + 1; }
-    start = start + 1;
+    var start i64 = reader_expr_source_start(invocation);
+    if start < 0 { return; }
     var len i64 = strlen(content);
     if start > parent.len || len > parent.len - start { return; }
     if memcmp(parent.text + start, content, len) == 0 { return; }
