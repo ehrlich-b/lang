@@ -94,14 +94,14 @@ endif
 generate-version-info:
 	@python3 scripts/build_inputs.py --version '$(VERSION)' --backend '$(LANGBE)' --os '$(LANGOS)' --arch '$(BUILD_ARCH)' --libc '$(EFFECTIVE_LIBC)' --bootstrap '$(BOOTSTRAP_FROM)'
 
-# Init: build from bootstrap LLVM IR (cross-platform)
+# Native root cache identities include the effective clang target and driver flags.
+CLANG ?= clang
+INIT_FLAGS ?= -O2
+INIT_TARGET ?=
+INIT_ABI ?= native-v1
 init:
 	@$(MAKE) generate-os-layer LANGBE=llvm LANGOS=$(PLATFORM) LANGLIBC=libc
-	@mkdir -p out
-	@echo "Initializing from $(BOOTSTRAP_LL)..."
-	clang -O2 $(BOOTSTRAP_LL) -o out/lang_bootstrap
-	ln -sf lang_bootstrap $(LANG)
-	@echo "Created: $(LANG) -> lang_bootstrap"
+	python3 scripts/native_seed_cache.py --seed "$(BOOTSTRAP_LL)" --clang "$(CLANG)" --flags="$(INIT_FLAGS)" --target="$(INIT_TARGET)" --abi="$(INIT_ABI)" --output out/lang_bootstrap
 
 # Build: compile src/*.lang with the stable compiler -> lang_next.
 # LLVM/libc is the primary development path on both supported platforms.

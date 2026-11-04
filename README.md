@@ -296,3 +296,14 @@ remains a historical recovery path, but LLVM is the future for Language Forge.
 [MIT](./LICENSE)
 
 For machine-readable compiler failures, see [compiler diagnostics version 1](docs/compiler-diagnostics.md) and `--diagnostics=json`.
+
+`make init` reuses a native seed cache across checkouts. Set `LANG_NATIVE_CACHE`
+(or `XDG_CACHE_HOME`) to choose its location. The key includes the preserved IR
+bytes, resolved clang executable bytes and version, effective target, ordered
+`INIT_FLAGS` (default `-O2`), and `INIT_ABI` (default `native-v1`). `CLANG` and
+`INIT_TARGET` select the tool and target. Entries carry a SHA-256 artifact receipt,
+are published atomically under a per-key lock, and are never overwritten.
+Invalid entries fail closed before installation. Each checkout receives its own
+`out/lang_bootstrap` copy and relative `out/lang` link, so editing local output
+cannot alter the shared cache. The cache is for trusted local build inputs;
+it does not authenticate artifacts from an untrusted cache writer.
