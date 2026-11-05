@@ -77,6 +77,8 @@ def legacy_controls():
     for name, expected in [('aggregate_alias', b'42\n'),
                            ('aggregate_cast_alias', None),
                            ('aggregate_field_alias', b'42\n'),
+                           ('struct_alias', b'42\n'),
+                           ('struct_field_alias', b'42\n'),
                            ('pointer_spill', b'22\n')]:
         ir = OUT / (name + '-legacy.ll')
         result = run([COMPILER, f'test/effects_cps/{name}.lang', '-o', str(ir)], name + '-legacy-emit', off_env)
@@ -95,12 +97,16 @@ def legacy_controls():
         assert (result.returncode, result.stdout, result.stderr) == (0, expected, b''), (name, result.stdout, result.stderr)
         rows.append({'source': name, 'verdict': 'PASS', 'legacy_O0': expected.decode()})
         print(f'{name}: legacy O0 control passed')
+    for name, count in [('arity_missing', 0), ('arity_extra', 2)]:
+        reject(f'test/effects_cps/{name}.lang',
+               f"function 'worker' takes 1 argument, called with {count}".encode(),
+               env=off_env, suffix='-legacy')
 
 
-def reject(source, diagnostic):
-    name = Path(source).stem
+def reject(source, diagnostic, env=ENV, suffix=''):
+    name = Path(source).stem + suffix
     output = OUT / (name + '.ll')
-    result = run([COMPILER, source, '-o', str(output)], name + '-emit')
+    result = run([COMPILER, source, '-o', str(output)], name + '-emit', env)
     assert result.returncode != 0 and diagnostic in result.stderr, (source, result.stderr)
     assert not output.exists(), 'refused core published an output'
     rows.append({'source': source, 'verdict': 'PASS', 'diagnostic': diagnostic.decode()})
@@ -116,6 +122,8 @@ try:
             ('test/effects_cps/state.lang', b'500491\n4\n'),
             ('test/effects_cps/pointer_spill.lang', b'22\n'),
             ('test/effects_cps/aggregate_region.lang', b'42\n'),
+            ('test/effects_cps/struct_region.lang', b'42\n'),
+            ('test/effects_cps/arity_valid.lang', b'42\n'),
             ('test/effects_cps/normal_return.lang', b'33\n'),
             ('test/effects_cps/abandon.lang', b'77\n'),
             ('test/effects_cps/nested.lang', b'340\n'),
@@ -130,8 +138,12 @@ try:
         reject('test/effects_cps/non_tail.lang', b'tail position')
         reject('test/effects_cps/escape.lang', b'continuation may only occur')
         reject('test/effects_cps/address_escape.lang', b'unproved escape lifetime')
-        for source in ['aggregate_alias', 'aggregate_cast_alias', 'aggregate_field_alias']:
+        for source in ['aggregate_alias', 'aggregate_cast_alias', 'aggregate_field_alias',
+                       'struct_alias', 'struct_field_alias']:
             reject(f'test/effects_cps/{source}.lang', b'unproved escape lifetime')
+        for name, count in [('arity_missing', 0), ('arity_extra', 2)]:
+            reject(f'test/effects_cps/{name}.lang',
+                   f"function 'worker' takes 1 argument, called with {count}".encode())
         reject('test/effects_cps/callback.lang', b'native/foreign call boundary')
 except (AssertionError, subprocess.TimeoutExpired) as exc:
     rows.append({'verdict': 'FAIL', 'error': str(exc)})

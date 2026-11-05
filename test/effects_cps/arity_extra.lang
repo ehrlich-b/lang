@@ -1,0 +1,7 @@
+include "std/core.lang"
+effect Ask(i64) i64
+func worker(x i64) i64 { return perform Ask(x) + 1; }
+func main() i64 {
+    var result i64 = handle { worker(41, 99) } with { return(v) => v, Ask(x, k) => resume k(x) };
+    print_int(result); println(""); return 0;
+}

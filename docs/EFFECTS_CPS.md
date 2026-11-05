@@ -11,7 +11,8 @@ rewrites only the affected functions and executable reader bodies. Effect-free
 functions keep their ordinary native ABI and emitter. Calling an effectful
 function through a function value is refused, including passing it through a
 foreign callback. Its native entry wrapper starts a synchronous dispatcher;
-transformed callers enter its frame constructor directly instead.
+transformed callers enter its frame constructor directly instead. These calls
+validate the declared argument count before constructing the child activation.
 
 Each activation contains a step function, next PC, caller, typed result cell,
 handler chain, lexical environment and source-function owner. Expressions with
@@ -47,8 +48,9 @@ aggregate initializers, suspending assignment targets, and unsupported
 suspending expression forms are diagnosed. Taking a frame local's address is
 conservatively refused because the pass does not prove escaping alias lifetimes.
 This includes addresses derived through aggregate indexing/fields and aggregate
-values that could decay into pointers; reading an aggregate element within its
-native region remains supported. Split expressions retain their integer/pointer
+values that could decay into pointers, including bare structs and nested struct
+fields; reading a scalar aggregate element within its native region remains
+supported. Split expressions retain their integer/pointer
 types, including nested arithmetic, dereferences, fields and indexing.
 Return clauses must be effect-free. Direct Wasm effects remain unsupported.
 Private generated runtime symbols are reserved and have no external token ABI.

@@ -219,7 +219,7 @@ func cps_rewrite(m *i64, n *u8) *u8 {
         var b *i64 = cps_lookup(m, ident_expr_name(n), ident_expr_name_len(n));
         if b != nil {
             var t *u8 = cast(*u8, b[2]);
-            if t != nil && type_kind(t) == TYPE_ARRAY { cps_fail(n, "native aggregate alias has an unproved escape lifetime"); }
+            if cps_aggregate_local(t) { cps_fail(n, "native aggregate alias has an unproved escape lifetime"); }
             return cps_binding_ref(m, b);
         } return n;
     }
@@ -243,7 +243,7 @@ func cps_rewrite(m *i64, n *u8) *u8 {
         var r *u8 = bitcast_expr_alloc(); bitcast_expr_set_type(r, bitcast_expr_type(n)); bitcast_expr_set_expr(r, cps_rewrite(m, bitcast_expr_expr(n))); return r; }
     if k == NODE_INDEX_EXPR || k == NODE_FIELD_EXPR {
         var t *u8 = cps_expr_type(m, n);
-        if t != nil && type_kind(t) == TYPE_ARRAY { cps_fail(n, "native aggregate alias has an unproved escape lifetime"); }
+        if cps_aggregate_local(t) { cps_fail(n, "native aggregate alias has an unproved escape lifetime"); }
         return cps_rewrite_storage(m, n);
     }
     if k == NODE_INT_COMPARE || k == NODE_INT_CONVERT { return integer_expr_alloc(k, integer_expr_op(n), integer_expr_src(n), integer_expr_dst(n), cps_rewrite(m, integer_expr_left(n)), cps_rewrite(m, integer_expr_right(n))); }
@@ -373,6 +373,14 @@ func cps_compile_expr(m *i64, n *u8, dest *u8, next i64, tail i64) i64 {
         while i < call_expr_arg_count(n) { var p **u8 = call_expr_args(n) + i * 8; vec_push(values, cps_slot(m, cps_expr_type(m, *p))); i = i + 1; }
         var end i64 = 0;
         if callee != nil {
+            // This call bypasses the native emitter, including its arity check.
+            // Validate before writing argument cells into the child activation.
+            var decl *u8 = find_func(ident_expr_name(f), ident_expr_name_len(f));
+            if call_expr_arg_count(n) != func_decl_param_count(decl) {
+                cg_diagnostic_node = n;
+                cg_arity_error(ident_expr_name(f), ident_expr_name_len(f), func_decl_param_count(decl), call_expr_arg_count(n));
+                exit(1);
+            }
             var v *u8 = cps_args1(cps_assign(cps_field(1), cps_num(next)));
             vec_push(v, cps_var("___child", cps_frame_type, cps_new_call(callee, cps_frame(), cps_address(dest), cps_as_frame(cps_field(4)), cps_num(0), 0, cps_num(0))));
             i = 0; while i < vec_len(values) { vec_push(v, cps_assign(cps_index(cps_id("___child"), 16 + i), vec_get(values, i))); i = i + 1; }
@@ -639,10 +647,14 @@ func cps_captures_frame(m *i64, n *u8) i64 {
     if node_kind(n) == NODE_IDENT_EXPR { var b *i64 = cps_lookup(m, ident_expr_name(n), ident_expr_name_len(n)); if b != nil && b[4] != 0 { return 1; } }
     var v *u8 = cps_children(n); var i i64 = 0; while i < vec_len(v) { if cps_captures_frame(m, vec_get(v, i)) { return 1; } i = i + 1; } return 0;
 }
-func cps_native_local(t *u8) i64 {
+func cps_aggregate_local(t *u8) i64 {
     if t == nil { return 0; }
-    if type_kind(t) == TYPE_ARRAY || type_kind(t) == TYPE_CLOSURE { return 1; }
+    if type_kind(t) == TYPE_ARRAY { return 1; }
     return llvm_aggregate_type_size(t) > 0;
+}
+func cps_native_local(t *u8) i64 {
+    if t != nil && type_kind(t) == TYPE_CLOSURE { return 1; }
+    return cps_aggregate_local(t);
 }
 func cps_native_region_stmt(n *u8) i64 {
     var k i64 = node_kind(n);
@@ -659,10 +671,10 @@ func cps_native_stmt(m *i64, n *u8, result *u8) *u8 {
         var env *u8 = cast(*u8, m[2]); vec_pop(env); var init *u8 = cps_rewrite(m, value); vec_push(env, b);
         return cps_assign(cps_binding_ref(m, b), init);
     }
-    if k == NODE_ASSIGN_STMT { return cps_assign(cps_rewrite(m, assign_stmt_target(n)), cps_rewrite(m, assign_stmt_value(n))); }
+    if k == NODE_ASSIGN_STMT { return cps_assign(cps_rewrite_storage(m, assign_stmt_target(n)), cps_rewrite(m, assign_stmt_value(n))); }
     var value *u8 = expr_stmt_expr(n);
     if node_kind(value) == NODE_BINARY_EXPR && binary_expr_op(value) == TOKEN_EQ {
-        var v *u8 = cps_args1(cps_var("___assignment_address", cps_ptr(cps_expr_type(m, binary_expr_left(value))), cps_address(cps_rewrite(m, binary_expr_left(value)))));
+        var v *u8 = cps_args1(cps_var("___assignment_address", cps_ptr(cps_expr_type(m, binary_expr_left(value))), cps_address(cps_rewrite_storage(m, binary_expr_left(value)))));
         vec_push(v, cps_assign(result, cps_rewrite(m, binary_expr_right(value))));
         vec_push(v, cps_assign(cps_unary(TOKEN_STAR, cps_id("___assignment_address")), result)); return cps_block(v);
     }
