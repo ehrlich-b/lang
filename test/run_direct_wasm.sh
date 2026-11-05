@@ -36,6 +36,7 @@ run_case test/direct_wasm_memory_e2e.lang 176
 run_case test/direct_wasm_import_e2e.lang 17
 run_case test/direct_wasm_struct_e2e.lang 42
 run_case test/direct_wasm_aggregate_layout.lang 42
+run_case test/direct_wasm_array_alias.lang 42
 run_case test/suite/300_aggregate_values.lang 42
 run_case test/suite/250_arrays.lang 150
 run_case test/direct_wasm_ast_e2e.lang 40

@@ -341,6 +341,9 @@ func wasm_find_defined_func(name *u8, name_len i64) i64 {
 }
 
 func wasm_local_add(name *u8, name_len i64, local_type *u8, decl *u8) i64 {
+    if wasm_local_count >= LIMIT_LOCALS {
+        wasm_error("too many direct wasm locals"); return 0;
+    }
     var index i64 = wasm_local_count;
     var entry *u8 = wasm_locals + index * 56;
     var np **u8 = entry;
@@ -582,6 +585,21 @@ func wasm_scan_address_expr(expr *u8) void {
     }
 }
 
+// Literal values need storage separate from their eventual destination: later
+// elements can read that destination, including through aliases or calls.
+func wasm_scan_initializer(expr *u8, t *u8) void {
+    if expr == nil || t == nil { return; }
+    if type_kind(t) != TYPE_ARRAY || node_kind(expr) != NODE_ARRAY_LITERAL { return; }
+    var local i64 = wasm_local_add(nil, 0, t, expr);
+    wasm_mark_local_spilled(local);
+    var i i64 = 0;
+    while i < array_literal_count(expr) {
+        var p **u8 = array_literal_elems(expr) + i * 8;
+        wasm_scan_initializer(*p, array_type_elem(t));
+        i = i + 1;
+    }
+}
+
 func wasm_scan_address_stmt(stmt *u8) void {
     if stmt == nil { return; }
     var kind i64 = node_kind(stmt);
@@ -597,11 +615,13 @@ func wasm_scan_address_stmt(stmt *u8) void {
         wasm_binding_count = saved_bindings;
     } else if kind == NODE_VAR_DECL {
         wasm_scan_address_expr(var_decl_init(stmt));
+        wasm_scan_initializer(var_decl_init(stmt), var_decl_type(stmt));
         var local i64 = wasm_local_for_decl(stmt);
         wasm_bind_local(var_decl_name(stmt), var_decl_name_len(stmt), local);
     } else if kind == NODE_ASSIGN_STMT {
         wasm_scan_address_expr(assign_stmt_target(stmt));
         wasm_scan_address_expr(assign_stmt_value(stmt));
+        wasm_scan_initializer(assign_stmt_value(stmt), wasm_expr_type(assign_stmt_target(stmt)));
     } else if kind == NODE_EXPR_STMT {
         wasm_scan_address_expr(expr_stmt_expr(stmt));
     } else if kind == NODE_RETURN_STMT {
@@ -899,6 +919,11 @@ func wasm_emit_initializer(expr *u8, t *u8, out *WasmBuf) void {
         if array_literal_count(expr) > array_type_size(t) {
             wasm_error("array initializer has too many elements"); return;
         }
+        // Leave the destination below the literal's private frame address on
+        // the operand stack. No destination byte changes until every RHS
+        // element (and any calls it makes) has finished evaluating.
+        var temporary i64 = wasm_local_for_decl(expr);
+        wasm_emit_spill_pointer(temporary, out, 1);
         var i i64 = 0;
         var elem *u8 = array_type_elem(t);
         while i < array_type_size(t) {
@@ -917,6 +942,8 @@ func wasm_emit_initializer(expr *u8, t *u8, out *WasmBuf) void {
             i = i + 1;
         }
         wasm_put(out, 26); // drop parent destination
+        wasm_emit_spill_pointer(temporary, out, 0);
+        wasm_emit_store(t, out);
         return;
     }
     if wasm_type_is_aggregate(wasm_expr_type(expr)) == 0 {
@@ -2152,6 +2179,7 @@ func wasm_emit_function_body(decl *u8) void {
     wasm_collect_locals(func_decl_body(decl));
     if wasm_had_error != 0 { return; }
     wasm_scan_address_stmt(func_decl_body(decl));
+    if wasm_had_error != 0 { return; }
     wasm_assign_spill_offsets();
     wasm_binding_count = wasm_param_count;
     wasm_spill_base_local = wasm_local_count;
