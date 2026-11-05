@@ -327,7 +327,7 @@ func sc_primitive(name *u8, args i64) i64 {
     if streq(name, "negative?") { return sc_bool(sc_num(a) < cast(f64, 0)); }
     if streq(name, "odd?") { return sc_bool(sc_unint(a) % 2 != 0); }
     if streq(name, "even?") { return sc_bool(sc_unint(a) % 2 == 0); }
-    if streq(name, "exact") { var k i64 = cast(i64, sc_num(a)); return sc_int(k); }
+    if streq(name, "exact") { if sc_integer(a) { return a; } var k i64 = cast(i64, sc_num(a)); return sc_int(k); }
     if streq(name, "inexact") { return sc_real(sc_num(a)); }
     if streq(name, "abs") { if sc_integer(a) { var k i64 = sc_unint(a); if k < 0 { k = -k; } return sc_int(k); } var x f64 = sc_num(a); if x < cast(f64, 0) { x = cast(f64, 0) - x; } return sc_real(x); }
     if streq(name, "+") || streq(name, "-") || streq(name, "*") || streq(name, "/") || streq(name, "max") || streq(name, "min") {
@@ -339,8 +339,8 @@ func sc_primitive(name *u8, args i64) i64 {
             if streq(name, "*") { x = x * y; k = k * j; }
             if streq(name, "-") { if first && n > 1 { x = y; k = j; } else { x = x - y; k = k - j; } }
             if streq(name, "/") { exact = false; if first && n > 1 { x = y; } else { if first { x = cast(f64, 1); } if y == cast(f64, 0) { return sc_error("division by zero"); } x = x / y; } }
-            if streq(name, "max") { if first || y > x { x = y; k = j; } }
-            if streq(name, "min") { if first || y < x { x = y; k = j; } }
+            if streq(name, "max") { if exact { if first || j > k { x = y; k = j; } } else { if first || y > x { x = y; k = j; } } }
+            if streq(name, "min") { if exact { if first || j < k { x = y; k = j; } } else { if first || y < x { x = y; k = j; } } }
             first = false; args = sc_cdr(args);
         }
         if exact { return sc_int(k); } return sc_real(x);
