@@ -3,6 +3,7 @@ include "std/core.lang"
 include "src/lexer.lang"
 include "src/parser.lang"
 include "src/ast_emit.lang"
+include "src/sexpr_reader.lang"
 include "src/include_parse.lang"
 
 func main() i64 {
@@ -42,9 +43,19 @@ func main() i64 {
     if origin.expansion_parent != node_origin_id(second) { return 9; }
     phase_expansion_origin = 0;
     if phase_parse_include(snapshot.text, "child.lang", first) != a { return 10; }
+    // Declaration-reader parsing registers a slice under the include filename.
+    // Emission must still reuse the full immutable snapshot after that parse.
+    var generated *u8 = parse_ast_from_reader_string("(program)", "child.lang", "reader slice");
+    if generated == nil { return 21; }
+    var sources i64 = vec_len(phase_sources);
+    count = node_origin_count;
+    if phase_parse_include(str_dup(snapshot.text), "child.lang", first) != a { return 22; }
+    if vec_len(phase_sources) != sources { return 23; }
+    if node_origin_count != count { return 24; }
     // Reader slices with the same display name cannot replace captured bytes.
     var changed *u8 = phase_parse_include("func changed() i64 { return 9; }", "child.lang", first);
     if changed == a { return 11; }
+    if phase_parse_include(snapshot.text, "child.lang", first) != a { return 25; }
     if !streq(snapshot.text, text) { return 12; }
     if !streq(snapshot.digest, snapshot_digest) { return 20; }
     if phase_source_snapshot("child.lang") != snapshot { return 13; }

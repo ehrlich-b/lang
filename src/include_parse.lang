@@ -12,20 +12,23 @@ struct PhaseIncludeParse {
 var phase_include_parses *u8 = nil;
 
 func phase_parse_include(text *u8, name *u8, invocation *u8) *u8 {
-    // Source identity includes the display name and exact immutable bytes.
+    // Reader slices can supersede the latest source ID for this name. Match
+    // cached immutable bytes before registering another source record.
     // An origin belongs to an invocation, so a path alone is not a cache key.
-    var source i64 = phase_source_register(name, text);
     var included i64 = node_origin_id(invocation);
     var expanded i64 = phase_expansion_origin;
     if phase_include_parses == nil { phase_include_parses = map_new(); }
     var entry *PhaseIncludeParse = map_get(phase_include_parses, name);
     while entry != nil {
-        if entry.source == source && entry.included == included && entry.expanded == expanded {
-            return entry.program;
+        if entry.included == included && entry.expanded == expanded {
+            var cached *PhaseSource = phase_source_get(entry.source);
+            if cached.text == text { return entry.program; }
+            if streq(cached.text, text) { return entry.program; }
         }
         entry = entry.next;
     }
 
+    var source i64 = phase_source_register(name, text);
     var saved i64 = phase_include_origin;
     phase_include_origin = included;
     var result *u8 = parse_program_from_named_string(text, name);
