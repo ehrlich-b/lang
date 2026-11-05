@@ -136,6 +136,20 @@ func cps_children(n *u8) *u8 {
     else if k == NODE_ARRAY_LITERAL { a = array_literal_elems(n); count = array_literal_count(n); }
     var i i64 = 0; while i < count { var p **u8 = a + i * 8; vec_push(v, *p); i = i + 1; } return v;
 }
+// LLVM expands macros during emission, too late for the call graph and
+// lifetime checks. Refuse executable macro calls before either analysis runs;
+// even an apparently native function can hide a perform or effectful call.
+func cps_check_macros(n *u8) void {
+    if n == nil { return; }
+    if node_kind(n) == NODE_CALL_EXPR {
+        var f *u8 = call_expr_func(n);
+        if node_kind(f) == NODE_IDENT_EXPR && find_macro(ident_expr_name(f), ident_expr_name_len(f)) != nil {
+            cps_fail(n, "unexpanded macro call is unsupported in the scoped CPS profile");
+        }
+    }
+    var v *u8 = cps_children(n); var i i64 = 0;
+    while i < vec_len(v) { cps_check_macros(vec_get(v, i)); i = i + 1; }
+}
 func cps_has_effect(n *u8) i64 {
     if n == nil { return 0; } var k i64 = node_kind(n);
     if k == NODE_HANDLE_EXPR || k == NODE_PERFORM_EXPR || k == NODE_RESUME_EXPR { return 1; }
@@ -580,6 +594,12 @@ func cps_prepare() void {
         func_decl_set_body(f, reader_decl_body(reader_node)); node_copy_origin(f, reader_node); add_func(f);
         ri = ri + 1;
     }
+    var mi i64 = 0;
+    while mi < cg_func_count {
+        var mp **u8 = cg_funcs + mi * 24 + 16; cps_check_macros(func_decl_body(*mp)); mi = mi + 1;
+    }
+    mi = 0;
+    while mi < cg_global_count { cps_check_macros(global_get_init(mi)); mi = mi + 1; }
     var changed i64 = 1;
     while changed {
         changed = 0; var i i64 = 0;
