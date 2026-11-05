@@ -9,6 +9,7 @@ var min32 f32 = cast(f32, (-9223372036854775808));
 var implicit_min f64 = -9223372036854775808;
 var integer_zero f64 = -0;
 var float_zero f64 = -0.0;
+var rounded_integer f32 = cast(f32, 1152921573326323713);
 var calls i64 = 0;
 
 func identity32(x f32) f32 { return x; }
@@ -68,5 +69,9 @@ func main() i64 {
     // Integer negation happens before conversion; only floating minus makes -0.
     if bitcast(i64, integer_zero) != 0 { return 24; }
     if bitcast(i64, float_zero) != (1 << 63) { return 25; }
+    // Round the integer once to f32, identically in globals and locals.
+    var local_rounded_integer f32 = cast(f32, 1152921573326323713);
+    if bitcast(u32, rounded_integer) != 1568669697 ||
+       bitcast(u32, rounded_integer) != bitcast(u32, local_rounded_integer) { return 26; }
     return 42;
 }

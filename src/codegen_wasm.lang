@@ -1949,25 +1949,28 @@ func wasm_const_value(expr *u8) i64 {
     return 0;
 }
 
-func wasm_const_float(expr *u8) f64 {
+func wasm_const_float(expr *u8, width i64) f64 {
     if expr == nil { return 0.0; }
     var kind i64 = node_kind(expr);
-    if kind == NODE_NUMBER_EXPR {
-        if wasm_number_is_float(expr) { return bitcast(f64, wasm_decimal_bits(expr)); }
-        return cast(f64, wasm_const_value(expr));
+    if (kind == NODE_NUMBER_EXPR && wasm_number_is_float(expr) == 0) ||
+       (kind == NODE_UNARY_EXPR && unary_expr_op(expr) == TOKEN_MINUS &&
+        wasm_float_width(wasm_expr_type(expr)) == 0) {
+        // Convert integers directly to the destination precision: an f64
+        // intermediate can round an integer onto an f32 halfway point.
+        var integer i64 = wasm_const_value(expr);
+        if width == 32 { return cast(f64, cast(f32, integer)); }
+        return cast(f64, integer);
     }
-    if kind == NODE_GROUP_EXPR { return wasm_const_float(group_expr_expr(expr)); }
+    if kind == NODE_NUMBER_EXPR {
+        return bitcast(f64, wasm_decimal_bits(expr));
+    }
+    if kind == NODE_GROUP_EXPR { return wasm_const_float(group_expr_expr(expr), width); }
     if kind == NODE_UNARY_EXPR && unary_expr_op(expr) == TOKEN_MINUS {
-        // Match local evaluation: negate integer constants before converting,
-        // including i64's minimum value and integer zero.
-        if wasm_float_width(wasm_expr_type(expr)) == 0 {
-            return cast(f64, wasm_const_value(expr));
-        }
-        var value f64 = wasm_const_float(unary_expr_expr(expr));
+        var value f64 = wasm_const_float(unary_expr_expr(expr), width);
         return bitcast(f64, bitcast(i64, value) ^ (1 << 63));
     }
     if kind == NODE_CAST_EXPR {
-        var value f64 = wasm_const_float(cast_expr_expr(expr));
+        var value f64 = wasm_const_float(cast_expr_expr(expr), wasm_float_width(cast_expr_type(expr)));
         if wasm_float_width(cast_expr_type(expr)) == 32 {
             var rounded f32 = cast(f32, value);
             return cast(f64, rounded);
@@ -1991,7 +1994,7 @@ func wasm_emit_global_section() void {
         wasm_put(wasm_section, wasm_value_type(t));
         wasm_put(wasm_section, 1);    // mutable
         if wasm_float_width(t) != 0 {
-            var value f64 = wasm_const_float(var_decl_init(decl));
+            var value f64 = wasm_const_float(var_decl_init(decl), wasm_float_width(t));
             if wasm_float_width(t) == 32 {
                 var rounded f32 = cast(f32, value);
                 var bytes *i32 = &rounded;
