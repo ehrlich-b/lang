@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "not_before": "2026-11-06T18:27:00-05:00",
+  "full_scale_verdict": "DEFERRED",
+  "self_compile_timing_verdict": "DEFERRED",
+  "base_head": "4b93dcaa32c177ed827fb7597b02d8431ace2dec",
+  "sizes": [10000, 100000, 1000000],
+  "generator": "benchmark/compile/gen.py",
+  "random_seed": null,
+  "self_runs_per_compiler": 5,
+  "maximum_scale_ratio": 15,
+  "maximum_self_median_ratio": 1.10,
+  "host_max_bytes": 134217728,
+  "host_max_nodes": 16777216,
+  "steps": [
+    {
+      "purpose": "Refuse execution before the release time; run this first and stop on any failure.",
+      "command": "python3 -c 'from datetime import datetime; assert datetime.now().astimezone() >= datetime.fromisoformat(\"2026-11-06T18:27:00-05:00\"), \"full execution is DEFERRED\"'"
+    },
+    {
+      "purpose": "Prepare a separate clean baseline at the recorded source identity; reuse it only if this identity and cleanliness still match.",
+      "command": "nice -n 10 git clone . ../sources/base && git -C ../sources/base checkout --detach 4b93dcaa32c177ed827fb7597b02d8431ace2dec"
+    },
+    {
+      "purpose": "Build both compilers from their preserved seeds on the same host, with current build receipts.",
+      "command": "nice -n 10 env JOBS=2 make -C ../sources/base build && nice -n 10 env JOBS=2 make build"
+    },
+    {
+      "purpose": "Emit all exact generated sizes and measure five self emits per compiler; retain sources, IR, receipts, hashes, timing and per-child RSS outside the checkout.",
+      "command": "nice -n 10 python3 benchmark/compile/bench.py --compiler out/lang_next --base-root ../sources/base --base-compiler ../sources/base/out/lang_next --sizes 10000 100000 1000000 --self-runs 5 --output ../evidence/deferred"
+    },
+    {
+      "purpose": "Require both original numerical verdicts; a missing or partial report never passes.",
+      "command": "python3 -c 'import json; r=json.load(open(\"../evidence/deferred/bench.json\")); assert [p[\"lines\"] for p in r[\"programs\"]] == [10000,100000,1000000]; assert r[\"full_scale_verdict\"] == r[\"self_compile_timing_verdict\"] == \"PASS\"; assert r[\"scale_ratio\"] <= 15 and r[\"self_ratio\"] <= 1.10; assert all(len(r[\"self_compile\"][k][\"runs\"]) == 5 for k in (\"base\",\"candidate\"))'"
+    }
+  ],
+  "integration_commands": [
+    "nice -n 10 env JOBS=2 make verify",
+    "nice -n 10 env JOBS=2 COMPILER=out/bootstrap_verify/kernel2 ./test/run_wasm_suite.sh",
+    "git diff --check 4b93dcaa32c177ed827fb7597b02d8431ace2dec HEAD"
+  ]
+}
