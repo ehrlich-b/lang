@@ -1,0 +1,26 @@
+// expect: 42
+include "std/core.lang"
+enum Choice { Some(i64), None, }
+func main() i64 {
+    var c Choice = Choice.Some(1);
+    var f closure(i64) i64 = match &c {
+        Choice.Some(n) => {
+            var k i64 = n;
+            (fn(x i64) i64 { return x + k; })
+        },
+        _ => { fn(x i64) i64 { return x + 1; } },
+    };
+    if f(41) != 42 { return 1; }
+    var none Choice = Choice.None;
+    f = let n i64 = 1 in match &none {
+        Choice.Some(k) => { fn(x i64) i64 { return x + k; } },
+        _ => { var k i64 = n; fn(x i64) i64 { return x + k; } },
+    };
+    if f(41) != 42 { return 2; }
+    var stored closure(i64) i64 = f;
+    f = match &c {
+        Choice.Some(n) => { stored },
+        _ => let k i64 = 0 in fn(x i64) i64 { return x + 1; },
+    };
+    return f(41);
+}

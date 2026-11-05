@@ -1,0 +1,20 @@
+// expect: 42
+include "std/core.lang"
+func make() closure(i64) i64 {
+    return let n i64 = 1 in fn(x i64) i64 { return x + n; };
+}
+func apply(f closure(i64) i64) i64 { return f(41); }
+func main() i64 {
+    var f closure(i64) i64 = let n i64 = 1 in fn(x i64) i64 { return x + n; };
+    if f(41) != 42 { return 1; }
+    f = let n i64 = 2 in (fn(x i64) i64 { return x + n; });
+    if f(40) != 42 { return 2; }
+    if make()(41) != 42 { return 3; }
+    if apply(let n i64 = 1 in fn(x i64) i64 { return x + n; }) != 42 { return 4; }
+    var n i64 = 3;
+    var g closure(i64) i64 = let n i64 = 1 in let unused i64 = 0 in fn(x i64) i64 { return x + n; };
+    if g(41) != 42 || n != 3 { return 5; }
+    var plain closure(i64) i64 = let n i64 = 0 in fn(x i64) i64 { return x + 1; };
+    if plain(41) != 42 { return 6; }
+    return f(40);
+}

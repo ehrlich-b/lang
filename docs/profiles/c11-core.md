@@ -53,7 +53,9 @@ build and execution logs plus a JSON summary for inspection.
 
 Use `--fixtures test/c_backend` for focused wrapping, layout, float and closure
 regressions, including Boolean literal shifts and closure conversion at typed
-let bindings and assignments through locals, fields and pointers.
+let bindings and assignments through locals, fields and pointers. Closure
+conversion also follows let bodies, block tails and every match arm, preserving
+captured environments and boxing plain function pointers exactly once.
 
 The MiniLisp float/string border probes reproduce the existing LLVM reader/runtime
 bugs; their C reproductions are retained under `test/borders/bugs/`. They do not

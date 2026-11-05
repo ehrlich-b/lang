@@ -417,18 +417,7 @@ func c_expr(e *u8) *u8 {
         }
         return c_temp(dst, value);
     }
-    if k == NODE_LET_EXPR {
-        var saved i64 = cg_local_count;
-        var t *u8 = let_expr_type(e); c_check_type(t, e);
-        var value *u8 = c_value(let_expr_init(e), t);
-        var addr *u8 = c_bind(let_expr_name(e), let_expr_name_len(e), t); c_store(addr, value, t);
-        var result *u8 = c_expr(let_expr_body(e)); cg_local_count = saved; return result;
-    }
-    if k == NODE_BLOCK_EXPR {
-        var saved i64 = cg_local_count; var i i64 = 0;
-        while i < block_expr_count(e) { c_stmt(cg_ast_ptr_at(block_expr_stmts(e), i)); i = i + 1; }
-        var result *u8 = c_expr(block_expr_tail(e)); cg_local_count = saved; return result;
-    }
+    if k == NODE_LET_EXPR || k == NODE_BLOCK_EXPR { return c_value(e, nil); }
     if k == NODE_INT_COMPARE || k == NODE_INT_CONVERT {
         if integer_expr_valid(e) == 0 { c_error(e, "invalid integer operation"); return "0"; }
         var src *u8 = integer_expr_src(e); var bits i64 = integer_type_bits(src);
@@ -463,14 +452,15 @@ func c_expr(e *u8) *u8 {
         if expanded == nil { c_error(e, "reader returned invalid expression AST"); return "0"; }
         return c_expr(expanded);
     }
-    if k == NODE_MATCH_EXPR { return c_match(e); }
+    if k == NODE_MATCH_EXPR { return c_match(e, nil); }
     if k == NODE_PERFORM_EXPR || k == NODE_HANDLE_EXPR || k == NODE_RESUME_EXPR { c_error(e, "effects require CPS lowering"); return "0"; }
     if k == NODE_LAMBDA_EXPR { return c_lambda(e); }
     c_error(e, "unsupported core expression"); return "0";
 }
-func c_match(e *u8) *u8 {
+func c_match(e *u8, destination *u8) *u8 {
     var scrut *u8 = c_expr(match_expr_scrutinee(e)); var tag *u8 = c_load(scrut, nil);
-    var t *u8 = c_type(e); var result *u8 = nil; var i i64 = 0;
+    var t *u8 = destination; if t == nil { t = c_type(e); }
+    var result *u8 = nil; var i i64 = 0;
     if c_aggregate(t) {
         // Arm bindings expire at the closing brace; own the result outside it.
         var storage *u8 = c_fresh("cm"); emit_str("unsigned char "); emit_str(storage);
@@ -493,7 +483,7 @@ func c_match(e *u8) *u8 {
                 var addr *u8 = c_bind(pattern_variant_binding(pat), pattern_variant_binding_len(pat), t); c_store(addr, v, t);
             }
         }
-        var value *u8 = c_expr(match_arm_body(arm));
+        var value *u8 = c_value(match_arm_body(arm), t);
         if c_aggregate(t) { c_store(result, value, t); }
         else { emit_str(result); emit_str(" = "); emit_str(value); emit_line(";"); }
         emit_line("}");
@@ -681,8 +671,22 @@ func c_box(value *u8, tag i64, size i64, n *u8) *u8 {
     return object;
 }
 func c_value(e *u8, destination *u8) *u8 {
-    // Grouping preserves the lambda's function or environment representation.
+    // Convert at the leaves, while lexical bindings and capture information
+    // are available. Match arms must all use the destination representation.
     while e != nil && node_kind(e) == NODE_GROUP_EXPR { e = group_expr_expr(e); }
+    if e != nil && node_kind(e) == NODE_LET_EXPR {
+        var saved i64 = cg_local_count;
+        var t *u8 = let_expr_type(e); c_check_type(t, e);
+        var value *u8 = c_value(let_expr_init(e), t);
+        var addr *u8 = c_bind(let_expr_name(e), let_expr_name_len(e), t); c_store(addr, value, t);
+        var result *u8 = c_value(let_expr_body(e), destination); cg_local_count = saved; return result;
+    }
+    if e != nil && node_kind(e) == NODE_BLOCK_EXPR {
+        var saved i64 = cg_local_count; var i i64 = 0;
+        while i < block_expr_count(e) { c_stmt(cg_ast_ptr_at(block_expr_stmts(e), i)); i = i + 1; }
+        var result *u8 = c_value(block_expr_tail(e), destination); cg_local_count = saved; return result;
+    }
+    if e != nil && node_kind(e) == NODE_MATCH_EXPR { return c_match(e, destination); }
     var value *u8 = c_expr(e);
     if destination != nil && llvm_is_float_type(destination) {
         if llvm_is_float_type(c_type(e)) == 0 && llvm_is_unsigned_int(c_type(e)) == 0 { value = c_join("c_signed(", value, ")"); }
