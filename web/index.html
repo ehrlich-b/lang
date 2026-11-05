@@ -24,6 +24,26 @@
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     line-height: 1.5;
   }
+  .score-scroll { overflow-x:auto; }
+  .scores { width:100%; border-collapse:collapse; font-size:.85rem; }
+  .scores th, .scores td { text-align:left; padding:.65rem; border-bottom:1px solid var(--border); overflow-wrap:anywhere; }
+  .scores th { color:var(--dim); }
+  .trace-panes { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border:1px solid var(--border); border-radius:6px; background:var(--panel); }
+  .trace-panes > div { min-width:0; }
+  .trace-panes h4 { margin:0; padding:.5rem 1rem; color:var(--dim); border-bottom:1px solid var(--border); }
+  .trace-panes pre { height:230px; }
+  details summary { cursor:pointer; color:var(--accent2); margin:.7rem 0; }
+  @media(max-width:650px) {
+    .trace-panes { grid-template-columns:1fr; }
+    .scores, .scores tbody { display:block; }
+    .scores thead { position:absolute; clip-path:inset(50%); height:1px; width:1px; overflow:hidden; }
+    .scores tr { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:.2rem .75rem; padding:.65rem 0; border-bottom:1px solid var(--border); }
+    .scores td { border:0; padding:0; min-width:0; font-size:.78rem; }
+    .scores td:nth-child(1) { grid-area:1/1; font-weight:bold; color:var(--accent); }
+    .scores td:nth-child(2) { grid-area:2/1; color:var(--dim); }
+    .scores td:nth-child(3) { grid-area:1/2; text-align:right; }
+    .scores td:nth-child(4) { grid-area:2/2; text-align:right; color:var(--dim); }
+  }
   .wrap { max-width: 1180px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
   h1 { font-size: 2rem; margin: 0; color: var(--accent); }
   h2 { color: #f0f6fc; font-size: 1.6rem; letter-spacing: -.025em; margin: 2.5rem 0 .5rem; }
@@ -362,6 +382,168 @@
   <p class="limits">An experimental language toolkit. Reader coverage varies by target.
     The <a href="#capability-details">tested feature map</a> includes rejected and incorrect cases.</p>
   <details id="capability-details"><summary>Explore tested features and target limits</summary><div class="details-content">
+
+  <!-- scoreboard:start -->
+  <section id="scoreboard" aria-labelledby="scoreboard-title">
+    <h2 id="scoreboard-title">how much of the outside world?</h2>
+    <p>Outside-suite snapshots. A border probe is not a conformance score.</p>
+    <div class="score-scroll"><table class="scores">
+      <thead><tr><th>Language</th><th>Outside suite</th><th>Score</th><th>Target</th></tr></thead><tbody>
+      <tr><td>c</td><td>—</td><td>not measured</td><td>llvm, llvm-wasm, wasm</td></tr>
+      <tr><td>calc</td><td>—</td><td>not measured</td><td>llvm, llvm-wasm, wasm</td></tr>
+      <tr><td>flow</td><td>—</td><td>not measured</td><td>llvm, llvm-wasm, wasm</td></tr>
+      <tr><td>forth</td><td>—</td><td>not measured</td><td>llvm, llvm-wasm, wasm</td></tr>
+      <tr><td>lang</td><td>—</td><td>not measured</td><td>llvm, llvm-wasm, wasm</td></tr>
+      <tr><td>lox</td><td>Crafting Interpreters · clox</td><td>58/246</td><td>LLVM</td></tr>
+      <tr><td>lua</td><td>Lua 5.4.8 official files</td><td>0/33</td><td>LLVM</td></tr>
+      <tr><td>lua</td><td>Lua 5.4.8 official files</td><td>0/33</td><td>direct Wasm</td></tr>
+    </tbody></table></div>
+    <details><summary>+3 more</summary>
+    <div class="score-scroll"><table class="scores">
+      <thead><tr><th>Language</th><th>Outside suite</th><th>Score</th><th>Target</th></tr></thead><tbody>
+      <tr><td>minilisp</td><td>—</td><td>not measured</td><td>llvm, llvm-wasm, wasm</td></tr>
+      <tr><td>minipy</td><td>—</td><td>not measured</td><td>llvm, llvm-wasm, wasm</td></tr>
+      <tr><td>tiny</td><td>—</td><td>not measured</td><td>llvm, llvm-wasm, wasm</td></tr>
+    </tbody></table></div>
+    </details>
+    <p class="meta">Snapshots: HILLCLIMB · SHOWCASE. Targets: borders.</p>
+  </section>
+  <!-- scoreboard:end -->
+
+  <!-- traces:start -->
+  <section id="traces" aria-labelledby="traces-title">
+    <h2 id="traces-title">three syntaxes. one compiler.</h2>
+    <p>Follow each reader into the shared AST and native LLVM IR. Runtime calls stay explicit; runtime definitions are omitted here.</p>
+    <h3>lox</h3>
+    <div class="trace-panes">
+      <div><h4>Source</h4><pre><code>fun answer(n) { return n + 2; }
+print answer(40);</code></pre></div>
+      <div><h4>Shared AST</h4><pre><code>(program
+  (func lox_guest_1 () (type_base i64)
+    (block
+      (expr_stmt
+        (call (ident lox_define) (string &quot;n&quot;) (call (ident lox_argument) (number 0))))
+      (return
+        (call (ident lox_return)
+          (call (ident lox_binary) (number 7)
+            (call (ident lox_get) (string &quot;n&quot;) (number 1))
+            (call (ident lox_number) (string &quot;2&quot;)))))
+      (return (call (ident lox_return) (call (ident lox_nil))))))
+  (func main () (type_base i64)
+    (block
+      (expr_stmt (call (ident lox_begin)))
+      (expr_stmt (call (ident lox_define) (string &quot;answer&quot;) (call (ident lox_nil))))
+      (expr_stmt
+        (call (ident lox_assign) (string &quot;answer&quot;)
+          (call (ident lox_function) (number 1) (number 1) (string &quot;answer&quot;))
+          (number 1)))
+      (expr_stmt
+        (call (ident lox_print)
+          (call (ident lox_call)
+            (call (ident lox_get) (string &quot;answer&quot;) (number 2))
+            (call (ident lox_arg_add)
+              (call (ident lox_args))
+              (call (ident lox_number) (string &quot;40&quot;))))))
+      (return (number 0))))
+  (func lox_dispatch
+    ((param id (type_base i64)))
+    (type_base i64)
+    (block
+      (if (binop == (ident id) (number 1)) (block (return (call (ident lox_guest_1)))))
+      (return (call (ident lox_nil))))))</code></pre></div>
+      <div><h4>LLVM IR</h4><pre><code>define i64 @lox_guest_1() {
+L.entry:
+    %t0 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str62, i64 0, i64 0) to i64
+    %t1 = call i64 @lox_argument(i64 0)
+    %t2 = call i64 @lox_define(i64 %t0, i64 %t1)
+    %t3 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str62, i64 0, i64 0) to i64
+    %t4 = call i64 @lox_get(i64 %t3, i64 1)
+    %t5 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str63, i64 0, i64 0) to i64
+    %t6 = call i64 @lox_number(i64 %t5)
+    %t7 = call i64 @lox_binary(i64 7, i64 %t4, i64 %t6)
+    %t8 = call i64 @lox_return(i64 %t7)
+    ret i64 %t8
+}
+
+define i64 @main(i64 %argc.hidden, i8** %argv.hidden, i8** %envp.hidden) {
+L.entry:
+    %___envp.cast = ptrtoint i8** %envp.hidden to i64
+    store i64 %___envp.cast, i64* @___envp
+    call void @lox_begin()
+    %t0 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str64, i64 0, i64 0) to i64
+    %t1 = call i64 @lox_nil()
+    %t2 = call i64 @lox_define(i64 %t0, i64 %t1)
+    %t3 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str64, i64 0, i64 0) to i64
+    %t4 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str64, i64 0, i64 0) to i64
+    %t5 = call i64 @lox_function(i64 1, i64 1, i64 %t4)
+    %t6 = call i64 @lox_assign(i64 %t3, i64 %t5, i64 1)
+    %t7 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str64, i64 0, i64 0) to i64
+    %t8 = call i64 @lox_get(i64 %t7, i64 2)
+    %t9 = call i64 @lox_args()
+    %t10 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str65, i64 0, i64 0) to i64
+    %t11 = call i64 @lox_number(i64 %t10)
+    %t12 = call i64 @lox_arg_add(i64 %t9, i64 %t11)
+    %t13 = call i64 @lox_call(i64 %t8, i64 %t12)
+    call void @lox_print(i64 %t13)
+    ret i64 0
+}
+
+define i64 @lox_dispatch(i64 %id.arg) {
+L.entry:
+    %id.0 = alloca i64
+    store i64 %id.arg, i64* %id.0
+    %t0 = load i64, i64* %id.0
+    %t2 = icmp eq i64 %t0, 1
+    %t1 = zext i1 %t2 to i64
+    %t3 = icmp ne i64 %t1, 0
+    br i1 %t3, label %L0, label %L2
+L0:
+    %t4 = call i64 @lox_guest_1()
+    ret i64 %t4
+L2:
+    %t5 = call i64 @lox_nil()
+    ret i64 %t5
+}</code></pre></div>
+    </div>
+    <h3>forth</h3>
+    <div class="trace-panes">
+      <div><h4>Source</h4><pre><code>: answer ( n -- result ) 2 + ;</code></pre></div>
+      <div><h4>Shared AST</h4><pre><code>(program
+  (func answer
+    ((param n (type_base i64)))
+    (type_base i64)
+    (block (return (binop + (ident n) (number 2))))))</code></pre></div>
+      <div><h4>LLVM IR</h4><pre><code>define i64 @answer(i64 %n.arg) {
+L.entry:
+    %n.0 = alloca i64
+    store i64 %n.arg, i64* %n.0
+    %t0 = load i64, i64* %n.0
+    %t1 = add i64 %t0, 2
+    ret i64 %t1
+}</code></pre></div>
+    </div>
+    <h3>minilisp</h3>
+    <div class="trace-panes">
+      <div><h4>Source</h4><pre><code>(defun answer (n) (+ n 2))</code></pre></div>
+      <div><h4>Shared AST</h4><pre><code>(program
+  (func answer
+    ((param n (type_base i64)))
+    (type_base i64)
+    (block
+      (return (call (ident lisp_add) (ident n) (call (ident lisp_int) (number 2)))))))</code></pre></div>
+      <div><h4>LLVM IR</h4><pre><code>define i64 @answer(i64 %n.arg) {
+L.entry:
+    %n.0 = alloca i64
+    store i64 %n.arg, i64* %n.0
+    %t0 = load i64, i64* %n.0
+    %t1 = call i64 @lisp_int(i64 2)
+    %t2 = call i64 @lisp_add(i64 %t0, i64 %t1)
+    ret i64 %t2
+}</code></pre></div>
+    </div>
+  </section>
+  <!-- traces:end -->
+
   <!-- borders:start -->
   <section id="borders" aria-labelledby="borders-title">
     <h2 id="borders-title">where the borders are</h2>

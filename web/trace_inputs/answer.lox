@@ -1,0 +1,2 @@
+fun answer(n) { return n + 2; }
+print answer(40);

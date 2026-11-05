@@ -775,3 +775,8 @@ lox-score: init
 .PHONY: scoreboard
 scoreboard:
 	JOBS=2 python3 scripts/scoreboard.py
+
+# The published language-maker sections must be exact generated snapshots.
+verify:
+	python3 test/site_scoreboard.py
+	COMPILER=$(BOOTSTRAP_VERIFY_DIR)/kernel2 python3 test/site_language_maker.py

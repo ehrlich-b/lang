@@ -48,6 +48,7 @@ export SDK="$PWD/lang-0.1.0+e5b90e2f0538-x86_64-linux"
 mkdir 'my first reader'
 cd 'my first reader'</code></pre>
 
+  <!-- tutorial:start -->
   <h2>the complete reader</h2>
   <p>Save this as <code>tiny.lang</code> in <code>my first reader</code>:</p>
   <pre><code>// tiny.lang: `answer 42` becomes a native program.
@@ -57,23 +58,22 @@ include "std/ast.lang"
 
 reader tiny(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
-    if tok_kind(tokens) != TOK_IDENT || !streq(tok_text(tokens), "answer") {
-        tok_note_expected(tokens, "answer");
-        tok_print_error(tokens, "tiny");
+    if tok_kind(tokens) != TOK_IDENT || !streq(tok_text(tokens), &quot;answer&quot;) {
+        tok_note_expected(tokens, &quot;answer&quot;);
+        tok_print_error(tokens, &quot;tiny&quot;);
         return nil;
     }
     tok_next(tokens);
     if tok_kind(tokens) != TOK_NUMBER {
-        tok_note_expected(tokens, "number");
-        tok_print_error(tokens, "tiny");
+        tok_note_expected(tokens, &quot;number&quot;);
+        tok_print_error(tokens, &quot;tiny&quot;);
         return nil;
     }
 
     var value *u8 = tok_text(tokens);
     tok_next(tokens);
-    if !tok_eof(tokens) {
-        tok_note_expected(tokens, "end of input");
-        tok_print_error(tokens, "tiny");
+    if !tok_expect_end(tokens) {
+        tok_print_error(tokens, &quot;tiny&quot;);
         return nil;
     }
 
@@ -115,6 +115,7 @@ cd lang
 make build
 ./out/lang_next new reader tiny
 ./out/lang_next compiler tiny tiny.lang -o tinyc</code></pre>
+  <!-- tutorial:end -->
 
   <h2>grow it</h2>
   <p>

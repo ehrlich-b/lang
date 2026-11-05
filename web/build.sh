@@ -12,6 +12,10 @@ fi
 COMPILER_RECEIPT=${COMPILER_RECEIPT:-out/build-receipt.json}
 export COMPILER_RECEIPT
 python3 scripts/build_receipt.py check --input "$COMPILER_RECEIPT" --compiler "$COMPILER"
+# Publish measured snapshots, the tutorial, and real native compiler traces.
+python3 web/generate_borders.py
+python3 web/generate_scoreboard.py
+python3 web/generate_language_maker.py --compiler "$COMPILER"
 WASM_LDFLAGS="-Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined -Wl,-z,stack-size=8388608"
 
 # Apple clang does not ship the wasm target. Match the test suite's tool lookup
