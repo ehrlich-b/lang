@@ -32,6 +32,11 @@ func timings_cpu_us() i64 {
 }
 
 func timings_begin(phase i64) void {
+    if ___compiler_diagnostic_json != 0 {
+        ___compiler_diagnostic_context("unsupported-mode", nil, -1, -1);
+        eprintln("Error: --timings cannot be combined with --diagnostics=json");
+        exit(1);
+    }
     if timings_depth >= 64 { eprintln("error: timing nesting limit"); exit(1); }
     timings_phases[timings_depth] = phase;
     timings_children[timings_depth] = 0;

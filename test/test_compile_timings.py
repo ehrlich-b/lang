@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Small phase-presence and byte-equality contract, using COMPILER."""
 import importlib.util
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -14,6 +15,30 @@ SPEC.loader.exec_module(phases)
 
 
 class CompileTimingsTest(unittest.TestCase):
+    def test_json_diagnostics_rejects_timings(self):
+        compiler = str((ROOT / os.environ.get('COMPILER', 'out/lang_next')).resolve())
+        env = dict(os.environ, LANGBE='llvm')
+        with tempfile.TemporaryDirectory(prefix='test-json-timings-') as directory:
+            output = Path(directory) / 'program.ll'
+            for flags in (['--timings', '--diagnostics=json'],
+                          ['--diagnostics=json', '--timings']):
+                with self.subTest(flags=flags):
+                    command = [compiler, 'compile', 'test/timings/main.lang',
+                               *flags, '-o', str(output)]
+                    result = subprocess.run(command, cwd=ROOT, env=env,
+                                            capture_output=True, text=True, timeout=15)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, '')
+                    self.assertFalse(output.exists())
+                    records = [json.loads(line) for line in result.stderr.splitlines()]
+                    self.assertEqual(len(records), 1)
+                    self.assertEqual(records[0]['version'], 1)
+                    self.assertEqual(records[0]['code'], 'unsupported-mode')
+                    self.assertEqual(records[0]['severity'], 'error')
+                    self.assertIn('--timings cannot be combined with --diagnostics=json',
+                                  records[0]['message'])
+                    print(result.stderr, end='')
+
     def check_output(self, command, output, env):
         plain = subprocess.run(command, cwd=ROOT, env=env, capture_output=True,
                                text=True, timeout=15, check=True)
