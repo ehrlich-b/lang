@@ -133,6 +133,7 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   const origins = await compileAndRun('test/suite/287_node_origins_index.lang', {
     'src/lexer.lang': fs.readFileSync('src/lexer.lang', 'utf8'),
     'src/parser.lang': fs.readFileSync('src/parser.lang', 'utf8'),
+    'src/compiler_tables.lang': fs.readFileSync('src/compiler_tables.lang', 'utf8'),
     ...Object.fromEntries(['stage_node_origin', 'stage_digest', 'stage_origin', 'stage_wire']
       .map((name) => [`src/${name}.lang`, fs.readFileSync(`src/${name}.lang`, 'utf8')])),
   });
