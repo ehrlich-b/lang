@@ -1093,8 +1093,13 @@ func sexpr_to_node_inner(node *PNode) *u8 {
         let_expr_set_name(n, sexpr_strdup(name_node.text));
         let_expr_set_name_len(n, strlen(name_node.text));
 
-        if sexpr_len(node) == 5 {
-            let_expr_set_type(n, sexpr_to_type(sexpr_get(node, 2)));
+        // Typed lets carry one extra child, regardless of the type's kind.
+        // In particular, closure/function/array types must round-trip too.
+        var count i64 = sexpr_len(node);
+        if count != 4 && count != 5 { phase_error("invalid-let-arity", phase_diagnostic_source); }
+        var next *PNode = sexpr_get(node, 2);
+        if count == 5 {
+            let_expr_set_type(n, sexpr_to_type(next));
             let_expr_set_init(n, sexpr_to_node(sexpr_get(node, 3)));
             let_expr_set_body(n, sexpr_to_node(sexpr_get(node, 4)));
         } else {
