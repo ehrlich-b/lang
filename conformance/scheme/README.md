@@ -80,9 +80,11 @@ No compiler behavior or test expectation was changed to accommodate them.
 python3 -B conformance/scheme/score.py --sample 10
 ```
 
-The fixture is an unchanged copy of `tests/r7rs-tests.scm` from Chibi
+The fixture copies `tests/r7rs-tests.scm` from Chibi
 `f966f15dcce4bfcc33af50d34b70d084afb6750d`; its license is beside it.
-`audit.py source` checks the cloned repository identity and byte equality.
+`audit.py source` checks the cloned repository identity, original hash, normalized byte equality,
+and identity of all datum tokens. Six trailing-whitespace lines outside strings
+were trimmed for repository whitespace checks; no test datum changed.
 The previous inventory is retained and extended to preserve vectors and offsets.
 There are **980 executable `(test expected expr)` forms**, not 989. All nine extra
 textual sites are in line/block comments. To preserve the requested 99-slot sample,

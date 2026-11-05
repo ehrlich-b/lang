@@ -6,6 +6,7 @@ from pathlib import Path
 import socket
 import subprocess
 from runner import ROOT
+from inventory import tokens
 
 PREVIOUS = 'd28389617f5da9d5216a84ca53120e45a9dcea65'
 BASE = '4b93dcaa32c177ed827fb7597b02d8431ace2dec'
@@ -34,8 +35,12 @@ def main():
         upstream = ROOT.parent / 'sources/chibi'
         assert git('rev-parse', 'HEAD', cwd=upstream) == CHIBI
         fixture = ROOT / 'conformance/scheme/fixtures/r7rs-tests.scm'
-        assert fixture.read_bytes() == (upstream / 'tests/r7rs-tests.scm').read_bytes()
-        print('PASS pinned Chibi input', CHIBI, hashlib.sha256(fixture.read_bytes()).hexdigest())
+        original = (upstream / 'tests/r7rs-tests.scm').read_text()
+        normalized = '\n'.join(line.rstrip() for line in original.splitlines()) + '\n'
+        assert fixture.read_text() == normalized
+        assert list(tokens(original)) == list(tokens(normalized))
+        print('PASS pinned Chibi input', CHIBI, hashlib.sha256(original.encode()).hexdigest())
+        print('PASS fixture normalization preserves every datum token; six line-end whitespace fixes')
     elif args.check == 'borders':
         doc = (ROOT / 'conformance/scheme/README.md').read_text()
         for text in ['Shared AST borders', 'call/cc', 'DEFERRED', '256 KiB', '61 signed bits']:
