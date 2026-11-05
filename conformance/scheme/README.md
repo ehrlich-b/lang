@@ -102,8 +102,17 @@ and actual expressions without emitting extra comparisons. This preserves state
 changes without leaving an unbound `test` in the generated program. Static slicing
 can over-retain lexical name collisions; reflective dependencies and macro expansion
 remain outside this scorer's supported context model.
-Expected and actual values execute once in the target, where structural/approximate
-numeric comparison produces an attributed PASS/FAIL and test ID. The five-test
+Expected and actual values execute once in the target, where structural test
+comparison produces an attributed PASS/FAIL and test ID. Exact integer pairs
+compare directly in their 61-bit representation, including inside lists and
+vectors. Only the test harness allows an absolute tolerance below 1e-6 when at
+least one numeric operand is inexact. Scheme `equal?`, `eqv?` and `eq?` use no
+tolerance and distinguish exact from inexact numbers; numeric `=` and ordering
+compare two exact integers directly. Mixed exact/inexact numeric ordering still
+uses binary64 coercion. `equality.scm` and `score-exact.scm` cover adjacent large
+integers, negative and boundary values, nested data, and separation of approximate
+test expectations from Scheme equality. Run `test_exact.py` to verify both native
+behavior and the deliberately failing scoreboard cases. The five-test
 fixture checks binding context, stateful expressions and vector round-tripping.
 `score-state.scm` adds seven comparisons covering initializer effects, earlier test
 mutation, helper calls, redefinitions and quoted continuation data; its first

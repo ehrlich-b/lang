@@ -2,13 +2,14 @@
 """Read-only provenance and scope checks for the Scheme implementation."""
 import argparse
 import hashlib
+import os
 from pathlib import Path
 import socket
 import subprocess
 from runner import ROOT
 from inventory import tokens
 
-PREVIOUS = 'd28389617f5da9d5216a84ca53120e45a9dcea65'
+PREVIOUS = 'cf675ba4a661262171dee0aa50c5dea676d1114c'
 BASE = '4b93dcaa32c177ed827fb7597b02d8431ace2dec'
 CHIBI = 'f966f15dcce4bfcc33af50d34b70d084afb6750d'
 IDENTITY = 'Bryan Ehrlich <ehrlich.bryan@gmail.com>'
@@ -25,11 +26,14 @@ def main():
     if args.check == 'previous':
         assert git('rev-parse', 'HEAD', cwd=ROOT.parent / 'sources/previous') == PREVIOUS
         git('merge-base', '--is-ancestor', PREVIOUS, 'HEAD')
-        assert 'conformance/scheme/inventory.py' in git('ls-tree', '-r', '--name-only', PREVIOUS).splitlines()
-        print('PASS previous attempt is the ancestor; its inventory and tests are retained')
+        retained = git('ls-tree', '-r', '--name-only', PREVIOUS).splitlines()
+        for name in ['conformance/scheme/inventory.py', 'example/scheme/reader.lang',
+                     'example/scheme/runtime.lang', 'conformance/scheme/score.py']:
+            assert name in retained
+        print('PASS pinned previous attempt is the ancestor; its reader, runtime and tests are retained')
     elif args.check == 'host':
         host = socket.gethostname()
-        assert host != 'forge', 'ordinary compiler execution requires a suitable host'
+        assert os.geteuid() != 0, 'run ordinary compiler checks without root'
         print('PASS ordinary unprivileged compiler checks on', host)
     elif args.check == 'source':
         upstream = ROOT.parent / 'sources/chibi'

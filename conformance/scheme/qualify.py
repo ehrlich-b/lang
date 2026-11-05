@@ -15,6 +15,7 @@ def run(*args):
 def main():
     run('conformance/scheme/audit.py', 'source')
     run('conformance/scheme/test_context.py')
+    run('conformance/scheme/test_exact.py')
     for name in ['basic', 'control', 'values', 'numeric', 'quotation', 'apply']:
         run('conformance/scheme/check.py', 'example/scheme/' + name + '.scm',
             '--evidence', '../evidence/final-' + name)
