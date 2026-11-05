@@ -1,0 +1,7 @@
+include "example/minipy/minipy.lang"
+#minipy{
+def g():
+    a = [19, 23]
+    return a[0] + a[1]
+}
+func main() i64 { return g(); }

@@ -1,0 +1,6 @@
+include "example/forth/forth_runtime.lang"
+include "example/forth/forth.lang"
+#forth{
+: count ( n -- n ) dup 0 = if else 1 - recurse 1 + then ; : g ( -- n ) 42 count ;
+}
+func main() i64 { return g(); }

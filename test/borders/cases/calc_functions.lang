@@ -1,0 +1,5 @@
+include "std/core.lang"
+include "example/calc/calc.lang"
+#calc{
+func g() { return 42; } answer g()
+}

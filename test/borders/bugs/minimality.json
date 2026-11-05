@@ -1,0 +1,426 @@
+{
+  "test/borders/bugs/minilisp_floats_llvm.lang": {
+    "sha256": "35af2e66deb130f7d515219e5844c658d942d1800bf07ba157e0dcb0975f9fd0",
+    "protected_includes": [
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "final_includes": [
+      "include \"example/minilisp/lisp_runtime.lang\"",
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/minilisp/lisp_runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/minilisp_floats_llvm-wasm.lang": {
+    "sha256": "35af2e66deb130f7d515219e5844c658d942d1800bf07ba157e0dcb0975f9fd0",
+    "protected_includes": [
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "final_includes": [
+      "include \"example/minilisp/lisp_runtime.lang\"",
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/minilisp/lisp_runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/minilisp_floats_wasm.lang": {
+    "sha256": "35af2e66deb130f7d515219e5844c658d942d1800bf07ba157e0dcb0975f9fd0",
+    "protected_includes": [
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "final_includes": [
+      "include \"example/minilisp/lisp_runtime.lang\"",
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/minilisp/lisp_runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/minilisp_strings_llvm.lang": {
+    "sha256": "b6bb6c5fc55fd739d66d500a2cc2c5737820a4f99db9bf6a652069b61ec1f9cd",
+    "protected_includes": [
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "final_includes": [
+      "include \"example/minilisp/lisp_runtime.lang\"",
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/minilisp/lisp_runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/minilisp_strings_llvm-wasm.lang": {
+    "sha256": "b6bb6c5fc55fd739d66d500a2cc2c5737820a4f99db9bf6a652069b61ec1f9cd",
+    "protected_includes": [
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "final_includes": [
+      "include \"example/minilisp/lisp_runtime.lang\"",
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/minilisp/lisp_runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/minilisp_strings_wasm.lang": {
+    "sha256": "b6bb6c5fc55fd739d66d500a2cc2c5737820a4f99db9bf6a652069b61ec1f9cd",
+    "protected_includes": [
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "final_includes": [
+      "include \"example/minilisp/lisp_runtime.lang\"",
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/minilisp/lisp_runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/forth_floats_llvm.lang": {
+    "sha256": "9f331ee8c9a572dc4efb65fafe5f88b5906cf58fa7d21d415f5cc082fb160546",
+    "protected_includes": [
+      "include \"example/forth/forth.lang\""
+    ],
+    "final_includes": [
+      "include \"example/forth/forth_runtime.lang\"",
+      "include \"example/forth/forth.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/forth/forth_runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/forth_floats_llvm-wasm.lang": {
+    "sha256": "9f331ee8c9a572dc4efb65fafe5f88b5906cf58fa7d21d415f5cc082fb160546",
+    "protected_includes": [
+      "include \"example/forth/forth.lang\""
+    ],
+    "final_includes": [
+      "include \"example/forth/forth_runtime.lang\"",
+      "include \"example/forth/forth.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/forth/forth_runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/forth_floats_wasm.lang": {
+    "sha256": "9f331ee8c9a572dc4efb65fafe5f88b5906cf58fa7d21d415f5cc082fb160546",
+    "protected_includes": [
+      "include \"example/forth/forth.lang\""
+    ],
+    "final_includes": [
+      "include \"example/forth/forth_runtime.lang\"",
+      "include \"example/forth/forth.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/forth/forth_runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/flow_error_location_llvm.lang": {
+    "sha256": "8a9408317e28fe6df8f603f725824d14cd82d1325f832de0d4a6451b69a83a3e",
+    "protected_includes": [
+      "include \"example/flow/flow.lang\""
+    ],
+    "final_includes": [
+      "include \"example/flow/flow.lang\""
+    ],
+    "reductions": []
+  },
+  "test/borders/bugs/flow_error_location_llvm-wasm.lang": {
+    "sha256": "8a9408317e28fe6df8f603f725824d14cd82d1325f832de0d4a6451b69a83a3e",
+    "protected_includes": [
+      "include \"example/flow/flow.lang\""
+    ],
+    "final_includes": [
+      "include \"example/flow/flow.lang\""
+    ],
+    "reductions": []
+  },
+  "test/borders/bugs/flow_error_location_wasm.lang": {
+    "sha256": "8a9408317e28fe6df8f603f725824d14cd82d1325f832de0d4a6451b69a83a3e",
+    "protected_includes": [
+      "include \"example/flow/flow.lang\""
+    ],
+    "final_includes": [
+      "include \"example/flow/flow.lang\""
+    ],
+    "reductions": []
+  },
+  "test/borders/bugs/lox_integers_llvm-wasm.lang": {
+    "sha256": "016515b5959c4e3fc720121c2dfcf58e4f834a7ca68d71b59469b771371c0432",
+    "protected_includes": [
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lox_floats_llvm-wasm.lang": {
+    "sha256": "d44b78c2b0a1b8cb09353fceae5a424742b32254505db85632bc4b5f7f9c29c2",
+    "protected_includes": [
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lox_strings_llvm-wasm.lang": {
+    "sha256": "820bbb1fc951409fb84f5cfb1a2729cac7eed35cbf499daff88100b2a40874f8",
+    "protected_includes": [
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lox_functions_llvm-wasm.lang": {
+    "sha256": "6666269319640e5dd9bf2187f73af8a57a2c28efd1496f8f66015e8855f20deb",
+    "protected_includes": [
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lox_closures_llvm-wasm.lang": {
+    "sha256": "6f8c2c21e82acb2e542921db71470102a6e2519c05867fbfc213eb2def395d08",
+    "protected_includes": [
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lox_cross_reader_call_llvm.lang": {
+    "sha256": "28798a1c35e82370e41c920280a06f4f96561f3adf00002c5eb6045fbcc715e6",
+    "protected_includes": [
+      "include \"example/c/c.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\"",
+      "include \"example/c/c.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lox_cross_reader_call_llvm-wasm.lang": {
+    "sha256": "28798a1c35e82370e41c920280a06f4f96561f3adf00002c5eb6045fbcc715e6",
+    "protected_includes": [
+      "include \"example/c/c.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\"",
+      "include \"example/c/c.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lua_error_location_llvm.lang": {
+    "sha256": "42667f665fb27c47aeffff5a1a9a608b9bf7517de856a58cb5080473658f9442",
+    "protected_includes": [
+      "include \"example/lua/lua.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lua/lua.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"std/core.lang\"",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lua_error_location_llvm-wasm.lang": {
+    "sha256": "42667f665fb27c47aeffff5a1a9a608b9bf7517de856a58cb5080473658f9442",
+    "protected_includes": [
+      "include \"example/lua/lua.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lua/lua.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"std/core.lang\"",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lua_error_location_wasm.lang": {
+    "sha256": "42667f665fb27c47aeffff5a1a9a608b9bf7517de856a58cb5080473658f9442",
+    "protected_includes": [
+      "include \"example/lua/lua.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lua/lua.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"std/core.lang\"",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/calc_error_location_llvm.lang": {
+    "sha256": "bfcc966aca0c826c84c4c8d504bf9f6b443a29986d92f35fd6b7cc25970bcb10",
+    "protected_includes": [
+      "include \"example/calc/calc.lang\""
+    ],
+    "final_includes": [
+      "include \"example/calc/calc.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"std/core.lang\"",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/calc_error_location_llvm-wasm.lang": {
+    "sha256": "bfcc966aca0c826c84c4c8d504bf9f6b443a29986d92f35fd6b7cc25970bcb10",
+    "protected_includes": [
+      "include \"example/calc/calc.lang\""
+    ],
+    "final_includes": [
+      "include \"example/calc/calc.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"std/core.lang\"",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/calc_error_location_wasm.lang": {
+    "sha256": "bfcc966aca0c826c84c4c8d504bf9f6b443a29986d92f35fd6b7cc25970bcb10",
+    "protected_includes": [
+      "include \"example/calc/calc.lang\""
+    ],
+    "final_includes": [
+      "include \"example/calc/calc.lang\""
+    ],
+    "reductions": [
+      {
+        "removed": "include \"std/core.lang\"",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  }
+}

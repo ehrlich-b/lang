@@ -1,0 +1,3 @@
+include "example/minilisp/lisp_runtime.lang"
+include "example/minilisp/minilisp.lang"
+func main() i64 { return lisp_to_int(#minilisp{ (let ((a (vector 19 23))) (+ (aref a 0) (aref a 1))) }); }

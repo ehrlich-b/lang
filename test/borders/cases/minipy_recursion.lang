@@ -1,0 +1,10 @@
+include "example/minipy/minipy.lang"
+#minipy{
+def count(n):
+    if n == 0:
+        return 0
+    return 1 + count(n - 1)
+def g():
+    return count(42)
+}
+func main() i64 { return g(); }

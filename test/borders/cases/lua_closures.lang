@@ -1,0 +1,5 @@
+include "std/core.lang"
+include "example/lua/lua.lang"
+#lua{
+function outer(n) return function() return n + 23 end end assert(outer(19)() == 42)
+}

@@ -1,0 +1,5 @@
+include "std/core.lang"
+include "example/tiny/tiny.lang"
+#tiny{
+struct Pair { a = 19; b = 23; } answer Pair.a + Pair.b
+}

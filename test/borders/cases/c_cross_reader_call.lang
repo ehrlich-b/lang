@@ -1,0 +1,10 @@
+include "example/c/c.lang"
+include "example/minipy/minipy.lang"
+#minipy{
+def py_answer(n):
+    return n + 23
+}
+#c{
+int g() { return py_answer(19); }
+}
+func main() i64 { return g(); }

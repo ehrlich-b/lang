@@ -1,0 +1,6 @@
+include "example/minipy/minipy.lang"
+#minipy{
+def g():
+    yield 42
+}
+func main() i64 { return g(); }

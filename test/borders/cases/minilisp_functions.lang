@@ -1,5 +1,4 @@
-include "std/core.lang"
 include "example/minilisp/lisp_runtime.lang"
 include "example/minilisp/minilisp.lang"
-#minilisp{ (defun fact (n) (if (< n 2) 1 (* n (fact (- n 1))))) }
-func main() i64 { return lisp_to_int(fact(lisp_int(5))) - 78; }
+#minilisp{ (defun g (n) (+ n 23)) }
+func main() i64 { return lisp_to_int(g(lisp_int(19))); }

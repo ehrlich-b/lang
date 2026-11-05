@@ -1,0 +1,6 @@
+include "example/forth/forth_runtime.lang"
+include "example/forth/forth.lang"
+#forth{
+: g ( -- n ) 20.5 21.5 + ;
+}
+func main() i64 { return g(); }

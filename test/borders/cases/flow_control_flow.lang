@@ -1,0 +1,5 @@
+include "example/flow/flow.lang"
+#flow{
+func g() { var n = 0; while n < 42 { n = n + 1; } if n == 42 { return n; } return 1; }
+}
+func main() i64 { return g(); }

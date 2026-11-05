@@ -1,0 +1,5 @@
+include "std/core.lang"
+include "example/lua/lua.lang"
+#lua{
+local p = {a = 19, b = 23}; assert(p.a + p.b == 42)
+}

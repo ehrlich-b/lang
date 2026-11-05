@@ -1,0 +1,5 @@
+include "example/lox/runtime.lang"
+include "example/lox/lox.lang"
+#lox{
+var n = 0; while (n < 42) { n = n + 1; } print n;
+}

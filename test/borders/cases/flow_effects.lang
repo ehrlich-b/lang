@@ -1,0 +1,6 @@
+include "example/flow/flow_runtime.lang"
+include "example/flow/flow.lang"
+#flow{
+gen one() { yield 42; } func g() { var n = 0; for v in one() { n = v; } return n; }
+}
+func main() i64 { return g(); }

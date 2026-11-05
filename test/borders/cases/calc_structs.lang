@@ -1,0 +1,5 @@
+include "std/core.lang"
+include "example/calc/calc.lang"
+#calc{
+struct Pair { a = 19; b = 23; } answer Pair.a + Pair.b
+}

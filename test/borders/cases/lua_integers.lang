@@ -1,0 +1,5 @@
+include "std/core.lang"
+include "example/lua/lua.lang"
+#lua{
+assert(19 + 23 == 42)
+}

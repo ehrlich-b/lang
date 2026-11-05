@@ -1,0 +1,3 @@
+include "example/c/c.lang"
+#c{ int g(int n) { return n + 23; } }
+func main() i64 { return g(19); }

@@ -1,4 +1,3 @@
-include "std/core.lang"
 include "example/minilisp/lisp_runtime.lang"
 include "example/minilisp/minilisp.lang"
 func main() i64 { return lisp_to_int(#minilisp{ (+ 20.5 21.5) }); }

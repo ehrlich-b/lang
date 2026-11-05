@@ -1,0 +1,5 @@
+include "example/c/c.lang"
+#c{
+struct Pair { int a; int b; }; int g() { struct Pair p; p.a = 19; p.b = 23; return p.a + p.b; }
+}
+func main() i64 { return g(); }

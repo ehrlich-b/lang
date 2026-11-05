@@ -1,0 +1,5 @@
+include "std/core.lang"
+include "example/lua/lua.lang"
+#lua{
+function count(n) if n == 0 then return 0 end return 1 + count(n - 1) end assert(count(42) == 42)
+}

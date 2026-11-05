@@ -1,4 +1,3 @@
-include "std/core.lang"
 include "example/minipy/minipy.lang"
 #minipy{
 def g():

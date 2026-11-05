@@ -1,0 +1,4 @@
+include "example/minilisp/lisp_runtime.lang"
+include "example/minilisp/minilisp.lang"
+#minilisp{ (defun count (n) (if (eq n 0) 0 (+ 1 (count (- n 1))))) }
+func main() i64 { return lisp_to_int(count(lisp_int(42))); }

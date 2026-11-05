@@ -1,0 +1,4 @@
+include "std/core.lang"
+effect Answer(i64) i64
+func g() i64 { return perform Answer(42); }
+func main() i64 { return handle { g(); } with { return(v) => v, Answer(v) => v }; }

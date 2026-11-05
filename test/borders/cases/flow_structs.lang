@@ -1,0 +1,5 @@
+include "example/flow/flow.lang"
+#flow{
+struct Pair { a; b; } func g() { return 42; }
+}
+func main() i64 { return g(); }

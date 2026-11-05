@@ -1,0 +1,6 @@
+include "example/forth/forth_runtime.lang"
+include "example/forth/forth.lang"
+#forth{
+: g ( -- n ) 19 23 < if 42 else 1 then ;
+}
+func main() i64 { return g(); }

@@ -1,0 +1,5 @@
+include "example/lox/runtime.lang"
+include "example/lox/lox.lang"
+#lox{
+try { throw 42; } catch (n) { print n; }
+}

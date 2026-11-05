@@ -1,4 +1,3 @@
-include "std/core.lang"
 include "example/minilisp/lisp_runtime.lang"
 include "example/minilisp/minilisp.lang"
 func main() i64 { return lisp_to_int(#minilisp{ (let ((p (make-struct 19 23))) (+ (field p 0) (field p 1))) }); }

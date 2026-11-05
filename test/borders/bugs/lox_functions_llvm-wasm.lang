@@ -1,0 +1,5 @@
+include "example/lox/runtime.lang"
+include "example/lox/lox.lang"
+#lox{
+fun add(n) { return n + 23; } print add(19);
+}

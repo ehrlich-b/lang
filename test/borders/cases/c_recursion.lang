@@ -1,0 +1,5 @@
+include "example/c/c.lang"
+#c{
+int count(int n) { if (n == 0) return 0; return 1 + count(n - 1); } int g() { return count(42); }
+}
+func main() i64 { return g(); }

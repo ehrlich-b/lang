@@ -1,0 +1,616 @@
+{
+  "lang/integers": {
+    "fixture": "test/borders/cases/lang_integers.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "lang/floats": {
+    "fixture": "test/borders/cases/lang_floats.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "lang/strings": {
+    "fixture": "test/borders/cases/lang_strings.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "lang/functions": {
+    "fixture": "test/borders/cases/lang_functions.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "lang/closures": {
+    "fixture": "test/borders/cases/lang_closures.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "lang/structs": {
+    "fixture": "test/borders/cases/lang_structs.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "lang/arrays": {
+    "fixture": "test/borders/cases/lang_arrays.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "lang/control_flow": {
+    "fixture": "test/borders/cases/lang_control_flow.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "lang/recursion": {
+    "fixture": "test/borders/cases/lang_recursion.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "lang/effects": {
+    "fixture": "test/borders/cases/lang_effects.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "lang/cross_reader_call": {
+    "fixture": "test/borders/cases/lang_cross_reader_call.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "lang/error_location": {
+    "fixture": "test/borders/cases/lang_error_location.lang",
+    "expected_exit": 42,
+    "expected_stdout": "",
+    "diagnostic": "test/borders/(?:cases|bugs)/lang_error_location[^:]*:1:28: error:"
+  },
+  "minipy/integers": {
+    "fixture": "test/borders/cases/minipy_integers.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minipy/floats": {
+    "fixture": "test/borders/cases/minipy_floats.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minipy/strings": {
+    "fixture": "test/borders/cases/minipy_strings.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minipy/functions": {
+    "fixture": "test/borders/cases/minipy_functions.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minipy/closures": {
+    "fixture": "test/borders/cases/minipy_closures.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minipy/structs": {
+    "fixture": "test/borders/cases/minipy_structs.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minipy/arrays": {
+    "fixture": "test/borders/cases/minipy_arrays.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minipy/control_flow": {
+    "fixture": "test/borders/cases/minipy_control_flow.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minipy/recursion": {
+    "fixture": "test/borders/cases/minipy_recursion.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minipy/effects": {
+    "fixture": "test/borders/cases/minipy_effects.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minipy/cross_reader_call": {
+    "fixture": "test/borders/cases/minipy_cross_reader_call.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minipy/error_location": {
+    "fixture": "test/borders/cases/minipy_error_location.lang",
+    "expected_exit": 42,
+    "expected_stdout": "",
+    "diagnostic": "minipy:3:26:"
+  },
+  "minilisp/integers": {
+    "fixture": "test/borders/cases/minilisp_integers.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minilisp/floats": {
+    "fixture": "test/borders/cases/minilisp_floats.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minilisp/strings": {
+    "fixture": "test/borders/cases/minilisp_strings.lang",
+    "expected_exit": 1,
+    "expected_stdout": ""
+  },
+  "minilisp/functions": {
+    "fixture": "test/borders/cases/minilisp_functions.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minilisp/closures": {
+    "fixture": "test/borders/cases/minilisp_closures.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minilisp/structs": {
+    "fixture": "test/borders/cases/minilisp_structs.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minilisp/arrays": {
+    "fixture": "test/borders/cases/minilisp_arrays.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minilisp/control_flow": {
+    "fixture": "test/borders/cases/minilisp_control_flow.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minilisp/recursion": {
+    "fixture": "test/borders/cases/minilisp_recursion.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minilisp/effects": {
+    "fixture": "test/borders/cases/minilisp_effects.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minilisp/cross_reader_call": {
+    "fixture": "test/borders/cases/minilisp_cross_reader_call.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "minilisp/error_location": {
+    "fixture": "test/borders/cases/minilisp_error_location.lang",
+    "expected_exit": 42,
+    "expected_stdout": "",
+    "diagnostic": "minilisp:1:3:"
+  },
+  "c/integers": {
+    "fixture": "test/borders/cases/c_integers.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "c/floats": {
+    "fixture": "test/borders/cases/c_floats.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "c/strings": {
+    "fixture": "test/borders/cases/c_strings.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "c/functions": {
+    "fixture": "test/borders/cases/c_functions.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "c/closures": {
+    "fixture": "test/borders/cases/c_closures.lang",
+    "expected_exit": 42,
+    "expected_stdout": "",
+    "reason": "C has no lexical closures in its source language."
+  },
+  "c/structs": {
+    "fixture": "test/borders/cases/c_structs.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "c/arrays": {
+    "fixture": "test/borders/cases/c_arrays.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "c/control_flow": {
+    "fixture": "test/borders/cases/c_control_flow.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "c/recursion": {
+    "fixture": "test/borders/cases/c_recursion.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "c/effects": {
+    "fixture": "test/borders/cases/c_effects.lang",
+    "expected_exit": 42,
+    "expected_stdout": "",
+    "reason": "C has no algebraic effect syntax; calls to effectful foreign functions are a separate ABI question."
+  },
+  "c/cross_reader_call": {
+    "fixture": "test/borders/cases/c_cross_reader_call.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "c/error_location": {
+    "fixture": "test/borders/cases/c_error_location.lang",
+    "expected_exit": 42,
+    "expected_stdout": "",
+    "diagnostic": "c:2:20:"
+  },
+  "forth/integers": {
+    "fixture": "test/borders/cases/forth_integers.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "forth/floats": {
+    "fixture": "test/borders/cases/forth_floats.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "forth/strings": {
+    "fixture": "test/borders/cases/forth_strings.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "forth/functions": {
+    "fixture": "test/borders/cases/forth_functions.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "forth/closures": {
+    "fixture": "test/borders/cases/forth_closures.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "forth/structs": {
+    "fixture": "test/borders/cases/forth_structs.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "forth/arrays": {
+    "fixture": "test/borders/cases/forth_arrays.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "forth/control_flow": {
+    "fixture": "test/borders/cases/forth_control_flow.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "forth/recursion": {
+    "fixture": "test/borders/cases/forth_recursion.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "forth/effects": {
+    "fixture": "test/borders/cases/forth_effects.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "forth/cross_reader_call": {
+    "fixture": "test/borders/cases/forth_cross_reader_call.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "forth/error_location": {
+    "fixture": "test/borders/cases/forth_error_location.lang",
+    "expected_exit": 42,
+    "expected_stdout": "",
+    "diagnostic": "forth:2:14:"
+  },
+  "flow/integers": {
+    "fixture": "test/borders/cases/flow_integers.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "flow/floats": {
+    "fixture": "test/borders/cases/flow_floats.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "flow/strings": {
+    "fixture": "test/borders/cases/flow_strings.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "flow/functions": {
+    "fixture": "test/borders/cases/flow_functions.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "flow/closures": {
+    "fixture": "test/borders/cases/flow_closures.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "flow/structs": {
+    "fixture": "test/borders/cases/flow_structs.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "flow/arrays": {
+    "fixture": "test/borders/cases/flow_arrays.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "flow/control_flow": {
+    "fixture": "test/borders/cases/flow_control_flow.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "flow/recursion": {
+    "fixture": "test/borders/cases/flow_recursion.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "flow/effects": {
+    "fixture": "test/borders/cases/flow_effects.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "flow/cross_reader_call": {
+    "fixture": "test/borders/cases/flow_cross_reader_call.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "flow/error_location": {
+    "fixture": "test/borders/cases/flow_error_location.lang",
+    "expected_exit": 42,
+    "expected_stdout": "",
+    "diagnostic": "flow:2:22:"
+  },
+  "lox/integers": {
+    "fixture": "test/borders/cases/lox_integers.lang",
+    "expected_exit": 0,
+    "expected_stdout": "42\n"
+  },
+  "lox/floats": {
+    "fixture": "test/borders/cases/lox_floats.lang",
+    "expected_exit": 0,
+    "expected_stdout": "42\n"
+  },
+  "lox/strings": {
+    "fixture": "test/borders/cases/lox_strings.lang",
+    "expected_exit": 0,
+    "expected_stdout": "*\n"
+  },
+  "lox/functions": {
+    "fixture": "test/borders/cases/lox_functions.lang",
+    "expected_exit": 0,
+    "expected_stdout": "42\n"
+  },
+  "lox/closures": {
+    "fixture": "test/borders/cases/lox_closures.lang",
+    "expected_exit": 0,
+    "expected_stdout": "42\n"
+  },
+  "lox/structs": {
+    "fixture": "test/borders/cases/lox_structs.lang",
+    "expected_exit": 0,
+    "expected_stdout": "42\n"
+  },
+  "lox/arrays": {
+    "fixture": "test/borders/cases/lox_arrays.lang",
+    "expected_exit": 0,
+    "expected_stdout": "42\n"
+  },
+  "lox/control_flow": {
+    "fixture": "test/borders/cases/lox_control_flow.lang",
+    "expected_exit": 0,
+    "expected_stdout": "42\n"
+  },
+  "lox/recursion": {
+    "fixture": "test/borders/cases/lox_recursion.lang",
+    "expected_exit": 0,
+    "expected_stdout": "42\n"
+  },
+  "lox/effects": {
+    "fixture": "test/borders/cases/lox_effects.lang",
+    "expected_exit": 0,
+    "expected_stdout": "42\n",
+    "reason": "Lox has no algebraic effects or exceptions in its source language."
+  },
+  "lox/cross_reader_call": {
+    "fixture": "test/borders/cases/lox_cross_reader_call.lang",
+    "expected_exit": 0,
+    "expected_stdout": "42\n"
+  },
+  "lox/error_location": {
+    "fixture": "test/borders/cases/lox_error_location.lang",
+    "expected_exit": 0,
+    "expected_stdout": "42\n",
+    "diagnostic": "lox: line 2: syntax error"
+  },
+  "lua/integers": {
+    "fixture": "test/borders/cases/lua_integers.lang",
+    "expected_exit": 0,
+    "expected_stdout": ""
+  },
+  "lua/floats": {
+    "fixture": "test/borders/cases/lua_floats.lang",
+    "expected_exit": 0,
+    "expected_stdout": ""
+  },
+  "lua/strings": {
+    "fixture": "test/borders/cases/lua_strings.lang",
+    "expected_exit": 0,
+    "expected_stdout": ""
+  },
+  "lua/functions": {
+    "fixture": "test/borders/cases/lua_functions.lang",
+    "expected_exit": 0,
+    "expected_stdout": ""
+  },
+  "lua/closures": {
+    "fixture": "test/borders/cases/lua_closures.lang",
+    "expected_exit": 0,
+    "expected_stdout": ""
+  },
+  "lua/structs": {
+    "fixture": "test/borders/cases/lua_structs.lang",
+    "expected_exit": 0,
+    "expected_stdout": ""
+  },
+  "lua/arrays": {
+    "fixture": "test/borders/cases/lua_arrays.lang",
+    "expected_exit": 0,
+    "expected_stdout": ""
+  },
+  "lua/control_flow": {
+    "fixture": "test/borders/cases/lua_control_flow.lang",
+    "expected_exit": 0,
+    "expected_stdout": ""
+  },
+  "lua/recursion": {
+    "fixture": "test/borders/cases/lua_recursion.lang",
+    "expected_exit": 0,
+    "expected_stdout": ""
+  },
+  "lua/effects": {
+    "fixture": "test/borders/cases/lua_effects.lang",
+    "expected_exit": 0,
+    "expected_stdout": ""
+  },
+  "lua/cross_reader_call": {
+    "fixture": "test/borders/cases/lua_cross_reader_call.lang",
+    "expected_exit": 0,
+    "expected_stdout": ""
+  },
+  "lua/error_location": {
+    "fixture": "test/borders/cases/lua_error_location.lang",
+    "expected_exit": 0,
+    "expected_stdout": "",
+    "diagnostic": "lua:2:\\d+:"
+  },
+  "tiny/integers": {
+    "fixture": "test/borders/cases/tiny_integers.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "tiny/floats": {
+    "fixture": "test/borders/cases/tiny_floats.lang",
+    "expected_exit": 42,
+    "expected_stdout": "",
+    "reason": "Tiny exposes only an i64 main result, with no float operations or conversions to observe fractional values."
+  },
+  "tiny/strings": {
+    "fixture": "test/borders/cases/tiny_strings.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "tiny/functions": {
+    "fixture": "test/borders/cases/tiny_functions.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "tiny/closures": {
+    "fixture": "test/borders/cases/tiny_closures.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "tiny/structs": {
+    "fixture": "test/borders/cases/tiny_structs.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "tiny/arrays": {
+    "fixture": "test/borders/cases/tiny_arrays.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "tiny/control_flow": {
+    "fixture": "test/borders/cases/tiny_control_flow.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "tiny/recursion": {
+    "fixture": "test/borders/cases/tiny_recursion.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "tiny/effects": {
+    "fixture": "test/borders/cases/tiny_effects.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "tiny/cross_reader_call": {
+    "fixture": "test/borders/cases/tiny_cross_reader_call.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "tiny/error_location": {
+    "fixture": "test/borders/cases/tiny_error_location.lang",
+    "expected_exit": 42,
+    "expected_stdout": "",
+    "diagnostic": "tiny:2:8:"
+  },
+  "calc/integers": {
+    "fixture": "test/borders/cases/calc_integers.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "calc/floats": {
+    "fixture": "test/borders/cases/calc_floats.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "calc/strings": {
+    "fixture": "test/borders/cases/calc_strings.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "calc/functions": {
+    "fixture": "test/borders/cases/calc_functions.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "calc/closures": {
+    "fixture": "test/borders/cases/calc_closures.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "calc/structs": {
+    "fixture": "test/borders/cases/calc_structs.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "calc/arrays": {
+    "fixture": "test/borders/cases/calc_arrays.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "calc/control_flow": {
+    "fixture": "test/borders/cases/calc_control_flow.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "calc/recursion": {
+    "fixture": "test/borders/cases/calc_recursion.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "calc/effects": {
+    "fixture": "test/borders/cases/calc_effects.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "calc/cross_reader_call": {
+    "fixture": "test/borders/cases/calc_cross_reader_call.lang",
+    "expected_exit": 42,
+    "expected_stdout": ""
+  },
+  "calc/error_location": {
+    "fixture": "test/borders/cases/calc_error_location.lang",
+    "expected_exit": 42,
+    "expected_stdout": "",
+    "diagnostic": "calc:2:8:"
+  }
+}

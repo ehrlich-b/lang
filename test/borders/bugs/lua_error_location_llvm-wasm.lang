@@ -1,0 +1,4 @@
+include "example/lua/lua.lang"
+#lua{
+assert(1 + == 42)
+}

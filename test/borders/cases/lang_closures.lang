@@ -1,0 +1,2 @@
+include "std/core.lang"
+func main() i64 { var n i64 = 19; var f closure() i64 = fn() i64 { return n + 23; }; return f(); }

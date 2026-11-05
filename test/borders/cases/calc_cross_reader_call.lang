@@ -1,0 +1,7 @@
+include "std/core.lang"
+include "example/calc/calc.lang"
+include "example/c/c.lang"
+#c{ int c_answer(int n) { return n + 23; } }
+#calc{
+answer c_answer(19)
+}

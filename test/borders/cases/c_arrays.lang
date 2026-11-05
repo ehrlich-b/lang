@@ -1,0 +1,5 @@
+include "example/c/c.lang"
+#c{
+int g() { int a[2]; a[0] = 19; a[1] = 23; return a[0] + a[1]; }
+}
+func main() i64 { return g(); }

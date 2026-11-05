@@ -1,0 +1,5 @@
+include "std/core.lang"
+include "example/lua/lua.lang"
+#lua{
+local co = coroutine.create(function() coroutine.yield(42) end); local ok, n = coroutine.resume(co); assert(n == 42)
+}

@@ -1,0 +1,5 @@
+include "example/lox/runtime.lang"
+include "example/lox/lox.lang"
+#lox{
+class Pair {} var p = Pair(); p.a = 19; p.b = 23; print p.a + p.b;
+}

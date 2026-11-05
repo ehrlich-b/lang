@@ -1,2 +1,2 @@
-func fact(n i64) i64 { if n < 2 { return 1; } return n * fact(n - 1); }
-func main() i64 { return fact(5) - 78; }
+func g(n i64) i64 { return n + 23; }
+func main() i64 { return g(19); }

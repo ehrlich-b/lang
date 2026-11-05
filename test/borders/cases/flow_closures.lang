@@ -1,0 +1,5 @@
+include "example/flow/flow.lang"
+#flow{
+func g() { var n = 19; var f = fn() { return n + 23; }; return f(); }
+}
+func main() i64 { return g(); }

@@ -1,0 +1,7 @@
+include "example/flow/flow.lang"
+include "example/c/c.lang"
+#c{ int c_answer(int n) { return n + 23; } }
+#flow{
+func g() { return c_answer(19); }
+}
+func main() i64 { return g(); }

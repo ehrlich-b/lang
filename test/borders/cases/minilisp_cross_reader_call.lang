@@ -1,0 +1,5 @@
+include "example/minilisp/lisp_runtime.lang"
+include "example/minilisp/minilisp.lang"
+include "example/c/c.lang"
+#c{ int c_answer(int n) { return lisp_int(lisp_to_int(n) + 23); } }
+func main() i64 { return lisp_to_int(#minilisp{ (c_answer 19) }); }
