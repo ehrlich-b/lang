@@ -161,6 +161,67 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(json.loads((other / outputs[1]).read_text())['compiler'], str(other / 'result'))
         self.assertEqual((other / 'result').stat().st_mode & 0o777, 0o755)
 
+    def init_git(self):
+        subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
+        subprocess.run(['git', '-C', str(self.root), '-c', 'user.name=Test',
+                        '-c', 'user.email=test@example.com', 'commit', '--allow-empty', '-qm', 'Fixture'], check=True)
+
+    def test_external_makefiles_content_identity(self):
+        self.init_git()
+        external = Path(self.work.name) / 'external.mk'
+        external.write_text('include prerequisite.mk\n')
+        with mock.patch.dict(os.environ, {'MAKEFILES': str(external)}), mock.patch.object(gate.shutil, 'which', return_value=None):
+            first = gate.identity(self.root, ['make', '_verify-complete'])
+            external.write_text('include different.mk\n')
+            self.assertNotEqual(first, gate.identity(self.root, ['make', '_verify-complete']))
+
+    def test_external_makefiles_never_consume_or_publish(self):
+        external = Path(self.work.name) / 'external.mk'
+        prerequisite = Path(self.work.name) / 'prerequisite'
+        external.write_text('external make rules')
+        prerequisite.write_text('first')
+        old = Path.cwd()
+        try:
+            os.chdir(self.root)
+            with mock.patch.dict(os.environ, {'MAKEFILES': str(external), 'LANG_VERIFY_CACHE': str(self.cache)}), mock.patch.object(sys, 'argv', ['gate_receipt.py', '--', 'make', '_verify-complete']), mock.patch.object(gate, 'consume', side_effect=AssertionError('external closure cached')), mock.patch.object(gate.subprocess, 'run') as run:
+                run.return_value.returncode = 0
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(gate.main(), 0)
+                    prerequisite.write_text('changed')
+                    self.assertEqual(gate.main(), 0)
+                self.assertEqual(run.call_count, 2)
+                self.assertFalse(self.cache.exists())
+        finally:
+            os.chdir(old)
+
+    def test_jobserver_transport_normalized_but_options_preserved(self):
+        self.init_git()
+        command = ['make', '_verify-complete']
+        with mock.patch.object(gate.shutil, 'which', return_value=None):
+            def identity(flags):
+                with mock.patch.dict(os.environ, {'MAKEFLAGS': flags, 'MFLAGS': flags}):
+                    return gate.identity(self.root, command)
+            first = identity('-j2 --jobserver-auth=fifo:/tmp/GMfifo1')
+            self.assertEqual(first, identity('-j2 --jobserver-auth=fifo:/tmp/GMfifo2'))
+            self.assertEqual(first, identity('-j2 --jobserver-auth=3,4'))
+            self.assertEqual(first, identity('-j2 --jobserver-fds=7,8'))
+            self.assertNotEqual(first, identity('-j3 --jobserver-auth=3,4'))
+            self.assertNotEqual(first, identity('-j2 -n --jobserver-auth=3,4'))
+
+    def test_make_override_cannot_skip_verification(self):
+        text = (Path(__file__).resolve().parents[1] / 'Makefile').read_text()
+        recipe = text.split('bootstrap-verify:\n', 1)[1].split('\n\n', 1)[0]
+        # Run the real launcher recipe against a bounded replacement verifier.
+        (self.root / 'scripts').mkdir()
+        (self.root / 'scripts/gate_receipt.py').write_text(
+            'import subprocess, sys\nsys.exit(subprocess.call(sys.argv[2:]))\n')
+        (self.root / 'Makefile').write_text('bootstrap-verify:\n' + recipe +
+            '\n_verify-complete:\n\t@echo executed >> executions\n\t@test "$(MAKE)" = make\n')
+        result = subprocess.run(['make', 'bootstrap-verify', 'MAKE=true'], cwd=self.root,
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.root / 'executions').read_text(), 'executed\n')
+
     def test_production_boundary_preserves_full_suite_and_promotion(self):
         text = (Path(__file__).resolve().parents[1] / 'Makefile').read_text()
         verifier = text.split('_verify-complete: generate-os-layer generate-version-info\n', 1)[1].split('# Non-promoting', 1)[0]

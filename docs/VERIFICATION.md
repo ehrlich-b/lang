@@ -23,3 +23,11 @@ verification, archive and promotion pipeline and never consume these receipts.
 executor; `python3 test/perf_gate_receipt.py --benchmark --requests 2` measures
 that protocol's execution count and CPU cost. Neither runs the compiler suite
 or issues a production verification receipt.
+
+Jobserver FIFO paths and file descriptor numbers are transport details and do
+not distinguish identities; parallelism and other make options still do.
+The verifier invokes `make` directly and pins recursive `MAKE=make`, so a
+caller overriding `MAKE` cannot substitute a successful no-op for verification.
+When `MAKEFILES` is supplied, verification runs without consuming or publishing
+cached success: arbitrary external include and prerequisite closures are outside
+the repository input inventory. Explicit makefile contents are also fingerprinted.

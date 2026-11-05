@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -32,6 +33,14 @@ def encoded(value):
 
 def git(root, *args):
     return subprocess.check_output(['git', '-C', str(root), *args])
+
+
+def environment_value(key, value, root):
+    if key in ('MAKEFLAGS', 'MFLAGS'):
+        # Transport endpoints differ per invocation; scheduling width and every
+        # semantic option remain in the identity. Support GNU make FIFO and fd forms.
+        value = re.sub(r'--jobserver-(?:auth|fds)=\S+', '--jobserver', value)
+    return value.replace(str(root), '<checkout>')
 
 
 def identity(root, command):
@@ -81,13 +90,15 @@ def identity(root, command):
         else:
             tools[name] = None
     # Conservative: differing ambient options miss rather than silently reuse.
-    environment = {k: hashlib.sha256(v.replace(str(root), '<checkout>').encode()).hexdigest()
+    environment = {k: hashlib.sha256(environment_value(k, v, root).encode()).hexdigest()
                    for k, v in os.environ.items()
                    if k not in ('PWD', 'OLDPWD', 'SHLVL', '_', 'LANG_VERIFY_CACHE',
                                 'LANG_VERIFY_FRESH', 'MAKELEVEL')}
     return {'schema': SCHEMA, 'candidate': git(root, 'rev-parse', 'HEAD').decode().strip(),
             'candidate_short': git(root, 'rev-parse', '--short', 'HEAD').decode().strip(),
             'inputs': inputs, 'tools': tools, 'environment': environment,
+            'makefiles': {name: digest(root / name) if (root / name).is_file() else None
+                          for name in os.environ.get('MAKEFILES', '').split()},
             'host': [platform.system(), platform.machine(), platform.release()],
             'command': command}
 
@@ -193,6 +204,12 @@ def main():
         outputs = OUTPUTS + ['out/bootstrap_verify/' + name for name in (
             'ctrusted', 'kernel1', 'kernel1.ll', 'kernel2', 'kernel2.ll',
             'kernel3.ll', 'reader_ast1.ast', 'reader_ast2.ast')]
+        if os.environ.get('MAKEFILES', '').strip():
+            # Extra makefiles can include arbitrary external prerequisites and
+            # recipes. Their transitive closure is not our repository closure.
+            # Run normally without consuming or publishing any cached success.
+            print('MAKEFILES supplied; verification receipt reuse disabled', flush=True)
+            return subprocess.run(command).returncode
         return consume(root, cache, lambda: identity(root, command), execute, outputs,
                        fresh=os.environ.get('LANG_VERIFY_FRESH') == '1')
 

@@ -406,7 +406,7 @@ bootstrap-local:
 bootstrap-verify: LANGBE=llvm
 bootstrap-verify: LANGLIBC=libc
 bootstrap-verify:
-	python3 scripts/gate_receipt.py -- $(MAKE) _verify-complete
+	python3 scripts/gate_receipt.py -- make _verify-complete MAKE=make
 
 # Only this complete fixed-point and suite recipe can issue a reusable success.
 .PHONY: _verify-complete
