@@ -34,7 +34,7 @@ def refresh(results):
     lox = results['lox']
     lua = results['lua']
     for metric in data['metrics']:
-        if metric['name'].startswith('clox suite') and lox['passed'] is not None:
+        if metric['name'].startswith('clox suite') and lox['status'] == 'completed' and lox['passed'] is not None:
             metric.update(value=lox['passed'], detail=f"Whole-corpus score: {lox['passed']}/{lox['total']}")
         if metric['name'] == 'Lua tests passing' and 'targets' in lua:
             targets = lua['targets']
@@ -76,7 +76,7 @@ def main():
         print(p.stdout, end='', flush=True)
         result = {'status': 'completed' if p.returncode == 0 else 'error', 'exit_code': p.returncode,
                   'passed': None, 'total': None, 'elapsed_seconds': elapsed}
-        if parse:
+        if parse and p.returncode == 0:
             parsed = counts(p.stdout)
             if parsed:
                 result['passed'], result['total'] = parsed

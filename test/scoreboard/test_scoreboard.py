@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+from unittest.mock import patch
 
 root = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('scoreboard', root / 'scripts/scoreboard.py')
@@ -30,4 +31,27 @@ with tempfile.TemporaryDirectory() as directory:
     rows = [json.loads(line) for line in (scoreboard.ROOT / 'HILLCLIMB.jsonl').read_text().splitlines()]
     assert metrics[0]['value'] == 42 and metrics[1]['value'] == 2
     assert len(rows) == 2 and rows[-1]['passing'] == 42 and rows[-1]['borders_wrong'] == 4
+# A reference total followed by a failed product compilation must never publish.
+with tempfile.TemporaryDirectory() as directory:
+    scoreboard.ROOT = Path(directory)
+    scoreboard.EVIDENCE = scoreboard.ROOT / 'evidence'
+    (scoreboard.ROOT / 'SHOWCASE.json').write_text(json.dumps({'metrics': [
+        {'name': 'clox suite tests passing, of 246', 'value': 58}]}))
+    (scoreboard.ROOT / 'HILLCLIMB.jsonl').write_text('')
+    def run(command, **kwargs):
+        if command == ['make', 'lox-score']:
+            return scoreboard.subprocess.CompletedProcess(command, 1, 'TOTAL 246/246\ncompile failed\n')
+        return scoreboard.subprocess.CompletedProcess(command, 0, '')
+    with patch.object(scoreboard.subprocess, 'run', side_effect=run), \
+         patch.object(scoreboard.subprocess, 'check_output', return_value='abc\n'):
+        try:
+            scoreboard.main()
+        except SystemExit as exc:
+            assert exc.code == 1
+        else:
+            raise AssertionError('failed Lox run must fail the scoreboard')
+    result = json.loads((scoreboard.EVIDENCE / 'scoreboard.json').read_text())['suites']['lox']
+    assert result['status'] == 'error' and result['passed'] is None and result['total'] is None
+    assert json.loads((scoreboard.ROOT / 'SHOWCASE.json').read_text())['metrics'][0]['value'] == 58
+    assert json.loads((scoreboard.ROOT / 'HILLCLIMB.jsonl').read_text())['passing'] is None
 print('scoreboard fragments passed')
