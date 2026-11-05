@@ -5468,10 +5468,34 @@ func llvm_emit_stmt_inner(stmt *u8) void {
         // Register let binding: name -> unique_name
         llvm_push_let_binding(name, name_len, unique_name, actual_name_len);
 
+        // Named aggregates use address carriers in llvm_emit_type, so reserve
+        // their complete recursive storage before casting to that legacy type.
+        var array_leaf *u8 = var_type;
+        while array_leaf != nil && type_kind(array_leaf) == TYPE_ARRAY {
+            array_leaf = array_type_elem(array_leaf);
+        }
+        var array_aggregate i64 = 0;
+        if is_array == 1 && llvm_aggregate_type_size(array_leaf) > 0 {
+            array_aggregate = 1;
+            llvm_emit_str("    %");
+            llvm_emit_n(actual_name, actual_name_len);
+            llvm_emit_str(".storage = alloca [");
+            llvm_emit_int(alloc_size);
+            llvm_emit_line(" x i8], align 8");
+        }
+
         // Allocate stack slot with correct size
         llvm_emit_str("    %");
         llvm_emit_n(actual_name, actual_name_len);
-        if is_array == 1 {
+        if array_aggregate == 1 {
+            llvm_emit_str(" = bitcast [");
+            llvm_emit_int(alloc_size);
+            llvm_emit_str(" x i8]* %");
+            llvm_emit_n(actual_name, actual_name_len);
+            llvm_emit_str(".storage to ");
+            llvm_emit_type(var_type);
+            llvm_emit_line("*");
+        } else if is_array == 1 {
             // Allocate array type: [N x T]
             llvm_emit_str(" = alloca ");
             llvm_emit_type(var_type);

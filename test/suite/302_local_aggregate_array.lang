@@ -1,0 +1,11 @@
+// expect: 42
+include "std/core.lang"
+struct Pair { first i64; second i64; }
+func main() i64 {
+    var a [2][2]Pair;
+    a[0][0].first = 3;
+    a[0][1].second = 5;
+    a[1][0].first = 13;
+    a[1][1].second = 21;
+    return a[0][0].first + a[0][1].second + a[1][0].first + a[1][1].second;
+}

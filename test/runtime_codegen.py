@@ -48,6 +48,13 @@ def main():
             binary = output / (label + opt)
             run(['clang', opt, ir, '-o', binary])
             run([binary], expected=42)
+    # Local aggregate arrays must reserve every field in every dimension.
+    local_ir = output / 'local-array.ll'
+    run([compiler, 'test/suite/302_local_aggregate_array.lang', '-o', local_ir], env=native_env)
+    for opt in ['-O0', '-O2']:
+        binary = output / ('local-array' + opt)
+        run(['clang', opt, local_ir, '-o', binary])
+        run([binary], expected=42)
     text = (output / 'candidate.ll').read_text()
     # Preserve complete Pair storage through every fixed-array dimension.
     for spelling in ['getelementptr i8,', 'getelementptr i1,', 'getelementptr i64,',
