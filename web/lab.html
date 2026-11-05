@@ -98,6 +98,7 @@ reader read(text *u8) *u8 {
       <textarea id="custom-source" aria-label="Source in your language" spellcheck="false">answer 42</textarea>
       <div class="head"><span>result</span><span class="downloads">
         <button id="cancel-reader" hidden>cancel</button>
+        <button id="cancel-program" hidden>cancel</button>
         <button id="jump-error" hidden>jump to error</button>
         <a class="download" id="download-reader" hidden>reader ↓</a>
         <a class="download" id="download-ast" hidden>AST ↓</a>
@@ -117,11 +118,15 @@ reader read(text *u8) *u8 {
 <script src="program_host.js?v=workbench10"></script>
 <script src="editor.js?v=workbench10"></script>
 <script src="reader_runner.js"></script>
+<script src="program_runner.js"></script>
 <script>
 let activeReader;
+let activeProgram;
 let runGeneration = 0;
 // Hosts may set this before starting a run; invalid values are rejected.
 window.readerDeadlineMs = 2000;
+window.programDeadlineMs = 2000;
+window.programOutputLimitBytes = 65536;
 let compilerBytes;
 let stdlibFiles;
 let cachedReaderSource;
@@ -134,14 +139,21 @@ let programDownloadUrl;
 let workspaceDownloadUrl;
 const button = document.getElementById('compile');
 const cancelReader = document.getElementById('cancel-reader');
+const cancelProgram = document.getElementById('cancel-program');
 function cancelRun() {
   runGeneration++;
   if (activeReader) activeReader.cancel();
+  if (activeProgram) activeProgram.cancel();
 }
 cancelReader.onclick = () => {
   cancelRun();
   output.textContent = 'reader cancelled';
   status.innerHTML = '<span class="bad">reader run failed</span>';
+};
+cancelProgram.onclick = () => {
+  cancelRun();
+  output.textContent = 'program cancelled';
+  status.innerHTML = '<span class="bad">program run failed</span>';
 };
 const jumpError = document.getElementById('jump-error');
 const preset = document.getElementById('preset');
@@ -514,19 +526,25 @@ func main() *u8 {
     programDownloadUrl = offerDownload(downloadProgram, program, `${name}-program.wasm`);
     phase = 'program run';
     status.textContent = `${phase}…`;
-    const ran = await runLangProgram(program);
+    cancelProgram.hidden = false;
+    activeProgram = startProgram(program, window.programDeadlineMs, window.programOutputLimitBytes);
+    const ran = await activeProgram.promise;
+    activeProgram = undefined;
+    cancelProgram.hidden = true;
     checkCurrent();
     const elapsed = Math.round(performance.now() - started);
     const astPreview = formattedAst.length > 320
       ? `${formattedAst.slice(0, 320)}…`
       : formattedAst;
-    const printed = ran.stdout || ran.stderr;
+    const printed = ran.stdout + ran.stderr;
     output.textContent = `${printed ? printed + '\n' : ''}main() → ${ran.value}\n\nAST\n${astPreview}`;
     status.innerHTML = `<span class="ok">ran · ${elapsed}ms</span>`;
   } catch (error) {
     if (generation !== runGeneration) {
       activeReader = undefined;
+      activeProgram = undefined;
       cancelReader.hidden = true;
+      cancelProgram.hidden = true;
       button.disabled = false;
       return;
     }
@@ -540,7 +558,9 @@ func main() *u8 {
     status.innerHTML = `<span class="bad">${phase} failed</span>`;
   }
   activeReader = undefined;
+  activeProgram = undefined;
   cancelReader.hidden = true;
+  cancelProgram.hidden = true;
   button.disabled = false;
 };
 

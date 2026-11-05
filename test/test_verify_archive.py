@@ -15,7 +15,7 @@ VERIFIER = ROOT / 'web/verify_archive.py'
 FILES = '''build_stdlib.js compiler-receipt.json compiler.wasm compiler_host.js editor.js
 examples/fib.lang examples/fib.wasm examples/mandelbrot.lang examples/mandelbrot.wasm
 examples/polyglot_wasm.lang examples/polyglot_wasm.wasm host.js index.html lab.html
-program_host.js reader_runner.js reader_worker.js readers.html receipt.json stdlib.json'''.split()
+program_host.js program_runner.js program_worker.js reader_runner.js reader_worker.js readers.html receipt.json stdlib.json'''.split()
 
 
 class ArchiveTest(unittest.TestCase):

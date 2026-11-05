@@ -323,7 +323,9 @@ function readerDiagnosticText(record, text) {
   return `${message}\n`;
 }
 
-async function runLangProgram(wasmBytes, onWrite, inputText, readerContext) {
+async function runLangProgram(wasmBytes, onWrite, inputText, readerContextOrOptions = {}) {
+  const readerContext = readerContextOrOptions.sourceId ? readerContextOrOptions : null;
+  const options = readerContext ? {} : readerContextOrOptions;
   let instance = null;
   let heapTop = 0;
   let inputPos = 0;
@@ -332,6 +334,8 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContext) {
   const readerChunks = [];
   let readerByteLength = 0;
   let readerOverflow = false;
+  let outputBytes = 0;
+  const outputLimit = options.outputLimitBytes ?? Infinity;
   const decoder = new TextDecoder();
   const input = typeof inputText === 'string'
     ? new TextEncoder().encode(inputText)
@@ -376,6 +380,10 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContext) {
     },
     write: (fdValue, ptrValue, countValue) => {
       const data = bytes().subarray(number(ptrValue), number(ptrValue) + number(countValue));
+      const remaining = Math.max(0, outputLimit - outputBytes);
+      const kept = data.subarray(0, remaining);
+      outputBytes += kept.length;
+      if (kept.length < data.length) throw new Error(`program output truncated at ${outputLimit} bytes`);
       if (readerContext && number(fdValue) === 2) {
         if (data.length > 1048576 - readerByteLength) readerOverflow = true;
         else { readerChunks.push(data.slice()); readerByteLength += data.length; }
@@ -428,12 +436,13 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContext) {
   instance = built.instance;
   let value = 0n;
   let exit = 0;
+  let exited = false;
   try {
     const returned = instance.exports.main();
     value = returned === undefined ? 0n : returned;
     exit = number(BigInt(value) & 255n);
   } catch (error) {
-    if (error instanceof ExitTrap) exit = error.code;
+    if (error instanceof ExitTrap) { exit = error.code; exited = true; }
     else throw error;
   }
   let diagnostics = [];
@@ -453,7 +462,7 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContext) {
     }
     if (diagnostics.length) { value = 0n; exit = 1; }
   }
-  return { value, exit, stdout, stderr, instance, diagnostics };
+  return { value, exit, exited, stdout, stderr, instance, diagnostics };
 }
 
 if (typeof module !== 'undefined') module.exports = { formatLangAst, runLangProgram, decodeReaderDiagnostics, readerDiagnosticText };
