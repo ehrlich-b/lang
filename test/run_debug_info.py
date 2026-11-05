@@ -180,14 +180,7 @@ def main():
             checked = {}
             for level in ('O0', 'O2'):
                 binary = work / f'{name}-{level}'
-                build = run(['clang', f'-{level}', ir, '-o', binary], f'{name}-{level}-link', expected=None)
-                if name == 'polyglot' and level == 'O2':
-                    # This existing fixture has nonlocal effects. Preserve the
-                    # safety guard rather than accepting known wrong answers.
-                    assert build.returncode != 0 and b'algebraic effects require -O0' in build.stderr
-                    checked[level] = 'existing effects safety rejection'
-                    continue
-                assert build.returncode == 0, build.stderr.decode(errors='replace')
+                run(['clang', f'-{level}', ir, '-o', binary], f'{name}-{level}-link')
                 run([binary], f'{name}-{level}-run')
                 run(['llvm-dwarfdump', '--verify', binary], f'{name}-{level}-dwarf-verify')
                 dump = run(['llvm-dwarfdump', '--debug-line', binary], f'{name}-{level}-lines').stdout.decode()
@@ -198,10 +191,10 @@ def main():
                     actual = {line for file, entries in rows.items() if Path(file).name == basename
                               for line, column in entries}
                     expected = {line_of(path, statement) for statement in statements}
-                    # Optimization may fold a statement away; O0 must retain
-                    # every selected line and O2 must retain each source file.
+                    # Optimization may fold a statement away. Polyglot's
+                    # effects keep its debug functions unoptimized at O2.
                     assert actual, (name, level, path, rows)
-                    if level == 'O0':
+                    if level == 'O0' or name == 'polyglot':
                         assert expected <= actual, (name, path, expected, actual)
                     expected_rows[path] = dict(expected=sorted(expected), actual=sorted(actual))
                 checked[level] = expected_rows

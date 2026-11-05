@@ -192,6 +192,7 @@ func llvm_debug_begin(node *u8, name *u8) void {
 }
 
 func llvm_debug_signature() void {
+    if llvm_debug_enabled != 0 { llvm_emit_str(" #0"); }
     if llvm_debug_subprogram != 0 {
         llvm_emit_str(" !dbg !"); llvm_emit_int(llvm_debug_subprogram);
     }
@@ -8299,7 +8300,15 @@ func generate_llvm(prog *u8, output_file *u8) void {
     // Emit collected lambdas
     llvm_gen_all_lambdas();
 
-    if llvm_uses_effects != 0 {
+    if llvm_debug_enabled != 0 {
+        // Effects use nonlocal assembly transfers invisible to LLVM. Keep every
+        // frame unoptimized, including callers and lambdas, in debug modules.
+        if llvm_uses_effects != 0 {
+            llvm_emit_line("attributes #0 = { noinline optnone }");
+        } else {
+            llvm_emit_line("attributes #0 = { \"lang-debug\" }");
+        }
+    } else if llvm_uses_effects != 0 {
         llvm_emit_effect_optimization_guard();
     }
 

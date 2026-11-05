@@ -413,7 +413,8 @@ for statements that need exact stepping. Plain AST without source origins gets
 no invented locations. For saved reader AST, supply `--from-ast --ast-source
 original.ext` to bind its spans. This emits line tables and function names,
 without variable inspection or a promise that optimized-away statements remain
-steppable. The existing effects restriction still requires `-O0` for polyglot.
-Without `-g`, LLVM output is unchanged. `python3 test/run_debug_info.py` checks
+steppable. Debug modules containing effects keep all functions unoptimized to protect the
+nonlocal transfers, even when linked with `clang -O2`. Without `-g`, the existing
+effects optimization restriction still applies and LLVM output is unchanged. `python3 test/run_debug_info.py` checks
 exact unoptimized line rows, optimized file retention, IR verification, and
 native execution; add `--base-ref REV` to compare non-debug IR byte for byte.
