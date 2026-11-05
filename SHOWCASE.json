@@ -6,7 +6,7 @@
       "value": 0,
       "unit": "files per target",
       "direction": "higher",
-      "detail": "0/33 LLVM, 0/33 direct Wasm; Lua 5.4.8 official files"
+      "detail": "0/33 llvm, 0/33 wasm; Lua 5.4.8 official files"
     },
     {
       "name": "Readers in lang",
@@ -17,10 +17,10 @@
     },
     {
       "name": "clox suite tests passing, of 246",
-      "value": null,
+      "value": 58,
       "unit": "tests",
       "direction": "higher",
-      "detail": "Whole-corpus score unavailable: pinned Crafting Interpreters checkout required"
+      "detail": "Whole-corpus score: 58/246"
     },
     {
       "name": "Compiler functions executed by LLVM suite",
