@@ -59,6 +59,25 @@ def native_format(path, cache, compact=False):
 with tempfile.TemporaryDirectory() as directory:
     temp = Path(directory) / 'formatted.ast'
     cache = Path(directory) / 'cache'
+    # Token boundaries must agree with native parsing, beyond schema equality.
+    for source, expected, error in [
+        ('(program (var a-b nil))', None, b'ast-shape at bytes 15:16'),
+        ('(program (var x/*trivia*/ nil))', b'(program\n  (var x nil))\n', None),
+    ]:
+        temp.write_text(source)
+        browser = format_file(temp)
+        native = native_format(temp, cache)
+        if error:
+            assert browser.returncode != 0 and native.returncode == 1, (source, browser, native)
+            assert not browser.stdout and not native.stdout, (source, browser, native)
+            assert error in browser.stderr and error in native.stderr, (source, browser, native)
+        else:
+            assert browser.returncode == native.returncode == 0, (source, browser, native)
+            assert browser.stdout == native.stdout == expected, (source, browser, native)
+            assert count(parse(expected.decode())) == 2, source
+            temp.write_bytes(expected)
+            assert format_file(temp).stdout == native_format(temp, cache).stdout == expected
+        print(f'native/browser token boundary parity: {source}')
     for source in sorted(FIXTURES.glob('*.input.ast')):
         golden = source.with_name(source.name.replace('.input.ast', '.golden.ast')).read_bytes()
         original = parse(source.read_text())

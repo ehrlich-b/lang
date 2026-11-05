@@ -120,7 +120,13 @@ function formatLangAst(source) {
       if (source[offset] !== quote) throw new Error('unterminated AST string');
       offset++;
     } else {
-      while (offset < source.length && !/[\s()]/.test(source[offset])) offset++;
+      // Native identifiers end before punctuation, including '-' and comments.
+      const atom = source.slice(offset).match(/^(?:[A-Za-z_][A-Za-z_0-9]*|-(?:[0-9]+|[-=])?)/);
+      if (atom) offset += atom[0].length;
+      else {
+        while (offset < source.length && !/[\s()]/.test(source[offset]) &&
+               !source.startsWith('/*', offset) && !source.startsWith('//', offset)) offset++;
+      }
     }
     if (offset === start) throw new Error(`unexpected AST token at byte ${offset}`);
     return { text: source.slice(start, offset), start, end: offset };
@@ -140,7 +146,7 @@ function formatLangAst(source) {
     const text = node.text;
     if ((role === 'o' || role === 't') && text === 'nil') return;
     if (role === 'o') role = 'n';
-    const symbol = text !== undefined && /^[A-Za-z_][A-Za-z_0-9-]*$/.test(text);
+    const symbol = text !== undefined && /^[A-Za-z_][A-Za-z_0-9]*$/.test(text);
     if (role === 's' && symbol) return;
     if (role === 'a' && (symbol || /^[+*/%&|^<>=!~-]+$/.test(text || ''))) return;
     if (role === 'q' && text !== undefined && (text.startsWith('"') || text.startsWith("'"))) return;
