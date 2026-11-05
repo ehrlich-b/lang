@@ -1,0 +1,13 @@
+// expect: 42
+include "std/core.lang"
+func main() i64 {
+    var result i64 = let f closure(i64) i64 = fn(x i64) i64 { return x + 1; } in f(41);
+    if result != 42 { return 1; }
+    var n i64 = 2;
+    var captured i64 = let f closure(i64) i64 = fn(x i64) i64 { return x + n; } in f(40);
+    if captured != 42 { return 2; }
+    var f closure(i64) i64 = fn(x i64) i64 { return x + 3; };
+    var shadowed i64 = let f closure(i64) i64 = f in f(39);
+    if shadowed != 42 || f(39) != 42 { return 3; }
+    return result;
+}

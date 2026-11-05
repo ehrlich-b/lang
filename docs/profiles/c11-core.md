@@ -51,6 +51,10 @@ expected success status is explicitly zero in the runner. Existing ignore
 markers do not skip C execution. `--output DIR` preserves per-input emission,
 build and execution logs plus a JSON summary for inspection.
 
+Use `--fixtures test/c_backend` for focused wrapping, layout, float and closure
+regressions, including Boolean literal shifts and closure conversion at typed
+let bindings and assignments through locals, fields and pointers.
+
 The MiniLisp float/string border probes reproduce the existing LLVM reader/runtime
 bugs; their C reproductions are retained under `test/borders/bugs/`. They do not
 expand the supported MiniLisp subset. Closure environments use `alloc` and

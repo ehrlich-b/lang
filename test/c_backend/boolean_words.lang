@@ -1,0 +1,11 @@
+// expect: 42
+// Literal operands must have the same wrapping word semantics as stored values.
+func main() i64 {
+    var one i64 = 1;
+    if (true << 63) != (one << 63) { return 1; }
+    if ((true << 63) >> 63) != -1 { return 2; }
+    if (true << 64) != 1 { return 3; }
+    if (false << 63) != 0 { return 4; }
+    if (true << 32) != 4294967296 { return 5; }
+    return 42;
+}

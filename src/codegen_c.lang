@@ -293,7 +293,7 @@ func c_expr(e *u8) *u8 {
         if llvm_is_float_type(c_type(e)) { return text; }
         return str_concat(text, "ULL");
     }
-    if k == NODE_BOOL_EXPR { return c_decimal(bool_expr_value(e)); }
+    if k == NODE_BOOL_EXPR { return str_concat(c_decimal(bool_expr_value(e)), "ULL"); }
     if k == NODE_NIL_EXPR { return "0ULL"; }
     if k == NODE_GROUP_EXPR { return c_expr(group_expr_expr(e)); }
     if k == NODE_STRING_EXPR {
@@ -418,8 +418,9 @@ func c_expr(e *u8) *u8 {
         return c_temp(dst, value);
     }
     if k == NODE_LET_EXPR {
-        var saved i64 = cg_local_count; var value *u8 = c_expr(let_expr_init(e));
+        var saved i64 = cg_local_count;
         var t *u8 = let_expr_type(e); c_check_type(t, e);
+        var value *u8 = c_value(let_expr_init(e), t);
         var addr *u8 = c_bind(let_expr_name(e), let_expr_name_len(e), t); c_store(addr, value, t);
         var result *u8 = c_expr(let_expr_body(e)); cg_local_count = saved; return result;
     }
@@ -531,8 +532,9 @@ func c_stmt(s *u8) void {
         cg_local_count = after; return;
     }
     if k == NODE_ASSIGN_STMT {
-        var target *u8 = assign_stmt_target(s); var value *u8 = c_expr(assign_stmt_value(s));
-        c_store(c_addr(target), value, c_type(target)); return;
+        var target *u8 = assign_stmt_target(s); var t *u8 = c_type(target);
+        var value *u8 = c_value(assign_stmt_value(s), t);
+        c_store(c_addr(target), value, t); return;
     }
     if k == NODE_EXPR_STMT { c_expr(expr_stmt_expr(s)); return; }
     if k == NODE_RETURN_STMT {
