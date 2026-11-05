@@ -410,9 +410,9 @@ func main() i64 {
   for (const marker of [
     'id="preset"', 'id="download-reader"', 'id="download-ast"', 'id="download-program"',
     'id="save-workspace"', 'id="open-workspace"',
-    'lang-reader-workspace', 'lang.lab.active', 'readerName(reader.value)',
+    'lang-reader-workspace', 'lang.lab.active', 'const readerSource = reader.value', 'readerName(readerSource)',
     'focusDiagnostic(message, sourceLabel)', "target.closest('details').open = true", "phase = 'AST compile'",
-    'cachedReaderSource !== reader.value', 'customSource.value)',
+    'cachedReaderSource !== readerSource', 'startReader(readerProgram, customSource.value, window.readerDeadlineMs)',
     'editor.js?v=workbench10', 'formatLangAst(ast)', 'value:number',
     "'program.ast': formattedAst", 'installCodeEditor(reader, queueSave)',
   ]) {

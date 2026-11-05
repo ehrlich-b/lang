@@ -143,10 +143,6 @@ cancelReader.onclick = () => {
   output.textContent = 'reader cancelled';
   status.innerHTML = '<span class="bad">reader run failed</span>';
 };
-for (const id of ['reader', 'custom-source', 'runtime', 'preset']) {
-  document.getElementById(id).addEventListener('input', cancelRun);
-  document.getElementById(id).addEventListener('change', cancelRun);
-}
 const jumpError = document.getElementById('jump-error');
 const preset = document.getElementById('preset');
 const reader = document.getElementById('reader');
@@ -232,6 +228,7 @@ function saveDraft() {
 }
 
 function queueSave() {
+  // Cancel on edits; the later textarea change event only commits focus loss.
   cancelRun();
   jumpError.hidden = true;
   jumpError.onclick = null;
@@ -255,6 +252,7 @@ function loadPreset(name) {
 }
 
 preset.onchange = () => {
+  cancelRun();
   saveDraft();
   loadPreset(preset.value);
 };

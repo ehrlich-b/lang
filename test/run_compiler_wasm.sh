@@ -8,6 +8,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 WEB_OUTPUT_DIR="$tmp/web" ./web/build_compiler.sh
 node test/compiler_direct_wasm_e2e.js "$tmp/web/compiler.wasm"
+LAB_COMPILER_WASM="$tmp/web/compiler.wasm" node test/lab_reader_deadline.mjs
 node test/compiler_wasm_e2e.js "$tmp/web/compiler.wasm" "$tmp/output.ll"
 node test/editor_e2e.js
 
