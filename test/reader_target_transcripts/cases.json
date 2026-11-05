@@ -1,0 +1,263 @@
+[
+  {
+    "id": "tiny-1",
+    "reader": "tiny",
+    "kind": "positive",
+    "source": "answer 42",
+    "expected": {
+      "stage": "program",
+      "stdout": "42\n",
+      "stderr": "",
+      "status": 42
+    }
+  },
+  {
+    "id": "tiny-2",
+    "reader": "tiny",
+    "kind": "positive",
+    "source": "answer 17",
+    "expected": {
+      "stage": "program",
+      "stdout": "17\n",
+      "stderr": "",
+      "status": 17
+    }
+  },
+  {
+    "id": "tiny-3",
+    "reader": "tiny",
+    "kind": "negative",
+    "source": "answer nope",
+    "expected": {
+      "stage": "reader",
+      "stdout": "",
+      "stderr": "tiny:1:8: expected number, found nope @7:11\n",
+      "status": 1
+    }
+  },
+  {
+    "id": "calc-1",
+    "reader": "calc",
+    "kind": "positive",
+    "source": "answer 6 * 7",
+    "expected": {
+      "stage": "program",
+      "stdout": "42\n",
+      "stderr": "",
+      "status": 42
+    }
+  },
+  {
+    "id": "calc-2",
+    "reader": "calc",
+    "kind": "positive",
+    "source": "answer (8 - 3) * 3 + 2",
+    "expected": {
+      "stage": "program",
+      "stdout": "17\n",
+      "stderr": "",
+      "status": 17
+    }
+  },
+  {
+    "id": "calc-3",
+    "reader": "calc",
+    "kind": "negative",
+    "source": "wat",
+    "expected": {
+      "stage": "reader",
+      "stdout": "",
+      "stderr": "calc: expected `answer EXPRESSION`\n",
+      "status": 1
+    }
+  },
+  {
+    "id": "forth-1",
+    "reader": "forth",
+    "kind": "positive",
+    "source": ": main ( -- n ) 6 7 * ;",
+    "expected": {
+      "stage": "program",
+      "stdout": "42\n",
+      "stderr": "",
+      "status": 42
+    }
+  },
+  {
+    "id": "forth-2",
+    "reader": "forth",
+    "kind": "positive",
+    "source": ": main ( -- n ) 20 3 - ;",
+    "expected": {
+      "stage": "program",
+      "stdout": "17\n",
+      "stderr": "",
+      "status": 17
+    }
+  },
+  {
+    "id": "forth-3",
+    "reader": "forth",
+    "kind": "negative",
+    "source": ": bad ( -- n )\n    +\n;\n",
+    "expected": {
+      "stage": "reader",
+      "stdout": "",
+      "stderr": "forth:2:5: stack underflow\n",
+      "status": 1
+    }
+  },
+  {
+    "id": "minilisp-1",
+    "reader": "minilisp",
+    "kind": "positive",
+    "source": "(defun main () (+ 40 2))",
+    "expected": {
+      "stage": "program",
+      "stdout": "42\n",
+      "stderr": "",
+      "status": 42
+    }
+  },
+  {
+    "id": "minilisp-2",
+    "reader": "minilisp",
+    "kind": "positive",
+    "source": "(defun main () (if (eq 1 1) (+ 8 9) 0))",
+    "expected": {
+      "stage": "program",
+      "stdout": "17\n",
+      "stderr": "",
+      "status": 17
+    }
+  },
+  {
+    "id": "minilisp-3",
+    "reader": "minilisp",
+    "kind": "negative",
+    "source": "(+ 1\n   (2 3))\n",
+    "expected": {
+      "stage": "reader",
+      "stdout": "",
+      "stderr": "minilisp:2:5: a call's head must be a symbol, an operator, or a list '2'\n",
+      "status": 1
+    }
+  },
+  {
+    "id": "c-1",
+    "reader": "c",
+    "kind": "positive",
+    "source": "int main() { return 6 * 7; }",
+    "expected": {
+      "stage": "program",
+      "stdout": "42\n",
+      "stderr": "",
+      "status": 42
+    }
+  },
+  {
+    "id": "c-2",
+    "reader": "c",
+    "kind": "positive",
+    "source": "int main() { int n = 0; int i = 0; while (i < 4) { n = n + i; i = i + 1; } return n + 11; }",
+    "expected": {
+      "stage": "program",
+      "stdout": "17\n",
+      "stderr": "",
+      "status": 17
+    }
+  },
+  {
+    "id": "c-3",
+    "reader": "c",
+    "kind": "negative",
+    "source": "int bad(int n) {\n    int x;\n    x = n++;\n    return x;\n}\n",
+    "expected": {
+      "stage": "reader",
+      "stdout": "",
+      "stderr": "c:3:10: '++' has no value here; use it as a statement of its own\n",
+      "status": 1
+    }
+  },
+  {
+    "id": "flow-1",
+    "reader": "flow",
+    "kind": "positive",
+    "source": "func main() { return 6 * 7; }",
+    "expected": {
+      "stage": "program",
+      "stdout": "42\n",
+      "stderr": "",
+      "status": 42
+    }
+  },
+  {
+    "id": "flow-2",
+    "reader": "flow",
+    "kind": "positive",
+    "source": "func main() { var n = 0; var i = 0; while i < 4 { n = n + i; i = i + 1; } return n + 11; }",
+    "expected": {
+      "stage": "program",
+      "stdout": "17\n",
+      "stderr": "",
+      "status": 17
+    }
+  },
+  {
+    "id": "flow-3",
+    "reader": "flow",
+    "kind": "negative",
+    "source": "gen values() { yield 42; }\nfunc main() { var n = 0; for x in values() { n = n + x; } return n; }\n",
+    "expected": {
+      "native": {
+        "stage": "program",
+        "stdout": "42\n",
+        "stderr": "",
+        "status": 42
+      },
+      "wasm": {
+        "stage": "compile",
+        "stdout": "",
+        "stderr": "source.flow:1:1: error: expression is not supported by the direct wasm backend yet\nerror: direct wasm compilation failed\n",
+        "status": 1
+      }
+    },
+    "unsupported": "Flow generators use effects, which direct Wasm does not support."
+  },
+  {
+    "id": "minipy-1",
+    "reader": "minipy",
+    "kind": "positive",
+    "source": "def main():\n    return 6 * 7\n",
+    "expected": {
+      "stage": "program",
+      "stdout": "42\n",
+      "stderr": "",
+      "status": 42
+    }
+  },
+  {
+    "id": "minipy-2",
+    "reader": "minipy",
+    "kind": "positive",
+    "source": "def main():\n    n = 11\n    for i in range(4):\n        n = n + i\n    return n\n",
+    "expected": {
+      "stage": "program",
+      "stdout": "17\n",
+      "stderr": "",
+      "status": 17
+    }
+  },
+  {
+    "id": "minipy-3",
+    "reader": "minipy",
+    "kind": "negative",
+    "source": "def bad(n):\n    for i in range(0, n, n):\n        pass\n",
+    "expected": {
+      "stage": "reader",
+      "stdout": "",
+      "stderr": "minipy:2:26: range's step must be an integer literal\n",
+      "status": 1
+    }
+  }
+]
