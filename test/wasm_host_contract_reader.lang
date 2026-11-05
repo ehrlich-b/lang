@@ -1,0 +1,9 @@
+include "example/tiny/tiny.lang"
+
+func main() *u8 {
+    var text *u8 = alloc(128);
+    var count i64 = file_read(0, text, 127);
+    if count < 0 { return nil; }
+    *(text + count) = 0;
+    return tiny(text);
+}

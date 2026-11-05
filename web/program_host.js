@@ -257,6 +257,80 @@ function formatLangAst(source) {
   return output.join('');
 }
 
+// Module.imports exposes module/name/kind, but not memory limits. Read only
+// the memory section after the engine has validated the complete binary.
+const LANG_WASM_INITIAL_MEMORY_PAGES = 4096; // 256 MiB; admission, not a growth quota
+
+class LangWasmTargetLimitError extends WebAssembly.LinkError {
+  constructor(limits) {
+    super(`Wasm target limit: ${limits.join('; ')}`);
+    this.name = 'LangWasmTargetLimitError';
+    this.code = 'LANG_WASM_TARGET_LIMIT';
+    this.limits = limits;
+  }
+}
+
+async function validateLangWasm(wasmBytes, namespace, functions) {
+  // Own the bytes across the await so validation and instantiation see the
+  // same module even if a caller reuses its input buffer.
+  const bytes = new Uint8Array(wasmBytes instanceof ArrayBuffer
+    ? wasmBytes.slice(0)
+    : new Uint8Array(wasmBytes.buffer, wasmBytes.byteOffset, wasmBytes.byteLength));
+  const compiled = await WebAssembly.compile(bytes); // malformed input stays CompileError
+  const limits = [];
+  for (const entry of WebAssembly.Module.imports(compiled)) {
+    if (entry.module !== namespace || entry.kind !== 'function' ||
+        !Object.prototype.hasOwnProperty.call(functions, entry.name) ||
+        typeof functions[entry.name] !== 'function') {
+      limits.push(`unsupported import ${JSON.stringify(entry.module)}.${JSON.stringify(entry.name)} ` +
+        `(${entry.kind}); supported imports are ${namespace} functions`);
+    }
+  }
+  const exports = WebAssembly.Module.exports(compiled);
+  for (const [name, kind] of [['main', 'function'], ['memory', 'memory']]) {
+    if (!exports.some(entry => entry.name === name && entry.kind === kind)) {
+      limits.push(`requires export ${JSON.stringify(name)} (${kind})`);
+    }
+  }
+
+  let offset = 8;
+  function uleb() {
+    let value = 0n, shift = 0n, byte;
+    do {
+      byte = bytes[offset++];
+      value |= BigInt(byte & 127) << shift;
+      shift += 7n;
+    } while (byte & 128);
+    return value;
+  }
+  while (offset < bytes.length) {
+    const id = bytes[offset++];
+    const length = Number(uleb());
+    const end = offset + length;
+    if (id === 5) {
+      const count = Number(uleb());
+      for (let index = 0; index < count; index++) {
+        const flags = Number(uleb());
+        const minimum = uleb();
+        const maximum = flags & 1 ? uleb() : undefined;
+        if (flags & 6) {
+          limits.push(`memory ${index} requires ${flags & 4 ? 'memory64' : 'shared memory'}; ` +
+            'supported memory is unshared wasm32');
+        }
+        if (minimum > BigInt(LANG_WASM_INITIAL_MEMORY_PAGES)) {
+          limits.push(`memory ${index} minimum ${minimum} pages (${minimum * 65536n} bytes) ` +
+            `exceeds browser initial memory cap ${LANG_WASM_INITIAL_MEMORY_PAGES} pages ` +
+            `(${LANG_WASM_INITIAL_MEMORY_PAGES * 65536} bytes)` +
+            (maximum === undefined ? '' : `; declared maximum ${maximum} pages`));
+        }
+      }
+    }
+    offset = end;
+  }
+  if (limits.length) throw new LangWasmTargetLimitError(limits);
+  return compiled;
+}
+
 // Decode the same NUL-prefixed RDI1 records as the native compiler. Hosts mint
 // source IDs; reader-local names cannot name unrelated files or editor buffers.
 function decodeReaderDiagnostics(data, context, onStderr = () => {}) {
@@ -447,8 +521,8 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContextOrOpti
     printf: () => 0n,
   };
 
-  const built = await WebAssembly.instantiate(wasmBytes, { lang });
-  instance = built.instance;
+  const compiled = await validateLangWasm(wasmBytes, 'lang', lang);
+  instance = await WebAssembly.instantiate(compiled, { lang });
   let value = 0n;
   let exit = 0;
   let exited = false;
@@ -482,4 +556,7 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContextOrOpti
   return { value, exit, exited, stdout, stderr, instance, diagnostics };
 }
 
-if (typeof module !== 'undefined') module.exports = { formatLangAst, runLangProgram, decodeReaderDiagnostics, readerDiagnosticText };
+if (typeof module !== 'undefined') module.exports = {
+  formatLangAst, runLangProgram, decodeReaderDiagnostics, readerDiagnosticText,
+  validateLangWasm, LangWasmTargetLimitError, LANG_WASM_INITIAL_MEMORY_PAGES,
+};

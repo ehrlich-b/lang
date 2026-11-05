@@ -92,8 +92,10 @@ async function runLangWasm(wasmBytes, onWrite) {
     memset: (d, c, n) => { mem().fill(c, d, d + n); return d; },
   };
 
-  const { instance: inst } = await WebAssembly.instantiate(wasmBytes, { env });
-  instance = inst;
+  const validate = typeof module !== 'undefined'
+    ? require('./program_host.js').validateLangWasm : validateLangWasm;
+  const compiled = await validate(wasmBytes, 'env', env);
+  instance = await WebAssembly.instantiate(compiled, { env });
   try {
     if (instance.exports.__wasm_call_ctors) instance.exports.__wasm_call_ctors();
     const ret = instance.exports.main(0n, 0, 0);
@@ -104,3 +106,5 @@ async function runLangWasm(wasmBytes, onWrite) {
     throw e;
   }
 }
+
+if (typeof module !== 'undefined') module.exports = { runLangWasm };
