@@ -1,0 +1,8 @@
+// expect: 42
+func flag() bool { return 2; }
+func odd_flag() bool { return 3; }
+func main() i64 {
+    if flag() { return 1; }
+    if !odd_flag() { return 2; }
+    return 42;
+}

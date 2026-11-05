@@ -555,7 +555,9 @@ func c_stmt(s *u8) void {
         if llvm_is_void_type(c_ret) { emit_line("return;"); }
         else {
             var value *u8 = c_value(return_stmt_value(s), c_ret);
-            if (llvm_is_signed_int(c_ret) || llvm_is_unsigned_int(c_ret)) && c_size(c_ret) < 8 {
+            if llvm_is_bool_type(c_ret) {
+                value = c_join("c_narrow(", value, ",1)");
+            } else if (llvm_is_signed_int(c_ret) || llvm_is_unsigned_int(c_ret)) && c_size(c_ret) < 8 {
                 var helper *u8 = "c_narrow("; if llvm_is_signed_int(c_ret) { helper = "c_sign("; }
                 value = c_join(c_join(helper, value, ","), c_decimal(c_size(c_ret) * 8), ")");
             }
