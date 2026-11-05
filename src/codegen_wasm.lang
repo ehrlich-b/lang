@@ -812,7 +812,7 @@ func wasm_emit_address(expr *u8, out *WasmBuf) *u8 {
         wasm_emit_expr(base, out);
         wasm_emit_expr(index_expr_index(expr), out);
         var size i64 = wasm_type_size(elem_type);
-        if size > 1 {
+        if size != 1 {
             wasm_put(out, 66); wasm_put_sleb(out, size);
             wasm_put(out, 126);  // i64.mul
         }
@@ -1354,7 +1354,7 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
                 return;
             } else {
                 var elem_size i64 = wasm_type_size(ptr_type_elem(left_type));
-                if elem_size > 1 {
+                if elem_size != 1 {
                     wasm_put(out, 66); wasm_put_sleb(out, elem_size);
                     wasm_put(out, 126);  // i64.mul
                 }

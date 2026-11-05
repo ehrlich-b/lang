@@ -1,0 +1,30 @@
+// expect: 42
+// Zero-sized elements share an address, but indices still evaluate normally.
+struct Empty { values [0]i64; }
+var global [2][0]i64;
+var calls i64;
+func next_index() i64 {
+    calls = calls + 1;
+    return calls;
+}
+func main() i64 {
+    var a [2][0]i64;
+    if &a[0] != &a[1] { return 1; }
+    var p *[0]i64 = &a[0];
+    if p + 1 != p || p - 1 != p { return 2; }
+    if p + -3 != p || p - -3 != p { return 3; }
+    if &p[1] != p || &p[-1] != p { return 4; }
+    if &global[0] != &global[1] { return 5; }
+    var empty [2]Empty;
+    if &empty[0] != &empty[1] { return 6; }
+    var ep *Empty = &empty[0];
+    if ep + 2 != ep || ep - 2 != ep { return 7; }
+    if &a[next_index()] != &a[0] || calls != 1 { return 8; }
+    if p + next_index() != p || calls != 2 { return 9; }
+    if p - next_index() != p || calls != 3 { return 10; }
+    var bytes [2]u8;
+    var bp *u8 = &bytes[0];
+    if cast(i64, &bytes[1]) - cast(i64, bp) != 1 { return 11; }
+    if bp + 1 != &bytes[1] || &bytes[1] - 1 != bp { return 12; }
+    return 42;
+}
