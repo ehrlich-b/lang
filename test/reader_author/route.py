@@ -127,6 +127,8 @@ def main():
                 dump(evidence / 'isolation.json', {'files': {p.name: sha(p) for p in cwd.iterdir()},
                      'PATH': '/nonexistent', 'compiler_tools_available': [], 'command': line})
             result = replay.shell(line, f'readme-{index:02d}', cwd)
+            if line == './exclusive 100':
+                require(result.stdout == b'10\n' and not result.stderr, 'exclusive edit did not change boundary')
             if line.startswith('./shipping '):
                 expected = [b'10\n', b'10\n', b'10\n', b'0\n', b'0\n'][run_number]
                 require(result.stdout == expected and not result.stderr, f'wrong exact runtime output: {line}')
@@ -139,14 +141,7 @@ def main():
         require(re.search(r'\(binop >\s+\(ident total\)\s+\(number 100\)', exclusive), 'edited AST must compare variable total > 100')
         for name in ('policy.ast', 'exclusive.ast'):
             shutil.copyfile(work / name, evidence / name)
-        # Prove that the reader edit changes native execution, using the saved AST.
         compiler = clone / 'out/lang'
-        runtime = clone / 'example/shipping/runtime.lang'
-        replay.run([str(compiler), '--from-ast', str(work / 'exclusive.ast'), '--runtime', str(runtime),
-                    '-o', str(work / 'exclusive.ll')], 'edited-llvm', clone)
-        replay.run(['clang', str(work / 'exclusive.ll'), '-o', str(work / 'exclusive')], 'edited-link', clone)
-        result = replay.run([str(work / 'exclusive'), '100'], 'edited-boundary', clone)
-        require(result.stdout == b'10\n' and not result.stderr, 'exclusive edit did not change boundary')
         isolated = work / 'isolated'
         minted = isolated / 'shippingc'
         # Reordered settings preserve the AST, not just the sample answers.

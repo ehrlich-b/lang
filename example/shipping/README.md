@@ -25,6 +25,9 @@ cp ../../example/shipping/shipping.lang shipping.lang
 # Edit the reader: make free_over exclusive, then inspect its shared AST.
 python3 -c 'from pathlib import Path; p=Path("shipping.lang"); s=p.read_text(); assert s.count("ast_ge(")==1; p.write_text(s.replace("ast_ge(", "ast_gt("))'
 ../../out/lang read shipping.lang ../../example/shipping/policy.shipping -o exclusive.ast
+../../out/lang --from-ast exclusive.ast --ast-source ../../example/shipping/policy.shipping --runtime ../../example/shipping/runtime.lang -o exclusive.ll
+clang exclusive.ll -o exclusive
+./exclusive 100
 # Restore the documented inclusive policy and inspect the final shared AST.
 python3 -c 'from pathlib import Path; p=Path("shipping.lang"); s=p.read_text(); assert s.count("ast_gt(")==1; p.write_text(s.replace("ast_gt(", "ast_ge("))'
 ../../out/lang read shipping.lang ../../example/shipping/policy.shipping -o policy.ast
