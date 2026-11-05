@@ -222,6 +222,57 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual((self.root / 'executions').read_text(), 'executed\n')
 
+    def launcher_fixture(self):
+        text = (Path(__file__).resolve().parents[1] / 'Makefile').read_text()
+        recipe = text.split('bootstrap-verify:\n', 1)[1].split('\n\n', 1)[0]
+        (self.root / 'scripts').mkdir()
+        (self.root / 'scripts/gate_receipt.py').write_text(
+            Path(gate.__file__).read_text())
+        (self.root / 'Makefile').write_text('bootstrap-verify:\n' + recipe +
+            '\n_verify-complete:\n\t@echo executed >> executions\n'
+            '\t@cat $(BOOTSTRAP_LL) > result\n\t@test "$(FAIL)" != 1\n')
+        env = {k: v for k, v in os.environ.items()
+               if k not in ('MAKEFLAGS', 'MFLAGS', 'GNUMAKEFLAGS', 'MAKEOVERRIDES', 'MAKEFILES')}
+        env['LANG_VERIFY_CACHE'] = str(self.cache)
+        return env
+
+    def test_external_input_override_executes_after_edit_without_receipts(self):
+        env = self.launcher_fixture()
+        external = Path(self.work.name) / 'external.ll'
+        for index, content in enumerate(('first', 'changed'), 1):
+            external.write_text(content)
+            result = subprocess.run(['make', 'bootstrap-verify', 'BOOTSTRAP_LL=' + str(external)],
+                                    cwd=self.root, env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual((self.root / 'result').read_text(), content)
+            self.assertEqual(len((self.root / 'executions').read_text().splitlines()), index)
+            self.assertFalse(self.cache.exists())
+
+    def test_inherited_ignore_errors_never_executes_or_publishes(self):
+        env = self.launcher_fixture()
+        for flags in (['-i'], ['--ignore-errors'], ['-ki']):
+            with self.subTest(flags=flags):
+                result = subprocess.run(['make', *flags, 'bootstrap-verify', 'FAIL=1'],
+                                        cwd=self.root, env=env, capture_output=True, text=True)
+                self.assertIn('cannot certify verification', result.stderr)
+                self.assertFalse((self.root / 'executions').exists())
+                self.assertFalse(self.cache.exists())
+
+    def test_make_policy_rejects_modes_and_bypasses_external_closures(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            command = ['make', '_verify-complete']
+            for name in ('MAKEFLAGS', 'MFLAGS', 'GNUMAKEFLAGS'):
+                for flags in ('i', '-ki', '--ignore-errors', 'n', 'q', 't'):
+                    with mock.patch.dict(os.environ, {name: flags}):
+                        with self.assertRaises(ValueError):
+                            gate.make_policy(command)
+                for flags in ('e', '--eval=x', '--file=external.mk', 'BOOTSTRAP_LL=/external.ll'):
+                    with mock.patch.dict(os.environ, {name: flags}):
+                        self.assertFalse(gate.make_policy(command))
+            self.assertTrue(gate.make_policy(command))
+            with mock.patch.dict(os.environ, {'MAKEOVERRIDES': 'COMPILER_READERS=/external.lang'}):
+                self.assertFalse(gate.make_policy(command))
+
     def test_production_boundary_preserves_full_suite_and_promotion(self):
         text = (Path(__file__).resolve().parents[1] / 'Makefile').read_text()
         verifier = text.split('_verify-complete: generate-os-layer generate-version-info\n', 1)[1].split('# Non-promoting', 1)[0]

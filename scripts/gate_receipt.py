@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -41,6 +42,34 @@ def environment_value(key, value, root):
         # semantic option remain in the identity. Support GNU make FIFO and fd forms.
         value = re.sub(r'--jobserver-(?:auth|fds)=\S+', '--jobserver', value)
     return value.replace(str(root), '<checkout>')
+
+
+def make_policy(command):
+    """Fail closed for non-verifying modes and unknown make input closures."""
+    flags = []
+    for name in ('MAKEFLAGS', 'MFLAGS', 'GNUMAKEFLAGS'):
+        flags.extend(shlex.split(os.environ.get(name, '')))
+    flags.extend(command[1:])
+    unsupported = bool(os.environ.get('MAKEOVERRIDES', '').strip())
+    for token in flags:
+        if token.startswith('--'):
+            option = token.split('=', 1)[0]
+            if option in ('--ignore-errors', '--just-print', '--dry-run',
+                          '--recon', '--question', '--touch'):
+                raise ValueError('make mode cannot certify verification: ' + token)
+            if option in ('--eval', '--file', '--makefile', '--include-dir',
+                          '--environment-overrides'):
+                unsupported = True
+        elif '=' in token:
+            # Even unchanged override text can select mutable external files.
+            unsupported = True
+        elif token.startswith('-') or token.isalpha() and token != '_verify-complete':
+            short = token.lstrip('-')
+            if any(letter in short for letter in 'inqt'):
+                raise ValueError('make mode cannot certify verification: ' + token)
+            if any(letter in short for letter in 'efI'):
+                unsupported = True
+    return not unsupported
 
 
 def identity(root, command):
@@ -192,6 +221,13 @@ def main():
     command = args.command[1:] if args.command[:1] == ['--'] else args.command
     if not command:
         parser.error('missing complete verification command')
+    # The launcher's MAKE assignment is fixed, not an input override. Inherited
+    # overrides remain visible in MAKEFLAGS/MAKEOVERRIDES and disable reuse.
+    try:
+        reusable = make_policy([arg for arg in command if arg != 'MAKE=make'])
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 2
     root = Path.cwd().resolve()
     default_cache = Path(os.environ.get('XDG_CACHE_HOME', Path.home() / '.cache')) / 'lang/verification'
     cache = Path(os.environ.get('LANG_VERIFY_CACHE', default_cache)).resolve()
@@ -204,11 +240,11 @@ def main():
         outputs = OUTPUTS + ['out/bootstrap_verify/' + name for name in (
             'ctrusted', 'kernel1', 'kernel1.ll', 'kernel2', 'kernel2.ll',
             'kernel3.ll', 'reader_ast1.ast', 'reader_ast2.ast')]
-        if os.environ.get('MAKEFILES', '').strip():
+        if os.environ.get('MAKEFILES', '').strip() or not reusable:
             # Extra makefiles can include arbitrary external prerequisites and
             # recipes. Their transitive closure is not our repository closure.
             # Run normally without consuming or publishing any cached success.
-            print('MAKEFILES supplied; verification receipt reuse disabled', flush=True)
+            print('Unsupported make inputs supplied; verification receipt reuse disabled', flush=True)
             return subprocess.run(command).returncode
         return consume(root, cache, lambda: identity(root, command), execute, outputs,
                        fresh=os.environ.get('LANG_VERIFY_FRESH') == '1')
