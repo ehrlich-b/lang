@@ -1,0 +1,69 @@
+// wasm32 object layout is distinct from the i64 pointer carrier.
+struct Packed { byte u8; pointer *i64; half i16; tail u8; }
+struct Inner { byte u8; half i16; }
+struct Outer { tag u8; inner Inner; tail i64; }
+struct Bundle { packed Packed; values [2]i64; }
+var global Packed;
+var other Packed;
+var storage [2]Packed;
+var text [1]u8 = [65];
+var matrix [2][2]i64 = [[1, 2], [3, 4]];
+var float_values [2]f32 = [cast(f32, 1.5), cast(f32, 2.5)];
+func array_copy(a [2]i64) i64 {
+    a[0] = 99;
+    return a[1];
+}
+func change(p Packed) i64 {
+    p.byte = 255;
+    p.pointer = nil;
+    return p.byte;
+}
+func main() i64 {
+    if matrix[1][1] != 4 { return 13; }
+    var literal *u8 = "A";
+    text[0] = 66;
+    if literal[0] != 65 { return 14; }
+    var local [2][2]i64 = [[5, 6], [7, 8]];
+    if local[1][1] != 8 { return 15; }
+    var params [2]i64 = [17, 19];
+    if array_copy(params) != 19 || params[0] != 17 { return 21; }
+    var zeros [2]i64;
+    if zeros[0] != 0 || zeros[1] != 0 { return 22; }
+    var data [3]i64 = [10, 20, 30];
+    var ptr *i64 = &data[0];
+    if &data[2] - ptr != 2 || ptr - &data[2] != -2 { return 20; }
+    var item Packed;
+    var byte *u8 = &item.byte;
+    if cast(i64, &item.pointer) - cast(i64, byte) != 4 { return 1; }
+    if cast(i64, &item.half) - cast(i64, byte) != 8 { return 2; }
+    if cast(i64, &item.tail) - cast(i64, byte) != 10 { return 3; }
+    var first i64 = &storage[0];
+    var second i64 = &storage[1];
+    if second - first != 12 { return 4; }
+    var n i64 = 42;
+    item.byte = 17; item.pointer = &n; item.half = -7; item.tail = 19;
+    global = item; other = global; other.byte = 0;
+    if global.byte != 17 || *global.pointer != 42 { return 16; }
+    var b Bundle;
+    b.packed = item; b.values[0] = 17; b.values[1] = 19;
+    var copied Bundle = b; copied.values[0] = 0;
+    if b.values[0] != 17 || copied.packed.tail != 19 { return 17; }
+    storage[0] = item;
+    storage[1] = storage[0];
+    storage[1].byte = 9;
+    if storage[0].byte != 17 || storage[1].tail != 19 { return 18; }
+    if &storage[1] - &storage[0] != 1 { return 19; }
+    if *storage[0].pointer != 42 || storage[0].half != -7 { return 5; }
+    if change(item) != 255 || item.byte != 17 || *item.pointer != 42 { return 6; }
+    var outer Outer;
+    var start i64 = &outer;
+    if cast(i64, &outer.inner) - start != 2 { return 7; }
+    if cast(i64, &outer.inner.half) - start != 4 { return 8; }
+    if cast(i64, &outer.tail) - start != 8 { return 9; }
+    var pointers [2]*i64;
+    if cast(i64, &pointers[1]) - cast(i64, &pointers[0]) != 4 { return 10; }
+    pointers[0] = &n; pointers[1] = &n;
+    if *pointers[1] != 42 { return 11; }
+    if float_values[0] + float_values[1] != cast(f32, 4) { return 12; }
+    return n;
+}

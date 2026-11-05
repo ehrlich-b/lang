@@ -1,0 +1,28 @@
+// expect: 42
+// By-value parameters and local copies keep their storage across recursion.
+struct Pair { x i64; y i64; }
+func mutate(p Pair) i64 {
+    var alias *i64 = &p.x;
+    *alias = 99;
+    return p.x + p.y;
+}
+func recurse(p Pair, n i64) i64 {
+    if n == 0 { return p.x + p.y; }
+    p.x = p.x + 1;
+    var result i64 = recurse(p, n - 1);
+    if p.x != 11 - n { return 0; }
+    return result;
+}
+func main() i64 {
+    var p Pair;
+    p.x = 7; p.y = 32;
+    if mutate(p) != 131 || p.x != 7 { return 1; }
+    var q Pair = p;
+    q.x = 10;
+    if p.x != 7 { return 2; }
+    var values [3]i64 = [10, 20, 30];
+    var pointer *i64 = &values[0];
+    if pointer[2] != 30 { return 6; }
+    if recurse(p, 3) != 42 || p.x != 7 { return 10; }
+    return q.x + q.y;
+}

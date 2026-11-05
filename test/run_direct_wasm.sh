@@ -35,6 +35,9 @@ run_case test/suite/290_pointer_index_floats.lang 42
 run_case test/direct_wasm_memory_e2e.lang 176
 run_case test/direct_wasm_import_e2e.lang 17
 run_case test/direct_wasm_struct_e2e.lang 42
+run_case test/direct_wasm_aggregate_layout.lang 42
+run_case test/suite/300_aggregate_values.lang 42
+run_case test/suite/250_arrays.lang 150
 run_case test/direct_wasm_ast_e2e.lang 40
 run_case test/direct_wasm_reader_e2e.lang 40
 run_case test/direct_wasm_calc_reader_e2e.lang 40
@@ -45,23 +48,27 @@ run_case test/borders/cases/minipy_functions.lang 42
 run_case test/borders/cases/minilisp_integers.lang 42
 
 unsupported="$tmp/unsupported.wasm"
-if LANGBE=wasm LANGOS=wasm "$COMPILER" test/suite/250_arrays.lang -o "$unsupported" \
+if LANGBE=wasm LANGOS=wasm "$COMPILER" test/direct_wasm_aggregate_return_reject.lang -o "$unsupported" \
    >"$tmp/unsupported.out" 2>"$tmp/unsupported.err"; then
-    echo "direct wasm unexpectedly accepted an unsupported array program" >&2
+    echo "direct wasm unexpectedly accepted an unsupported struct return" >&2
     exit 1
 else
     status=$?
     if [ "$status" -ne 1 ]; then
         cat "$tmp/unsupported.err" >&2
-        echo "direct wasm array rejection exited $status instead of 1" >&2
+        echo "direct wasm struct return rejection exited $status instead of 1" >&2
         exit 1
     fi
+fi
+if ! grep -q 'struct and array value returns are unsupported' "$tmp/unsupported.err"; then
+    cat "$tmp/unsupported.err" >&2
+    exit 1
 fi
 if [ -e "$unsupported" ]; then
     echo "direct wasm left partial output after a compile error" >&2
     exit 1
 fi
-if ! grep -q '^test/suite/250_arrays.lang:.*: error:' "$tmp/unsupported.err"; then
+if ! grep -q '^test/direct_wasm_aggregate_return_reject.lang:2:.*: error:' "$tmp/unsupported.err"; then
     echo "direct wasm error did not preserve source provenance" >&2
     cat "$tmp/unsupported.err" >&2
     exit 1

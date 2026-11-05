@@ -115,7 +115,7 @@ def main():
     for backend in ('llvm', 'x86', 'wasm'):
         if backend == 'x86' and os.uname().sysname != 'Linux':
             continue  # x86/Linux is a different published target, never claimed on Mac.
-        diagnostic = 'scalar, pointer, or void returns' if backend == 'wasm' else 'struct value returns are unsupported'
+        diagnostic = 'struct and array value returns are unsupported' if backend == 'wasm' else 'struct value returns are unsupported'
         check('struct-return-' + backend, [compiler, aggregate, '-o', str(output / ('struct.' + backend))],
               diagnostic=diagnostic, success=False,
               run_env=dict(env, LANGBE=backend, LANGOS='wasm' if backend == 'wasm' else env['LANGOS']))

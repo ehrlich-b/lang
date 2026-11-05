@@ -1,4 +1,4 @@
-// Object storage only. No struct/enum layout, pointer relocation or call ABI.
+// Scalar storage admission and target object layout. No enum or call ABI.
 // A failed query always clears every output field; callers must check status.
 struct StorageLayout { size i64; alignment i64; stride i64; }
 var LAYOUT_OK i64 = 0;
@@ -66,4 +66,87 @@ func layout_error(status i64) *u8 {
     if status == LAYOUT_COUNT { return "negative fixed-array count"; }
     if status == LAYOUT_OVERFLOW { return "fixed-array storage exceeds target size limit"; }
     return "unsupported storage type (expected scalar or fixed array of scalars)";
+}
+
+// Target object layout, separate from the scalar-only storage admission above.
+// Declarations are supplied by the caller so this service owns no reader rules.
+func layout_struct(t *u8, decls *u8, count i64) *u8 {
+    if t == nil || type_kind(t) != TYPE_BASE { return nil; }
+    var i i64 = 0;
+    while i < count {
+        var slot **u8 = decls + i * 8;
+        var d *u8 = *slot;
+        if base_type_name_len(t) == struct_decl_name_len(d) {
+            var j i64 = 0;
+            while j < base_type_name_len(t) && *(base_type_name(t) + j) == *(struct_decl_name(d) + j) { j = j + 1; }
+            if j == base_type_name_len(t) { return d; }
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
+func layout_align(size i64, alignment i64) i64 {
+    return ((size + alignment - 1) / alignment) * alignment;
+}
+
+func layout_target_query(t *u8, profile *u8, decls *u8, count i64,
+                         depth i64, out *StorageLayout) i64 {
+    out.size = 0; out.alignment = 0; out.stride = 0;
+    var limit i64 = layout_limit(profile);
+    if limit == 0 { return LAYOUT_PROFILE; }
+    if t == nil || depth > 64 { return LAYOUT_UNSUPPORTED; }
+    var result StorageLayout;
+    var kind i64 = type_kind(t);
+    if kind == TYPE_PTR {
+        result.size = 8;
+        if streq(profile, "llvm-wasm32") { result.size = 4; }
+        result.alignment = result.size;
+    } else if kind == TYPE_ARRAY {
+        var n i64 = array_type_size(t);
+        if n < 0 { return LAYOUT_COUNT; }
+        var element StorageLayout;
+        var status i64 = layout_target_query(array_type_elem(t), profile, decls, count, depth + 1, &element);
+        if status != LAYOUT_OK { return status; }
+        if n > limit || (element.stride != 0 && n > limit / element.stride) { return LAYOUT_OVERFLOW; }
+        result.size = n * element.stride;
+        result.alignment = element.alignment;
+    } else {
+        var d *u8 = layout_struct(t, decls, count);
+        if d == nil { return layout_query(t, profile, out); }
+        result.size = 0; result.alignment = 1;
+        var i i64 = 0;
+        while i < struct_decl_field_count(d) {
+            var field *u8 = get_struct_field(struct_decl_fields(d), i);
+            var element StorageLayout;
+            var status i64 = layout_target_query(struct_field_type(field), profile, decls, count, depth + 1, &element);
+            if status != LAYOUT_OK { return status; }
+            if result.size > limit - (element.alignment - 1) { return LAYOUT_OVERFLOW; }
+            result.size = layout_align(result.size, element.alignment);
+            if result.size > limit - element.size { return LAYOUT_OVERFLOW; }
+            result.size = result.size + element.size;
+            if element.alignment > result.alignment { result.alignment = element.alignment; }
+            i = i + 1;
+        }
+        if result.size > limit - (result.alignment - 1) { return LAYOUT_OVERFLOW; }
+        result.size = layout_align(result.size, result.alignment);
+    }
+    out.size = result.size; out.alignment = result.alignment; out.stride = result.size;
+    return LAYOUT_OK;
+}
+
+func layout_target_field_offset(d *u8, index i64, profile *u8,
+                                decls *u8, count i64) i64 {
+    var offset i64 = 0;
+    var i i64 = 0;
+    while i <= index {
+        var field *u8 = get_struct_field(struct_decl_fields(d), i);
+        var element StorageLayout;
+        if layout_target_query(struct_field_type(field), profile, decls, count, 0, &element) != LAYOUT_OK { return -1; }
+        offset = layout_align(offset, element.alignment);
+        if i == index { return offset; }
+        offset = offset + element.size;
+        i = i + 1;
+    }
+    return -1;
 }
