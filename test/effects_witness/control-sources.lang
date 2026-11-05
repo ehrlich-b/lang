@@ -1,0 +1,56 @@
+// Specification input for hand-lowered control.c modes 18-23. Not compiled
+// by this witness runner. E1/E4 must compile this source with the new effects lowering.
+// Modes: clause return=18, body return=19, clause break=20,
+// clause continue=21, body break=22, body continue=23.
+// Independent answers: 41, 41, 101, 410, 101, 410.
+effect First(i64) i64
+effect Second(i64) i64
+
+func exit_probe(mode i64) i64 {
+    var total i64 = 0;
+    var i i64 = 0;
+    var evals i64 = 0;
+    outer:
+    while i < 4 {
+        i = i + 1;
+        handle {
+            handle {
+                if mode == 19 {
+                    evals = evals + 1;
+                    return 40 + evals;
+                }
+                if mode == 22 { total = total + i; break outer; }
+                if mode == 23 { total = total + i; continue outer; }
+                perform First(10);
+                9000;
+            } with {
+                return(v) => v * 10 + 7,
+                Second(x, k) => { resume k(x); }
+            };
+            9000;
+        } with {
+            return(v) => v * 10 + 7,
+            First(x, k) => {
+                if mode == 18 {
+                    evals = evals + 1;
+                    return 40 + evals;
+                }
+                total = total + i;
+                if mode == 20 { break outer; }
+                continue outer;
+            }
+        };
+        return 9000; // Wrong lowering to ordinary clause completion reaches here.
+    }
+    return i * 100 + total;
+}
+
+func main() i64 {
+    if exit_probe(18) != 41 { return 1; }
+    if exit_probe(19) != 41 { return 2; }
+    if exit_probe(20) != 101 { return 3; }
+    if exit_probe(21) != 410 { return 4; }
+    if exit_probe(22) != 101 { return 5; }
+    if exit_probe(23) != 410 { return 6; }
+    return 0;
+}

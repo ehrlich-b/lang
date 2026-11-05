@@ -1,0 +1,219 @@
+{
+  "item": "lang-shared-effects-lowering",
+  "roadmap_node": "E",
+  "baseline": "480e61e",
+  "production_emit_map_base": "4b93dcaa32c177ed827fb7597b02d8431ace2dec",
+  "status": "design-prototype-only-production-refusal-retained",
+  "chosen_lowering": "selective-defunctionalized-CPS-state-machines",
+  "initial_profile": "scoped-single-task-one-shot-tail-resume-deep-handlers",
+  "dependencies": [
+    {
+      "node": "ED",
+      "gate": "Independent design/prototype review PASS on exact artifact hashes; inherited conditional review is insufficient"
+    },
+    {
+      "node": "A",
+      "gate": "Resolved shared layout and native call/descriptor ABI; returns_twice is a separate C obligation"
+    },
+    {
+      "node": "B",
+      "gate": "Optimization refusal fails closed for ordinary optimization, dead effects, full LTO and unsupported modes before rollout"
+    }
+  ],
+  "global_invariants": [
+    "No changes to production emitters or bootstrap seeds in ED",
+    "No assembly, cross-function blockaddress branches or revived native frames",
+    "No effectful foreign extent, continuation escape, thread migration, multishot or non-tail resume",
+    "No handler body erasure or fixture-specific worker-entry admission",
+    "Source return/break/continue retain resolved lexical targets across synthetic clause/body extraction; abandon crossed prompts then execute the owner exit, never ordinary clause completion",
+    "Every unsupported input or pipeline fails with a source diagnostic; no success artifact",
+    "All implementation builds use nice -n 10 for this prototype; bootstrap work is isolated and nonpromoting",
+    "A phase PASS records commands, tool versions, artifact hashes, target, output and exit status"
+  ],
+  "phases": [
+    {
+      "id": "E0",
+      "title": "Freeze effects core and diagnostic profile",
+      "depends_on": [
+        "ED",
+        "A"
+      ],
+      "changes": [
+        "Specify resolved effect identities and perform/handle/tail-resume operations",
+        "Version typed effectful callable descriptors and effect summaries",
+        "Define clause masking, deep reinstatement, effect-free return clauses, cleanup order, and exact token error states",
+        "Retain feature-off and optimized-effects refusal",
+        "Specify LEAVE(kind, target-owner, target-state, cleanup-boundary, value): evaluate return value once, invalidate crossed tokens, clean active then captured branches children before parents, skip crossed return clauses, then perform owner return or loop exit",
+        "Resolve source lexical exit targets and reader origins before synthetic extraction; same-function loops retain labels and continue/increment destinations",
+        "Specify native effect-closed dispatcher hosts, native-stack nesting, per-dispatcher current/root state and per-task identity/registry/error/foreign-depth state"
+      ],
+      "gates": [
+        "Review normative core independent of reader syntax",
+        "Golden negative diagnostics for escape, non-tail resume, forwarding/copying tokens, unknown indirect ABI, foreign suspension and unsupported backends",
+        "No emitted partial success output on a refused program",
+        "Review all six clause/body x return/break/continue cases, local exits, labeled outer loops, partial prompt crossing, and flow for-body return; no source return may become frame completion",
+        "Golden source diagnostics for unresolved/out-of-function/out-of-host exit targets and unsound or unknown outward summaries at native host entries",
+        "A hosted native function is effect-closed: no outward perform is delivered to an inner dispatcher; runtime invariant violation fails E_UNHANDLED without outer lookup"
+      ],
+      "enablement": "none"
+    },
+    {
+      "id": "E1",
+      "title": "Analyze complete call graph and frame liveness",
+      "depends_on": [
+        "E0"
+      ],
+      "changes": [
+        "Compute effect summaries over recursive SCCs, direct/indirect calls, closures and clauses",
+        "Transform all effect-propagating callers to the handling delimiter",
+        "Build typed frame layouts and stable address-taken storage",
+        "Perform affine token-use and escape checking; fail closed for unknown external summaries",
+        "Put owner locals referenced by clauses in stable owner-frame cells and capture those cells by reference, including locals without explicit address-taking",
+        "Carry resolved lexical function/loop targets and cleanup-scope identities into source-exit events, separate from generated frame RETURN",
+        "Classify effect-free-to-callers functions with internal handlers as native dispatcher hosts, including run_with_handler; prove closure over all clause/indirect paths"
+      ],
+      "gates": [
+        "Unhandled worker called before installation fails explicitly, including address-taken and indirect entries",
+        "Two distinct effectful workers, recursion, closures, loops, mutable globals and aliasing across yields preserve semantics",
+        "No surviving pointer into a returned step alloca",
+        "Analysis output deterministic and source origins preserved",
+        "Compile/run example/flow/test_flow.lang: sum_count(5)=10, sum_fib(10)=88, count_evens(10)=5, drive_sum(4)=6, drive_sum(5)=10; owner total remains shared by reference across yields (never copied to a clause)",
+        "Compile/run test/suite/190_effect_resume.lang through 198_effect_many_resume.lang (all suites 190-198), including suite 196 native run_with_handler entry",
+        "Compile test/effects_witness/control-sources.lang and test/effects_witness/flow-exits.lang using actual reader/core lowering; source oracles 41/41/101/410/101/410, early_return(6)=3 and sum_count(5)=10, with no handle-successor fallthrough",
+        "Nested/local/labeled loop targets and nested source functions retain their lexical binding and source diagnostic spans through reader expansion"
+      ],
+      "enablement": "analysis-only experimental flag; no guard relaxation"
+    },
+    {
+      "id": "E2",
+      "title": "Implement explicit dispatcher and owned runtime records",
+      "depends_on": [
+        "E1"
+      ],
+      "changes": [
+        "Generate step entry switch and explicit event returns",
+        "Generate handler records with separate dispatch and lifetime parents",
+        "Implement bounded checked token table with task identity, generation and tombstone lifecycle",
+        "Generate initialized-resource cleanup for normal return, abort and failure",
+        "Implement checked lexical exit events and cleanup boundaries; close only crossed prompts, retain target owner/capture cells through dependent cleanup, then execute owner return or loop transition",
+        "Provide native entry wrappers hosting synchronous dispatchers; share task token registry and foreign_depth across nested hosts while isolating root handler lookup and completion/cleanup ranges",
+        "Reclaim consumed clause/top-frame records on resume and completed records on return; do not copy the finite witness arena retention policy"
+      ],
+      "gates": [
+        "Every generated LLVM successor has a local meaning; llvm-as and opt verify-each pass",
+        "Runtime repeated-resume, stale-token, wrong-task, wrong-generation and wrong-clause tests fail deterministically before frame access",
+        "Nested/reentrant prompts, nonmatching outward effects, reinstatement, abandonment and nonidentity return clauses match independent oracles",
+        "Cleanup trace and per-resource initialization masks prove once-only inner-to-outer cleanup",
+        "Allocation/registry exhaustion fails without leaks or slot wraparound",
+        "Source clause/body return/break/continue match independent direct-style oracles and exact cleanup traces; return value evaluated once, tokens invalidated before cleanup, active branch before captured branches, no crossed return clause or post-handle successor runs",
+        "Exit across only an inner prompt retains the outer prompt; break/continue retain owner locals and clean only exited lexical block resources; source function return cleans remaining owner resources once",
+        "Native nested dispatcher returns preserve outer live frames/handlers/tokens; inner missing handler cannot see an outer match; inner failure cleans each host via ordinary returns",
+        "Task identity/registry shared across hosts, cross-host token/exit misuse rejected, and foreign_depth never reset by inner hosted/callback entry",
+        "Bounded steady-state live and allocated memory for N>=1000000 performs in one prompt, including reclamation and checked token generation reuse",
+        "Wrong task/index and wrong clause authority are distinct tests (E_TOKEN and E_TOKEN_SCOPE); the ED witness does not claim these token paths tested",
+        "Dead matching handler in an active dispatch chain is an internal invariant failure before frame access, never silently mistaken for no outer handler"
+      ],
+      "enablement": "isolated prototype/experimental lowering only"
+    },
+    {
+      "id": "E3",
+      "title": "Qualify native, indirect and foreign ABI boundaries",
+      "depends_on": [
+        "E2",
+        "A"
+      ],
+      "changes": [
+        "Emit typed direct and indirect effectful call conventions",
+        "Keep effect-free ordinary calls native",
+        "Generate foreign barriers and exported callback shims",
+        "Prevent foreign entry into private effectful step symbols"
+      ],
+      "gates": [
+        "Ordinary and indirect calls agree across separately compiled modules and dynamic descriptor selections",
+        "Callback suspension and resume under foreign depth refuse, including callback-local handlers",
+        "Native call followed by perform works; foreign barrier returns to original depth",
+        "Import/export contracts reject longjmp/unwind/signal reentry across wrappers",
+        "C returns_twice/setjmp fixtures remain a separate A qualification gate"
+      ],
+      "enablement": "native experimental profile only"
+    },
+    {
+      "id": "E4",
+      "title": "Qualify real compiler output and supported pipelines",
+      "depends_on": [
+        "E3",
+        "B"
+      ],
+      "changes": [
+        "Implement driver preflight with versioned supported-pipeline metadata",
+        "Run identical source fixtures through actual compiler and runtime on Linux x86-64 and macOS arm64",
+        "Record full-LTO inputs and final native linkage evidence"
+      ],
+      "gates": [
+        "Two-perform 500491, changed inputs, two-handler, nested/reentrant, indirect and multiple-worker cases pass at O0/O1/O2 and full LTO",
+        "Unhandled, escape, double-resume, cleanup/abandonment, return-clause and foreign negative cases pass in every pipeline",
+        "Explicit opt default<O2> verify-each passes without optnone or hidden asm transfers",
+        "ASan/UBSan and pointer/aggregate live-across-yield cases pass",
+        "No dead-function/internalization/full-LTO optimization-refusal bypass remains",
+        "Unsupported ThinLTO/custom passes/targets refuse before executable output",
+        "Actual compiler clause/body return/break/continue and flow for-body return witnesses pass at O0/O1/O2/full-LTO and sanitized/verified pipelines against independent direct-style oracles, with exact resource cleanup and skipped-successor checks",
+        "Actual compiler by-reference flow captures (10/88/5/6/10), suites 190-198, and native nested dispatcher/foreign-depth tests pass on both supported native architectures"
+      ],
+      "enablement": "no default rollout until E5"
+    },
+    {
+      "id": "E5",
+      "title": "Prove bootstrap safety and admit native rollout",
+      "depends_on": [
+        "E4"
+      ],
+      "changes": [
+        "Implement new compiler code in preserved seed syntax",
+        "Qualify feature-off and feature-on compiler paths before any root promotion",
+        "Enable only the exact qualified native profile and pipeline combinations",
+        "Document the deliberate nonidentity return-clause semantic correction and source-exit/capture/dispatcher contract in release notes before rollout"
+      ],
+      "gates": [
+        "Fresh nonpromoting bootstrap verifies generation-2/3 normalized LLVM equality and reader AST equality",
+        "Existing LLVM, direct-Wasm, LLVM-to-Wasm and compiler-Wasm suites pass with explicit unchanged or justified skips",
+        "Effect-free compiler output/behavior and preserved seed hashes remain safe",
+        "Independent implementation review PASS and reproducible native receipts on both supported architectures",
+        "Refusals remain for Wasm effects, frozen assembly effects, escape, multishot, non-tail resume and foreign suspension"
+      ],
+      "enablement": "qualified native profile only after every gate passes"
+    },
+    {
+      "id": "E6",
+      "title": "Optional separate Wasm qualification",
+      "depends_on": [
+        "E5"
+      ],
+      "optional": true,
+      "changes": [
+        "Lower explicit frames and state dispatch to structured Wasm without stack switching"
+      ],
+      "gates": [
+        "Direct and LLVM-to-Wasm executions pass identical semantic, lifetime, cleanup and diagnostic matrices",
+        "Memory bounds, descriptor signatures and host callback barriers qualified",
+        "No reliance on native-only stack state or unsupported Wasm features"
+      ],
+      "enablement": "Wasm only after a separately reviewed qualification; outside initial native rollout"
+    }
+  ],
+  "not_commissioned": [
+    "escaping continuations",
+    "non-tail resume",
+    "multishot continuations",
+    "thread migration",
+    "new assembly stack-transfer ABI",
+    "Lua effects-based errors or coroutines"
+  ],
+  "rollback": "Disable the new profile and restore fail-closed optimization refusal; never restore hidden stack jumps as an optimized fallback",
+  "independent_review": {
+    "report": "OPUS-REVIEW.md (external historical assessment; findings mapped in effects_lowering.md)",
+    "verdict": "FAIL",
+    "revision_status": "Blocking source-exit finding and all eight non-blocking findings mapped; runtime gaps remain explicitly gated; fresh independent review pending",
+    "historical_author_checks": "Author checks (not an independent PASS)",
+    "implementation_admitted": false
+  }
+}

@@ -1,0 +1,32 @@
+// Specification inputs for control.c modes 24/25; not compiler-run receipts.
+// The existing flow reader puts this for-body in the Yield clause and appends
+// resume. return x must retain its enclosing function target and source origin.
+include "std/core.lang"
+include "example/flow/flow_runtime.lang"
+include "example/flow/flow.lang"
+
+#flow{
+    gen count(n) {
+        var i = 0;
+        while i < n { yield i; i = i + 1; }
+    }
+    func early_return(n) {
+        for x in count(n) {
+            if x == 3 { return x; }
+        }
+        return 9000;
+    }
+    func sum_count(n) {
+        var total = 0;
+        for x in count(n) { total = total + x; }
+        return total;
+    }
+}
+// Oracles: early_return(6)=3 (four yields, final token abandoned),
+// sum_count(5)=10 (five resumes, total accessed by reference to owner storage).
+
+func main() i64 {
+    if early_return(6) != 3 { return 1; }
+    if sum_count(5) != 10 { return 2; }
+    return 0;
+}
