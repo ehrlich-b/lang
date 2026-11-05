@@ -7,6 +7,8 @@ from pathlib import Path
 import re
 import sys
 
+from run import declaration_spans, reduction_candidates
+
 ROOT = Path(__file__).resolve().parents[2]
 READERS = 'lang minipy minilisp c forth flow lox lua tiny calc'.split()
 FEATURES = ('integers floats strings functions closures structs arrays control_flow '
@@ -70,6 +72,13 @@ def main():
                 assert c['fixture'].startswith('test/borders/bugs/')
                 assert c['fixture'] in minimality
                 assert minimality[c['fixture']]['sha256'] == c['fixture_sha256']
+                record = minimality[c['fixture']]
+                source = (ROOT / path).read_text()
+                assert record['final_includes'] == [s.strip() for s in source.splitlines() if s.startswith('include ')]
+                assert record['final_declarations'] == [source[a:b].strip() for a, b in declaration_spans(source)]
+                for kind, start, end in reduction_candidates(source, set(record['protected_includes'])):
+                    assert any(r['kind'] == kind and r['removed'] == source[start:end].strip()
+                               and not r['reproduces'] for r in record['reductions']), f'untested {kind}: {path}'
             if c['status'] == 'rejected':
                 assert c['phase'] in ('compile', 'link') and c['exit_code'] > 0
                 assert c.get('detail', '').strip(), f'missing diagnostic: {c}'

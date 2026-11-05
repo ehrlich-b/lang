@@ -10,11 +10,16 @@ COMPILER=out/lang_next python3 -B test/borders/run.py --reader minilisp --target
 The full grid records executions of the files linked here, including compiler,
 linker and target-runtime failures. The ordinary cases remain available separately.
 `minimality.json` binds each current bug to its source hash and records executed
-include-deletion trials. Reader definitions are protected because removing one
+include- and host-declaration-deletion trials. Reader definitions are protected because removing one
 changes the language boundary being measured; both readers are protected for a
 cross-reader call. Runtime includes are retained only when their deletion changes
-the observed failure. Use `--reader NAME --prepare-bugs --output FILE` to reproduce
-those reductions without regenerating the whole grid.
+the observed failure. Complete host declarations (including `main`) are removed
+when their deletion preserves the status, phase, exit code, stdout and stderr.
+Preparation repeats both kinds of deletion to a fixed point; `--minimality`
+executes every remaining candidate and fails if any preserves that symptom.
+Reader bodies remain feature-bearing units rather than being parsed as host code.
+Use `--reader NAME --prepare-bugs --output FILE` to reproduce those reductions
+without regenerating the whole grid.
 
 The semantic bodies are small feature-preserving units:
 
@@ -29,7 +34,8 @@ The semantic bodies are small feature-preserving units:
   The scanner treats the decimal dots as output words; stdout and exit are both
   checked. Whole literals cannot be removed without changing the arithmetic probe.
 - Flow error location: one malformed return in one function, with the missing operand
-  immediately after `+` at guest line 2, column 22. No effect runtime is included.
+  immediately after `+` at guest line 2, column 22. No effect runtime or host
+  `main` is needed: the reader fails before target code generation.
 - Lox LLVM-to-Wasm: the smallest feature-bearing print expression/declaration(s)
   for each row. Instantiation fails on the shipped host's missing `strtod` import;
   these are host/runtime borders. A native control distinguishes a reader failure
@@ -43,4 +49,5 @@ The semantic bodies are small feature-preserving units:
   They report a general message and a wrapper-file location, not a guest location.
 
 These are minimal with respect to the feature-bearing unit and removable runtime
-includes, rather than a claim about global byte-minimality across all spellings.
+includes and host declarations, rather than a claim about global byte-minimality
+across all spellings.

@@ -39,6 +39,73 @@ def symptom(cell):
             clean(last.get('stdout', '')), clean(last.get('stderr', '')))
 
 
+def declaration_spans(source):
+    """Locate whole host declarations, leaving reader bodies as semantic units.
+
+    Token boundaries keep braces in strings/comments and nested bodies from
+    truncating a declaration. This is a reducer for the small probes, not a
+    parser for the guest languages embedded in #reader{...} blocks.
+    """
+    tokens = re.finditer(r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"|'
+                         r"'(?:\\.|[^'\\])*'|[A-Za-z_]\w*|[^\s]", source, re.S)
+    depth = []
+    start = None
+    declaration = None
+    kinds = {'func', 'var', 'struct', 'enum', 'effect', 'macro', 'reader'}
+    for token in tokens:
+        word = token.group()
+        if word.startswith(('//', '/*')):
+            continue
+        if not depth:
+            if start is None and word in kinds | {'pub', 'extern'}:
+                start = token.start()
+            if start is not None and declaration is None and word in kinds:
+                declaration = word
+        if word in ('(', '[', '{'):
+            depth.append(word)
+        elif word in (')', ']', '}'):
+            if depth:
+                depth.pop()
+        if start is not None and not depth and (word == ';' or
+                (word == '}' and declaration != 'var')):
+            end = token.end()
+            # Include a trailing newline, but never another declaration.
+            newline = source.find('\n', end)
+            if newline != -1 and not source[end:newline].strip():
+                end = newline + 1
+            yield start, end
+            start = declaration = None
+
+
+def reduction_candidates(source, protected):
+    for match in re.finditer(r'^include [^\n]*(?:\n|$)', source, re.M):
+        if match.group().strip() not in protected:
+            yield 'include', match.start(), match.end()
+    for start, end in declaration_spans(source):
+        yield 'declaration', start, end
+
+
+def reduce_bug(probe, reader, feature, target, spec, cell, source, protected,
+               trial, verify=False):
+    """Reach a fixed point, or reject any deletion preserving the exact symptom."""
+    reductions = []
+    while True:
+        for kind, start, end in reduction_candidates(source, protected):
+            removed = source[start:end].strip()
+            candidate = source[:start] + source[end:]
+            trial.write_text(candidate)
+            result = probe.measure(reader, feature, target, spec, str(trial))
+            same = symptom(result) == symptom(cell)
+            reductions.append(dict(kind=kind, removed=removed, reproduces=same, result=result))
+            if same:
+                if verify:
+                    raise SystemExit(f'nonminimal {kind} in {cell["fixture"]}: {removed}')
+                source, cell = candidate, result
+                break
+        else:
+            return source, reductions
+
+
 class Probe:
     def __init__(self, compiler, scratch):
         self.compiler = compiler
@@ -134,7 +201,7 @@ def main():
     parser.add_argument('--feature', choices=FEATURES)
     parser.add_argument('--output', type=Path, help='write fragment measurements here')
     parser.add_argument('--verify', action='store_true', help='compare fragment outcomes with the published grid')
-    parser.add_argument('--minimality', action='store_true', help='test wrong/crash fixture include deletions (requires filters)')
+    parser.add_argument('--minimality', action='store_true', help='test wrong/crash fixture include and declaration deletions (requires filters)')
     parser.add_argument('--prepare-bugs', action='store_true', help='minimize and save bug fixtures for one filtered reader')
     parser.add_argument('--check-missing-reader', action='store_true', help='run only the inherited absent-reader regression')
     args = parser.parse_args()
@@ -168,38 +235,24 @@ def main():
                     if cell['status'] in ('wrong', 'crash'):
                         bug = f'test/borders/bugs/{reader}_{feature}_{target}.lang'
                         if args.prepare_bugs:
-                            lines = Path(spec['fixture']).read_text().splitlines(True)
+                            source = Path(spec['fixture']).read_text()
                             # Reader declarations defining the feature boundary are
                             # protected; deleting one would change which language
                             # (or pair of languages) the reproducer exercises.
-                            protected = {line for line in lines if line.startswith('include ') and
+                            protected = {line.strip() for line in source.splitlines() if line.startswith('include ') and
                                          line.rstrip().endswith(f'/{reader}.lang"')}
                             if feature == 'cross_reader_call':
-                                protected |= {line for line in lines if line.startswith('include "example/') and 'runtime' not in line}
-                            reductions = []
-                            changed = True
-                            while changed:
-                                changed = False
-                                for i, line in enumerate(lines):
-                                    if not line.startswith('include ') or line in protected:
-                                        continue
-                                    trial = Path(temp) / 'reduced.lang'
-                                    trial.write_text(''.join(lines[:i] + lines[i+1:]))
-                                    result = probe.measure(reader, feature, target, spec, str(trial))
-                                    same = symptom(result) == symptom(cell)
-                                    reductions.append(dict(removed=line.strip(), reproduces=same, result=result))
-                                    if same:
-                                        lines.pop(i)
-                                        cell = result
-                                        changed = True
-                                        break
-                            Path(bug).write_text(''.join(lines))
+                                protected |= {line.strip() for line in source.splitlines() if line.startswith('include "example/') and 'runtime' not in line}
+                            source, reductions = reduce_bug(probe, reader, feature, target, spec, cell,
+                                source, protected, Path(temp) / 'reduced.lang')
+                            Path(bug).write_text(source)
                             cell = probe.measure(reader, feature, target, spec, bug)
-                            cell['include_deletions'] = reductions
+                            cell['deletions'] = reductions
                             minimality[bug] = dict(sha256=digest(bug),
-                                protected_includes=sorted(s.strip() for s in protected),
-                                final_includes=[s.strip() for s in lines if s.startswith('include ')],
-                                reductions=[dict(removed=r['removed'], reproduces=r['reproduces'],
+                                protected_includes=sorted(protected),
+                                final_includes=[s.strip() for s in source.splitlines() if s.startswith('include ')],
+                                final_declarations=[source[a:b].strip() for a, b in declaration_spans(source)],
+                                reductions=[dict(kind=r['kind'], removed=r['removed'], reproduces=r['reproduces'],
                                                  status=r['result']['status'], phase=r['result'].get('phase')) for r in reductions])
                         elif not filtered or args.minimality:
                             if not Path(bug).exists() or bug not in minimality or minimality[bug]['sha256'] != digest(bug):
@@ -210,18 +263,9 @@ def main():
                             cell = reduced
                             if args.minimality:
                                 record = minimality[bug]
-                                cell['include_deletions'] = []
-                                lines = Path(bug).read_text().splitlines(True)
-                                for i, line in enumerate(lines):
-                                    if not line.startswith('include ') or line.strip() in record['protected_includes']:
-                                        continue
-                                    trial = Path(temp) / 'reduced.lang'
-                                    trial.write_text(''.join(lines[:i] + lines[i+1:]))
-                                    result = probe.measure(reader, feature, target, spec, str(trial))
-                                    same = symptom(result) == symptom(cell)
-                                    cell['include_deletions'].append(dict(removed=line.strip(), reproduces=same, result=result))
-                                    if same:
-                                        raise SystemExit(f'nonminimal runtime include in {bug}: {line.strip()}')
+                                _, cell['deletions'] = reduce_bug(probe, reader, feature, target, spec, cell,
+                                    Path(bug).read_text(), set(record['protected_includes']),
+                                    Path(temp) / 'reduced.lang', verify=True)
                     cells.append(cell)
                     print(f'{reader}/{feature}/{target}: {cell["status"]}', flush=True)
     data = {'schema': 2, 'compiler_sha256': digest(compiler), 'cells': cells,

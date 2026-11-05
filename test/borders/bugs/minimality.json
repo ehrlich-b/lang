@@ -8,12 +8,23 @@
       "include \"example/minilisp/lisp_runtime.lang\"",
       "include \"example/minilisp/minilisp.lang\""
     ],
+    "final_declarations": [
+      "func main() i64 { return lisp_to_int(#minilisp{ (+ 20.5 21.5) }); }"
+    ],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/minilisp/lisp_runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
         "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return lisp_to_int(#minilisp{ (+ 20.5 21.5) }); }",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "link"
       }
     ]
   },
@@ -26,12 +37,23 @@
       "include \"example/minilisp/lisp_runtime.lang\"",
       "include \"example/minilisp/minilisp.lang\""
     ],
+    "final_declarations": [
+      "func main() i64 { return lisp_to_int(#minilisp{ (+ 20.5 21.5) }); }"
+    ],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/minilisp/lisp_runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
         "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return lisp_to_int(#minilisp{ (+ 20.5 21.5) }); }",
+        "reproduces": false,
+        "status": "wrong",
+        "phase": "run"
       }
     ]
   },
@@ -44,9 +66,20 @@
       "include \"example/minilisp/lisp_runtime.lang\"",
       "include \"example/minilisp/minilisp.lang\""
     ],
+    "final_declarations": [
+      "func main() i64 { return lisp_to_int(#minilisp{ (+ 20.5 21.5) }); }"
+    ],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/minilisp/lisp_runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return lisp_to_int(#minilisp{ (+ 20.5 21.5) }); }",
         "reproduces": false,
         "status": "rejected",
         "phase": "compile"
@@ -62,12 +95,23 @@
       "include \"example/minilisp/lisp_runtime.lang\"",
       "include \"example/minilisp/minilisp.lang\""
     ],
+    "final_declarations": [
+      "func main() i64 { return lisp_to_int(#minilisp{ (strlen \"*\") }); }"
+    ],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/minilisp/lisp_runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
         "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return lisp_to_int(#minilisp{ (strlen \"*\") }); }",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "link"
       }
     ]
   },
@@ -80,12 +124,23 @@
       "include \"example/minilisp/lisp_runtime.lang\"",
       "include \"example/minilisp/minilisp.lang\""
     ],
+    "final_declarations": [
+      "func main() i64 { return lisp_to_int(#minilisp{ (strlen \"*\") }); }"
+    ],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/minilisp/lisp_runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
         "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return lisp_to_int(#minilisp{ (strlen \"*\") }); }",
+        "reproduces": false,
+        "status": "wrong",
+        "phase": "run"
       }
     ]
   },
@@ -98,9 +153,20 @@
       "include \"example/minilisp/lisp_runtime.lang\"",
       "include \"example/minilisp/minilisp.lang\""
     ],
+    "final_declarations": [
+      "func main() i64 { return lisp_to_int(#minilisp{ (strlen \"*\") }); }"
+    ],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/minilisp/lisp_runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return lisp_to_int(#minilisp{ (strlen \"*\") }); }",
         "reproduces": false,
         "status": "rejected",
         "phase": "compile"
@@ -116,12 +182,23 @@
       "include \"example/forth/forth_runtime.lang\"",
       "include \"example/forth/forth.lang\""
     ],
+    "final_declarations": [
+      "func main() i64 { return g(); }"
+    ],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/forth/forth_runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
         "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(); }",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "link"
       }
     ]
   },
@@ -134,12 +211,23 @@
       "include \"example/forth/forth_runtime.lang\"",
       "include \"example/forth/forth.lang\""
     ],
+    "final_declarations": [
+      "func main() i64 { return g(); }"
+    ],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/forth/forth_runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
         "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(); }",
+        "reproduces": false,
+        "status": "wrong",
+        "phase": "run"
       }
     ]
   },
@@ -152,9 +240,20 @@
       "include \"example/forth/forth_runtime.lang\"",
       "include \"example/forth/forth.lang\""
     ],
+    "final_declarations": [
+      "func main() i64 { return g(); }"
+    ],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/forth/forth_runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(); }",
         "reproduces": false,
         "status": "rejected",
         "phase": "compile"
@@ -162,34 +261,61 @@
     ]
   },
   "test/borders/bugs/flow_error_location_llvm.lang": {
-    "sha256": "8a9408317e28fe6df8f603f725824d14cd82d1325f832de0d4a6451b69a83a3e",
+    "sha256": "695c6ef9433f75f867e5f705d2cd2c4718ed1311d9e4bcf347d6e69f8861802a",
     "protected_includes": [
       "include \"example/flow/flow.lang\""
     ],
     "final_includes": [
       "include \"example/flow/flow.lang\""
     ],
-    "reductions": []
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(); }",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
   },
   "test/borders/bugs/flow_error_location_llvm-wasm.lang": {
-    "sha256": "8a9408317e28fe6df8f603f725824d14cd82d1325f832de0d4a6451b69a83a3e",
+    "sha256": "695c6ef9433f75f867e5f705d2cd2c4718ed1311d9e4bcf347d6e69f8861802a",
     "protected_includes": [
       "include \"example/flow/flow.lang\""
     ],
     "final_includes": [
       "include \"example/flow/flow.lang\""
     ],
-    "reductions": []
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(); }",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
   },
   "test/borders/bugs/flow_error_location_wasm.lang": {
-    "sha256": "8a9408317e28fe6df8f603f725824d14cd82d1325f832de0d4a6451b69a83a3e",
+    "sha256": "695c6ef9433f75f867e5f705d2cd2c4718ed1311d9e4bcf347d6e69f8861802a",
     "protected_includes": [
       "include \"example/flow/flow.lang\""
     ],
     "final_includes": [
       "include \"example/flow/flow.lang\""
     ],
-    "reductions": []
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(); }",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
   },
   "test/borders/bugs/lox_integers_llvm-wasm.lang": {
     "sha256": "016515b5959c4e3fc720121c2dfcf58e4f834a7ca68d71b59469b771371c0432",
@@ -200,8 +326,10 @@
       "include \"example/lox/runtime.lang\"",
       "include \"example/lox/lox.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/lox/runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
@@ -218,8 +346,10 @@
       "include \"example/lox/runtime.lang\"",
       "include \"example/lox/lox.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/lox/runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
@@ -236,8 +366,10 @@
       "include \"example/lox/runtime.lang\"",
       "include \"example/lox/lox.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/lox/runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
@@ -254,8 +386,10 @@
       "include \"example/lox/runtime.lang\"",
       "include \"example/lox/lox.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/lox/runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
@@ -272,8 +406,10 @@
       "include \"example/lox/runtime.lang\"",
       "include \"example/lox/lox.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/lox/runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
@@ -292,8 +428,10 @@
       "include \"example/lox/lox.lang\"",
       "include \"example/c/c.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/lox/runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
@@ -312,8 +450,10 @@
       "include \"example/lox/lox.lang\"",
       "include \"example/c/c.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"example/lox/runtime.lang\"",
         "reproduces": false,
         "status": "rejected",
@@ -329,8 +469,10 @@
     "final_includes": [
       "include \"example/lua/lua.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"std/core.lang\"",
         "reproduces": true,
         "status": "wrong",
@@ -346,8 +488,10 @@
     "final_includes": [
       "include \"example/lua/lua.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"std/core.lang\"",
         "reproduces": true,
         "status": "wrong",
@@ -363,8 +507,10 @@
     "final_includes": [
       "include \"example/lua/lua.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"std/core.lang\"",
         "reproduces": true,
         "status": "wrong",
@@ -380,8 +526,10 @@
     "final_includes": [
       "include \"example/calc/calc.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"std/core.lang\"",
         "reproduces": true,
         "status": "wrong",
@@ -397,8 +545,10 @@
     "final_includes": [
       "include \"example/calc/calc.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"std/core.lang\"",
         "reproduces": true,
         "status": "wrong",
@@ -414,8 +564,10 @@
     "final_includes": [
       "include \"example/calc/calc.lang\""
     ],
+    "final_declarations": [],
     "reductions": [
       {
+        "kind": "include",
         "removed": "include \"std/core.lang\"",
         "reproduces": true,
         "status": "wrong",
