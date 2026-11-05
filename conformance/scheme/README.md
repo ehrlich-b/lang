@@ -48,7 +48,7 @@ constant space. Cyclic lists are detected by `list?`; arbitrary cyclic printing
 and equality remain unsupported.
 
 `tail.scm` executes ten million mutual, indirect calls, alternating ordinary calls
-and `apply`. `check.py --tail` links the same IR at O0 and O2 and runs each with
+and nested `apply`. `check.py --tail` links the same IR at O0 and O2 and runs each with
 a 256 KiB native stack limit. O0 codegen places explicit and short-circuit
 boolean temporaries where they occur, so the machine and collector hoist locals
 and use short-lived boolean helper frames to avoid accumulating loop allocas.
@@ -92,14 +92,23 @@ the scorer indexes the 989 textual sites, selects offsets 0, N, 2N, ... and coun
 commented sites as non-executable failures. It never earns passes for comments.
 This conservative denominator is explicit in `results.json`.
 
-Each executable test retains its enclosing form, preceding referenced definitions
-in original order, and preceding setup expressions referring to those globals.
-Other tests in the same enclosing form still evaluate their expressions, preserving
-side effects. Static global dependency slicing is conservative and cannot model
-arbitrary reflective dependencies or macro expansion; these are scored as failures.
+Each executable test retains its enclosing form and preceding referenced definitions
+in original order, including earlier versions of redefined bindings. Dependency
+closure also retains initializers and setup expressions that refer to those globals,
+even when the initializer's result binding is unused. References through named
+procedures are followed, so an initializer calling a mutating helper is retained.
+Earlier tests in retained setup and in the enclosing form evaluate their expected
+and actual expressions without emitting extra comparisons. This preserves state
+changes without leaving an unbound `test` in the generated program. Static slicing
+can over-retain lexical name collisions; reflective dependencies and macro expansion
+remain outside this scorer's supported context model.
 Expected and actual values execute once in the target, where structural/approximate
-numeric comparison produces an attributed PASS/FAIL and test ID. A five-test
+numeric comparison produces an attributed PASS/FAIL and test ID. The five-test
 fixture checks binding context, stateful expressions and vector round-tripping.
+`score-state.scm` adds seven comparisons covering initializer effects, earlier test
+mutation, helper calls, redefinitions and quoted continuation data; its first
+comparison must FAIL and the remaining six must PASS. `quotation.scm` and
+`apply.scm` independently check long-form quoted data and repeated apply dispatch.
 
 Four contexts are batched per compile. A failed batch preserves any completed
 reports, then splits unresolved tests down to individual attributed failures.

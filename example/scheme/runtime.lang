@@ -236,7 +236,7 @@ func sc_eval(expr i64, env i64) i64 {
                     while args != 0 { value = sc_eval(sc_car(args), env); rev = sc_cons(value, rev); args = sc_cdr(args); }
                     args = sc_reverse(rev, 0);
                     // apply is itself a tail transfer, including an indirect callee.
-                    if sc_isapply(proc) {
+                    while sc_isapply(proc) {
                         proc = sc_car(args); args = sc_cdr(args); rev = 0;
                         while sc_cdr(args) != 0 { rev = sc_cons(sc_car(args), rev); args = sc_cdr(args); }
                         args = sc_reverse(rev, sc_car(args));

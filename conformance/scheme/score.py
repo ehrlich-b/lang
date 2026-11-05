@@ -28,7 +28,7 @@ def is_test(x):
 
 
 def walk(x):
-    if not isinstance(x, list) or isinstance(x, Vector) or (x and x[0] in ("'", '`')):
+    if not isinstance(x, list) or isinstance(x, Vector) or (x and x[0] in ("'", '`', 'quote')):
         return
     yield x
     for item in x:
@@ -39,7 +39,7 @@ def symbols(x):
     if isinstance(x, Vector):
         return set()
     if isinstance(x, list):
-        if x and x[0] == "'":
+        if x and x[0] in ("'", 'quote'):
             return set()
         return set().union(*(symbols(y) for y in x))
     return {str(x)}
@@ -60,7 +60,7 @@ def contextual(top, target, ident):
         if isinstance(x, Vector):
             return x
         if isinstance(x, list):
-            if x and x[0] in ("'", '`'):
+            if x and x[0] in ("'", '`', 'quote'):
                 return x
             return [replace(y) for y in x]
         return x
@@ -70,29 +70,54 @@ def contextual(top, target, ident):
 def inventory(source):
     sites = [m.start() for m in re.finditer(r'\(test(?=\s|\))', source)]
     ids = {pos: i for i, pos in enumerate(sites)}
-    contexts, definitions, prefix = {}, {}, []
+    contexts, prefix = {}, []
     for top in forms(source):
-        name = definition(top)
-        if name:
-            definitions[name] = top
         for target in walk(top):
             if not is_test(target):
                 continue
             ident = ids[target.start]
             context = contextual(top, target, ident)
-            needed = set(symbols(context))
-            chosen = {}
+            # Keep all versions of a binding, not just its latest definition.
+            definitions = {}
+            for item in prefix:
+                name = definition(item)
+                if name:
+                    definitions.setdefault(name, []).append(item)
+
+            def dependencies(expr):
+                refs = symbols(expr)
+                while True:
+                    more = set().union(*(symbols(val) for key in refs
+                                         for val in definitions.get(key, [])))
+                    if more <= refs:
+                        return refs
+                    refs |= more
+
+            def eager_references(expr):
+                if definition(expr):
+                    # Installing a procedure does not execute its body. Other
+                    # initializers can mutate state even if their name is unused.
+                    if isinstance(expr[1], list):
+                        return set()
+                    expr = expr[2]
+                    if isinstance(expr, list) and expr and expr[0] == 'lambda':
+                        return set()
+                return dependencies(expr)
+
+            needed = dependencies(context)
+            chosen = set()
             while True:
-                add = {key: val for key, val in definitions.items() if key in needed and key not in chosen}
+                add = {i for i, item in enumerate(prefix) if i not in chosen and
+                       (definition(item) in needed or
+                        eager_references(item) & needed & definitions.keys())}
                 if not add:
                     break
-                chosen.update(add)
-                needed.update(set().union(*(symbols(val) for val in add.values())))
-            # Preserve source order and each enclosing lexical/definition context.
-            # Retain earlier setup expressions mentioning required global bindings.
-            # Test expressions may themselves mutate those bindings.
-            related = [x for x in prefix if not definition(x) and symbols(x) & set(chosen)]
-            prelude = sorted(list(chosen.values()) + related, key=lambda x: x.start)
+                chosen |= add
+                for i in add:
+                    needed |= dependencies(prefix[i])
+            # Replay earlier tests as expressions, preserving their effects but
+            # emitting a comparison only for this context's target.
+            prelude = [contextual(item, None, ident) for i, item in enumerate(prefix) if i in chosen]
             contexts[ident] = '\n'.join(map(render, prelude + [context]))
         prefix.append(top)
     return sites, contexts

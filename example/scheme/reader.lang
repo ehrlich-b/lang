@@ -48,16 +48,20 @@ func sc_read(r *ScReader, quoted bool) *u8 {
     r.pos = r.pos + 1;
     if c == 41 { return sc_read_fail(r, "unexpected close parenthesis"); }
     if c == 40 {
-        var xs *u8 = vec_new(8); var tail *u8 = ast_call_named0("sc_nil"); sc_space(r);
+        var xs *u8 = vec_new(8); var tail *u8 = ast_call_named0("sc_nil"); var data bool = quoted; sc_space(r);
         while *(r.text + r.pos) != 41 {
             if *(r.text + r.pos) == 0 { return sc_read_fail(r, "unfinished list"); }
             if *(r.text + r.pos) == 46 && sc_delim(*(r.text + r.pos + 1)) {
                 if vec_len(xs) == 0 { return sc_read_fail(r, "dot needs a preceding datum"); }
-                r.pos = r.pos + 1; tail = sc_read(r, quoted); sc_space(r);
+                r.pos = r.pos + 1; tail = sc_read(r, data); sc_space(r);
                 if *(r.text + r.pos) != 41 { return sc_read_fail(r, "expected close after dotted tail"); }
                 break;
             }
-            vec_push(xs, sc_read(r, quoted)); sc_space(r);
+            var head i64 = r.pos;
+            vec_push(xs, sc_read(r, data));
+            // Only the literal head token quote makes following datums inert.
+            if vec_len(xs) == 1 && r.pos - head == 5 && str_starts_with(r.text + head, "quote") { data = true; }
+            sc_space(r);
         }
         r.pos = r.pos + 1; var i i64 = vec_len(xs);
         while i > 0 { i = i - 1; tail = sc_emit(r, ast_span(ast_call_named2("sc_cons", vec_get(xs, i), tail), start, r.pos)); }

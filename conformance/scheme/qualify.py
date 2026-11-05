@@ -15,7 +15,7 @@ def run(*args):
 def main():
     run('conformance/scheme/audit.py', 'source')
     run('conformance/scheme/test_context.py')
-    for name in ['basic', 'control', 'values', 'numeric']:
+    for name in ['basic', 'control', 'values', 'numeric', 'quotation', 'apply']:
         run('conformance/scheme/check.py', 'example/scheme/' + name + '.scm',
             '--evidence', '../evidence/final-' + name)
     run('conformance/scheme/check.py', 'example/scheme/tail.scm', '--tail',
@@ -26,6 +26,11 @@ def main():
         '--evidence', '../evidence/final-score-fragment')
     small = json.loads((ROOT.parent / 'evidence/final-score-fragment/results.json').read_text())
     assert small['passed'] == small['total'] == 5
+    run('conformance/scheme/score.py', '--suite', 'example/scheme/score-state.scm',
+        '--evidence', '../evidence/final-score-state')
+    state = json.loads((ROOT.parent / 'evidence/final-score-state/results.json').read_text())
+    assert state['total'] == 7 and state['passed'] == 6
+    assert state['results'] == {'0': 'FAIL', **{str(i): 'PASS' for i in range(1, 7)}}
     run('conformance/scheme/score.py', '--sample', '10')
     sample = json.loads((ROOT.parent / 'evidence/score/results.json').read_text())
     assert sample['textual_sites'] == 989 and sample['executable_tests'] == 980
