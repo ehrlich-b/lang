@@ -1,0 +1,22 @@
+include "std/core.lang"
+include "std/buffer.lang"
+include "std/tok.lang"
+
+func main(argc i64, argv **u8) i64 {
+    var args *u8 = argv;
+    var arg * *u8 = args + 8;
+    var text *u8 = phase_read_file(*arg);
+    var t *Tokenizer = tok_new(text);
+    while true {
+        tok_note_expected(t, "probe");
+        print_int(tok_kind(t)); print(" ");
+        print_int(tok_start_offset(t)); print(" ");
+        print_int(tok_end_offset(t)); print(" ");
+        print_int(tok_error_line(t)); print(" ");
+        print_int(tok_error_column(t)); print("\n");
+        file_write(1, tok_text_ptr(t), tok_text_len(t)); print("\n");
+        if tok_eof(t) || t.comment_error >= 0 { return 0; }
+        tok_next(t);
+    }
+    return 0;
+}
