@@ -1,0 +1,2 @@
+// Settings are independent of order.
+shipping { free_over 100; base 10; }

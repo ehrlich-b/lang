@@ -1,0 +1,1 @@
+shipping { tax 10; base 10; free_over 100; }

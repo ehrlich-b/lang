@@ -1,0 +1,74 @@
+include "std/parser_reader.lang"
+include "std/ast.lang"
+
+#parser{
+    shipping_policy = 'shipping' '{' settings:shipping_setting* '}'
+    shipping_setting = name:symbol value:shipping_value ';'
+    shipping_value = number | '-' number
+}
+
+// Validate before converting: the scanner also recognizes nondecimal numbers.
+func shipping_number(node *PNode, text *u8) i64 {
+    var value i64 = 0;
+    var i i64 = node.start;
+    while i < node.end {
+        var ch i64 = *(text + i);
+        if ch < 48 || ch > 57 || value > 100000 {
+            pnode_print_error(node, text, "shipping", "expected decimal integer in 0..1000000");
+            return -1;
+        }
+        value = value * 10 + ch - 48;
+        i = i + 1;
+    }
+    if value > 1000000 {
+        pnode_print_error(node, text, "shipping", "expected decimal integer in 0..1000000");
+        return -1;
+    }
+    return value;
+}
+
+reader shipping(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    var tree *PNode = parse_shipping_policy(tokens);
+    var complete bool = false;
+    if tree != nil { complete = tok_expect_end(tokens); }
+    if !complete { tok_print_error(tokens, "shipping"); return nil; }
+    var settings *PNode = pnode_require(tree, "settings");
+    var base i64 = -1;
+    var free_over i64 = -1;
+    var i i64 = 0;
+    while i < vec_len(settings.children) {
+        var setting *PNode = vec_get(settings.children, i);
+        var name *PNode = pnode_require(setting, "name");
+        if !streq(name.text, "base") && !streq(name.text, "free_over") {
+            pnode_print_error(name, text, "shipping", "unknown setting; expected base or free_over");
+            return nil;
+        }
+        if (streq(name.text, "base") && base >= 0) || (streq(name.text, "free_over") && free_over >= 0) {
+            pnode_print_error(name, text, "shipping", "duplicate setting"); return nil;
+        }
+        var value i64 = shipping_number(pnode_require(setting, "value"), text);
+        if value < 0 { return nil; }
+        if streq(name.text, "base") { base = value; } else { free_over = value; }
+        i = i + 1;
+    }
+    if base < 0 || free_over < 0 {
+        pnode_print_error(tree, text, "shipping", "missing setting; require base and free_over"); return nil;
+    }
+    // Shared AST boundary: policy constants become data; total stays a variable.
+    var params *u8 = ast_vec();
+    ast_push(params, ast_param("total", ast_type_i64()));
+    var body *u8 = ast_vec();
+    ast_push(body, ast_if_then(ast_ge(ast_ident("total"), ast_int(free_over)), ast_block1(ast_return(ast_int(0)))));
+    ast_push(body, ast_return(ast_int(base)));
+    var decls *u8 = ast_vec();
+    ast_push(decls, ast_span(ast_func("shipping_cost", params, ast_type_i64(), ast_block(body)), tree.start, tree.end));
+    params = ast_vec();
+    ast_push(params, ast_param("argc", ast_type_i64()));
+    ast_push(params, ast_param("argv", ast_type_ptr(ast_type_str())));
+    body = ast_vec();
+    ast_push(body, ast_var("total", ast_type_i64(), ast_call2("shipping_total", ast_ident("argc"), ast_ident("argv"))));
+    ast_push(body, ast_return(ast_call1("shipping_print", ast_call1("shipping_cost", ast_ident("total")))));
+    ast_push(decls, ast_func("main", params, ast_type_i64(), ast_block(body)));
+    return ast_program(decls);
+}

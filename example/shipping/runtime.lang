@@ -1,0 +1,31 @@
+include "std/core.lang"
+
+// These helpers run in the target program; they are embedded when minting.
+func shipping_total(argc i64, argv **u8) i64 {
+    if argc != 2 {
+        eprintln("shipping: usage: shipping ORDER_TOTAL"); exit(64);
+    }
+    var bytes *u8 = argv;
+    var slot **u8 = bytes + 8;
+    var text *u8 = *slot;
+    var value i64 = 0;
+    if *text == 0 {
+        eprintln("shipping: order total must be a decimal integer in 0..1000000"); exit(64);
+    }
+    while *text != 0 {
+        var ch i64 = *text;
+        if ch < 48 || ch > 57 || value > 100000 {
+            eprintln("shipping: order total must be a decimal integer in 0..1000000"); exit(64);
+        }
+        value = value * 10 + ch - 48;
+        text = text + 1;
+    }
+    if value > 1000000 {
+        eprintln("shipping: order total must be a decimal integer in 0..1000000"); exit(64);
+    }
+    return value;
+}
+
+func shipping_print(fee i64) i64 {
+    print_i64(fee); println(""); return 0;
+}
