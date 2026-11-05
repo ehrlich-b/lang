@@ -1,0 +1,11 @@
+; Lexical scopes, recursive bindings, sequencing and short-circuit effects.
+(assert (= (let ((x 2) (y 3)) (let ((x 7) (z (+ x y))) (* z x))) 35))
+(assert (= (let ((x 2) (y 3)) (let* ((x 7) (z (+ x y))) (* z x))) 70))
+(assert (letrec ((even? (lambda (n) (if (zero? n) #t (odd? (- n 1)))))
+                 (odd? (lambda (n) (if (zero? n) #f (even? (- n 1)))))) (even? 88)))
+(assert (= (let loop ((n 100) (sum 0)) (if (= n 0) sum (loop (- n 1) (+ sum n)))) 5050))
+(define x 0)
+(and #f (set! x 1)) (or #t (set! x 2))
+(assert (= x 0))
+(assert (= (cond ((assv 'b '((a 1) (b 2))) => cadr) (else 0)) 2))
+(display "control ok") (newline)

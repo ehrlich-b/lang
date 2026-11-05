@@ -1,0 +1,107 @@
+// Byte-oriented datum reader. Every emitted constructor has the source range.
+struct ScReader { text *u8; pos i64; serial i64; stmts *u8; }
+func sc_read_fail(r *ScReader, what *u8) *u8 {
+    var line i64 = 1; var col i64 = 1; var i i64 = 0;
+    while i < r.pos {
+        if *(r.text + i) == 10 { line = line + 1; col = 1; }
+        else { col = col + 1; }
+        i = i + 1;
+    }
+    eprint("scheme:"); eprint_i64(line); eprint(":"); eprint_i64(col);
+    eprint(": "); eprintln(what); exit(1); return nil;
+}
+func sc_space(r *ScReader) void {
+    var more bool = true;
+    while more {
+        more = false;
+        while *(r.text + r.pos) != 0 && *(r.text + r.pos) <= 32 { r.pos = r.pos + 1; }
+        if *(r.text + r.pos) == 59 {
+            while *(r.text + r.pos) != 0 && *(r.text + r.pos) != 10 { r.pos = r.pos + 1; }
+            more = true;
+        }
+        if *(r.text + r.pos) == 35 && *(r.text + r.pos + 1) == 124 {
+            r.pos = r.pos + 2; var depth i64 = 1;
+            while depth > 0 {
+                if *(r.text + r.pos) == 0 { sc_read_fail(r, "unfinished block comment"); }
+                if *(r.text + r.pos) == 35 && *(r.text + r.pos + 1) == 124 { depth = depth + 1; r.pos = r.pos + 2; }
+                else {
+                    if *(r.text + r.pos) == 124 && *(r.text + r.pos + 1) == 35 { depth = depth - 1; r.pos = r.pos + 2; }
+                    else { r.pos = r.pos + 1; }
+                }
+            }
+            more = true;
+        }
+        if *(r.text + r.pos) == 35 && *(r.text + r.pos + 1) == 59 {
+            r.pos = r.pos + 2; var saved *u8 = r.stmts; r.stmts = ast_vec(); sc_read(r, true); r.stmts = saved; more = true;
+        }
+    }
+}
+func sc_emit(r *ScReader, expr *u8) *u8 {
+    var sb *StringBuilder = sb_new(); sb_str(sb, "sc_datum_"); sb_int(sb, r.serial);
+    r.serial = r.serial + 1; var name *u8 = sb_finish(sb);
+    ast_push(r.stmts, ast_var(name, ast_type_i64(), expr)); return ast_ident(name);
+}
+func sc_delim(c i64) bool { return c == 0 || c <= 32 || c == 40 || c == 41 || c == 59 || c == 39 || c == 34 || c == 96 || c == 44; }
+func sc_read(r *ScReader, quoted bool) *u8 {
+    sc_space(r); var start i64 = r.pos; var c i64 = *(r.text + r.pos);
+    if c == 0 { return sc_read_fail(r, "expected datum"); }
+    r.pos = r.pos + 1;
+    if c == 41 { return sc_read_fail(r, "unexpected close parenthesis"); }
+    if c == 40 {
+        var xs *u8 = vec_new(8); var tail *u8 = ast_call_named0("sc_nil"); sc_space(r);
+        while *(r.text + r.pos) != 41 {
+            if *(r.text + r.pos) == 0 { return sc_read_fail(r, "unfinished list"); }
+            if *(r.text + r.pos) == 46 && sc_delim(*(r.text + r.pos + 1)) {
+                if vec_len(xs) == 0 { return sc_read_fail(r, "dot needs a preceding datum"); }
+                r.pos = r.pos + 1; tail = sc_read(r, quoted); sc_space(r);
+                if *(r.text + r.pos) != 41 { return sc_read_fail(r, "expected close after dotted tail"); }
+                break;
+            }
+            vec_push(xs, sc_read(r, quoted)); sc_space(r);
+        }
+        r.pos = r.pos + 1; var i i64 = vec_len(xs);
+        while i > 0 { i = i - 1; tail = sc_emit(r, ast_span(ast_call_named2("sc_cons", vec_get(xs, i), tail), start, r.pos)); }
+        return tail;
+    }
+    if c == 39 || c == 96 || c == 44 {
+        var name *u8 = "quote";
+        if c == 96 { name = "quasiquote"; }
+        if c == 44 { name = "unquote"; if *(r.text + r.pos) == 64 { r.pos = r.pos + 1; name = "unquote-splicing"; } }
+        var val *u8 = sc_read(r, true);
+        return sc_emit(r, ast_call_named2("sc_cons", ast_call_named1("sc_sym", ast_string(name)), ast_call_named2("sc_cons", val, ast_int(0))));
+    }
+    if c == 34 {
+        var sb *StringBuilder = sb_new();
+        while *(r.text + r.pos) != 34 {
+            var ch i64 = *(r.text + r.pos); if ch == 0 { return sc_read_fail(r, "unfinished string"); }
+            r.pos = r.pos + 1;
+            if ch == 92 {
+                ch = *(r.text + r.pos); r.pos = r.pos + 1;
+                if ch == 110 { ch = 10; } else { if ch == 116 { ch = 9; } else { if ch == 114 { ch = 13; } } }
+                if ch == 0 { return sc_read_fail(r, "unfinished escape"); }
+            }
+            sb_char(sb, ch);
+        }
+        r.pos = r.pos + 1; return sc_emit(r, ast_call_named1("sc_string", ast_string(sb_finish(sb))));
+    }
+    if c == 35 && *(r.text + r.pos) == 40 {
+        var val *u8 = sc_read(r, true); return sc_emit(r, ast_call_named1("sc_vector", val));
+    }
+    if c == 35 && *(r.text + r.pos) == 92 {
+        r.pos = r.pos + 1; var ch i64 = *(r.text + r.pos);
+        if ch == 0 { return sc_read_fail(r, "incomplete character"); }
+        var s i64 = r.pos; r.pos = r.pos + 1;
+        while !sc_delim(*(r.text + r.pos)) { r.pos = r.pos + 1; }
+        var nm *u8 = str_dup_n(r.text + s, r.pos - s);
+        if streq(nm, "space") { ch = 32; } else { if streq(nm, "newline") { ch = 10; } else { if streq(nm, "tab") { ch = 9; } else { if r.pos - s != 1 { return sc_read_fail(r, "unsupported character name"); } } } }
+        return ast_int(ch * 8 + 3);
+    }
+    while !sc_delim(*(r.text + r.pos)) { r.pos = r.pos + 1; }
+    var atom *u8 = str_dup_n(r.text + start, r.pos - start);
+    if streq(atom, "#t") || streq(atom, "#true") { return ast_int(6); }
+    if streq(atom, "#f") || streq(atom, "#false") { return ast_int(2); }
+    if !quoted && (streq(atom, "call/cc") || streq(atom, "call-with-current-continuation")) {
+        r.pos = start; return sc_read_fail(r, "call/cc: unsupported escaping multi-shot continuations");
+    }
+    return sc_emit(r, ast_span(ast_call_named1("sc_atom", ast_string(atom)), start, r.pos));
+}

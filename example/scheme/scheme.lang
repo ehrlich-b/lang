@@ -1,0 +1,24 @@
+// Scheme syntax is parsed at build time; the target owns its values and evaluator.
+include "std/core.lang"
+include "std/ast.lang"
+include "example/scheme/reader.lang"
+
+reader scheme(text *u8) *u8 {
+    var r *ScReader = alloc(40);
+    r.text = text; r.pos = 0; r.serial = 0; r.stmts = ast_vec();
+    var forms *u8 = ast_call_named0("sc_nil");
+    var items *u8 = vec_new(8);
+    sc_space(r);
+    while *(text + r.pos) != 0 {
+        vec_push(items, sc_read(r, false));
+        sc_space(r);
+    }
+    var i i64 = vec_len(items);
+    while i > 0 {
+        i = i - 1;
+        forms = sc_emit(r, ast_call_named2("sc_cons", vec_get(items, i), forms));
+    }
+    ast_push(r.stmts, ast_expr_stmt(ast_call_named1("sc_run", forms)));
+    ast_push(r.stmts, ast_return(ast_int(0)));
+    return ast_program1(ast_func("main", ast_vec(), ast_type_i64(), ast_block(r.stmts)));
+}

@@ -1,0 +1,434 @@
+// A target-side Scheme machine. Tail positions replace (expr, env) in sc_eval.
+include "std/core.lang"
+extern func strtod(s *u8, end **u8) f64;
+// Immediates: nil=0, false=2, true=6, integers=8*n+1, characters=8*n+3.
+// Heap: pair=1, symbol=2, string=3, procedure=4, primitive=5, vector=6, real=7.
+struct ScObj { tag i64; a i64; b i64; c i64; num i64; mark i64; next *ScObj; }
+var sc_heap *ScObj = nil;
+var sc_free *ScObj = nil;
+var sc_roots *u8 = nil;
+var sc_root_count i64 = 0;
+var sc_allocations i64 = 0;
+var sc_symbols i64 = 0;
+var sc_global i64 = 0;
+var sc_program i64 = 0;
+var sc_tests i64 = 0;
+var sc_passes i64 = 0;
+func sc_error(what *u8) i64 { eprint("scheme runtime: "); eprintln(what); exit(1); return 0; }
+func sc_nil() i64 { return 0; }
+func sc_tag(v i64) i64 {
+    if v == 0 || (v & 7) != 0 { return 0; }
+    var o *ScObj = v; return o.tag;
+}
+func sc_new(tag i64, a i64, b i64, c i64) i64 {
+    var o *ScObj = sc_free;
+    if o != nil { sc_free = o.next; }
+    else { o = alloc(56); }
+    o.tag = tag; o.a = a; o.b = b; o.c = c; o.num = 0; o.mark = 0;
+    o.next = sc_heap; sc_heap = o; sc_allocations = sc_allocations + 1;
+    return o;
+}
+func sc_cons(a i64, b i64) i64 { return sc_new(1, a, b, 0); }
+func sc_car(v i64) i64 { if sc_tag(v) != 1 { return sc_error("car requires pair"); } var o *ScObj = v; return o.a; }
+func sc_cdr(v i64) i64 { if sc_tag(v) != 1 { return sc_error("cdr requires pair"); } var o *ScObj = v; return o.b; }
+func sc_nth(v i64, n i64) i64 { while n > 0 { v = sc_cdr(v); n = n - 1; } return sc_car(v); }
+func sc_tail(v i64, n i64) i64 { while n > 0 { v = sc_cdr(v); n = n - 1; } return v; }
+func sc_bool(v bool) i64 { if v { return 6; } return 2; }
+func sc_int(v i64) i64 { return v * 8 + 1; }
+func sc_integer(v i64) bool { return (v & 7) == 1; }
+func sc_unint(v i64) i64 { if !sc_integer(v) { sc_error("expected exact integer"); } return (v - 1) / 8; }
+func sc_text(v i64) *u8 { var o *ScObj = v; return o.a; }
+func sc_sym(s *u8) i64 {
+    var cur i64 = sc_symbols;
+    while cur != 0 { var sym i64 = sc_car(cur); if streq(sc_text(sym), s) { return sym; } cur = sc_cdr(cur); }
+    var sym i64 = sc_new(2, s, 0, 0); sc_symbols = sc_cons(sym, sc_symbols); return sym;
+}
+func sc_named(v i64, s *u8) bool { return sc_tag(v) == 2 && streq(sc_text(v), s); }
+func sc_string(s *u8) i64 { return sc_new(3, s, 0, 0); }
+func sc_vector(xs i64) i64 { return sc_new(6, xs, 0, 0); }
+func sc_real(n f64) i64 { var v i64 = sc_new(7, 0, 0, 0); var o *ScObj = v; var slot *f64 = &o.num; slot[0] = n; return v; }
+func sc_number(v i64) bool { return sc_integer(v) || sc_tag(v) == 7; }
+func sc_num(v i64) f64 { if sc_integer(v) { return cast(f64, sc_unint(v)); } if sc_tag(v) == 7 { var o *ScObj = v; var slot *f64 = &o.num; return slot[0]; } sc_error("expected number"); return cast(f64, 0); }
+func sc_atom(s *u8) i64 {
+    var i i64 = 0; var sign i64 = 1; var n i64 = 0;
+    if *s == 45 { sign = -1; i = 1; } else { if *s == 43 { i = 1; } }
+    var digits i64 = i;
+    while *(s + i) >= 48 && *(s + i) <= 57 { n = n * 10 + *(s + i) - 48; i = i + 1; }
+    if i > digits && *(s + i) == 0 { return sc_int(n * sign); }
+    if i > digits && (*(s + i) == 46 || *(s + i) == 101 || *(s + i) == 69) {
+        var end *u8 = nil; var f f64 = strtod(s, &end);
+        if *end == 0 { return sc_real(f); }
+    }
+    if i > digits && *(s + i) == 47 {
+        var den *u8 = s + i + 1; var end *u8 = nil; var d f64 = strtod(den, &end);
+        if *end == 0 && d != cast(f64, 0) { var f f64 = cast(f64, n * sign); return sc_real(f / d); }
+    }
+    return sc_sym(s);
+}
+// Roots are addresses of machine locals; collection occurs only at eval boundaries.
+func sc_root(p *i64) void {
+    if sc_roots == nil { sc_roots = alloc(524288); }
+    if sc_root_count >= 65536 { sc_error("evaluation depth limit"); }
+    var slot **i64 = sc_roots + sc_root_count * 8; *slot = p; sc_root_count = sc_root_count + 1;
+}
+func sc_mark(v i64) void {
+    // Iterative traversal of cdr chains bounds the collector stack for long lists.
+    var o *ScObj = nil;
+    while sc_heap_value(v) {
+        o = v; if o.mark != 0 { return; } o.mark = 1;
+        if sc_traced(o.tag) {
+            sc_mark(o.a); sc_mark(o.c); v = o.b;
+        } else { return; }
+    }
+}
+func sc_collect() void {
+    sc_mark(sc_symbols); sc_mark(sc_global); sc_mark(sc_program);
+    var i i64 = 0; var slot **i64 = nil; var next *ScObj = nil;
+    while i < sc_root_count { slot = sc_roots + i * 8; sc_mark(**slot); i = i + 1; }
+    var cur *ScObj = sc_heap; var live *ScObj = nil;
+    while cur != nil {
+        next = cur.next;
+        if cur.mark != 0 { cur.mark = 0; cur.next = live; live = cur; }
+        else { cur.next = sc_free; sc_free = cur; }
+        cur = next;
+    }
+    sc_heap = live; sc_allocations = 0;
+}
+// Environment = (bindings . parent); binding = (interned-name . value).
+func sc_env(parent i64) i64 { return sc_cons(0, parent); }
+func sc_define(env i64, name i64, value i64) void {
+    var o *ScObj = env; var bs i64 = o.a;
+    while bs != 0 { var b *ScObj = sc_car(bs); if b.a == name { b.b = value; return; } bs = sc_cdr(bs); }
+    o.a = sc_cons(sc_cons(name, value), o.a);
+}
+func sc_lookup(env i64, name i64, set bool, value i64) i64 {
+    while env != 0 {
+        var bs i64 = sc_car(env);
+        while bs != 0 { var b *ScObj = sc_car(bs); if b.a == name { if set { b.b = value; } return b.b; } bs = sc_cdr(bs); }
+        env = sc_cdr(env);
+    }
+    eprint("scheme runtime: unbound "); eprintln(sc_text(name)); exit(1); return 0;
+}
+func sc_equal(a i64, b i64) bool {
+    if a == b { return true; }
+    if sc_number(a) && sc_number(b) { var d f64 = sc_num(a) - sc_num(b); if d < cast(f64, 0) { d = cast(f64, 0) - d; } return d < sc_tolerance(); }
+    var tag i64 = sc_tag(a); if tag != sc_tag(b) || tag == 0 { return false; }
+    if tag == 3 { return streq(sc_text(a), sc_text(b)); }
+    if tag == 1 { return sc_equal(sc_car(a), sc_car(b)) && sc_equal(sc_cdr(a), sc_cdr(b)); }
+    if tag == 6 { var x *ScObj = a; var y *ScObj = b; return sc_equal(x.a, y.a); }
+    return false;
+}
+func sc_length(xs i64) i64 { var n i64 = 0; while sc_tag(xs) == 1 { n = n + 1; xs = sc_cdr(xs); } if xs != 0 { sc_error("expected proper list"); } return n; }
+func sc_listp(xs i64) bool {
+    var slow i64 = xs; var fast i64 = xs;
+    while sc_tag(fast) == 1 {
+        fast = sc_cdr(fast); if fast == 0 { return true; }
+        if sc_tag(fast) != 1 { return false; }
+        fast = sc_cdr(fast); slow = sc_cdr(slow); if fast == slow { return false; }
+    }
+    return fast == 0;
+}
+func sc_reverse(xs i64, tail i64) i64 { while xs != 0 { tail = sc_cons(sc_car(xs), tail); xs = sc_cdr(xs); } return tail; }
+func sc_write(v i64) void {
+    if v == 0 { print("()"); return; } if v == 2 { print("#f"); return; } if v == 6 { print("#t"); return; }
+    if sc_integer(v) { print_int(sc_unint(v)); return; }
+    if (v & 7) == 3 { print("#\\"); var c *u8 = alloc(2); *c = (v - 3) / 8; *(c + 1) = 0; print(c); free(c); return; }
+    var tag i64 = sc_tag(v);
+    if tag == 2 { print(sc_text(v)); return; }
+    if tag == 3 { print("\""); print(sc_text(v)); print("\""); return; }
+    if tag == 7 { print("#<real>"); return; }
+    if tag == 6 { var o *ScObj = v; print("#"); sc_write(o.a); return; }
+    if tag == 1 {
+        print("("); var xs i64 = v; var first bool = true;
+        while sc_tag(xs) == 1 { if !first { print(" "); } first = false; sc_write(sc_car(xs)); xs = sc_cdr(xs); }
+        if xs != 0 { print(" . "); sc_write(xs); } print(")"); return;
+    }
+    print("#<procedure>");
+}
+func sc_bind(params i64, args i64, parent i64) i64 {
+    var env i64 = sc_env(parent);
+    while sc_tag(params) == 1 {
+        if args == 0 { sc_error("too few arguments"); }
+        sc_define(env, sc_car(params), sc_car(args)); params = sc_cdr(params); args = sc_cdr(args);
+    }
+    if params != 0 { if sc_tag(params) != 2 { sc_error("invalid parameters"); } sc_define(env, params, args); }
+    else { if args != 0 { sc_error("too many arguments"); } }
+    return env;
+}
+// This function recurses only for non-tail operands and earlier body expressions.
+func sc_eval(expr i64, env i64) i64 {
+    var base i64 = sc_root_count;
+    var args i64 = 0; var rev i64 = 0; var proc i64 = 0; var body i64 = 0;
+    var temp i64 = 0; var nextenv i64 = 0; var bindings i64 = 0; var value i64 = 0;
+    sc_root(&expr); sc_root(&env); sc_root(&args); sc_root(&rev); sc_root(&proc);
+    sc_root(&body); sc_root(&temp); sc_root(&nextenv); sc_root(&bindings); sc_root(&value);
+    var tag i64 = 0; var isand bool = false; var p *ScObj = nil;
+    while true {
+        if sc_allocations > 16384 { sc_collect(); }
+        tag = sc_tag(expr);
+        if tag == 2 { value = sc_lookup(env, expr, false, 0); break; }
+        if tag != 1 { value = expr; break; }
+        proc = sc_car(expr); args = sc_cdr(expr);
+        if sc_named(proc, "quote") { value = sc_car(args); break; }
+        if sc_named(proc, "import") { value = 0; break; }
+        if sc_named(proc, "if") {
+            value = sc_eval(sc_car(args), env);
+            if value != 2 { expr = sc_nth(args, 1); }
+            else { if sc_cdr(sc_cdr(args)) == 0 { value = 0; break; } expr = sc_nth(args, 2); }
+            continue;
+        }
+        if sc_named(proc, "lambda") { value = sc_new(4, sc_car(args), sc_cdr(args), env); break; }
+        if sc_oneof2(proc, "define", "set!") {
+            temp = sc_car(args);
+            if sc_tag(temp) == 1 { value = sc_new(4, sc_cdr(temp), sc_cdr(args), env); temp = sc_car(temp); }
+            else { value = sc_eval(sc_nth(args, 1), env); }
+            if sc_named(proc, "set!") { sc_lookup(env, temp, true, value); } else { sc_define(env, temp, value); }
+            value = 0; break;
+        }
+        if sc_named(proc, "begin") { body = args; }
+        else {
+            if sc_oneof2(proc, "and", "or") {
+                isand = sc_named(proc, "and"); value = 2; if isand { value = 6; }
+                while sc_more(args) {
+                    value = sc_eval(sc_car(args), env);
+                    if sc_short(isand, value) { break; }
+                    args = sc_cdr(args);
+                }
+                if sc_stop(args, isand, value) { break; }
+                expr = sc_car(args); continue;
+            }
+            if sc_letform(proc) {
+                bindings = sc_car(args); body = sc_cdr(args); nextenv = sc_env(env);
+                if sc_tag(bindings) == 2 {
+                    temp = bindings; bindings = sc_car(body); body = sc_cdr(body); rev = 0; args = 0;
+                    while bindings != 0 { rev = sc_cons(sc_car(sc_car(bindings)), rev); args = sc_cons(sc_eval(sc_nth(sc_car(bindings), 1), env), args); bindings = sc_cdr(bindings); }
+                    rev = sc_reverse(rev, 0); args = sc_reverse(args, 0);
+                    proc = sc_new(4, rev, body, nextenv); sc_define(nextenv, temp, proc);
+                    env = sc_bind(rev, args, nextenv);
+                } else {
+                    while bindings != 0 {
+                        temp = sc_car(bindings);
+                        if sc_named(proc, "let") { value = sc_eval(sc_nth(temp, 1), env); }
+                        else { value = sc_eval(sc_nth(temp, 1), nextenv); }
+                        // let* introduces a fresh frame, preserving closures of earlier bindings.
+                        if sc_named(proc, "let*") { nextenv = sc_env(nextenv); }
+                        sc_define(nextenv, sc_car(temp), value); bindings = sc_cdr(bindings);
+                    }
+                    env = nextenv;
+                }
+            } else {
+                if sc_named(proc, "cond") {
+                    body = 0;
+                    while args != 0 {
+                        temp = sc_car(args);
+                        if sc_named(sc_car(temp), "else") { value = 6; } else { value = sc_eval(sc_car(temp), env); }
+                        if value != 2 {
+                            body = sc_cdr(temp);
+                            if body == 0 { break; }
+                            if sc_named(sc_car(body), "=>") { expr = sc_cons(sc_nth(body, 1), sc_cons(sc_cons(sc_sym("quote"), sc_cons(value, 0)), 0)); body = sc_cons(expr, 0); }
+                            break;
+                        }
+                        args = sc_cdr(args);
+                    }
+                    if body == 0 { break; }
+                } else {
+                    proc = sc_eval(proc, env); rev = 0;
+                    while args != 0 { value = sc_eval(sc_car(args), env); rev = sc_cons(value, rev); args = sc_cdr(args); }
+                    args = sc_reverse(rev, 0);
+                    // apply is itself a tail transfer, including an indirect callee.
+                    if sc_isapply(proc) {
+                        proc = sc_car(args); args = sc_cdr(args); rev = 0;
+                        while sc_cdr(args) != 0 { rev = sc_cons(sc_car(args), rev); args = sc_cdr(args); }
+                        args = sc_reverse(rev, sc_car(args));
+                    }
+                    if sc_tag(proc) == 4 {
+                        p = proc; body = p.b; env = sc_bind(p.a, args, p.c);
+                    } else {
+                        if sc_tag(proc) != 5 { sc_error("expected procedure"); }
+                        value = sc_primitive(sc_text(proc), args); break;
+                    }
+                }
+            }
+        }
+        if body == 0 { value = 0; break; }
+        while sc_cdr(body) != 0 { value = sc_eval(sc_car(body), env); body = sc_cdr(body); }
+        expr = sc_car(body);
+        // Discard transient roots before the next transfer; the active environment
+        // and expression alone retain any values which survive the tail call.
+        args = 0; rev = 0; proc = 0; body = 0; temp = 0; nextenv = 0; bindings = 0; value = 0;
+    }
+    sc_root_count = base; return value;
+}
+func sc_primitive(name *u8, args i64) i64 {
+    var n i64 = sc_length(args); var a i64 = 0; var b i64 = 0;
+    if n > 0 { a = sc_car(args); } if n > 1 { b = sc_nth(args, 1); }
+    if streq(name, "list") { return args; }
+    if streq(name, "cons") { return sc_cons(a, b); }
+    if streq(name, "car") { return sc_car(a); } if streq(name, "cdr") { return sc_cdr(a); }
+    if streq(name, "cadr") { return sc_nth(a, 1); } if streq(name, "caddr") { return sc_nth(a, 2); }
+    if streq(name, "caar") { return sc_car(sc_car(a)); } if streq(name, "cddr") { return sc_cdr(sc_cdr(a)); }
+    if streq(name, "null?") { return sc_bool(a == 0); } if streq(name, "pair?") { return sc_bool(sc_tag(a) == 1); }
+    if streq(name, "list?") { return sc_bool(sc_listp(a)); }
+    if streq(name, "length") { return sc_int(sc_length(a)); }
+    if streq(name, "list-tail") { return sc_tail(a, sc_unint(b)); }
+    if streq(name, "list-ref") { return sc_nth(a, sc_unint(b)); }
+    if streq(name, "reverse") { return sc_reverse(a, 0); }
+    if streq(name, "list-copy") { var rev i64 = 0; while sc_tag(a) == 1 { rev = sc_cons(sc_car(a), rev); a = sc_cdr(a); } return sc_reverse(rev, a); }
+    if streq(name, "append") {
+        if n == 0 { return 0; } var rev i64 = 0;
+        while sc_cdr(args) != 0 { var xs i64 = sc_car(args); while xs != 0 { rev = sc_cons(sc_car(xs), rev); xs = sc_cdr(xs); } args = sc_cdr(args); }
+        return sc_reverse(rev, sc_car(args));
+    }
+    if streq(name, "set-car!") || streq(name, "set-cdr!") {
+        if sc_tag(a) != 1 { return sc_error("mutation requires pair"); } var p *ScObj = a;
+        if streq(name, "set-car!") { p.a = b; } else { p.b = b; } return 0;
+    }
+    if streq(name, "eq?") || streq(name, "eqv?") { return sc_bool(a == b || (sc_number(a) && sc_number(b) && sc_num(a) == sc_num(b))); }
+    if streq(name, "equal?") { return sc_bool(sc_equal(a, b)); }
+    if streq(name, "not") { return sc_bool(a == 2); }
+    if streq(name, "boolean?") { return sc_bool(a == 2 || a == 6); }
+    if streq(name, "symbol?") { return sc_bool(sc_tag(a) == 2); }
+    if streq(name, "string?") { return sc_bool(sc_tag(a) == 3); }
+    if streq(name, "char?") { return sc_bool((a & 7) == 3); }
+    if streq(name, "vector?") { return sc_bool(sc_tag(a) == 6); }
+    if streq(name, "procedure?") { return sc_bool(sc_tag(a) == 4 || sc_tag(a) == 5); }
+    if streq(name, "symbol->string") { return sc_string(str_dup(sc_text(a))); }
+    if streq(name, "string->symbol") { return sc_sym(sc_text(a)); }
+    if streq(name, "symbol=?") || streq(name, "boolean=?") { while sc_cdr(args) != 0 { if sc_car(args) != sc_nth(args, 1) { return 2; } args = sc_cdr(args); } return 6; }
+    if streq(name, "memq") || streq(name, "memv") || streq(name, "member") || streq(name, "assq") || streq(name, "assv") || streq(name, "assoc") {
+        var assoc bool = *name == 97;
+        while b != 0 { var x i64 = sc_car(b); if assoc { x = sc_car(x); } if sc_equal(a, x) { if assoc { return sc_car(b); } return b; } b = sc_cdr(b); } return 2;
+    }
+    if streq(name, "number?") || streq(name, "complex?") || streq(name, "real?") || streq(name, "rational?") { return sc_bool(sc_number(a)); }
+    if streq(name, "integer?") { if !sc_number(a) { return 2; } var x f64 = sc_num(a); var k i64 = cast(i64, x); var y f64 = cast(f64, k); return sc_bool(x == y); }
+    if streq(name, "exact?") || streq(name, "exact-integer?") { return sc_bool(sc_integer(a)); }
+    if streq(name, "inexact?") { return sc_bool(sc_tag(a) == 7); }
+    if streq(name, "finite?") { return sc_bool(sc_number(a)); }
+    if streq(name, "infinite?") || streq(name, "nan?") { return 2; }
+    if streq(name, "zero?") { return sc_bool(sc_num(a) == cast(f64, 0)); }
+    if streq(name, "positive?") { return sc_bool(sc_num(a) > cast(f64, 0)); }
+    if streq(name, "negative?") { return sc_bool(sc_num(a) < cast(f64, 0)); }
+    if streq(name, "odd?") { return sc_bool(sc_unint(a) % 2 != 0); }
+    if streq(name, "even?") { return sc_bool(sc_unint(a) % 2 == 0); }
+    if streq(name, "exact") { var k i64 = cast(i64, sc_num(a)); return sc_int(k); }
+    if streq(name, "inexact") { return sc_real(sc_num(a)); }
+    if streq(name, "abs") { if sc_integer(a) { var k i64 = sc_unint(a); if k < 0 { k = -k; } return sc_int(k); } var x f64 = sc_num(a); if x < cast(f64, 0) { x = cast(f64, 0) - x; } return sc_real(x); }
+    if streq(name, "+") || streq(name, "-") || streq(name, "*") || streq(name, "/") || streq(name, "max") || streq(name, "min") {
+        var x f64 = cast(f64, 0); var k i64 = 0; var exact bool = true; var first bool = true;
+        if streq(name, "*") { x = cast(f64, 1); k = 1; }
+        while args != 0 {
+            a = sc_car(args); var y f64 = sc_num(a); var j i64 = 0; if sc_integer(a) { j = sc_unint(a); } else { exact = false; }
+            if streq(name, "+") { x = x + y; k = k + j; }
+            if streq(name, "*") { x = x * y; k = k * j; }
+            if streq(name, "-") { if first && n > 1 { x = y; k = j; } else { x = x - y; k = k - j; } }
+            if streq(name, "/") { exact = false; if first && n > 1 { x = y; } else { if first { x = cast(f64, 1); } if y == cast(f64, 0) { return sc_error("division by zero"); } x = x / y; } }
+            if streq(name, "max") { if first || y > x { x = y; k = j; } }
+            if streq(name, "min") { if first || y < x { x = y; k = j; } }
+            first = false; args = sc_cdr(args);
+        }
+        if exact { return sc_int(k); } return sc_real(x);
+    }
+    if streq(name, "=") || streq(name, "<") || streq(name, ">") || streq(name, "<=") || streq(name, ">=") {
+        while sc_cdr(args) != 0 {
+            var x f64 = sc_num(sc_car(args)); var y f64 = sc_num(sc_nth(args, 1)); var ok bool = false;
+            if streq(name, "=") { ok = x == y; } if streq(name, "<") { ok = x < y; } if streq(name, ">") { ok = x > y; }
+            if streq(name, "<=") { ok = x <= y; } if streq(name, ">=") { ok = x >= y; }
+            if !ok { return 2; } args = sc_cdr(args);
+        } return 6;
+    }
+    if streq(name, "quotient") || streq(name, "remainder") || streq(name, "modulo") {
+        var x i64 = sc_unint(a); var y i64 = sc_unint(b); if y == 0 { return sc_error("division by zero"); }
+        if streq(name, "quotient") { return sc_int(x / y); } var k i64 = x % y;
+        if streq(name, "modulo") && k != 0 && ((k < 0) != (y < 0)) { k = k + y; } return sc_int(k);
+    }
+    if streq(name, "square") { return sc_primitive("*", sc_cons(a, sc_cons(a, 0))); }
+    if streq(name, "expt") { var k i64 = sc_unint(b); if k < 0 { return sc_error("negative exponent unsupported"); } var out i64 = sc_int(1); while k > 0 { out = sc_primitive("*", sc_cons(out, sc_cons(a, 0))); k = k - 1; } return out; }
+    if streq(name, "round") || streq(name, "truncate") || streq(name, "floor") || streq(name, "ceiling") {
+        if sc_integer(a) { return a; }
+        var x f64 = sc_num(a); var k i64 = cast(i64, x); var y f64 = cast(f64, k);
+        if streq(name, "floor") && x < y { k = k - 1; }
+        if streq(name, "ceiling") && x > y { k = k + 1; }
+        if streq(name, "round") { var d f64 = x - y; var half f64 = cast(f64, 1) / cast(f64, 2);
+            if d > half || (d == half && k % 2 != 0) { k = k + 1; }
+            if d < (cast(f64, 0) - half) || (d == (cast(f64, 0) - half) && k % 2 != 0) { k = k - 1; }
+        }
+        return sc_real(cast(f64, k));
+    }
+    if streq(name, "char-numeric?") { var c i64 = (a - 3) / 8; return sc_bool(c >= 48 && c <= 57); }
+    if streq(name, "char-alphabetic?") { var c i64 = (a - 3) / 8; return sc_bool((c >= 65 && c <= 90) || (c >= 97 && c <= 122)); }
+    if streq(name, "char-upper-case?") { var c i64 = (a - 3) / 8; return sc_bool(c >= 65 && c <= 90); }
+    if streq(name, "char-lower-case?") { var c i64 = (a - 3) / 8; return sc_bool(c >= 97 && c <= 122); }
+    if streq(name, "string") || streq(name, "make-string") {
+        var len i64 = n; var ch i64 = 32; if streq(name, "make-string") { len = sc_unint(a); if n > 1 { ch = (b - 3) / 8; } }
+        if len < 0 || len > 16777216 { return sc_error("string size limit"); }
+        var text *u8 = alloc(len + 1); var i i64 = 0;
+        while i < len { if streq(name, "string") { ch = (sc_car(args) - 3) / 8; args = sc_cdr(args); } *(text + i) = ch; i = i + 1; } *(text + len) = 0;
+        return sc_string(text);
+    }
+    if streq(name, "char->integer") { return sc_int((a - 3) / 8); }
+    if streq(name, "integer->char") { return sc_unint(a) * 8 + 3; }
+    if streq(name, "char-upcase") || streq(name, "char-downcase") || streq(name, "char-foldcase") { var c i64 = (a - 3) / 8; if streq(name, "char-upcase") { if c >= 97 && c <= 122 { c = c - 32; } } else { if c >= 65 && c <= 90 { c = c + 32; } } return c * 8 + 3; }
+    if streq(name, "char-whitespace?") { var c i64 = (a - 3) / 8; return sc_bool(c == 32 || (c >= 9 && c <= 13)); }
+    if str_starts_with(name, "char") && strlen(name) > 5 {
+        var op *u8 = name + 4; var ci bool = false; if str_starts_with(op, "-ci") { ci = true; op = op + 3; }
+        if streq(op, "=?") || streq(op, "<?") || streq(op, ">?") || streq(op, "<=?") || streq(op, ">=?") {
+            while sc_cdr(args) != 0 {
+                var x i64 = (sc_car(args) - 3) / 8; var y i64 = (sc_nth(args, 1) - 3) / 8;
+                if ci { if x >= 65 && x <= 90 { x = x + 32; } if y >= 65 && y <= 90 { y = y + 32; } }
+                var ok bool = false;
+                if streq(op, "=?") { ok = x == y; } if streq(op, "<?") { ok = x < y; } if streq(op, ">?") { ok = x > y; }
+                if streq(op, "<=?") { ok = x <= y; } if streq(op, ">=?") { ok = x >= y; }
+                if !ok { return 2; } args = sc_cdr(args);
+            } return 6;
+        }
+    }
+    if streq(name, "string-length") { return sc_int(strlen(sc_text(a))); }
+    if streq(name, "string-ref") { var s *u8 = sc_text(a); return *(s + sc_unint(b)) * 8 + 3; }
+    if streq(name, "string-copy") || streq(name, "substring") {
+        var text *u8 = sc_text(a); var start i64 = 0; var end i64 = strlen(text);
+        if n > 1 { start = sc_unint(b); } if n > 2 { end = sc_unint(sc_nth(args, 2)); }
+        if start < 0 || end < start || end > strlen(text) { return sc_error("string range"); }
+        return sc_string(str_dup_n(text + start, end - start));
+    }
+    if streq(name, "string-append") { var s *u8 = str_dup(""); while args != 0 { s = str_concat(s, sc_text(sc_car(args))); args = sc_cdr(args); } return sc_string(s); }
+    if streq(name, "string=?") || streq(name, "string<?") || streq(name, "string>?") || streq(name, "string<=?") || streq(name, "string>=?") || str_starts_with(name, "string-ci") {
+        var op *u8 = name + 6; var ci bool = false; if str_starts_with(op, "-ci") { ci = true; op = op + 3; }
+        while sc_cdr(args) != 0 {
+            var x *u8 = sc_text(sc_car(args)); var y *u8 = sc_text(sc_nth(args, 1)); var diff i64 = 0; var i i64 = 0;
+            while true { var xc i64 = *(x + i); var yc i64 = *(y + i); if ci { if xc >= 65 && xc <= 90 { xc = xc + 32; } if yc >= 65 && yc <= 90 { yc = yc + 32; } } diff = xc - yc; if diff != 0 || xc == 0 { break; } i = i + 1; }
+            var ok bool = false; if streq(op, "=?") { ok = diff == 0; } if streq(op, "<?") { ok = diff < 0; } if streq(op, ">?") { ok = diff > 0; } if streq(op, "<=?") { ok = diff <= 0; } if streq(op, ">=?") { ok = diff >= 0; }
+            if !ok { return 2; } args = sc_cdr(args);
+        } return 6;
+    }
+    if streq(name, "display") { if sc_tag(a) == 3 { print(sc_text(a)); } else { sc_write(a); } return 0; }
+    if streq(name, "write") { sc_write(a); return 0; }
+    if streq(name, "newline") { print("\n"); return 0; }
+    if streq(name, "test-result") {
+        // ID, expected, actual; compare values in the target, never in the reader.
+        sc_tests = sc_tests + 1; var actual i64 = sc_nth(args, 2); var pass bool = sc_equal(b, actual);
+        if pass { sc_passes = sc_passes + 1; print("PASS "); } else { print("FAIL "); }
+        print_int(sc_unint(a)); print("\n"); return sc_bool(pass);
+    }
+    if streq(name, "assert") { if a == 2 { return sc_error("assertion failed"); } return a; }
+    eprint("scheme runtime: unsupported primitive "); eprintln(name); exit(1); return 0;
+}
+func sc_run(program i64) void {
+    sc_program = program; sc_global = sc_env(0);
+    var names *u8 = "+ - * / = < > <= >= abs max min quotient remainder modulo square expt round truncate floor ceiling char-numeric? char-alphabetic? char-upper-case? char-lower-case? string make-string substring zero? positive? negative? odd? even? number? complex? real? rational? integer? exact? inexact? exact-integer? finite? infinite? nan? exact inexact cons car cdr cadr caddr caar cddr list null? pair? list? length list-tail list-ref reverse list-copy append set-car! set-cdr! eq? eqv? equal? not boolean? boolean=? symbol? symbol=? string? char? vector? procedure? symbol->string string->symbol memq memv member assq assv assoc apply char->integer integer->char char-upcase char-downcase char-foldcase char-whitespace? char=? char<? char>? char<=? char>=? char-ci=? char-ci<? char-ci>? char-ci<=? char-ci>=? string-length string-ref string-copy string-append string=? string<? string>? string<=? string>=? string-ci=? string-ci<? string-ci>? string-ci>? string-ci<=? string-ci>=? display write newline test-result assert";
+    var i i64 = 0;
+    while *(names + i) != 0 { var start i64 = i; while *(names + i) != 0 && *(names + i) != 32 { i = i + 1; } var name *u8 = str_dup_n(names + start, i - start); sc_define(sc_global, sc_sym(name), sc_new(5, name, 0, 0)); if *(names + i) == 32 { i = i + 1; } }
+    var expr i64 = sc_cons(sc_sym("begin"), program); sc_eval(expr, sc_global);
+}
+
+func sc_tolerance() f64 { var x f64 = cast(f64, 1); return x / cast(f64, 1000000); }
+
+// Compound boolean expressions also allocate temporaries at O0. Keep them in
+// short-lived helper frames rather than in the machine/collector loops.
+func sc_heap_value(v i64) bool { return v != 0 && (v & 7) == 0; }
+func sc_traced(tag i64) bool { return tag == 1 || tag == 4 || tag == 6; }
+func sc_oneof2(v i64, a *u8, b *u8) bool { return sc_named(v, a) || sc_named(v, b); }
+func sc_more(args i64) bool { return args != 0 && sc_cdr(args) != 0; }
+func sc_short(isand bool, value i64) bool { return (isand && value == 2) || (!isand && value != 2); }
+func sc_stop(args i64, isand bool, value i64) bool { return args == 0 || sc_short(isand, value); }
+func sc_letform(v i64) bool { return sc_oneof2(v, "let", "let*") || sc_oneof2(v, "letrec", "letrec*"); }
+func sc_isapply(v i64) bool { return sc_tag(v) == 5 && streq(sc_text(v), "apply"); }

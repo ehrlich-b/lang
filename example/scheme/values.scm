@@ -1,0 +1,12 @@
+; Vectors, strings, characters, numeric values, mutation and data identity.
+(assert (equal? '#(a b 3) #(a b 3)))
+(assert (equal? "abc" (string-append "a" "bc")))
+(assert (char-ci<=? #\a #\B #\b))
+(assert (= (/ 3 2) 1.5))
+(assert (= (max 3.9 4) 4.0))
+(assert (= (modulo -13 4) 3))
+(define pair (cons 1 2)) (set-cdr! pair pair)
+(assert (not (list? pair)))
+(assert (eq? 'abc (string->symbol "abc")))
+(assert (equal? (apply list 1 2 '(3 4)) '(1 2 3 4)))
+(display "values ok") (newline)
