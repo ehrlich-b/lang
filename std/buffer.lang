@@ -62,6 +62,7 @@ pub func phase_buffer_new(limit i64, source *u8) *PhaseBuffer {
     if limit < 0 || limit > 1073741824 { phase_error("invalid-limit", source); }
     phase_charge(48);
     var b *PhaseBuffer = alloc(48);
+    if b == nil { phase_error("allocation-failed", source); }
     b.data = nil; b.len = 0; b.cap = 0; b.limit = limit; b.source = source;
     return b;
 }
@@ -75,13 +76,27 @@ pub func phase_buffer_reserve(b *PhaseBuffer, extra i64) void {
     if cap > b.limit + 1 { cap = b.limit + 1; }
     phase_charge(cap);
     var data *u8 = alloc(cap);
+    if data == nil { phase_error("allocation-failed", b.source); }
     if b.len > 0 { memcpy(data, b.data, b.len); }
     b.data = data; b.cap = cap;
     *(b.data + b.len) = 0;
 }
 pub func phase_buffer_append(b *PhaseBuffer, data *u8, len i64) void {
     phase_buffer_reserve(b, len);
-    if len > 0 { memcpy(b.data + b.len, data, len); }
+    // The old allocation remains live after reserve. Copy backwards when the
+    // destination starts inside the source, as with memmove.
+    var dst *u8 = b.data + b.len;
+    var i i64 = 0;
+    var backwards i64 = 0;
+    while i < len {
+        if data + i == dst { backwards = 1; }
+        i = i + 1;
+    }
+    if backwards != 0 {
+        while i > 0 { i = i - 1; *(dst + i) = *(data + i); }
+    } else {
+        memcpy(dst, data, len);
+    }
     b.len = b.len + len; *(b.data + b.len) = 0;
 }
 pub func phase_buffer_text(b *PhaseBuffer, s *u8) void { phase_buffer_append(b, s, strlen(s)); }

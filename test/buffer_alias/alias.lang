@@ -1,0 +1,23 @@
+func main() i64 {
+    var b *PhaseBuffer = phase_buffer_new(4096, "alias");
+    phase_buffer_append(b, "abcdef", 6);
+    phase_buffer_append(b, b.data, b.len);
+    file_write(1, b.data, b.len);
+    phase_buffer_append(b, b.data + 2, 7);
+    file_write(1, b.data, b.len);
+    phase_buffer_append(b, b.data + 3, 0);
+    file_write(1, b.data, b.len);
+    var c *PhaseBuffer = phase_buffer_new(4096, "capacity");
+    var i i64 = 0;
+    while i < 255 { phase_buffer_append(c, "x", 1); i = i + 1; }
+    phase_buffer_append(c, c.data, 255);
+    phase_buffer_append(c, c.data + 3, 500);
+    phase_buffer_append(c, c.data, c.len);
+    file_write(1, c.data, c.len);
+    var d *PhaseBuffer = phase_buffer_new(100, "overlap");
+    phase_buffer_append(d, "abcdef", 6);
+    d.len = 3;
+    phase_buffer_append(d, d.data + 1, 5);
+    file_write(1, d.data, d.len);
+    return 0;
+}

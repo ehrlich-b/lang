@@ -1,0 +1,15 @@
+var watched *PhaseBuffer = nil;
+var saved_data *u8 = nil;
+var saved_cap i64 = 0;
+var fail_alloc i64 = 0;
+func checked_alloc(n i64) *u8 {
+    if fail_alloc != 0 { return nil; }
+    return alloc(n);
+}
+func main() i64 {
+    watched = phase_buffer_new(6, "reject");
+    phase_buffer_append(watched, "abc", 3);
+    saved_data = watched.data; saved_cap = watched.cap;
+    REJECT_ACTION
+    return 99;
+}
