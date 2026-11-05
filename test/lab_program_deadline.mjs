@@ -56,6 +56,7 @@ try {
         if (url === 'program_worker.js') {
           this.record = { terminated: false };
           window.programWorkers.push(this.record);
+          this.addEventListener('message', event => { this.record.result = event.data; });
         }
       }
       terminate() { if (this.record) this.record.terminated = true; return super.terminate(); }
@@ -68,6 +69,21 @@ func burst() i64 { print(${JSON.stringify(line)}); return 0; }
 func errors() i64 { file_write(2, ${JSON.stringify(line)}, ${Buffer.byteLength(line)}); return 0; }
 func stop() i64 { burst(); exit(7); return 0; }
 func huge() i64 { print(${JSON.stringify(line.repeat(100))}); return 0; }
+func split() i64 {
+  var c u8 = 195; file_write(1, &c, 1);
+  c = 169; file_write(1, &c, 1); return 0;
+}
+func interleaved() i64 {
+  var c u8 = 195; file_write(1, &c, 1);
+  c = 240; file_write(2, &c, 1);
+  c = 169; file_write(1, &c, 1);
+  c = 159; file_write(2, &c, 1);
+  c = 140; file_write(2, &c, 1);
+  c = 191; file_write(2, &c, 1); return 0;
+}
+func malformed() i64 { var c u8 = 255; file_write(1, &c, 1); return 0; }
+func incomplete() i64 { var c u8 = 195; file_write(1, &c, 1); return 0; }
+func incomplete_exit() i64 { incomplete(); exit(7); return 0; }
 `;
   await page.locator('#reader').fill(flow);
   await page.locator('#runtime').evaluate(element => { element.closest('details').open = true; });
@@ -104,6 +120,34 @@ func huge() i64 { print(${JSON.stringify(line.repeat(100))}); return 0; }
   }
   console.log('PASS infinite programs terminate independently; corrected source reuses identical reader');
   await page.evaluate(() => { window.programDeadlineMs = 5000; });
+  // Real compiled byte writes must retain UTF-8 state per output stream, and
+  // replacement characters must also fit the combined retained-byte budget.
+  for (const [call, limit, expectedOut, expectedErr, failure] of [
+    ['split', 2, 'é', '', false],
+    ['split', 1, '', '', true],
+    ['interleaved', 6, 'é', '🌿', false],
+    ['interleaved', 5, 'é', '', true],
+    ['malformed', 2, '', '', true],
+    ['malformed', 3, '�', '', false],
+    ['incomplete', 1, '', '', true],
+    ['incomplete', 3, '�', '', false],
+    ['incomplete_exit', 1, '', '', true],
+    ['incomplete_exit', 3, '�', '', true],
+  ]) {
+    await page.evaluate(value => { window.programOutputLimitBytes = value; }, limit);
+    await run(`func main() { ${call}(); return 42; }`, failure ? /program run failed/ : /ran/);
+    const result = await page.evaluate(() => window.programWorkers.at(-1).result);
+    assert.equal(result.stdout, expectedOut, `${call} stdout at ${limit} bytes`);
+    assert.equal(result.stderr, expectedErr, `${call} stderr at ${limit} bytes`);
+    assert.ok(Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr) <= limit);
+    if (failure) {
+      assert.match(await output(), call === 'incomplete_exit' && limit === 3
+        ? /^program exited with code 7/ : new RegExp(`^program output truncated at ${limit} bytes`));
+    } else assert.equal(result.value, 42n);
+    await reuse();
+  }
+  await page.evaluate(() => { window.programOutputLimitBytes = 2048; });
+  console.log('PASS split UTF-8, independent stdout/stderr decoding and bounded malformed/incomplete bytes');
   // Combined stdout/stderr budget, including multibyte text and partial writes.
   await run('func main() { while 1 { burst(); errors(); } return 0; }', /program run failed/);
   const flooded = await output();

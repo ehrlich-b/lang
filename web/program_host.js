@@ -335,8 +335,10 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContextOrOpti
   let readerByteLength = 0;
   let readerOverflow = false;
   let outputBytes = 0;
+  let retainedBytes = 0;
   const outputLimit = options.outputLimitBytes ?? Infinity;
-  const decoder = new TextDecoder();
+  const decoders = [new TextDecoder(), new TextDecoder()];
+  const encoder = new TextEncoder();
   const input = typeof inputText === 'string'
     ? new TextEncoder().encode(inputText)
     : inputText || new Uint8Array();
@@ -363,10 +365,21 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContextOrOpti
     constructor(code) { this.code = number(BigInt(code) & 255n); }
   }
 
+  const truncated = () => new Error(`program output truncated at ${outputLimit} bytes`);
   const emit = (text, isError) => {
+    // Invalid UTF-8 can expand into three-byte replacement characters. Bound
+    // the text we retain and forward as well as the program's raw writes.
+    const encoded = encoder.encode(text);
+    const remaining = Math.max(0, outputLimit - retainedBytes);
+    const overflow = encoded.length > remaining;
+    if (overflow) {
+      text = new TextDecoder().decode(encoded.subarray(0, remaining), { stream: true });
+    }
+    retainedBytes += encoder.encode(text).length;
     if (isError) stderr += text;
     else stdout += text;
     if (onWrite) onWrite(text, isError);
+    if (overflow) throw truncated();
   };
 
   const lang = {
@@ -383,12 +396,14 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContextOrOpti
       const remaining = Math.max(0, outputLimit - outputBytes);
       const kept = data.subarray(0, remaining);
       outputBytes += kept.length;
-      if (kept.length < data.length) throw new Error(`program output truncated at ${outputLimit} bytes`);
-      if (readerContext && number(fdValue) === 2) {
-        if (data.length > 1048576 - readerByteLength) readerOverflow = true;
-        else { readerChunks.push(data.slice()); readerByteLength += data.length; }
+      const isError = number(fdValue) === 2;
+      if (readerContext && isError) {
+        if (kept.length > 1048576 - readerByteLength) readerOverflow = true;
+        else { readerChunks.push(kept.slice()); readerByteLength += kept.length; }
+      } else {
+        emit(decoders[isError ? 1 : 0].decode(kept, { stream: true }), isError);
       }
-      else emit(decoder.decode(data), number(fdValue) === 2);
+      if (kept.length < data.length) throw truncated();
       return BigInt(data.length);
     },
     // Raw host syscalls are unavailable; callers receive a failure.
@@ -445,6 +460,8 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContextOrOpti
     if (error instanceof ExitTrap) { exit = error.code; exited = true; }
     else throw error;
   }
+  emit(decoders[0].decode(), false);
+  if (!readerContext) emit(decoders[1].decode(), true);
   let diagnostics = [];
   if (readerContext) {
     try {
