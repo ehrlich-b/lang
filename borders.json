@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "compiler_sha256": "dbc0b4374a88c28d1ad4416138ce404fc66f0906907254563cd0ca8bf4531697",
+  "compiler_sha256": "33bc6241180a221a7dfc14c763d357fc32706bed7f1c12086109a6998800b5c0",
   "cells": [
     {
       "reader": "lang",
@@ -18,7 +18,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -65,7 +65,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -119,7 +119,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_integers.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -156,7 +156,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -203,7 +203,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -257,7 +257,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_floats.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -284,7 +284,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -331,7 +331,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -385,7 +385,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_strings.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -422,7 +422,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -469,7 +469,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -523,7 +523,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_functions.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -560,7 +560,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -607,7 +607,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -661,7 +661,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_closures.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -688,7 +688,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -735,7 +735,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -789,7 +789,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_structs.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -816,7 +816,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -863,7 +863,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -917,7 +917,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_arrays.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -944,7 +944,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -991,7 +991,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1045,7 +1045,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_control_flow.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -1082,7 +1082,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1129,7 +1129,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1183,7 +1183,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_recursion.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -1220,7 +1220,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1267,7 +1267,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1294,7 +1294,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_effects.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -1321,7 +1321,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1368,7 +1368,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1422,7 +1422,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_cross_reader_call.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -1460,7 +1460,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1488,7 +1488,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1516,7 +1516,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lang_error_location.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -1543,7 +1543,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1590,7 +1590,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1644,7 +1644,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_integers.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -1681,7 +1681,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1708,7 +1708,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1735,7 +1735,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_floats.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -1762,7 +1762,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1789,7 +1789,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1816,7 +1816,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_strings.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -1843,7 +1843,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1890,7 +1890,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -1944,7 +1944,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_functions.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -1981,7 +1981,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2008,7 +2008,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2035,7 +2035,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_closures.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -2062,7 +2062,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2089,7 +2089,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2116,7 +2116,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_structs.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -2143,7 +2143,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2170,7 +2170,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2197,7 +2197,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_arrays.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -2224,7 +2224,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2271,7 +2271,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2325,7 +2325,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_control_flow.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -2362,7 +2362,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2409,7 +2409,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2463,7 +2463,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_recursion.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -2500,7 +2500,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2527,7 +2527,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2554,7 +2554,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_effects.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -2581,7 +2581,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2628,7 +2628,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2682,7 +2682,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_cross_reader_call.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -2720,7 +2720,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2748,7 +2748,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2776,7 +2776,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minipy_error_location.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -2803,7 +2803,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2850,7 +2850,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2904,7 +2904,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_integers.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -2941,7 +2941,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/minilisp_floats_llvm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -2988,7 +2988,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/minilisp_floats_llvm-wasm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3042,7 +3042,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/minilisp_floats_wasm.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -3079,7 +3079,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/minilisp_strings_llvm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3126,7 +3126,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/minilisp_strings_llvm-wasm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3180,7 +3180,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/minilisp_strings_wasm.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -3217,7 +3217,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3264,7 +3264,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3318,7 +3318,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_functions.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -3355,7 +3355,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3402,7 +3402,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3456,7 +3456,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_closures.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -3483,7 +3483,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3510,7 +3510,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3537,7 +3537,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_structs.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -3564,7 +3564,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3591,7 +3591,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3618,7 +3618,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_arrays.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -3645,7 +3645,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3692,7 +3692,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3746,7 +3746,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_control_flow.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -3773,7 +3773,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3820,7 +3820,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3874,7 +3874,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_recursion.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -3911,7 +3911,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3938,7 +3938,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -3965,7 +3965,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_effects.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -3992,7 +3992,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4039,7 +4039,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4093,7 +4093,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_cross_reader_call.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -4131,7 +4131,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4159,7 +4159,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4187,7 +4187,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/minilisp_error_location.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -4214,7 +4214,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4261,7 +4261,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4315,7 +4315,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_integers.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -4352,7 +4352,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4379,7 +4379,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4406,7 +4406,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_floats.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -4433,7 +4433,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4480,7 +4480,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4534,7 +4534,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_strings.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -4571,7 +4571,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4618,7 +4618,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4672,7 +4672,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_functions.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -4745,7 +4745,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4792,7 +4792,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4846,7 +4846,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_structs.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -4873,7 +4873,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4920,7 +4920,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -4974,7 +4974,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_arrays.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -5001,7 +5001,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5048,7 +5048,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5102,7 +5102,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_control_flow.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -5139,7 +5139,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5186,7 +5186,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5240,7 +5240,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_recursion.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -5313,7 +5313,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5360,7 +5360,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5414,7 +5414,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_cross_reader_call.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -5452,7 +5452,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5480,7 +5480,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5508,7 +5508,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/c_error_location.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -5535,7 +5535,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5582,7 +5582,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5636,7 +5636,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_integers.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -5673,7 +5673,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/forth_floats_llvm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5720,7 +5720,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/forth_floats_llvm-wasm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5774,7 +5774,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/forth_floats_wasm.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -5811,7 +5811,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5838,7 +5838,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5865,7 +5865,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_strings.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -5892,7 +5892,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5939,7 +5939,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -5993,7 +5993,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_functions.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -6030,7 +6030,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6057,7 +6057,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6084,7 +6084,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_closures.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -6111,7 +6111,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6138,7 +6138,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6165,7 +6165,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_structs.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -6192,7 +6192,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6219,7 +6219,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6246,7 +6246,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_arrays.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -6273,7 +6273,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6320,7 +6320,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6374,7 +6374,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_control_flow.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -6411,7 +6411,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6458,7 +6458,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6512,7 +6512,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_recursion.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -6549,7 +6549,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6576,7 +6576,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6603,7 +6603,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_effects.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -6630,7 +6630,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6677,7 +6677,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6731,7 +6731,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_cross_reader_call.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -6769,7 +6769,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6797,7 +6797,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6825,7 +6825,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/forth_error_location.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -6852,7 +6852,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6899,7 +6899,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -6953,7 +6953,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_integers.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -6990,7 +6990,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7017,7 +7017,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7044,7 +7044,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_floats.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -7071,7 +7071,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7098,7 +7098,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7125,7 +7125,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_strings.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -7152,7 +7152,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7199,7 +7199,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7253,7 +7253,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_functions.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -7290,7 +7290,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7317,7 +7317,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7344,7 +7344,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_closures.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -7371,7 +7371,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7398,7 +7398,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7425,7 +7425,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_structs.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -7452,7 +7452,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7479,7 +7479,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7506,7 +7506,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_arrays.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -7533,7 +7533,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7580,7 +7580,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7634,7 +7634,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_control_flow.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -7671,7 +7671,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7718,7 +7718,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7772,7 +7772,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_recursion.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -7809,7 +7809,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7856,7 +7856,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7883,7 +7883,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_effects.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -7910,7 +7910,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -7957,7 +7957,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8011,7 +8011,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/flow_cross_reader_call.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -8049,7 +8049,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/flow_error_location_llvm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8077,7 +8077,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/flow_error_location_llvm-wasm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8105,7 +8105,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/flow_error_location_wasm.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -8132,7 +8132,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8179,7 +8179,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/lox_integers_llvm-wasm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8233,7 +8233,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_integers.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -8260,7 +8260,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8307,7 +8307,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/lox_floats_llvm-wasm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8361,7 +8361,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_floats.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -8388,7 +8388,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8435,7 +8435,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/lox_strings_llvm-wasm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8489,7 +8489,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_strings.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -8516,7 +8516,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8563,7 +8563,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/lox_functions_llvm-wasm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8617,7 +8617,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_functions.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -8644,7 +8644,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8691,7 +8691,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/lox_closures_llvm-wasm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8745,7 +8745,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_closures.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -8772,7 +8772,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8799,7 +8799,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8826,7 +8826,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_structs.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -8853,7 +8853,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8880,7 +8880,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8907,7 +8907,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_arrays.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -8934,7 +8934,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8961,7 +8961,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -8988,7 +8988,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_control_flow.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -9015,7 +9015,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9042,7 +9042,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9069,7 +9069,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_recursion.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -9132,7 +9132,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/lox_cross_reader_call_llvm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9179,7 +9179,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/lox_cross_reader_call_llvm-wasm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9233,7 +9233,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_cross_reader_call.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -9261,7 +9261,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9289,7 +9289,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9317,7 +9317,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lox_error_location.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -9344,7 +9344,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9391,7 +9391,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9445,7 +9445,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_integers.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -9482,7 +9482,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9509,7 +9509,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9536,7 +9536,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_floats.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -9563,7 +9563,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9590,7 +9590,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9617,7 +9617,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_strings.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -9644,7 +9644,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9671,7 +9671,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9698,7 +9698,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_functions.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -9725,7 +9725,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9752,7 +9752,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9779,7 +9779,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_closures.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -9806,7 +9806,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9833,7 +9833,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9860,7 +9860,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_structs.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -9887,7 +9887,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9914,7 +9914,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9941,7 +9941,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_arrays.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -9968,7 +9968,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -9995,7 +9995,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10022,7 +10022,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_control_flow.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -10049,7 +10049,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10076,7 +10076,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10103,7 +10103,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_recursion.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -10130,7 +10130,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10157,7 +10157,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10184,7 +10184,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_effects.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -10211,7 +10211,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10238,7 +10238,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10265,7 +10265,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/lua_cross_reader_call.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -10293,7 +10293,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/lua_error_location_llvm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10321,7 +10321,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/lua_error_location_llvm-wasm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10349,7 +10349,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/lua_error_location_wasm.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -10376,7 +10376,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10423,7 +10423,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10477,7 +10477,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_integers.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -10550,7 +10550,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10577,7 +10577,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10604,7 +10604,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_strings.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -10631,7 +10631,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10658,7 +10658,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10685,7 +10685,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_functions.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -10712,7 +10712,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10739,7 +10739,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10766,7 +10766,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_closures.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -10793,7 +10793,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10820,7 +10820,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10847,7 +10847,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_structs.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -10874,7 +10874,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10901,7 +10901,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10928,7 +10928,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_arrays.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -10955,7 +10955,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -10982,7 +10982,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11009,7 +11009,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_control_flow.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -11036,7 +11036,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11063,7 +11063,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11090,7 +11090,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_recursion.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -11117,7 +11117,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11144,7 +11144,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11171,7 +11171,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_effects.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -11198,7 +11198,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11225,7 +11225,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11252,7 +11252,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_cross_reader_call.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -11280,7 +11280,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11308,7 +11308,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_error_location.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11336,7 +11336,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/tiny_error_location.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -11363,7 +11363,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11410,7 +11410,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_integers.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11464,7 +11464,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_integers.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -11501,7 +11501,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11528,7 +11528,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_floats.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11555,7 +11555,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_floats.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -11582,7 +11582,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11609,7 +11609,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_strings.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11636,7 +11636,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_strings.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -11663,7 +11663,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11690,7 +11690,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_functions.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11717,7 +11717,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_functions.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -11744,7 +11744,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11771,7 +11771,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_closures.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11798,7 +11798,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_closures.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -11825,7 +11825,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11852,7 +11852,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_structs.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11879,7 +11879,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_structs.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -11906,7 +11906,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11933,7 +11933,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_arrays.lang",
             "-o",
             "<scratch>/program.ll"
@@ -11960,7 +11960,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_arrays.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -11987,7 +11987,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -12014,7 +12014,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_control_flow.lang",
             "-o",
             "<scratch>/program.ll"
@@ -12041,7 +12041,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_control_flow.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -12068,7 +12068,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -12095,7 +12095,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_recursion.lang",
             "-o",
             "<scratch>/program.ll"
@@ -12122,7 +12122,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_recursion.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -12149,7 +12149,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -12176,7 +12176,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_effects.lang",
             "-o",
             "<scratch>/program.ll"
@@ -12203,7 +12203,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_effects.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -12230,7 +12230,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -12257,7 +12257,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_cross_reader_call.lang",
             "-o",
             "<scratch>/program.ll"
@@ -12284,7 +12284,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/cases/calc_cross_reader_call.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -12312,7 +12312,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/calc_error_location_llvm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -12340,7 +12340,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/calc_error_location_llvm-wasm.lang",
             "-o",
             "<scratch>/program.ll"
@@ -12368,7 +12368,7 @@
       "steps": [
         {
           "command": [
-            "out/lang_dev_2ca1c34",
+            "out/lang_dev_fbdd051",
             "test/borders/bugs/calc_error_location_wasm.lang",
             "-o",
             "<scratch>/program.wasm"
@@ -12389,7 +12389,7 @@
   "missing_reader": [
     {
       "command": [
-        "out/lang_dev_2ca1c34",
+        "out/lang_dev_fbdd051",
         "read",
         "example/c/c.lang",
         "test/borders/missing.zig"

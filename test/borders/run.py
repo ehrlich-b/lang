@@ -2,7 +2,8 @@
 """Measure reader/feature/target borders with small, independently runnable probes.
 
 Filtered runs never update the published grid. Use --output for fragment evidence;
-only an unfiltered run writes borders.json, bug reproducers, and docs/BORDERS.md.
+only an unfiltered run writes borders.json, bug reproducers, docs/BORDERS.md,
+and the website's borders section.
 """
 import argparse
 from collections import Counter
@@ -279,6 +280,7 @@ def main():
     if not filtered and not args.verify:
         Path('borders.json').write_text(json.dumps(data, indent=2) + '\n')
         subprocess.run(['python3', '-B', 'test/borders/render.py', '--write'], check=True)
+        subprocess.run(['python3', '-B', 'web/generate_borders.py'], check=True)
     if args.verify:
         for cell in cells:
             old = published[(cell['reader'], cell['feature'], cell['target'])]

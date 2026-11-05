@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 """Small oracle tests; no compiler build or grid regeneration."""
 import json
+import importlib.util
 from pathlib import Path
+import sys
+import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import render
 from run import Probe, declaration_spans, reduce_bug, reduction_candidates
+
+website_spec = importlib.util.spec_from_file_location('generate_borders', render.ROOT / 'web/generate_borders.py')
+website = importlib.util.module_from_spec(website_spec)
+website_spec.loader.exec_module(website)
 
 
 class ScriptedProbe(Probe):
@@ -94,6 +102,64 @@ class Contract(unittest.TestCase):
         data['totals']['supported'] = 2
         with self.assertRaises(ValueError):
             render.render(data)
+
+    def test_website_regeneration_and_freshness(self):
+        cell = dict(reader='minipy', feature='functions', target='wasm', status='supported')
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'web').mkdir()
+            grid = root / 'borders.json'
+            page = root / 'web/index.html'
+            prefix, suffix = '<header>keep</header>\n', '\n<footer>keep</footer>'
+            page.write_text(prefix + website.START + '\nstale\n' + website.END + suffix)
+            with patch.object(website, 'ROOT', root):
+                for cells in ([], [cell], *[
+                        [dict(cell, feature=f'cross_reader_call_{i}') for i in range(count)]
+                        for count in (website.PREVIEW_LIMIT, website.PREVIEW_LIMIT + 1)]):
+                    grid.write_text(json.dumps(dict(cells=cells)))
+                    with patch.object(sys, 'argv', ['generate_borders.py', '--check']):
+                        with self.assertRaisesRegex(SystemExit, 'borders section is stale'):
+                            website.main()
+                    with patch.object(sys, 'argv', ['generate_borders.py']):
+                        website.main()
+                    with patch.object(sys, 'argv', ['generate_borders.py', '--check']):
+                        website.main()
+                    text = page.read_text()
+                    self.assertTrue(text.startswith(prefix) and text.endswith(suffix))
+                    self.assertIn(f'{len(cells)} tested combinations', text)
+                    self.assertEqual(text.count('class="border-cell"'), len(cells))
+                    if len(cells) > website.PREVIEW_LIMIT:
+                        self.assertIn('<summary>+1 more</summary>', text)
+                    else:
+                        self.assertNotIn('<details>', text)
+                    if cells:
+                        self.assertIn('wasm · supported', text)
+                page.write_text(page.read_text().replace('wasm · supported', 'wasm · rejected', 1))
+                with patch.object(sys, 'argv', ['generate_borders.py', '--check']):
+                    with self.assertRaisesRegex(SystemExit, 'borders section is stale'):
+                        website.main()
+
+    def test_document_gate_also_rejects_stale_website(self):
+        data = dict(cells=[dict(reader='minipy', feature='functions', target='wasm',
+                               status='supported', fixture='probe.lang')], totals={'supported': 1})
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for directory in ('test/borders', 'web', 'docs'):
+                (root / directory).mkdir(parents=True)
+            (root / 'test/borders/render.py').write_text(Path(render.__file__).read_text())
+            (root / 'web/generate_borders.py').write_text(Path(website.__file__).read_text())
+            (root / 'borders.json').write_text(json.dumps(data))
+            (root / 'docs/BORDERS.md').write_text(render.render(data))
+            page = root / 'web/index.html'
+            page.write_text(website.START + '\nstale\n' + website.END)
+            command = [sys.executable, '-B', str(root / 'test/borders/render.py')]
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('borders section is stale', result.stderr)
+            with patch.object(website, 'ROOT', root):
+                page.write_text(website.render())
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == '__main__':

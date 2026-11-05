@@ -3,6 +3,7 @@
 import collections
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -60,6 +61,7 @@ def main():
             check(path, result)
         except ValueError as exc:
             raise SystemExit(str(exc)) from exc
+        subprocess.run([sys.executable, '-B', str(ROOT / 'web/generate_borders.py'), '--check'], check=True)
         print('Borders documentation matches borders.json')
     elif sys.argv[1:] == ['--write']:
         path.write_text(result)

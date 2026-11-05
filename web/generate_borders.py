@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 START = '  <!-- borders:start -->'
 END = '  <!-- borders:end -->'
+PREVIEW_LIMIT = 12
 
 def render():
     cells = json.loads((ROOT / 'borders.json').read_text())['cells']
@@ -18,9 +19,17 @@ def render():
              '    <h2 id="borders-title">where the borders are</h2>',
              '    <p>' + str(len(cells)) + ' tested combinations · ' + ' · '.join(f'{count} {esc(status)}' for status, count in sorted(counts.items())) + '</p>',
              '    <div class="border-grid">']
-    for cell in cells:
+    for index, cell in enumerate(cells):
+        if index == PREVIEW_LIMIT:
+            lines += ['    </div>', '    <details>',
+                      f'      <summary>+{len(cells) - PREVIEW_LIMIT} more</summary>',
+                      '      <div class="border-grid">']
         lines.append('      <div class="border-cell"><b>' + esc(cell['reader']) + ' / ' + esc(cell['feature']) + '</b><span>' + esc(cell['target']) + ' · ' + esc(cell['status']) + '</span></div>')
-    lines += ['    </div>', '  </section>', END]
+    if len(cells) > PREVIEW_LIMIT:
+        lines += ['      </div>', '    </details>']
+    else:
+        lines.append('    </div>')
+    lines += ['  </section>', END]
     return '\n'.join(lines)
 
 def main():
