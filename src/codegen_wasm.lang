@@ -1958,6 +1958,11 @@ func wasm_const_float(expr *u8) f64 {
     }
     if kind == NODE_GROUP_EXPR { return wasm_const_float(group_expr_expr(expr)); }
     if kind == NODE_UNARY_EXPR && unary_expr_op(expr) == TOKEN_MINUS {
+        // Match local evaluation: negate integer constants before converting,
+        // including i64's minimum value and integer zero.
+        if wasm_float_width(wasm_expr_type(expr)) == 0 {
+            return cast(f64, wasm_const_value(expr));
+        }
         var value f64 = wasm_const_float(unary_expr_expr(expr));
         return bitcast(f64, bitcast(i64, value) ^ (1 << 63));
     }

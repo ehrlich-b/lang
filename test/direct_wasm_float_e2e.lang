@@ -4,6 +4,11 @@ var single f32 = cast(f32, -1.5);
 var wide f64 = -2.5;
 var zero32 f32;
 var zero64 f64;
+var min64 f64 = cast(f64, -9223372036854775808);
+var min32 f32 = cast(f32, (-9223372036854775808));
+var implicit_min f64 = -9223372036854775808;
+var integer_zero f64 = -0;
+var float_zero f64 = -0.0;
 var calls i64 = 0;
 
 func identity32(x f32) f32 { return x; }
@@ -56,5 +61,12 @@ func main() i64 {
     if !(1.0 != cast(f64, nan != nan)) { return 20; }
     var values [2]f32 = [identity32(1.25), identity32(2.75)];
     if values[0] + values[1] != 4.0 { return 21; }
+    var local_min64 f64 = cast(f64, -9223372036854775808);
+    var local_min32 f32 = cast(f32, (-9223372036854775808));
+    if min64 != local_min64 || min64 != -9223372036854775808.0 { return 22; }
+    if min32 != local_min32 || implicit_min != local_min64 { return 23; }
+    // Integer negation happens before conversion; only floating minus makes -0.
+    if bitcast(i64, integer_zero) != 0 { return 24; }
+    if bitcast(i64, float_zero) != (1 << 63) { return 25; }
     return 42;
 }
