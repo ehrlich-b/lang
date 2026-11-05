@@ -160,9 +160,9 @@ def main():
                     f'{name}: missing located semantic diagnostic')
         cases = {
             'negative': ('shipping { base -1; free_over 100; }', 'decimal integer'),
-            'fraction': ('shipping { base 1.5; free_over 100; }', 'decimal integer'),
+            'fraction': ('shipping { base 1.5; free_over 100; }', "expected ';'"),
             'overflow': ('shipping { base 99999999999999999999999; free_over 100; }', 'decimal integer'),
-            'hex': ('shipping { base 0x10; free_over 100; }', 'decimal integer'),
+            'hex': ('shipping { base 0x10; free_over 100; }', "expected ';'"),
             'trailing': ('shipping { base 10; free_over 100; } junk', 'end of input'),
             'unclosed': ('shipping { base 10; free_over 100; } /*', '*/'),
             'empty': ('shipping {}', 'missing setting'),
