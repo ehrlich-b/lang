@@ -870,6 +870,7 @@ func read_ast_format(ast *u8) *u8 {
     var tokens *Tokenizer = tok_new(ast);
     var root *PNode = parse_sexpr(tokens);
     if root == nil || !tok_eof(tokens) { return nil; }
+    ast_shape_check(root, 'g', ast);
     read_ast_measure(root);
 
     var formatter *ReadAstFormatter = alloc(32);

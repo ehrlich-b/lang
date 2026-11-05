@@ -7,6 +7,71 @@
 // native `lang read` formatter: tokens are unchanged, insignificant whitespace
 // and comments are normalized, and the root always puts declarations on their
 // own lines.
+const AST_SHAPES = {
+  'program': 'g:d*',
+  'ast-version': 'z:#',
+  'func': 'd:sPto',
+  'extern_func': 'd:sPto',
+  'var': 'd:sto?',
+  'extern_var': 'd:sto?',
+  'struct': 'd:sF',
+  'enum': 'd:sV',
+  'effect': 'd:sTt',
+  'reader': 'd:ssn',
+  'macro': 'd:sMn',
+  'include': 'd:q',
+  'require': 'd:q',
+  'modules': 'd:q*',
+  'param': 'p:st',
+  'field_decl': 'f:st',
+  'variant_decl': 'v:st?',
+  'case': 'c:kn',
+  'pattern_wildcard': 'k:',
+  'pattern_variant': 'k:sss?',
+  'return_handler': 'r:sn',
+  'effect_handler': 'h:sssn',
+  'type_base': 't:s',
+  'type_ptr': 't:t',
+  'type_func': 't:Tt',
+  'type_closure': 't:Tt',
+  'type_array': 't:#t',
+  'block': 'n:n*',
+  'block_expr': 'n:nn*',
+  'array_literal': 'n:n*',
+  'if': 'n:nno?',
+  'while': 'n:nns?',
+  'return': 'n:o?',
+  'break': 'n:s?',
+  'continue': 'n:s?',
+  'expr_stmt': 'n:n',
+  'assign': 'n:nn',
+  'ident': 'n:s',
+  'number': 'n:#',
+  'string': 'n:q',
+  'bool': 'n:b',
+  'nil': 'n:',
+  'binop': 'n:ann',
+  'unop': 'n:an',
+  'int_compare': 'n:stnn',
+  'int_convert': 'n:sttn',
+  'cast': 'n:tn',
+  'bitcast': 'n:tn',
+  'call': 'n:nn*',
+  'field': 'n:ns',
+  'index': 'n:nn',
+  'quote': 'n:n',
+  'unquote': 'n:s',
+  'unquote_string': 'n:s',
+  'let': 'n:snn',
+  'lambda': 'n:Ptn',
+  'match': 'n:nC',
+  'perform': 'n:sn*',
+  'handle': 'n:nrh*',
+  'resume': 'n:no?',
+  'reader_expr': 'n:sq',
+  'span': 'n:##n',
+};
+
 function formatLangAst(source) {
   let offset = 0;
   const encoder = new TextEncoder();
@@ -31,6 +96,7 @@ function formatLangAst(source) {
 
   function parseNode() {
     skipTrivia();
+    const start = offset;
     if (source[offset] === '(') {
       offset++;
       const children = [];
@@ -38,14 +104,13 @@ function formatLangAst(source) {
         skipTrivia();
         if (source[offset] === ')') {
           offset++;
-          return { children };
+          return { children, start, end: offset };
         }
         if (offset >= source.length) throw new Error("expected ')' in AST");
         children.push(parseNode());
       }
     }
 
-    const start = offset;
     const quote = source[offset] === '"' || source[offset] === "'" ? source[offset++] : '';
     if (quote) {
       while (offset < source.length && source[offset] !== quote) {
@@ -58,12 +123,63 @@ function formatLangAst(source) {
       while (offset < source.length && !/[\s()]/.test(source[offset])) offset++;
     }
     if (offset === start) throw new Error(`unexpected AST token at byte ${offset}`);
-    return { text: source.slice(start, offset) };
+    return { text: source.slice(start, offset), start, end: offset };
   }
 
   const root = parseNode();
   skipTrivia();
   if (offset !== source.length) throw new Error(`trailing AST input at byte ${offset}`);
+
+  function invalid(node) {
+    const start = encoder.encode(source.slice(0, node.start)).length;
+    const end = encoder.encode(source.slice(0, node.end)).length;
+    throw new Error(`ast-shape at bytes ${start}:${end}`);
+  }
+
+  function validate(node, role) {
+    const text = node.text;
+    if ((role === 'o' || role === 't') && text === 'nil') return;
+    if (role === 'o') role = 'n';
+    const symbol = text !== undefined && /^[A-Za-z_][A-Za-z_0-9-]*$/.test(text);
+    if (role === 's' && symbol) return;
+    if (role === 'a' && (symbol || /^[+*/%&|^<>=!~-]+$/.test(text || ''))) return;
+    if (role === 'q' && text !== undefined && (text.startsWith('"') || text.startsWith("'"))) return;
+    if (role === '#' && text !== undefined && /^-?[0-9]+$/.test(text)) return;
+    if (role === 'b' && (text === 'true' || text === 'false')) return;
+    if (!node.children) return invalid(node);
+    const children = node.children;
+    const element = { P: 'p', T: 't', F: 'f', V: 'v', M: 's', C: 'c' }[role];
+    if (element) { children.forEach(child => validate(child, element)); return; }
+    const head = children[0]?.text;
+    const schema = AST_SHAPES[head];
+    if (!schema) return invalid(node);
+    if (head === 'span' && (role === 'n' || role === 'd')) {
+      if (children.length !== 4) return invalid(node);
+      validate(children[1], '#'); validate(children[2], '#');
+      validate(children[3], role); return;
+    }
+    if (schema[0] !== role && !(role === 'n' && schema[0] === 'd')) return invalid(node);
+    let signature = schema.slice(2);
+    let index = 1;
+    if (['func', 'extern_func', 'var', 'extern_var', 'struct', 'enum', 'effect', 'reader'].includes(head) &&
+        children[index]?.text === 'pub') index++;
+    if (head === 'program' && children[1]?.children?.[0]?.text === 'ast-version') {
+      validate(children[1], 'z'); index++;
+    }
+    if (head === 'let' && children.length === 5) signature = 'stnn';
+    for (let pos = 0; pos < signature.length; pos++) {
+      const field = signature[pos];
+      const repeated = signature[pos + 1] === '*';
+      const optional = signature[pos + 1] === '?';
+      if (repeated || optional) pos++;
+      if (repeated) {
+        while (index < children.length) validate(children[index++], field);
+      } else if (index < children.length) validate(children[index++], field);
+      else if (!optional) return invalid(node);
+    }
+    if (index !== children.length) invalid(node);
+  }
+  validate(root, 'g');
 
   function measure(node) {
     if (node.text !== undefined) {

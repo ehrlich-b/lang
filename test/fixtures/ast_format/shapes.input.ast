@@ -1,0 +1,1 @@
+(program (var pub table (type_array 2 (type_base i64)) (array_literal (number -1) (number 2))) (func pub main ((param p (type_ptr (type_base i64)))) (type_base i64) (block (expr_stmt (let f (type_func ((type_base i64)) (type_base i64)) (nil) (ident f))) (return (number -42)))))

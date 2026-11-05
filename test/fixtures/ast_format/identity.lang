@@ -1,0 +1,2 @@
+// Return the interchange bytes unchanged to exercise the native shared path.
+reader ast(text *u8) *u8 { return text; }

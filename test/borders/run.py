@@ -9,6 +9,8 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 os.chdir(ROOT)
+OUTPUT = Path(os.environ.get('BORDERS_EVIDENCE_DIR', ROOT)).resolve()
+(OUTPUT / 'docs').mkdir(parents=True, exist_ok=True)
 compiler = str(ROOT / 'out/lang_next')
 readers = ('lang', 'minipy', 'minilisp')
 features = ('integers', 'floats', 'strings', 'functions', 'structs')
@@ -51,10 +53,11 @@ with tempfile.TemporaryDirectory(prefix='borders-') as temp:
                         status = 'crash' if code < 0 else 'rejected'
                 if status in ('wrong', 'crash'):
                     bug = f'test/borders/bugs/{reader}_{feature}_{target}.lang'
-                    shutil.copyfile(fixture, bug)
+                    (OUTPUT / bug).parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(fixture, OUTPUT / bug)
                     fixture = bug
                 cells.append(dict(reader=reader, feature=feature, target=target, status=status, fixture=fixture, exit_code=code, detail=detail))
-Path('borders.json').write_text(json.dumps({'cells': cells}, indent=2) + '\n')
+(OUTPUT / 'borders.json').write_text(json.dumps({'cells': cells}, indent=2) + '\n')
 lines = ['# Borders', '', 'Zig has no current reader or AIR importer.', 'The previous experimental approaches were removed.', 'A maintained frontend for a defined subset is needed.', '', 'See [Zig status](../ZIG-STATUS.md) for the history.', '', '| Reader | Feature | LLVM x86-64 | Wasm |', '| --- | --- | --- | --- |']
 for reader in readers:
     for feature in features:
@@ -62,5 +65,5 @@ for reader in readers:
         links = [f"[{c['status']}](../{c['fixture']})" for c in pair]
         lines.append(f'| {reader} | {feature} | {links[0]} | {links[1]} |')
 lines += ['| Zig | missing reader | [rejected at line 1](../test/borders/missing.zig#L1) | [rejected at line 1](../test/borders/missing.zig#L1) |', '', 'Zig is rejected before target selection.', '', 'Each result is from compiling and running its fixture; a rejection is a compiler or linker error. Exit 42 is the expected result. See `borders.json` for diagnostics and exit codes.']
-Path('docs/BORDERS.md').write_text('\n'.join(lines) + '\n')
+(OUTPUT / 'docs/BORDERS.md').write_text('\n'.join(lines) + '\n')
 print('Wrote borders.json and docs/BORDERS.md')

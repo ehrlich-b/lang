@@ -1,0 +1,172 @@
+// Reader-neutral AST structure, checked before conversion or review formatting.
+// Field codes: s symbol, a operator/symbol, q string, # number, b boolean;
+// n node, o nullable node, t nullable type, d declaration; uppercase codes
+// are untagged lists (params, types, fields, variants, macro names, cases).
+// ? marks one optional field and * repeats a field. Keep the browser table
+// in web/program_host.js in sync; the contract checks both against this table.
+func ast_shape_schema(head *u8) *u8 {
+    if streq(head, "program") { return "g:d*"; }
+    if streq(head, "ast-version") { return "z:#"; }
+    if streq(head, "func") { return "d:sPto"; }
+    if streq(head, "extern_func") { return "d:sPto"; }
+    if streq(head, "var") { return "d:sto?"; }
+    if streq(head, "extern_var") { return "d:sto?"; }
+    if streq(head, "struct") { return "d:sF"; }
+    if streq(head, "enum") { return "d:sV"; }
+    if streq(head, "effect") { return "d:sTt"; }
+    if streq(head, "reader") { return "d:ssn"; }
+    if streq(head, "macro") { return "d:sMn"; }
+    if streq(head, "include") { return "d:q"; }
+    if streq(head, "require") { return "d:q"; }
+    if streq(head, "modules") { return "d:q*"; }
+    if streq(head, "param") { return "p:st"; }
+    if streq(head, "field_decl") { return "f:st"; }
+    if streq(head, "variant_decl") { return "v:st?"; }
+    if streq(head, "case") { return "c:kn"; }
+    if streq(head, "pattern_wildcard") { return "k:"; }
+    if streq(head, "pattern_variant") { return "k:sss?"; }
+    if streq(head, "return_handler") { return "r:sn"; }
+    if streq(head, "effect_handler") { return "h:sssn"; }
+    if streq(head, "type_base") { return "t:s"; }
+    if streq(head, "type_ptr") { return "t:t"; }
+    if streq(head, "type_func") { return "t:Tt"; }
+    if streq(head, "type_closure") { return "t:Tt"; }
+    if streq(head, "type_array") { return "t:#t"; }
+    if streq(head, "block") { return "n:n*"; }
+    if streq(head, "block_expr") { return "n:nn*"; }
+    if streq(head, "array_literal") { return "n:n*"; }
+    if streq(head, "if") { return "n:nno?"; }
+    if streq(head, "while") { return "n:nns?"; }
+    if streq(head, "return") { return "n:o?"; }
+    if streq(head, "break") { return "n:s?"; }
+    if streq(head, "continue") { return "n:s?"; }
+    if streq(head, "expr_stmt") { return "n:n"; }
+    if streq(head, "assign") { return "n:nn"; }
+    if streq(head, "ident") { return "n:s"; }
+    if streq(head, "number") { return "n:#"; }
+    if streq(head, "string") { return "n:q"; }
+    if streq(head, "bool") { return "n:b"; }
+    if streq(head, "nil") { return "n:"; }
+    if streq(head, "binop") { return "n:ann"; }
+    if streq(head, "unop") { return "n:an"; }
+    if streq(head, "int_compare") { return "n:stnn"; }
+    if streq(head, "int_convert") { return "n:sttn"; }
+    if streq(head, "cast") { return "n:tn"; }
+    if streq(head, "bitcast") { return "n:tn"; }
+    if streq(head, "call") { return "n:nn*"; }
+    if streq(head, "field") { return "n:ns"; }
+    if streq(head, "index") { return "n:nn"; }
+    if streq(head, "quote") { return "n:n"; }
+    if streq(head, "unquote") { return "n:s"; }
+    if streq(head, "unquote_string") { return "n:s"; }
+    if streq(head, "let") { return "n:snn"; }
+    if streq(head, "lambda") { return "n:Ptn"; }
+    if streq(head, "match") { return "n:nC"; }
+    if streq(head, "perform") { return "n:sn*"; }
+    if streq(head, "handle") { return "n:nrh*"; }
+    if streq(head, "resume") { return "n:no?"; }
+    if streq(head, "reader_expr") { return "n:sq"; }
+    if streq(head, "span") { return "n:##n"; }
+    return nil;
+}
+var ast_shape_text *u8 = nil;
+func ast_shape_check(node *PNode, role u8, text *u8) void {
+    var saved *u8 = ast_shape_text;
+    ast_shape_text = text;
+    ast_shape_validate(node, role);
+    ast_shape_text = saved;
+}
+func ast_shape_error(node *PNode) void {
+    var start i64 = node.start;
+    var end i64 = node.end;
+    // Generated AST offsets belong in the message, not in the guest source's
+    // span. Leave an unmapped guest-source span unset.
+    if sexpr_reader_source_text != nil && ast_shape_text != nil {
+        if streq(sexpr_reader_source_text, ast_shape_text) == 0 {
+            start = -1; end = -1;
+        }
+    }
+    ___compiler_diagnostic_context("ast-shape", phase_diagnostic_source, start, end);
+    eprint(phase_diagnostic_source);
+    eprint(": error: ast-shape at bytes "); eprint_i64(node.start);
+    eprint(":"); eprint_i64(node.end); eprintln("");
+    exit(1);
+}
+func ast_shape_validate(node *PNode, role u8) void {
+    var head *u8 = nil;
+    var schema *u8 = nil;
+    var signature *u8 = nil;
+    var count i64 = 0;
+    var index i64 = 1;
+    var code u8 = 0;
+    var repeated i64 = 0;
+    var optional i64 = 0;
+    var element u8 = 0;
+    var i i64 = 0;
+    if role == 'o' || role == 't' {
+        if sexpr_is(node, "nil") { return; }
+    }
+    if role == 'o' { role = 'n'; }
+    if role == 's' || role == 'a' || role == 'q' || role == '#' || role == 'b' {
+        if role == 's' && node.kind == PNODE_SYMBOL { return; }
+        if role == 'a' && (node.kind == PNODE_SYMBOL || node.kind == PNODE_OPERATOR) { return; }
+        if role == 'q' && node.kind == PNODE_STRING { return; }
+        if role == '#' && node.kind == PNODE_NUMBER { return; }
+        if role == 'b' && (sexpr_is(node, "true") || sexpr_is(node, "false")) { return; }
+        ast_shape_error(node); return;
+    }
+    if node.kind != PNODE_LIST { ast_shape_error(node); return; }
+    count = sexpr_len(node);
+    if role == 'P' { element = 'p'; }
+    if role == 'T' { element = 't'; }
+    if role == 'F' { element = 'f'; }
+    if role == 'V' { element = 'v'; }
+    if role == 'M' { element = 's'; }
+    if role == 'C' { element = 'c'; }
+    if element != 0 {
+        while i < count { ast_shape_validate(sexpr_get(node, i), element); i = i + 1; }
+        return;
+    }
+    head = sexpr_head(node);
+    if head == nil { ast_shape_error(node); return; }
+    schema = ast_shape_schema(head);
+    if schema == nil { ast_shape_error(node); return; }
+    // Span wrappers retain the context of their contained node.
+    if streq(head, "span") && (role == 'n' || role == 'd') {
+        if count != 4 { ast_shape_error(node); return; }
+        ast_shape_validate(sexpr_get(node, 1), '#');
+        ast_shape_validate(sexpr_get(node, 2), '#');
+        ast_shape_validate(sexpr_get(node, 3), role);
+        return;
+    }
+    if *schema != role {
+        if role != 'n' || *schema != 'd' { ast_shape_error(node); return; }
+    }
+    signature = schema + 2;
+    if streq(head, "func") || streq(head, "extern_func") || streq(head, "var") ||
+       streq(head, "extern_var") || streq(head, "struct") || streq(head, "enum") ||
+       streq(head, "effect") || streq(head, "reader") {
+        if count > 1 { if sexpr_is(sexpr_get(node, 1), "pub") { index = 2; } }
+    }
+    if streq(head, "program") && count > 1 {
+        var first_head *u8 = sexpr_head(sexpr_get(node, 1));
+        if first_head != nil { if streq(first_head, "ast-version") {
+            ast_shape_validate(sexpr_get(node, 1), 'z'); index = 2;
+        } }
+    }
+    if streq(head, "let") && count == 5 { signature = "stnn"; }
+    while *signature != 0 {
+        code = *signature; signature = signature + 1;
+        repeated = 0; optional = 0;
+        if *signature == '*' { repeated = 1; signature = signature + 1; }
+        if *signature == '?' { optional = 1; signature = signature + 1; }
+        if repeated != 0 {
+            while index < count {
+                ast_shape_validate(sexpr_get(node, index), code); index = index + 1;
+            }
+        } else if index < count {
+            ast_shape_validate(sexpr_get(node, index), code); index = index + 1;
+        } else if optional == 0 { ast_shape_error(node); return; }
+    }
+    if index != count { ast_shape_error(node); }
+}

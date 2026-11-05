@@ -88,33 +88,35 @@ func is_operator_token(kind i64) bool {
 
 func parse_sexpr(t *Tokenizer) *PNode {
     var kind i64 = tok_kind(t);
+    var start i64 = tok_start_offset(t);
+    var end i64 = tok_end_offset(t);
 
     // number
     if kind == TOK_NUMBER {
         var text *u8 = tok_text(t);
         tok_next(t);
-        return pnode_atom(PNODE_NUMBER, text);
+        return pnode_atom_span(PNODE_NUMBER, text, start, end);
     }
 
     // symbol (identifier)
     if kind == TOK_IDENT {
         var text *u8 = tok_text(t);
         tok_next(t);
-        return pnode_atom(PNODE_SYMBOL, text);
+        return pnode_atom_span(PNODE_SYMBOL, text, start, end);
     }
 
     // string
     if kind == TOK_STRING {
         var text *u8 = tok_text(t);
         tok_next(t);
-        return pnode_atom(PNODE_STRING, text);
+        return pnode_atom_span(PNODE_STRING, text, start, end);
     }
 
     // operator
     if is_operator_token(kind) {
         var text *u8 = tok_text(t);
         tok_next(t);
-        return pnode_atom(PNODE_OPERATOR, text);
+        return pnode_atom_span(PNODE_OPERATOR, text, start, end);
     }
 
     // list: '(' sexpr* ')'
@@ -136,9 +138,12 @@ func parse_sexpr(t *Tokenizer) *PNode {
             eprintln("Error: expected ')' in S-expression");
             return nil;
         }
+        end = tok_end_offset(t);
         tok_next(t);  // consume ')'
 
-        return pnode_list(children);
+        var list *PNode = pnode_list(children);
+        list.start = start; list.end = end;
+        return list;
     }
 
     // Unknown token
@@ -185,6 +190,8 @@ func sexpr_head(node *PNode) *u8 {
     if first.kind != PNODE_SYMBOL { return nil; }
     return first.text;
 }
+
+include "src/ast_shape.lang"
 
 // ============================================================
 // String helpers
@@ -1086,19 +1093,13 @@ func sexpr_to_node_inner(node *PNode) *u8 {
         let_expr_set_name(n, sexpr_strdup(name_node.text));
         let_expr_set_name_len(n, strlen(name_node.text));
 
-        // Check if we have type or not
-        var next *PNode = sexpr_get(node, 2);
-        if next.kind == PNODE_LIST && streq(sexpr_head(next), "type_base") {
-            let_expr_set_type(n, sexpr_to_type(next));
-            let_expr_set_init(n, sexpr_to_node(sexpr_get(node, 3)));
-            let_expr_set_body(n, sexpr_to_node(sexpr_get(node, 4)));
-        } else if next.kind == PNODE_LIST && streq(sexpr_head(next), "type_ptr") {
-            let_expr_set_type(n, sexpr_to_type(next));
+        if sexpr_len(node) == 5 {
+            let_expr_set_type(n, sexpr_to_type(sexpr_get(node, 2)));
             let_expr_set_init(n, sexpr_to_node(sexpr_get(node, 3)));
             let_expr_set_body(n, sexpr_to_node(sexpr_get(node, 4)));
         } else {
             let_expr_set_type(n, nil);
-            let_expr_set_init(n, sexpr_to_node(next));
+            let_expr_set_init(n, sexpr_to_node(sexpr_get(node, 2)));
             let_expr_set_body(n, sexpr_to_node(sexpr_get(node, 3)));
         }
         return n;
@@ -1338,6 +1339,7 @@ func parse_ast_from_string(source *u8) *u8 {
         return nil;
     }
 
+    ast_shape_check(node, 'g', source);
     return sexpr_to_program(node);
 }
 
@@ -1375,6 +1377,7 @@ func parse_ast_expression_from_string(source *u8) *u8 {
         return nil;
     }
 
+    ast_shape_check(node, 'n', source);
     return sexpr_to_node(node);
 }
 
