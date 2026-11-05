@@ -87,7 +87,9 @@ Or mint a native compiler that understands `.tiny` directly:
 ```
 
 That is the “compiler compiler” part: `tiny.lang` is ordinary Lang code, while
-`tinyc` is a native compiler produced from it. The lower-level `-c tiny` form
+`tinyc` is a native compiler produced from it. For an editable policy reader with runtime input and the complete LLVM/link/run
+route, follow the [shipping walkthrough](../example/shipping/README.md).
+The lower-level `-c tiny` form
 emits compiler IR when you need to inspect or cross-compile it.
 
 Readers may emit calls into a Lang runtime. Embed that runtime in the compiler

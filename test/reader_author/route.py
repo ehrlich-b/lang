@@ -135,8 +135,8 @@ def main():
         work = clone / 'out/shipping-work'
         ast = (work / 'policy.ast').read_text()
         exclusive = (work / 'exclusive.ast').read_text()
-        require(re.search(r'\(>=\s+\(ident total\)\s+\(number 100\)', ast), 'AST must compare variable total >= 100')
-        require(re.search(r'\(>\s+\(ident total\)\s+\(number 100\)', exclusive), 'edited AST must compare variable total > 100')
+        require(re.search(r'\(binop >=\s+\(ident total\)\s+\(number 100\)', ast), 'AST must compare variable total >= 100')
+        require(re.search(r'\(binop >\s+\(ident total\)\s+\(number 100\)', exclusive), 'edited AST must compare variable total > 100')
         for name in ('policy.ast', 'exclusive.ast'):
             shutil.copyfile(work / name, evidence / name)
         # Prove that the reader edit changes native execution, using the saved AST.
@@ -182,7 +182,7 @@ def main():
             require(message.encode() in result.stderr, f'{name}: missing expected diagnostic')
         # A changed policy must change both constants, preventing a canned 10/100 implementation.
         custom = scratch / 'custom.shipping'
-        custom.write_text('shipping { free_over 80; base 7; }')
+        custom.write_text('shipping { free_over 00080; base 00007; }')
         shutil.copyfile(custom, evidence / custom.name)
         replay.run([str(minted), str(custom), '-o', str(scratch / 'custom.ll')], 'custom-llvm', isolated)
         replay.run(['clang', str(scratch / 'custom.ll'), '-o', str(scratch / 'custom')], 'custom-link', isolated)

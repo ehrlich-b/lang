@@ -27,5 +27,5 @@ func shipping_total(argc i64, argv **u8) i64 {
 }
 
 func shipping_print(fee i64) i64 {
-    print_i64(fee); println(""); return 0;
+    print_int(fee); println(""); return 0;
 }
