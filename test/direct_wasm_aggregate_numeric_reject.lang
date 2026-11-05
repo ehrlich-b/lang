@@ -1,0 +1,3 @@
+// Float-to-integer global conversion must fail before integer token parsing.
+var values [1]i64 = [1.5];
+func main() i64 { return values[0]; }

@@ -1966,6 +1966,11 @@ func wasm_emit_memory_section() void {
 func wasm_const_value(expr *u8) i64 {
     if expr == nil || node_kind(expr) == NODE_NIL_EXPR { return 0; }
     if node_kind(expr) == NODE_NUMBER_EXPR {
+        if wasm_number_is_float(expr) {
+            cg_diagnostic_node = expr;
+            wasm_unsupported("float-to-integer global initialization is unsupported; convert in a function");
+            return 0;
+        }
         return wasm_parse_integer(number_expr_value(expr), number_expr_value_len(expr));
     }
     if node_kind(expr) == NODE_BOOL_EXPR { return bool_expr_value(expr); }

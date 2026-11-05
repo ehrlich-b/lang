@@ -74,6 +74,26 @@ if ! grep -q '^test/direct_wasm_aggregate_return_reject.lang:2:.*: error:' "$tmp
     exit 1
 fi
 
+numeric="$tmp/numeric.wasm"
+if LANGBE=wasm LANGOS=wasm "$COMPILER" test/direct_wasm_aggregate_numeric_reject.lang -o "$numeric" \
+   >"$tmp/numeric.out" 2>"$tmp/numeric.err"; then
+    echo "direct wasm unexpectedly accepted float-to-integer global initialization" >&2
+    exit 1
+else
+    status=$?
+    if [ "$status" -ne 1 ]; then
+        cat "$tmp/numeric.err" >&2
+        echo "direct wasm numeric rejection exited $status instead of 1" >&2
+        exit 1
+    fi
+fi
+if [ -e "$numeric" ] || \
+   ! grep -q '^test/direct_wasm_aggregate_numeric_reject.lang:2:.*: error:.*float-to-integer global initialization is unsupported' "$tmp/numeric.err"; then
+    cat "$tmp/numeric.err" >&2
+    echo "direct wasm numeric rejection did not preserve source provenance or left partial output" >&2
+    exit 1
+fi
+
 if LANGBE=wasm LANGOS=wasm "$COMPILER" test/direct_wasm_float_reject.lang -o "$tmp/float-reject.wasm" >"$tmp/float-reject.out" 2>&1; then
     echo "direct wasm unexpectedly accepted floating remainder" >&2
     exit 1
