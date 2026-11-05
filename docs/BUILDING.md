@@ -77,9 +77,11 @@ for generated programs whose oracles do not depend on optimization, isolates
 each reader cache, and checks exit values or rejection diagnostics. Existing
 reader helper construction keeps the compiler's own build policy. Each test
 has a timeout; compilation, linking, execution and oracle failures fail the
-target. Output includes selected test count, aggregate process/child CPU seconds
-and wall seconds. `FRAGMENT_REPORT=/path/report.json` saves machine-readable
-results. Use `TMPDIR` to place temporary artifacts outside the checkout.
+target. A timeout kills the entire command process group, including reader
+subprocesses, before returning failure. Output includes selected test count,
+aggregate runner/reaped-child CPU seconds and wall seconds. CPU time from
+orphaned descendants killed on timeout may be unavailable to the runner.
+`FRAGMENT_REPORT=/path/report.json` saves machine-readable results. Use `TMPDIR` to place temporary artifacts outside the checkout.
 
 This is selective feedback, not proof of complete impact coverage. Integration
 still runs the unchanged `make verify`, `make bootstrap` and

@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import resource
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
@@ -68,8 +69,20 @@ def select(paths, mapping):
 
 
 def invoke(command, env, timeout=30):
-    result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, timeout=timeout)
-    return result.returncode, (result.stdout + result.stderr).decode("utf-8", "replace")
+    # Readers and helper compilers inherit this group, even when the immediate
+    # child exits or a descendant closes the captured output pipes.
+    with subprocess.Popen(command, cwd=ROOT, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, start_new_session=True) as process:
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass  # The whole group already exited.
+            process.communicate()  # Drain pipes and reap the immediate child.
+            raise
+        return process.returncode, (stdout + stderr).decode("utf-8", "replace")
 
 
 def run_test(name, compiler, mapping, scratch):
@@ -112,7 +125,11 @@ def run_test(name, compiler, mapping, scratch):
                     ok = ok and detail == case["stdout"]
                 detail = f"expected exit {expected}, got {status}\n" + detail
             return {"test": name, "status": "PASS" if ok else "FAIL", "detail": detail}
-        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        except subprocess.TimeoutExpired as exc:
+            return {"test": name, "status": "FAIL",
+                    "detail": f"{exc}; command process group killed; "
+                              "CPU time for orphaned descendants may be unavailable"}
+        except (OSError, ValueError) as exc:
             return {"test": name, "status": "FAIL", "detail": str(exc)}
 
 
