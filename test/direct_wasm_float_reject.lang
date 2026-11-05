@@ -1,0 +1,2 @@
+// Floating remainder has no direct-Wasm lowering.
+func main() i64 { return cast(i64, 1.5 % 0.5); }

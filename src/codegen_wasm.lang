@@ -34,6 +34,8 @@ var wasm_local_count i64 = 0;
 var wasm_param_count i64 = 0;
 var wasm_spill_frame_size i64 = 0;
 var wasm_spill_base_local i64 = 0;
+var wasm_float_left_local i64 = 0;
+var wasm_float_right_local i64 = 0;
 var wasm_bindings *u8 = nil;    // active [name:8][len:8][local index:8]
 var wasm_binding_count i64 = 0;
 var wasm_control_depth i64 = 0;
@@ -46,6 +48,8 @@ var wasm_included_files *u8 = nil;
 var wasm_reader_exprs *u8 = nil;
 var wasm_reader_expansions *u8 = nil;
 var wasm_i64_type *u8 = nil;
+var wasm_f32_type *u8 = nil;
+var wasm_f64_type *u8 = nil;
 var wasm_u8_type *u8 = nil;
 var wasm_u8_ptr_type *u8 = nil;
 
@@ -146,7 +150,37 @@ func wasm_type_is_void(t *u8) i64 {
     return wasm_name_eq(base_type_name(t), base_type_name_len(t), "void", 4);
 }
 
+// Integer and pointer values retain the legacy i64 carrier; floats have
+// native Wasm value types in locals, function signatures and globals.
+func wasm_float_width(t *u8) i64 {
+    if t == nil || type_kind(t) != TYPE_BASE { return 0; }
+    if wasm_name_eq(base_type_name(t), base_type_name_len(t), "f32", 3) { return 32; }
+    if wasm_name_eq(base_type_name(t), base_type_name_len(t), "f64", 3) { return 64; }
+    return 0;
+}
+
+func wasm_value_type(t *u8) i64 {
+    if wasm_float_width(t) == 32 { return 125; }
+    if wasm_float_width(t) == 64 { return 124; }
+    return 126;
+}
+
+func wasm_number_is_float(expr *u8) i64 {
+    var i i64 = 0;
+    while i < number_expr_value_len(expr) {
+        if *(number_expr_value(expr) + i) == '.' { return 1; }
+        i = i + 1;
+    }
+    return 0;
+}
+
+func wasm_is_comparison(op i64) i64 {
+    return op == TOKEN_EQEQ || op == TOKEN_BANGEQ || op == TOKEN_LT ||
+           op == TOKEN_GT || op == TOKEN_LTEQ || op == TOKEN_GTEQ;
+}
+
 func wasm_type_is_value(t *u8) i64 {
+    if wasm_float_width(t) != 0 { return 1; }
     if t == nil { return 0; }
     if type_kind(t) == TYPE_PTR { return 1; }
     if type_kind(t) != TYPE_BASE { return 0; }
@@ -171,6 +205,8 @@ func wasm_type_is_unsigned(t *u8) i64 {
 func wasm_type_size(t *u8) i64 {
     if t == nil { return 8; }
     if type_kind(t) == TYPE_PTR { return 8; }
+    if type_kind(t) == TYPE_ARRAY { return array_type_size(t) * wasm_type_size(array_type_elem(t)); }
+    if wasm_float_width(t) == 32 { return 4; }
     if type_kind(t) != TYPE_BASE { return 8; }
     var name *u8 = base_type_name(t);
     var len i64 = base_type_name_len(t);
@@ -482,7 +518,20 @@ func wasm_collect_locals(stmt *u8) void {
     if stmt == nil { return; }
     var kind i64 = node_kind(stmt);
     if kind == NODE_VAR_DECL {
-        if wasm_type_is_value(var_decl_type(stmt)) == 0 {
+        var t *u8 = var_decl_type(stmt);
+        // Literal-initialized scalar arrays provide addressable local storage.
+        // Other aggregate forms still fail closed.
+        var init *u8 = var_decl_init(stmt);
+        if t != nil && type_kind(t) == TYPE_ARRAY &&
+           wasm_type_is_value(array_type_elem(t)) && init != nil &&
+           node_kind(init) == NODE_ARRAY_LITERAL &&
+           array_literal_count(init) == array_type_size(t) &&
+           array_type_size(t) > 0 && array_type_size(t) <= 65536 {
+            var local i64 = wasm_local_add(var_decl_name(stmt), var_decl_name_len(stmt), t, stmt);
+            wasm_mark_local_spilled(local);
+            return;
+        }
+        if wasm_type_is_value(t) == 0 {
             wasm_unsupported("direct wasm currently supports only scalar and pointer locals");
             return;
         }
@@ -531,6 +580,14 @@ func wasm_scan_address_expr(expr *u8) void {
         wasm_scan_address_expr(cast_expr_expr(expr));
     } else if kind == NODE_BITCAST_EXPR {
         wasm_scan_address_expr(bitcast_expr_expr(expr));
+    } else if kind == NODE_ARRAY_LITERAL {
+        var elems *u8 = array_literal_elems(expr);
+        var i i64 = 0;
+        while i < array_literal_count(expr) {
+            var p **u8 = elems + i * 8;
+            wasm_scan_address_expr(*p);
+            i = i + 1;
+        }
     } else if kind == NODE_INDEX_EXPR {
         wasm_scan_address_expr(index_expr_base(expr));
         wasm_scan_address_expr(index_expr_index(expr));
@@ -593,7 +650,8 @@ func wasm_assign_spill_offsets() void {
         if wasm_local_is_spilled(i) != 0 {
             var slot *i64 = wasm_locals + i * 56 + 48;
             *slot = offset;
-            offset = offset + 8;
+            var size i64 = wasm_type_size(wasm_local_type(i));
+            offset = offset + ((size + 7) / 8) * 8;
         }
         i = i + 1;
     }
@@ -638,7 +696,11 @@ func wasm_expr_type(expr *u8) *u8 {
     if expr == nil { return nil; }
     if node_kind(expr) == NODE_READER_EXPR { return wasm_expr_type(wasm_expand_reader_expr(expr)); }
     var kind i64 = node_kind(expr);
-    if kind == NODE_NUMBER_EXPR || kind == NODE_BOOL_EXPR { return wasm_i64_type; }
+    if kind == NODE_NUMBER_EXPR {
+        if wasm_number_is_float(expr) { return wasm_f64_type; }
+        return wasm_i64_type;
+    }
+    if kind == NODE_BOOL_EXPR { return wasm_i64_type; }
     if kind == NODE_STRING_EXPR { return wasm_u8_ptr_type; }
     if kind == NODE_NIL_EXPR { return wasm_u8_ptr_type; }
     if kind == NODE_GROUP_EXPR { return wasm_expr_type(group_expr_expr(expr)); }
@@ -654,6 +716,7 @@ func wasm_expr_type(expr *u8) *u8 {
         return nil;
     }
     if kind == NODE_UNARY_EXPR {
+        if unary_expr_op(expr) == TOKEN_BANG { return wasm_i64_type; }
         var inner_type *u8 = wasm_expr_type(unary_expr_expr(expr));
         if unary_expr_op(expr) == TOKEN_AMP {
             var pointer_type *u8 = ptr_type_alloc();
@@ -668,6 +731,7 @@ func wasm_expr_type(expr *u8) *u8 {
     if kind == NODE_INDEX_EXPR {
         var base_type *u8 = wasm_expr_type(index_expr_base(expr));
         if base_type != nil && type_kind(base_type) == TYPE_PTR { return ptr_type_elem(base_type); }
+        if base_type != nil && type_kind(base_type) == TYPE_ARRAY { return array_type_elem(base_type); }
         return nil;
     }
     if kind == NODE_FIELD_EXPR {
@@ -675,7 +739,12 @@ func wasm_expr_type(expr *u8) *u8 {
         return wasm_field_type(decl, field_expr_field(expr), field_expr_field_len(expr));
     }
     if kind == NODE_BINARY_EXPR {
+        var op i64 = binary_expr_op(expr);
+        if wasm_is_comparison(op) || op == TOKEN_AMPAMP || op == TOKEN_PIPEPIPE { return wasm_i64_type; }
         var left_type *u8 = wasm_expr_type(binary_expr_left(expr));
+        var right_type *u8 = wasm_expr_type(binary_expr_right(expr));
+        if wasm_float_width(left_type) == 64 || wasm_float_width(right_type) == 64 { return wasm_f64_type; }
+        if wasm_float_width(left_type) == 32 || wasm_float_width(right_type) == 32 { return wasm_f32_type; }
         if left_type != nil && type_kind(left_type) == TYPE_PTR &&
            (binary_expr_op(expr) == TOKEN_PLUS || binary_expr_op(expr) == TOKEN_MINUS) {
             return left_type;
@@ -729,6 +798,7 @@ func wasm_emit_address(expr *u8, out *WasmBuf) *u8 {
         var base_type *u8 = wasm_expr_type(base);
         var elem_type *u8 = nil;
         if base_type != nil && type_kind(base_type) == TYPE_PTR { elem_type = ptr_type_elem(base_type); }
+        if base_type != nil && type_kind(base_type) == TYPE_ARRAY { elem_type = array_type_elem(base_type); }
         wasm_emit_expr(base, out);
         wasm_emit_expr(index_expr_index(expr), out);
         var size i64 = wasm_type_size(elem_type);
@@ -789,7 +859,9 @@ func wasm_emit_load(value_type *u8, out *WasmBuf) void {
            wasm_name_eq(name, len, "i16", 3) != 0 ||
            wasm_name_eq(name, len, "i32", 3) != 0 { signed = 1; }
     }
-    if size == 1 {
+    if wasm_float_width(value_type) == 32 { wasm_put(out, 42); } // f32.load
+    else if wasm_float_width(value_type) == 64 { wasm_put(out, 43); } // f64.load
+    else if size == 1 {
         if signed != 0 { wasm_put(out, 48); } else { wasm_put(out, 49); }
     } else if size == 2 {
         if signed != 0 { wasm_put(out, 50); } else { wasm_put(out, 51); }
@@ -802,7 +874,9 @@ func wasm_emit_load(value_type *u8, out *WasmBuf) void {
 
 func wasm_emit_store(value_type *u8, out *WasmBuf) void {
     var size i64 = wasm_type_size(value_type);
-    if size == 1 { wasm_put(out, 60); }       // i64.store8
+    if wasm_float_width(value_type) == 32 { wasm_put(out, 56); } // f32.store
+    else if wasm_float_width(value_type) == 64 { wasm_put(out, 57); } // f64.store
+    else if size == 1 { wasm_put(out, 60); }       // i64.store8
     else if size == 2 { wasm_put(out, 61); }  // i64.store16
     else if size == 4 { wasm_put(out, 62); }  // i64.store32
     else { wasm_put(out, 55); }               // i64.store
@@ -840,8 +914,15 @@ func wasm_emit_spill_restore(out *WasmBuf) void {
 
 func wasm_emit_truth(expr *u8, out *WasmBuf) void {
     wasm_emit_expr(expr, out);
-    wasm_put(out, 80);  // i64.eqz
-    wasm_put(out, 69);  // i32.eqz: nonzero becomes true
+    var t *u8 = wasm_expr_type(expr);
+    if wasm_float_width(t) != 0 {
+        wasm_emit_zero(t, out);
+        if wasm_float_width(t) == 32 { wasm_put(out, 92); } // f32.ne
+        else { wasm_put(out, 98); } // f64.ne
+    } else {
+        wasm_put(out, 80);  // i64.eqz
+        wasm_put(out, 69);  // i32.eqz: nonzero becomes true
+    }
 }
 
 func wasm_integer_normalize(t *u8, out *WasmBuf) void {
@@ -889,6 +970,172 @@ func wasm_emit_integer(expr *u8, out *WasmBuf) void {
     wasm_put(out, 173);  // boolean -> i64 carrier
 }
 
+// Convert the bounded decimal token to binary, retaining guard and sticky
+// bits for round-to-nearest, ties-to-even, including subnormals. No host
+// floating parser or LLVM service is needed by the direct emitter.
+func wasm_decimal_bits(expr *u8) i64 {
+    var len i64 = number_expr_value_len(expr);
+    var text *u8 = number_expr_value(expr);
+    var negative i64 = 0;
+    // Reader-generated number ASTs may carry a sign inside the token.
+    if len > 0 && (*text == '-' || *text == '+') {
+        if *text == '-' { negative = 1; }
+        text = text + 1;
+        len = len - 1;
+    }
+    var digits *u8 = alloc(len + 1);
+    memcpy(digits, text, len);
+    *(digits + len) = 0;
+    var point i64 = 0;
+    while point < len && *(digits + point) != '.' { point = point + 1; }
+    // Index 1075 is 2^0; index 1 is the least subnormal bit, 2^-1074.
+    var bits *u8 = alloc(2099);
+    var clear i64 = 0;
+    while clear < 2099 { *(bits + clear) = 0; clear = clear + 1; }
+    var count i64 = 0;
+    var nonzero i64 = 1;
+    while nonzero {
+        var carry i64 = 0;
+        nonzero = 0;
+        var i i64 = 0;
+        while i < point {
+            var digit i64 = carry * 10 + (*(digits + i) - '0');
+            *(digits + i) = '0' + digit / 2;
+            carry = digit % 2;
+            if *(digits + i) != '0' { nonzero = 1; }
+            i = i + 1;
+        }
+        if count >= 1024 { wasm_error("float literal is outside finite f64 range"); free(digits); free(bits); return 0; }
+        *(bits + 1075 + count) = carry;
+        count = count + 1;
+    }
+    var position i64 = 1;
+    while position <= 1075 {
+        var carry i64 = 0;
+        var i i64 = len - 1;
+        while i > point {
+            var digit i64 = (*(digits + i) - '0') * 2 + carry;
+            *(digits + i) = '0' + digit % 10;
+            carry = digit / 10;
+            i = i - 1;
+        }
+        *(bits + 1075 - position) = carry;
+        position = position + 1;
+    }
+    var sticky i64 = 0;
+    var i i64 = point + 1;
+    while i < len {
+        if *(digits + i) != '0' { sticky = 1; }
+        i = i + 1;
+    }
+    var top i64 = 2098;
+    while top >= 0 && *(bits + top) == 0 { top = top - 1; }
+    var shift i64 = top - 52;
+    if shift < 1 { shift = 1; }
+    var mantissa i64 = 0;
+    i = top;
+    while i >= shift {
+        mantissa = mantissa * 2 + *(bits + i);
+        i = i - 1;
+    }
+    i = shift - 2;
+    while i >= 0 {
+        if *(bits + i) != 0 { sticky = 1; }
+        i = i - 1;
+    }
+    if *(bits + shift - 1) != 0 && (sticky || (mantissa & 1)) {
+        mantissa = mantissa + 1;
+    }
+    var result i64 = mantissa;
+    if top >= 53 { result = (top - 53) * 4503599627370496 + mantissa; }
+    if result >= 9218868437227405312 { wasm_error("float literal is outside finite f64 range"); free(digits); free(bits); return 0; }
+    free(digits); free(bits);
+    return result | (negative << 63);
+}
+
+func wasm_emit_float_bits(bits i64, width i64, out *WasmBuf) void {
+    if width == 32 { wasm_put(out, 67); } else { wasm_put(out, 68); }
+    var i i64 = 0;
+    while i < width / 8 {
+        wasm_put(out, bits & 255);
+        bits = bits >> 8;
+        i = i + 1;
+    }
+}
+
+func wasm_emit_zero(t *u8, out *WasmBuf) void {
+    var width i64 = wasm_float_width(t);
+    if width != 0 { wasm_emit_float_bits(0, width, out); }
+    else { wasm_put(out, 66); wasm_put_sleb(out, 0); }
+}
+
+func wasm_emit_convert(src *u8, dst *u8, out *WasmBuf) void {
+    var from i64 = wasm_float_width(src);
+    var to i64 = wasm_float_width(dst);
+    if from == 32 && to == 64 { wasm_put(out, 187); } // f64.promote_f32
+    else if from == 64 && to == 32 { wasm_put(out, 182); } // f32.demote_f64
+    else if from == 0 && to != 0 {
+        var unsigned i64 = wasm_type_is_unsigned(src);
+        if to == 32 { wasm_put(out, 180 + unsigned); } // f32.convert_i64
+        else { wasm_put(out, 185 + unsigned); } // f64.convert_i64
+    } else if from != 0 && to == 0 {
+        var unsigned i64 = wasm_type_is_unsigned(dst);
+        if from == 32 { wasm_put(out, 174 + unsigned); } // i64.trunc_f32
+        else { wasm_put(out, 176 + unsigned); } // i64.trunc_f64
+    }
+    if to == 0 && integer_type_bits(dst) > 0 { wasm_integer_normalize(dst, out); }
+}
+
+func wasm_emit_as(expr *u8, dst *u8, out *WasmBuf) void {
+    if expr == nil { wasm_emit_zero(dst, out); return; }
+    wasm_emit_expr(expr, out);
+    wasm_emit_convert(wasm_expr_type(expr), dst, out);
+}
+
+func wasm_emit_float_binary(expr *u8, left_type *u8, right_type *u8, out *WasmBuf) void {
+    var op i64 = binary_expr_op(expr);
+    if op == TOKEN_BANGEQ {
+        // Lang uses ordered comparisons, including !=. Evaluate each operand
+        // once, then exclude NaNs before extending the comparison to i64.
+        wasm_emit_as(binary_expr_left(expr), wasm_f64_type, out);
+        wasm_emit_as(binary_expr_right(expr), wasm_f64_type, out);
+        wasm_put(out, 33); wasm_put_uleb(out, wasm_float_right_local);
+        wasm_put(out, 33); wasm_put_uleb(out, wasm_float_left_local);
+        wasm_put(out, 32); wasm_put_uleb(out, wasm_float_left_local);
+        wasm_put(out, 32); wasm_put_uleb(out, wasm_float_right_local);
+        wasm_put(out, 98); // f64.ne
+        wasm_put(out, 32); wasm_put_uleb(out, wasm_float_left_local);
+        wasm_put(out, 32); wasm_put_uleb(out, wasm_float_left_local);
+        wasm_put(out, 97); wasm_put(out, 113); // f64.eq, i32.and
+        wasm_put(out, 32); wasm_put_uleb(out, wasm_float_right_local);
+        wasm_put(out, 32); wasm_put_uleb(out, wasm_float_right_local);
+        wasm_put(out, 97); wasm_put(out, 113);
+        wasm_put(out, 173);
+        return;
+    }
+    var t *u8 = wasm_f32_type;
+    if wasm_float_width(left_type) == 64 || wasm_float_width(right_type) == 64 { t = wasm_f64_type; }
+    wasm_emit_as(binary_expr_left(expr), t, out);
+    wasm_emit_as(binary_expr_right(expr), t, out);
+    var delta i64 = 0;
+    if wasm_float_width(t) == 64 { delta = 14; }
+    if op == TOKEN_PLUS { wasm_put(out, 146 + delta); }
+    else if op == TOKEN_MINUS { wasm_put(out, 147 + delta); }
+    else if op == TOKEN_STAR { wasm_put(out, 148 + delta); }
+    else if op == TOKEN_SLASH { wasm_put(out, 149 + delta); }
+    else if wasm_is_comparison(op) {
+        delta = 0;
+        if wasm_float_width(t) == 64 { delta = 6; }
+        if op == TOKEN_EQEQ { wasm_put(out, 91 + delta); }
+        else if op == TOKEN_BANGEQ { wasm_put(out, 92 + delta); }
+        else if op == TOKEN_LT { wasm_put(out, 93 + delta); }
+        else if op == TOKEN_GT { wasm_put(out, 94 + delta); }
+        else if op == TOKEN_LTEQ { wasm_put(out, 95 + delta); }
+        else if op == TOKEN_GTEQ { wasm_put(out, 96 + delta); }
+        wasm_put(out, 173); // i64 boolean carrier
+    } else { wasm_unsupported("unsupported floating operator in direct wasm"); }
+}
+
 func wasm_emit_expr(expr *u8, out *WasmBuf) void {
     if numeric_is_call(expr) { numeric_fail(expr, "exact numeric profile requires LLVM lowering (native or wasm target)"); }
     if expr == nil { wasm_put(out, 66); wasm_put_sleb(out, 0); return; }
@@ -896,6 +1143,10 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
     var kind i64 = node_kind(expr);
 
     if kind == NODE_NUMBER_EXPR {
+        if wasm_number_is_float(expr) {
+            wasm_emit_float_bits(wasm_decimal_bits(expr), 64, out);
+            return;
+        }
         wasm_put(out, 66);  // i64.const
         wasm_put_sleb(out, wasm_parse_integer(number_expr_value(expr), number_expr_value_len(expr)));
         return;
@@ -924,11 +1175,24 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         wasm_emit_integer(expr, out); return;
     }
     if kind == NODE_CAST_EXPR {
-        wasm_emit_expr(cast_expr_expr(expr), out);
+        wasm_emit_as(cast_expr_expr(expr), cast_expr_type(expr), out);
         return;
     }
     if kind == NODE_BITCAST_EXPR {
+        var src *u8 = wasm_expr_type(bitcast_expr_expr(expr));
+        var dst *u8 = bitcast_expr_type(expr);
+        var from i64 = wasm_float_width(src);
+        var to i64 = wasm_float_width(dst);
         wasm_emit_expr(bitcast_expr_expr(expr), out);
+        if from == to { return; }
+        if from == 64 && to == 0 && wasm_type_size(dst) == 8 { wasm_put(out, 189); }
+        else if from == 32 && to == 0 && wasm_type_size(dst) == 4 {
+            wasm_put(out, 188); // i32.reinterpret_f32
+            if wasm_type_is_unsigned(dst) { wasm_put(out, 173); } else { wasm_put(out, 172); }
+        } else if from == 0 && to == 64 && wasm_type_size(src) == 8 { wasm_put(out, 191); }
+        else if from == 0 && to == 32 && wasm_type_size(src) == 4 {
+            wasm_put(out, 167); wasm_put(out, 190);
+        } else { wasm_unsupported("float bitcast requires equal bit widths"); }
         return;
     }
     if kind == NODE_IDENT_EXPR {
@@ -936,7 +1200,10 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         if local >= 0 {
             if wasm_local_is_spilled(local) != 0 {
                 wasm_emit_spill_pointer(local, out, 1);
-                wasm_emit_load(wasm_local_type(local), out);
+                if type_kind(wasm_local_type(local)) == TYPE_ARRAY {
+                    // Array expressions denote their frame address.
+                    wasm_put(out, 173);
+                } else { wasm_emit_load(wasm_local_type(local), out); }
             } else {
                 wasm_put(out, 32);  // local.get
                 wasm_put_uleb(out, local);
@@ -955,19 +1222,28 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
     }
     if kind == NODE_UNARY_EXPR {
         var unary_op i64 = unary_expr_op(expr);
-        if unary_op == TOKEN_MINUS {
+        if unary_op == TOKEN_MINUS && wasm_float_width(wasm_expr_type(unary_expr_expr(expr))) != 0 {
+            wasm_emit_expr(unary_expr_expr(expr), out);
+            if wasm_float_width(wasm_expr_type(unary_expr_expr(expr))) == 32 { wasm_put(out, 140); }
+            else { wasm_put(out, 154); }
+        } else if unary_op == TOKEN_MINUS {
             wasm_put(out, 66); wasm_put_sleb(out, 0);
             wasm_emit_expr(unary_expr_expr(expr), out);
             wasm_put(out, 125);  // i64.sub
         } else if unary_op == TOKEN_BANG {
-            wasm_emit_expr(unary_expr_expr(expr), out);
-            wasm_put(out, 80);   // i64.eqz
+            wasm_emit_truth(unary_expr_expr(expr), out);
+            wasm_put(out, 69);   // i32.eqz
             wasm_put(out, 173);  // i64.extend_i32_u
         } else if unary_op == TOKEN_STAR {
             var loaded_type *u8 = wasm_emit_address(expr, out);
             wasm_emit_load(loaded_type, out);
         } else if unary_op == TOKEN_AMP {
             var inner *u8 = unary_expr_expr(expr);
+            if inner != nil && (node_kind(inner) == NODE_INDEX_EXPR || node_kind(inner) == NODE_FIELD_EXPR) {
+                wasm_emit_address(inner, out);
+                wasm_put(out, 173);
+                return;
+            }
             if inner == nil || node_kind(inner) != NODE_IDENT_EXPR {
                 wasm_unsupported("direct wasm currently takes addresses only of locals");
                 wasm_put(out, 66); wasm_put_sleb(out, 0);
@@ -1001,6 +1277,10 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         }
         var left_type *u8 = wasm_expr_type(binary_expr_left(expr));
         var right_type *u8 = wasm_expr_type(binary_expr_right(expr));
+        if wasm_float_width(left_type) != 0 || wasm_float_width(right_type) != 0 {
+            wasm_emit_float_binary(expr, left_type, right_type, out);
+            return;
+        }
         wasm_emit_expr(binary_expr_left(expr), out);
         wasm_emit_expr(binary_expr_right(expr), out);
         if left_type != nil && type_kind(left_type) == TYPE_PTR &&
@@ -1081,7 +1361,8 @@ func wasm_emit_expr(expr *u8, out *WasmBuf) void {
         var i i64 = 0;
         while i < call_expr_arg_count(expr) {
             var p **u8 = args + i * 8;
-            wasm_emit_expr(*p, out);
+            var param *u8 = func_decl_params(wasm_func_decl_by_index(index)) + i * 24;
+            wasm_emit_as(*p, param_type(param), out);
             i = i + 1;
         }
         wasm_put(out, 16);  // call
@@ -1125,14 +1406,27 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
     }
     if kind == NODE_VAR_DECL {
         var local i64 = wasm_local_for_decl(stmt);
-        if wasm_local_is_spilled(local) != 0 {
+        var t *u8 = wasm_local_type(local);
+        if type_kind(t) == TYPE_ARRAY {
+            var init *u8 = var_decl_init(stmt);
+            var elems *u8 = array_literal_elems(init);
+            var elem *u8 = array_type_elem(t);
+            var i i64 = 0;
+            while i < array_type_size(t) {
+                wasm_emit_spill_pointer(local, out, 0);
+                wasm_put(out, 66); wasm_put_sleb(out, i * wasm_type_size(elem));
+                wasm_put(out, 124); wasm_put(out, 167);
+                var p **u8 = elems + i * 8;
+                wasm_emit_as(*p, elem, out);
+                wasm_emit_store(elem, out);
+                i = i + 1;
+            }
+        } else if wasm_local_is_spilled(local) != 0 {
             wasm_emit_spill_pointer(local, out, 1);
-            if var_decl_init(stmt) != nil { wasm_emit_expr(var_decl_init(stmt), out); }
-            else { wasm_put(out, 66); wasm_put_sleb(out, 0); }
-            wasm_emit_store(wasm_local_type(local), out);
+            wasm_emit_as(var_decl_init(stmt), t, out);
+            wasm_emit_store(t, out);
         } else {
-            if var_decl_init(stmt) != nil { wasm_emit_expr(var_decl_init(stmt), out); }
-            else { wasm_put(out, 66); wasm_put_sleb(out, 0); }
+            wasm_emit_as(var_decl_init(stmt), t, out);
             wasm_put(out, 33);  // local.set
             wasm_put_uleb(out, local);
         }
@@ -1144,7 +1438,7 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
         if node_kind(target) == NODE_UNARY_EXPR || node_kind(target) == NODE_INDEX_EXPR ||
            node_kind(target) == NODE_FIELD_EXPR {
             var stored_type *u8 = wasm_emit_address(target, out);
-            wasm_emit_expr(assign_stmt_value(stmt), out);
+            wasm_emit_as(assign_stmt_value(stmt), stored_type, out);
             wasm_emit_store(stored_type, out);
             return;
         }
@@ -1156,10 +1450,10 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
         if local >= 0 {
             if wasm_local_is_spilled(local) != 0 {
                 wasm_emit_spill_pointer(local, out, 1);
-                wasm_emit_expr(assign_stmt_value(stmt), out);
+                wasm_emit_as(assign_stmt_value(stmt), wasm_local_type(local), out);
                 wasm_emit_store(wasm_local_type(local), out);
             } else {
-                wasm_emit_expr(assign_stmt_value(stmt), out);
+                wasm_emit_as(assign_stmt_value(stmt), wasm_local_type(local), out);
                 wasm_put(out, 33);
                 wasm_put_uleb(out, local);
             }
@@ -1167,7 +1461,7 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
         }
         var global i64 = wasm_find_global(ident_expr_name(target), ident_expr_name_len(target));
         if global < 0 { wasm_error("unknown assignment target in direct wasm function"); return; }
-        wasm_emit_expr(assign_stmt_value(stmt), out);
+        wasm_emit_as(assign_stmt_value(stmt), var_decl_type(wasm_global_get(global)), out);
         wasm_put(out, 36);  // global.set
         wasm_put_uleb(out, global);
         return;
@@ -1179,7 +1473,7 @@ func wasm_emit_stmt(stmt *u8, out *WasmBuf) void {
         return;
     }
     if kind == NODE_RETURN_STMT {
-        if return_stmt_value(stmt) != nil { wasm_emit_expr(return_stmt_value(stmt), out); }
+        if return_stmt_value(stmt) != nil { wasm_emit_as(return_stmt_value(stmt), func_decl_ret_type(wasm_current_decl), out); }
         wasm_emit_spill_restore(out);
         wasm_put(out, 15);  // return
         return;
@@ -1466,6 +1760,14 @@ func wasm_mark_expr(expr *u8) void {
         wasm_mark_expr(cast_expr_expr(expr));
     } else if kind == NODE_BITCAST_EXPR {
         wasm_mark_expr(bitcast_expr_expr(expr));
+    } else if kind == NODE_ARRAY_LITERAL {
+        var elems *u8 = array_literal_elems(expr);
+        var i i64 = 0;
+        while i < array_literal_count(expr) {
+            var p **u8 = elems + i * 8;
+            wasm_mark_expr(*p);
+            i = i + 1;
+        }
     } else if kind == NODE_INDEX_EXPR {
         wasm_mark_expr(index_expr_base(expr));
         wasm_mark_expr(index_expr_index(expr));
@@ -1581,7 +1883,7 @@ func wasm_emit_type_section() void {
             if wasm_type_is_value(param_type(p)) == 0 {
                 wasm_unsupported("direct wasm currently supports only scalar and pointer parameters");
             }
-            wasm_put(wasm_section, 126);  // i64
+            wasm_put(wasm_section, wasm_value_type(param_type(p)));
             j = j + 1;
         }
         if wasm_type_is_void(func_decl_ret_type(decl)) != 0 {
@@ -1591,7 +1893,7 @@ func wasm_emit_type_section() void {
                 wasm_unsupported("direct wasm currently supports only scalar, pointer, or void returns");
             }
             wasm_put_uleb(wasm_section, 1);
-            wasm_put(wasm_section, 126);
+            wasm_put(wasm_section, wasm_value_type(func_decl_ret_type(decl)));
         }
         i = i + 1;
     }
@@ -1647,8 +1949,32 @@ func wasm_const_value(expr *u8) i64 {
     return 0;
 }
 
+func wasm_const_float(expr *u8) f64 {
+    if expr == nil { return 0.0; }
+    var kind i64 = node_kind(expr);
+    if kind == NODE_NUMBER_EXPR {
+        if wasm_number_is_float(expr) { return bitcast(f64, wasm_decimal_bits(expr)); }
+        return cast(f64, wasm_const_value(expr));
+    }
+    if kind == NODE_GROUP_EXPR { return wasm_const_float(group_expr_expr(expr)); }
+    if kind == NODE_UNARY_EXPR && unary_expr_op(expr) == TOKEN_MINUS {
+        var value f64 = wasm_const_float(unary_expr_expr(expr));
+        return bitcast(f64, bitcast(i64, value) ^ (1 << 63));
+    }
+    if kind == NODE_CAST_EXPR {
+        var value f64 = wasm_const_float(cast_expr_expr(expr));
+        if wasm_float_width(cast_expr_type(expr)) == 32 {
+            var rounded f32 = cast(f32, value);
+            return cast(f64, rounded);
+        }
+        if wasm_float_width(cast_expr_type(expr)) == 64 { return value; }
+    }
+    wasm_unsupported("float global initializer must be a numeric constant");
+    return 0.0;
+}
+
 func wasm_emit_global_section() void {
-    // User globals are canonical i64 values. The i32 heap marker separates
+    // User globals use their scalar Wasm value type. The i32 heap marker separates
     // static data from host allocations; a private i64 spill stack grows down
     // from that same boundary.
     wasm_put_uleb(wasm_section, wasm_global_count + 2);
@@ -1656,10 +1982,20 @@ func wasm_emit_global_section() void {
     while i < wasm_global_count {
         var decl *u8 = wasm_global_get(i);
         wasm_current_decl = decl;
-        wasm_put(wasm_section, 126);  // i64
+        var t *u8 = var_decl_type(decl);
+        wasm_put(wasm_section, wasm_value_type(t));
         wasm_put(wasm_section, 1);    // mutable
-        wasm_put(wasm_section, 66);   // i64.const
-        wasm_put_sleb(wasm_section, wasm_const_value(var_decl_init(decl)));
+        if wasm_float_width(t) != 0 {
+            var value f64 = wasm_const_float(var_decl_init(decl));
+            if wasm_float_width(t) == 32 {
+                var rounded f32 = cast(f32, value);
+                var bytes *i32 = &rounded;
+                wasm_emit_float_bits(*bytes, 32, wasm_section);
+            } else { wasm_emit_float_bits(bitcast(i64, value), 64, wasm_section); }
+        } else {
+            wasm_put(wasm_section, 66);   // i64.const
+            wasm_put_sleb(wasm_section, wasm_const_value(var_decl_init(decl)));
+        }
         wasm_put(wasm_section, 11);   // end initializer
         i = i + 1;
     }
@@ -1716,6 +2052,7 @@ func wasm_emit_function_body(decl *u8) void {
     }
     wasm_param_count = wasm_local_count;
     wasm_collect_locals(func_decl_body(decl));
+    if wasm_had_error != 0 { return; }
     wasm_scan_address_stmt(func_decl_body(decl));
     wasm_assign_spill_offsets();
     wasm_binding_count = wasm_param_count;
@@ -1723,21 +2060,29 @@ func wasm_emit_function_body(decl *u8) void {
 
     var added i64 = wasm_local_count - wasm_param_count;
     if wasm_spill_frame_size > 0 { added = added + 1; }
-    if added > 0 {
-        wasm_put_uleb(wasm_body, 1);  // one local group
-        wasm_put_uleb(wasm_body, added);
-        wasm_put(wasm_body, 126);    // i64
-    } else {
-        wasm_put_uleb(wasm_body, 0);
+    wasm_float_left_local = wasm_param_count + added;
+    wasm_float_right_local = wasm_float_left_local + 1;
+    wasm_put_uleb(wasm_body, added + 1);
+    i = wasm_param_count;
+    while i < wasm_local_count {
+        wasm_put_uleb(wasm_body, 1);
+        wasm_put(wasm_body, wasm_value_type(wasm_local_type(i)));
+        i = i + 1;
     }
+    if wasm_spill_frame_size > 0 {
+        wasm_put_uleb(wasm_body, 1);
+        wasm_put(wasm_body, 126); // spill base is an i64 pointer
+    }
+
+    wasm_put_uleb(wasm_body, 2);
+    wasm_put(wasm_body, 124); // private f64 comparison temporaries
 
     wasm_emit_spill_prologue(wasm_body);
     wasm_emit_stmt(func_decl_body(decl), wasm_body);
     wasm_emit_spill_restore(wasm_body);
     if wasm_type_is_void(func_decl_ret_type(decl)) == 0 {
         // A valid default for paths not terminated by an explicit return.
-        wasm_put(wasm_body, 66);
-        wasm_put_sleb(wasm_body, 0);
+        wasm_emit_zero(func_decl_ret_type(decl), wasm_body);
     }
     wasm_put(wasm_body, 11);  // function end
 
@@ -1788,6 +2133,12 @@ func generate_wasm(prog *u8, output_file *u8) void {
     wasm_i64_type = base_type_alloc();
     base_type_set_name(wasm_i64_type, "i64");
     base_type_set_name_len(wasm_i64_type, 3);
+    wasm_f32_type = base_type_alloc();
+    base_type_set_name(wasm_f32_type, "f32");
+    base_type_set_name_len(wasm_f32_type, 3);
+    wasm_f64_type = base_type_alloc();
+    base_type_set_name(wasm_f64_type, "f64");
+    base_type_set_name_len(wasm_f64_type, 3);
     wasm_u8_type = base_type_alloc();
     base_type_set_name(wasm_u8_type, "u8");
     base_type_set_name_len(wasm_u8_type, 2);

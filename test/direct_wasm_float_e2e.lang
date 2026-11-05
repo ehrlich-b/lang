@@ -1,0 +1,60 @@
+// expect: 42
+// Direct-Wasm float types at storage, call, arithmetic and conversion boundaries.
+var single f32 = cast(f32, -1.5);
+var wide f64 = -2.5;
+var zero32 f32;
+var zero64 f64;
+var calls i64 = 0;
+
+func identity32(x f32) f32 { return x; }
+func address32(x f32) f32 {
+    var p *f32 = &x;
+    *p = -*p;
+    return *p;
+}
+func address64(x f64) f64 {
+    var p *f64 = &x;
+    p[0] = -p[0];
+    return p[0];
+}
+func count_value(x f64) f64 { calls = calls + 1; return x; }
+func main() i64 {
+    if cast(f64, zero32) != 0.0 || zero64 != 0.0 { return 1; }
+    if single != -1.5 || wide != -2.5 { return 2; }
+    single = identity32(2.5);
+    wide = address64(wide);
+    var a f32 = address32(single);
+    var b f32 = cast(f32, 0.5);
+    if cast(f64, (a + b) * b - b / b) != -2.0 { return 3; }
+    if a >= b || a > b || a == b || !(a <= b) || !(a < b) { return 4; }
+    if -a != 2.5 || wide != 2.5 { return 5; }
+    var ints [3]i64 = [0, 0, 123];
+    var ps *f32 = &ints[0];
+    ps[0] = a;
+    *(ps + 1) = b;
+    if cast(i64, ps[0]) != -2 || cast(i64, ps[1]) != 0 { return 6; }
+    var pd *f64 = &ints[1];
+    *pd = 3.5;
+    if pd[0] != 3.5 || ints[2] != 123 { return 7; }
+    var negative_zero f64 = -0.0;
+    if bitcast(i64, negative_zero) != (1 << 63) { return 8; }
+    if bitcast(u32, cast(f32, negative_zero)) != 2147483648 { return 9; }
+    var unsigned u64 = cast(u64, -1);
+    if cast(f64, unsigned) != 18446744073709551616.0 { return 10; }
+    if cast(u64, 9223372036854775808.0) != (1 << 63) { return 11; }
+    if cast(u8, 255.5) != 255 || cast(i8, -1.5) != -1 { return 12; }
+    var nan f64 = bitcast(f64, 9221120237041090560);
+    if nan == nan || nan != nan || nan < 0.0 || nan >= 0.0 { return 13; }
+    if count_value(1.0) != count_value(1.0) { return 14; }
+    if calls != 2 { return 15; }
+    var snan f32 = bitcast(f32, cast(u32, 2143289344));
+    if snan == snan || snan != snan { return 16; }
+    if bitcast(i64, 0.1) != 4591870180066957722 { return 17; }
+    // Halfway values round to even, and the next representable integer stays exact.
+    if 9007199254740993.0 != 9007199254740992.0 { return 18; }
+    if 9007199254740994.0 == 9007199254740992.0 { return 19; }
+    if !(1.0 != cast(f64, nan != nan)) { return 20; }
+    var values [2]f32 = [identity32(1.25), identity32(2.75)];
+    if values[0] + values[1] != 4.0 { return 21; }
+    return 42;
+}

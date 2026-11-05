@@ -28,6 +28,10 @@ run_case() {
 }
 
 run_case test/direct_wasm_e2e.lang 42
+run_case test/direct_wasm_float_e2e.lang 42
+run_case test/suite/260_float_basic.lang 215
+run_case test/suite/261_float_composed.lang 100
+run_case test/suite/290_pointer_index_floats.lang 42
 run_case test/direct_wasm_memory_e2e.lang 176
 run_case test/direct_wasm_import_e2e.lang 17
 run_case test/direct_wasm_struct_e2e.lang 42
@@ -45,6 +49,13 @@ if LANGBE=wasm LANGOS=wasm "$COMPILER" test/suite/250_arrays.lang -o "$unsupport
    >"$tmp/unsupported.out" 2>"$tmp/unsupported.err"; then
     echo "direct wasm unexpectedly accepted an unsupported array program" >&2
     exit 1
+else
+    status=$?
+    if [ "$status" -ne 1 ]; then
+        cat "$tmp/unsupported.err" >&2
+        echo "direct wasm array rejection exited $status instead of 1" >&2
+        exit 1
+    fi
 fi
 if [ -e "$unsupported" ]; then
     echo "direct wasm left partial output after a compile error" >&2
@@ -53,6 +64,16 @@ fi
 if ! grep -q '^test/suite/250_arrays.lang:.*: error:' "$tmp/unsupported.err"; then
     echo "direct wasm error did not preserve source provenance" >&2
     cat "$tmp/unsupported.err" >&2
+    exit 1
+fi
+
+if LANGBE=wasm LANGOS=wasm "$COMPILER" test/direct_wasm_float_reject.lang -o "$tmp/float-reject.wasm" >"$tmp/float-reject.out" 2>&1; then
+    echo "direct wasm unexpectedly accepted floating remainder" >&2
+    exit 1
+fi
+if [ -e "$tmp/float-reject.wasm" ] || ! grep -q 'unsupported floating operator' "$tmp/float-reject.out"; then
+    cat "$tmp/float-reject.out" >&2
+    echo "direct wasm floating remainder did not fail closed" >&2
     exit 1
 fi
 
