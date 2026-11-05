@@ -1,0 +1,16 @@
+// expect: 42
+func byte() u8 { return 258; }
+func signed_byte() i8 { return 255; }
+func half() u16 { return 65538; }
+func signed_half() i16 { return 65535; }
+func word() u32 { return 4294967298; }
+func signed_word() i32 { return 4294967295; }
+func main() i64 {
+    if byte() != 2 { return 1; }
+    if signed_byte() != -1 { return 2; }
+    if half() != 2 { return 3; }
+    if signed_half() != -1 { return 4; }
+    if word() != 2 { return 5; }
+    if signed_word() != -1 { return 6; }
+    return 42;
+}

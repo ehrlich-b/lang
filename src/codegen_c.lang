@@ -4,6 +4,7 @@
 var c_serial i64 = 0;
 var c_prototypes *u8 = nil;
 var c_environments *u8 = nil;
+var c_expansions *u8 = nil;
 var c_last_lambda_captures i64 = 0;
 var c_ret *u8 = nil;
 var c_loop *u8 = nil;
@@ -93,6 +94,8 @@ func c_store(addr *u8, value *u8, t *u8) void {
 // Composite type queries preserve lexical bindings without emitting code.
 func c_type(e *u8) *u8 {
     if e == nil { return nil; }
+    var expanded *u8 = c_expand(e);
+    if expanded != e { return c_type(expanded); }
     var k i64 = node_kind(e);
     if k == NODE_GROUP_EXPR { return c_type(group_expr_expr(e)); }
     if k == NODE_LET_EXPR {
@@ -206,6 +209,10 @@ func c_external_type(t *u8) *u8 {
 // Expansion must precede destination conversion, just like other composites.
 func c_expand(e *u8) *u8 {
     if e == nil { return nil; }
+    if node_kind(e) != NODE_CALL_EXPR && node_kind(e) != NODE_READER_EXPR { return e; }
+    // Type queries and emission must use the same expansion, evaluated once.
+    var key *u8 = c_decimal(e);
+    if map_has(c_expansions, key) { var cached *u8 = map_get(c_expansions, key); return cached; }
     if node_kind(e) == NODE_CALL_EXPR {
         var callee *u8 = call_expr_func(e);
         while node_kind(callee) == NODE_GROUP_EXPR { callee = group_expr_expr(callee); }
@@ -214,6 +221,7 @@ func c_expand(e *u8) *u8 {
             if macro_def != nil {
                 var expanded *u8 = interp_call_macro(macro_def, call_expr_args(e), call_expr_arg_count(e));
                 if expanded == nil { c_error(e, "macro_def returned no expression"); }
+                map_set(c_expansions, key, expanded);
                 return expanded;
             }
         }
@@ -227,6 +235,7 @@ func c_expand(e *u8) *u8 {
         if output == nil || *output == 0 { c_error(e, "reader returned no AST"); return nil; }
         var expanded *u8 = parse_ast_expression_from_reader_string(output, node_origin_source(e), content);
         if expanded == nil { c_error(e, "reader returned invalid expression AST"); }
+        map_set(c_expansions, key, expanded);
         return expanded;
     }
     return e;
@@ -544,7 +553,14 @@ func c_stmt(s *u8) void {
     if k == NODE_EXPR_STMT { c_expr(expr_stmt_expr(s)); return; }
     if k == NODE_RETURN_STMT {
         if llvm_is_void_type(c_ret) { emit_line("return;"); }
-        else { var value *u8 = c_value(return_stmt_value(s), c_ret); emit_str("return "); emit_str(value); emit_line(";"); }
+        else {
+            var value *u8 = c_value(return_stmt_value(s), c_ret);
+            if (llvm_is_signed_int(c_ret) || llvm_is_unsigned_int(c_ret)) && c_size(c_ret) < 8 {
+                var helper *u8 = "c_narrow("; if llvm_is_signed_int(c_ret) { helper = "c_sign("; }
+                value = c_join(c_join(helper, value, ","), c_decimal(c_size(c_ret) * 8), ")");
+            }
+            emit_str("return "); emit_str(value); emit_line(";");
+        }
         return;
     }
     if k == NODE_IF_STMT {
@@ -592,7 +608,7 @@ func c_signature(d *u8) void {
 func generate_c(prog *u8, output_file *u8) void {
     codegen_init(); interp_init();
     cg_has_llvm_backend = 1; cg_generate_llvm_fn = &generate_llvm;
-    cg_emit_module = 0; c_environments = map_new(); c_prototypes = ""; c_serial = 0; c_loop_count = 0; c_loop = alloc(8192);
+    cg_emit_module = 0; c_environments = map_new(); c_expansions = map_new(); c_prototypes = ""; c_serial = 0; c_loop_count = 0; c_loop = alloc(8192);
     cg_decls = program_decls(prog); cg_decl_count = program_decl_count(prog);
     cg_current_file_decls = cg_decls; cg_current_file_decl_count = cg_decl_count;
     var i i64 = 0; while i < cg_decl_count { process_decl_first_pass(get_decl(cg_decls, i)); i = i + 1; }

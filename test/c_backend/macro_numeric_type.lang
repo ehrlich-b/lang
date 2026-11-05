@@ -1,0 +1,11 @@
+// expect: 42
+macro identity(x) { return x; }
+macro nested(x) { return ${ identity($x) }; }
+func main() i64 {
+    if identity(1.5) + 1.0 != 2.5 { return 1; }
+    if 1.0 + identity(1.5) != 2.5 { return 2; }
+    if nested(1.5) + identity(1.0) != 2.5 { return 3; }
+    if (identity(1.5) + 1.0) * 2.0 != 5.0 { return 4; }
+    if -identity(1.5) + 2.0 != 0.5 { return 5; }
+    return 42;
+}
