@@ -120,13 +120,15 @@ function formatLangAst(source) {
       if (source[offset] !== quote) throw new Error('unterminated AST string');
       offset++;
     } else {
-      // Native identifiers end before punctuation, including '-' and comments.
-      const atom = source.slice(offset).match(/^(?:[A-Za-z_][A-Za-z_0-9]*|-(?:[0-9]+|[-=])?)/);
-      if (atom) offset += atom[0].length;
-      else {
-        while (offset < source.length && !/[\s()]/.test(source[offset]) &&
-               !source.startsWith('/*', offset) && !source.startsWith('//', offset)) offset++;
+      // Match std/tok.lang boundaries: numbers stop before symbols and each
+      // operator consumes at most its supported two-character form.
+      const atom = source.slice(offset).match(/^(?:[A-Za-z_][A-Za-z_0-9]*|-?[0-9]+)/) ||
+        source.slice(offset).match(/^(?:\+\+|--|[+\-*/%!=]=|<<|>>|<=|>=|&&|\|\||[+\-*/%&|^<>=!])/);
+      // Native '->' is a field-access token, not an S-expression operator.
+      if (!atom || source.startsWith('->', offset)) {
+        throw new Error(`unexpected AST token at byte ${encoder.encode(source.slice(0, offset)).length}`);
       }
+      offset += atom[0].length;
     }
     if (offset === start) throw new Error(`unexpected AST token at byte ${offset}`);
     return { text: source.slice(start, offset), start, end: offset };

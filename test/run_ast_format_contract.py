@@ -78,6 +78,28 @@ with tempfile.TemporaryDirectory() as directory:
             temp.write_bytes(expected)
             assert format_file(temp).stdout == native_format(temp, cache).stdout == expected
         print(f'native/browser token boundary parity: {source}')
+    # Numbers stop before symbols; operators use the native one/two-byte forms.
+    for source, expected in [
+        ('(program (var x (type_array 2nil)))', b'(program\n  (var x (type_array 2 nil)))\n'),
+        ('(program (var x nil (binop +++ (number 1) (number 2))))', None),
+    ]:
+        temp.write_text(source)
+        browser = format_file(temp)
+        native = native_format(temp, cache)
+        if expected is None:
+            assert browser.returncode != 0 and native.returncode == 1, (source, browser, native)
+            assert not browser.stdout and not native.stdout, (source, browser, native)
+            assert b'ast-shape at bytes' in browser.stderr and b'ast-shape at bytes' in native.stderr
+        else:
+            assert browser.returncode == native.returncode == 0, (source, browser, native)
+            assert browser.stdout == native.stdout == expected, (source, browser, native)
+            assert count(parse(expected.decode())) == 3, source
+            temp.write_bytes(expected)
+            second = format_file(temp)
+            native_second = native_format(temp, cache)
+            assert second.returncode == native_second.returncode == 0
+            assert second.stdout == native_second.stdout == expected
+        print(f'native/browser numeric/operator boundary parity: {source}')
     for source in sorted(FIXTURES.glob('*.input.ast')):
         golden = source.with_name(source.name.replace('.input.ast', '.golden.ast')).read_bytes()
         original = parse(source.read_text())
