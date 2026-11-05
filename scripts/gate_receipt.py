@@ -95,6 +95,10 @@ def identity(root, command):
         inputs[name] = ({'sha256': digest(p), 'mode': p.stat().st_mode & 0o777,
                          'link': os.readlink(p) if p.is_symlink() else None}
                         if p.is_file() else None)
+    # Compiler overrides may be wrappers with arbitrary external dependencies.
+    # Their closure is unknown, so run verification without a reusable receipt.
+    if os.environ.get('CLANG'):
+        raise UnsupportedInputClosure('CLANG override has an unsupported tool closure')
     tools = {}
     for name in ('clang', 'lli', 'node', 'python3', 'make', 'bash', 'sh',
                  'ld', 'as', 'timeout', 'diff', 'shasum'):

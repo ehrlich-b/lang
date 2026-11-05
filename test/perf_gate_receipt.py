@@ -282,6 +282,38 @@ class ReceiptTests(unittest.TestCase):
             self.assertEqual(len((self.root / 'out/executions').read_text().splitlines()), index)
             self.assertFalse(list(self.cache.glob('*/receipt.json')))
 
+    def test_replaced_clang_override_through_launcher_never_reuses(self):
+        env = self.launcher_fixture()
+        self.init_git()
+        (self.root / '.gitignore').write_text('out/\nstd/os.lang\n')
+        compiler = Path(self.work.name) / 'clang-override'
+        env['CLANG'] = str(compiler)
+        outputs = gate.OUTPUTS + ['out/bootstrap_verify/' + name for name in (
+            'ctrusted', 'kernel1', 'kernel1.ll', 'kernel2', 'kernel2.ll',
+            'kernel3.ll', 'reader_ast1.ast', 'reader_ast2.ast')]
+        (self.root / 'fake.py').write_text(
+            'import os, subprocess\nfrom pathlib import Path\n'
+            'data = subprocess.check_output([os.environ["CLANG"]])\n'
+            'for name in ' + repr(outputs) + ':\n'
+            '    p = Path(name)\n'
+            '    p.parent.mkdir(parents=True, exist_ok=True)\n'
+            '    p.write_bytes(data)\n')
+        makefile = self.root / 'Makefile'
+        recipe = makefile.read_text().split('_verify-complete:', 1)[0]
+        makefile.write_text(recipe + '_verify-complete:\n'
+            '\t@echo executed >> out/executions\n\t@python3 fake.py\n')
+        for index, content in enumerate(('original', 'changed'), 1):
+            compiler.write_text('#!/bin/sh\necho ' + content + '\n')
+            compiler.chmod(0o755)
+            result = subprocess.run(['make', 'bootstrap-verify'], cwd=self.root,
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual((self.root / outputs[0]).read_text(), content + '\n')
+            self.assertEqual(len((self.root / 'out/executions').read_text().splitlines()), index)
+        self.assertIn('CLANG override', result.stdout)
+        self.assertNotIn('Completed verification receipt reused', result.stdout)
+        self.assertFalse(list(self.cache.glob('*/receipt.json')))
+
     def test_dangling_symlink_fails_closed(self):
         self.init_git()
         (self.root / 'test').mkdir()
