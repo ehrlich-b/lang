@@ -17,9 +17,10 @@
     },
     {
       "name": "clox suite tests passing, of 246",
-      "value": 58,
+      "value": null,
       "unit": "tests",
-      "direction": "higher"
+      "direction": "higher",
+      "detail": "Whole-corpus score unavailable: pinned Crafting Interpreters checkout required"
     },
     {
       "name": "Compiler functions executed by LLVM suite",
@@ -27,6 +28,7 @@
       "unit": "functions",
       "direction": "higher",
       "detail": "966/1256 at IR-level O0; 290 never executed; test/coverage_baseline.json"
+
     }
   ]
 }

@@ -748,3 +748,7 @@ LOX_SUITE ?= ../craftinginterpreters
 lox-score: init
 	@$(MAKE) generate-os-layer LANGLIBC=libc
 	LOX_SUITE="$(LOX_SUITE)" sh test/lox/run-score.sh
+
+.PHONY: scoreboard
+scoreboard:
+	JOBS=2 python3 scripts/scoreboard.py

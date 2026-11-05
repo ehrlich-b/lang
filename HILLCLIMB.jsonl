@@ -3,3 +3,4 @@
 {"revision":"functions-and-closures","passing":54,"total":246}
 {"revision":"integrated-functions-and-review-fixes","passing":58,"total":246}
 {"revision":"ten-item-recomposition","passing":58,"total":246}
+{"revision":"full-scoreboard-base-1d9f702","passing":null,"total":246,"status":"unavailable","lua_llvm":"0/33","lua_wasm":"0/33","borders_wrong":4}
