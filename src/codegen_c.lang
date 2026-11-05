@@ -226,7 +226,7 @@ func c_call(e *u8) *u8 {
             emit_str("["); emit_int(get_enum_size(ed)); emit_line("] = {0};");
             var addr *u8 = c_join("((uint64_t)(uintptr_t)", data, ")");
             c_store(addr, str_concat(c_decimal(enum_variant_tag(v)), "ULL"), nil);
-            if count == 1 { c_store(c_join("(", addr, " + 8)"), c_expr(cg_ast_ptr_at(args, 0)), enum_variant_type(v)); }
+            if count == 1 { c_store(c_join("(", addr, " + 8)"), c_value(cg_ast_ptr_at(args, 0), enum_variant_type(v)), enum_variant_type(v)); }
             else if count != 0 { c_error(e, "invalid enum argument count"); }
             return addr;
         }
@@ -337,7 +337,7 @@ func c_expr(e *u8) *u8 {
     }
     if k == NODE_BINARY_EXPR {
         var op i64 = binary_expr_op(e); var l *u8 = binary_expr_left(e); var r *u8 = binary_expr_right(e);
-        if op == TOKEN_EQ { var value *u8 = c_expr(r); c_store(c_addr(l), value, c_type(l)); return value; }
+        if op == TOKEN_EQ { var t *u8 = c_type(l); var value *u8 = c_value(r, t); c_store(c_addr(l), value, t); return value; }
         var left *u8 = c_expr(l);
         if op == TOKEN_AMPAMP || op == TOKEN_PIPEPIPE {
             var result *u8 = c_temp(nil, c_join("!!(", left, ")"));
@@ -681,6 +681,8 @@ func c_box(value *u8, tag i64, size i64, n *u8) *u8 {
     return object;
 }
 func c_value(e *u8, destination *u8) *u8 {
+    // Grouping preserves the lambda's function or environment representation.
+    while e != nil && node_kind(e) == NODE_GROUP_EXPR { e = group_expr_expr(e); }
     var value *u8 = c_expr(e);
     if destination != nil && llvm_is_float_type(destination) {
         if llvm_is_float_type(c_type(e)) == 0 && llvm_is_unsigned_int(c_type(e)) == 0 { value = c_join("c_signed(", value, ")"); }

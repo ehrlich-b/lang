@@ -1,0 +1,24 @@
+// expect: 42
+include "std/core.lang"
+enum Callback { Some(closure(i64) i64), None, }
+func invoke(callback *Callback, x i64) i64 {
+    return match callback {
+        Callback.Some(f) => f(x),
+        Callback.None => 0,
+    };
+}
+func increment(x i64) i64 { return x + 1; }
+func main() i64 {
+    var n i64 = 2;
+    var callback Callback = Callback.Some(fn(x i64) i64 { return x + 1; });
+    if invoke(&callback, 41) != 42 { return 1; }
+    callback = Callback.Some(fn(x i64) i64 { return x + n; });
+    if invoke(&callback, 40) != 42 { return 2; }
+    callback = Callback.Some((fn(x i64) i64 { return x + n; }));
+    if invoke(&callback, 40) != 42 { return 3; }
+    var f closure(i64) i64 = fn(x i64) i64 { return x + n; };
+    callback = Callback.Some((f));
+    if invoke(&callback, 40) != 42 { return 4; }
+    callback = Callback.Some(&increment);
+    return invoke(&callback, 41);
+}

@@ -1,0 +1,17 @@
+// expect: 42
+include "std/core.lang"
+func increment(x i64) i64 { return x + 1; }
+func main() i64 {
+    var n i64 = 2;
+    var f closure(i64) i64 = fn(x i64) i64 { return x; };
+    var g closure(i64) i64 = (f = fn(x i64) i64 { return x + 1; });
+    if f(41) != 42 || g(41) != 42 { return 1; }
+    if (f = fn(x i64) i64 { return x + n; })(40) != 42 { return 2; }
+    g = (f = &increment);
+    if f(41) != 42 || g(41) != 42 { return 3; }
+    if (g = (f = (fn(x i64) i64 { return x + n; })))(40) != 42 { return 4; }
+    var p *closure(i64) i64 = &f;
+    g = (*p = fn(x i64) i64 { return x + 3; });
+    if f(39) != 42 { return 5; }
+    return g(39);
+}

@@ -1,0 +1,19 @@
+// expect: 42
+include "std/core.lang"
+func invoke(f closure(i64) i64, x i64) i64 { return f(x); }
+func captured(n i64) closure(i64) i64 {
+    return ((fn(x i64) i64 { return x + n; }));
+}
+func main() i64 {
+    var n i64 = 1;
+    var f closure(i64) i64 = ((fn(x i64) i64 { return x + n; }));
+    if f(41) != 42 { return 1; }
+    if invoke((f), 41) != 42 { return 2; }
+    if invoke((fn(x i64) i64 { return x + n; }), 41) != 42 { return 3; }
+    var result i64 = let g closure(i64) i64 = (fn(x i64) i64 { return x + n; }) in g(41);
+    if result != 42 { return 4; }
+    f = (fn(x i64) i64 { return x + 2; });
+    if f(40) != 42 { return 5; }
+    f = captured(3);
+    return f(39);
+}
