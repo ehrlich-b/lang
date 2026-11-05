@@ -1,0 +1,24 @@
+// expect: 42
+// Construct fractions from integers to also exercise the core AST reader.
+func remainder(a f64, b f64) f64 { return a % b; }
+func main() i64 {
+    var a f64 = cast(f64, 11) / 2;
+    var b f64 = cast(f64, 2);
+    var expected f64 = cast(f64, 3) / 2;
+    if remainder(a, b) != expected { return 1; }
+    if remainder(-a, b) != -expected { return 2; }
+    if remainder(a, -b) != expected { return 3; }
+    if remainder(-a, -b) != -expected { return 4; }
+    if a % 2 != expected || 5 % b != cast(f64, 1) { return 5; }
+    var narrow f32 = cast(f32, a);
+    if narrow % b != expected { return 6; }
+    var zero f64 = cast(f64, 0);
+    if bitcast(i64, remainder(-b, b)) != -9223372036854775808 { return 7; }
+    var inf f64 = bitcast(f64, 9218868437227405312);
+    if remainder(a, inf) != a { return 8; }
+    var nan f64 = remainder(inf, b);
+    if nan == nan { return 9; }
+    nan = remainder(a, zero);
+    if nan == nan { return 10; }
+    return 42;
+}

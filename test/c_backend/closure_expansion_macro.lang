@@ -1,0 +1,32 @@
+// expect: 42
+include "std/core.lang"
+macro identity(x) { return x; }
+macro nested(x) { return ${ identity($x) }; }
+enum Choice { Some(i64), None, }
+func make() closure(i64) i64 {
+    return identity(let n i64 = 1 in fn(x i64) i64 { return x + n; });
+}
+func apply(f closure(i64) i64) i64 { return f(41); }
+func main() i64 {
+    var f closure(i64) i64 = identity(let n i64 = 1 in fn(x i64) i64 { return x + n; });
+    if f(41) != 42 { return 1; }
+    var n i64 = 2;
+    f = nested(fn(x i64) i64 { return x + n; });
+    if f(40) != 42 { return 2; }
+    var made closure(i64) i64 = make();
+    if made(41) != 42 { return 3; }
+    if apply(identity(let n i64 = 1 in fn(x i64) i64 { return x + n; })) != 42 { return 4; }
+    var choice Choice = Choice.Some(1);
+    f = identity(match &choice {
+        Choice.Some(k) => fn(x i64) i64 { return x + k; },
+        _ => fn(x i64) i64 { return x + 1; },
+    });
+    if f(41) != 42 { return 5; }
+    f = identity(f);
+    if f(41) != 42 { return 6; }
+    f = identity(fn(x i64) i64 { return x + 1; });
+    if f(41) != 42 { return 7; }
+    var negative f64 = identity(-42);
+    if negative != cast(f64, -42) { return 8; }
+    return f(41);
+}

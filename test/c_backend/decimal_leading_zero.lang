@@ -1,0 +1,11 @@
+// expect: 42
+var answer i64 = 00042;
+func main() i64 {
+    if 042 != 42 { return 1; }
+    if 008 != 8 || 009 != 9 { return 2; }
+    if 000 != 0 || 0 != 0000 { return 3; }
+    if -00042 != -42 { return 4; }
+    if 018446744073709551615 != 18446744073709551615 { return 5; }
+    if answer != 42 { return 6; }
+    return 042;
+}

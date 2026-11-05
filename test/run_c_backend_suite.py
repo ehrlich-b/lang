@@ -84,7 +84,7 @@ def main():
                 detail = 'missing expectation'
             else:
                 binary = case / cc
-                build, detail = run([cc, '-std=c11', '-pedantic-errors', '-O2', str(source), '-o', str(binary)])
+                build, detail = run([cc, '-std=c11', '-pedantic-errors', '-O2', str(source), '-o', str(binary), '-lm'])
                 (case / f'{cc}.build.log').write_text(detail)
                 if build == 0:
                     actual, detail = run([str(binary)])
@@ -102,7 +102,7 @@ def main():
                    for status in ('correct', 'wrong', 'refused')} for cc in ('gcc', 'clang')}
     versions = {cc: run([cc, '--version'])[1].splitlines()[0] for cc in ('gcc', 'clang')}
     receipt = {'compiler_sha256': hashlib.sha256(Path(compiler).read_bytes()).hexdigest(),
-               'tools': versions, 'flags': ['-std=c11', '-pedantic-errors', '-O2'],
+               'tools': versions, 'flags': ['-std=c11', '-pedantic-errors', '-O2', '-lm'],
                'files': len(fixtures), 'totals': totals, 'bugs': bugs, 'results': results}
     (output / 'results.json').write_text(json.dumps(receipt, indent=2) + '\n')
     for cc, counts in totals.items():

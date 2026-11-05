@@ -1,8 +1,9 @@
 # C11 core target
 
 Select `LANGBE=c`; the compiler writes C source (`a.c` by default). Build it
-with `gcc -std=c11 -O2 program.c -o program` or clang with the same flags.
+with `gcc -std=c11 -O2 program.c -o program -lm` or clang with the same flags.
 `LANGBE=c out/lang_next run program.lang` uses the host clang driver.
+Floating remainder uses C11 `fmod`; the driver links the math library.
 
 The emitter consumes the same core AST after include, macro and reader
 expansion. Reader helpers execute on the compiler host using LLVM, even when
@@ -12,6 +13,7 @@ C compiler optimization; it does not translate LLVM IR or invoke an interpreter.
 Integer expressions use unsigned 64-bit words. Addition, subtraction,
 multiplication and negation wrap modulo 2^64. Signed ordering uses an explicit
 conversion that never casts an out-of-range unsigned value to a signed value.
+Integer literals remain decimal when written with leading zeros.
 Signed division and remainder use unsigned magnitudes, including INT64_MIN / -1.
 Shift counts are masked to six bits; right shift explicitly fills sign bits.
 Narrowing masks bits, and signed extension uses unsigned arithmetic. No
@@ -54,8 +56,9 @@ build and execution logs plus a JSON summary for inspection.
 Use `--fixtures test/c_backend` for focused wrapping, layout, float and closure
 regressions, including Boolean literal shifts and closure conversion at typed
 let bindings and assignments through locals, fields and pointers. Closure
-conversion also follows let bodies, block tails and every match arm, preserving
-captured environments and boxing plain function pointers exactly once.
+conversion also follows macro/reader expansions, let bodies, block tails and
+every match arm, preserving captured environments and boxing plain function
+pointers exactly once.
 
 The MiniLisp float/string border probes reproduce the existing LLVM reader/runtime
 bugs; their C reproductions are retained under `test/borders/bugs/`. They do not
