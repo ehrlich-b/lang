@@ -1,0 +1,12 @@
+include "std/core.lang"
+effect Ask(i64) i64
+func main() i64 {
+    var returns i64 = 0;
+    var result i64 = handle { 11 } with {
+        return(v) => { returns = returns + 1; v * 3; },
+        Ask(x, k) => resume k(x)
+    };
+    print_int(result); println("");
+    if result != 33 || returns != 1 { return 1; }
+    return 0;
+}

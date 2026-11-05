@@ -1,0 +1,15 @@
+include "std/core.lang"
+effect One(i64) i64
+effect Two(i64) i64
+func worker() i64 { var a i64 = perform One(2); return a + perform Two(3); }
+func main() i64 {
+    var result i64 = handle {
+        handle { worker() } with {
+            return(v) => v + 10,
+            Two(x, k) => resume k(x * 10)
+        }
+    } with { return(v) => v + 100, One(x, k) => resume k(x * 100) };
+    print_int(result); println("");
+    if result != 340 { return 1; }
+    return 0;
+}

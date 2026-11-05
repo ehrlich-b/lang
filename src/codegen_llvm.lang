@@ -3293,6 +3293,14 @@ func llvm_emit_expr_inner(expr *u8) void {
            llvm_is_float_type(src_type) == 0 && llvm_type_bits(src_type) < 64 {
             src_type = llvm_i64_type();
         }
+        if cps_enabled && llvm_current_function != nil && str_starts_with(llvm_current_function, "___cps_") {
+            if (type_kind(src_type) == TYPE_PTR || type_kind(src_type) == TYPE_FUNC ||
+                type_kind(target_type) == TYPE_PTR || type_kind(target_type) == TYPE_FUNC) &&
+                !llvm_is_float_type(src_type) && !llvm_is_float_type(target_type) {
+                llvm_expr_result = src_val;
+                return;
+            }
+        }
         var src_bits i64 = llvm_type_bits(src_type);
         var dst_bits i64 = llvm_type_bits(target_type);
         var src_is_float i64 = llvm_is_float_type(src_type);
@@ -6903,6 +6911,10 @@ func llvm_emit_block(block *u8) void {
 // =====================================================// Function emission
 // =====================================================
 func llvm_emit_func(func_node *u8) void {
+    if cps_enabled {
+        var wrapper *u8 = map_get_n(cps_wrappers, func_decl_name(func_node), func_decl_name_len(func_node));
+        if wrapper != nil { func_node = wrapper; }
+    }
     cg_diagnostic_node = func_node;
     compiler_check_return_type(func_decl_ret_type(func_node));
     numeric_validate_signature(func_node);
@@ -7224,6 +7236,10 @@ var llvm_included_files *u8 = nil;
 
 // Emit a reader as a callable LLVM function (for standalone compilers)
 func llvm_emit_reader(reader_node *u8) void {
+    if cps_enabled {
+        var wrapper *u8 = map_get_n(cps_wrappers, reader_decl_name(reader_node), reader_decl_name_len(reader_node));
+        if wrapper != nil { llvm_emit_func(wrapper); return; }
+    }
     var name *u8 = reader_decl_name(reader_node);
     var name_len i64 = reader_decl_name_len(reader_node);
     var pname *u8 = reader_decl_param_name(reader_node);
@@ -8176,6 +8192,7 @@ func llvm_gen_all_lambdas() void {
 func generate_llvm(prog *u8, output_file *u8) void {
     llvm_debug_init();
     if timings_enabled != 0 { timings_begin(3); }
+    cps_enabled = 0;
     cg_had_error = 0;
     cg_has_llvm_backend = 1;  // Mark LLVM backend available for reader compilation
     cg_generate_llvm_fn = &generate_llvm;  // Set function pointer for fork-self
@@ -8203,6 +8220,7 @@ func generate_llvm(prog *u8, output_file *u8) void {
 
     // First pass: register structs and functions
     llvm_register_all_decls(prog);
+    cps_prepare();
 
     // Reader expansion and include parsing occur during registration. Abort
     // before the emit pass can repeat the reader or write a misleading module.
@@ -8287,6 +8305,8 @@ func generate_llvm(prog *u8, output_file *u8) void {
         i = i + 1;
     }
 
+    cps_emit_generated();
+
     // Emit collected lambdas
     llvm_gen_all_lambdas();
 
@@ -8323,3 +8343,5 @@ func generate_llvm(prog *u8, output_file *u8) void {
 }
 
 include "src/numeric_llvm.lang"
+
+include "src/effects_cps.lang"

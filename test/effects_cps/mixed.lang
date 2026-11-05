@@ -1,0 +1,7 @@
+include "std/core.lang"
+effect Ask(i64) i64
+func native_square(x i64) i64 { return x * x + 3; }
+func worker(x i64) i64 { return perform Ask(native_square(x)); }
+func main() i64 {
+    return handle { worker(7) } with { return(v) => v, Ask(x, k) => resume k(x - 52) };
+}

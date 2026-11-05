@@ -1,0 +1,743 @@
+// Selective, defunctionalized CPS over registered (reader-expanded) core AST.
+// Each step is ordinary core: frame accesses, a PC dispatch and a native return.
+// Native functions are neither rewritten nor wrapped. No machine stack is saved.
+include "src/effects_runtime.lang"
+
+var cps_functions *u8 = nil;
+var cps_machines *u8 = nil;
+var cps_generated *u8 = nil;
+var cps_enabled i64 = 0;
+var cps_i64 *u8 = nil;
+var cps_frame_type *u8 = nil;
+var cps_token_name *u8 = nil;
+var cps_loops *u8 = nil;
+
+func cps_fail(n *u8, message *u8) void {
+    cg_error_prefix_at(n); eprint("CPS: "); eprintln(message); exit(1);
+}
+func cps_num(value i64) *u8 {
+    var text *u8 = alloc(32); itoa(value, text);
+    var n *u8 = number_expr_alloc(); number_expr_set_value(n, text); number_expr_set_value_len(n, strlen(text)); return n;
+}
+func cps_id(name *u8) *u8 {
+    var n *u8 = ident_expr_alloc(); ident_expr_set_name(n, name); ident_expr_set_name_len(n, strlen(name)); return n;
+}
+func cps_ptr(t *u8) *u8 { var n *u8 = ptr_type_alloc(); ptr_type_set_elem(n, t); return n; }
+func cps_cast(t *u8, value *u8) *u8 {
+    var n *u8 = cast_expr_alloc(); cast_expr_set_type(n, t); cast_expr_set_expr(n, value); return n;
+}
+func cps_unary(op i64, value *u8) *u8 {
+    var n *u8 = unary_expr_alloc(); unary_expr_set_op(n, op); unary_expr_set_expr(n, value); return n;
+}
+func cps_binary(op i64, left *u8, right *u8) *u8 {
+    var n *u8 = binary_expr_alloc(); binary_expr_set_op(n, op); binary_expr_set_left(n, left); binary_expr_set_right(n, right); return n;
+}
+func cps_index(base *u8, index i64) *u8 {
+    var n *u8 = index_expr_alloc(); index_expr_set_base(n, base); index_expr_set_index(n, cps_num(index)); return n;
+}
+func cps_array(v *u8) *u8 {
+    var a *u8 = alloc(vec_len(v) * 8 + 8); var i i64 = 0;
+    while i < vec_len(v) { var p *i64 = a + i * 8; *p = vec_get(v, i); i = i + 1; } return a;
+}
+func cps_call(name *u8, args *u8) *u8 {
+    var n *u8 = call_expr_alloc(); call_expr_set_func(n, cps_id(name)); call_expr_set_args(n, cps_array(args)); call_expr_set_arg_count(n, vec_len(args)); return n;
+}
+func cps_args1(a *u8) *u8 { var v *u8 = vec_new(4); vec_push(v, a); return v; }
+func cps_args2(a *u8, b *u8) *u8 { var v *u8 = cps_args1(a); vec_push(v, b); return v; }
+func cps_assign(target *u8, value *u8) *u8 {
+    var n *u8 = assign_stmt_alloc(); assign_stmt_set_target(n, target); assign_stmt_set_value(n, value); return n;
+}
+func cps_return(value *u8) *u8 { var n *u8 = return_stmt_alloc(); return_stmt_set_value(n, value); return n; }
+func cps_block(v *u8) *u8 {
+    var n *u8 = block_stmt_alloc(); block_stmt_set_stmts(n, cps_array(v)); block_stmt_set_count(n, vec_len(v)); return n;
+}
+func cps_if(cond *u8, yes *u8, no *u8) *u8 {
+    var n *u8 = if_stmt_alloc(); if_stmt_set_cond(n, cond); if_stmt_set_then(n, yes); if_stmt_set_else(n, no); return n;
+}
+func cps_var(name *u8, t *u8, value *u8) *u8 {
+    var n *u8 = var_decl_alloc(); var_decl_set_name(n, name); var_decl_set_name_len(n, strlen(name)); var_decl_set_type(n, t); var_decl_set_init(n, value); var_decl_set_is_extern(n, 0); var_decl_set_is_pub(n, 0); return n;
+}
+func cps_frame() *u8 { return cps_id("___frame"); }
+func cps_field(i i64) *u8 { return cps_index(cps_frame(), i); }
+func cps_as_frame(e *u8) *u8 { return cps_cast(cps_frame_type, e); }
+func cps_address(e *u8) *u8 {
+    if node_kind(e) == NODE_UNARY_EXPR && unary_expr_op(e) == TOKEN_STAR { return unary_expr_expr(e); }
+    return cps_unary(TOKEN_AMP, e);
+}
+func cps_step_name(m *i64) *u8 {
+    var suffix *u8 = alloc(32); itoa(m[0], suffix); return str_concat("___cps_step_", suffix);
+}
+// Compiler-side machine: id, parent, lexical bindings, states, slots, entry.
+func cps_machine(parent *i64) *i64 {
+    var m *i64 = alloc(48); m[0] = vec_len(cps_machines); m[1] = parent;
+    m[2] = vec_new(16); m[3] = vec_new(16); m[4] = 16; m[5] = 0;
+    if parent != nil {
+        var i i64 = 0; while i < vec_len(cast(*u8, parent[2])) { vec_push(cast(*u8, m[2]), vec_get(cast(*u8, parent[2]), i)); i = i + 1; }
+    }
+    vec_push(cps_machines, m); return m;
+}
+func cps_slot(m *i64, t *u8) *u8 {
+    var slot i64 = m[4]; m[4] = slot + 1;
+    return cps_unary(TOKEN_STAR, cps_cast(cps_ptr(t), cps_address(cps_index(cps_frame(), slot))));
+}
+// Binding: name, length, type, slot, defining machine. Cross-frame accesses
+// follow lexical environments, retaining the original owner's storage.
+func cps_bind(m *i64, name *u8, len i64, t *u8) *u8 {
+    if t != nil && llvm_is_float_type(t) { cps_fail(nil, "floating CPS cells are not yet supported"); }
+    var b *i64 = alloc(40); b[0] = name; b[1] = len; b[2] = t; b[3] = m[4]; b[4] = m;
+    m[4] = m[4] + 1; vec_push(cast(*u8, m[2]), b); return b;
+}
+func cps_lookup(m *i64, name *u8, len i64) *i64 {
+    var v *u8 = cast(*u8, m[2]); var i i64 = vec_len(v);
+    while i > 0 { i = i - 1; var b *i64 = vec_get(v, i); if str_eq_n(cast(*u8, b[0]), b[1], name, len) { return b; } } return nil;
+}
+func cps_binding_ref(m *i64, b *i64) *u8 {
+    if b[4] == 0 { return cps_id(str_dup_n(cast(*u8, b[0]), b[1])); }
+    var f *u8 = cps_frame(); var current *i64 = m;
+    while current != b[4] { f = cps_as_frame(cps_index(f, 5)); current = cast(*i64, current[1]); }
+    return cps_unary(TOKEN_STAR, cps_cast(cps_ptr(cast(*u8, b[2])), cps_address(cps_index(f, b[3]))));
+}
+func cps_state(m *i64, statements *u8) i64 {
+    var states *u8 = cast(*u8, m[3]); var id i64 = vec_len(states); vec_push(states, cps_block(statements)); return id;
+}
+func cps_jump(next i64) *u8 {
+    var v *u8 = cps_args1(cps_assign(cps_field(1), cps_num(next))); vec_push(v, cps_return(cps_frame())); return v;
+}
+func cps_store_state(m *i64, dest *u8, value *u8, next i64) i64 {
+    var v *u8 = cps_args1(cps_assign(dest, value)); vec_push(v, cps_assign(cps_field(1), cps_num(next))); vec_push(v, cps_return(cps_frame())); return cps_state(m, v);
+}
+
+// Enumerate executable children; quotations and unexpanded text remain data.
+func cps_children(n *u8) *u8 {
+    var v *u8 = vec_new(4); if n == nil { return v; } var k i64 = node_kind(n); var a *u8 = nil; var count i64 = 0;
+    if k == NODE_BLOCK_STMT { a = block_stmt_stmts(n); count = block_stmt_count(n); }
+    else if k == NODE_BLOCK_EXPR { a = block_expr_stmts(n); count = block_expr_count(n); vec_push(v, block_expr_tail(n)); }
+    else if k == NODE_CALL_EXPR { vec_push(v, call_expr_func(n)); a = call_expr_args(n); count = call_expr_arg_count(n); }
+    else if k == NODE_PERFORM_EXPR { a = perform_expr_args(n); count = perform_expr_arg_count(n); }
+    else if k == NODE_VAR_DECL { vec_push(v, var_decl_init(n)); }
+    else if k == NODE_RETURN_STMT { vec_push(v, return_stmt_value(n)); }
+    else if k == NODE_EXPR_STMT { vec_push(v, expr_stmt_expr(n)); }
+    else if k == NODE_BINARY_EXPR { vec_push(v, binary_expr_left(n)); vec_push(v, binary_expr_right(n)); }
+    else if k == NODE_ASSIGN_STMT { vec_push(v, assign_stmt_target(n)); vec_push(v, assign_stmt_value(n)); }
+    else if k == NODE_UNARY_EXPR { vec_push(v, unary_expr_expr(n)); }
+    else if k == NODE_GROUP_EXPR { vec_push(v, group_expr_expr(n)); }
+    else if k == NODE_INDEX_EXPR { vec_push(v, index_expr_base(n)); vec_push(v, index_expr_index(n)); }
+    else if k == NODE_FIELD_EXPR { vec_push(v, field_expr_expr(n)); }
+    else if k == NODE_CAST_EXPR { vec_push(v, cast_expr_expr(n)); }
+    else if k == NODE_BITCAST_EXPR { vec_push(v, bitcast_expr_expr(n)); }
+    else if k == NODE_INT_COMPARE || k == NODE_INT_CONVERT { vec_push(v, integer_expr_left(n)); vec_push(v, integer_expr_right(n)); }
+    else if k == NODE_IF_STMT { vec_push(v, if_stmt_cond(n)); vec_push(v, if_stmt_then(n)); vec_push(v, if_stmt_else(n)); }
+    else if k == NODE_WHILE_STMT { vec_push(v, while_stmt_cond(n)); vec_push(v, while_stmt_body(n)); }
+    else if k == NODE_LET_EXPR { vec_push(v, let_expr_init(n)); vec_push(v, let_expr_body(n)); }
+    else if k == NODE_LAMBDA_EXPR { vec_push(v, lambda_expr_body(n)); }
+    else if k == NODE_MATCH_EXPR { vec_push(v, match_expr_scrutinee(n)); var i i64 = 0; while i < match_expr_arm_count(n) { vec_push(v, match_arm_body(get_match_arm(match_expr_arms(n), i))); i = i + 1; } }
+    else if k == NODE_HANDLE_EXPR { vec_push(v, handle_expr_body(n)); vec_push(v, handle_expr_ret_body(n)); var i i64 = 0; while i < handle_expr_case_count(n) { vec_push(v, effect_case_body(handle_expr_cases(n) + i * 56)); i = i + 1; } }
+    else if k == NODE_RESUME_EXPR { vec_push(v, resume_expr_k(n)); vec_push(v, resume_expr_value(n)); }
+    else if k == NODE_ARRAY_LITERAL { a = array_literal_elems(n); count = array_literal_count(n); }
+    var i i64 = 0; while i < count { var p **u8 = a + i * 8; vec_push(v, *p); i = i + 1; } return v;
+}
+func cps_has_effect(n *u8) i64 {
+    if n == nil { return 0; } var k i64 = node_kind(n);
+    if k == NODE_HANDLE_EXPR || k == NODE_PERFORM_EXPR || k == NODE_RESUME_EXPR { return 1; }
+    if k == NODE_CALL_EXPR { var f *u8 = call_expr_func(n); if node_kind(f) == NODE_IDENT_EXPR { if map_has(cps_functions, str_dup_n(ident_expr_name(f), ident_expr_name_len(f))) { return 1; } } }
+    var v *u8 = cps_children(n); var i i64 = 0; while i < vec_len(v) { if cps_has_effect(vec_get(v, i)) { return 1; } i = i + 1; } return 0;
+}
+func cps_expr_type(m *i64, n *u8) *u8 {
+    if n == nil { return cps_i64; } var k i64 = node_kind(n);
+    if k == NODE_IDENT_EXPR { var b *i64 = cps_lookup(m, ident_expr_name(n), ident_expr_name_len(n)); if b != nil { return cast(*u8, b[2]); } var t *u8 = get_expr_type(n); if t != nil { return t; } }
+    if k == NODE_CAST_EXPR { return cast_expr_type(n); }
+    if k == NODE_BITCAST_EXPR { return bitcast_expr_type(n); }
+    if k == NODE_BINARY_EXPR {
+        var op i64 = binary_expr_op(n);
+        if op == TOKEN_EQEQ || op == TOKEN_BANGEQ || op == TOKEN_LT || op == TOKEN_GT || op == TOKEN_LTEQ || op == TOKEN_GTEQ || op == TOKEN_AMPAMP || op == TOKEN_PIPEPIPE { return cps_i64; }
+        return cps_expr_type(m, binary_expr_left(n));
+    }
+    if k == NODE_UNARY_EXPR {
+        var t *u8 = cps_expr_type(m, unary_expr_expr(n));
+        if unary_expr_op(n) == TOKEN_AMP { return cps_ptr(t); }
+        if unary_expr_op(n) == TOKEN_STAR { return get_pointed_type(t); }
+        return t;
+    }
+    if k == NODE_INDEX_EXPR {
+        var t *u8 = cps_expr_type(m, index_expr_base(n));
+        if t != nil && type_kind(t) == TYPE_ARRAY { return array_type_elem(t); }
+        if t != nil && type_kind(t) == TYPE_PTR { return ptr_type_elem(t); }
+    }
+    if k == NODE_FIELD_EXPR {
+        var t *u8 = cps_expr_type(m, field_expr_expr(n));
+        if t != nil && type_kind(t) == TYPE_PTR { t = ptr_type_elem(t); }
+        if t != nil && type_kind(t) == TYPE_BASE {
+            var d *u8 = find_struct(base_type_name(t), base_type_name_len(t));
+            if d != nil { return get_field_type(d, field_expr_field(n), field_expr_field_len(n)); }
+        }
+    }
+    if k == NODE_LET_EXPR { return cps_expr_type(m, let_expr_body(n)); }
+    if k == NODE_STRING_EXPR { return cps_ptr(cps_base("u8")); }
+    if k == NODE_GROUP_EXPR { return cps_expr_type(m, group_expr_expr(n)); }
+    if k == NODE_CALL_EXPR { var f *u8 = call_expr_func(n); if node_kind(f) == NODE_IDENT_EXPR { var d *u8 = find_func(ident_expr_name(f), ident_expr_name_len(f)); if d != nil && !is_void_type(func_decl_ret_type(d)) { return func_decl_ret_type(d); } } }
+    return cps_i64;
+}
+// An lvalue rooted in a native aggregate still names step-local storage.
+// Stop at pointer indirection: the pointee is not the pointer cell itself.
+func cps_check_address(m *i64, n *u8) void {
+    var k i64 = node_kind(n);
+    if k == NODE_GROUP_EXPR { cps_check_address(m, group_expr_expr(n)); }
+    else if k == NODE_IDENT_EXPR {
+        var b *i64 = cps_lookup(m, ident_expr_name(n), ident_expr_name_len(n));
+        if b != nil { cps_fail(n, "address of a suspending local has an unproved escape lifetime"); }
+    }
+    else if k == NODE_INDEX_EXPR {
+        var t *u8 = cps_expr_type(m, index_expr_base(n));
+        if t != nil && type_kind(t) == TYPE_ARRAY { cps_check_address(m, index_expr_base(n)); }
+    }
+    else if k == NODE_FIELD_EXPR {
+        var t *u8 = cps_expr_type(m, field_expr_expr(n));
+        if t != nil && type_kind(t) != TYPE_PTR { cps_check_address(m, field_expr_expr(n)); }
+    }
+}
+// Native arrays/structs may be indexed/selected in their region, but may not
+// decay into aliases stored in frame cells or passed to opaque native calls.
+func cps_rewrite_storage(m *i64, n *u8) *u8 {
+    if node_kind(n) == NODE_GROUP_EXPR { return cps_rewrite_storage(m, group_expr_expr(n)); }
+    if node_kind(n) == NODE_IDENT_EXPR {
+        var b *i64 = cps_lookup(m, ident_expr_name(n), ident_expr_name_len(n));
+        if b != nil && b[4] == 0 && cps_native_local(cast(*u8, b[2])) { return n; }
+    }
+    if node_kind(n) == NODE_INDEX_EXPR {
+        var r *u8 = index_expr_alloc(); index_expr_set_base(r, cps_rewrite_storage(m, index_expr_base(n))); index_expr_set_index(r, cps_rewrite(m, index_expr_index(n))); return r;
+    }
+    if node_kind(n) == NODE_FIELD_EXPR {
+        var r *u8 = alloc(32); memcpy(r, n, 32); var p **u8 = r + 8; *p = cps_rewrite_storage(m, field_expr_expr(n)); return r;
+    }
+    return cps_rewrite(m, n);
+}
+// Rewrite a non-suspending subtree, preserving its native expression forms.
+func cps_rewrite(m *i64, n *u8) *u8 {
+    if n == nil { return n; } var k i64 = node_kind(n);
+    if k == NODE_IDENT_EXPR {
+        if cps_token_name != nil && str_eq_n(ident_expr_name(n), ident_expr_name_len(n), cps_token_name, strlen(cps_token_name)) { cps_fail(n, "continuation may only occur as its clause's tail resume operand"); }
+        var b *i64 = cps_lookup(m, ident_expr_name(n), ident_expr_name_len(n));
+        if b != nil {
+            var t *u8 = cast(*u8, b[2]);
+            if t != nil && type_kind(t) == TYPE_ARRAY { cps_fail(n, "native aggregate alias has an unproved escape lifetime"); }
+            return cps_binding_ref(m, b);
+        } return n;
+    }
+    if k == NODE_UNARY_EXPR {
+        var inner *u8 = unary_expr_expr(n);
+        if unary_expr_op(n) == TOKEN_AMP { cps_check_address(m, inner); }
+        var r *u8 = cps_unary(unary_expr_op(n), cps_rewrite(m, inner)); node_copy_origin(r, n); return r;
+    }
+    if k == NODE_BINARY_EXPR { var r *u8 = cps_binary(binary_expr_op(n), cps_rewrite(m, binary_expr_left(n)), cps_rewrite(m, binary_expr_right(n))); node_copy_origin(r, n); return r; }
+    if k == NODE_GROUP_EXPR { return cps_rewrite(m, group_expr_expr(n)); }
+    if k == NODE_CALL_EXPR {
+        var a *u8 = vec_new(4); var i i64 = 0; while i < call_expr_arg_count(n) { var p **u8 = call_expr_args(n) + i * 8; vec_push(a, cps_rewrite(m, *p)); i = i + 1; }
+        var r *u8 = call_expr_alloc(); call_expr_set_func(r, cps_rewrite(m, call_expr_func(n))); call_expr_set_args(r, cps_array(a)); call_expr_set_arg_count(r, vec_len(a)); node_copy_origin(r, n); return r;
+    }
+    if k == NODE_CAST_EXPR {
+        if cps_native_local(cps_expr_type(m, cast_expr_expr(n))) { cps_fail(n, "native aggregate alias has an unproved escape lifetime"); }
+        return cps_cast(cast_expr_type(n), cps_rewrite(m, cast_expr_expr(n)));
+    }
+    if k == NODE_BITCAST_EXPR {
+        if cps_native_local(cps_expr_type(m, bitcast_expr_expr(n))) { cps_fail(n, "native aggregate alias has an unproved escape lifetime"); }
+        var r *u8 = bitcast_expr_alloc(); bitcast_expr_set_type(r, bitcast_expr_type(n)); bitcast_expr_set_expr(r, cps_rewrite(m, bitcast_expr_expr(n))); return r; }
+    if k == NODE_INDEX_EXPR || k == NODE_FIELD_EXPR {
+        var t *u8 = cps_expr_type(m, n);
+        if t != nil && type_kind(t) == TYPE_ARRAY { cps_fail(n, "native aggregate alias has an unproved escape lifetime"); }
+        return cps_rewrite_storage(m, n);
+    }
+    if k == NODE_INT_COMPARE || k == NODE_INT_CONVERT { return integer_expr_alloc(k, integer_expr_op(n), integer_expr_src(n), integer_expr_dst(n), cps_rewrite(m, integer_expr_left(n)), cps_rewrite(m, integer_expr_right(n))); }
+    if k == NODE_LET_EXPR {
+        var r *u8 = let_expr_alloc(); memcpy(r, n, 48);
+        let_expr_set_init(r, cps_rewrite(m, let_expr_init(n)));
+        var env *u8 = cast(*u8, m[2]); var saved i64 = vec_len(env);
+        var b *i64 = cps_bind(m, let_expr_name(n), let_expr_name_len(n), let_expr_type(n)); b[4] = 0;
+        let_expr_set_body(r, cps_rewrite(m, let_expr_body(n))); while vec_len(env) > saved { vec_pop(env); } return r;
+    }
+    if k == NODE_LAMBDA_EXPR {
+        if cps_captures_frame(m, lambda_expr_body(n)) { cps_fail(n, "native closures cannot capture a suspending activation"); } return n;
+    }
+    if k == NODE_MATCH_EXPR {
+        var r *u8 = match_expr_alloc(); var scrutinee *u8 = match_expr_scrutinee(n);
+        // Match consumes its aggregate address synchronously in this step;
+        // it cannot store the address in a frame or pass it to native code.
+        if node_kind(scrutinee) == NODE_UNARY_EXPR && unary_expr_op(scrutinee) == TOKEN_AMP && cps_native_local(cps_expr_type(m, unary_expr_expr(scrutinee))) {
+            match_expr_set_scrutinee(r, cps_unary(TOKEN_AMP, cps_rewrite_storage(m, unary_expr_expr(scrutinee))));
+        } else { match_expr_set_scrutinee(r, cps_rewrite(m, scrutinee)); }
+        var count i64 = match_expr_arm_count(n); var arms *u8 = alloc(count * 16); var i i64 = 0;
+        while i < count {
+            var old *u8 = get_match_arm(match_expr_arms(n), i); var a *u8 = arms + i * 16; memcpy(a, old, 16);
+            var pattern *u8 = match_arm_pattern(old); var env *u8 = cast(*u8, m[2]); var saved i64 = vec_len(env);
+            if node_kind(pattern) == NODE_PATTERN_VARIANT && pattern_variant_binding_len(pattern) > 0 {
+                var b *i64 = cps_bind(m, pattern_variant_binding(pattern), pattern_variant_binding_len(pattern), cps_i64); b[4] = 0;
+            }
+            match_arm_set_body(a, cps_rewrite(m, match_arm_body(old))); while vec_len(env) > saved { vec_pop(env); } i = i + 1;
+        }
+        match_expr_set_arms(r, arms); match_expr_set_arm_count(r, count); return r;
+    }
+    if k == NODE_NUMBER_EXPR || k == NODE_STRING_EXPR || k == NODE_BOOL_EXPR || k == NODE_NIL_EXPR { return n; }
+    cps_fail(n, "unsupported expression in the scoped CPS profile"); return n;
+}
+func cps_base(name *u8) *u8 { var t *u8 = base_type_alloc(); base_type_set_name(t, name); base_type_set_name_len(t, strlen(name)); return t; }
+func cps_ctor_name(m *i64) *u8 { var s *u8 = alloc(32); itoa(m[0], s); return str_concat("___cps_make_", s); }
+func cps_new_call(m *i64, caller *u8, dest *u8, h *u8, env *u8, kind i64, prompt *u8) *u8 {
+    var v *u8 = cps_args1(cps_as_frame(cps_field(9))); vec_push(v, caller); vec_push(v, dest); vec_push(v, h); vec_push(v, env); vec_push(v, cps_num(kind)); vec_push(v, prompt); return cps_call(cps_ctor_name(m), v);
+}
+func cps_effect_id(n *u8, name *u8, len i64) i64 {
+    var d *u8 = llvm_find_effect(name, len); if d == nil { cps_fail(n, "unresolved effect declaration"); }
+    if effect_decl_param_type_count(d) > 1 { cps_fail(n, "only scalar zero/one-argument effects are supported"); }
+    var ret *u8 = effect_decl_return_type(d);
+    if ret == nil || type_kind(ret) != TYPE_BASE || !str_eq_n(base_type_name(ret), base_type_name_len(ret), "i64", 3) { cps_fail(n, "CPS effects currently require an i64 result"); }
+    if effect_decl_param_type_count(d) == 1 {
+        var types **u8 = effect_decl_param_types(d); var t *u8 = *types;
+        if type_kind(t) != TYPE_BASE || !str_eq_n(base_type_name(t), base_type_name_len(t), "i64", 3) { cps_fail(n, "CPS effects currently require an i64 payload"); }
+    }
+    // The resolved declaration object is unique in this compilation. Emit its
+    // stable registry index, never its address or a string-length discriminator.
+    var i i64 = 0;
+    while i < llvm_effect_count { var entry *u8 = llvm_effects + i * 24; var p **u8 = entry + 16; if *p == d { return i + 1; } i = i + 1; }
+    cps_fail(n, "effect identity is absent from the registry"); return 0;
+}
+func cps_void_expr(n *u8) i64 {
+    if n != nil && node_kind(n) == NODE_CALL_EXPR { var f *u8 = call_expr_func(n); if node_kind(f) == NODE_IDENT_EXPR { var d *u8 = find_func(ident_expr_name(f), ident_expr_name_len(f)); if d != nil { return is_void_type(func_decl_ret_type(d)); } } } return 0;
+}
+func cps_compile_expr(m *i64, n *u8, dest *u8, next i64, tail i64) i64 {
+    if n == nil { return cps_store_state(m, dest, cps_num(0), next); }
+    var k i64 = node_kind(n);
+    if k == NODE_BLOCK_EXPR || k == NODE_BLOCK_STMT { return cps_compile_block(m, n, dest, next, tail); }
+    if k == NODE_BINARY_EXPR && binary_expr_op(n) == TOKEN_EQ {
+        var lhs *u8 = binary_expr_left(n);
+        if cps_has_effect(lhs) { cps_fail(n, "suspending assignment target"); }
+        var address *u8 = cps_slot(m, cps_ptr(cps_expr_type(m, lhs)));
+        var value *u8 = cps_slot(m, cps_expr_type(m, lhs));
+        var end i64 = cps_store_state(m, dest, value, next);
+        end = cps_store_state(m, cps_unary(TOKEN_STAR, address), value, end);
+        end = cps_compile_expr(m, binary_expr_right(n), value, end, 0);
+        return cps_store_state(m, address, cps_address(cps_rewrite(m, lhs)), end);
+    }
+    if k == NODE_LET_EXPR {
+        var t *u8 = let_expr_type(n); if t == nil { t = cps_i64; }
+        var env *u8 = cast(*u8, m[2]); var saved i64 = vec_len(env);
+        var b *i64 = cps_bind(m, let_expr_name(n), let_expr_name_len(n), t);
+        var after i64 = cps_compile_expr(m, let_expr_body(n), dest, next, tail);
+        while vec_len(env) > saved { vec_pop(env); }
+        return cps_compile_expr(m, let_expr_init(n), cps_binding_ref(m, b), after, 0);
+    }
+    if k == NODE_HANDLE_EXPR { return cps_compile_handle(m, n, dest, next); }
+    if k == NODE_RESUME_EXPR {
+        if tail == 0 || cps_token_name == nil { cps_fail(n, "resume must be in tail position in its own effect clause"); }
+        var token *u8 = resume_expr_k(n);
+        if node_kind(token) != NODE_IDENT_EXPR || !str_eq_n(ident_expr_name(token), ident_expr_name_len(token), cps_token_name, strlen(cps_token_name)) { cps_fail(n, "resume requires the active clause's continuation"); }
+        var reply *u8 = cps_slot(m, cps_i64); var args *u8 = cps_args2(cps_frame(), cps_field(17)); vec_push(args, reply);
+        var end i64 = cps_state(m, cps_args1(cps_return(cps_call("___cps_resume", args))));
+        return cps_compile_expr(m, resume_expr_value(n), reply, end, 0);
+    }
+    if k == NODE_PERFORM_EXPR {
+        var id i64 = cps_effect_id(n, perform_expr_name(n), perform_expr_name_len(n));
+        var payload *u8 = cps_slot(m, cps_i64);
+        var args *u8 = cps_args2(cps_frame(), cps_num(id)); vec_push(args, payload); vec_push(args, cps_address(dest));
+        var v *u8 = cps_args1(cps_assign(cps_field(1), cps_num(next))); vec_push(v, cps_return(cps_call("___cps_perform", args)));
+        var state i64 = cps_state(m, v);
+        var arg *u8 = nil; if perform_expr_arg_count(n) > 0 { var p **u8 = perform_expr_args(n); arg = *p; }
+        return cps_compile_expr(m, arg, payload, state, 0);
+    }
+    if !cps_has_effect(n) {
+        var value *u8 = cps_rewrite(m, n);
+        if cps_void_expr(n) {
+            var stmt *u8 = expr_stmt_alloc(); expr_stmt_set_expr(stmt, value);
+            var v *u8 = cps_args1(stmt); vec_push(v, cps_assign(cps_field(1), cps_num(next))); vec_push(v, cps_return(cps_frame())); return cps_state(m, v);
+        }
+        return cps_store_state(m, dest, value, next);
+    }
+    if k == NODE_GROUP_EXPR { return cps_compile_expr(m, group_expr_expr(n), dest, next, tail); }
+    if k == NODE_BINARY_EXPR {
+        var left *u8 = cps_slot(m, cps_expr_type(m, binary_expr_left(n))); var right *u8 = cps_slot(m, cps_expr_type(m, binary_expr_right(n)));
+        var op i64 = binary_expr_op(n);
+        var end i64 = cps_store_state(m, dest, cps_binary(op, left, right), next);
+        var rhs i64 = cps_compile_expr(m, binary_expr_right(n), right, end, 0);
+        if op == TOKEN_AMPAMP || op == TOKEN_PIPEPIPE {
+            var shortcut i64 = cps_store_state(m, dest, cps_num(0), next);
+            if op == TOKEN_PIPEPIPE { shortcut = cps_store_state(m, dest, cps_num(1), next); }
+            var yes i64 = rhs; var no i64 = shortcut; if op == TOKEN_PIPEPIPE { yes = shortcut; no = rhs; }
+            var branch *u8 = cps_if(left, cps_block(cps_jump(yes)), cps_block(cps_jump(no)));
+            rhs = cps_state(m, cps_args1(branch));
+        }
+        return cps_compile_expr(m, binary_expr_left(n), left, rhs, 0);
+    }
+    if k == NODE_CALL_EXPR {
+        var f *u8 = call_expr_func(n);
+        if node_kind(f) != NODE_IDENT_EXPR { cps_fail(n, "suspending indirect/foreign calls are unsupported"); }
+        var name *u8 = str_dup_n(ident_expr_name(f), ident_expr_name_len(f));
+        var callee *i64 = map_get(cps_functions, name);
+        var values *u8 = vec_new(4); var i i64 = 0;
+        while i < call_expr_arg_count(n) { var p **u8 = call_expr_args(n) + i * 8; vec_push(values, cps_slot(m, cps_expr_type(m, *p))); i = i + 1; }
+        var end i64 = 0;
+        if callee != nil {
+            var v *u8 = cps_args1(cps_assign(cps_field(1), cps_num(next)));
+            vec_push(v, cps_var("___child", cps_frame_type, cps_new_call(callee, cps_frame(), cps_address(dest), cps_as_frame(cps_field(4)), cps_num(0), 0, cps_num(0))));
+            i = 0; while i < vec_len(values) { vec_push(v, cps_assign(cps_index(cps_id("___child"), 16 + i), vec_get(values, i))); i = i + 1; }
+            vec_push(v, cps_return(cps_id("___child"))); end = cps_state(m, v);
+        } else {
+            var call *u8 = cps_call(name, values);
+            if cps_void_expr(n) { var stmt *u8 = expr_stmt_alloc(); expr_stmt_set_expr(stmt, call); var v *u8 = cps_args1(stmt); vec_push(v, cps_assign(cps_field(1), cps_num(next))); vec_push(v, cps_return(cps_frame())); end = cps_state(m, v); }
+            else { end = cps_store_state(m, dest, call, next); }
+        }
+        i = call_expr_arg_count(n); while i > 0 { i = i - 1; var p **u8 = call_expr_args(n) + i * 8; end = cps_compile_expr(m, *p, vec_get(values, i), end, 0); } return end;
+    }
+    if k == NODE_UNARY_EXPR {
+        var tmp *u8 = cps_slot(m, cps_expr_type(m, unary_expr_expr(n)));
+        var end i64 = cps_store_state(m, dest, cps_unary(unary_expr_op(n), tmp), next);
+        return cps_compile_expr(m, unary_expr_expr(n), tmp, end, 0);
+    }
+    if k == NODE_CAST_EXPR {
+        var tmp *u8 = cps_slot(m, cps_expr_type(m, cast_expr_expr(n)));
+        var end i64 = cps_store_state(m, dest, cps_cast(cast_expr_type(n), tmp), next);
+        return cps_compile_expr(m, cast_expr_expr(n), tmp, end, 0);
+    }
+    cps_fail(n, "unsupported suspending expression"); return next;
+}
+func cps_compile_stmt(m *i64, n *u8, result *u8, next i64, tail i64) i64 {
+    if n == nil { return next; } var k i64 = node_kind(n);
+    if k == NODE_EXPR_STMT { return cps_compile_expr(m, expr_stmt_expr(n), result, next, tail); }
+    if k == NODE_VAR_DECL {
+        if cps_native_local(var_decl_type(n)) { cps_fail(n, "native aggregate/closure initializer cannot suspend"); }
+        var b *i64 = cps_lookup(m, var_decl_name(n), var_decl_name_len(n)); var env *u8 = cast(*u8, m[2]);
+        vec_pop(env); var entry i64 = cps_compile_expr(m, var_decl_init(n), cps_binding_ref(m, b), next, 0); vec_push(env, b); return entry;
+    }
+    if k == NODE_ASSIGN_STMT {
+        var target *u8 = assign_stmt_target(n);
+        // Resolve the lvalue before suspending its RHS, including pointer/index
+        // side effects. Its address is stable because local cells live in frames.
+        if cps_has_effect(target) { cps_fail(n, "suspending assignment targets are unsupported"); }
+        var address *u8 = cps_slot(m, cps_ptr(cps_expr_type(m, target)));
+        var value *u8 = cps_slot(m, cps_expr_type(m, target));
+        var end i64 = cps_store_state(m, cps_unary(TOKEN_STAR, address), value, next);
+        var rhs i64 = cps_compile_expr(m, assign_stmt_value(n), value, end, 0);
+        return cps_store_state(m, address, cps_address(cps_rewrite(m, target)), rhs);
+    }
+    if k == NODE_RETURN_STMT {
+        var value *u8 = cps_slot(m, cps_i64);
+        var end i64 = cps_state(m, cps_args1(cps_return(cps_call("___cps_leave", cps_args2(cps_frame(), value)))));
+        return cps_compile_expr(m, return_stmt_value(n), value, end, 0);
+    }
+    if k == NODE_BLOCK_STMT { return cps_compile_block(m, n, result, next, tail); }
+    if k == NODE_IF_STMT {
+        var yes i64 = cps_compile_stmt(m, if_stmt_then(n), result, next, tail);
+        var no i64 = cps_compile_stmt(m, if_stmt_else(n), result, next, tail);
+        var cond *u8 = cps_slot(m, cps_i64);
+        var end i64 = cps_state(m, cps_args1(cps_if(cond, cps_block(cps_jump(yes)), cps_block(cps_jump(no)))));
+        return cps_compile_expr(m, if_stmt_cond(n), cond, end, 0);
+    }
+    if k == NODE_WHILE_STMT {
+        var repeat i64 = cps_state(m, vec_new(1));
+        var loop *i64 = alloc(40); loop[0] = m; loop[1] = next; loop[2] = repeat; loop[3] = while_stmt_label(n); loop[4] = while_stmt_label_len(n); vec_push(cps_loops, loop);
+        var body i64 = cps_compile_stmt(m, while_stmt_body(n), result, repeat, 0);
+        vec_pop(cps_loops);
+        var cond *u8 = cps_slot(m, cps_i64);
+        var branch i64 = cps_state(m, cps_args1(cps_if(cond, cps_block(cps_jump(body)), cps_block(cps_jump(next)))));
+        var entry i64 = cps_compile_expr(m, while_stmt_cond(n), cond, branch, 0);
+        vec_set(cast(*u8, m[3]), repeat, cps_block(cps_jump(entry))); return repeat;
+    }
+    if k == NODE_BREAK_STMT || k == NODE_CONTINUE_STMT {
+        var name *u8 = break_stmt_label(n); var len i64 = break_stmt_label_len(n);
+        if k == NODE_CONTINUE_STMT { name = continue_stmt_label(n); len = continue_stmt_label_len(n); }
+        var i i64 = vec_len(cps_loops); var loop *i64 = nil;
+        while i > 0 { i = i - 1; var candidate *i64 = vec_get(cps_loops, i); if len == 0 || str_eq_n(name, len, cast(*u8, candidate[3]), candidate[4]) { loop = candidate; break; } }
+        if loop == nil { cps_fail(n, "unresolved lexical loop exit"); }
+        var owner *u8 = cps_frame(); var machine *i64 = m;
+        while machine != loop[0] { owner = cps_as_frame(cps_index(owner, 5)); machine = cast(*i64, machine[1]); }
+        var target i64 = loop[1]; if k == NODE_CONTINUE_STMT { target = loop[2]; }
+        var args *u8 = cps_args2(cps_frame(), owner); vec_push(args, cps_num(target)); return cps_state(m, cps_args1(cps_return(cps_call("___cps_exit", args))));
+    }
+    cps_fail(n, "unsupported statement in the scoped CPS profile"); return next;
+}
+func cps_compile_block(m *i64, n *u8, result *u8, next i64, tail i64) i64 {
+    var a *u8 = nil; var count i64 = 0; var last *u8 = nil;
+    if node_kind(n) == NODE_BLOCK_STMT { a = block_stmt_stmts(n); count = block_stmt_count(n); }
+    else { a = block_expr_stmts(n); count = block_expr_count(n); last = block_expr_tail(n); }
+    var env *u8 = cast(*u8, m[2]); var saved i64 = vec_len(env); var scopes *u8 = vec_new(8); var i i64 = 0;
+    while i < count {
+        var p **u8 = a + i * 8; var stmt *u8 = *p;
+        if node_kind(stmt) == NODE_VAR_DECL {
+            var t *u8 = var_decl_type(stmt); if t == nil { t = cps_i64; }
+            var b *i64 = cps_bind(m, var_decl_name(stmt), var_decl_name_len(stmt), t);
+            if cps_native_local(t) { b[4] = 0; }
+        }
+        vec_push(scopes, cps_copy_env(env)); i = i + 1;
+    }
+    var entry i64 = next;
+    if last != nil { entry = cps_compile_expr(m, last, result, next, tail); }
+    i = count;
+    while i > 0 {
+        var p **u8 = a + (i - 1) * 8;
+        // Keep a non-suspending region native. Aggregates and native closures
+        // may live here only when no reference escapes this region.
+        if !cps_has_effect(*p) && cps_native_region_stmt(*p) {
+            var end i64 = i; var start i64 = i - 1;
+            while start > 0 { var prev **u8 = a + (start - 1) * 8; if cps_has_effect(*prev) || !cps_native_region_stmt(*prev) { break; } start = start - 1; }
+            var j i64 = start;
+            while j < end {
+                var q **u8 = a + j * 8; var decl *u8 = *q;
+                if node_kind(decl) == NODE_VAR_DECL && cps_native_local(var_decl_type(decl)) {
+                    var z i64 = end;
+                    while z < count { var later **u8 = a + z * 8; if cps_mentions(*later, var_decl_name(decl), var_decl_name_len(decl)) { cps_fail(decl, "native aggregate/closure is live across a suspension"); } z = z + 1; }
+                    if cps_mentions(last, var_decl_name(decl), var_decl_name_len(decl)) { cps_fail(decl, "native aggregate/closure escapes its region"); }
+                }
+                j = j + 1;
+            }
+            var v *u8 = vec_new(8); j = start;
+            while j < end { m[2] = vec_get(scopes, j); var q **u8 = a + j * 8; vec_push(v, cps_native_stmt(m, *q, result)); j = j + 1; }
+            vec_push(v, cps_assign(cps_field(1), cps_num(entry))); vec_push(v, cps_return(cps_frame())); entry = cps_state(m, v); i = start;
+        } else {
+            i = i - 1; var is_tail i64 = 0; if last == nil && i == count - 1 { is_tail = tail; }
+            m[2] = vec_get(scopes, i); entry = cps_compile_stmt(m, *p, result, entry, is_tail);
+        }
+    }
+    m[2] = env; while vec_len(env) > saved { vec_pop(env); } return entry;
+}
+func cps_compile_synthetic(m *i64, body *u8, tail i64) void {
+    var result *u8 = cps_slot(m, cps_i64);
+    var done i64 = cps_state(m, cps_args1(cps_return(cps_call("___cps_finish", cps_args2(cps_frame(), result)))));
+    var entry i64 = 0;
+    if node_kind(body) == NODE_BLOCK_STMT { entry = cps_compile_block(m, body, result, done, tail); }
+    else { entry = cps_compile_expr(m, body, result, done, tail); }
+    m[5] = cps_store_state(m, result, cps_num(0), entry);
+}
+func cps_compile_handle(m *i64, n *u8, dest *u8, next i64) i64 {
+    var old_token *u8 = cps_token_name;
+    cps_token_name = nil;
+    var body *i64 = cps_machine(m); cps_compile_synthetic(body, handle_expr_body(n), 0);
+    var ret *i64 = cps_machine(m);
+    cps_bind(ret, handle_expr_ret_bind(n), handle_expr_ret_bind_len(n), cps_i64);
+    if cps_has_effect(handle_expr_ret_body(n)) { cps_fail(n, "return clauses must be effect-free"); }
+    cps_compile_synthetic(ret, handle_expr_ret_body(n), 0);
+    var count i64 = handle_expr_case_count(n); var v *u8 = cps_args1(cps_assign(cps_field(1), cps_num(next)));
+    var alloc_args *u8 = cps_args2(cps_as_frame(cps_field(9)), cps_num(9 + count * 4));
+    vec_push(v, cps_var("___prompt", cps_frame_type, cps_call("___cps_alloc", alloc_args)));
+    var h *u8 = cps_id("___prompt");
+    vec_push(v, cps_assign(cps_index(h, 0), cps_field(4))); vec_push(v, cps_assign(cps_index(h, 1), cps_cast(cps_i64, cps_frame())));
+    vec_push(v, cps_assign(cps_index(h, 3), cps_cast(cps_i64, cps_address(dest)))); vec_push(v, cps_assign(cps_index(h, 4), cps_num(next)));
+    vec_push(v, cps_assign(cps_index(h, 5), cps_cast(cps_i64, cps_unary(TOKEN_AMP, cps_id(cps_step_name(ret))))));
+    vec_push(v, cps_assign(cps_index(h, 6), cps_num(ret[4]))); vec_push(v, cps_assign(cps_index(h, 7), cps_num(ret[5]))); vec_push(v, cps_assign(cps_index(h, 8), cps_num(count)));
+    var i i64 = 0;
+    while i < count {
+        var c *u8 = handle_expr_cases(n) + i * 56; var clause *i64 = cps_machine(m);
+        var name *u8 = effect_case_binding(c); var len i64 = effect_case_binding_len(c);
+        var token *u8 = effect_case_k(c); var token_len i64 = effect_case_k_len(c);
+        var d *u8 = llvm_find_effect(effect_case_name(c), effect_case_name_len(c));
+        var id i64 = cps_effect_id(n, effect_case_name(c), effect_case_name_len(c));
+        if effect_decl_param_type_count(d) == 0 && token_len == 0 { token = name; token_len = len; name = nil; len = 0; }
+        if len > 0 { cps_bind(clause, name, len, cps_i64); } else { clause[4] = clause[4] + 1; }
+        if token_len > 0 { cps_bind(clause, token, token_len, cps_i64); cps_token_name = str_dup_n(token, token_len); } else { cps_token_name = nil; clause[4] = clause[4] + 1; }
+        cps_compile_synthetic(clause, effect_case_body(c), 1);
+        vec_push(v, cps_assign(cps_index(h, 9 + i * 4), cps_num(id)));
+        vec_push(v, cps_assign(cps_index(h, 10 + i * 4), cps_cast(cps_i64, cps_unary(TOKEN_AMP, cps_id(cps_step_name(clause))))));
+        vec_push(v, cps_assign(cps_index(h, 11 + i * 4), cps_num(clause[4]))); vec_push(v, cps_assign(cps_index(h, 12 + i * 4), cps_num(clause[5])));
+        i = i + 1;
+    }
+    cps_token_name = old_token;
+    vec_push(v, cps_var("___body", cps_frame_type, cps_new_call(body, cps_frame(), cps_address(dest), h, cps_frame(), 1, h)));
+    vec_push(v, cps_assign(cps_index(h, 2), cps_cast(cps_i64, cps_id("___body")))); vec_push(v, cps_return(cps_id("___body")));
+    return cps_state(m, v);
+}
+var cps_wrappers *u8 = nil;
+func cps_parse_func(source *u8, name *u8) *u8 {
+    var p *u8 = parse_program_from_named_string(source, "<effects-cps>");
+    if p == nil { cps_fail(nil, "internal core construction failed"); }
+    var f *u8 = get_decl(program_decls(p), 0); func_decl_set_name(f, name); func_decl_set_name_len(f, strlen(name)); return f;
+}
+func cps_emit_machine_nodes(m *i64) void {
+    var step *u8 = cps_parse_func("func step(___frame *i64) *i64 {}", cps_step_name(m));
+    var v *u8 = vec_new(16); var i i64 = 0; var states *u8 = cast(*u8, m[3]);
+    while i < vec_len(states) { vec_push(v, cps_if(cps_binary(TOKEN_EQEQ, cps_field(1), cps_num(i)), vec_get(states, i), nil)); i = i + 1; }
+    var error_args *u8 = cps_args1(cps_frame()); vec_push(error_args, cps_num(-1));
+    vec_push(v, cps_return(cps_call("___cps_bad_pc", error_args))); func_decl_set_body(step, cps_block(v)); vec_push(cps_generated, step);
+    var ctor *u8 = cps_parse_func("func make(task *i64, caller *i64, dest *i64, h *i64, env *i64, kind i64, prompt *i64) *i64 {}", cps_ctor_name(m));
+    var args *u8 = cps_args1(cps_id("task")); vec_push(args, cps_cast(cps_i64, cps_unary(TOKEN_AMP, cps_id(cps_step_name(m)))));
+    vec_push(args, cps_num(m[4])); vec_push(args, cps_num(m[5])); vec_push(args, cps_id("caller")); vec_push(args, cps_id("dest")); vec_push(args, cps_id("h")); vec_push(args, cps_id("env")); vec_push(args, cps_id("kind")); vec_push(args, cps_id("prompt"));
+    func_decl_set_body(ctor, cps_block(cps_args1(cps_return(cps_call("___cps_new", args))))); vec_push(cps_generated, ctor);
+}
+func cps_prepare() void {
+    cps_enabled = 0; cps_generated = vec_new(16); cps_wrappers = map_new(); cps_functions = map_new(); cps_machines = vec_new(16);
+    var flag *u8 = getenv("LANG_EFFECTS"); if flag == nil || !str_eq_n(flag, strlen(flag), "cps", 3) { return; }
+    cps_loops = vec_new(8);
+    cps_i64 = cps_base("i64"); cps_frame_type = cps_ptr(cps_i64); cps_token_name = nil;
+    // Readers also have executable core bodies. Their standalone callable ABI
+    // is i64 -> i64; register that view before the selective call-graph closure.
+    var ri i64 = 0;
+    while ri < cg_reader_count {
+        var rp **u8 = cg_readers + ri * 24 + 16; var reader_node *u8 = *rp;
+        var f *u8 = cps_parse_func("func entry(text *u8) i64 {}", str_dup_n(reader_decl_name(reader_node), reader_decl_name_len(reader_node)));
+        var param *u8 = func_decl_params(f); param_set_name(param, reader_decl_param_name(reader_node)); param_set_name_len(param, reader_decl_param_len(reader_node));
+        func_decl_set_body(f, reader_decl_body(reader_node)); node_copy_origin(f, reader_node); add_func(f);
+        ri = ri + 1;
+    }
+    var changed i64 = 1;
+    while changed {
+        changed = 0; var i i64 = 0;
+        while i < cg_func_count {
+            var p **u8 = cg_funcs + i * 24 + 16; var f *u8 = *p;
+            var name *u8 = str_dup_n(func_decl_name(f), func_decl_name_len(f));
+            if !func_decl_is_extern(f) && !map_has(cps_functions, name) && cps_has_effect(func_decl_body(f)) { map_set(cps_functions, name, 1); changed = 1; }
+            i = i + 1;
+        }
+    }
+    if map_size(cps_functions) == 0 { return; }
+    cps_enabled = 1;
+    var target *u8 = cg_langos_override; if target == nil { target = getenv("LANGOS"); }
+    if target != nil && str_eq_n(target, strlen(target), "wasm", 4) { cps_fail(nil, "the scoped CPS profile currently requires a native LLVM target"); }
+    var vi i64 = 0;
+    while vi < cg_func_count { var vp **u8 = cg_funcs + vi * 24 + 16; cps_validate_function(*vp); vi = vi + 1; }
+    var i i64 = 0;
+    while i < cg_func_count {
+        var p **u8 = cg_funcs + i * 24 + 16; var f *u8 = *p;
+        var name *u8 = str_dup_n(func_decl_name(f), func_decl_name_len(f));
+        if str_starts_with(name, "___cps_") { cps_fail(f, "reserved CPS symbol prefix"); }
+        if map_has(cps_functions, name) { map_set(cps_functions, name, cps_machine(nil)); }
+        i = i + 1;
+    }
+    i = 0;
+    while i < cg_func_count {
+        var p **u8 = cg_funcs + i * 24 + 16; var f *u8 = *p;
+        var name *u8 = str_dup_n(func_decl_name(f), func_decl_name_len(f));
+        var m *i64 = map_get(cps_functions, name);
+        if m != nil {
+            if cps_native_local(func_decl_ret_type(f)) || llvm_is_float_type(func_decl_ret_type(f)) { cps_fail(f, "aggregate/floating CPS returns are not yet supported"); }
+            var check_pi i64 = 0;
+            while check_pi < func_decl_param_count(f) { var check_param *u8 = func_decl_params(f) + check_pi * 24; if cps_native_local(param_type(check_param)) { cps_fail(f, "aggregate CPS parameters are not yet supported"); } check_pi = check_pi + 1; }
+            var pi i64 = 0; while pi < func_decl_param_count(f) { var param *u8 = func_decl_params(f) + pi * 24; cps_bind(m, param_name(param), param_name_len(param), param_type(param)); pi = pi + 1; }
+            cps_compile_synthetic(m, func_decl_body(f), 0);
+            var wrapper *u8 = func_decl_alloc(); memcpy(wrapper, f, 72); node_copy_origin(wrapper, f);
+            var v *u8 = cps_args1(cps_var("___task", cps_frame_type, cps_call("alloc", cps_args1(cps_num(16)))));
+            vec_push(v, cps_assign(cps_index(cps_id("___task"), 0), cps_num(0))); vec_push(v, cps_assign(cps_index(cps_id("___task"), 1), cps_num(0)));
+            var args *u8 = cps_args1(cps_id("___task")); vec_push(args, cps_num(0)); vec_push(args, cps_address(cps_index(cps_id("___task"), 1))); vec_push(args, cps_num(0)); vec_push(args, cps_num(0)); vec_push(args, cps_num(0)); vec_push(args, cps_num(0));
+            vec_push(v, cps_var("___root", cps_frame_type, cps_call(cps_ctor_name(m), args)));
+            pi = 0; while pi < func_decl_param_count(f) { var param *u8 = func_decl_params(f) + pi * 24; vec_push(v, cps_assign(cps_index(cps_id("___root"), 16 + pi), cps_id(str_dup_n(param_name(param), param_name_len(param))))); pi = pi + 1; }
+            var drive *u8 = cps_call("___cps_drive", cps_args2(cps_id("___root"), cps_id("___task")));
+            if is_void_type(func_decl_ret_type(f)) { var s *u8 = expr_stmt_alloc(); expr_stmt_set_expr(s, drive); vec_push(v, s); vec_push(v, cps_return(nil)); }
+            else { vec_push(v, cps_return(drive)); }
+            func_decl_set_body(wrapper, cps_block(v)); map_set(cps_wrappers, name, wrapper);
+        }
+        i = i + 1;
+    }
+    var runtime *u8 = parse_program_from_named_string(cps_runtime_source(), "<effects-runtime>");
+    if runtime == nil { cps_fail(nil, "runtime core parsing failed"); }
+    i = 0; while i < program_decl_count(runtime) { vec_push(cps_generated, get_decl(program_decls(runtime), i)); i = i + 1; }
+    i = 0; while i < vec_len(cps_machines) { cps_emit_machine_nodes(vec_get(cps_machines, i)); i = i + 1; }
+    i = 0; while i < vec_len(cps_generated) { llvm_register_decl(vec_get(cps_generated, i)); i = i + 1; }
+}
+func cps_emit_generated() void {
+    var i i64 = 0; while i < vec_len(cps_generated) { llvm_emit_decl(vec_get(cps_generated, i)); i = i + 1; }
+}
+func cps_mentions(n *u8, name *u8, len i64) i64 {
+    if n == nil { return 0; }
+    if node_kind(n) == NODE_IDENT_EXPR && str_eq_n(ident_expr_name(n), ident_expr_name_len(n), name, len) { return 1; }
+    var v *u8 = cps_children(n); var i i64 = 0; while i < vec_len(v) { if cps_mentions(vec_get(v, i), name, len) { return 1; } i = i + 1; } return 0;
+}
+func cps_captures_frame(m *i64, n *u8) i64 {
+    if n == nil { return 0; }
+    if node_kind(n) == NODE_IDENT_EXPR { var b *i64 = cps_lookup(m, ident_expr_name(n), ident_expr_name_len(n)); if b != nil && b[4] != 0 { return 1; } }
+    var v *u8 = cps_children(n); var i i64 = 0; while i < vec_len(v) { if cps_captures_frame(m, vec_get(v, i)) { return 1; } i = i + 1; } return 0;
+}
+func cps_native_local(t *u8) i64 {
+    if t == nil { return 0; }
+    if type_kind(t) == TYPE_ARRAY || type_kind(t) == TYPE_CLOSURE { return 1; }
+    return llvm_aggregate_type_size(t) > 0;
+}
+func cps_native_region_stmt(n *u8) i64 {
+    var k i64 = node_kind(n);
+    return k == NODE_VAR_DECL || k == NODE_ASSIGN_STMT || k == NODE_EXPR_STMT;
+}
+func cps_native_stmt(m *i64, n *u8, result *u8) *u8 {
+    var k i64 = node_kind(n);
+    if k == NODE_VAR_DECL {
+        if cps_native_local(var_decl_type(n)) {
+            var r *u8 = var_decl_alloc(); memcpy(r, n, 56); var_decl_set_init(r, cps_rewrite(m, var_decl_init(n))); return r;
+        }
+        var b *i64 = cps_lookup(m, var_decl_name(n), var_decl_name_len(n));
+        var value *u8 = var_decl_init(n); if value == nil { value = cps_num(0); }
+        var env *u8 = cast(*u8, m[2]); vec_pop(env); var init *u8 = cps_rewrite(m, value); vec_push(env, b);
+        return cps_assign(cps_binding_ref(m, b), init);
+    }
+    if k == NODE_ASSIGN_STMT { return cps_assign(cps_rewrite(m, assign_stmt_target(n)), cps_rewrite(m, assign_stmt_value(n))); }
+    var value *u8 = expr_stmt_expr(n);
+    if node_kind(value) == NODE_BINARY_EXPR && binary_expr_op(value) == TOKEN_EQ {
+        var v *u8 = cps_args1(cps_var("___assignment_address", cps_ptr(cps_expr_type(m, binary_expr_left(value))), cps_address(cps_rewrite(m, binary_expr_left(value)))));
+        vec_push(v, cps_assign(result, cps_rewrite(m, binary_expr_right(value))));
+        vec_push(v, cps_assign(cps_unary(TOKEN_STAR, cps_id("___assignment_address")), result)); return cps_block(v);
+    }
+    if cps_void_expr(value) { var r *u8 = expr_stmt_alloc(); expr_stmt_set_expr(r, cps_rewrite(m, value)); return r; }
+    return cps_assign(result, cps_rewrite(m, value));
+}
+
+// Direct effectful calls are transformed. Taking an effectful function's value
+// would hide an uncooperative native extent from the fixed-point call graph.
+func cps_validate_references(n *u8, direct_callee i64) void {
+    if n == nil { return; }
+    var k i64 = node_kind(n);
+    if k == NODE_IDENT_EXPR {
+        var name *u8 = str_dup_n(ident_expr_name(n), ident_expr_name_len(n));
+        if str_starts_with(name, "___cps_") { cps_fail(n, "reserved CPS runtime symbol"); }
+        if direct_callee == 0 && !cps_validation_local(name) && map_has(cps_functions, name) { cps_fail(n, "effectful function values cannot cross a native/foreign call boundary"); }
+        return;
+    }
+    if k == NODE_BLOCK_STMT || k == NODE_BLOCK_EXPR {
+        var saved i64 = vec_len(cps_validation_names); var a *u8 = nil; var count i64 = 0;
+        if k == NODE_BLOCK_STMT { a = block_stmt_stmts(n); count = block_stmt_count(n); }
+        else { a = block_expr_stmts(n); count = block_expr_count(n); }
+        var i i64 = 0; while i < count { var p **u8 = a + i * 8; cps_validate_references(*p, 0); i = i + 1; }
+        if k == NODE_BLOCK_EXPR { cps_validate_references(block_expr_tail(n), 0); }
+        cps_validation_restore(saved); return;
+    }
+    if k == NODE_VAR_DECL {
+        cps_validate_references(var_decl_init(n), 0); vec_push(cps_validation_names, str_dup_n(var_decl_name(n), var_decl_name_len(n))); return;
+    }
+    if k == NODE_LET_EXPR {
+        var saved i64 = vec_len(cps_validation_names); cps_validate_references(let_expr_init(n), 0);
+        vec_push(cps_validation_names, str_dup_n(let_expr_name(n), let_expr_name_len(n))); cps_validate_references(let_expr_body(n), 0); cps_validation_restore(saved); return;
+    }
+    if k == NODE_HANDLE_EXPR {
+        cps_validate_references(handle_expr_body(n), 0); var saved i64 = vec_len(cps_validation_names);
+        vec_push(cps_validation_names, str_dup_n(handle_expr_ret_bind(n), handle_expr_ret_bind_len(n))); cps_validate_references(handle_expr_ret_body(n), 0); cps_validation_restore(saved);
+        var i i64 = 0; while i < handle_expr_case_count(n) {
+            var c *u8 = handle_expr_cases(n) + i * 56;
+            vec_push(cps_validation_names, str_dup_n(effect_case_binding(c), effect_case_binding_len(c)));
+            if effect_case_k_len(c) > 0 { vec_push(cps_validation_names, str_dup_n(effect_case_k(c), effect_case_k_len(c))); }
+            cps_validate_references(effect_case_body(c), 0); cps_validation_restore(saved); i = i + 1;
+        } return;
+    }
+    if k == NODE_LAMBDA_EXPR {
+        var saved i64 = vec_len(cps_validation_names); var i i64 = 0;
+        while i < lambda_expr_param_count(n) { var p *u8 = lambda_expr_params(n) + i * 24; vec_push(cps_validation_names, str_dup_n(param_name(p), param_name_len(p))); i = i + 1; }
+        cps_validate_references(lambda_expr_body(n), 0); cps_validation_restore(saved); return;
+    }
+    if k == NODE_MATCH_EXPR {
+        cps_validate_references(match_expr_scrutinee(n), 0); var i i64 = 0;
+        while i < match_expr_arm_count(n) {
+            var arm *u8 = get_match_arm(match_expr_arms(n), i); var pattern *u8 = match_arm_pattern(arm); var saved i64 = vec_len(cps_validation_names);
+            if node_kind(pattern) == NODE_PATTERN_VARIANT && pattern_variant_binding_len(pattern) > 0 { vec_push(cps_validation_names, str_dup_n(pattern_variant_binding(pattern), pattern_variant_binding_len(pattern))); }
+            cps_validate_references(match_arm_body(arm), 0); cps_validation_restore(saved); i = i + 1;
+        } return;
+    }
+    if k == NODE_CALL_EXPR {
+        cps_validate_references(call_expr_func(n), 1);
+        var i i64 = 0; while i < call_expr_arg_count(n) { var p **u8 = call_expr_args(n) + i * 8; cps_validate_references(*p, 0); i = i + 1; } return;
+    }
+    var v *u8 = cps_children(n); var i i64 = 0; while i < vec_len(v) { cps_validate_references(vec_get(v, i), 0); i = i + 1; }
+}
+
+func cps_copy_env(env *u8) *u8 {
+    var copy *u8 = vec_new(vec_len(env) + 1); var i i64 = 0;
+    while i < vec_len(env) { vec_push(copy, vec_get(env, i)); i = i + 1; } return copy;
+}
+
+var cps_validation_names *u8 = nil;
+func cps_validation_local(name *u8) i64 {
+    var i i64 = 0; while i < vec_len(cps_validation_names) { var local_name *u8 = vec_get(cps_validation_names, i); if str_eq_n(name, strlen(name), local_name, strlen(local_name)) { return 1; } i = i + 1; } return 0;
+}
+func cps_validation_restore(count i64) void { while vec_len(cps_validation_names) > count { vec_pop(cps_validation_names); } }
+func cps_validate_function(f *u8) void {
+    cps_validation_names = vec_new(16); var i i64 = 0;
+    while i < func_decl_param_count(f) { var p *u8 = func_decl_params(f) + i * 24; vec_push(cps_validation_names, str_dup_n(param_name(p), param_name_len(p))); i = i + 1; }
+    cps_validate_references(func_decl_body(f), 0);
+}

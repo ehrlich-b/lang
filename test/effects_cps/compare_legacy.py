@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""Compare unflagged LLVM bytes using two compilers on the same source graph."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+
+root = Path(__file__).resolve().parents[2]
+os.chdir(root)
+compiler = str(Path(os.environ.get('COMPILER', 'out/lang')).resolve())
+base = str(Path(os.environ['BASE_COMPILER']).resolve())
+evidence = Path(os.environ.get('EFFECTS_LEGACY_EVIDENCE_DIR') or tempfile.mkdtemp(prefix='effects-legacy-')).resolve()
+evidence.mkdir(parents=True, exist_ok=True)
+programs = sorted(p for p in Path('test/suite').glob('*.lang')
+                  if re.search(r'^\s*effect\s|\bperform\s|\bhandle\s*\{', p.read_text(), re.M))
+programs += [Path('test/effects/two_performs.lang'), Path('test/effects/two_handlers.lang'), Path('test/effects_o2_twice.lang')]
+rows = []
+for source in programs:
+    outputs = []
+    for label, executable in [('base', base), ('candidate', compiler)]:
+        directory = evidence / source.stem / label
+        directory.mkdir(parents=True, exist_ok=True)
+        env = dict(os.environ, LANGBE='llvm', LANG_CACHE=str(directory / 'cache'))
+        env.pop('LANG_EFFECTS', None)
+        ir = directory / 'program.ll'
+        result = subprocess.run([executable, str(source), '-o', str(ir)], env=env, capture_output=True, timeout=60)
+        (directory / 'compiler.stdout').write_bytes(result.stdout)
+        (directory / 'compiler.stderr').write_bytes(result.stderr)
+        (directory / 'compiler.exit').write_text(f'{result.returncode}\n')
+        assert result.returncode == 0, (source, label, result.stderr)
+        outputs.append(ir.read_bytes())
+    assert outputs[0] == outputs[1], f'unflagged IR differs for {source}'
+    rows.append({'source': str(source), 'sha256': hashlib.sha256(outputs[0]).hexdigest(), 'verdict': 'identical'})
+    print(f'{source}: legacy IR byte-for-byte identical')
+(evidence / 'results.json').write_text(json.dumps(rows, indent=2) + '\n')
+print(f'Legacy comparison: PASS ({len(rows)} programs)')

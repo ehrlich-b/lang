@@ -1,0 +1,19 @@
+include "std/core.lang"
+effect Ask(i64) i64
+struct Box { data *i64; }
+func worker(p *i64, box *Box, pp **i64) i64 {
+    var first i64 = *(p + 0 + perform Ask(1));
+    var second i64 = *((p + 0) + perform Ask(1));
+    var third i64 = *(box.data + 0 + perform Ask(1));
+    var fourth i64 = *(*pp + 0 + perform Ask(1));
+    var fifth i64 = *(pp[0] + 0 + perform Ask(1));
+    if first != 22 || second != 22 || third != 22 || fourth != 22 || fifth != 22 { return 1; }
+    print_int(first); println(""); return 0;
+}
+func main() i64 {
+    var p *i64 = alloc(16); p[0] = 11; p[1] = 22;
+    var box *Box = alloc(8); box.data = p;
+    var pp **i64 = alloc(8); pp[0] = p;
+    var result i64 = handle { worker(p, box, pp) } with { return(v) => v, Ask(x, k) => resume k(x) };
+    free(pp); free(box); free(p); return result;
+}

@@ -1,0 +1,7 @@
+include "std/core.lang"
+effect Ask(i64) i64
+func worker() i64 { return perform Ask(1); }
+func main() i64 {
+    var before i64 = worker();
+    return handle { worker() + before } with { return(v) => v, Ask(x, k) => resume k(100) };
+}

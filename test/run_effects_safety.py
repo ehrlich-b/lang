@@ -21,6 +21,7 @@ programs += [Path('test/effects/two_performs.lang'), Path('test/effects/two_hand
              Path('test/effects_o2_twice.lang')]
 expected_output = {'two_performs': b'500491\n', 'two_handlers': b'2268\n',
                    'effects_o2_twice': b'62\n2\n'}
+cps = env.get("LANG_EFFECTS") == "cps"
 rows = []
 failed = False
 
@@ -41,6 +42,8 @@ for source in programs:
         compiled = run([compiler, str(source), '-o', str(ir)], directory / 'compiler', case_env)
         if compiled.returncode:
             raise RuntimeError('LLVM emission failed: ' + compiled.stderr.decode(errors='replace'))
+        if cps and (b'call void asm' in ir.read_bytes() or b'__lang_effects_require_O0' in ir.read_bytes()):
+            raise RuntimeError('CPS emitted assembly transfer or optimization refusal')
         reference = None
         for mode, flags in [("O0", ["-O0"]), ("O1", ["-O1"]), ("O2", ["-O2"]),
                             ("O2-lto", ["-O2", "-flto"] + ([] if sys.platform == "darwin" else ["-fuse-ld=lld"]))]:
@@ -49,11 +52,11 @@ for source in programs:
             build = run([os.environ.get('CLANG', 'clang'), *flags, str(ir), '-o', str(binary)],
                         directory / f'build-{mode}')
             if build.returncode:
-                if level == 0 or b'algebraic effects require -O0' not in build.stderr:
+                if cps or level == 0 or b'algebraic effects require -O0' not in build.stderr:
                     raise RuntimeError(f'{mode} build failed without the effects optimization diagnostic')
                 rows.append([name, ' '.join(flags), 'LOUD BUILD FAILURE', '', '', build.returncode])
                 continue
-            if mode != 'O0':
+            if not cps and mode != 'O0':
                 raise RuntimeError(f'{mode} unexpectedly accepted unsupported optimized effects')
             result = run([str(binary)], directory / f'run-{mode}', case_env)
             behavior = (result.returncode, result.stdout, result.stderr)

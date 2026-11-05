@@ -1,0 +1,20 @@
+include "std/core.lang"
+effect Ask(i64) i64
+func recurse(n i64) i64 {
+    if n == 0 { return perform Ask(2); }
+    return recurse(n - 1) + n;
+}
+func main() i64 {
+    var result i64 = handle {
+        handle { recurse(3) } with {
+            return(v) => v,
+            Ask(x, k) => {
+                var inner i64 = handle { recurse(0) } with { return(v) => v, Ask(y, q) => resume q(y * 10) };
+                var forwarded i64 = perform Ask(x);
+                resume k(inner + forwarded);
+            }
+        }
+    } with { return(v) => v, Ask(x, k) => resume k(x * 100) };
+    if result != 226 { return 1; }
+    return 0;
+}

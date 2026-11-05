@@ -2742,6 +2742,9 @@ func get_expr_type(expr *u8) *u8 {
 
     var k i64 = node_kind(expr);
 
+    if k == NODE_CAST_EXPR { return cast_expr_type(expr); }
+    if k == NODE_BITCAST_EXPR { return bitcast_expr_type(expr); }
+
     if k == NODE_IDENT_EXPR {
         var name *u8 = ident_expr_name(expr);
         var name_len i64 = ident_expr_name_len(expr);

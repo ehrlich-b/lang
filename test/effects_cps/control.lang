@@ -1,0 +1,2 @@
+include "std/core.lang"
+include "test/effects_witness/control-sources.lang"

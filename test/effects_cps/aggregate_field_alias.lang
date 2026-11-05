@@ -1,0 +1,14 @@
+include "std/core.lang"
+effect Ask(i64) i64
+struct Pair { x i64; y i64; }
+func worker() i64 {
+    var a Pair;
+    a.x = 42;
+    var p *i64 = &(a.x);
+    perform Ask(1);
+    return *p;
+}
+func main() i64 {
+    var result i64 = handle { worker() } with { return(v) => v, Ask(x, k) => resume k(x) };
+    print_int(result); println(""); return 0;
+}

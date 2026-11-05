@@ -1,0 +1,8 @@
+include "std/core.lang"
+effect Ask(i64) i64
+func main() i64 {
+    return handle { perform Ask(2) } with {
+        return(v) => v,
+        Ask(x, k) => { resume k(x); println("unreachable"); }
+    };
+}

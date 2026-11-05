@@ -1,0 +1,13 @@
+include "std/core.lang"
+effect Ask(i64) i64
+func worker() i64 { var unused i64 = perform Ask(2); return 9000; }
+func main() i64 {
+    var returns i64 = 0;
+    var result i64 = handle { worker() } with {
+        return(v) => { returns = returns + 1; v * 3; },
+        Ask(x, k) => 77
+    };
+    print_int(result); println("");
+    if result != 77 || returns != 0 { return 1; }
+    return 0;
+}

@@ -1,0 +1,121 @@
+// Embedded ordinary core runtime; parsed only for modules using CPS.
+func cps_runtime_source() *u8 {
+    return "// Synchronous, single-task driver. All allocations belong to this invocation.
+// Frame: step, pc, caller, destination, handlers, lexical environment, kind,
+// prompt, reserved, task, source owner, token state, capture, reply destination.
+func ___cps_alloc(task *i64, cells i64) *i64 {
+    var raw *i64 = alloc((cells + 2) * 8);
+    if raw == nil { eprintln(\"E_LIMIT\"); exit(1); }
+    var old *i64 = cast(*i64, task[0]);
+    raw[0] = old; raw[1] = 0;
+    if old != nil { old[1] = raw; }
+    task[0] = raw;
+    var i i64 = 2;
+    while i < cells + 2 { raw[i] = 0; i = i + 1; }
+    return raw + 2;
+}
+func ___cps_drop(task *i64, record *i64) void {
+    var raw *i64 = record - 2;
+    var next *i64 = cast(*i64, raw[0]); var prev *i64 = cast(*i64, raw[1]);
+    if next != nil { next[1] = prev; }
+    if prev != nil { prev[0] = next; } else { task[0] = next; }
+    free(raw);
+}
+// Each frame owns its called path; a clause additionally owns its suspended
+// capture. The prompt record belongs to its body frame. Stop before the live
+// owner, whose by-reference cells must survive both paths' disposal.
+func ___cps_discard(f *i64, stop *i64) void {
+    while f != stop {
+        var next *i64 = cast(*i64, f[2]); var task *i64 = cast(*i64, f[9]);
+        if f[6] == 2 {
+            var h *i64 = cast(*i64, f[7]);
+            f[11] = 2;
+            ___cps_discard(cast(*i64, f[12]), cast(*i64, h[1]));
+        } else if f[6] == 1 { ___cps_drop(task, cast(*i64, f[7])); }
+        ___cps_drop(task, f); f = next;
+    }
+}
+func ___cps_new(task *i64, step i64, cells i64, pc i64, caller *i64, dest *i64, h *i64, env *i64, kind i64, prompt *i64) *i64 {
+    var f *i64 = ___cps_alloc(task, cells);
+    f[0] = step; f[1] = pc; f[2] = caller; f[3] = dest;
+    f[4] = h; f[5] = env; f[6] = kind; f[7] = prompt;
+    f[9] = task; f[10] = f;
+    if env != nil { f[10] = env[10]; }
+    return f;
+}
+func ___cps_finish(f *i64, value i64) *i64 {
+    var task *i64 = cast(*i64, f[9]);
+    var h *i64 = cast(*i64, f[7]);
+    if f[6] == 1 {
+        // Normal body completion runs its return clause outside the prompt.
+        var owner *i64 = cast(*i64, h[1]);
+        var r *i64 = ___cps_new(task, h[5], h[6], h[7], owner, cast(*i64, h[3]), cast(*i64, h[0]), owner, 0, nil);
+        r[16] = value;
+        ___cps_drop(task, h); ___cps_drop(task, f);
+        return r;
+    }
+    if f[6] == 2 {
+        // A clause that completes abandons the entire captured segment.
+        f[11] = 2;
+        var owner *i64 = cast(*i64, h[1]);
+        var dest *i64 = cast(*i64, h[3]); *dest = value;
+        ___cps_discard(cast(*i64, f[12]), owner);
+        ___cps_drop(task, f);
+        return owner;
+    }
+    var dest *i64 = cast(*i64, f[3]); *dest = value;
+    var next *i64 = cast(*i64, f[2]); ___cps_drop(task, f); return next;
+}
+func ___cps_leave(f *i64, value i64) *i64 {
+    // A synthetic body/clause never changes a source return's lexical owner.
+    var owner *i64 = cast(*i64, f[10]);
+    ___cps_discard(f, owner);
+    return ___cps_finish(owner, value);
+}
+func ___cps_perform(f *i64, id i64, payload i64, dest *i64) *i64 {
+    var h *i64 = cast(*i64, f[4]);
+    while h != nil {
+        var i i64 = 0;
+        while i < h[8] {
+            var entry *i64 = h + 9 + i * 4;
+            if entry[0] == id {
+                var clause *i64 = ___cps_new(cast(*i64, f[9]), entry[1], entry[2], entry[3], cast(*i64, h[1]), nil, cast(*i64, h[0]), cast(*i64, h[1]), 2, h);
+                clause[12] = f; clause[13] = dest;
+                clause[16] = payload; clause[17] = clause;
+                return clause;
+            }
+            i = i + 1;
+        }
+        h = cast(*i64, h[0]);
+    }
+    eprintln(\"E_UNHANDLED\"); exit(1); return nil;
+}
+func ___cps_resume(f *i64, token i64, value i64) *i64 {
+    // Validate authority before touching captured storage. The static pass
+    // admits only the clause's own opaque binding at a tail resume.
+    if f[6] != 2 || token != f { eprintln(\"E_TOKEN_SCOPE\"); exit(1); }
+    if f[11] != 0 { eprintln(\"E_USED\"); exit(1); }
+    f[11] = 1;
+    var dest *i64 = cast(*i64, f[13]); *dest = value;
+    var capture *i64 = cast(*i64, f[12]);
+    ___cps_drop(cast(*i64, f[9]), f); return capture;
+}
+func ___cps_drive(f *i64, task *i64) i64 {
+    while f != nil {
+        var ___cps_dispatch_entry fn(*i64) *i64 = cast(fn(*i64) *i64, f[0]);
+        f = ___cps_dispatch_entry(f);
+    }
+    var value i64 = task[1];
+    var raw *i64 = cast(*i64, task[0]);
+    while raw != nil { var next *i64 = cast(*i64, raw[0]); free(raw); raw = next; }
+    free(task);
+    return value;
+}
+
+func ___cps_bad_pc(f *i64, pc i64) *i64 { eprintln(\"E_STATE\"); exit(1); return nil; }
+
+func ___cps_exit(f *i64, owner *i64, pc i64) *i64 {
+    ___cps_discard(f, owner); owner[1] = pc; return owner;
+}
+";
+}

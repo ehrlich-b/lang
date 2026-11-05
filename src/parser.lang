@@ -3571,6 +3571,7 @@ func parse_primary() *u8 {
 
     // Resume expression: resume k(value)
     if parse_match(TOKEN_RESUME) {
+        var resume_tok *u8 = parse_previous();
         // Parse continuation as identifier
         var k_tok *u8 = parse_expect(TOKEN_IDENT, "expected continuation name after 'resume'");
         var k_expr *u8 = ident_expr_alloc();
@@ -3585,6 +3586,8 @@ func parse_primary() *u8 {
         parse_expect(TOKEN_RPAREN, "expected ')' after resume value");
 
         var node *u8 = resume_expr_alloc();
+        node_set_origin(node, parse_source_name, tok_line(resume_tok), tok_col(resume_tok));
+        node_set_origin(k_expr, parse_source_name, tok_line(k_tok), tok_col(k_tok));
         resume_expr_set_k(node, k_expr);
         resume_expr_set_value(node, value);
         return node;
