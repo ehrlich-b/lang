@@ -24,6 +24,10 @@ OUTPUTS = ['out/verify-input.json', 'out/verify-receipt.json',
            'out/version_info.lang', 'std/os.lang']
 
 
+class UnsupportedInputClosure(ValueError):
+    """An input tree cannot be safely represented by the local inventory."""
+
+
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
@@ -79,11 +83,15 @@ def identity(root, command):
         root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard').split(b'\0') if p)
     for directory in ('src', 'std', 'test', 'scripts', 'example', 'bootstrap/current'):
         for p in (root / directory).rglob('*'):
+            if p.is_symlink() and not p.is_file():
+                raise UnsupportedInputClosure('non-file symlink: ' + str(p.relative_to(root)))
             if p.is_file() and '__pycache__' not in p.parts:
                 names.add(str(p.relative_to(root)))
     inputs = {}
     for name in sorted(names - GENERATED):
         p = root / name
+        if p.is_symlink() and not p.is_file():
+            raise UnsupportedInputClosure('non-file symlink: ' + name)
         inputs[name] = ({'sha256': digest(p), 'mode': p.stat().st_mode & 0o777,
                          'link': os.readlink(p) if p.is_symlink() else None}
                         if p.is_file() else None)
@@ -246,8 +254,12 @@ def main():
             # Run normally without consuming or publishing any cached success.
             print('Unsupported make inputs supplied; verification receipt reuse disabled', flush=True)
             return subprocess.run(command).returncode
-        return consume(root, cache, lambda: identity(root, command), execute, outputs,
-                       fresh=os.environ.get('LANG_VERIFY_FRESH') == '1')
+        try:
+            return consume(root, cache, lambda: identity(root, command), execute, outputs,
+                           fresh=os.environ.get('LANG_VERIFY_FRESH') == '1')
+        except UnsupportedInputClosure as error:
+            print(f'Unsupported input closure; verification receipt reuse disabled: {error}', flush=True)
+            return subprocess.run(command).returncode
 
 
 if __name__ == '__main__':

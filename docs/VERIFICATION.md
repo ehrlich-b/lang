@@ -31,3 +31,7 @@ caller overriding `MAKE` cannot substitute a successful no-op for verification.
 When `MAKEFILES` is supplied, verification runs without consuming or publishing
 cached success: arbitrary external include and prerequisite closures are outside
 the repository input inventory. Explicit makefile contents are also fingerprinted.
+
+Directory and dangling symlinks in the input closure disable receipt reuse.
+Their transitive contents are outside the supported inventory; verification
+runs normally on every request without consuming or publishing cached success.

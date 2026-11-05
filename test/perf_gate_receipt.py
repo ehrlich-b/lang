@@ -248,6 +248,54 @@ class ReceiptTests(unittest.TestCase):
             self.assertEqual(len((self.root / 'executions').read_text().splitlines()), index)
             self.assertFalse(self.cache.exists())
 
+    def test_directory_symlink_through_verify_never_reuses(self):
+        env = self.launcher_fixture()
+        self.init_git()
+        (self.root / '.gitignore').write_text('out/\nstd/os.lang\n')
+        external = Path(self.work.name) / 'external'
+        external.mkdir()
+        (self.root / 'std').mkdir()
+        (self.root / 'std/external').symlink_to(external, target_is_directory=True)
+        outputs = gate.OUTPUTS + ['out/bootstrap_verify/' + name for name in (
+            'ctrusted', 'kernel1', 'kernel1.ll', 'kernel2', 'kernel2.ll',
+            'kernel3.ll', 'reader_ast1.ast', 'reader_ast2.ast')]
+        (self.root / 'fake.py').write_text(
+            'from pathlib import Path\n'
+            'data = Path("std/external/input.lang").read_text()\n'
+            'for name in ' + repr(outputs) + ':\n'
+            '    p = Path(name)\n'
+            '    p.parent.mkdir(parents=True, exist_ok=True)\n'
+            '    p.write_text(data)\n')
+        makefile = self.root / 'Makefile'
+        recipe = makefile.read_text().split('_verify-complete:', 1)[0]
+        makefile.write_text(recipe + '_verify-complete:\n'
+            '\t@echo executed >> out/executions\n\t@python3 fake.py\n'
+            '\n.PHONY: verify\nverify: bootstrap-verify\n')
+        for index, content in enumerate(('original', 'changed'), 1):
+            (external / 'input.lang').write_text(content)
+            result = subprocess.run(['make', 'verify'], cwd=self.root, env=env,
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('verification receipt reuse disabled', result.stdout)
+            self.assertNotIn('Completed verification receipt reused', result.stdout)
+            self.assertEqual((self.root / outputs[0]).read_text(), content)
+            self.assertEqual(len((self.root / 'out/executions').read_text().splitlines()), index)
+            self.assertFalse(list(self.cache.glob('*/receipt.json')))
+
+    def test_dangling_symlink_fails_closed(self):
+        self.init_git()
+        (self.root / 'test').mkdir()
+        (self.root / 'test/input').symlink_to(self.root / 'missing')
+        with self.assertRaises(gate.UnsupportedInputClosure):
+            gate.identity(self.root, ['make', '_verify-complete'])
+
+    def test_cyclic_directory_symlink_fails_closed(self):
+        self.init_git()
+        (self.root / 'test').mkdir()
+        (self.root / 'test/cycle').symlink_to(self.root)
+        with self.assertRaises(gate.UnsupportedInputClosure):
+            gate.identity(self.root, ['make', '_verify-complete'])
+
     def test_inherited_ignore_errors_never_executes_or_publishes(self):
         env = self.launcher_fixture()
         for flags in (['-i'], ['--ignore-errors'], ['-ki']):
