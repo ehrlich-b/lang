@@ -1,27 +1,32 @@
 include "std/core.lang"
 reader broken(text *u8) *u8 {
-    if streq(text, "large-truncated") || streq(text, "large-mixed") || streq(text, "large-mixed-truncated") {
-        var message *u8 = alloc(131073);
+    var mode *u8 = text; var size i64 = 131072;
+    if str_starts_with(text, "256:") { size = 262144; mode = text + 4; }
+    if str_starts_with(text, "512:") { size = 524288; mode = text + 4; }
+    if str_starts_with(text, "768:") { size = 786432; mode = text + 4; }
+    if str_starts_with(text, "1024:") { size = 1048576; mode = text + 5; }
+    if streq(mode, "large-truncated") || streq(mode, "large-mixed") || streq(mode, "large-mixed-truncated") {
+        var message *u8 = alloc(size + 1);
         var i i64 = 0;
-        while i < 131072 { *(message + i) = 120; i = i + 1; }
-        *(message + 131072) = 0;
-        if streq(text, "large-truncated") == 0 {
+        while i < size { *(message + i) = 120; i = i + 1; }
+        *(message + size) = 0;
+        if streq(mode, "large-truncated") == 0 {
             // Exercise escaping and scalar widths as well as plain ASCII.
             i = 0;
-            while i < 131072 {
+            while i < size {
                 memcpy(message + i, "\"\\\n\t\r", 5);
                 *(message + i + 5) = 1; memcpy(message + i + 6, "é", 2); i = i + 32;
             }
         }
         reader_error("large-message", message, "broken", text, -1, -1);
-        if streq(text, "large-truncated") == 0 {
+        if streq(mode, "large-truncated") == 0 {
             var d *ReaderDiagnostic = alloc(48);
             d.code = "reader-implementation"; d.message = "after large message";
             d.source = "broken"; d.start = -1; d.end = -1; d.category = 1;
             reader_diagnostic_emit(d, text);
             reader_error("last-guest", "last guest message", "broken", text, 0, 1);
         }
-        if streq(text, "large-mixed") == 0 { file_write(2, "RDI1", 4); }
+        if streq(mode, "large-mixed") == 0 { file_write(2, "RDI1", 4); }
     } else if streq(text, "exit-invalid-0") || streq(text, "exit-invalid-1") {
         reader_error("bad-range", "bad range", "broken", text, 3, 1);
         print("(program)");

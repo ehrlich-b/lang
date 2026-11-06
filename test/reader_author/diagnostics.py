@@ -262,41 +262,44 @@ func main(argc i64, argv **u8) i64 {
                 'embedded valid AST changed')
         # Keep clang unoptimized above: loop-local stack slots can otherwise be
         # promoted away, hiding a crash in the actual embedded read caller.
-        large_message = bytearray(b'x' * 131072)
-        for offset in range(0, len(large_message), 32):
-            large_message[offset:offset + 8] = b'"\\\n\t\r\x01\xc3\xa9'
-        metadata_path = scratch / 'large-metadata.txt'
-        metadata_path.write_bytes(large_message)
-        retain_input(metadata_path)
-        metadata = replay.run([str(embedded), str(metadata_path), 'json', 'metadata'],
-                              'large-origin-json-string', clone)
-        require(not metadata.stderr and json.loads(metadata.stdout) == large_message.decode(),
-                'large origin JSON string changed bytes')
-        for value in ['large-truncated', 'large-mixed', 'large-mixed-truncated']:
-            path = scratch / (value + '.broken')
-            path.write_text(value)
-            retain_input(path)
-            message = 'x' * 131072 if value == 'large-truncated' else large_message.decode()
-            expected = [('large-message', message, 'guest', None)]
-            if value != 'large-truncated':
-                expected.extend([('reader-implementation', 'after large message', 'reader', None),
-                                 ('last-guest', 'last guest message', 'guest', {'start': 0, 'end': 1})])
-            if value != 'large-mixed':
-                expected.append(('reader-diagnostic-invalid', 'invalid reader diagnostic', 'reader', None))
-            result = replay.run([str(embedded), str(path), '--diagnostics=json'], value, clone, expected=1)
-            require(not result.stdout, value + ': accepted AST')
-            records = [json.loads(line) for line in result.stderr.splitlines()]
-            require(len(records) == len(expected), value + ': lost records')
-            for record, (code, message, category, span) in zip(records, expected):
-                require((record['code'], record['message'], record['category'], record['span']) ==
-                        (code, message, category, span), value + ': changed diagnostic bytes or order')
-                require(record['path'] == str(path) and record['source_id'] > 0 and not record['truncated'],
-                        value + ': changed source identity or truncated message')
-            if value == 'large-mixed-truncated':
-                text = replay.run([str(embedded), str(path)], value + '-text', clone, expected=1)
-                expected_text = ''.join(f"{path}:{'1:1:' if span else ''} {message}\n"
-                                        for _, message, _, span in expected).encode()
-                require(not text.stdout and text.stderr == expected_text, value + ': text/JSON differ')
+        for kib in (128, 256, 512, 768, 1024):
+            size = kib * 1024
+            large_message = bytearray(b'x' * size)
+            for offset in range(0, size, 32):
+                large_message[offset:offset + 8] = b'"\\\n\t\r\x01\xc3\xa9'
+            metadata_path = scratch / f'large-metadata-{kib}.txt'
+            metadata_path.write_bytes(large_message)
+            retain_input(metadata_path)
+            metadata = replay.run([str(embedded), str(metadata_path), 'json', 'metadata'],
+                                  f'large-origin-json-string-{kib}', clone)
+            require(not metadata.stderr and json.loads(metadata.stdout) == large_message.decode(),
+                    'large origin JSON string changed bytes')
+            for value in ['large-truncated', 'large-mixed', 'large-mixed-truncated']:
+                name = f'{value}-{kib}'
+                path = scratch / (name + '.broken')
+                path.write_text(value if kib == 128 else f'{kib}:{value}')
+                retain_input(path)
+                message = 'x' * size if value == 'large-truncated' else large_message.decode()
+                expected = [('large-message', message, 'guest', None)]
+                if value != 'large-truncated':
+                    expected.extend([('reader-implementation', 'after large message', 'reader', None),
+                                     ('last-guest', 'last guest message', 'guest', {'start': 0, 'end': 1})])
+                if value != 'large-mixed':
+                    expected.append(('reader-diagnostic-invalid', 'invalid reader diagnostic', 'reader', None))
+                result = replay.run([str(embedded), str(path), '--diagnostics=json'], name, clone, expected=1)
+                require(not result.stdout, name + ': accepted AST')
+                records = [json.loads(line) for line in result.stderr.splitlines()]
+                require(len(records) == len(expected), name + ': lost records')
+                for record, (code, message, category, span) in zip(records, expected):
+                    require((record['code'], record['message'], record['category'], record['span']) ==
+                            (code, message, category, span), name + ': changed diagnostic bytes or order')
+                    require(record['path'] == str(path) and record['source_id'] > 0 and not record['truncated'],
+                            name + ': changed source identity or truncated message')
+                if value == 'large-mixed-truncated':
+                    text = replay.run([str(embedded), str(path)], name + '-text', clone, expected=1)
+                    expected_text = ''.join(f"{path}:{'1:1:' if span else ''} {message}\n"
+                                            for _, message, _, span in expected).encode()
+                    require(not text.stdout and text.stderr == expected_text, name + ': text/JSON differ')
         replay.run(['node', '--max-old-space-size=256', 'test/reader_author/diagnostic_streams.cjs'],
                    'browser-streams', clone)
         nested = replay.run([str(compiler), 'test/reader_author/fixtures/nested.lang',
