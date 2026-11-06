@@ -261,7 +261,7 @@ Declare one statement boundary with `recover(rule, 'terminator', 'stop')`:
 ```lang
 #parser{
     policy = 'shipping' '{' settings:setting* '}'
-    setting = recover(strict_setting, ';', '}')
+    setting = recover(strict_setting, ';', "}")
     strict_setting = name:symbol value:number ';'
 }
 var tokens *Tokenizer = tok_new(text);
@@ -278,7 +278,9 @@ turns a failed statement into a successful error node in editor mode.
 
 On failure, rewind the whole statement and skip through the first exact
 terminator token (consumed), stopping before the enclosing stop token or EOF.
-Sync declarations require two nonempty plain token literals. No token is
+Sync declarations require two nonempty plain token literals. Use double quotes
+for a brace sync literal: the host macro scanner skips double-quoted strings
+when balancing the outer block. No token is
 invented or fed back into recognition. The error replaces the entire failed
 statement, including any recognized prefix. An empty attempt at EOF or at the
 stop token returns nil. Each scan advances a token mark or stops; a further

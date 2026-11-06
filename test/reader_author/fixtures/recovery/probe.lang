@@ -3,8 +3,8 @@ include "example/shipping/shipping.lang"
 
 #parser{
     recovery_choice = long:('do' symbol '=' number) | short:('do' symbol)
-    recovery_choice_boundary = recover(recovery_choice, ';', '}')
-    recovery_zero = recover(shipping_setting, ';', '}')*
+    recovery_choice_boundary = recover(recovery_choice, ';', "}")
+    recovery_zero = recover(shipping_setting, ';', "}")*
 }
 
 func main(argc i64, argv **u8) i64 {
