@@ -96,8 +96,8 @@ def main():
         require(not status.stdout, 'commit candidate before running fragment')
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor',
-                    'fcf6dd72f2296e28543132213d301dbe0d9a2b08', head], 'base', ROOT)
-        replay.run(['git', 'diff', '--exit-code', 'fcf6dd72f2296e28543132213d301dbe0d9a2b08',
+                    '072f48b', head], 'base', ROOT)
+        replay.run(['git', 'diff', '--exit-code', '072f48b',
                     '--', 'bootstrap/current', 'web/stdlib.js', 'web/stdlib.json', 'web/compiler.wasm'],
                    'protected-artifacts', ROOT)
         clone = scratch / 'repo'

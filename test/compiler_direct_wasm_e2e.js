@@ -231,7 +231,7 @@ func main() i64 { return 0; }
       { LANGBE: 'wasm' },
     );
     if (badGrammarCompile.exit === 0 ||
-        !/#parser:\d+:\d+:/.test(badGrammarCompile.stderr) ||
+        !/parser:\d+:\d+:/.test(badGrammarCompile.stderr) ||
         !badGrammarCompile.stderr.includes(expected)) {
       throw new Error(`browser ${name} grammar diagnostic mismatch: ${badGrammarCompile.stderr}`);
     }
