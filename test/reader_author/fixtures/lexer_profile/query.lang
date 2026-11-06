@@ -18,5 +18,9 @@ reader query(text *u8) *u8 {
     if tree != nil { complete = tok_expect_end(tokens); }
     if !complete { tok_print_error(tokens, "query"); return nil; }
     var count *PNode = capture_lookup_required(tree, "count");
-    return ast_span(ast_number(count.text), count.start, count.end);
+    var decls *u8 = ast_vec();
+    var value *u8 = ast_span(ast_number(count.text), count.start, count.end);
+    ast_push(decls, ast_func("query_limit", ast_vec(), ast_type_i64(),
+                           ast_block1(ast_return(value))));
+    return ast_program(decls);
 }
