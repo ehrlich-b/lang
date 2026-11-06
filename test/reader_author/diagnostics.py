@@ -263,7 +263,7 @@ func main(argc i64, argv **u8) i64 {
         # Both native invocation paths preserve raw stderr byte-for-byte, and
         # still reject malformed/invalid records even beside valid AST output.
         legacy_cases = {}
-        for mode in ['plain-stderr', 'legacy-error', 'legacy-exit', 'mixed-stderr', 'plain-malformed']:
+        for mode in ['plain-stderr', 'RDI1', 'prefixRDI1suffix', 'RDI1RDI1', 'legacy-error', 'legacy-exit', 'mixed-stderr', 'plain-malformed']:
             path = scratch / (mode + '.broken')
             path.write_text(mode)
             retain_input(path)
@@ -271,21 +271,25 @@ func main(argc i64, argv **u8) i64 {
 
         def legacy_stderr(command, name):
             for mode, path in legacy_cases.items():
-                expected_exit = 0 if mode == 'plain-stderr' else 1
+                expected_exit = 0 if mode in ['plain-stderr', 'RDI1', 'prefixRDI1suffix', 'RDI1RDI1'] else 1
                 result = replay.run([*command, str(path)], name + '-' + mode, clone, expected=expected_exit)
                 if mode == 'plain-stderr':
                     require(result.stderr == b'debug \xc3\xa9\r\n\0\xffR', name + ': changed raw stderr bytes')
                     require(b'(program)' in result.stdout, name + ': debug output rejected valid AST')
+                elif mode in ['RDI1', 'prefixRDI1suffix', 'RDI1RDI1']:
+                    require(result.stderr == (f'symbol "{mode}" @-1:-1\ntail RDI1\n').encode(),
+                            name + ': printable marker changed pnode_dump or trailing stderr')
+                    require(b'(program)' in result.stdout, name + ': printable marker rejected valid AST')
                 else:
                     require(not result.stdout, name + ': error accepted as AST')
                     if mode in ['legacy-error', 'legacy-exit']:
                         require(result.stderr.startswith(b'legacy: lowering failed\n') and
                                 b'invalid reader diagnostic' not in result.stderr, name + ': lost legacy explanation')
                     elif mode == 'mixed-stderr':
-                        require(result.stderr == ('debug before é\n' + str(path) + ': guest failure\n' +
-                                                  'debug after é\n').encode(), name + ': changed mixed stderr order')
+                        require(result.stderr == ('debug before RDI1 é\n' + str(path) + ': guest RDI1 failure\n' +
+                                                  'debug after RDI1 é\n').encode(), name + ': changed mixed stderr order')
                     else:
-                        require(result.stderr == ('debug before é\n' + str(path) +
+                        require(result.stderr == ('debug before RDI1 é\n' + str(path) +
                                                   ': invalid reader diagnostic\n').encode(), name + ': accepted bad marker')
 
         legacy_stderr([str(compiler), 'read', broken], 'worker-stderr')

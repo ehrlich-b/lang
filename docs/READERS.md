@@ -259,14 +259,15 @@ its guest span remains absent. Failed reader compilation uses compiler errors
 at the reader source, independently of guest diagnostics.
 
 Native wrappers and browser reader harnesses enable `reader_diagnostic_wire`.
-They send bounded RDI1 records on stderr while stdout/return values carry AST.
-The reserved `RDI1` marker starts a structured record. Other stderr passes
+They send bounded NUL-prefixed RDI1 records on stderr while stdout/return values carry AST.
+The reserved five-byte `\0RDI1` marker starts a structured record. Printable
+`RDI1`, including symbols in `pnode_dump`, remains ordinary stderr. Other stderr passes
 through unchanged, including `pnode_dump` output and legacy reader errors;
 plain debug output does not reject a successful reader. Records may appear
 between plain stderr segments. A malformed record is fatal even when preceded
 by debug output or followed by valid AST. Invalid diagnostic API calls emit a
 malformed marker in wire mode so they cannot become ordinary debug text.
-The 28-byte header contains magic RDI1 and six little-endian u32 values:
+The 29-byte header contains a NUL byte, magic RDI1 and six little-endian u32 values:
 category, start+1, end+1, code length, source-key length, message length,
 followed by the three UTF-8 strings. Absent spans encode as 0,0. Keys and codes
 must be nonempty; embedded NULs, unknown keys, bad lengths and invalid ranges

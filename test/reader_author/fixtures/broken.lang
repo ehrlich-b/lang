@@ -1,4 +1,5 @@
 include "std/core.lang"
+include "std/pnode.lang"
 reader broken(text *u8) *u8 {
     var mode *u8 = text; var size i64 = 131072;
     if str_starts_with(text, "256:") { size = 262144; mode = text + 4; }
@@ -25,7 +26,7 @@ reader broken(text *u8) *u8 {
             reader_diagnostic_emit(d, text);
             reader_error("last-guest", "last guest message", "broken", text, 0, 1);
         }
-        if streq(mode, "large-mixed") == 0 { file_write(2, "RDI1", 4); }
+        if streq(mode, "large-mixed") == 0 { file_write(2, "\0RDI1", 5); }
     } else if streq(text, "exit-invalid-0") || streq(text, "exit-invalid-1") {
         reader_error("bad-range", "bad range", "broken", text, 3, 1);
         print("(program)");
@@ -42,6 +43,10 @@ reader broken(text *u8) *u8 {
         os__exit(0);
     } else if streq(text, "snapshot") {
         reader_error("snapshot", "wrong snapshot", "broken", "other input", -1, -1);
+    } else if streq(text, "RDI1") || streq(text, "prefixRDI1suffix") || streq(text, "RDI1RDI1") {
+        pnode_dump(pnode_atom(PNODE_SYMBOL, text));
+        eprintln("tail RDI1");
+        return "(program)";
     } else if streq(text, "plain-stderr") {
         var debug *u8 = alloc(14);
         memcpy(debug, "debug é\r\n", 10);
@@ -53,13 +58,13 @@ reader broken(text *u8) *u8 {
     } else if streq(text, "legacy-exit") {
         eprintln("legacy: lowering failed"); os__exit(1);
     } else if streq(text, "mixed-stderr") {
-        eprintln("debug before é");
-        reader_error("mixed-error", "guest failure", "broken", text, -1, -1);
-        eprintln("debug after é");
+        eprintln("debug before RDI1 é");
+        reader_error("mixed-error", "guest RDI1 failure", "broken", text, -1, -1);
+        eprintln("debug after RDI1 é");
     } else if streq(text, "plain-malformed") {
-        eprintln("debug before é"); file_write(2, "RDI1", 4);
+        eprintln("debug before RDI1 é"); file_write(2, "\0RDI1", 5);
     } else if streq(text, "raw") {
-        file_write(2, "RDI1", 4);
+        file_write(2, "\0RDI1", 5);
     } else if streq(text, "bom") {
         reader_error("﻿code", "﻿message", "broken", text, -1, -1);
     } else if streq(text, "bom-key") {

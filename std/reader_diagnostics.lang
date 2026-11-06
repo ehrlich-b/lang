@@ -67,7 +67,7 @@ pub func reader_diagnostic_emit(d *ReaderDiagnostic, text *u8) void {
         if reader_diagnostic_collect == 0 {
             // Invalid API calls must remain fatal at a host that also accepts
             // ordinary stderr. A truncated reserved marker cannot be legacy text.
-            if reader_diagnostic_wire != 0 { file_write(2, "RDI1", 4); }
+            if reader_diagnostic_wire != 0 { file_write(2, "\0RDI1", 5); }
             else { eprintln("reader: invalid diagnostic"); }
         }
         return;
@@ -80,16 +80,17 @@ pub func reader_diagnostic_emit(d *ReaderDiagnostic, text *u8) void {
         vec_push(reader_diagnostic_reports, report); return;
     }
     if reader_diagnostic_wire == 0 { reader_diagnostic_text(d, text); return; }
-    // RDI1: category, start+1, end+1, and three byte lengths (little-endian).
+    // Reserve NUL + RDI1 for binary records; printable RDI1 is ordinary stderr.
+    // Then category, start+1, end+1, and three byte lengths (little-endian).
     // -1/-1 is encoded as 0/0. No pointers or host IDs cross this boundary.
-    var header *u8 = alloc(28); memcpy(header, "RDI1", 4);
-    reader_diagnostic_put32(header + 4, d.category);
-    reader_diagnostic_put32(header + 8, d.start + 1);
-    reader_diagnostic_put32(header + 12, d.end + 1);
-    reader_diagnostic_put32(header + 16, strlen(d.code));
-    reader_diagnostic_put32(header + 20, strlen(d.source));
-    reader_diagnostic_put32(header + 24, strlen(d.message));
-    file_write(2, header, 28); file_write(2, d.code, strlen(d.code));
+    var header *u8 = alloc(29); memcpy(header, "\0RDI1", 5);
+    reader_diagnostic_put32(header + 5, d.category);
+    reader_diagnostic_put32(header + 9, d.start + 1);
+    reader_diagnostic_put32(header + 13, d.end + 1);
+    reader_diagnostic_put32(header + 17, strlen(d.code));
+    reader_diagnostic_put32(header + 21, strlen(d.source));
+    reader_diagnostic_put32(header + 25, strlen(d.message));
+    file_write(2, header, 29); file_write(2, d.code, strlen(d.code));
     file_write(2, d.source, strlen(d.source)); file_write(2, d.message, strlen(d.message));
 }
 pub func reader_error(code *u8, message *u8, source *u8, text *u8, start i64, end i64) void {

@@ -5,10 +5,10 @@ const { decodeReaderDiagnostics } = require('../../web/program_host.js');
 const context = { key: 'broken', path: '/guest/policy.broken', text: 'é\r\nx', sourceId: 7 };
 function frame(code, message, category = 0, start = -1, end = -1) {
   const fields = [code, 'broken', message].map(value => Buffer.from(value));
-  const header = Buffer.alloc(28);
-  header.write('RDI1');
+  const header = Buffer.alloc(29);
+  header.write('\0RDI1');
   [category, start + 1, end + 1, ...fields.map(value => value.length)]
-    .forEach((value, index) => header.writeUInt32LE(value, 4 + index * 4));
+    .forEach((value, index) => header.writeUInt32LE(value, 5 + index * 4));
   return Buffer.concat([header, ...fields]);
 }
 const message = 'x'.repeat(131072);
@@ -25,15 +25,15 @@ assert.equal(records[1].span, null);
 assert.deepEqual(records[2].span, { start: 0, end: 2 });
 assert.ok(records.every(record => record.path === context.path && record.source_id === 7));
 // Once the reserved marker is present, every truncated record must reject.
-for (let length = 4; length < tail.length; length++) {
+for (let length = 5; length < tail.length; length++) {
   assert.throws(() => decodeReaderDiagnostics(Buffer.concat([large, tail.subarray(0, length)]), context));
 }
-assert.throws(() => decodeReaderDiagnostics(Buffer.concat([stream, Buffer.from('RDI1')]), context));
+assert.throws(() => decodeReaderDiagnostics(Buffer.concat([stream, Buffer.from('\0RDI1')]), context));
 console.log(JSON.stringify({ pass: true, messageBytes: Buffer.byteLength(message),
-  mixedRecords: records.length, truncatedFrames: tail.length - 1 }));
+  mixedRecords: records.length, truncatedFrames: tail.length - 5 }));
 
 // Plain stderr remains in order around records, including short non-markers.
-const plain = Buffer.from('debug é\r\nR\0RD\xff');
+const plain = Buffer.from('RDI1 debug é\r\nR\0RD\xff prefixRDI1suffix RDI1RDI1');
 const chunks = [];
 const mixed = decodeReaderDiagnostics(Buffer.concat([plain, located, plain]), context,
   text => chunks.push(text));
@@ -42,4 +42,10 @@ assert.equal(chunks[0], plain.toString());
 assert.equal(chunks[1], '/guest/policy.broken:1:1: last guest message\n');
 assert.equal(chunks[2], plain.toString());
 assert.deepEqual(decodeReaderDiagnostics(plain, context), []);
-assert.throws(() => decodeReaderDiagnostics(Buffer.concat([plain, Buffer.from('RDI1')]), context));
+assert.throws(() => decodeReaderDiagnostics(Buffer.concat([plain, Buffer.from('\0RDI1')]), context));
+
+// The old printable header, even with plausible fields, is legacy stderr.
+const unframed = tail.subarray(1);
+const unframedChunks = [];
+assert.deepEqual(decodeReaderDiagnostics(unframed, context, text => unframedChunks.push(text)), []);
+assert.equal(unframedChunks.join(''), unframed.toString());

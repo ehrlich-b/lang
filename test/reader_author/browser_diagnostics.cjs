@@ -16,6 +16,6 @@ const { runLangProgram, decodeReaderDiagnostics } = require('../../web/program_h
   for (const field of ['code', 'message', 'span', 'category']) assert.deepEqual(record[field], native[field]);
   assert.equal(record.path, input);
   assert.equal(record.source_id, 1);
-  assert.throws(() => decodeReaderDiagnostics(Buffer.from('RDI1'), context));
+  assert.throws(() => decodeReaderDiagnostics(Buffer.from('\0RDI1'), context));
   console.log(JSON.stringify({ pass: true, record, text: result.stderr }));
 })().catch(error => { console.error(error); process.exitCode = 1; });

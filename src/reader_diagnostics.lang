@@ -123,17 +123,18 @@ func reader_host_decode(bytes *PhaseBuffer) void {
     var pos i64 = 0;
     while pos < bytes.len {
         // Stderr also carries documented debug output and legacy diagnostics.
-        // Only the reserved RDI1 marker starts a record; forward every other
+        // Only the reserved NUL + RDI1 starts a record; forward every other
         // byte directly, without interpreting it as AST or JSON diagnostic data.
         var plain i64 = pos;
         while pos < bytes.len {
-            if bytes.len - pos >= 4 {
-                if memcmp(bytes.data + pos, "RDI1", 4) != 0 { break; }
+            if bytes.len - pos >= 5 {
+                if memcmp(bytes.data + pos, "\0RDI1", 5) != 0 { break; }
             }
             pos = pos + 1;
         }
         if pos > plain { file_write(2, bytes.data + plain, pos - plain); }
         if pos == bytes.len { return; }
+        pos = pos + 1; // Skip the binary prefix before decoding the RDI1 header.
         if bytes.len - pos < 28 { reader_host_protocol(); return; }
         var p *u8 = bytes.data + pos;
         var code i64 = reader_diagnostic_u32(p + 16);

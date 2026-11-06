@@ -256,7 +256,7 @@ function formatLangAst(source) {
   return output.join('');
 }
 
-// Decode the same bounded RDI1 records as the native compiler. Hosts mint
+// Decode the same NUL-prefixed RDI1 records as the native compiler. Hosts mint
 // source IDs; reader-local names cannot name unrelated files or editor buffers.
 function decodeReaderDiagnostics(data, context, onStderr = () => {}) {
   const records = [];
@@ -270,10 +270,11 @@ function decodeReaderDiagnostics(data, context, onStderr = () => {}) {
     (n === text.length || text[n] < 128 || text[n] >= 192);
   while (pos < data.length) {
     const plain = pos;
-    while (pos < data.length && !(data[pos] === 82 && data[pos + 1] === 68 &&
-           data[pos + 2] === 73 && data[pos + 3] === 49)) pos++;
+    while (pos < data.length && !(data[pos] === 0 && data[pos + 1] === 82 &&
+           data[pos + 2] === 68 && data[pos + 3] === 73 && data[pos + 4] === 49)) pos++;
     if (pos > plain) onStderr(new TextDecoder('utf-8', { ignoreBOM: true }).decode(data.subarray(plain, pos)));
     if (pos === data.length) break;
+    pos++; // Printable RDI1 alone never enters the binary record decoder.
     if (data.length - pos < 28) {
       throw new Error('invalid reader diagnostic');
     }
