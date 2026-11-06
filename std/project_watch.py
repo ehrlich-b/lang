@@ -171,11 +171,25 @@ class Watch:
                     self.finish_record(build, 'superseded', reason='pipeline captured different inputs')
                     self.key = None
                     return
-                # tick observed the current dependency identity immediately before
-                # this branch; a superseded generation never reaches publication.
                 self.check_output()
                 os.replace(build['directory'] / 'program', self.output)
-                self.finish_record(build, 'published', output=str(self.output), sha256=digest(self.output))
+                # The earlier probe can become stale before the rename. Treat
+                # replacement as provisional until a probe AFTER it confirms
+                # the captured inputs; --once must keep going on a mismatch.
+                accepted = False
+                try:
+                    output_digest = digest(self.output)
+                    current, _, _ = self.inputs()
+                    accepted = current == self.key and not self.stopped
+                finally:
+                    if not accepted:
+                        # Preserve the rejected executable alongside its build
+                        # diagnostics, and retract it before reporting the result.
+                        os.replace(self.output, build['directory'] / 'program')
+                        self.key = None
+                        self.finish_record(build, 'superseded', reason='inputs changed during publication')
+                if accepted:
+                    self.finish_record(build, 'published', output=str(self.output), sha256=output_digest)
             else:
                 self.finish_record(build, 'failed')
                 sys.stderr.buffer.write((build['directory'] / 'stderr').read_bytes())

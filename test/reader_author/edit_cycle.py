@@ -219,6 +219,52 @@ def main():
         require(watch.events[-1]['event'] == 'superseded' and not output.exists(), 'ABA build published stale bytes')
         phase('capture-race-recovery')
         require(sum(e['event'] == 'published' for e in watch.events[before_race:]) == 1, 'ABA output was published')
+        # Force edits in both gaps: after the last pre-publication probe and
+        # inside the rename itself. Neither may report a successful generation.
+        for boundary in ('probe', 'rename'):
+            watch.key = None
+            watch.tick()
+            wait_for(lambda: watch.active['process'].poll() is not None, 'publication control build did not finish')
+            rejected_program = watch.active['directory'] / 'program'
+            original_replace = module.os.replace
+            injected = False
+
+            def edit_after_probe():
+                nonlocal injected
+                value = original_inputs()
+                if not injected:
+                    injected = True
+                    same_time(guest, valid_guest.replace('base 11', 'base 19'))
+                return value
+
+            def edit_at_rename(source, destination):
+                nonlocal injected
+                if not injected and Path(destination) == output:
+                    injected = True
+                    same_time(guest, valid_guest.replace('base 11', 'base 19'))
+                return original_replace(source, destination)
+
+            if boundary == 'probe':
+                watch.inputs = edit_after_probe
+            else:
+                module.os.replace = edit_at_rename
+            before_publication = len(watch.events)
+            try:
+                watch.tick()
+            finally:
+                watch.inputs = original_inputs
+                module.os.replace = original_replace
+            require(injected and watch.events[-1]['event'] == 'superseded' and
+                    not output.exists() and rejected_program.exists() and watch.key is None,
+                    boundary + ': publication race accepted obsolete output or lost retry/artifact')
+            require(not any(e['event'] == 'published' for e in watch.events[before_publication:]),
+                    boundary + ': obsolete publication event')
+            archive('publication-' + boundary + '-superseded')
+            phase('publication-' + boundary + '-latest')
+            result = replay.run([str(output), '99'], 'publication-' + boundary + '-runtime', scratch)
+            require(result.stdout == b'20\n', boundary + ': latest generation was not rebuilt')
+            same_time(guest, valid_guest)
+            phase('publication-' + boundary + '-recovery')
         same_time(guest, 'shipping { base 11 free_over 100; }\n')
         failure = phase('reader-failure', 'failed')
         require(not output.exists() and failure['event']['exit'] == 1, 'failed build left a published output')
@@ -292,6 +338,16 @@ def main():
                     '--evidence', str(evidence / 'cli-once'), '--once'], 'cli-once', clone)
         result = replay.run([str(cli_output), '99'], 'cli-runtime', scratch)
         require(result.stdout == b'15\n', 'public CLI did not recover')
+        replay.run([sys.executable, str(clone / 'test/reader_author/fixtures/edit_cycle/publication_race.py'),
+                    str(clone / 'std/project_watch.py'), str(guest), 'base 14', 'base 19',
+                    '--compiler', compiler, '--project', str(manifest), '-o', str(cli_output),
+                    '--evidence', str(evidence / 'cli-once-race'), '--once'], 'cli-once-race', clone)
+        events = [json.loads(line) for line in (evidence / 'cli-once-race/events.jsonl').read_text().splitlines()]
+        require([e['event'] for e in events].count('superseded') == 1 and
+                [e['event'] for e in events].count('published') == 1 and
+                events[-1]['build_generation'] == 2, '--once exited on a superseded generation')
+        result = replay.run([str(cli_output), '99'], 'cli-once-race-runtime', scratch)
+        require(result.stdout == b'20\n', '--once published obsolete output')
         sentinel = scratch / 'sentinel'
         sentinel.write_text('keep this input\n')
         replay.run([compiler, 'watch', '--project', str(manifest), '-o', str(sentinel), '--once',
@@ -302,7 +358,8 @@ def main():
         dump(evidence / 'measurements.json', metrics)
         dump(evidence / 'result.json', dict({'pass': True}, head=head, compiler_sha256=sha(compiler),
              controls=['same-mtime-guest', 'same-mtime-grammar', 'runtime', 'reader-failure', 'link-failure',
-                       'failed-mint', 'capture-race', 'missing-dependency', 'rapid-edits', 'process-tree-cancellation', 'CLI', 'output-protection']))
+                       'failed-mint', 'capture-race', 'publication-probe-race', 'publication-rename-race',
+                       'once-publication-race', 'missing-dependency', 'rapid-edits', 'process-tree-cancellation', 'CLI', 'output-protection']))
         print('PASS content-changes: cold/unchanged/guest/grammar phase timings and process counts, runtime invalidation, errors, rapid edits and cancellation')
         return 0
     except Exception as error:
