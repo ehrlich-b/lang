@@ -1,0 +1,38 @@
+include "example/rill/rill.lang"
+
+func main() i64 {
+    var text *u8 = phase_read_file("test/reader_author/fixtures/rill/preservation.rill");
+    var original *u8 = str_dup(text);
+    parser_set_source_name("rill");
+    parser_tokenize(text);
+    var count i64 = parser_token_count();
+    var before *u8 = parse_tokens;
+    var ast *u8 = rill(text);
+    if ast == nil || !streq(text, original) { return 1; }
+    var snapshot *PhaseSource = phase_source_get(phase_bound_source_id);
+    if !streq(snapshot.text, original) { return 2; }
+    if parser_token_count() != count { return 3; }
+    var i i64 = 0;
+    while i < count {
+        var old *u8 = vec_get(before, i);
+        var current *u8 = get_token(i);
+        if tok_lexeme(current) != tok_lexeme(old) ||
+           tok_lexeme_len(current) != tok_lexeme_len(old) ||
+           tok_line(current) != tok_line(old) || tok_col(current) != tok_col(old) {
+            return 4;
+        }
+        var expected i64 = tok_type(old);
+        if expected == TOKEN_IDENT { expected = rill_keyword(old); }
+        if tok_type(current) != expected { return 5; }
+        i = i + 1;
+    }
+    if tok_type(get_token(0)) != TOKEN_FUNC || !rill_word(get_token(0), "fun") ||
+       tok_line(get_token(0)) != 2 || tok_col(get_token(0)) != 1 { return 6; }
+    // Opt-in serialization must restore the default emitter's byte format.
+    var prog *u8 = parse_program_from_string("func identity() i64 { return 1; }");
+    var ordinary *u8 = ast_emit_program(prog);
+    ast_emit_program_with_origins(prog);
+    if !streq(ordinary, ast_emit_program(prog)) { return 7; }
+    println("PASS token slices, literal/comment bytes, source snapshot, positions and emitter isolation");
+    return 0;
+}

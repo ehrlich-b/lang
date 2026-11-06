@@ -1,0 +1,63 @@
+// A keyword dialect over the shared Lang token stream, parser and AST.
+include "std/core.lang"
+include "std/tok.lang"
+include "src/lexer.lang"
+include "src/parser.lang"
+include "src/ast_emit.lang"
+
+func rill_word(tok *u8, word *u8) bool {
+    return str_eq_n(tok_lexeme(tok), tok_lexeme_len(tok), word, strlen(word));
+}
+
+func rill_keyword(tok *u8) i64 {
+    if rill_word(tok, "fun") { return TOKEN_FUNC; }
+    if rill_word(tok, "local") { return TOKEN_VAR; }
+    if rill_word(tok, "record") { return TOKEN_STRUCT; }
+    if rill_word(tok, "use") { return TOKEN_INCLUDE; }
+    if rill_word(tok, "syntax") { return TOKEN_READER; }
+    return TOKEN_IDENT;
+}
+
+// The exact v1 token subset. Check original kinds before remapping, so Lang
+// declaration keywords and embedded reader blocks cannot bypass the dialect.
+func rill_supported(kind i64) bool {
+    if kind >= TOKEN_EOF && kind <= TOKEN_COLON {
+        return kind != TOKEN_FUNC && kind != TOKEN_VAR && kind != TOKEN_STRUCT;
+    }
+    return kind >= TOKEN_PIPE && kind <= TOKEN_CONTINUE ||
+           kind == TOKEN_FN || kind == TOKEN_PUB ||
+           kind == TOKEN_CAST || kind == TOKEN_BITCAST;
+}
+
+func rill_error(tok *u8, message *u8) void {
+    eprint("rill:"); eprint_i64(tok_line(tok)); eprint(":");
+    eprint_i64(tok_col(tok)); eprint(": error: "); eprintln(message);
+}
+
+reader rill(text *u8) *u8 {
+    // The configurable scanner also diagnoses an unterminated block comment;
+    // the shared compiler lexer historically skips that comment through EOF.
+    var comments *Tokenizer = tok_new(text);
+    while !tok_eof(comments) { tok_next(comments); }
+    if !tok_expect_end(comments) { tok_print_error(comments, "rill"); return nil; }
+
+    parser_set_source_name("rill");
+    parser_tokenize(text);
+    var i i64 = 0;
+    while i < parser_token_count() {
+        var tok *u8 = get_token(i);
+        var kind i64 = tok_type(tok);
+        if kind == TOKEN_ERROR { rill_error(tok, tok_lexeme(tok)); return nil; }
+        if !rill_supported(kind) {
+            rill_error(tok, "unsupported Rill token (use fun/local/record/use/syntax)");
+            return nil;
+        }
+        if kind == TOKEN_IDENT { tok_set_type(tok, rill_keyword(tok)); }
+        i = i + 1;
+    }
+    // No text is rewritten: token slices, literal spellings, comments, byte
+    // columns and the registered source snapshot all refer to the input.
+    var prog *u8 = parse_program();
+    if parse_error_count > 0 { return nil; }
+    return ast_emit_program_with_origins(prog);
+}

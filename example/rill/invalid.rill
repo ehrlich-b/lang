@@ -1,0 +1,5 @@
+// café: a missing semicolon must stay at its original byte column.
+fun broken() i64 {
+    local value i64 = 1
+    return value;
+}

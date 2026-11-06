@@ -1,0 +1,4 @@
+// café: the backend must identify the original file and byte column.
+fun main() i64 {
+    return missing_symbol;
+}
