@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check only the embedded-runtime shipping fragment, with external receipts."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -99,10 +100,13 @@ def main():
             print('PASS ancestry, protected inputs, two-core/2-GiB limits and host assumptions')
             return 0
         versions = {}
+        compiler_artifacts = {}
         for variant, revision in (('before', BASE), ('after', head)):
             clone = scratch / variant
             replay.run(['git', 'clone', '--no-hardlinks', '--quiet', str(ROOT), str(clone)], variant + '-clone', ROOT)
             replay.run(['git', 'checkout', '--quiet', revision], variant + '-checkout', clone)
+            inputs = replay.run(['git', 'ls-files', '-z'], variant + '-tracked-inputs', clone).stdout.decode().split('\0')
+            source_hashes = {p: sha(clone / p) for p in inputs if p and (clone / p).is_file()}
             replay.run(['make', 'init'], variant + '-init', clone)
             replay.run(['make', 'build'], variant + '-source-build', clone)
             compiler = str(clone / 'out/lang_next')
@@ -113,6 +117,15 @@ def main():
             ir = evidence / (variant + '-shipping.ll')
             replay.run([str(minted), str(ship / 'policy.shipping'), '-o', str(ir)], variant + '-guest-ir', scratch)
             versions[variant] = (clone, compiler, minted, ir)
+            compiler_artifacts[variant] = {
+                'head': revision,
+                'source_tree_sha256': hashlib.sha256(json.dumps(source_hashes, sort_keys=True).encode()).hexdigest(),
+                'source_tree_hash_format': 'SHA256 of JSON with sorted keys mapping each tracked input path to file SHA256',
+                'changed_source_sha256': {p: h for p, h in source_hashes.items() if hashes.get(p) != h},
+                'bootstrap_compiler_sha256': sha(clone / 'out/lang_bootstrap'),
+                'source_compiler_sha256': sha(compiler), 'minted_compiler_sha256': sha(minted),
+                'ir_sha256': sha(ir)}
+            dump(evidence / 'compiler-artifacts.json', compiler_artifacts)
         ir_lines = {v: len(data[3].read_text().splitlines()) for v, data in versions.items()}
         require(ir_lines['after'] < ir_lines['before'], 'unreachable runtime helpers did not shrink shipping IR')
         after_ir = versions['after'][3].read_text()
@@ -156,6 +169,8 @@ def main():
         minted = scratch / 'fixturec'
         replay.run([compiler, 'compiler', 'core_ast', str(fixtures / 'reader.lang'),
                     '--runtime', str(fixtures / 'runtime.lang'), '-o', str(minted)], 'mint-root-fixture', clone)
+        compiler_artifacts['fixture_compiler_sha256'] = sha(minted)
+        dump(evidence / 'compiler-artifacts.json', compiler_artifacts)
         for name in ('roots', 'indirect', 'foreign'):
             ir = evidence / (name + '.ll')
             replay.run([str(minted), str(fixtures / (name + '.ast')), '-o', str(ir)], name + '-ir', scratch)
