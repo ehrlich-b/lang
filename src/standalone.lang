@@ -150,6 +150,7 @@ func standalone_emit(input_files *u8, output_file *u8, use_llvm i64) i64 {
 func main(argc i64, argv **u8) i64 {
     if argc < 2 { standalone_help(); return 0; }
     var output_file *u8 = nil;
+    var seen_output i64 = 0;
     var input_files *u8 = vec_new(16);
     // An omitted mode retains the original backend-dependent IR/assembly output.
     var emit *u8 = nil;
@@ -160,12 +161,14 @@ func main(argc i64, argv **u8) i64 {
         var arg *u8 = standalone_get_arg(argv, i);
         if streq(arg, "--help") || streq(arg, "-h") { standalone_help(); return 0; }
         else if streq(arg, "-o") {
-            if output_file != nil { eprintln("Error: duplicate -o"); invalid = 1; }
+            var duplicate i64 = seen_output;
+            seen_output = 1;
+            if duplicate != 0 { eprintln("Error: duplicate -o"); invalid = 1; }
             if i + 1 >= argc || *standalone_get_arg(argv, i + 1) == '-' {
                 eprintln("Error: -o needs an output path"); invalid = 1;
             } else {
                 i = i + 1;
-                if output_file == nil { output_file = standalone_get_arg(argv, i); }
+                if duplicate == 0 { output_file = standalone_get_arg(argv, i); }
             }
         } else if str_starts_with(arg, "--emit=") {
             if streq(arg + 7, "native") { native = 1; }
@@ -182,6 +185,8 @@ func main(argc i64, argv **u8) i64 {
     if vec_len(input_files) == 0 { eprintln("Error: no input files"); invalid = 1; }
     var use_llvm i64 = cg_backend_is_llvm();
     if emit != nil && streq(emit, "llvm") { use_llvm = 1; }
+    // A malformed first -o does not authorize touching a later destination.
+    if output_file == nil && invalid != 0 { return 1; }
     if output_file == nil {
         if native != 0 { output_file = "a.out"; }
         else if use_llvm != 0 { output_file = "a.ll"; }

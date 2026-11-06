@@ -87,7 +87,8 @@ def main():
         exe = isolated / 'shipping'
 
         def invoke(name, extra=(), guest='valid.ship', output=exe, expected=0):
-            result = replay.run([str(shipc), guest, *extra, '-o', str(output)], name, isolated, expected)
+            operand = output.name if output.parent == isolated else str(output)
+            result = replay.run([str(shipc), guest, *extra, '-o', operand], name, isolated, expected)
             require(not list(isolated.glob('*.lang-build-*')), name + ': staging directory leaked')
             if expected:
                 require(not output.exists(), name + ': stale or partial executable survived')
@@ -145,6 +146,17 @@ def main():
                                 ('unknown-option', ['--emit=native', '--unknown'])]:
             seed()
             invoke(name, arguments, expected=1)
+        sentinel = isolated / 'unselected-output'
+        sentinel.write_bytes(saved)
+        sentinel.chmod(0o755)
+        replay.run([str(shipc), 'valid.ship', '--emit=native', '-o', '-o', str(sentinel)],
+                   'missing-first-output', isolated, expected=1)
+        require(sentinel.read_bytes() == saved, 'ambiguous second destination was invalidated')
+        link = isolated / 'output-symlink'
+        link.symlink_to(sentinel)
+        replay.run([str(shipc), 'valid.ship', '--emit=native', '-o', str(link)],
+                   'protect-output-symlink', isolated, expected=1)
+        require(link.is_symlink() and sentinel.read_bytes() == saved, 'symlink target changed')
         original = sha(source)
         replay.run([str(shipc), 'valid.ship', '--emit=native', '-o', 'valid.ship'],
                    'protect-guest', isolated, expected=1)
@@ -166,6 +178,12 @@ def main():
         result = invoke('object-failure', ['--emit=native'], expected=1)
         require(b'valid.ship: error: native build optimizer/object compilation failed' in result.stderr and
                 b'expected top-level entity' in result.stderr, 'object failure lost original diagnostic')
+        replay.env.pop('NATIVE_BAD_IR')
+        replay.env['NATIVE_BAD_IR'] = str(clone / 'test/reader_author/fixtures/standalone/unresolved.ll')
+        seed()
+        result = invoke('linker-failure', ['--emit=native'], expected=1)
+        require(b'valid.ship: error: native build linker failed' in result.stderr and
+                b'standalone_missing_link_symbol' in result.stderr, 'link failure lost original diagnostic')
         replay.env.pop('NATIVE_BAD_IR')
         invoke('configured-tool-valid', ['--emit=native'])
         calls = [json.loads(line) for line in log.read_text().splitlines()]
