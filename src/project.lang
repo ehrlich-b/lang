@@ -1,0 +1,219 @@
+// Project orchestration is a compiler-host input contract, not reader execution.
+struct LanguageProject {
+    path *u8;
+    fields *u8;
+    tokens *u8;
+    runtimes *u8;
+    identity *u8;
+}
+
+func project_error(project *LanguageProject, token *u8, message *u8) void {
+    eprint(project.path); eprint(":"); eprint_i64(tok_line(token));
+    eprint(":"); eprint_i64(tok_col(token)); eprint(": error: ");
+    eprintln(message); exit(1);
+}
+
+func project_expect(project *LanguageProject, kind i64, message *u8) *u8 {
+    if tok_type(parse_peek()) != kind { project_error(project, parse_peek(), message); }
+    return parse_advance();
+}
+
+func project_string(project *LanguageProject) *u8 {
+    var token *u8 = project_expect(project, TOKEN_STRING, "expected quoted input");
+    var text *u8 = parse_string_literal(tok_lexeme(token), tok_lexeme_len(token));
+    var len i64 = parse_string_literal_len(tok_lexeme(token), tok_lexeme_len(token));
+    var i i64 = 0;
+    if len == 0 { project_error(project, token, "empty input"); }
+    while i < len {
+        if *(text + i) < 32 { project_error(project, token, "control byte in input"); }
+        i = i + 1;
+    }
+    return text;
+}
+
+func project_field(project *LanguageProject, name *u8) *u8 {
+    return map_get(project.fields, name);
+}
+
+func project_fail_field(project *LanguageProject, name *u8, message *u8) void {
+    project_error(project, map_get(project.tokens, name), message);
+}
+
+func project_path(project *LanguageProject, value *u8) *u8 {
+    if *value == '/' { return value; }
+    return str_concat(str_concat(path_dirname(project.path), "/"), value);
+}
+
+func project_input(project *LanguageProject, field *u8, path *u8) *u8 {
+    // Direct project inputs never fall back to the compiler's resource tree.
+    var text *u8 = phase_read_file(path);
+    if text == nil { project_fail_field(project, field, str_concat("missing input: ", path)); }
+    var id i64 = phase_source_capture(path, text);
+    return phase_source_get(id).text;
+}
+
+func project_load(path *u8) *LanguageProject {
+    var project *LanguageProject = alloc(40);
+    project.path = path; project.fields = map_new(); project.tokens = map_new();
+    project.runtimes = vec_new(4); project.identity = nil;
+    var text *u8 = phase_read_file(path);
+    if text == nil { eprint("Error: cannot open project: "); eprintln(path); exit(1); }
+    phase_source_capture(path, text);
+    parse_source_name = path;
+    parser_tokenize(text);
+    var header *u8 = project_expect(project, TOKEN_IDENT, "expected project");
+    if !streq(str_dup_n(tok_lexeme(header), tok_lexeme_len(header)), "project") {
+        project_error(project, header, "expected project");
+    }
+    project_expect(project, TOKEN_LBRACE, "expected '{'");
+    while tok_type(parse_peek()) != TOKEN_RBRACE {
+        var key *u8 = project_expect(project, TOKEN_IDENT, "expected project field");
+        var name *u8 = str_dup_n(tok_lexeme(key), tok_lexeme_len(key));
+        if map_has(project.fields, name) { project_error(project, key, "duplicate project field"); }
+        map_set(project.tokens, name, key);
+        var value *u8 = nil;
+        if streq(name, "version") {
+            var version *u8 = project_expect(project, TOKEN_NUMBER, "expected schema version 1");
+            value = str_dup_n(tok_lexeme(version), tok_lexeme_len(version));
+            if !streq(value, "1") { project_error(project, version, "unsupported project schema version"); }
+        } else if streq(name, "runtime_files") {
+            project_expect(project, TOKEN_LBRACKET, "expected runtime file list");
+            if tok_type(parse_peek()) != TOKEN_RBRACKET {
+                vec_push(project.runtimes, project_path(project, project_string(project)));
+                while parse_match(TOKEN_COMMA) {
+                    vec_push(project.runtimes, project_path(project, project_string(project)));
+                }
+            }
+            project_expect(project, TOKEN_RBRACKET, "expected ']'");
+            value = "runtime_files";
+        } else if streq(name, "reader_source") || streq(name, "reader_name") ||
+                  streq(name, "source_suffix") || streq(name, "entry") ||
+                  streq(name, "backend") || streq(name, "native_profile") ||
+                  streq(name, "native_toolchain") {
+            value = project_string(project);
+        } else { project_error(project, key, "unknown project field"); }
+        map_set(project.fields, name, value);
+        project_expect(project, TOKEN_SEMICOLON, "expected ';'");
+    }
+    var end *u8 = parse_advance();
+    if tok_type(parse_peek()) != TOKEN_EOF { project_error(project, parse_peek(), "expected end of project"); }
+    var required *u8 = vec_new(9);
+    vec_push(required, "version"); vec_push(required, "reader_source"); vec_push(required, "reader_name");
+    vec_push(required, "source_suffix"); vec_push(required, "runtime_files"); vec_push(required, "entry");
+    vec_push(required, "backend"); vec_push(required, "native_profile"); vec_push(required, "native_toolchain");
+    var i i64 = 0;
+    while i < vec_len(required) {
+        var field *u8 = vec_get(required, i);
+        if map_has(project.fields, field) == 0 { project_error(project, end, str_concat("missing project field: ", field)); }
+        i = i + 1;
+    }
+    var reader_name *u8 = project_field(project, "reader_name");
+    i = 0;
+    while *(reader_name + i) != 0 {
+        var ch i64 = *(reader_name + i);
+        if !((ch >= 97 && ch <= 122) || (ch >= 65 && ch <= 90) || ch == 95 || (i > 0 && ch >= 48 && ch <= 57)) {
+            project_fail_field(project, "reader_name", "expected reader identifier");
+        }
+        i = i + 1;
+    }
+    if streq(reader_name, "lang") || streq(reader_name, "ast") || !streq(project_field(project, "source_suffix"), str_concat(".", reader_name)) {
+        project_fail_field(project, "source_suffix", "source suffix must match the custom reader name");
+    }
+    if !streq(project_field(project, "backend"), "llvm") {
+        project_fail_field(project, "backend", "unsupported project backend; expected llvm");
+    }
+    if !streq(project_field(project, "native_profile"), "llvm-linux-x86_64") {
+        project_fail_field(project, "native_profile", "unsupported native profile");
+    }
+    if !streq(project_field(project, "native_toolchain"), "clang") {
+        project_fail_field(project, "native_toolchain", "unsupported native toolchain; expected clang");
+    }
+    var source *u8 = project_path(project, project_field(project, "reader_source"));
+    var entry *u8 = project_path(project, project_field(project, "entry"));
+    map_set(project.fields, "reader_source", source); map_set(project.fields, "entry", entry);
+    if is_lang_extension(get_extension(source)) == 0 { project_fail_field(project, "reader_source", "reader source must be .lang"); }
+    var ext *u8 = get_extension(entry);
+    if ext == nil { project_fail_field(project, "entry", "entry suffix must match reader"); }
+    if !streq(ext, reader_name) { project_fail_field(project, "entry", "entry suffix must match reader"); }
+    var source_text *u8 = project_input(project, "reader_source", source);
+    var entry_text *u8 = project_input(project, "entry", entry);
+    var prog *u8 = parse_program_from_named_string(source_text, source);
+    if prog == nil { project_fail_field(project, "reader_source", "cannot parse reader source"); }
+    var matches i64 = 0;
+    i = 0;
+    while i < program_decl_count(prog) {
+        var decl *u8 = get_decl(program_decls(prog), i);
+        if node_kind(decl) == NODE_READER_DECL {
+            if streq(str_dup_n(reader_decl_name(decl), reader_decl_name_len(decl)), reader_name) { matches = matches + 1; }
+        }
+        i = i + 1;
+    }
+    if matches != 1 { project_fail_field(project, "reader_name", "reader source must declare the named reader exactly once"); }
+    // Reuse the reader dependency resolver: parsing and hashing, never expansion,
+    // code generation, cache lookup, subprocesses or reader invocation.
+    var bytes *PhaseBuffer = phase_buffer_new(phase_limit(), path);
+    var seen *u8 = map_new();
+    phase_buffer_field(bytes, phase_source_snapshot(path).digest);
+    phase_buffer_field(bytes, path);
+    phase_dependency_visit(source_text, source, seen, bytes, 0);
+    phase_buffer_field(bytes, entry); phase_buffer_field(bytes, phase_source_snapshot(entry).digest);
+    i = 0;
+    while i < vec_len(project.runtimes) {
+        var runtime *u8 = vec_get(project.runtimes, i);
+        if is_lang_extension(get_extension(runtime)) == 0 { project_fail_field(project, "runtime_files", "runtime source must be .lang"); }
+        var runtime_text *u8 = project_input(project, "runtime_files", runtime);
+        phase_dependency_visit(runtime_text, runtime, seen, bytes, 0);
+        i = i + 1;
+    }
+    project.identity = phase_digest(bytes.data, bytes.len);
+    return project;
+}
+
+func project_argv(arguments *u8) **u8 {
+    var data *u8 = alloc((vec_len(arguments) + 1) * 8);
+    var i i64 = 0;
+    while i < vec_len(arguments) {
+        var slot **u8 = data + i * 8; *slot = vec_get(arguments, i); i = i + 1;
+    }
+    var last **u8 = data + i * 8; *last = nil;
+    return data;
+}
+
+func cmd_project(argc i64, argv **u8) i64 {
+    if argc != 4 && argc != 6 {
+        eprintln("Usage: lang project check|read|compiler manifest [-o output]"); return 1;
+    }
+    var action *u8 = get_arg(argv, 2);
+    if !streq(action, "check") && !streq(action, "read") && !streq(action, "compiler") {
+        eprintln("Error: unknown project action"); return 1;
+    }
+    if argc == 6 {
+        if streq(action, "check") || !streq(get_arg(argv, 4), "-o") {
+            eprintln("Error: expected -o output for read or compiler"); return 1;
+        }
+    }
+    var project *LanguageProject = project_load(get_arg(argv, 3));
+    if streq(action, "check") {
+        print("Project inputs "); println(project.identity); return 0;
+    }
+    var target *u8 = getenv("LANGOS");
+    if cg_backend_is_llvm() == 0 || (target != nil && !streq(target, "linux")) || !streq(os_platform_name(), "linux") || !streq(LANG_BUILD_ARCH, "x86_64") {
+        project_fail_field(project, "native_profile", "project execution requires LANGBE=llvm LANGOS=linux on Linux x86-64");
+    }
+    cg_langos_override = "linux";
+    var arguments *u8 = vec_new(16);
+    vec_push(arguments, get_arg(argv, 0));
+    if streq(action, "read") {
+        vec_push(arguments, "read"); vec_push(arguments, project_field(project, "reader_source"));
+        vec_push(arguments, project_field(project, "entry"));
+    } else {
+        vec_push(arguments, "compiler"); vec_push(arguments, project_field(project, "reader_name"));
+        vec_push(arguments, project_field(project, "reader_source"));
+        var i i64 = 0;
+        while i < vec_len(project.runtimes) {
+            vec_push(arguments, "--runtime"); vec_push(arguments, vec_get(project.runtimes, i)); i = i + 1;
+        }
+    }
+    if argc == 6 { vec_push(arguments, "-o"); vec_push(arguments, get_arg(argv, 5)); }
+    return main(vec_len(arguments), project_argv(arguments));
+}
