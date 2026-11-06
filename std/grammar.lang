@@ -554,6 +554,10 @@ func grammar_validate_captures(gp *GrammarParser, node *GNode,
 // Does this element resolve to a choice that labels its own alternatives?
 func grammar_labels_branch(g *Grammar, node *GNode, visited *u8) i64 {
     if node == nil { return 0; }
+    // Successful recovery returns its child unchanged, including its label.
+    if node.kind == GNODE_RECOVER {
+        return grammar_labels_branch(g, node.child, visited);
+    }
     if node.kind == GNODE_CHOICE {
         var count i64 = vec_len(node.children);
         var i i64 = 0;

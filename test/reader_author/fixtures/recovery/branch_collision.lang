@@ -1,0 +1,8 @@
+include "std/core.lang"
+
+#parser{
+    inner = a:number | b:symbol
+    outer = x:@recover(inner, ';', "}") | y:string
+}
+
+func main() i64 { return 0; }

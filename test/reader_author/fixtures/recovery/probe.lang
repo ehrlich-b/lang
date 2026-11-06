@@ -1,4 +1,5 @@
 include "std/core.lang"
+include "std/grammar.lang"
 include "example/shipping/shipping.lang"
 
 #parser{
@@ -17,6 +18,11 @@ func main(argc i64, argv **u8) i64 {
     var mode *u8 = *slot;
     slot = args + 16;
     var text *u8 = phase_read_file(*slot);
+    if streq(mode, "grammar") {
+        if grammar_parse(text) == nil { return 1; }
+        println("grammar accepted");
+        return 0;
+    }
     var t *Tokenizer = tok_new(text);
     var tree *PNode = nil;
     if streq(mode, "editor") { tree = shipping_partial(text); }

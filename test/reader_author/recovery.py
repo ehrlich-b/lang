@@ -78,6 +78,19 @@ def main():
         require([raw[int(a):int(b)] for a, b in skipped] == [b'base nope;', b'free_over ;'], 'skipped statement bytes lost')
         require(all(a == b for _, a, b in missing), 'missing tokens must have zero-width spans')
         require('symbol "base" @' + str(raw.rindex(b'base')) in tree and 'number "7"' in tree, 'valid setting lost')
+        unfinished = run('setting', 'unfinished.shipping', 'diagnostic-snapshot')
+        require(unfinished.stdout == b'partial\n' and
+                b"error \"expected number or '-', found nope\" @0:10" in unfinished.stderr and
+                b"mismatch <nope> \"number or '-'\" @5:9" in unfinished.stderr,
+                'recovery message and mismatch must describe the same saved failure')
+        collision_ir = scratch / 'branch-collision.ll'
+        collision = replay.run([str(compiler), str(fixture / 'branch_collision.lang'),
+                                '-o', str(collision_ir)], 'branch-collision', clone, 1)
+        require(not collision.stdout and not collision_ir.exists(),
+                'branch collision must not produce runnable IR')
+        grammar = run('grammar', 'branch_collision.grammar', 'branch-collision-grammar', expected=1)
+        require(b'branch label on a rule that does not label its own alternatives' in grammar.stderr,
+                'recovery must reject overwritten branch labels')
         for mode in ('strict', 'disabled'):
             run(mode, 'settings.shipping', mode + '-reject', expected=1)
         valid = 'example/shipping/policy.shipping'
@@ -112,7 +125,7 @@ def main():
         require(not output.exists(), 'damaged program reached runnable IR')
         dump(evidence / 'artifacts.json', {'compiler': sha(compiler.resolve()), 'probe': sha(probe), 'minted': sha(minted)})
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'commands': len(replay.rows)})
-        print('PASS settings: two errors, valid node, strict rejection, unchanged success, choice, EOF, delimiters, zero-width')
+        print('PASS settings: two errors, valid node, diagnostic snapshot, branch collision, strict rejection, unchanged success, choice, EOF, delimiters, zero-width')
         return 0
     except Exception as error:
         dump(evidence / 'result.json', {'pass': False, 'error': str(error)})

@@ -421,7 +421,7 @@ pub func pnode_recover(t *Tokenizer, start i64, terminator *u8, stop *u8) *PNode
     if moved == 0 { return nil; }
     var message *u8 = str_concat("expected ", mismatch.text);
     message = str_concat(message, ", found ");
-    message = str_concat(message, tok_error_found(t));
+    if mismatch.branch != nil { message = str_concat(message, mismatch.branch); }
     var error *PNode = pnode_atom_span(PNODE_ERROR, message, start, skipped_end);
     error.children = vec_new(3);
     vec_push(error.children, pnode_atom_span(PNODE_SKIPPED, nil, start, skipped_end));

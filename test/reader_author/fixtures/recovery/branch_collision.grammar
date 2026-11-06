@@ -1,0 +1,2 @@
+inner = a:number | b:symbol
+outer = x:@recover(inner, ';', "}") | y:string
