@@ -13,6 +13,7 @@ from project import ProjectReplay
 from route import ROOT, dump, require, sha
 
 BASE = '8eac93cedda7a68a057605025715fd40c89c0bb3'
+PREVIOUS = 'd6898b24f867eefc15587353d0300ca050b2d191'
 
 
 def main():
@@ -42,6 +43,7 @@ def main():
         require(not result.stdout, 'commit candidate before replay')
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor', BASE, head], 'source-ancestry', ROOT)
+        replay.run(['git', 'merge-base', '--is-ancestor', PREVIOUS, head], 'previous-ancestry', ROOT)
         replay.run(['git', 'diff', '--exit-code', BASE, head, '--', 'bootstrap/current', 'web'],
                    'protected-inputs-unchanged', ROOT)
         clone = scratch / 'repo'
@@ -115,6 +117,51 @@ def main():
                                 result['compiler_sha256'] == sha(compiler) and
                                 ident['compiler']['path'] == str(Path(compiler).resolve()),
                                 name + ': filter or compiler identity changed')
+            # Bash keeps its command hash after a new executable appears earlier
+            # on the same PATH. Repeating PATH lookup inside the compiler would
+            # run the shadow instead of the image Bash actually launched.
+            cached_script = '''set -euo pipefail
+export PATH="$1:$2:$PATH"
+hash lang_next
+hash -t lang_next
+printf '#!/bin/sh\\nexit 42\\n' > "$1/lang_next"
+chmod +x "$1/lang_next"
+lang_next test --project "$3" --fixture "$4" --evidence "$5"
+'''
+            for configured in (False, True):
+                replay.env = saved_env.copy()
+                replay.env.pop('LANG_ROOT', None)
+                if configured:
+                    replay.env['LANG_ROOT'] = str(clone)
+                for fixture in ['policy', 'semantic']:
+                    name = 'cached-' + ('configured-' if configured else 'inferred-') + fixture
+                    shadow = scratch / name
+                    shadow.mkdir()
+                    result = replay.run(['bash', '-c', cached_script, 'cached-compiler',
+                                         str(shadow), str(clone / 'out'), str(shipping), fixture,
+                                         str(evidence / name)], name, clone)
+                    require(str(clone / 'out/lang_next').encode() in result.stdout,
+                            name + ': Bash did not cache the built compiler')
+                    dump(evidence / (name + '-shadow.json'),
+                         {'path': str(shadow / 'lang_next'), 'sha256': sha(shadow / 'lang_next'),
+                          'contents': (shadow / 'lang_next').read_text(), 'exit': 42})
+                    result = json.loads((evidence / name / 'result.json').read_text())
+                    ident = json.loads((evidence / name / 'identity.json').read_text())
+                    commands = json.loads((evidence / name / 'commands.json').read_text())
+                    require(result['fixtures'] == [{'name': fixture, 'pass': True}] and
+                            result['compiler_sha256'] == sha(compiler) and
+                            ident['compiler']['path'] == str(Path(compiler).resolve()) and
+                            all(row['command'][0] == ident['compiler']['path']
+                                for row in commands if row['command'][1] == 'build'),
+                            name + ': cached launch changed compiler identity')
+            # Even a caller-selected argv[0] containing a slash is not an identity.
+            replay.env = saved_env.copy()
+            replay.run(['bash', '-c', 'exec -a /unrelated/compiler "$@"', 'argv0', compiler,
+                        'test', '--project', str(shipping), '--fixture', 'semantic',
+                        '--evidence', str(evidence / 'supplied-argv0')], 'supplied-argv0', clone)
+            ident = json.loads((evidence / 'supplied-argv0/identity.json').read_text())
+            require(ident['compiler']['path'] == str(Path(compiler).resolve()) and
+                    ident['compiler']['sha256'] == sha(compiler), 'argv[0] changed compiler identity')
         finally:
             replay.env = saved_env
         result = test('unknown', fixture='absent', expected=1)
@@ -187,8 +234,8 @@ def main():
         require(not list((evidence / 'link-failure').glob('*.native')), 'failed link published an executable')
         require(all(sha(clone / p) == h for p, h in hashes.items()), 'oracle edited committed inputs')
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'compiler_sha256': sha(compiler),
-             'observations': len(replay.rows), 'controls': ['PATH', 'nonexecutable-shadow', 'directory-shadow', 'LANG_ROOT', 'free_at', 'fee', 'exit', 'diagnostic', 'link-failure']})
-        print('PASS oracle: committed ancestry, shared compiler through PATH with nonexecutable/directory shadows and LANG_ROOT, shipped fixtures, filter, native outputs, structured negatives, mutations, exit and link failure')
+             'observations': len(replay.rows), 'controls': ['PATH', 'nonexecutable-shadow', 'directory-shadow', 'cached-executable-shadow', 'supplied-argv0', 'LANG_ROOT', 'free_at', 'fee', 'exit', 'diagnostic', 'link-failure']})
+        print('PASS oracle: committed ancestry, shared running compiler through PATH with cached executable/nonexecutable/directory shadows, supplied argv[0] and LANG_ROOT, shipped fixtures, filter, native outputs, structured negatives, mutations, exit and link failure')
         return 0
     except Exception as error:
         dump(evidence / 'result.json', {'pass': False, 'error': str(error)})
