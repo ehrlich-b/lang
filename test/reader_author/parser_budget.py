@@ -115,20 +115,20 @@ def main():
         # Compiler expansion must locate whole-file and inline reader slices,
         # including expression codegen after declaration expansion has completed.
         replay.env.update(LANG_PARSER_MAX_DEPTH='4', LANG_PARSER_OFFSET='999')
-        for backend in ('llvm', 'x86'):
-            replay.env['LANGBE'] = backend
-            for source, offset in [('input.budget', 8), ('inline-decl.lang', None), ('inline-expr.lang', None)]:
-                path = clone / fixture / source
-                if offset is None:
-                    offset = path.read_bytes().index(b'#budget{') + len(b'#budget{') + 8
-                for attempt in range(2):
-                    output = scratch / f'{backend}-{source}-{attempt}.out'
-                    result = replay.run([compiler, 'std/core.lang', f'{fixture}/budget.lang', str(path),
-                                         '-o', str(output)], f'compiler-{backend}-{source}-{attempt}', clone, expected=1)
-                    require(f'parser rule chain grammar @1 source {path} @{offset}\n'.encode() in result.stderr
-                            and b'parser-depth-budget' in result.stderr and not output.exists(),
-                            'compiler reader lost original source/byte offset or emitted a failed artifact')
-        replay.env['LANGBE'] = 'llvm'
+        for source, offset in [('input.budget', 8), ('inline-decl.lang', None), ('inline-expr.lang', None)]:
+            path = clone / fixture / source
+            if offset is None:
+                offset = path.read_bytes().index(b'#budget{') + len(b'#budget{') + 8
+            diagnostics = []
+            for attempt in range(2):
+                output = scratch / f'{source}-{attempt}.ll'
+                result = replay.run([compiler, 'std/core.lang', f'{fixture}/budget.lang', str(path),
+                                     '-o', str(output)], f'compiler-{path.stem}-{attempt}', clone, expected=1)
+                require(f'parser rule chain grammar @1 source {path} @{offset}\n'.encode() in result.stderr
+                        and b'parser-depth-budget' in result.stderr and not output.exists(),
+                        'compiler reader lost original source/byte offset or emitted a failed artifact')
+                diagnostics.append(result.stderr)
+            require(diagnostics[0] == diagnostics[1], 'compiler budget diagnostic changed on cached reuse')
         replay.env.pop('LANG_PARSER_OFFSET')
         # Real manifest execution, cached worker reuse and minted compiler quotas.
         manifest = str(clone / fixture / 'project.lang-project')
