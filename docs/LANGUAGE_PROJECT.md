@@ -1,5 +1,31 @@
 # One language project
 
+Create a complete editable project with `lang new language parcel`. It creates
+a new `parcel/` directory containing a manifest, grammar/reader, semantic checks,
+target runtime, positive policy, syntax and semantic negative fixtures, and a
+Python runtime comparison. It refuses any existing destination before writing.
+A failed write leaves the incomplete new directory for inspection and exits 1;
+existing content is never replaced. `lang new reader` keeps its two-file form.
+
+Invoke the compiler by its absolute path from any working directory. For example,
+after `make init` and `make build`, `/absolute/path/to/lang/out/lang_next new language parcel`
+prints exact, shell-quoted commands using that tool path. Run the printed block
+to validate the manifest, inspect shared AST, mint the native compiler with its
+embedded runtime, and compare runtime output and negative fixtures. No `LANG_ROOT`
+override or compiler source edit is needed. Keep the generated project as the
+working directory when editing and checking it.
+
+`reader.lang` separates grammar, semantic validation and lowering. `runtime.lang`
+handles target input/output; the emitted cost function compares the runtime total
+against the policy threshold. Edit `ast_ge` to `ast_gt`, adjust `cases.json`, and
+repeat the printed commands to change the inclusive boundary. The generated
+`check.py` exits nonzero on any wrong output, exit code or missing diagnostic.
+
+Replay only this fragment with `python3 -B test/reader_author/scaffold.py --case project`.
+Use `env JOBS=2 VERIFY_CASE=project make verify` for its make gate; plain verification
+continues to select integration checks. Receipts and source/tool hashes stay
+outside the checkout.
+
 A project manifest records the frontend, target runtime and guest entry file
 that otherwise need to be coordinated on the command line. Start with
 [`example/shipping/project.lang-project`](../example/shipping/project.lang-project):
