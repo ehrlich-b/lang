@@ -28,14 +28,14 @@ var cg_diagnostic_node *u8 = nil;
 func compiler_invoke_reader(node *u8, embedded *u8, program *u8) *u8 {
     var previous_source *u8 = phase_recognition_source;
     var previous_offset i64 = phase_recognition_offset;
-    var reader *ReaderExpr = node;
+    var reader_node *ReaderExpr = node;
     phase_recognition_source = node_origin_source(node);
-    phase_recognition_offset = reader.content_offset;
+    phase_recognition_offset = reader_node.content_offset;
     var output *u8 = nil;
     if embedded != nil {
-        output = reader_host_embedded(embedded, reader.content, str_dup_n(reader.name, reader.name_len), node_origin_source(node), node);
+        output = reader_host_embedded(embedded, reader_node.content, str_dup_n(reader_node.name, reader_node.name_len), node_origin_source(node), node);
     } else {
-        output = reader_host_worker(program, reader.content, reader.content_len, str_dup_n(reader.name, reader.name_len), node_origin_source(node), node);
+        output = reader_host_worker(program, reader_node.content, reader_node.content_len, str_dup_n(reader_node.name, reader_node.name_len), node_origin_source(node), node);
     }
     phase_recognition_source = previous_source;
     phase_recognition_offset = previous_offset;

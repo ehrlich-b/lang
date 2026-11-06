@@ -2579,8 +2579,8 @@ func main_dispatch(argc i64, argv **u8) i64 {
             var input_decl *u8 = get_decl(root_decls, i);
             node_set_origin(input_decl, input_path, 1, 1);
             if node_kind(input_decl) == NODE_READER_EXPR {
-                var reader *ReaderExpr = input_decl;
-                reader.content_offset = 0;
+                var reader_node *ReaderExpr = input_decl;
+                reader_node.content_offset = 0;
             }
         }
         i = i + 1;
