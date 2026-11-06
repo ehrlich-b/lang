@@ -208,7 +208,7 @@ func reader_host_embedded(fnptr *u8, content *u8, key *u8, path *u8, node *u8) *
     if completed != 1 || *done != 49 {
         // A legacy reader may terminate after explaining its failure on stderr.
         // A successful exit still cannot impersonate a normal reader return.
-        if waited == pid && phase_process_status(*status) != 0 {
+        if waited == pid && phase_process_status(*status) != 0 && phase_worker_stderr.len > 0 {
             cg_had_error = 1; return nil;
         }
         reader_host_protocol(); cg_had_error = 1; return nil;
