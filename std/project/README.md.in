@@ -18,6 +18,10 @@ Requirements: Python 3, Clang, its native linker, and a Lang source installation
 Keep the working directory here when loading the manifest. Runtime sources are
 embedded by `project compiler`; the resulting compiler needs only guest source
 to emit LLVM. Clang links that LLVM into the program.
+The checker writes its LLVM and executable outputs under `build/`, keeping
+guest sources intact even when the language is named `ll`.
+Names must contain only identifier characters and must not conflict with
+compiler or reader toolkit symbols, such as `main` or `print`.
 
 After changing grammar, semantic checks, or the runtime, rerun `project check`,
 `project read`, `project compiler`, and `python3 check.py ./@NAME@c` using the

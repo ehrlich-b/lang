@@ -28,9 +28,54 @@ func scaffold_shell_quote(text *u8) void {
     print("'");
 }
 
+// Readers share symbols with their toolkit and standalone compiler. Inspect
+// those declarations before reserving a destination, without running a reader.
+func scaffold_project_reserved(name *u8) i64 {
+    if streq(name, "reader_transform") || streq(name, "reader_runtime_ast") ||
+       streq(name, "reader_compiler_name") || streq(name, "___main") { return 1; }
+    expand_included_map = map_new();
+    expand_collected_decls = vec_new(256);
+    emit_exe_ast_mode = 1;
+    var source *u8 = "include \"std/parser_reader.lang\"\ninclude \"std/ast.lang\"\ninclude \"src/standalone.lang\"\n";
+    var prog *u8 = parse_program_from_string(source);
+    var i i64 = 0;
+    while i < program_decl_count(prog) {
+        expand_collect_decl(get_decl(program_decls(prog), i));
+        i = i + 1;
+    }
+    emit_exe_ast_mode = 0;
+    i = 0;
+    while i < vec_len(expand_collected_decls) {
+        var decl *u8 = vec_get(expand_collected_decls, i);
+        var symbol *u8 = nil;
+        var len i64 = 0;
+        if node_kind(decl) == NODE_FUNC_DECL {
+            symbol = func_decl_name(decl); len = func_decl_name_len(decl);
+        } else if node_kind(decl) == NODE_VAR_DECL {
+            symbol = var_decl_name(decl); len = var_decl_name_len(decl);
+        } else if node_kind(decl) == NODE_READER_DECL {
+            symbol = reader_decl_name(decl); len = reader_decl_name_len(decl);
+        }
+        if symbol != nil && streq(name, str_dup_n(symbol, len)) { return 1; }
+        i = i + 1;
+    }
+    return 0;
+}
+
 func cmd_new_language(name *u8) i64 {
     if scaffold_valid_name(name) == 0 || streq(name, "lang") || streq(name, "ast") {
         eprintln("Error: language name must be a non-keyword identifier other than lang or ast (up to 64 characters)");
+        return 1;
+    }
+    // The lexer skips whitespace and comments; require the entire argument to
+    // be the identifier, not merely a single token surrounded by ignored text.
+    lexer_init(name);
+    if tok_lexeme_len(scan_token()) != strlen(name) {
+        eprintln("Error: language name must contain only identifier characters");
+        return 1;
+    }
+    if scaffold_project_reserved(name) != 0 {
+        eprintln("Error: language name conflicts with a compiler or reader toolkit symbol");
         return 1;
     }
     var templates *u8 = vec_new(9);
