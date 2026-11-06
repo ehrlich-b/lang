@@ -261,7 +261,8 @@ function formatLangAst(source) {
 function decodeReaderDiagnostics(data, context) {
   const records = [];
   const text = new TextEncoder().encode(context.text);
-  const decoder = new TextDecoder('utf-8', { fatal: true });
+  // Each field is exact UTF-8 data, including U+FEFF in source keys.
+  const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   let pos = 0;
   if (data.length > 1048576) throw new Error('invalid reader diagnostic');

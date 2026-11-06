@@ -2,6 +2,12 @@ include "std/core.lang"
 reader broken(text *u8) *u8 {
     if streq(text, "raw") {
         file_write(2, "RDI1", 4);
+    } else if streq(text, "bom") {
+        reader_error("﻿code", "﻿message", "broken", text, -1, -1);
+    } else if streq(text, "bom-key") {
+        reader_error("bom-key", "bad source", "﻿broken", text, -1, -1);
+    } else if streq(text, "valid") {
+        return "(program)";
     } else if streq(text, "missing") {
         reader_error("missing-span", "no span", "broken", text, -1, -1);
     } else if streq(text, "implementation") {

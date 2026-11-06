@@ -137,12 +137,52 @@ func reader_host_decode(bytes *PhaseBuffer) void {
 }
 func reader_host_embedded(fnptr *u8, content *u8, key *u8, path *u8, node *u8) *u8 {
     reader_host_begin(key, content, path, node);
-    var reader_fn fn(*u8) *u8 = fnptr;
-    var output *u8 = reader_fn(content);
-    reader_host_finish();
+    // Capture both channels before accepting any AST, including direct writes.
+    var out_pipe *u8 = alloc(8); var err_pipe *u8 = alloc(8);
+    if os_pipe(out_pipe) < 0 { reader_host_protocol(); cg_had_error = 1; return nil; }
+    var out_read *i32 = out_pipe; var out_write *i32 = out_pipe + 4;
+    if os_pipe(err_pipe) < 0 {
+        os_close(*out_read); os_close(*out_write);
+        reader_host_protocol(); cg_had_error = 1; return nil;
+    }
+    var err_read *i32 = err_pipe; var err_write *i32 = err_pipe + 4;
+    var pid i64 = os_fork();
+    if pid == 0 {
+        if os_dup2(*out_write, 1) < 0 || os_dup2(*err_write, 2) < 0 { os__exit(1); }
+        os_close(*out_read); os_close(*out_write);
+        os_close(*err_read); os_close(*err_write);
+        var reader_fn fn(*u8) *u8 = fnptr;
+        var output *u8 = reader_fn(content);
+        // Preserve owned API reports and snapshot validation, then serialize
+        // beside direct writes so the parent validates every stderr byte.
+        reader_diagnostic_collect = 0; reader_diagnostic_wire = 1;
+        var i i64 = 0;
+        while i < vec_len(reader_diagnostic_reports) {
+            var report *ReaderReport = vec_get(reader_diagnostic_reports, i);
+            if streq(report.text, content) == 0 { reader_diagnostic_invalid = 1; }
+            reader_diagnostic_emit(report.diagnostic, report.text); i = i + 1;
+        }
+        if reader_diagnostic_invalid != 0 { file_write(2, "RDI1", 4); }
+        if output == nil { os__exit(1); }
+        print(output); os__exit(0);
+    }
+    os_close(*out_write); os_close(*err_write);
+    reader_diagnostic_collect = 0;
+    if pid < 0 {
+        os_close(*out_read); os_close(*err_read);
+        reader_host_protocol(); cg_had_error = 1; return nil;
+    }
+    // Drain concurrently so neither channel can deadlock the child.
+    var captured *PhaseBuffer = phase_capture_channels(*out_read, *err_read);
+    os_close(*out_read);
+    var status *i64 = alloc(8);
+    var waited i64 = os_waitpid(pid, status, 0);
+    reader_host_decode(phase_worker_stderr);
     if reader_host_errors != 0 { cg_had_error = 1; return nil; }
-    return output;
+    if waited != pid || phase_process_status(*status) != 0 { cg_had_error = 1; return nil; }
+    return captured.data;
 }
+
 func reader_host_worker(program *u8, content *u8, len i64, key *u8, path *u8, node *u8) *u8 {
     var text *u8 = str_dup_n(content, len);
     reader_host_begin(key, text, path, node);

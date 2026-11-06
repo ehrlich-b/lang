@@ -170,15 +170,68 @@ def main():
         require(valid.stdout.startswith(b'(program') and not valid.stderr, 'valid AST transport changed')
         broken = 'test/reader_author/fixtures/broken.lang'
         broken_cases = []
-        for value in ['missing', 'implementation', 'raw', 'forged', 'reverse', 'overflow', 'é']:
+        for value in ['missing', 'implementation', 'raw', 'bom', 'bom-key', 'forged', 'reverse', 'overflow', 'é']:
             path = scratch / (value + '.broken')
             path.write_text(value)
             retain_input(path)
-            code = {'missing': 'missing-span', 'implementation': 'reader-implementation'}.get(value, 'reader-diagnostic-invalid')
+            code = {'missing': 'missing-span', 'implementation': 'reader-implementation', 'bom': '\ufeffcode'}.get(value, 'reader-diagnostic-invalid')
             record, saved = diagnostic(path, broken, value, code)
             require(record['span'] is None, 'missing/bad span gained a position')
-            require(record['category'] == ('guest' if value == 'missing' else 'reader'), 'reader implementation misclassified')
+            require(record['category'] == ('guest' if value in ['missing', 'bom'] else 'reader'), 'reader implementation misclassified')
             broken_cases.append((path, saved))
+        # Exercise the real read caller with an embedded function table. Copy
+        # the caller verbatim so this cannot accidentally test a substitute path.
+        main_source = (clone / 'src/main.lang').read_text()
+        caller = main_source[main_source.index('func read_error_prefix('):
+                             main_source.index('// A second, syntax-only S-expression parse')]
+        embedded_source = scratch / 'embedded.lang'
+        embedded_source.write_text('''include "std/core.lang"
+include "src/lexer.lang"
+include "src/parser.lang"
+include "src/codegen.lang"
+include "src/codegen_llvm.lang"
+include "src/sexpr_reader.lang"
+include "test/reader_author/fixtures/broken.lang"
+var add_reader_mode i64 = 0;
+func find_kernel_builtin(name *u8, len i64) *u8 { return nil; }
+''' + caller + '''
+func main(argc i64, argv **u8) i64 {
+    var args *u8 = argv;
+    var slot **u8 = args + 8;
+    var path *u8 = *slot;
+    if argc > 2 { ___compiler_diagnostic_enable(); }
+    embedded_reader_names[0] = "broken";
+    embedded_reader_funcs[0] = &broken;
+    var output *u8 = read_run_reader("broken", path, phase_read_file(path));
+    if output == nil { return 1; }
+    print(output); return 0;
+}
+''')
+        retain_input(embedded_source)
+        embedded_ir = scratch / 'embedded.ll'
+        embedded = scratch / 'embedded'
+        replay.run([str(compiler), str(embedded_source), '-o', str(embedded_ir)], 'embedded-build', clone)
+        replay.run(['clang', str(embedded_ir), '-o', str(embedded)], 'embedded-link', clone)
+        for index, (path, saved) in enumerate(broken_cases):
+            expected = json.loads(saved.read_text())
+            for format in ['text', 'json']:
+                command = [str(embedded), str(path)]
+                if format == 'json':
+                    command.append('--diagnostics=json')
+                result = replay.run(command, f'embedded-{index}-{format}', clone, expected=1)
+                require(not result.stdout, 'embedded read accepted diagnostic as AST')
+                if format == 'json':
+                    record = json.loads(result.stderr)
+                    for field in ('code', 'path', 'span', 'message', 'category'):
+                        require(record[field] == expected[field], 'embedded diagnostic differs: ' + field)
+                else:
+                    require(result.stderr == (f"{path}: {expected['message']}\n").encode(), 'embedded text differs')
+        valid_path = scratch / 'valid.broken'
+        valid_path.write_text('valid')
+        retain_input(valid_path)
+        valid_embedded = replay.run([str(embedded), str(valid_path)], 'embedded-valid', clone)
+        require(valid_embedded.stdout == b'(program)' and not valid_embedded.stderr,
+                'embedded valid AST changed')
         nested = replay.run([str(compiler), 'test/reader_author/fixtures/nested.lang',
                     '--diagnostics=json', '-o', str(scratch / 'nested.ll')], 'nested', clone, expected=1)
         nd = [json.loads(line) for line in nested.stderr.splitlines()]

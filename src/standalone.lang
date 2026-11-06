@@ -72,43 +72,9 @@ func standalone_combine_programs(programs *u8) *u8 {
 // reader_transform is defined by the generated glue code
 // It calls the reader function directly (e.g., lisp(content))
 
-// Capture the complete native reader boundary, including direct stderr writes.
-// A reader cannot bypass diagnostic validation by returning a valid AST after
-// emitting an incomplete record. Drain both pipes before waiting on the child.
+// Minted and embedded readers share the complete native diagnostic boundary.
 func standalone_transform(content *u8, path *u8) *u8 {
-    reader_host_begin(reader_compiler_name, content, path, nil);
-    var out_pipe *u8 = alloc(8); var err_pipe *u8 = alloc(8);
-    if os_pipe(out_pipe) < 0 { reader_host_protocol(); return nil; }
-    var out_read *i32 = out_pipe; var out_write *i32 = out_pipe + 4;
-    if os_pipe(err_pipe) < 0 {
-        os_close(*out_read); os_close(*out_write);
-        reader_host_protocol(); return nil;
-    }
-    var err_read *i32 = err_pipe; var err_write *i32 = err_pipe + 4;
-    var pid i64 = os_fork();
-    if pid == 0 {
-        os_dup2(*out_write, 1); os_dup2(*err_write, 2);
-        os_close(*out_read); os_close(*out_write);
-        os_close(*err_read); os_close(*err_write);
-        reader_diagnostic_collect = 0; reader_diagnostic_wire = 1;
-        var ast *u8 = reader_transform(content);
-        if ast == nil { os__exit(1); }
-        print(ast); os__exit(0);
-    }
-    os_close(*out_write); os_close(*err_write);
-    if pid < 0 {
-        os_close(*out_read); os_close(*err_read);
-        reader_host_protocol(); return nil;
-    }
-    var captured *PhaseBuffer = phase_capture_channels(*out_read, *err_read);
-    os_close(*out_read);
-    var status *i64 = alloc(8);
-    var waited i64 = os_waitpid(pid, status, 0);
-    reader_diagnostic_collect = 0;
-    reader_host_decode(phase_worker_stderr);
-    if reader_host_errors != 0 { return nil; }
-    if waited != pid || phase_process_status(*status) != 0 { return nil; }
-    return captured.data;
+    return reader_host_embedded(&reader_transform, content, reader_compiler_name, path, nil);
 }
 
 func standalone_help() void {
