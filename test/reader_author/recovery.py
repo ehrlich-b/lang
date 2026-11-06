@@ -70,7 +70,7 @@ def main():
         tree = damaged.stderr.decode()
         raw = (clone / fixture / 'settings.shipping').read_bytes()
         errors = re.findall(r'^\s*error "(.*)" @(\d+):(\d+)$', tree, re.M)
-        mismatches = re.findall(r'^\s*mismatch "([^"]*)" @(\d+):(\d+)$', tree, re.M)
+        mismatches = re.findall(r'^\s*mismatch(?: <[^>]*>)? "([^"]*)" @(\d+):(\d+)$', tree, re.M)
         skipped = re.findall(r'^\s*skipped @(\d+):(\d+)$', tree, re.M)
         missing = re.findall(r'^\s*missing "([^"]*)" @(\d+):(\d+)$', tree, re.M)
         require(len(errors) == len(mismatches) == len(skipped) == len(missing) == 2, 'must preserve exactly two located errors and markers')
