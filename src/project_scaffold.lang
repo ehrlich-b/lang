@@ -9,6 +9,10 @@ func scaffold_project_template(path *u8, name *u8) *u8 {
         if str_starts_with(text, "@NAME@") != 0 {
             append_str(&result, &len, &cap, name);
             text = text + 6;
+        } else if str_starts_with(text, "@SYNTAX_COLUMN@") != 0 {
+            append_str(&result, &len, &cap, i64_to_str(strlen(name) + 12)); text = text + 15;
+        } else if str_starts_with(text, "@SEMANTIC_COLUMN@") != 0 {
+            append_str(&result, &len, &cap, i64_to_str(strlen(name) + 13)); text = text + 17;
         } else {
             append_str(&result, &len, &cap, str_dup_n(text, 1));
             text = text + 1;
@@ -107,18 +111,19 @@ func cmd_new_language(name *u8) i64 {
         eprintln("Error: language name conflicts with a compiler or reader toolkit symbol");
         return 1;
     }
-    var templates *u8 = vec_new(9);
-    var paths *u8 = vec_new(9);
+    var templates *u8 = vec_new(10);
+    var paths *u8 = vec_new(10);
     vec_push(templates, "reader.lang.in"); vec_push(paths, "reader.lang");
     vec_push(templates, "runtime.lang.in"); vec_push(paths, "runtime.lang");
     vec_push(templates, "project.lang-project.in"); vec_push(paths, "project.lang-project");
     vec_push(templates, "policy.source.in"); vec_push(paths, str_concat("policy.", name));
     vec_push(templates, "syntax.source.in"); vec_push(paths, str_concat("syntax.", name));
     vec_push(templates, "semantic.source.in"); vec_push(paths, str_concat("semantic.", name));
+    vec_push(templates, "tests.json.in"); vec_push(paths, "tests.json");
     vec_push(templates, "cases.json.in"); vec_push(paths, "cases.json");
     vec_push(templates, "check.py.in"); vec_push(paths, "check.py");
     vec_push(templates, "README.md.in"); vec_push(paths, "README.md");
-    var sources *u8 = vec_new(9);
+    var sources *u8 = vec_new(10);
     var i i64 = 0;
     // Load every resource before creating any destination content.
     while i < vec_len(templates) {
@@ -162,6 +167,7 @@ func cmd_new_language(name *u8) i64 {
     scaffold_shell_quote(tool); println(" project check project.lang-project");
     scaffold_shell_quote(tool); println(" project read project.lang-project -o policy.ast");
     scaffold_shell_quote(tool); print(" project compiler project.lang-project -o "); print(name); println("c");
+    scaffold_shell_quote(tool); println(" test --project project.lang-project");
     print("python3 check.py ./"); print(name); println("c");
     return 0;
 }

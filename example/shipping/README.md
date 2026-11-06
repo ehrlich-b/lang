@@ -85,3 +85,8 @@ Those times measure machine work, not human authoring time. The runner limits
 itself and children to two CPUs, JOBS=2 and a 2 GiB address-space ceiling.
 For the fragment gate, run `env JOBS=2 make verify VERIFY_CASE=shipping`;
 plain `make verify` retains the integration suites and fixed-point checks.
+
+Run all authored fixtures with `./out/lang_next test --project example/shipping/project.lang-project`,
+or add `--fixture policy` to select one. `tests.json` includes two positive
+sources, syntax and semantic negatives, runtime inputs and exact stdout/exits.
+See the [fixture format](../../docs/LANGUAGE_PROJECT.md#run-project-fixtures).
