@@ -3,3 +3,4 @@
 // and the PNode tree it constructs.
 include "std/tok.lang"
 include "std/pnode.lang"
+include "std/capture_contract.lang"

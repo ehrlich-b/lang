@@ -81,10 +81,12 @@ func gnode_with_name(kind i64, name *u8, name_len i64) *GNode {
 struct Grammar {
     rules *u8;      // Vec of GNode (GNODE_RULE)
     rule_names *u8; // Map of rule names to GNode
+    contracts i64;  // opt-in checked capture generation
 }
 
 func grammar_new() *Grammar {
-    var g *Grammar = alloc(16);
+    var g *Grammar = alloc(24);
+    g.contracts = 0;
     g.rules = vec_new(8);
     g.rule_names = map_new();
     return g;
@@ -684,6 +686,16 @@ func grammar_validate_left_recursion(g *Grammar,
 func grammar_parse(text *u8) *Grammar {
     var gp *GrammarParser = gp_new(text);
     var g *Grammar = grammar_new();
+
+    // A leading directive opts in without reserving an ordinary rule name.
+    if tok_kind(gp.t) == TOK_BANG {
+        tok_next(gp.t);
+        if !gp_is_keyword(gp, "captures") { gp_fail(gp, "captures"); return nil; }
+        tok_next(gp.t);
+        if tok_kind(gp.t) != TOK_SEMI { gp_fail(gp, "';'"); return nil; }
+        tok_next(gp.t);
+        g.contracts = 1;
+    }
 
     // Native reader expansion passes only the block body; the browser's direct
     // macro hook includes the closing `}` sentinel. Accept that one delimiter,

@@ -236,3 +236,42 @@ lexical error: its byte span runs from the opener through EOF, and its expected
 text is the configured closer. It cannot satisfy `tok_eof` or `tok_expect_end`,
 and parser backtracking preserves that diagnostic. Line comments may end at EOF;
 readers with no configured comments continue to receive ordinary tokens.
+
+Opt in to checked capture contracts with `!captures;` at the start of a
+`#parser{}` block. Existing grammars keep their original trees and functions.
+For each rule `r`, the generator adds:
+
+- `schema_r_alternatives()` and `schema_r_alternative(index)` enumerate the
+  top-level alternatives in source order (zero based). An unlabeled alternative
+  has the empty label; an invalid index returns nil.
+- `schema_r_name(index)` enumerates lexical capture names, ending with nil.
+  `schema_r_capture(alternative, name)` returns a `CaptureSpec` with `minimum`,
+  `maximum` (-1 means unbounded), and `mode` (1 required, 2 optional, 3 repeated).
+  A field not declared in that alternative returns nil. Nested choices merge
+  syntax bounds; referenced rules keep their own schemas.
+- `capture_r_required(tree, name)` returns one `*PNode`;
+  `capture_r_optional(tree, name)` returns one or nil;
+  `capture_r_repeated(tree, name)` returns a Vec of nodes. Both `items:expr*`
+  and `(item:expr)*` expose repeated elements. `+` enforces a nonempty result.
+
+Use these accessors in lowering, for example
+`capture_shipping_setting_required(setting, "value")`. They check the rule,
+chosen alternative, declared accessor mode and actual count. A renamed capture,
+wrong accessor mode or malformed count stops with a `reader-author capture
+contract` diagnostic naming the rule and capture, before returning a pointer.
+Field names remain strings so grammar edits get this diagnostic too.
+
+Checked trees use transparent internal capture wrappers with reserved `@` names.
+The six-field `PNode` layout, spans, branch dispatch, `pnode_child` and legacy
+named access stay compatible. Accessors preserve referenced rule wrappers so
+another checked accessor can read the nested rule; use `pnode_unwrap(node)` to
+read an atom returned by a referenced rule. Capture lookup stops at referenced
+rules, including recursive references, and does not search their fields. These
+schemas describe syntax and cardinality only; readers still own domain types,
+validation and semantic meaning. Generated symbols share the existing rule-name
+namespace, so choose distinct rule names when composing grammars.
+
+Run just this fragment with `python3 -B test/reader_author/captures.py --case
+contracts`, or `env JOBS=2 make verify VERIFY_CASE=contracts`. It retains command
+receipts, source/tool hashes and exact output outside the checkout. Plain
+`make verify` remains the integration fixed-point gate.
