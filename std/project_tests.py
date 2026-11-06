@@ -42,11 +42,18 @@ def load_suite(path, selected):
     require(isinstance(suite['fixtures'], list) and suite['fixtures'], 'fixtures must be a nonempty list')
     names = set()
     for case in suite['fixtures']:
-        fields(case, ['name', 'source'], ['runs', 'diagnostic'])
+        # Names identify the selection; unrelated fixture contents may be unfinished.
+        require(isinstance(case, dict) and 'name' in case, 'fixture must have a name')
         name = case['name']
         require(isinstance(name, str) and re.fullmatch(r'[A-Za-z0-9_-]+', name), 'invalid fixture name')
         require(name not in names, 'duplicate fixture name: ' + name)
         names.add(name)
+    if selected is not None:
+        require(selected in names, 'unknown fixture: ' + selected)
+    cases = [c for c in suite['fixtures'] if selected is None or c['name'] == selected]
+    for case in cases:
+        fields(case, ['name', 'source'], ['runs', 'diagnostic'])
+        name = case['name']
         require(isinstance(case['source'], str) and case['source'], name + ': source must be a path')
         require((path.parent / case['source']).is_file(), name + ': missing source')
         require(('runs' in case) != ('diagnostic' in case), name + ': choose runs or diagnostic')
@@ -66,10 +73,7 @@ def load_suite(path, selected):
             require(isinstance(diag['label'], str) and diag['label'] and
                     isinstance(diag['message_contains'], str) and diag['message_contains'], name + ': empty diagnostic assertion')
             require(all(type(diag[k]) is int and diag[k] > 0 for k in ['line', 'column']), name + ': invalid diagnostic location')
-    if selected is not None:
-        require(selected in names, 'unknown fixture: ' + selected)
-        return [c for c in suite['fixtures'] if c['name'] == selected]
-    return suite['fixtures']
+    return cases
 
 
 class Runner:
