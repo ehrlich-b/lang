@@ -76,11 +76,12 @@ struct Tokenizer {
     comment_line *u8;    // line-comment prefix, or nil if the language has none
     comment_open *u8;    // block-comment opener, or nil
     comment_close *u8;   // block-comment closer, or nil
+    recovery i64;       // editor-only, zero for every ordinary tokenizer
     comment_error i64;   // unterminated opener byte offset, or -1 (sticky)
 }
 
 func tok_new_state(input *u8) *Tokenizer {
-    var t *Tokenizer = alloc(152);  // 19 fields * 8 bytes
+    var t *Tokenizer = alloc(160);  // 20 fields * 8 bytes
     t.input = input;
     t.pos = 0;
     t.len = strlen(input);
@@ -99,6 +100,7 @@ func tok_new_state(input *u8) *Tokenizer {
     t.comment_line = "//";
     t.comment_open = "/*";
     t.comment_close = "*/";
+    t.recovery = 0;
     t.comment_error = -1;
     return t;
 }

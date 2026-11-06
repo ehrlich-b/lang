@@ -311,6 +311,38 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
             rdgen_newline(rd);
         }
 
+        // Recovery wraps one strict rule. No diagnostic side effects occur in
+        // speculative alternatives; all records live in the returned tree.
+        else if kind == GNODE_RECOVER {
+            work.temp_id = rdgen_temp(rd);
+            var mark_name *u8 = rdgen_name1("_recover_mark", work.temp_id);
+            var start_name *u8 = rdgen_name1("_recover_start", work.temp_id);
+            var saved_name *u8 = rdgen_name1("_recover_saved", work.temp_id);
+            var mode_name *u8 = rdgen_name1("_recover_mode", work.temp_id);
+            rdgen_line(rd, str_concat(str_concat("var ", mark_name), " i64 = tok_mark(t);"));
+            rdgen_line(rd, str_concat(str_concat("var ", start_name), " i64 = tok_start_offset(t);"));
+            rdgen_line(rd, str_concat(str_concat("var ", saved_name), " *PNode = pnode_save_error(t);"));
+            rdgen_line(rd, str_concat(str_concat("var ", mode_name), " i64 = t.recovery;"));
+            rdgen_line(rd, "if t.recovery != 0 { pnode_clear_error(t); }");
+            rdgen_line(rd, "t.recovery = 0;");
+            rdgen_indent(rd);
+            sb_str(rd.sb, result_var); sb_str(rd.sb, " = parse_");
+            var target *GNode = node.child;
+            rdgen_strn(rd, target.name, target.name_len); sb_str(rd.sb, "(t);"); rdgen_newline(rd);
+            rdgen_line(rd, str_concat(str_concat("t.recovery = ", mode_name), ";"));
+            rdgen_indent(rd);
+            sb_str(rd.sb, "if t.recovery != 0 { if "); sb_str(rd.sb, result_var);
+            sb_str(rd.sb, " == nil { tok_reset(t, "); sb_str(rd.sb, mark_name);
+            sb_str(rd.sb, "); "); sb_str(rd.sb, result_var);
+            sb_str(rd.sb, " = pnode_recover(t, "); sb_str(rd.sb, start_name);
+            var terminator *GNode = vec_get(node.children, 0);
+            var stop *GNode = vec_get(node.children, 1);
+            sb_str(rd.sb, ", \""); rdgen_strn(rd, terminator.name, terminator.name_len);
+            sb_str(rd.sb, "\", \""); rdgen_strn(rd, stop.name, stop.name_len);
+            sb_str(rd.sb, "\"); } pnode_restore_error(t, "); sb_str(rd.sb, saved_name);
+            sb_str(rd.sb, "); }"); rdgen_newline(rd);
+        }
+
         // CAPTURE: preserve the parsed child but label this parent/child edge.
         // The PNode wrapper is transparent through pnode_child and explicit
         // through pnode_get/pnode_require.

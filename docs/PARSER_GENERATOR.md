@@ -3,8 +3,7 @@
 `#parser{}` turns a compact grammar into recursive-descent functions. It is a
 good fit for token grammars, including alternatives that share a prefix.
 Operator precedence stays out of the grammar: keep one flat rule and resolve it
-with the [precedence table](#operator-precedence). For contextual syntax or
-recovery, copy the manual recursive-descent pattern in
+with the [precedence table](#operator-precedence). For contextual syntax, copy the manual recursive-descent pattern in
 [`example/calc/calc.lang`](../example/calc/calc.lang).
 
 ## Smallest parser
@@ -253,7 +252,68 @@ are combined (`number or string`).
 Choice remains ordered—the first successful branch wins. Direct, indirect, and
 nullable-prefix left recursion are rejected at the reference that closes the
 cycle; right recursion works. Use a hand-written parser when the grammar needs
-semantic lookahead or error recovery.
+semantic lookahead. Editor statement recovery is opt-in below.
+
+## Editor statement recovery
+
+Declare one statement boundary with `recover(rule, 'terminator', 'stop')`:
+
+```lang
+#parser{
+    policy = 'shipping' '{' settings:setting* '}'
+    setting = recover(strict_setting, ';', '}')
+    strict_setting = name:symbol value:number ';'
+}
+var tokens *Tokenizer = tok_new(text);
+tokens.recovery = 1; // editor syntax inspection only
+var partial *PNode = parse_policy(tokens);
+```
+
+Ordinary `tok_new` and `tok_new_stream` leave recovery disabled: the same form
+then behaves exactly like its referenced rule. The referenced rule always runs
+with recovery disabled, including its nested calls and ordered alternatives.
+Successful parses return the original tree, without extra wrappers. Use recovery
+at a statement boundary after choosing the surrounding construct; it deliberately
+turns a failed statement into a successful error node in editor mode.
+
+On failure, rewind the whole statement and skip through the first exact
+terminator token (consumed), stopping before the enclosing stop token or EOF.
+Sync declarations require two nonempty plain token literals. No token is
+invented or fed back into recognition. The error replaces the entire failed
+statement, including any recognized prefix. An empty attempt at EOF or at the
+stop token returns nil. Each scan advances a token mark or stops; a further
+budget of source bytes + 1 (supplied token count + 1 for streams) bounds scans.
+Zero-byte synthetic tokens progress by stream index; a sticky lexical failure
+stops after one attempt. Existing repetition guards bound nullable rules.
+
+Partial trees use the existing six-field `PNode` layout and half-open UTF-8
+byte spans in the immutable reader input. The LSP can walk ordinary captures
+and lists and recognize this stable shape:
+
+```text
+error (kind 8, text = expected …, found …, span = discarded statement)
+  skipped (kind 9, text = nil, span = exact discarded bytes including terminator)
+  missing (kind 10, text = expectation set, span = [mismatch start, same start))
+  mismatch (kind 11, text = expectation set, span = original offending token)
+```
+
+At EOF the mismatch is also zero-width. The missing marker describes expected
+token(s), potentially an alternative set, rather than an inserted AST value.
+The mismatch node's `branch` stores the original found text. Multiple error
+nodes remain in source order alongside valid statements. Diagnostics live in
+the tree; speculative recovery never prints them. `pnode_dump` names all four
+kinds, and `pnode_has_error` lets a lowering boundary reject an entire partial
+tree. These are syntax nodes, never shared core AST forms. Compiler readers
+must use ordinary tokenizers and reject trees containing recovery markers
+before lowering; `example/shipping/shipping.lang` demonstrates both strict
+lowering and the syntax-only `shipping_partial` editor entry point. An outer
+syntax error (for example a missing closing brace) can still return nil; this
+form only recovers declared statements.
+
+Run `python3 -B test/reader_author/recovery.py --case settings` for the small
+native fragment. It records commands, hashes, outputs, exits and limits outside
+the checkout. `VERIFY_CASE=settings-recovery env JOBS=2 make verify` selects the
+same fragment; unselected verification retains its integration checks.
 
 ## Operator precedence
 

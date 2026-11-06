@@ -443,6 +443,10 @@ verify: build
 else ifeq ($(VERIFY_CASE),edit-cycle)
 verify:
 	python3 -B test/reader_author/edit_cycle.py --case content-changes
+
+else ifeq ($(VERIFY_CASE),settings-recovery)
+verify:
+	python3 -B test/reader_author/recovery.py --case settings
 else ifeq ($(VERIFY_CASE),shipping-diagnostics)
 verify:
 	python3 -B test/reader_author/diagnostics.py --case shipping

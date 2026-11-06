@@ -7,6 +7,8 @@ include "example/shipping/exports.lang"
     !inspect shipping_policy;
     shipping_policy = 'shipping' '{' settings:shipping_setting* '}'
     shipping_setting = name:symbol value:shipping_value ';'
+    shipping_editor_policy = 'shipping' '{' settings:shipping_editor_setting* '}'
+    shipping_editor_setting = recover(shipping_setting, ';', '}')
     shipping_value = number | '-' number
 }
 
@@ -35,6 +37,7 @@ func shipping_read(text *u8, with_main bool) *u8 {
     var tree *PNode = parse_shipping_policy(tokens);
     var complete bool = false;
     if tree != nil { complete = tok_expect_end(tokens); }
+    if pnode_has_error(tree) { return nil; }
     if !complete { tok_print_error(tokens, "shipping"); return nil; }
     var settings *u8 = capture_shipping_policy_repeated(tree, "settings");
     var base i64 = -1;
@@ -82,3 +85,10 @@ reader shipping(text *u8) *u8 { return shipping_read(text, true); }
 
 // Library mode emits the exported function without a competing entry point.
 reader shippinglib(text *u8) *u8 { return shipping_read(text, false); }
+
+// Editor consumers receive syntax only. This entry point never emits core AST.
+pub func shipping_partial(text *u8) *PNode {
+    var tokens *Tokenizer = tok_new(text);
+    tokens.recovery = 1;
+    return parse_shipping_editor_policy(tokens);
+}

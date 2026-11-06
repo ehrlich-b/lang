@@ -41,6 +41,7 @@ var GNODE_PLUS i64 = 9;       // + (one or more)
 var GNODE_OPT i64 = 10;       // ? (optional)
 var GNODE_CAPTURE i64 = 11;   // name:element (named lowering capture)
 var GNODE_BRANCH i64 = 12;    // name:alternative (labeled choice branch)
+var GNODE_RECOVER i64 = 14;   // recover(rule, terminator, stop)
 var GNODE_USERTOK i64 = 13;   // <name> (a token kind the reader defines)
 
 // ============================================================
@@ -164,8 +165,41 @@ func gp_parse_element(gp *GrammarParser) *GNode {
         tok_reset(gp.t, mark);
     }
 
+    // An explicit statement boundary; the child remains a strict rule parse.
+    if gp_is_keyword(gp, "recover") {
+        var recovery_start i64 = tok_start_offset(gp.t);
+        tok_next(gp.t);
+        if !tok_match(gp.t, TOK_LPAREN) { gp_fail(gp, "'('"); return nil; }
+        if tok_kind(gp.t) != TOK_IDENT { gp_fail(gp, "rule name"); return nil; }
+        var target *GNode = gnode_with_name(GNODE_REF, tok_text_ptr(gp.t), tok_text_len(gp.t));
+        target.start = tok_start_offset(gp.t);
+        tok_next(gp.t);
+        node = gnode_new(GNODE_RECOVER);
+        node.start = recovery_start;
+        node.child = target;
+        node.children = vec_new(2);
+        var sync_index i64 = 0;
+        while sync_index < 2 {
+            if !tok_match(gp.t, TOK_COMMA) { gp_fail(gp, "','"); return nil; }
+            if tok_kind(gp.t) != TOK_STRING || tok_text_len(gp.t) <= 2 {
+                gp_fail(gp, "nonempty sync literal"); return nil;
+            }
+            var sync *GNode = gnode_with_name(GNODE_LITERAL, tok_text_ptr(gp.t) + 1, tok_text_len(gp.t) - 2);
+            // Recovery declarations intentionally use simple token text.
+            var si i64 = 0;
+            while si < sync.name_len {
+                var sc i64 = *(sync.name + si);
+                if sc == 34 || sc == 92 || sc < 32 { gp_fail(gp, "plain sync literal"); return nil; }
+                si = si + 1;
+            }
+            vec_push(node.children, sync);
+            tok_next(gp.t);
+            sync_index = sync_index + 1;
+        }
+        if !tok_match(gp.t, TOK_RPAREN) { gp_fail(gp, "')'"); return nil; }
+    }
     // Literal: 'x'
-    if tok_kind(gp.t) == TOK_STRING {
+    else if tok_kind(gp.t) == TOK_STRING {
         var start i64 = tok_start_offset(gp.t);
         var text *u8 = tok_text_ptr(gp.t);
         var len i64 = tok_text_len(gp.t);
@@ -560,7 +594,7 @@ func grammar_node_nullable(g *Grammar, node *GNode, nullable *u8) i64 {
     if node == nil { return 0; }
     if node.kind == GNODE_OPT || node.kind == GNODE_STAR { return 1; }
     if node.kind == GNODE_CAPTURE || node.kind == GNODE_BRANCH ||
-       node.kind == GNODE_PLUS || node.kind == GNODE_RULE {
+       node.kind == GNODE_PLUS || node.kind == GNODE_RECOVER || node.kind == GNODE_RULE {
         return grammar_node_nullable(g, node.child, nullable);
     }
     if node.kind == GNODE_REF {
@@ -658,7 +692,7 @@ func grammar_left_reference(g *Grammar, node *GNode,
     }
     if node.kind == GNODE_CAPTURE || node.kind == GNODE_BRANCH ||
        node.kind == GNODE_OPT || node.kind == GNODE_STAR ||
-       node.kind == GNODE_PLUS {
+       node.kind == GNODE_PLUS || node.kind == GNODE_RECOVER {
         return grammar_left_reference(g, node.child, target, nullable, visited);
     }
     return nil;

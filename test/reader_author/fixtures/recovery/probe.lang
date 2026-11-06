@@ -1,0 +1,41 @@
+include "std/core.lang"
+include "example/shipping/shipping.lang"
+
+#parser{
+    recovery_choice = long:('do' symbol '=' number) | short:('do' symbol)
+    recovery_choice_boundary = recover(recovery_choice, ';', '}')
+    recovery_zero = recover(shipping_setting, ';', '}')*
+}
+
+func main(argc i64, argv **u8) i64 {
+    var args *u8 = argv;
+    var slot **u8 = args + 8;
+    var mode *u8 = *slot;
+    slot = args + 16;
+    var text *u8 = phase_read_file(*slot);
+    var t *Tokenizer = tok_new(text);
+    var tree *PNode = nil;
+    if streq(mode, "editor") { tree = shipping_partial(text); }
+    else if streq(mode, "strict") { tree = parse_shipping_policy(t); }
+    else if streq(mode, "disabled") { tree = parse_shipping_editor_policy(t); }
+    else if streq(mode, "choice") { t.recovery = 1; tree = parse_recovery_choice_boundary(t); }
+    else if streq(mode, "setting") {
+        t.recovery = 1;
+        tree = parse_shipping_editor_setting(t);
+    }
+    else if streq(mode, "zero") {
+        var stream *u8 = tok_stream_new();
+        tok_stream_push(stream, TOK_SEMI, 0, 0, ";");
+        tok_stream_push(stream, TOK_SEMI, 0, 0, ";");
+        tok_stream_push(stream, TOK_RBRACE, 0, 0, "}");
+        t = tok_new_stream("", stream);
+        t.recovery = 1;
+        tree = parse_recovery_zero(t);
+        if tree == nil || vec_len(tree.children) != 2 || tok_mark(t) != 2 { return 3; }
+    }
+    if tree == nil { tok_print_error(t, "probe"); return 1; }
+    pnode_dump(tree);
+    if pnode_has_error(tree) { println("partial"); }
+    else { println("complete"); }
+    return 0;
+}
