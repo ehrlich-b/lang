@@ -22,8 +22,8 @@
 //
 // The stack effect comment is LOAD-BEARING here (in real Forth it is a comment):
 // `( a b -- s )` names the parameters and counts the results, which is what lets
-// a word become an ordinary i64 lang function callable from C, Lisp, flow and
-// lang - and lets them be called back from Forth.
+// a word become an ordinary raw-i64 lang function callable by clients whose
+// representation and ownership contracts agree, and callable back from Forth.
 //
 // Words:
 //   : n ( ... ) ... ;   define        extern n ( ... ) ;   import a host function

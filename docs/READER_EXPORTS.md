@@ -60,7 +60,7 @@ The outputs are `10` and `0`. In the unoptimized IR, `client_fee` calls
 Run `python3 -B test/reader_author/interop.py --case shipping-client` for the
 fragment, or `env JOBS=2 VERIFY_CASE=shipping-client make verify` for its make
 gate. The runner builds committed current sources in a fresh clone, restricts
-execution to two CPUs and 2 GiB, and retains commands, input/tool hashes, IR,
+execution to two CPUs and 2 GiB, and retains commands, input/tool hashes, gzip IR,
 source ASTs, stdout, stderr and exits outside the checkout. It checks exact
 boundary answers (including a changed policy), direct-call IR and located
 refusals for tagged inputs/results and ownership mismatches before native IR

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Prove the shipping/Forth export boundary from committed current sources."""
 import argparse
+import gzip
 import os
 from pathlib import Path
 import re
@@ -101,7 +102,10 @@ def main():
             replay.run([compiler, shipping, reader, policy, client, harness, '-o', str(ir)], name + '-llvm', clone)
             body = check_direct_ir(ir.read_text())
             (evidence / (name + '-direct-call.ll')).write_text(body + '\n')
-            shutil.copyfile(ir, evidence / ir.name)
+            # Preserve complete IR compactly; the uncompressed link input stays
+            # in scratch and its digest is recorded in artifacts.json.
+            with gzip.open(evidence / (ir.name + '.gz'), 'wb') as retained:
+                retained.write(ir.read_bytes())
             replay.run(['clang', '-O0', str(ir), '-o', str(binary)], name + '-link', clone)
             for total, fee in cases:
                 result = replay.run([str(binary), total], name + '-' + total, scratch)
@@ -124,11 +128,12 @@ def main():
             output = scratch / (filename + '.ll')
             source = fixtures + filename
             result = replay.run([compiler, shipping, fixtures + 'incompatible.lang', library,
-                                 source, harness, '-o', str(output)], 'reject-' + filename, clone, expected=1)
+                                 source, harness, '-o', str(output)], 'reject-' + filename.replace('.', '-'), clone, expected=1)
             line, column = {'shadow.shippingforth': (1, 3), 'duplicate.shippingforth': (2, 8)}.get(filename, (1, 8))
             location = f':{line}:{column}:'.encode()
             require(message.encode() in result.stderr and re.search(re.escape(location) + rb'.*' + re.escape(message.encode()), result.stderr),
                     f'{filename}: missing refusal at symbol (line {line}, byte column {column})')
+            require(source.encode() in result.stderr, filename + ': missing original source path')
             require(not output.exists(), filename + ': incompatible export emitted native IR')
         # Exercise the very assertion used above in a subprocess. It must fail
         # even under python -O, where ordinary assert statements disappear.
@@ -138,6 +143,9 @@ def main():
                             clone / 'test/reader_author', expected=1)
         require(b'RuntimeError: client must call shipping_cost directly' in result.stderr,
                 'failed IR expectation did not fail the runner')
+        for row in replay.rows:
+            require(all((evidence / row[key]).is_file() for key in ('stdout', 'stderr')),
+                    row['name'] + ': execution receipt points to missing output')
         dump(evidence / 'artifacts.json', {p.name: sha(p) for p in
              [Path(compiler), scratch / 'shipping-client.ll', scratch / 'shipping-client',
               scratch / 'changed-client.ll', scratch / 'changed-client']})
