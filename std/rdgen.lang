@@ -105,6 +105,8 @@ func rdgen_name2(prefix *u8, id i64, index i64) *u8 {
     return sb_finish(sb);
 }
 
+include "std/capture_gen.lang"
+
 // ============================================================
 // Stack-based Expression Generator (avoids mutual recursion)
 // ============================================================
@@ -324,6 +326,13 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
                 sb_str(rd.sb, result_var);
                 sb_str(rd.sb, " != nil { ");
                 sb_str(rd.sb, result_var);
+                var captured *GNode = node.child;
+                if rd.grammar.contracts != 0 && (captured.kind == GNODE_STAR || captured.kind == GNODE_PLUS) {
+                    sb_str(rd.sb, " = capture_many(");
+                    sb_str(rd.sb, result_var);
+                    sb_str(rd.sb, "); ");
+                    sb_str(rd.sb, result_var);
+                }
                 sb_str(rd.sb, " = pnode_capture(\"");
                 rdgen_strn(rd, node.name, node.name_len);
                 sb_str(rd.sb, "\", ");
@@ -344,7 +353,8 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
             }
             else {
                 rdgen_indent(rd);
-                sb_str(rd.sb, "pnode_set_branch(");
+                if rd.grammar.contracts != 0 { sb_str(rd.sb, "capture_branch("); }
+                else { sb_str(rd.sb, "pnode_set_branch("); }
                 sb_str(rd.sb, result_var);
                 sb_str(rd.sb, ", \"");
                 rdgen_strn(rd, node.name, node.name_len);
@@ -502,6 +512,13 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
                 rdgen_newline(rd);
             }
 
+            if rd.grammar.contracts != 0 && node == root && phase > 0 {
+                rdgen_indent(rd);
+                sb_str(rd.sb, "if result != nil && _alternative == -1 { _alternative = ");
+                sb_int(rd.sb, phase - 1);
+                sb_str(rd.sb, "; }");
+                rdgen_newline(rd);
+            }
             if phase < n {
                 if phase > 0 {
                     var mark_name *u8 = rdgen_name1("_choice_mark", work.temp_id);
@@ -799,10 +816,31 @@ func rdgen_gen_rule(rd *RDGen, rule *GNode) void {
     rdgen_newline(rd);
 
     rd.indent = rd.indent + 1;
+    var inspecting i64 = 0;
+    if rd.grammar.inspect != nil {
+        if streq(rd.grammar.inspect, str_dup_n(rule.name, rule.name_len)) { inspecting = 1; }
+    }
+    if inspecting != 0 { rdgen_line(rd, "parser_inspect_begin(t);"); }
     rdgen_line(rd, "var result *PNode = nil;");
+    if rd.grammar.contracts != 0 {
+        var body *GNode = rule.child;
+        if body.kind == GNODE_CHOICE { rdgen_line(rd, "var _alternative i64 = -1;"); }
+        else { rdgen_line(rd, "var _alternative i64 = 0;"); }
+    }
 
     rdgen_gen_expr(rd, rule.child, "result");
 
+    if rd.grammar.contracts != 0 {
+        rdgen_indent(rd);
+        sb_str(rd.sb, "result = capture_tree(result, \"");
+        rdgen_strn(rd, rule.name, rule.name_len);
+        sb_str(rd.sb, "\", _alternative);");
+        rdgen_newline(rd);
+    }
+    if inspecting != 0 {
+        rdgen_indent(rd); sb_str(rd.sb, "parser_inspect_end(t, result, \"");
+        rdgen_strn(rd, rule.name, rule.name_len); sb_str(rd.sb, "\");"); rdgen_newline(rd);
+    }
     rdgen_line(rd, "return result;");
     rd.indent = rd.indent - 1;
     rdgen_line(rd, "}");
@@ -823,6 +861,7 @@ func rdgen_generate(g *Grammar) *u8 {
     var i i64 = 0;
     while i < n {
         var rule *GNode = vec_get(rules, i);
+        if g.contracts != 0 { capture_gen_schema(rd, rule); }
         rdgen_gen_rule(rd, rule);
         i = i + 1;
     }

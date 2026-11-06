@@ -1,0 +1,38 @@
+# @NAME@
+
+An editable shipping policy language. The grammar is in `reader.lang`; the
+`@NAME@_check` function validates settings before lowering to shared AST.
+`runtime.lang` owns target argument parsing and printing. The order total stays
+a runtime input: the generated `@NAME@_cost` compares it with the policy threshold.
+No compiler source changes are needed to edit this language.
+
+The policy requires `base` and `free_over` once each, in either order. Values
+are decimal whole units in 0..1000000. Orders at or above `free_over` ship free.
+`policy.@NAME@` is positive; `syntax.@NAME@` and `semantic.@NAME@` must fail for
+different reasons. `cases.json` records runtime inputs and exact expected output.
+
+Run the commands printed by `lang new language @NAME@`, from the directory
+where you generated this project. They select LLVM/Linux x86-64 and use the
+original tool's absolute path, so generation and checking work outside its repo.
+Requirements: Python 3, Clang, its native linker, and a Lang source installation.
+Keep the working directory here when loading the manifest. Runtime sources are
+embedded by `project compiler`; the resulting compiler needs only guest source
+to emit LLVM. Clang links that LLVM into the program.
+The checker writes its LLVM and executable outputs under `build/`, keeping
+guest sources intact even when the language is named `ll`.
+Names must contain only identifier characters and must not conflict with
+compiler or reader toolkit symbols, such as `main` or `print`. Generated helper
+names must also be free: `tok`, `parse`, and `scan` are refused because their
+helpers would conflict with `tok_number`, `parse_check`, and `scan_number`.
+
+After changing grammar, semantic checks, or the runtime, rerun `project check`,
+`project read`, `project compiler`, and `python3 check.py ./@NAME@c` using the
+printed tool path. Inspect `policy.ast` to see the comparison, and change
+`ast_ge` to `ast_gt` to experiment with an exclusive threshold; update
+`cases.json` to describe the intended behavior at 100.
+
+Creation reserves a new directory and opens every file exclusively. An existing
+destination (including an empty directory or symlink) is refused before writes.
+If a later write fails, the command exits nonzero and leaves its incomplete new
+directory for inspection. It never replaces or removes existing content; choose
+a fresh name after fixing the storage problem.

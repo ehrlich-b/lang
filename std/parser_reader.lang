@@ -225,6 +225,8 @@ include "src/lang_reader.lang"
 // not generated per-grammar, so multiple #parser{} grammars in one program - or
 // a reader composed into the kernel via -r - never collide on these symbols).
 require "std/pnode"
+include "std/capture_contract.lang"
+include "std/parser_inspect.lang"
 
 reader parser(text *u8) *u8 {
     var g *Grammar = grammar_parse(text);

@@ -1,4 +1,7 @@
 // src/main.lang - Main entry point for self-hosting compiler
+include "src/project.lang"
+include "src/project_scaffold.lang"
+include "src/inspect.lang"
 
 // ============================================================
 // CLI helpers
@@ -514,11 +517,13 @@ func scaffold_reader_source(name *u8) *u8 {
 }
 
 func cmd_help_new() i64 {
-    println("lang new reader - start a source language");
+    println("lang new - start a reader or language project");
     println("");
     println("Usage: lang new reader <name>");
+    println("       lang new language <name>");
     println("");
     println("Creates <name>.lang and answer.<name> without overwriting files.");
+    println("language creates a new <name>/ project with manifest, frontend, runtime and fixtures.");
     println("");
     println("Example:");
     println("  lang new reader tiny");
@@ -620,10 +625,11 @@ func cmd_new(argc i64, argv **u8, arg_offset i64) i64 {
         if streq(only, "--help") || streq(only, "-h") { return cmd_help_new(); }
     }
     if argc != 2 {
-        eprintln("Error: expected `lang new reader <name>`");
+        eprintln("Error: expected `lang new reader|language <name>`");
         return 1;
     }
     var kind *u8 = get_arg(argv, arg_offset);
+    if streq(kind, "language") { return cmd_new_language(get_arg(argv, arg_offset + 1)); }
     if !streq(kind, "reader") {
         eprint("Error: cannot scaffold ");
         eprintln(kind);
@@ -653,7 +659,7 @@ func read_prepare_readers(reader_files *u8) i64 {
     var i i64 = 0;
     while i < vec_len(reader_files) {
         append_str(&source, &source_len, &source_cap, "include \"");
-        append_str(&source, &source_len, &source_cap, vec_get(reader_files, i));
+        append_str(&source, &source_len, &source_cap, escape_string_literal(vec_get(reader_files, i)));
         append_str(&source, &source_len, &source_cap, "\"\n");
         i = i + 1;
     }
@@ -712,7 +718,10 @@ func read_run_reader(name *u8, source_path *u8, content *u8) *u8 {
         }
 
         var exe_path *u8 = build_reader_cache_path(name, name_len);
+        var saved **u8 = ___envp;
+        ___envp = inspect_reader_environment(nil);
         output = phase_worker_call(exe_path, content, strlen(content));
+        ___envp = saved;
         var n i64 = phase_worker_status;
         if output != nil { n = strlen(output); }
         if n < 0 {
@@ -1148,6 +1157,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
         if streq(subcmd, "compile") { return cmd_help_compile(); }
         if streq(subcmd, "run") { return cmd_help_run(); }
         if streq(subcmd, "read") { return cmd_help_read(); }
+        if streq(subcmd, "inspect") { return cmd_help_inspect(); }
         if streq(subcmd, "compiler") { return cmd_help_compiler(); }
         if streq(subcmd, "new") { return cmd_help_new(); }
         if streq(subcmd, "reader") || streq(subcmd, "readers") { return cmd_help_reader(); }
@@ -1168,10 +1178,13 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("");
     println("Commands:");
     println("  compile    Compile source files (default)");
+    println("  project    Check or build a language project manifest");
     println("  run        Compile, link, and run a program");
+    println("  inspect    Show project tokens, tree, core or LLVM");
     println("  read       Run a reader and inspect its AST");
     println("  compiler   Build a native compiler from a reader");
     println("  new reader Scaffold a reader and sample source");
+    println("  new language Scaffold a complete editable language project");
     println("  help       Show this help message");
     println("  version    Show version information");
     println("  env        Show environment variables");
@@ -1486,7 +1499,10 @@ func cmd_tooling(argc i64, argv **u8, start i64) i64 {
     phase_error("tooling-query", "reader"); return 1;
 }
 
-func main(argc i64, argv **u8) i64 {
+// Keep the ABI entry separate: re-entering main would reset its hidden envp.
+func main(argc i64, argv **u8) i64 { return main_dispatch(argc, argv); }
+
+func main_dispatch(argc i64, argv **u8) i64 {
     // Select the transport before validating any options, regardless of order.
     var diagnostic_arg i64 = 1;
     while diagnostic_arg < argc {
@@ -1545,6 +1561,8 @@ func main(argc i64, argv **u8) i64 {
         if streq(first, "new") {
             return cmd_new(argc - 2, argv, 2);
         }
+        if streq(first, "inspect") { return cmd_inspect(argc, argv); }
+        if streq(first, "project") { return cmd_project(argc, argv); }
         if streq(first, "read") {
             return cmd_read(argc - 2, argv, 2);
         }
@@ -1767,7 +1785,7 @@ func main(argc i64, argv **u8) i64 {
         while i < vec_len(input_files) {
             var path *u8 = vec_get(input_files, i);
             append_str(&source_buf, &source_len, &source_cap, "include \"");
-            append_str(&source_buf, &source_len, &source_cap, path);
+            append_str(&source_buf, &source_len, &source_cap, escape_string_literal(path));
             append_str(&source_buf, &source_len, &source_cap, "\"\n");
             i = i + 1;
         }

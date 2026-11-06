@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""Compare compiled policy behavior and require syntax/semantic rejection."""
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+
+def run(command, expected=0):
+    result = subprocess.run(command, capture_output=True, timeout=60)
+    if result.returncode != expected:
+        raise RuntimeError(f'{command}: expected exit {expected}, got {result.returncode}\n'
+                           + result.stderr.decode(errors='replace'))
+    return result
+
+
+def main():
+    if len(sys.argv) != 2:
+        raise RuntimeError('usage: python3 check.py ./@NAME@c')
+    compiler = str(Path(sys.argv[1]).resolve())
+    build = Path('build')
+    build.mkdir(exist_ok=True)
+    run([compiler, 'policy.@NAME@', '-o', str(build / 'policy.ll')])
+    run(['clang', str(build / 'policy.ll'), '-o', str(build / 'policy')])
+    for total, expected in json.loads(Path('cases.json').read_text()):
+        result = run([str((build / 'policy').resolve()), total])
+        if result.stdout != expected.encode() or result.stderr:
+            raise RuntimeError(f'total {total}: expected {expected!r}, got {result.stdout!r}, {result.stderr!r}')
+    for fixture, diagnostic in [('syntax.@NAME@', b'expected'),
+                                ('semantic.@NAME@', b'duplicate setting')]:
+        result = run([compiler, fixture, '-o', str(build / 'rejected.ll')], expected=1)
+        if diagnostic not in result.stderr:
+            raise RuntimeError(f'{fixture}: missing {diagnostic!r}: {result.stderr!r}')
+    print('PASS runtime comparison, syntax rejection, semantic rejection')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as error:
+        print(f'FAIL: {error}', file=sys.stderr)
+        sys.exit(1)

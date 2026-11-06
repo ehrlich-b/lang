@@ -1,0 +1,2 @@
+include "missing-project-reader-dependency.lang"
+reader same(text *u8) *u8 { return nil; }

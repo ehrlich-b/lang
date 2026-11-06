@@ -1,0 +1,7 @@
+// Private syntax request state. Only a reader worker imports the environment;
+// embedded readers and standalone compilers keep the ordinary AST request.
+var reader_request_inspect_stage *u8 = nil;
+
+func reader_request_init() void {
+    reader_request_inspect_stage = getenv("LANG_INSPECT_STAGE");
+}

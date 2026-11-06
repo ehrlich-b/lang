@@ -13,15 +13,25 @@ pub func phase_binary_digest(path *u8) *u8 {
     if n < 0 { return nil; }
     return phase_digest(b.data, b.len);
 }
-pub func phase_dependency_visit(text *u8, name *u8, seen *u8,
-                            dependency_bytes *PhaseBuffer, depth i64) void {
-    if depth > LIMIT_INCLUDE_DEPTH { phase_error("dependency-depth", name); }
+struct PhaseDependencyError {
+    code *u8;
+    source *u8;
+}
+func phase_dependency_failure(code *u8, source *u8) *PhaseDependencyError {
+    var error *PhaseDependencyError = alloc(16);
+    error.code = code; error.source = source;
+    return error;
+}
+// Return resolver failures so callers can attach their input-contract location.
+pub func phase_dependency_try_visit(text *u8, name *u8, seen *u8,
+                            dependency_bytes *PhaseBuffer, depth i64) *PhaseDependencyError {
+    if depth > LIMIT_INCLUDE_DEPTH { return phase_dependency_failure("dependency-depth", name); }
     phase_work(1);
     phase_buffer_field(dependency_bytes, name);
     var source *PhaseSource = phase_source_get(phase_source_register(name, text));
     phase_buffer_field(dependency_bytes, source.digest);
     var prog *u8 = parse_program_from_named_string(text, name);
-    if prog == nil { phase_error("dependency-parse", name); }
+    if prog == nil { return phase_dependency_failure("dependency-parse", name); }
     var i i64 = 0;
     while i < program_decl_count(prog) {
         var decl *u8 = get_decl(program_decls(prog), i);
@@ -37,11 +47,20 @@ pub func phase_dependency_visit(text *u8, name *u8, seen *u8,
             if imported == nil {
                 if kind == NODE_REQUIRE_DECL && find_kernel_builtin(require_decl_module(decl), require_decl_module_len(decl)) != nil {
                     phase_buffer_field(dependency_bytes, path); phase_buffer_field(dependency_bytes, "embedded-in-compiler");
-                } else { phase_error("missing-dependency", path); }
-            } else { phase_dependency_visit(imported, path, seen, dependency_bytes, depth + 1); }
+                } else { return phase_dependency_failure("missing-dependency", path); }
+            } else {
+                var error *PhaseDependencyError = phase_dependency_try_visit(imported, path, seen, dependency_bytes, depth + 1);
+                if error != nil { return error; }
+            }
         }
         i = i + 1;
     }
+    return nil;
+}
+pub func phase_dependency_visit(text *u8, name *u8, seen *u8,
+                            dependency_bytes *PhaseBuffer, depth i64) void {
+    var error *PhaseDependencyError = phase_dependency_try_visit(text, name, seen, dependency_bytes, depth);
+    if error != nil { phase_error(error.code, error.source); }
 }
 pub func phase_reader_identity(wrapper *u8, llvm i64) *u8 {
     if phase_compiler_path == nil { return nil; }

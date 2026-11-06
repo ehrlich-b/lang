@@ -1,0 +1,11 @@
+project {
+    version 1;
+    reader_source "../../../../example/shipping/shipping.lang";
+    reader_name "shipping";
+    source_suffix ".shipping";
+    runtime_files ["../../../../example/shipping/runtime.lang"];
+    entry "../../../../example/shipping/policy.shipping";
+    backend "llvm";
+    native_profile "llvm-macos-arm64";
+    native_toolchain "clang";
+}

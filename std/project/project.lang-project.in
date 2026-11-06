@@ -1,0 +1,11 @@
+project {
+    version 1;
+    reader_source "reader.lang";
+    reader_name "@NAME@";
+    source_suffix ".@NAME@";
+    runtime_files ["runtime.lang"];
+    entry "policy.@NAME@";
+    backend "llvm";
+    native_profile "llvm-linux-x86_64";
+    native_toolchain "clang";
+}

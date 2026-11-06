@@ -1,0 +1,106 @@
+// Project-stage orchestration. Syntax artifacts cross the same worker boundary
+// as normal reader output, with a distinct envelope that cannot be mistaken
+// for an AST from a reader which does not publish syntax stages.
+// The stage setting is private to one syntax worker invocation. Ordinary
+// readers must receive an AST request even if the caller inherited this setting.
+func inspect_reader_environment(stage *u8) **u8 {
+    var saved **u8 = ___envp;
+    var entries *u8 = vec_new(32);
+    var i i64 = 0;
+    while saved[i] != nil {
+        if strlen(saved[i]) < 19 || memcmp(saved[i], "LANG_INSPECT_STAGE=", 19) == 0 { vec_push(entries, saved[i]); }
+        i = i + 1;
+    }
+    if stage != nil { vec_push(entries, str_concat("LANG_INSPECT_STAGE=", stage)); }
+    return project_argv(entries);
+}
+
+func inspect_syntax(name *u8, content *u8, stage *u8) *u8 {
+    var saved **u8 = ___envp;
+    ___envp = inspect_reader_environment(stage);
+    var artifact *u8 = phase_worker_call(build_reader_cache_path(name, strlen(name)), content, strlen(content));
+    ___envp = saved;
+    if artifact == nil { return nil; }
+    var header *u8 = str_concat(str_concat("LANG-INSPECT/1 ", stage), "\n");
+    var len i64 = strlen(header);
+    if strlen(artifact) < len || memcmp(artifact, header, len) == 0 {
+        eprint("Error: unsupported "); eprint(stage);
+        eprintln(" stage: reader has no generated !inspect boundary"); return nil;
+    }
+    return artifact + len;
+}
+
+func cmd_help_inspect() i64 {
+    println("Usage: lang inspect --project manifest --stage tokens|tree|core|llvm [-o output]");
+    println("Syntax stages require a generated !inspect complete_input_rule; boundary.");
+    println("Core is the reader AST; its calls mark the separately linked runtime boundary.");
+    return 0;
+}
+
+func cmd_inspect(argc i64, argv **u8) i64 {
+    if argc == 3 && (streq(get_arg(argv, 2), "--help") || streq(get_arg(argv, 2), "-h")) { return cmd_help_inspect(); }
+    var manifest *u8 = nil; var stage *u8 = nil; var output *u8 = nil;
+    var i i64 = 2;
+    while i < argc {
+        var option *u8 = get_arg(argv, i);
+        if i + 1 >= argc { eprintln("Error: inspect option needs a value"); return 1; }
+        i = i + 1;
+        if streq(option, "--project") && manifest == nil { manifest = get_arg(argv, i); }
+        else if streq(option, "--stage") && stage == nil { stage = get_arg(argv, i); }
+        else if streq(option, "-o") && output == nil { output = get_arg(argv, i); }
+        else { eprintln("Error: unknown or duplicate inspect option"); return 1; }
+        i = i + 1;
+    }
+    if manifest == nil || stage == nil { eprintln("Error: inspect requires --project and --stage"); return 1; }
+    if !streq(stage, "tokens") && !streq(stage, "tree") && !streq(stage, "core") && !streq(stage, "llvm") {
+        eprintln("Error: inspect stage must be tokens, tree, core or llvm"); return 1;
+    }
+    var project *LanguageProject = project_load(manifest);
+    var target *u8 = getenv("LANGOS");
+    if cg_backend_is_llvm() == 0 || (target != nil && !streq(target, "linux")) || !streq(os_platform_name(), "linux") || !streq(LANG_BUILD_ARCH, "x86_64") {
+        project_fail_field(project, "native_profile", "project execution requires LANGBE=llvm LANGOS=linux on Linux x86-64");
+    }
+    cg_langos_override = "linux";
+    var readers *u8 = vec_new(1); vec_push(readers, project_field(project, "reader_source"));
+    var path *u8 = project_field(project, "entry");
+    var content *u8 = read_file(path);
+    if content == nil || read_prepare_readers(readers) == 0 { return 1; }
+    var name *u8 = project_field(project, "reader_name");
+    var artifact *u8 = nil;
+    if streq(stage, "tokens") || streq(stage, "tree") {
+        artifact = inspect_syntax(name, content, stage);
+        if artifact == nil { eprint(path); eprintln(": error: reader syntax inspection failed"); return 1; }
+    } else {
+        artifact = read_run_reader(name, path, content);
+        if artifact == nil { return 1; }
+        if streq(stage, "core") { artifact = read_ast_format(artifact); }
+        else {
+            var prog *u8 = parse_ast_from_reader_string(artifact, path, content);
+            if prog == nil { return 1; }
+            if vec_len(project.runtimes) > 0 {
+                var runtime_ast *u8 = build_embedded_runtime_ast(project.runtimes);
+                if runtime_ast == nil { return 1; }
+                var runtime *u8 = parse_ast_from_string(runtime_ast);
+                if runtime == nil { return 1; }
+                prog = main_combine_programs(runtime, prog);
+            }
+            var cache *u8 = get_cache_base(); os_mkdir(cache, 493);
+            var ir *u8 = str_concat(str_concat(cache, "/inspect-"), str_concat(i64_to_str(getpid()), ".ll"));
+            // Reserve a fresh file; keep the IR as a diagnostic cache artifact.
+            var reserved i64 = file_open(ir, O_WRONLY_CREAT_EXCL);
+            if reserved < 0 { eprintln("Error: cannot reserve inspect LLVM output"); return 1; }
+            file_close(reserved);
+            main_generate_selected(prog, ir);
+            if cg_had_error != 0 { return 1; }
+            artifact = read_file(ir);
+        }
+    }
+    if artifact == nil { eprintln("Error: cannot produce inspect artifact"); return 1; }
+    var fd i64 = 1;
+    if output != nil { fd = file_open(output, O_WRONLY_CREAT_TRUNC); }
+    if fd < 0 { eprintln("Error: cannot create inspect output"); return 1; }
+    var ok i64 = read_write_ast(fd, artifact, 0);
+    if output != nil { file_close(fd); }
+    if ok == 0 { eprintln("Error: cannot write inspect artifact"); return 1; }
+    return 0;
+}
