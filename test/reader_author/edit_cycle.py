@@ -162,6 +162,15 @@ def main():
         require(cold_readers, 'cold build did not mint any readers')
         result = replay.run([str(output), '99'], 'cold-runtime', scratch)
         require(result.stdout == b'10\n' and not result.stderr, 'cold shipping result')
+        competing = module.Watch(compiler, manifest, output, evidence / 'competing', env)
+        conflict = False
+        try:
+            competing.tick()
+        except ValueError as error:
+            conflict = 'another watch owns' in str(error)
+        finally:
+            competing.close()
+        require(conflict and output.exists(), 'competing watch took ownership or invalidated the output')
         before, start, generation, probes = forks(), time.monotonic(), watch.generation, watch.probes
         watch.tick()
         require(watch.active is None and watch.generation == generation and readers() == cold_readers and forks() == before,

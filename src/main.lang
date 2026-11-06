@@ -1230,6 +1230,10 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
         var subcmd *u8 = get_arg(argv, arg_offset);
         if streq(subcmd, "build") { return cmd_help_native_build(); }
         if streq(subcmd, "package") { return cmd_help_package(); }
+        if streq(subcmd, "watch") {
+            println("lang watch --project PROJECT [-o OUTPUT] [--evidence DIR] [--once]");
+            println("Rebuild the project entry after edits; stop with Ctrl-C."); return 0;
+        }
         if streq(subcmd, "compile") { return cmd_help_compile(); }
         if streq(subcmd, "run") { return cmd_help_run(); }
         if streq(subcmd, "read") { return cmd_help_read(); }
@@ -1267,6 +1271,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("  env        Show environment variables");
     println("  build      Build a project guest into a native executable");
     println("  test       Run named project fixtures and native expectations");
+    println("  watch      Rebuild a project's entry after edits");
     println("  tools      Show toolchain availability");
     println("  tooling    Show reader capabilities and query availability");
     println("");

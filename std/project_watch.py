@@ -202,6 +202,7 @@ def main():
         parser.error('interval must be between 0.01 and 60 seconds')
     evidence = args.evidence or args.project.resolve().parent / 'build' / ('watch-' + str(time.time_ns()))
     watch = Watch(args.compiler, args.project, args.o, evidence)
+    watch.event('watching', evidence=str(watch.evidence))
     def stop(signum, frame):
         watch.stopped = True
     previous = {s: signal.signal(s, stop) for s in (signal.SIGINT, signal.SIGTERM)}
