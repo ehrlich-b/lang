@@ -8,6 +8,11 @@ include "std/parser_reader.lang"
     nonempty = items:number+
     chain = value:number tail:chain?
     wrapped = value:(number | symbol)
+    nested = first:number outer:inner:symbol?
+    atom = number
+    dispatch = left:atom | right:symbol
+    holder = '[' content:dispatch ']'
+    nested_rows = '(' (item:body:number ',')* ')'
 }
 
 func bad_packet(duplicate i64) *PNode {
@@ -34,7 +39,18 @@ func main(argc i64, argv **u8) i64 {
         return 94;
     }
     if argc == 7 { capture_chain_required(packet, "value"); return 95; }
-    if argc == 8 { capture_packet_optional(bad_packet(1), "first"); return 96; }
+    if argc == 8 {
+        var fields *u8 = vec_new(2);
+        vec_push(fields, pnode_capture("note", pnode_atom(2, "a")));
+        vec_push(fields, pnode_capture("note", pnode_atom(2, "b")));
+        capture_packet_optional(capture_tree(pnode_list(fields), "packet", 0), "note");
+        return 96;
+    }
+    if argc == 9 {
+        t = tok_new("halt");
+        capture_message_required(parse_message(t), "value");
+        return 97;
+    }
     if schema_message_alternatives() != 2 { return 11; }
     if !streq(schema_message_alternative(0), "send") || !streq(schema_message_alternative(1), "halt") { return 12; }
     if schema_message_alternative(2) != nil { return 13; }
@@ -80,6 +96,22 @@ func main(argc i64, argv **u8) i64 {
     t = tok_new("hello");
     var wrapped *PNode = parse_wrapped(t);
     if wrapped == nil || !tok_eof(t) || !streq(capture_wrapped_required(wrapped, "value").text, "hello") { return 34; }
+    t = tok_new("7");
+    var nested *PNode = parse_nested(t);
+    if nested == nil || !tok_eof(t) || capture_nested_optional(nested, "outer") != nil { return 35; }
+    t = tok_new("7 hi");
+    nested = parse_nested(t);
+    if nested == nil || !streq(capture_nested_optional(nested, "outer").text, "hi") ||
+       !streq(capture_nested_optional(nested, "inner").text, "hi") { return 36; }
+    t = tok_new("[42]");
+    var holder *PNode = parse_holder(t);
+    if holder == nil || !tok_eof(t) || !pnode_is(pnode_child(holder, 1), "left") { return 37; }
+    if !pnode_is(capture_holder_required(holder, "content"), "left") { return 38; }
+    t = tok_new("(4,5,)");
+    rows = parse_nested_rows(t);
+    values = capture_nested_rows_repeated(rows, "item");
+    middle = vec_get(values, 1);
+    if rows == nil || !tok_eof(t) || vec_len(values) != 2 || !streq(middle.text, "5") { return 39; }
     println("PASS contracts");
     return 0;
 }

@@ -34,6 +34,11 @@ func capture_many(node *PNode) *PNode {
     return pnode_capture("@many", node);
 }
 
+func capture_branch(node *PNode, label *u8) void {
+    pnode_set_branch(node, label);
+    pnode_set_branch(pnode_unwrap(node), label);
+}
+
 func capture_fail(rule *u8, name *u8, message *u8) void {
     eprint("reader-author capture contract: rule '");
     eprint(rule);
@@ -100,16 +105,24 @@ func capture_checked(node *PNode, rule *u8, name *u8,
     if count < spec.minimum || (spec.maximum >= 0 && count > spec.maximum) {
         capture_fail(rule, name, "tree cardinality differs from grammar");
     }
+    var i i64 = 0;
+    while i < count {
+        vec_set(matches, i, capture_value(vec_get(matches, i)));
+        i = i + 1;
+    }
     return matches;
+}
+
+func capture_value(node *PNode) *PNode {
+    while node != nil && node.kind == PNODE_CAPTURE && !streq(node.text, "@rule") {
+        node = vec_get(node.children, 0);
+    }
+    return node;
 }
 
 func capture_one(matches *u8) *PNode {
     if vec_len(matches) == 0 { return nil; }
     // Keep checked rule wrappers so nested rule access remains possible. Ordinary
     // nested captures are transparent just as they are in pnode_require.
-    var node *PNode = vec_get(matches, 0);
-    while node != nil && node.kind == PNODE_CAPTURE && !streq(node.text, "@rule") {
-        node = vec_get(node.children, 0);
-    }
-    return node;
+    return vec_get(matches, 0);
 }

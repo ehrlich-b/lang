@@ -353,7 +353,8 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
             }
             else {
                 rdgen_indent(rd);
-                sb_str(rd.sb, "pnode_set_branch(");
+                if rd.grammar.contracts != 0 { sb_str(rd.sb, "capture_branch("); }
+                else { sb_str(rd.sb, "pnode_set_branch("); }
                 sb_str(rd.sb, result_var);
                 sb_str(rd.sb, ", \"");
                 rdgen_strn(rd, node.name, node.name_len);

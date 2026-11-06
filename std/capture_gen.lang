@@ -13,7 +13,7 @@ func capture_bound(node *GNode, name *GNode, upper i64) i64 {
             if upper != 0 { return -1; }
             return 1;
         }
-        if child.kind == GNODE_OPT && upper == 0 { return 0; }
+        if upper == 0 && rdgen_can_be_absent(child) != 0 { return 0; }
         return 1;
     }
     if node.kind == GNODE_STAR || node.kind == GNODE_PLUS || node.kind == GNODE_OPT {

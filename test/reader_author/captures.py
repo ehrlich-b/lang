@@ -74,7 +74,8 @@ def main():
             ('packet', 'first', 'tree cardinality'),
             ('nonempty', 'items', 'tree cardinality'),
             ('chain', 'value', 'another rule'),
-            ('packet', 'first', 'accessor cardinality'),
+            ('packet', 'note', 'tree cardinality'),
+            ('message', 'value', 'not declared'),
         ]
         for index, (rule, name, message) in enumerate(errors, 1):
             result = replay.run([str(binary)] + ['x'] * index, 'contract-negative-' + str(index), clone, expected=1)
