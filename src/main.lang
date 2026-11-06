@@ -84,20 +84,19 @@ func path_dirname(path *u8) *u8 {
 }
 
 func init_resource_root(argv0 *u8) void {
-    phase_compiler_path = argv0;
     phase_install_isolated_fixture_hook();
-    var configured *u8 = getenv("LANG_ROOT");
-    if configured != nil && *configured != 0 {
-        cg_resource_root = configured;
-        return;
-    }
-
+    // Compiler identity is independent of the configured resource directory.
     var executable *u8 = argv0;
     if path_has_slash(executable) == 0 {
         var found *u8 = find_in_path(executable);
         if found != nil { executable = found; }
     }
     phase_compiler_path = executable;
+    var configured *u8 = getenv("LANG_ROOT");
+    if configured != nil && *configured != 0 {
+        cg_resource_root = configured;
+        return;
+    }
     var root *u8 = path_dirname(path_dirname(executable));
     var probe *u8 = str_concat(root, "/std/core.lang");
     var fd i64 = file_open(probe, O_RDONLY);
