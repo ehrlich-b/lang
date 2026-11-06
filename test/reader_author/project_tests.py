@@ -97,8 +97,28 @@ def main():
             result = test('changed-' + name, project=edited / 'project.lang-project', cwd=edited, fixture='policy', expected=1)
             require(b'FAIL policy:' in result.stderr and b'expected' in result.stderr,
                     name + ': semantic mutation did not visibly fail')
-        # Wrong exits and wrong located assertions must also make the runner fail.
         suite = json.loads((project_dir / 'tests.json').read_text())
+        # Named execution must not depend on unfinished, unrelated fixtures.
+        for defect, message in [('missing-source', b'missing source'),
+                                ('incomplete-expectation', b'choose runs or diagnostic')]:
+            altered = json.loads(json.dumps(suite))
+            unrelated = next(case for case in altered['fixtures'] if case['name'] == 'semantic')
+            if defect == 'missing-source':
+                unrelated['source'] = 'missing.parcel'
+            else:
+                del unrelated['diagnostic']
+            fixture_path = project_dir / (defect + '.json')
+            dump(fixture_path, altered)
+            shutil.copyfile(fixture_path, evidence / fixture_path.name)
+            test('named-' + defect, project=manifest, cwd=project_dir, fixtures=fixture_path, fixture='policy')
+            named = json.loads((evidence / ('named-' + defect) / 'result.json').read_text())
+            require(named['fixtures'] == [{'name': 'policy', 'pass': True}],
+                    defect + ': filter ran extra fixtures')
+            for scope, fixture in [('suite', None), ('selected', 'semantic')]:
+                result = test(scope + '-' + defect, project=manifest, cwd=project_dir,
+                              fixtures=fixture_path, fixture=fixture, expected=1)
+                require(message in result.stderr, defect + ': invalid fixture silently passed')
+        # Wrong exits and wrong located assertions must also make the runner fail.
         for name in ['exit', 'diagnostic']:
             altered = json.loads(json.dumps(suite))
             if name == 'exit':
