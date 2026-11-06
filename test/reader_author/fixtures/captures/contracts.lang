@@ -13,6 +13,7 @@ include "std/parser_reader.lang"
     dispatch = left:atom | right:symbol
     holder = '[' content:dispatch ']'
     nested_rows = '(' (item:body:number ',')* ')'
+    probe = value:number
 }
 
 func bad_packet(duplicate i64) *PNode {
@@ -50,6 +51,57 @@ func main(argc i64, argv **u8) i64 {
         t = tok_new("halt");
         capture_message_required(parse_message(t), "value");
         return 97;
+    }
+    if argc == 10 {
+        capture_probe_required(capture_tree(pnode_capture("value", nil), "probe", 0), "value");
+        return 98;
+    }
+    if argc == 11 {
+        var payload *PNode = pnode_capture("inner", nil);
+        capture_probe_required(capture_tree(pnode_capture("value", payload), "probe", 0), "value");
+        return 99;
+    }
+    if argc == 12 {
+        capture_packet_optional(capture_tree(pnode_capture("note", nil), "packet", 0), "note");
+        return 100;
+    }
+    if argc == 13 {
+        capture_rows_repeated(capture_tree(pnode_capture("value", nil), "rows", 0), "value");
+        return 101;
+    }
+    if argc == 14 {
+        var members *u8 = vec_new(1);
+        vec_push(members, nil);
+        var payload *PNode = capture_many(pnode_list(members));
+        capture_nonempty_repeated(capture_tree(pnode_capture("items", payload), "nonempty", 0), "items");
+        return 102;
+    }
+    if argc == 15 {
+        var payload *PNode = pnode_new(PNODE_CAPTURE);
+        capture_probe_required(capture_tree(pnode_capture("value", payload), "probe", 0), "value");
+        return 103;
+    }
+    if argc == 16 {
+        var payload *PNode = pnode_capture("inner", nil);
+        payload.children = vec_new(1);
+        capture_probe_required(capture_tree(pnode_capture("value", payload), "probe", 0), "value");
+        return 104;
+    }
+    if argc == 17 {
+        var payload *PNode = pnode_capture("@rule", nil);
+        capture_holder_required(capture_tree(pnode_capture("content", payload), "holder", 0), "content");
+        return 105;
+    }
+    if argc == 18 {
+        var payload *PNode = pnode_capture("@many", nil);
+        capture_packet_repeated(capture_tree(pnode_capture("items", payload), "packet", 0), "items");
+        return 106;
+    }
+    if argc == 19 {
+        var field *PNode = pnode_capture("note", nil);
+        field.children = nil;
+        capture_packet_optional(capture_tree(field, "packet", 0), "note");
+        return 107;
     }
     if schema_message_alternatives() != 2 { return 11; }
     if !streq(schema_message_alternative(0), "send") || !streq(schema_message_alternative(1), "halt") { return 12; }

@@ -78,12 +78,22 @@ def main():
             ('chain', 'value', 'another rule'),
             ('packet', 'note', 'tree cardinality'),
             ('message', 'value', 'not declared'),
+            ('probe', 'value', 'nil capture payload'),
+            ('probe', 'value', 'nil capture payload'),
+            ('packet', 'note', 'nil capture payload'),
+            ('rows', 'value', 'nil capture payload'),
+            ('nonempty', 'items', 'nil capture payload'),
+            ('probe', 'value', 'invalid capture payload'),
+            ('probe', 'value', 'invalid capture payload'),
+            ('holder', 'content', 'nil capture payload'),
+            ('packet', 'items', 'invalid repeated capture payload'),
+            ('packet', 'note', 'invalid capture payload'),
         ]
         for index, (rule, name, message) in enumerate(errors, 1):
             result = replay.run([str(binary)] + ['x'] * index, 'contract-negative-' + str(index), clone, expected=1)
             diagnostic = f"reader-author capture contract: rule '{rule}', capture '{name}': ".encode()
             require(not result.stdout and diagnostic in result.stderr and message.encode() in result.stderr,
-                    'missing rule/capture/cardinality diagnostic')
+                    'missing rule/capture/contract diagnostic')
         # Prove the same assertion used above cannot swallow a wrong expectation.
         result = replay.run([sys.executable, '-B', '-c',
             'from captures import exact; from subprocess import CompletedProcess; '
