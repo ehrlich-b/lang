@@ -214,3 +214,7 @@ pub func init_environ(envp **u8) void {
 // The generic libc layer has no native assembler path, so it defaults to llvm.
 pub func os_platform_name() *u8 { return "linux"; }
 pub func os_default_backend() *u8 { return "llvm"; }
+
+// Drain independent worker output channels without pipe-capacity deadlocks.
+extern func poll(fds *u8, count i64, timeout i32) i32;
+func os_poll(fds *u8, count i64) i64 { return poll(fds, count, -1); }

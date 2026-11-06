@@ -1,0 +1,21 @@
+'use strict';
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const { runLangProgram, decodeReaderDiagnostics } = require('../../web/program_host.js');
+(async () => {
+  const [wasm, input, expected, key = 'shipping'] = process.argv.slice(2);
+  const text = fs.readFileSync(input, 'utf8');
+  const native = JSON.parse(fs.readFileSync(expected, 'utf8'));
+  const context = { key, text, path: input, sourceId: 1 };
+  const result = await runLangProgram(fs.readFileSync(wasm), undefined, text, context);
+  assert.equal(result.value, 0n);
+  assert.equal(result.exit, 1);
+  assert.equal(result.stdout, '');
+  assert.equal(result.diagnostics.length, 1);
+  const record = result.diagnostics[0];
+  for (const field of ['code', 'message', 'span', 'category']) assert.deepEqual(record[field], native[field]);
+  assert.equal(record.path, input);
+  assert.equal(record.source_id, 1);
+  assert.throws(() => decodeReaderDiagnostics(Buffer.from('RDI1'), context));
+  console.log(JSON.stringify({ pass: true, record, text: result.stderr }));
+})().catch(error => { console.error(error); process.exitCode = 1; });

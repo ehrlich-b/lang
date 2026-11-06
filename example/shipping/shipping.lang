@@ -14,14 +14,14 @@ func shipping_number(node *PNode, text *u8) i64 {
     while i < node.end {
         var ch i64 = *(text + i);
         if ch < 48 || ch > 57 || value > 100000 {
-            pnode_print_error(node, text, "shipping", "expected decimal integer in 0..1000000");
+            reader_error("shipping-range", "expected decimal integer in 0..1000000", "shipping", text, node.start, node.end);
             return -1;
         }
         value = value * 10 + ch - 48;
         i = i + 1;
     }
     if value > 1000000 {
-        pnode_print_error(node, text, "shipping", "expected decimal integer in 0..1000000");
+        reader_error("shipping-range", "expected decimal integer in 0..1000000", "shipping", text, node.start, node.end);
         return -1;
     }
     return value;
@@ -41,11 +41,11 @@ reader shipping(text *u8) *u8 {
         var setting *PNode = vec_get(settings.children, i);
         var name *PNode = pnode_require(setting, "name");
         if !streq(name.text, "base") && !streq(name.text, "free_over") {
-            pnode_print_error(name, text, "shipping", "unknown setting; expected base or free_over");
+            reader_error("shipping-setting", "unknown setting; expected base or free_over", "shipping", text, name.start, name.end);
             return nil;
         }
         if (streq(name.text, "base") && base >= 0) || (streq(name.text, "free_over") && free_over >= 0) {
-            pnode_print_error(name, text, "shipping", "duplicate setting"); return nil;
+            reader_error("shipping-duplicate", "duplicate setting", "shipping", text, name.start, name.end); return nil;
         }
         var value i64 = shipping_number(pnode_require(setting, "value"), text);
         if value < 0 { return nil; }
@@ -53,7 +53,7 @@ reader shipping(text *u8) *u8 {
         i = i + 1;
     }
     if base < 0 || free_over < 0 {
-        pnode_print_error(tree, text, "shipping", "missing setting; require base and free_over"); return nil;
+        reader_error("shipping-missing", "missing setting; require base and free_over", "shipping", text, tree.start, tree.end); return nil;
     }
     // Shared AST boundary: policy constants become data; total stays a variable.
     var params *u8 = ast_vec();

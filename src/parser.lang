@@ -3363,6 +3363,8 @@ func parse_primary() *u8 {
         reader_expr_set_name_len(node, tok_lexeme_len(tok));
         reader_expr_set_content(node, tok_content(tok));
         reader_expr_set_content_len(node, tok_content_len(tok));
+        var content_start i64 = tok_content(tok) - lex_source;
+        node_set_span(node, parse_source_name, lex_source, content_start, content_start + tok_content_len(tok));
         return node;
     }
 
@@ -4357,6 +4359,8 @@ func parse_declaration() *u8 {
         reader_expr_set_name_len(node, tok_lexeme_len(tok));
         reader_expr_set_content(node, tok_content(tok));
         reader_expr_set_content_len(node, tok_content_len(tok));
+        var content_start i64 = tok_content(tok) - lex_source;
+        node_set_span(node, parse_source_name, lex_source, content_start, content_start + tok_content_len(tok));
         return node;
     }
 

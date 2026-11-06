@@ -1,0 +1,5 @@
+include "example/shipping/shipping.lang"
+reader outer(text *u8) *u8 {
+    return "(program (reader_expr shipping \"shipping { base 1; base 2; free_over 3; }\"))";
+}
+#outer{guest}

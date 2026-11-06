@@ -12,6 +12,8 @@ const paths = [
   'std/tools.lang',
   'std/core.lang',
   'std/diagnostics.lang',
+  'std/reader_diagnostics.lang',
+  'src/reader_diagnostics.lang',
   'std/buffer.lang',
   'std/emit.lang',
   'std/ast.lang',

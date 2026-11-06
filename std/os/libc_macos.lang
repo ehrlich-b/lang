@@ -216,3 +216,7 @@ pub func init_environ(envp **u8) void {
 // which must target the build host even when the main compile cross-targets.
 pub func os_platform_name() *u8 { return "macos"; }
 pub func os_default_backend() *u8 { return "llvm"; }
+
+// Drain independent worker output channels without pipe-capacity deadlocks.
+extern func poll(fds *u8, count i64, timeout i32) i32;
+func os_poll(fds *u8, count i64) i64 { return poll(fds, count, -1); }

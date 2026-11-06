@@ -1,0 +1,24 @@
+include "std/core.lang"
+reader broken(text *u8) *u8 {
+    if streq(text, "raw") {
+        file_write(2, "RDI1", 4);
+    } else if streq(text, "missing") {
+        reader_error("missing-span", "no span", "broken", text, -1, -1);
+    } else if streq(text, "implementation") {
+        var d *ReaderDiagnostic = alloc(48);
+        d.code = "reader-implementation"; d.message = "lowering invariant";
+        d.source = "broken"; d.start = -1; d.end = -1; d.category = 1;
+        reader_diagnostic_emit(d, text);
+    } else if streq(text, "forged") {
+        reader_error("forged", "bad source", "unrelated.lang", text, 0, 1);
+    } else if streq(text, "reverse") {
+        reader_error("reverse", "bad range", "broken", text, 3, 1);
+    } else if streq(text, "overflow") {
+        reader_error("overflow", "bad range", "broken", text, 0, 999999);
+    } else {
+        // The input is é: byte 1 is not a UTF-8 scalar boundary.
+        reader_error("split", "bad boundary", "broken", text, 1, 2);
+    }
+    // Even a well-formed AST cannot override any diagnostic or bad record.
+    return "(program)";
+}

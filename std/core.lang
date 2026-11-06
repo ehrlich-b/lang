@@ -508,6 +508,7 @@ pub func println(s *u8) {
 
 // The optional record transport uses direct calls on every backend.
 include "std/diagnostics.lang"
+include "std/reader_diagnostics.lang"
 pub func ___compiler_stderr_write(data *u8, len i64, complete i64) void {
     if ___compiler_diagnostic_json != 0 { ___compiler_diagnostic_sink(data, len, complete); }
     else { file_write(2, data, len); }

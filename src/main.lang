@@ -693,8 +693,9 @@ func read_run_reader(name *u8, source_path *u8, content *u8) *u8 {
     var embedded_func *u8 = find_embedded_reader_func(name, name_len);
     if embedded_func != nil {
         var reader_fn fn(*u8) *u8 = embedded_func;
-        output = reader_fn(content);
+        output = reader_host_embedded(embedded_func, content, name, source_path, nil);
         if output == nil {
+            if reader_host_errors != 0 { return nil; }
             read_error_prefix(source_path);
             eprint("embedded reader '");
             eprint(name);
@@ -712,10 +713,11 @@ func read_run_reader(name *u8, source_path *u8, content *u8) *u8 {
         }
 
         var exe_path *u8 = build_reader_cache_path(name, name_len);
-        output = phase_worker_call(exe_path, content, strlen(content));
+        output = reader_host_worker(exe_path, content, strlen(content), name, source_path, nil);
         var n i64 = phase_worker_status;
         if output != nil { n = strlen(output); }
         if n < 0 {
+            if reader_host_errors != 0 { return nil; }
             read_error_prefix(source_path);
             eprint("reader '");
             eprint(name);
@@ -1515,7 +1517,7 @@ func main(argc i64, argv **u8) i64 {
     // Get first argument
     var first *u8 = get_arg(argv, 1);
 
-    if ___compiler_diagnostic_json != 0 && (streq(first, "read") || streq(first, "new") ||
+    if ___compiler_diagnostic_json != 0 && (streq(first, "new") ||
        streq(first, "env") || streq(first, "tools")) {
         ___compiler_diagnostic_context("unsupported-mode", nil, -1, -1);
         eprintln("Error: JSON diagnostics supports source compilation and AST emission only");

@@ -99,7 +99,9 @@ func main(argc i64, argv **u8) i64 {
     while i < argc {
         var arg *u8 = standalone_get_arg(argv, i);
 
-        if streq(arg, "--help") || streq(arg, "-h") {
+        if streq(arg, "--diagnostics=json") {
+            ___compiler_diagnostic_enable();
+        } else if streq(arg, "--help") || streq(arg, "-h") {
             standalone_help();
             return 0;
         } else if *arg == '-' && *(arg + 1) == 'o' && *(arg + 2) == 0 {
@@ -148,7 +150,10 @@ func main(argc i64, argv **u8) i64 {
         }
 
         // Transform through reader → S-expression AST
+        reader_host_begin(reader_compiler_name, content, arg, nil);
         var ast *u8 = reader_transform(content);
+        reader_diagnostic_hook = nil;
+        if reader_host_errors != 0 { return 1; }
         if ast == nil {
             return 1;
         }

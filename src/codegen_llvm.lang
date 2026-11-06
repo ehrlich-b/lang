@@ -4071,11 +4071,12 @@ func llvm_emit_expr_inner(expr *u8) void {
         var exe_path *u8 = build_reader_cache_path(name, name_len);
 
         // Execute reader with content as input
-        var output *u8 = phase_worker_call(exe_path, content, content_len);
+        var output *u8 = reader_host_worker(exe_path, content, content_len, str_dup_n(name, name_len), node_origin_source(expr), expr);
         var n i64 = phase_worker_status;
         if output != nil { n = strlen(output); }
 
         if n < 0 {
+                if reader_host_errors != 0 { return; }
             cg_error_prefix();
             eprint("reader '");
             eprint_buf(name, name_len);
@@ -7533,7 +7534,7 @@ func llvm_emit_decl_inner(decl *u8) void {
         if embedded_func != nil {
             // Call embedded reader function directly (signature: fn(*u8) *u8)
             var reader_fn fn(*u8) *u8 = embedded_func;
-            var output *u8 = reader_fn(content);
+            var output *u8 = reader_host_embedded(embedded_func, str_dup_n(content, content_len), str_dup_n(name, name_len), node_origin_source(decl), decl);
             if output != nil {
                 // Parse output as S-expr AST (readers MUST output AST)
                 var prog *u8 = parse_ast_from_reader_string(
@@ -7564,7 +7565,7 @@ func llvm_emit_decl_inner(decl *u8) void {
         var exe_path *u8 = build_reader_cache_path(name, name_len);
 
         // Execute reader with content as input
-        var output *u8 = phase_worker_call(exe_path, content, content_len);
+        var output *u8 = reader_host_worker(exe_path, content, content_len, str_dup_n(name, name_len), node_origin_source(decl), decl);
         var n i64 = phase_worker_status;
         if output != nil { n = strlen(output); }
 

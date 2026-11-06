@@ -712,22 +712,12 @@ pub func tok_print_error(t *Tokenizer, label *u8) void {
     // Without a recorded mismatch, success cannot be inferred here. Readers
     // explicitly check successful roots with tok_expect_end before printing.
     if t.error_pos < 0 { tok_note_expected(t, "valid token"); }
-    if label != nil && *label != 0 {
-        eprint(label);
-        eprint(":");
-    }
-    eprint_i64(tok_error_line(t));
-    eprint(":");
-    eprint_i64(tok_error_column(t));
-    eprint(": expected ");
-    eprint(tok_error_expected(t));
-    eprint(", found ");
-    eprint(tok_error_found(t));
-    eprint(" @");
-    eprint_i64(tok_error_offset(t));
-    eprint(":");
-    eprint_i64(tok_error_end_offset(t));
-    eprintln("");
+    var message *u8 = str_concat("expected ", tok_error_expected(t));
+    message = str_concat(message, ", found ");
+    message = str_concat(message, tok_error_found(t));
+    if label == nil || *label == 0 { label = "reader"; }
+    reader_error("reader-syntax", message, label, t.input,
+                 tok_error_offset(t), tok_error_end_offset(t));
 }
 
 // Parse the current number token as i64

@@ -6,6 +6,7 @@ include "src/phase_host.lang"
 include "src/stage_dependencies.lang"
 include "src/stage_legacy.lang"
 include "src/stage_isolated.lang"
+include "src/reader_diagnostics.lang"
 
 // Environment pointer set by main() - used to inherit environment in exec_run
 extern var ___envp **u8;
@@ -1830,8 +1831,9 @@ func process_decl_first_pass(decl *u8) void {
         if embedded_func != nil {
             // Call embedded reader function directly
             var reader_fn fn(*u8) *u8 = embedded_func;
-            output = reader_fn(content);
+            output = reader_host_embedded(embedded_func, str_dup_n(content, content_len), str_dup_n(name, name_len), node_origin_source(decl), decl);
             if output == nil {
+                if reader_host_errors != 0 { return; }
                 cg_error_prefix();
                 eprint("embedded reader '");
                 eprint_buf(name, name_len);
@@ -1855,11 +1857,12 @@ func process_decl_first_pass(decl *u8) void {
             var exe_path *u8 = build_reader_cache_path(name, name_len);
 
             // Execute reader with content as input
-            output = phase_worker_call(exe_path, content, content_len);
+            output = reader_host_worker(exe_path, content, content_len, str_dup_n(name, name_len), node_origin_source(decl), decl);
             var n i64 = phase_worker_status;
             if output != nil { n = strlen(output); }
 
             if n < 0 {
+                if reader_host_errors != 0 { return; }
                 cg_error_prefix();
                 eprint("reader '");
                 eprint_buf(name, name_len);
@@ -4050,8 +4053,9 @@ func gen_expr(expr *u8) void {
         if embedded_func != nil {
             // Call embedded reader function directly
             var reader_fn fn(*u8) *u8 = embedded_func;
-            output = reader_fn(content);
+            output = reader_host_embedded(embedded_func, str_dup_n(content, content_len), str_dup_n(name, name_len), node_origin_source(expr), expr);
             if output == nil {
+                if reader_host_errors != 0 { return; }
                 cg_error_prefix();
                 eprint("embedded reader '");
                 eprint_buf(name, name_len);
@@ -4075,11 +4079,12 @@ func gen_expr(expr *u8) void {
             var exe_path *u8 = build_reader_cache_path(name, name_len);
 
             // Execute reader with content as input
-            output = phase_worker_call(exe_path, content, content_len);
+            output = reader_host_worker(exe_path, content, content_len, str_dup_n(name, name_len), node_origin_source(expr), expr);
             var n i64 = phase_worker_status;
             if output != nil { n = strlen(output); }
 
             if n < 0 {
+                if reader_host_errors != 0 { return; }
                 cg_error_prefix();
                 eprint("reader '");
                 eprint_buf(name, name_len);
@@ -5838,8 +5843,9 @@ func gen_decl(decl *u8) void {
         if embedded_func != nil {
             // Call embedded reader function directly
             var reader_fn fn(*u8) *u8 = embedded_func;
-            output = reader_fn(content);
+            output = reader_host_embedded(embedded_func, str_dup_n(content, content_len), str_dup_n(name, name_len), node_origin_source(decl), decl);
             if output == nil {
+                if reader_host_errors != 0 { return; }
                 // Error already reported in first pass
                 return;
             }
@@ -5855,7 +5861,7 @@ func gen_decl(decl *u8) void {
             var exe_path *u8 = build_reader_cache_path(name, name_len);
 
             // Execute reader with content as input
-            output = phase_worker_call(exe_path, content, content_len);
+            output = reader_host_worker(exe_path, content, content_len, str_dup_n(name, name_len), node_origin_source(decl), decl);
             var n i64 = phase_worker_status;
             if output != nil { n = strlen(output); }
 

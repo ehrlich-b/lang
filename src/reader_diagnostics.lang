@@ -1,0 +1,127 @@
+// The compiler grants a reader-local source key exactly one immutable input.
+// This adapter is shared by read, embedded compilers, and reader expansion.
+var reader_host_key *u8 = nil;
+var reader_host_text *u8 = nil;
+var reader_host_source i64 = 0;
+var reader_host_base i64 = 0;
+var reader_host_origin i64 = 0;
+var reader_host_errors i64 = 0;
+var reader_host_category i64 = 0;
+
+func reader_host_begin(key *u8, text *u8, path *u8, node *u8) void {
+    reader_host_key = key; reader_host_text = text;
+    reader_host_errors = 0; reader_host_base = 0;
+    reader_host_origin = node_origin_id(node);
+    if path == nil { path = "<reader-input>"; }
+    var origin *PhaseOrigin = phase_origin_get(reader_host_origin);
+    if origin != nil {
+        var source *PhaseSource = phase_source_get(origin.source);
+        var len i64 = strlen(text);
+        if origin.end - origin.start == len &&
+           memcmp(source.text + origin.start, text, len) != 0 {
+            reader_host_source = origin.source; reader_host_base = origin.start;
+        } else { reader_host_source = phase_source_register(path, text); }
+    } else { reader_host_source = phase_source_register(path, text); }
+    reader_diagnostic_hook = &reader_host_accept;
+}
+func reader_host_json_origin(id i64, depth i64) void {
+    var o *PhaseOrigin = phase_origin_get(id);
+    if o == nil || depth > 64 { return; }
+    var s *PhaseSource = phase_source_get(o.source);
+    ___compiler_diagnostic_write("{\"source_id\":"); ___compiler_diagnostic_integer(s.id);
+    ___compiler_diagnostic_write(",\"path\":"); ___compiler_diagnostic_string(s.name, strlen(s.name));
+    ___compiler_diagnostic_write(",\"span\":{\"start\":"); ___compiler_diagnostic_integer(o.start);
+    ___compiler_diagnostic_write(",\"end\":"); ___compiler_diagnostic_integer(o.end);
+    ___compiler_diagnostic_write("}}");
+    if o.expansion_parent != 0 && depth < 64 {
+        ___compiler_diagnostic_write(","); reader_host_json_origin(o.expansion_parent, depth + 1);
+    }
+    if o.include_parent != 0 && depth < 64 {
+        ___compiler_diagnostic_write(","); reader_host_json_origin(o.include_parent, depth + 1);
+    }
+}
+func reader_host_details() void {
+    ___compiler_diagnostic_write(",\"source_id\":"); ___compiler_diagnostic_integer(reader_host_source);
+    ___compiler_diagnostic_write(",\"category\":");
+    if reader_host_category == 0 { ___compiler_diagnostic_write("\"guest\""); }
+    else { ___compiler_diagnostic_write("\"reader\""); }
+    ___compiler_diagnostic_write(",\"origin_chain\":[");
+    reader_host_json_origin(reader_host_origin, 0); ___compiler_diagnostic_write("]");
+}
+func reader_host_protocol() void {
+    reader_host_errors = reader_host_errors + 1; reader_host_category = 1;
+    var s *PhaseSource = phase_source_get(reader_host_source);
+    ___compiler_diagnostic_context("reader-diagnostic-invalid", s.name, -1, -1);
+    ___compiler_diagnostic_details = &reader_host_details;
+    if ___compiler_diagnostic_json != 0 { eprintln("invalid reader diagnostic"); }
+    else { eprint(s.name); eprintln(": invalid reader diagnostic"); ___compiler_diagnostic_details = nil; }
+}
+func reader_host_accept(d *ReaderDiagnostic, text *u8) void {
+    if reader_diagnostic_valid(d, reader_host_text) == 0 {
+        reader_host_protocol(); return;
+    }
+    if streq(d.source, reader_host_key) == 0 || streq(text, reader_host_text) == 0 {
+        reader_host_protocol(); return;
+    }
+    reader_host_errors = reader_host_errors + 1; reader_host_category = d.category;
+    var source *PhaseSource = phase_source_get(reader_host_source);
+    // A reader implementation failure is identified separately, never pinned
+    // to an invented guest token. The invocation remains in the origin chain.
+    var start i64 = -1; var end i64 = -1;
+    if d.category == 0 && d.start >= 0 {
+        start = d.start + reader_host_base; end = d.end + reader_host_base;
+    }
+    ___compiler_diagnostic_context(d.code, source.name, start, end);
+    ___compiler_diagnostic_details = &reader_host_details;
+    var display *ReaderDiagnostic = alloc(48);
+    display.code = d.code; display.message = d.message; display.source = source.name;
+    display.start = start; display.end = end; display.category = d.category;
+    if ___compiler_diagnostic_json != 0 { eprintln(d.message); }
+    else { reader_diagnostic_text(display, source.text); ___compiler_diagnostic_details = nil; }
+}
+func reader_host_decode(bytes *PhaseBuffer) void {
+    var pos i64 = 0;
+    while pos < bytes.len {
+        if bytes.len - pos < 28 { reader_host_protocol(); return; }
+        var p *u8 = bytes.data + pos;
+        if memcmp(p, "RDI1", 4) == 0 { reader_host_protocol(); return; }
+        var code i64 = reader_diagnostic_u32(p + 16);
+        var key i64 = reader_diagnostic_u32(p + 20);
+        var message i64 = reader_diagnostic_u32(p + 24);
+        if code > 256 || key > 4096 || message > 1048576 ||
+           code + key + message > bytes.len - pos - 28 { reader_host_protocol(); return; }
+        var d *ReaderDiagnostic = alloc(48);
+        d.category = reader_diagnostic_u32(p + 4);
+        d.start = reader_diagnostic_u32(p + 8) - 1;
+        d.end = reader_diagnostic_u32(p + 12) - 1;
+        d.code = str_dup_n(p + 28, code);
+        d.source = str_dup_n(p + 28 + code, key);
+        d.message = str_dup_n(p + 28 + code + key, message);
+        if strlen(d.code) != code || strlen(d.source) != key || strlen(d.message) != message {
+            reader_host_protocol(); return;
+        }
+        phase_utf8_validate(d.code, "<reader-diagnostic>");
+        phase_utf8_validate(d.source, "<reader-diagnostic>");
+        phase_utf8_validate(d.message, "<reader-diagnostic>");
+        reader_host_accept(d, reader_host_text);
+        pos = pos + 28 + code + key + message;
+    }
+}
+func reader_host_embedded(fnptr *u8, content *u8, key *u8, path *u8, node *u8) *u8 {
+    reader_host_begin(key, content, path, node);
+    var reader_fn fn(*u8) *u8 = fnptr;
+    var output *u8 = reader_fn(content);
+    reader_diagnostic_hook = nil;
+    if reader_host_errors != 0 { cg_had_error = 1; return nil; }
+    return output;
+}
+func reader_host_worker(program *u8, content *u8, len i64, key *u8, path *u8, node *u8) *u8 {
+    var text *u8 = str_dup_n(content, len);
+    reader_host_begin(key, text, path, node);
+    phase_worker_capture_stderr = 1; phase_worker_stderr = nil;
+    var output *u8 = phase_worker_call(program, text, len);
+    phase_worker_capture_stderr = 0; reader_diagnostic_hook = nil;
+    if phase_worker_stderr != nil { reader_host_decode(phase_worker_stderr); }
+    if reader_host_errors != 0 { cg_had_error = 1; phase_worker_status = -1; return nil; }
+    return output;
+}

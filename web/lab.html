@@ -431,6 +431,7 @@ func main() *u8 {
     }
     if chunk < 0 { return nil; }
     *(text + length) = 0;
+    reader_diagnostic_wire = 1;
     return ${name}(text);
 }
 `;
@@ -447,7 +448,9 @@ func main() *u8 {
 
     phase = 'reader run';
     status.textContent = `${phase}…`;
-    const readerRun = await runLangProgram(readerProgram, undefined, customSource.value);
+    const readerRun = await runLangProgram(readerProgram, undefined, customSource.value, {
+      key: name, path: 'source.read', sourceId: 1, text: customSource.value,
+    });
     showReaderDiagnostics(readerRun.stderr);
     if (readerRun.value === 0n) {
       throw new Error(readerRun.stderr || readerRun.stdout || 'reader returned nil');

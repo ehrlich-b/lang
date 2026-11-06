@@ -256,12 +256,67 @@ function formatLangAst(source) {
   return output.join('');
 }
 
-async function runLangProgram(wasmBytes, onWrite, inputText) {
+// Decode the same bounded RDI1 records as the native compiler. Hosts mint
+// source IDs; reader-local names cannot name unrelated files or editor buffers.
+function decodeReaderDiagnostics(data, context) {
+  const records = [];
+  const text = new TextEncoder().encode(context.text);
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  let pos = 0;
+  if (data.length > 1048576) throw new Error('invalid reader diagnostic');
+  const boundary = n => n >= 0 && n <= text.length &&
+    (n === text.length || text[n] < 128 || text[n] >= 192);
+  while (pos < data.length) {
+    if (data.length - pos < 28 || decoder.decode(data.subarray(pos, pos + 4)) !== 'RDI1') {
+      throw new Error('invalid reader diagnostic');
+    }
+    const fields = Array.from({ length: 6 }, (_, i) => view.getUint32(pos + 4 + i * 4, true));
+    const [category, from, to, codeLen, keyLen, messageLen] = fields;
+    const size = codeLen + keyLen + messageLen;
+    if (category > 1 || !codeLen || codeLen > 256 || !keyLen || keyLen > 4096 ||
+        messageLen > 1048576 || size > data.length - pos - 28 ||
+        !((from === 0 && to === 0) ||
+          (from > 0 && to >= from && boundary(from - 1) && boundary(to - 1)))) {
+      throw new Error('invalid reader diagnostic');
+    }
+    pos += 28;
+    const code = decoder.decode(data.subarray(pos, pos += codeLen));
+    const key = decoder.decode(data.subarray(pos, pos += keyLen));
+    const message = decoder.decode(data.subarray(pos, pos += messageLen));
+    if (key !== context.key || [code, key, message].some(s => s.includes('\0'))) {
+      throw new Error('invalid reader diagnostic');
+    }
+    records.push({ version: 1, code, message, severity: 'error', path: context.path,
+      source_id: context.sourceId, category: category ? 'reader' : 'guest',
+      span: from && !category ? { start: from - 1, end: to - 1 } : null,
+      origin_chain: context.originChain || [] });
+  }
+  return records;
+}
+
+function readerDiagnosticText(record, text) {
+  let location = `${record.path}:`;
+  if (record.span) {
+    const prefix = new TextEncoder().encode(text).subarray(0, record.span.start);
+    const lines = new TextDecoder().decode(prefix).split('\n');
+    const column = new TextEncoder().encode(lines[lines.length - 1]).length + 1;
+    location += `${lines.length}:${column}:`;
+  }
+  let message = `${location} ${record.message}`;
+  if (record.code === 'reader-syntax' && record.span) {
+    message += ` @${record.span.start}:${record.span.end}`;
+  }
+  return `${message}\n`;
+}
+
+async function runLangProgram(wasmBytes, onWrite, inputText, readerContext) {
   let instance = null;
   let heapTop = 0;
   let inputPos = 0;
   let stdout = '';
   let stderr = '';
+  const readerBytes = [];
   const decoder = new TextDecoder();
   const input = typeof inputText === 'string'
     ? new TextEncoder().encode(inputText)
@@ -306,7 +361,8 @@ async function runLangProgram(wasmBytes, onWrite, inputText) {
     },
     write: (fdValue, ptrValue, countValue) => {
       const data = bytes().subarray(number(ptrValue), number(ptrValue) + number(countValue));
-      emit(decoder.decode(data), number(fdValue) === 2);
+      if (readerContext && number(fdValue) === 2) readerBytes.push(...data);
+      else emit(decoder.decode(data), number(fdValue) === 2);
       return BigInt(data.length);
     },
     open: () => -1n,
@@ -360,7 +416,20 @@ async function runLangProgram(wasmBytes, onWrite, inputText) {
     if (error instanceof ExitTrap) exit = error.code;
     else throw error;
   }
-  return { value, exit, stdout, stderr, instance };
+  let diagnostics = [];
+  if (readerContext) {
+    try {
+      diagnostics = decodeReaderDiagnostics(new Uint8Array(readerBytes), readerContext);
+      stderr = diagnostics.map(record => readerDiagnosticText(record, readerContext.text)).join('');
+    } catch {
+      diagnostics = [{ version: 1, code: 'reader-diagnostic-invalid', severity: 'error',
+        path: readerContext.path, source_id: readerContext.sourceId, span: null,
+        message: 'invalid reader diagnostic', category: 'reader', origin_chain: readerContext.originChain || [] }];
+      stderr = `${readerContext.path}: invalid reader diagnostic\n`;
+    }
+    if (diagnostics.length) { value = 0n; exit = 1; }
+  }
+  return { value, exit, stdout, stderr, instance, diagnostics };
 }
 
-if (typeof module !== 'undefined') module.exports = { formatLangAst, runLangProgram };
+if (typeof module !== 'undefined') module.exports = { formatLangAst, runLangProgram, decodeReaderDiagnostics, readerDiagnosticText };

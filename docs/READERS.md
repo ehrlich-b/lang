@@ -236,3 +236,46 @@ lexical error: its byte span runs from the opener through EOF, and its expected
 text is the configured closer. It cannot satisfy `tok_eof` or `tok_expect_end`,
 and parser backtracking preserves that diagnostic. Line comments may end at EOF;
 readers with no configured comments continue to receive ordinary tokens.
+
+### Reader diagnostic records
+
+`reader_error(code, message, source_key, text, start, end)` reports a guest
+error independently of the returned AST. `source_key` is the reader name;
+`text` is its exact input. Ranges are half-open UTF-8 byte offsets, with
+`-1, -1` for an absent span. `tok_print_error` retains the furthest mismatch
+and its exact token bytes; `pnode_print_error` uses the same record API.
+Standalone use retains the existing text format. Shipping supplies stable
+codes for syntax, duplicate, unknown, missing and out-of-range settings.
+
+The native host maps the source key to the invoking file snapshot, validates
+UTF-8 boundaries, and rejects diagnostics before parsing any returned AST.
+`lang read ... --diagnostics=json` and minted compilers' `--diagnostics=json`
+produce version 1 JSON Lines on stderr, with separate code, message, path,
+source ID, optional span, category and origin chain. Source IDs are local to
+a compilation and distinguish immutable snapshots, even with equal names.
+Missing spans remain null. Nested expansions retain their invocation origins.
+A `ReaderDiagnostic` with category 1 identifies a reader implementation error;
+its guest span remains absent. Failed reader compilation uses compiler errors
+at the reader source, independently of guest diagnostics.
+
+Native wrappers and browser reader harnesses enable `reader_diagnostic_wire`.
+They send bounded RDI1 records on stderr while stdout/return values carry AST.
+The 28-byte header contains magic RDI1 and six little-endian u32 values:
+category, start+1, end+1, code length, source-key length, message length,
+followed by the three UTF-8 strings. Absent spans encode as 0,0. Keys and codes
+must be nonempty; embedded NULs, unknown keys, bad lengths and invalid ranges
+are rejected. Any diagnostic blocks AST, including when a reader returns a
+well-formed AST anyway. This protocol validates data; trusted native readers
+still run with host process authority.
+
+The browser `runLangProgram` accepts an optional fourth reader context
+`{key, path, sourceId, text, originChain}` and returns `diagnostics` alongside
+text stderr. The Lab uses this host mapping; it never infers a source from a
+reader-controlled filename. The UI still converts UTF-8 offsets to UTF-16
+only when selecting text.
+
+Run the bounded shipping diagnostic fragment with
+`python3 -B test/reader_author/diagnostics.py --case shipping`, or
+`env JOBS=2 make verify VERIFY_CASE=shipping-diagnostics`. Evidence defaults
+to a unique directory outside the checkout. Full suites and compiler fixed
+points remain integration checks.

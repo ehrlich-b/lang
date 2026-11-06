@@ -345,3 +345,5 @@ pub func getenv(name *u8) *u8 {
 // The platform this binary runs on (see libc_macos.lang for why this exists).
 pub func os_platform_name() *u8 { return "linux"; }
 pub func os_default_backend() *u8 { return "x86"; }
+
+func os_poll(fds *u8, count i64) i64 { return syscall(7, fds, count, -1); }
