@@ -654,7 +654,7 @@ func read_prepare_readers(reader_files *u8) i64 {
     var i i64 = 0;
     while i < vec_len(reader_files) {
         append_str(&source, &source_len, &source_cap, "include \"");
-        append_str(&source, &source_len, &source_cap, vec_get(reader_files, i));
+        append_str(&source, &source_len, &source_cap, escape_string_literal(vec_get(reader_files, i)));
         append_str(&source, &source_len, &source_cap, "\"\n");
         i = i + 1;
     }
@@ -1777,7 +1777,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
         while i < vec_len(input_files) {
             var path *u8 = vec_get(input_files, i);
             append_str(&source_buf, &source_len, &source_cap, "include \"");
-            append_str(&source_buf, &source_len, &source_cap, path);
+            append_str(&source_buf, &source_len, &source_cap, escape_string_literal(path));
             append_str(&source_buf, &source_len, &source_cap, "\"\n");
             i = i + 1;
         }
