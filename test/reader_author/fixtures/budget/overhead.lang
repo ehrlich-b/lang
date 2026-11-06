@@ -10,7 +10,7 @@ func main(argc i64, argv **u8) i64 {
     if streq(overhead_arg(argv, 2), "off") { tok_parser_instrumentation = 0; }
     var result *u8 = nil;
     var i i64 = 0;
-    while i < 100 {
+    while i < 10000 {
         if streq(overhead_arg(argv, 1), "tiny") { result = tiny("answer 42"); }
         else { result = shipping("shipping { base 10; free_over 100; }"); }
         if result == nil { return 1; }

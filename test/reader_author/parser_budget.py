@@ -128,7 +128,7 @@ def main():
         result = replay.run([compiler, 'project', 'read', str(work_manifest)], 'project-work-budget', clone, expected=1)
         require(b'parser-work-budget' in result.stderr and b'parser rule chain' in result.stderr,
                 'project work limit did not reach reader')
-        minted = scratch / 'budgetc' 
+        minted = scratch / 'budgetc'
         replay.run([compiler, 'project', 'compiler', manifest, '-o', str(minted)], 'mint-budget-compiler', clone)
         result = replay.run([str(minted), str(clone / fixture / 'input.budget'), '-o', str(scratch / 'bad.ll')],
                             'minted-budget', clone, expected=1)
@@ -142,10 +142,21 @@ def main():
             result = replay.run([compiler, 'project', 'check', str(project)], 'invalid-limit', clone, expected=1)
             require(b'invalid parser limit' in result.stderr and re.search(rb':\d+:\d+: error:', result.stderr),
                     'invalid project quota was not located')
+        shipping_manifest = clone / 'example/shipping/project.lang-project'
+        project_ast = replay.run([compiler, 'project', 'read', str(shipping_manifest)], 'shipping-project-success', clone)
+        legacy_ast = replay.run([compiler, 'read', 'example/shipping/shipping.lang', 'example/shipping/policy.shipping'],
+                                'shipping-legacy-success', clone)
+        require(project_ast.stdout == legacy_ast.stdout and not project_ast.stderr and not legacy_ast.stderr,
+                'project quotas changed successful shipping AST')
+        small = evidence / 'small.budget'
+        small.write_text('1')
+        replay.run([str(minted), str(small), '-o', str(scratch / 'small.ll')], 'minted-under-budget', clone)
+        require((scratch / 'small.ll').is_file() and not (scratch / 'bad.ll').exists(),
+                'minted compiler failed success or emitted an over-budget artifact')
         overhead = {}
         for reader in ('tiny', 'shipping'):
             outputs, times = {}, {'off': [], 'on': []}
-            # Alternating order, five samples per mode; each process runs 100 reads.
+            # Alternating order, five samples per mode; each process runs 10000 reads.
             for sample in range(5):
                 for mode in (('off', 'on') if sample % 2 == 0 else ('on', 'off')):
                     result = replay.run([str(scratch / 'overhead'), reader, mode], f'overhead-{reader}-{mode}-{sample}', clone)
@@ -154,7 +165,7 @@ def main():
                     times[mode].append(replay.rows[-1]['wall_seconds'])
             require(outputs['off'] == outputs['on'], 'instrumentation changed reader AST')
             medians = {mode: statistics.median(values) for mode, values in times.items()}
-            overhead[reader] = {'reads_per_process': 100, 'wall_seconds': times, 'median_seconds': medians,
+            overhead[reader] = {'reads_per_process': 10000, 'wall_seconds': times, 'median_seconds': medians,
                                 'enabled_over_disabled': medians['on'] / medians['off'],
                                 'note': 'tiny is handwritten: a control with no generated recognition calls' if reader == 'tiny'
                                         else 'shipping uses generated recognition counters; process and AST costs included'}
