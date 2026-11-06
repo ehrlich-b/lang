@@ -1,0 +1,55 @@
+// Local export orchestration; the existing project loader owns language inputs.
+func cmd_help_package() i64 {
+    println("lang package --project PROJECT --metadata JSON -o ARCHIVE.tar.gz");
+    println("Export a minted compiler, example, runtime contract, notices and receipt.");
+    println("Requires Python 3, Clang and explicit runtime/license metadata; never installs.");
+    return 0;
+}
+
+func cmd_package(argc i64, argv **u8) i64 {
+    if argc == 3 && streq(get_arg(argv, 2), "--help") { return cmd_help_package(); }
+    var manifest *u8 = nil; var metadata *u8 = nil; var output *u8 = nil;
+    var i i64 = 2;
+    while i < argc {
+        var option *u8 = get_arg(argv, i);
+        if i + 1 >= argc { eprintln("Error: package option needs a path"); return 1; }
+        var value *u8 = get_arg(argv, i + 1);
+        if *value == '-' { eprintln("Error: package option needs a path"); return 1; }
+        if streq(option, "--project") && manifest == nil { manifest = value; }
+        else if streq(option, "--metadata") && metadata == nil { metadata = value; }
+        else if streq(option, "-o") && output == nil { output = value; }
+        else { eprintln("Error: unknown or duplicate package option"); return 1; }
+        i = i + 2;
+    }
+    if manifest == nil || metadata == nil || output == nil { cmd_help_package(); return 1; }
+    var project *LanguageProject = project_load(manifest);
+    if native_build_profile(manifest, LANG_BUILD_ARCH) != 0 { return 1; }
+    var python *u8 = find_in_path("python3");
+    if python == nil { eprintln("Error: package requires Python 3"); return 127; }
+    var arguments *u8 = vec_new(32);
+    vec_push(arguments, python);
+    vec_push(arguments, str_concat(cg_resource_root, "/scripts/lang_package.py"));
+    vec_push(arguments, "--compiler"); vec_push(arguments, phase_compiler_path);
+    vec_push(arguments, "--project"); vec_push(arguments, manifest);
+    vec_push(arguments, "--metadata"); vec_push(arguments, metadata);
+    vec_push(arguments, "--output"); vec_push(arguments, output);
+    vec_push(arguments, "--entry"); vec_push(arguments, project_field(project, "entry"));
+    vec_push(arguments, "--identity"); vec_push(arguments, project.identity);
+    i = 0;
+    while i < vec_len(project.runtimes) {
+        vec_push(arguments, "--runtime"); vec_push(arguments, vec_get(project.runtimes, i)); i = i + 1;
+    }
+    // Captured transitive inputs come from the same resolver as project check.
+    i = 1;
+    while i <= vec_len(phase_sources) {
+        var source *PhaseSource = phase_source_get(i);
+        if source.captured != 0 { vec_push(arguments, "--input"); vec_push(arguments, source.name); }
+        i = i + 1;
+    }
+    var pid i64 = os_fork();
+    if pid == 0 {
+        os_execve(python, project_argv(arguments), ___envp);
+        os__exit(127);
+    }
+    return native_build_wait(pid, "package");
+}

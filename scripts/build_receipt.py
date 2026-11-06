@@ -20,7 +20,8 @@ def git(*args):
 def inputs():
     # Generated browser outputs and receipts deliberately are not source inputs.
     paths = git('ls-files', 'src', 'std', 'example', 'test/reader_locations',
-                'Makefile', 'scripts/build_receipt.py', 'web/build.sh',
+                'Makefile', 'scripts/build_receipt.py', 'scripts/lang_package.py',
+                'scripts/package_kit.py', 'web/build.sh',
                 'web/build_compiler.sh', 'web/build_stdlib.js').splitlines()
     return {p: digest(p) for p in paths}
 

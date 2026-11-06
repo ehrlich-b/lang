@@ -2,6 +2,7 @@
 include "src/project.lang"
 include "src/project_scaffold.lang"
 include "src/native_build.lang"
+include "src/package.lang"
 
 // ============================================================
 // CLI helpers
@@ -1158,6 +1159,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     if argc > 0 {
         var subcmd *u8 = get_arg(argv, arg_offset);
         if streq(subcmd, "build") { return cmd_help_native_build(); }
+        if streq(subcmd, "package") { return cmd_help_package(); }
         if streq(subcmd, "compile") { return cmd_help_compile(); }
         if streq(subcmd, "run") { return cmd_help_run(); }
         if streq(subcmd, "read") { return cmd_help_read(); }
@@ -1180,6 +1182,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("Usage: lang [command] [options]");
     println("");
     println("Commands:");
+    println("  package     Export a local language compiler kit");
     println("  compile    Compile source files (default)");
     println("  project    Check or build a language project manifest");
     println("  run        Compile, link, and run a program");
@@ -1566,6 +1569,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
         }
         if streq(first, "build") { return cmd_native_build(argc, argv); }
         if streq(first, "project") { return cmd_project(argc, argv); }
+        if streq(first, "package") { return cmd_package(argc, argv); }
         if streq(first, "read") {
             return cmd_read(argc - 2, argv, 2);
         }
