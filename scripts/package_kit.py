@@ -74,7 +74,7 @@ def main():
             print('Verified compiler kit')
             return 0
         require(args.output is not None, '--output is required')
-        output = args.output.absolute()
+        output = args.output.resolve()
         require(root != output and root not in output.parents, 'output must be outside the kit')
         env = dict(os.environ, LANGBE='llvm', LANGOS='linux')
         env.pop('LANG_ROOT', None)

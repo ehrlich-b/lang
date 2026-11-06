@@ -146,6 +146,21 @@ def main():
                     'missing resolved input hash: ' + str(input_path))
         require(receipt['dependencies']['linkage'] == 'dynamic' and
                 'libc.so' in receipt['dependencies']['observations']['compiler'], 'untruthful linkage receipt')
+        # A path outside the kit may still resolve inside it through a parent symlink.
+        alias = scratch / 'kit-bin-alias'
+        alias.symlink_to(kit / 'bin', target_is_directory=True)
+        compiler_hash = sha(kit / 'bin/compiler')
+        for action, destination in (('native', 'compiler'), ('llvm', 'new-output.ll')):
+            command = ['/usr/bin/python3', '-B', str(kit / 'kit.py'), action,
+                       '--output', str(alias / destination)]
+            if action == 'native':
+                command += ['--clang', tools['clang']['path']]
+            result = replay.run(command, 'reject-aliased-' + action, scratch, 1)
+            require(b'output must be outside the kit' in result.stderr, 'aliased output was not rejected')
+            require(sha(kit / 'bin/compiler') == compiler_hash and not (kit / 'bin/new-output.ll').exists(),
+                    'aliased output changed the kit')
+        replay.run(['/usr/bin/python3', '-B', str(kit / 'kit.py'), 'verify'],
+                   'verify-after-aliased-outputs', scratch)
         output = scratch / 'relocated output'
         output.mkdir()
         # Only the kit, output and system libraries/tools are mounted. Both
