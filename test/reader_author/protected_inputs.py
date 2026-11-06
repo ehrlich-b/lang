@@ -3,12 +3,16 @@
 import subprocess
 from pathlib import Path
 
-paths = ('web/host.js', 'web/compiler_host.js')
+paths = ('web/host.js', 'web/compiler_host.js', 'web/build_stdlib.js')
 subprocess.run(['git', 'diff', '--exit-code', '0149c1d', 'HEAD', '--',
                 'bootstrap/current', 'web', *(':(exclude)' + p for p in paths)], check=True)
 for path in paths:
     original = subprocess.check_output(['git', 'show', '0149c1d:' + path])
-    expected = original.replace(b'    getpid: () => 1n,',
+    if path == 'web/build_stdlib.js':
+        expected = original.replace(b"  'std/reader_diagnostics.lang',",
+                                    b"  'std/reader_diagnostics.lang',\n  'std/reader_exports.lang',")
+    else:
+        expected = original.replace(b'    getpid: () => 1n,',
                                 b'    clock_gettime: () => -1n,\n    realpath: (path) => Number(path),\n'
                                 b'    lstat: () => -1n,\n    fcntl: () => -1n,\n'
                                 b'    mkdtemp: () => 0,\n    access: () => -1n,\n    getpid: () => 1n,')
