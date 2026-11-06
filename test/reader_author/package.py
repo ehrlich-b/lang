@@ -98,7 +98,7 @@ def main():
             members = bundle.getmembers()
             require(all(not Path(m.name).is_absolute() and '..' not in Path(m.name).parts
                         and (m.isfile() or m.isdir()) for m in members), 'unsafe archive member')
-            bundle.extractall(unpacked)
+            bundle.extractall(unpacked, filter='data')
         kit = unpacked / 'kit'
         receipt = json.loads((kit / 'receipt.json').read_text())
         shutil.copyfile(kit / 'receipt.json', evidence / 'dependency-receipt.json')
@@ -128,7 +128,8 @@ def main():
         replay.run([*isolation, '/usr/bin/python3', '-B', '/kit/kit.py', 'verify'], 'relocated-verify', scratch)
         replay.run([*isolation, '/usr/bin/python3', '-B', '/kit/kit.py', 'llvm',
                     '--output', '/output/policy.ll'], 'relocated-llvm-no-tools', scratch)
-        replay.run([*isolation, '/usr/bin/python3', '-B', '/kit/kit.py', 'native',
+        native_isolation = [*isolation, '--setenv', 'PATH', '/usr/bin:/bin']
+        replay.run([*native_isolation, '/usr/bin/python3', '-B', '/kit/kit.py', 'native',
                     '--clang', tools['clang']['path'], '--output', '/output/shipping'], 'relocated-native', scratch)
         unbundled = scratch / 'unbundled'
         replay.run([compiler, 'build', '--project', str(project), str(shipping / 'policy.shipping'),

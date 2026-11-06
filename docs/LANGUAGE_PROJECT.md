@@ -270,7 +270,8 @@ all bundled hashes, required runtime metadata and notices before invoking the
 compiler. A changed or missing artifact fails; this integrity receipt is not a
 signature against a malicious distributor. Direct binary invocation bypasses
 the verifier. IR emission uses no toolchain or original source roots; native
-mode requires explicit `--clang` and uses the shared `-O0` native host driver.
+mode requires explicit `--clang`, the system linker on `PATH`, and uses the shared
+`-O0` native host driver.
 
 Run only `python3 -B test/reader_author/package.py --case relocated`, or
 `env JOBS=2 VERIFY_CASE=package make verify`. This fragment uses bubblewrap to

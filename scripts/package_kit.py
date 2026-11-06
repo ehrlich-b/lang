@@ -48,6 +48,8 @@ def verify(root):
     for name in metadata['runtime_sources']:
         require(name in artifacts, 'untracked runtime: ' + name)
     require(isinstance(metadata['licenses'], list) and metadata['licenses'], 'missing license metadata')
+    require({n['component'] for n in metadata['licenses']} >= {'compiler', 'reader', 'runtime'},
+            'missing license component metadata')
     for notice in metadata['licenses']:
         require(isinstance(notice['component'], str) and notice['component'].strip(), 'missing license component')
         require(notice['file'] in artifacts and member(root, notice['file']).read_text().strip(),
