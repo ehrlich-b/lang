@@ -418,3 +418,37 @@ nonlocal transfers, even when linked with `clang -O2`. Without `-g`, the existin
 effects optimization restriction still applies and LLVM output is unchanged. `python3 test/run_debug_info.py` checks
 exact unoptimized line rows, optimized file retention, IR verification, and
 native execution; add `--base-ref REV` to compare non-debug IR byte for byte.
+
+### Opt-in guest source formatting
+
+`lang project format path.lang-project [-o output]` prints the entry in its
+reader's guest syntax. It requires a reader that explicitly publishes a layout
+recipe; a handwritten reader without one gets `unsupported format`. There is
+no shared-AST-to-guest fallback: lowering may erase syntax, order and trivia.
+Output goes to stdout or the named file, with no status text. Parsing and
+validation finish before publication or opening the output file, so malformed
+input cannot be silently repaired or truncate an existing destination.
+
+Include `std/layout_recipe.lang` and check `layout_requested()` **after** complete
+parsing and language-specific validation, **before** lowering. Build a document
+with `layout_new`, `layout_text`, `layout_field` (original CST byte spans), and
+`layout_line` (newline followed by an explicit count of spaces). End with
+`layout_publish`, which returns the private source artifact to the project host.
+The reader chooses fields, repetition order, punctuation and indentation. The
+library has no language-specific rules and does not inspect shared core nodes.
+Readers own the validity and round-trip contract of their recipes.
+
+The [shipping recipe](../example/shipping/shipping.lang) uses checked named
+captures, preserves setting order and decimal spelling (including leading
+zeros), indents settings by four spaces, and emits a final newline. Its
+parse-format-parse semantic model is unchanged and formatting is byte-idempotent.
+It calls `layout_whitespace_only` on its actual tokenizer, refusing comments
+anywhere with a located `unsupported-trivia` error. Ordinary shipping parsing
+still accepts comments. A recipe that retains comments must place their source
+spans explicitly instead of calling this refusal helper. This helper checks
+skipped gaps between tokens; it does not infer trivia rules from a second lexer.
+
+Run the focused fragment with `JOBS=2 python3 -B test/reader_author/format.py --case shipping`
+or `VERIFY_CASE=format JOBS=2 make verify`. It records command exits, stdout,
+stderr, source/tool hashes and resource limits outside the checkout. Full
+bootstrap fixed points remain part of integration verification.

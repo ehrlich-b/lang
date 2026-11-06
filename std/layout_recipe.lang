@@ -1,0 +1,55 @@
+// Opt-in CST source layout. Readers choose literals, fields and indentation;
+// this module never visits shared AST nodes or guesses a surface grammar.
+include "std/emit.lang"
+include "std/reader_request.lang"
+
+pub func layout_requested() bool {
+    var request *u8 = reader_request_inspect_stage;
+    if request == nil { return false; }
+    return streq(request, "format");
+}
+
+// Refuse skipped non-whitespace bytes using the reader's actual token stream.
+// Call only after complete parsing and semantic validation. Recipes that retain
+// trivia can instead place it explicitly with layout_field/layout_text.
+pub func layout_whitespace_only(tokens *Tokenizer, language *u8) void {
+    var saved i64 = tok_mark(tokens);
+    tok_reset(tokens, 0);
+    var end i64 = 0;
+    while true {
+        var start i64 = tok_start_offset(tokens);
+        var i i64 = end;
+        while i < start {
+            var ch i64 = *(tokens.input + i);
+            if ch != 32 && ch != 9 && ch != 10 && ch != 13 {
+                pnode_print_error(pnode_atom_span(PNODE_TOKEN, nil, i, i + 1),
+                    tokens.input, language, "unsupported-trivia: layout recipe accepts whitespace only");
+                exit(1);
+            }
+            i = i + 1;
+        }
+        if tok_eof(tokens) { break; }
+        end = tok_end_offset(tokens);
+        tok_next(tokens);
+    }
+    tok_reset(tokens, saved);
+}
+
+pub func layout_new() *StringBuilder { return sb_new(); }
+pub func layout_text(doc *StringBuilder, text *u8) void { sb_str(doc, text); }
+pub func layout_line(doc *StringBuilder, indent i64) void {
+    sb_char(doc, 10);
+    var i i64 = 0;
+    while i < indent { sb_char(doc, 32); i = i + 1; }
+}
+pub func layout_field(doc *StringBuilder, source *u8, node *PNode) void {
+    if node == nil { eprintln("layout error: missing CST field"); exit(1); }
+    if node.start < 0 || node.end < node.start || node.end > strlen(source) {
+        eprintln("layout error: invalid CST field span"); exit(1);
+    }
+    var i i64 = node.start;
+    while i < node.end { sb_char(doc, *(source + i)); i = i + 1; }
+}
+pub func layout_publish(doc *StringBuilder) void {
+    print("LANG-FORMAT/1\n"); print(sb_finish(doc)); exit(0);
+}

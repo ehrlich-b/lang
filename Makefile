@@ -471,6 +471,9 @@ verify:
 else ifeq ($(VERIFY_CASE),rill)
 verify:
 	python3 -B test/reader_author/rill.py --case compiler-module
+else ifeq ($(VERIFY_CASE),format)
+verify:
+	python3 -B test/reader_author/format.py --case shipping
 else ifeq ($(VERIFY_CASE),inspect)
 verify:
 	python3 -B test/reader_author/inspect.py --case shipping

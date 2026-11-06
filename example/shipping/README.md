@@ -159,3 +159,10 @@ output, where intermediate AST, LLVM, object files and failed builds remain
 inspectable. Tool and compiler content changes also trigger rebuilding. Reusing
 reader artifacts follows the native driver's existing cache rules; watch adds
 no persistent artifact cache.
+
+Canonical guest source is available with `out/lang_next project format
+example/shipping/project.lang-project` after `make build`. Add `-o formatted.shipping`
+to save it. The explicit CST recipe preserves setting order and decimal spelling,
+uses four spaces and a final newline, and refuses comments with a located
+`unsupported-trivia` error. It validates the complete policy before printing;
+invalid policies remain errors. See [recipe authoring](../../docs/READERS.md#opt-in-guest-source-formatting).

@@ -2,6 +2,8 @@ include "std/parser_reader.lang"
 include "std/ast.lang"
 include "example/shipping/exports.lang"
 
+include "std/layout_recipe.lang"
+
 #parser{
     !captures;
     !inspect shipping_policy;
@@ -30,6 +32,26 @@ func shipping_number(node *PNode, text *u8) i64 {
         return -1;
     }
     return value;
+}
+
+// Explicit guest syntax recipe, independent of the lowering below.
+func shipping_layout(tree *PNode, text *u8, tokens *Tokenizer) void {
+    layout_whitespace_only(tokens, "shipping");
+    var doc *StringBuilder = layout_new();
+    layout_text(doc, "shipping {");
+    var settings *u8 = capture_shipping_policy_repeated(tree, "settings");
+    var i i64 = 0;
+    while i < vec_len(settings) {
+        var setting *PNode = vec_get(settings, i);
+        layout_line(doc, 4);
+        layout_field(doc, text, capture_shipping_setting_required(setting, "name"));
+        layout_text(doc, " ");
+        layout_field(doc, text, capture_shipping_setting_required(setting, "value"));
+        layout_text(doc, ";");
+        i = i + 1;
+    }
+    layout_line(doc, 0); layout_text(doc, "}"); layout_line(doc, 0);
+    layout_publish(doc);
 }
 
 func shipping_read(text *u8, with_main bool) *u8 {
@@ -61,6 +83,7 @@ func shipping_read(text *u8, with_main bool) *u8 {
     if base < 0 || free_over < 0 {
         reader_error("shipping-missing", "missing setting; require base and free_over", "shipping", text, tree.start, tree.end); return nil;
     }
+    if layout_requested() { shipping_layout(tree, text, tokens); }
     // Shared AST boundary: policy constants become data; total stays a variable.
     var names *u8 = vec_new(1);
     vec_push(names, "total");

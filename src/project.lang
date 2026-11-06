@@ -206,15 +206,15 @@ func project_argv(arguments *u8) **u8 {
 
 func cmd_project(argc i64, argv **u8) i64 {
     if argc != 4 && argc != 6 {
-        eprintln("Usage: lang project check|read|compiler|editor manifest [-o output]"); return 1;
+        eprintln("Usage: lang project check|read|format|compiler|editor manifest [-o output]"); return 1;
     }
     var action *u8 = get_arg(argv, 2);
-    if !streq(action, "check") && !streq(action, "watch-inputs") && !streq(action, "read") && !streq(action, "compiler") && !streq(action, "editor") {
+    if !streq(action, "check") && !streq(action, "watch-inputs") && !streq(action, "read") && !streq(action, "compiler") && !streq(action, "editor") && !streq(action, "format") {
         eprintln("Error: unknown project action"); return 1;
     }
     if argc == 6 {
         if streq(action, "check") || !streq(get_arg(argv, 4), "-o") {
-            eprintln("Error: expected -o output for read, compiler or editor"); return 1;
+            eprintln("Error: expected -o output for read, format, compiler or editor"); return 1;
         }
     }
     if streq(action, "editor") && argc != 6 {
@@ -255,6 +255,11 @@ func cmd_project(argc i64, argv **u8) i64 {
         phase_recognition_depth = project_limit_value(project_field(project, "parser_depth"));
     }
     cg_langos_override = "linux";
+    if streq(action, "format") {
+        var output *u8 = nil;
+        if argc == 6 { output = get_arg(argv, 5); }
+        return project_format(project, output);
+    }
     var arguments *u8 = vec_new(16);
     vec_push(arguments, get_arg(argv, 0));
     if streq(action, "read") {
@@ -277,4 +282,27 @@ func project_limit_value(text *u8) i64 {
     var n i64 = 0;
     while *text != 0 { n = n * 10 + *text - 48; text = text + 1; }
     return n;
+}
+
+// Source formatting is an explicit reader capability, never an AST fallback.
+func project_format(project *LanguageProject, output *u8) i64 {
+    var readers *u8 = vec_new(1); vec_push(readers, project_field(project, "reader_source"));
+    var path *u8 = project_field(project, "entry");
+    var content *u8 = read_file(path);
+    if content == nil || read_prepare_readers(readers) == 0 { return 1; }
+    var name *u8 = project_field(project, "reader_name");
+    var artifact *u8 = phase_reader_call(build_reader_cache_path(name, strlen(name)), content, strlen(content), "format");
+    if artifact == nil { eprint(path); eprintln(": error: reader source formatting failed"); return 1; }
+    var header *u8 = "LANG-FORMAT/1\n";
+    var len i64 = strlen(header);
+    if strlen(artifact) < len || memcmp(artifact, header, len) == 0 {
+        eprint(path); eprintln(": error: unsupported format: reader has no layout recipe"); return 1;
+    }
+    var fd i64 = 1;
+    if output != nil { fd = file_open(output, O_WRONLY_CREAT_TRUNC); }
+    if fd < 0 { eprintln("Error: cannot create format output"); return 1; }
+    var ok i64 = read_write_ast(fd, artifact + len, 0);
+    if output != nil { file_close(fd); }
+    if ok == 0 { eprintln("Error: cannot write format output"); return 1; }
+    return 0;
 }
