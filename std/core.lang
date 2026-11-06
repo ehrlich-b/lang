@@ -76,9 +76,11 @@ pub func vec_push(v *u8, value i64) {
 
         // Copy old data
         var i i64 = 0;
+        var old_ptr *i64 = nil;
+        var new_ptr *i64 = nil;
         while i < len {
-            var old_ptr *i64 = data + i * 8;
-            var new_ptr *i64 = new_data + i * 8;
+            old_ptr = data + i * 8;
+            new_ptr = new_data + i * 8;
             *new_ptr = *old_ptr;
             i = i + 1;
         }
