@@ -153,6 +153,17 @@ def main():
             require(b'--emit must be native, ast or llvm' in result.stderr and not exe.exists(),
                     'invalid emit left a previous executable or lost its diagnostic')
 
+        # A later parse error must not bypass invalidation, even before -o.
+        for label, extra in (('unknown', '--unknown'), ('source', 'extra.shipping')):
+            for before_output in (False, True):
+                seed_previous()
+                command = [compiler, 'build', '--project', str(manifest), str(source), '--emit=bogus']
+                command += ([extra, '-o', str(exe)] if before_output else ['-o', str(exe), extra])
+                result = replay.run(command, 'invalid-emit-extra-' + label + '-' + str(before_output),
+                                    scratch, expected=1)
+                require(b'unknown build option or extra source' in result.stderr and not exe.exists(),
+                        'parse error left a previous executable or lost its diagnostic')
+
         # A configured executable that cannot be launched is a toolchain failure.
         seed_previous()
         missing_tool = scratch / 'missing configured clang'
