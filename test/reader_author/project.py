@@ -13,6 +13,18 @@ import uuid
 from route import Replay, ROOT, dump, require, sha
 
 
+class ProjectReplay(Replay):
+    def run(self, command, name, cwd, expected=0):
+        try:
+            return super().run(command, name, cwd, expected)
+        finally:
+            if self.rows and self.rows[-1]["name"] == name:
+                row = self.rows[-1]
+                row["environment"].update({key: self.env[key] for key in ("PATH", "MAKEFLAGS")})
+                dump(self.evidence / (Path(row["stdout"]).stem + ".json"), row)
+                dump(self.evidence / "stages.json", self.rows)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--case', choices=['manifest'], required=True)
@@ -32,7 +44,7 @@ def main():
     evidence.mkdir(parents=True, exist_ok=False)
     scratch = ROOT.parent / 'scratch' / ('manifest-' + token)
     scratch.mkdir(parents=True)
-    replay = Replay(evidence, scratch)
+    replay = ProjectReplay(evidence, scratch)
     replay.env.update(MAKEFLAGS='-j2', PYTHONDONTWRITEBYTECODE='1')
     print(f'evidence: {evidence}', flush=True)
     try:
@@ -84,6 +96,12 @@ def main():
             require(f'(number {number})'.encode() in result.stdout and not result.stderr, 'same-name reader collision')
             outputs.append(result.stdout)
         require(outputs[0] == outputs[2] and outputs[0] != outputs[1], 'reader isolation is not stable')
+        # File operands remain data even when their paths need source escaping.
+        quoted = scratch / 'quoted "project with spaces'
+        shutil.copytree(fixtures / 'alpha', quoted)
+        result = replay.run([compiler, 'project', 'read', str(quoted / 'project.lang-project')],
+                            'quoted-relative-path', scratch)
+        require(result.stdout == outputs[0] and not result.stderr, 'quoted path changed reader input')
         # Dependency changes at the same path must change the immutable identity.
         mutable = scratch / 'mutable'
         shutil.copytree(fixtures / 'alpha', mutable)
