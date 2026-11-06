@@ -123,14 +123,12 @@ def main():
         shutil.copyfile(ir, evidence / ir.name)
         rill_ast = replay.run([compiler, 'read', reader,
             'test/reader_author/fixtures/rill/preservation.rill'], 'preservation-ast', clone)
-        lang_output = scratch / 'equivalent.ast'
-        lang_ast = replay.run([compiler, '--emit-ast',
-            'test/reader_author/fixtures/rill/equivalent.lang', '-o', str(lang_output)],
+        lang_ast = replay.run([compiler, 'read', 'src/lang_reader.lang',
+            'test/reader_author/fixtures/rill/equivalent.lang'],
             'lang-equivalent-ast', clone)
         require(not rill_ast.stderr and not lang_ast.stderr, 'AST oracle diagnostic')
-        exact(lang_ast, f'Wrote AST to {lang_output}\n'.encode())
-        require(core(rill_ast.stdout) == core(lang_output.read_bytes()), 'Rill and Lang shared AST differ')
-        shutil.copyfile(lang_output, evidence / 'equivalent.ast')
+        require(core(rill_ast.stdout) == core(lang_ast.stdout), 'Rill and Lang shared AST differ')
+        (evidence / 'equivalent.ast').write_bytes(lang_ast.stdout)
         source = (clone / 'test/reader_author/fixtures/rill/preservation.rill').read_bytes()
         start = source.index(b'fun marker')
         require(re.search(fr'\(span\s+{start}\s+{start}\s+\(func marker'.encode(), rill_ast.stdout),
