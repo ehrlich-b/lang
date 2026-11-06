@@ -152,7 +152,7 @@ func main(argc i64, argv **u8) i64 {
         // Transform through reader → S-expression AST
         reader_host_begin(reader_compiler_name, content, arg, nil);
         var ast *u8 = reader_transform(content);
-        reader_diagnostic_hook = nil;
+        reader_host_finish();
         if reader_host_errors != 0 { return 1; }
         if ast == nil {
             return 1;

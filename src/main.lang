@@ -684,7 +684,7 @@ func read_prepare_readers(reader_files *u8) i64 {
 
 func read_error_prefix(source_path *u8) void {
     eprint(source_path);
-    eprint(":1:1: error: ");
+    eprint(": error: ");
 }
 
 func read_run_reader(name *u8, source_path *u8, content *u8) *u8 {

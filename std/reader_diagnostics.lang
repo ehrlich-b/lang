@@ -3,7 +3,10 @@
 struct ReaderDiagnostic {
     code *u8; message *u8; source *u8; start i64; end i64; category i64;
 }
-var reader_diagnostic_hook *u8 = nil;
+struct ReaderReport { diagnostic *ReaderDiagnostic; text *u8; }
+var reader_diagnostic_collect i64 = 0;
+var reader_diagnostic_reports *u8 = nil;
+var reader_diagnostic_invalid i64 = 0;
 var reader_diagnostic_wire i64 = 0;
 var reader_diagnostic_count i64 = 0;
 
@@ -56,12 +59,17 @@ pub func reader_diagnostic_text(d *ReaderDiagnostic, text *u8) void {
 }
 pub func reader_diagnostic_emit(d *ReaderDiagnostic, text *u8) void {
     reader_diagnostic_count = reader_diagnostic_count + 1;
-    if reader_diagnostic_hook != nil {
-        var report fn(*ReaderDiagnostic, *u8) void = reader_diagnostic_hook;
-        report(d, text); return;
-    }
     if reader_diagnostic_valid(d, text) == 0 {
-        eprintln("reader: invalid diagnostic"); return;
+        reader_diagnostic_invalid = 1;
+        if reader_diagnostic_collect == 0 { eprintln("reader: invalid diagnostic"); }
+        return;
+    }
+    if reader_diagnostic_collect != 0 {
+        if vec_len(reader_diagnostic_reports) >= 1024 { reader_diagnostic_invalid = 1; return; }
+        var owned *ReaderDiagnostic = alloc(48); memcpy(owned, d, 48);
+        owned.code = str_dup(d.code); owned.message = str_dup(d.message); owned.source = str_dup(d.source);
+        var report *ReaderReport = alloc(16); report.diagnostic = owned; report.text = str_dup(text);
+        vec_push(reader_diagnostic_reports, report); return;
     }
     if reader_diagnostic_wire == 0 { reader_diagnostic_text(d, text); return; }
     // RDI1: category, start+1, end+1, and three byte lengths (little-endian).
