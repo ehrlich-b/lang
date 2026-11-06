@@ -25,15 +25,6 @@ func native_build_same_file(left *u8, right *u8) i64 {
     return streq(a, b);
 }
 
-func native_build_write(path *u8, text *u8) i64 {
-    var fd i64 = file_open(path, O_WRONLY_CREAT_EXCL);
-    if fd < 0 { eprint("Error: cannot create "); eprintln(path); return 1; }
-    var ok i64 = file_write_all(fd, text);
-    if os_close(fd) != 0 { ok = 0; }
-    if ok == 0 { eprint("Error: cannot finish "); eprintln(path); return 1; }
-    return 0;
-}
-
 // A close-on-exec pipe distinguishes an exec failure from a tool that itself
 // exits 127. The original tool stderr remains connected to the caller.
 func native_build_tool(tool *u8, arg1 *u8, arg2 *u8, arg3 *u8, arg4 *u8, arg5 *u8) i64 {
