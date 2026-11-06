@@ -50,7 +50,7 @@ var ast_emit_cap i64 = 0;
 var ast_emit_indent i64 = 0;
 // Opt-in interchange origins for frontends reusing this parser/emitter.
 // Ordinary emission keeps its historical byte format.
-var ast_emit_origins bool = false;
+var ast_emit_origins i64 = 0;
 
 func ast_emit_init() void {
     ast_emit_cap = 256;
@@ -1018,8 +1018,8 @@ pub func ast_emit_program(prog *u8) *u8 {
 // Preserve every origin the parser supplies, including point locations. The
 // receiving host binds these relative byte spans to the actual guest file.
 pub func ast_emit_program_with_origins(prog *u8) *u8 {
-    var saved bool = ast_emit_origins;
-    ast_emit_origins = true;
+    var saved i64 = ast_emit_origins;
+    ast_emit_origins = 1;
     var result *u8 = ast_emit_program(prog);
     ast_emit_origins = saved;
     return result;
@@ -1040,7 +1040,7 @@ func ast_emit_node(node *u8) void {
     if phase_emit_depth > phase_depth_limit() { phase_error("ast-depth", phase_diagnostic_source); }
     if phase_emit_nodes > PHASE_AST_MAX_NODES { phase_error("ast-nodes", phase_diagnostic_source); }
     var origin *PhaseOrigin = nil;
-    if ast_emit_origins && node != nil {
+    if ast_emit_origins != 0 && node != nil {
         origin = phase_origin_get(node_origin_id(node));
     }
     if origin != nil {
