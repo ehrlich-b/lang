@@ -1,0 +1,11 @@
+project {
+    version 1;
+    reader_source "exit.lang";
+    reader_name "readerexit";
+    source_suffix ".readerexit";
+    runtime_files [];
+    entry "guest.readerexit";
+    backend "llvm";
+    native_profile "llvm-linux-x86_64";
+    native_toolchain "clang";
+}

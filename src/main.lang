@@ -422,7 +422,7 @@ func build_embedded_runtime_ast(runtime_files *u8) *u8 {
         if text == nil { return nil; }
         phase_source_capture(path, text);
         append_str(&source, &source_len, &source_cap, "include \"");
-        append_str(&source, &source_len, &source_cap, path);
+        append_str(&source, &source_len, &source_cap, escape_string_literal(path));
         append_str(&source, &source_len, &source_cap, "\"\n");
         i = i + 1;
     }
@@ -1161,6 +1161,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     // arg_offset is used because argv pointer arithmetic is unreliable
     if argc > 0 {
         var subcmd *u8 = get_arg(argv, arg_offset);
+        if streq(subcmd, "build") { return cmd_help_native_build(); }
         if streq(subcmd, "compile") { return cmd_help_compile(); }
         if streq(subcmd, "run") { return cmd_help_run(); }
         if streq(subcmd, "read") { return cmd_help_read(); }

@@ -1,0 +1,2 @@
+include "std/core.lang"
+reader readerexit(text *u8) *u8 { eprintln("reader exit control: original diagnostic"); exit(37); return nil; }
