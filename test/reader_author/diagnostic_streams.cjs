@@ -24,10 +24,22 @@ assert.equal(records[1].category, 'reader');
 assert.equal(records[1].span, null);
 assert.deepEqual(records[2].span, { start: 0, end: 2 });
 assert.ok(records.every(record => record.path === context.path && record.source_id === 7));
-// Every nonempty truncated prefix must reject even after complete large frames.
-for (let length = 1; length < tail.length; length++) {
+// Once the reserved marker is present, every truncated record must reject.
+for (let length = 4; length < tail.length; length++) {
   assert.throws(() => decodeReaderDiagnostics(Buffer.concat([large, tail.subarray(0, length)]), context));
 }
 assert.throws(() => decodeReaderDiagnostics(Buffer.concat([stream, Buffer.from('RDI1')]), context));
 console.log(JSON.stringify({ pass: true, messageBytes: Buffer.byteLength(message),
   mixedRecords: records.length, truncatedFrames: tail.length - 1 }));
+
+// Plain stderr remains in order around records, including short non-markers.
+const plain = Buffer.from('debug é\r\nR\0RD\xff');
+const chunks = [];
+const mixed = decodeReaderDiagnostics(Buffer.concat([plain, located, plain]), context,
+  text => chunks.push(text));
+assert.deepEqual(mixed, [records[2]]);
+assert.equal(chunks[0], plain.toString());
+assert.equal(chunks[1], '/guest/policy.broken:1:1: last guest message\n');
+assert.equal(chunks[2], plain.toString());
+assert.deepEqual(decodeReaderDiagnostics(plain, context), []);
+assert.throws(() => decodeReaderDiagnostics(Buffer.concat([plain, Buffer.from('RDI1')]), context));

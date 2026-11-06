@@ -69,7 +69,8 @@ function nativeDiagnostics() {
     assert.equal(result.status, 1, stderr);
     assert.equal(result.stdout.length, 0);
     assert.equal(fs.existsSync(output), false, `${c.name}: AST emitted`);
-    assert(stderr.split('\n').includes(c.diagnostic), stderr);
+    const expected = input + c.diagnostic.slice('diagnostic'.length);
+    assert(stderr.split('\n').includes(expected), stderr);
     assert(!stderr.includes('\ufffd'), stderr);
     console.log(`PASS ${c.name}: strict UTF-8, exit 1, no AST, ${c.diagnostic}`);
     return { name: c.name, diagnostic: c.diagnostic, start: c.start, end: c.end, exit: result.status, ast: false };

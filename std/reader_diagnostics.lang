@@ -64,7 +64,12 @@ pub func reader_diagnostic_emit(d *ReaderDiagnostic, text *u8) void {
     if reader_diagnostic_valid(d, text) == 0 ||
        (reader_diagnostic_snapshot != nil && streq(text, reader_diagnostic_snapshot) == 0) {
         reader_diagnostic_invalid = 1;
-        if reader_diagnostic_collect == 0 { eprintln("reader: invalid diagnostic"); }
+        if reader_diagnostic_collect == 0 {
+            // Invalid API calls must remain fatal at a host that also accepts
+            // ordinary stderr. A truncated reserved marker cannot be legacy text.
+            if reader_diagnostic_wire != 0 { file_write(2, "RDI1", 4); }
+            else { eprintln("reader: invalid diagnostic"); }
+        }
         return;
     }
     if reader_diagnostic_collect != 0 {

@@ -7,7 +7,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const cases = require('./reader_locations/cases.json');
-const diagnostic = c => `${c.name}:${c.line}:${c.column}: ${c.message}`;
+const diagnostic = (c, label = c.name) => `${label}:${c.line}:${c.column}: ${c.message}`;
 
 function nativeLocations() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'reader-locations-'));
@@ -24,8 +24,8 @@ function nativeLocations() {
     assert.equal(result.status, 1, `${c.name} must fail`);
     assert.equal(result.stdout, '', `${c.name} emitted stdout`);
     assert(!fs.existsSync(output), `${c.name} emitted an AST`);
-    assert(result.stderr.split('\n').includes(diagnostic(c)), result.stderr);
-    return { name: c.name, exit: result.status, diagnostic: diagnostic(c), ast: false };
+    assert(result.stderr.split('\n').includes(diagnostic(c, c.path)), result.stderr);
+    return { name: c.name, exit: result.status, diagnostic: diagnostic(c, c.path), ast: false };
   });
 }
 

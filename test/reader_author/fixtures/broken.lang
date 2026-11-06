@@ -42,6 +42,22 @@ reader broken(text *u8) *u8 {
         os__exit(0);
     } else if streq(text, "snapshot") {
         reader_error("snapshot", "wrong snapshot", "broken", "other input", -1, -1);
+    } else if streq(text, "plain-stderr") {
+        var debug *u8 = alloc(14);
+        memcpy(debug, "debug é\r\n", 10);
+        *(debug + 10) = 0; *(debug + 11) = 255; *(debug + 12) = 82;
+        file_write(2, debug, 13);
+        return "(program)";
+    } else if streq(text, "legacy-error") {
+        eprintln("legacy: lowering failed"); return nil;
+    } else if streq(text, "legacy-exit") {
+        eprintln("legacy: lowering failed"); os__exit(1);
+    } else if streq(text, "mixed-stderr") {
+        eprintln("debug before é");
+        reader_error("mixed-error", "guest failure", "broken", text, -1, -1);
+        eprintln("debug after é");
+    } else if streq(text, "plain-malformed") {
+        eprintln("debug before é"); file_write(2, "RDI1", 4);
     } else if streq(text, "raw") {
         file_write(2, "RDI1", 4);
     } else if streq(text, "bom") {

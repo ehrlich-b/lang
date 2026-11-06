@@ -258,7 +258,7 @@ function formatLangAst(source) {
 
 // Decode the same bounded RDI1 records as the native compiler. Hosts mint
 // source IDs; reader-local names cannot name unrelated files or editor buffers.
-function decodeReaderDiagnostics(data, context) {
+function decodeReaderDiagnostics(data, context, onStderr = () => {}) {
   const records = [];
   const text = new TextEncoder().encode(context.text);
   // Each field is exact UTF-8 data, including U+FEFF in source keys.
@@ -269,7 +269,12 @@ function decodeReaderDiagnostics(data, context) {
   const boundary = n => n >= 0 && n <= text.length &&
     (n === text.length || text[n] < 128 || text[n] >= 192);
   while (pos < data.length) {
-    if (data.length - pos < 28 || decoder.decode(data.subarray(pos, pos + 4)) !== 'RDI1') {
+    const plain = pos;
+    while (pos < data.length && !(data[pos] === 82 && data[pos + 1] === 68 &&
+           data[pos + 2] === 73 && data[pos + 3] === 49)) pos++;
+    if (pos > plain) onStderr(new TextDecoder('utf-8', { ignoreBOM: true }).decode(data.subarray(plain, pos)));
+    if (pos === data.length) break;
+    if (data.length - pos < 28) {
       throw new Error('invalid reader diagnostic');
     }
     const fields = Array.from({ length: 6 }, (_, i) => view.getUint32(pos + 4 + i * 4, true));
@@ -291,10 +296,12 @@ function decodeReaderDiagnostics(data, context) {
         [code, key, message].some(s => s.includes('\0'))) {
       throw new Error('invalid reader diagnostic');
     }
-    records.push({ version: 1, code, message, severity: 'error', path: context.path,
+    const record = { version: 1, code, message, severity: 'error', path: context.path,
       source_id: context.sourceId, category: category ? 'reader' : 'guest',
       span: from && !category ? { start: from - 1, end: to - 1 } : null,
-      origin_chain: context.originChain || [] });
+      origin_chain: context.originChain || [] };
+    records.push(record);
+    onStderr(readerDiagnosticText(record, context.text));
   }
   return records;
 }
@@ -432,8 +439,8 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContext) {
       const readerBytes = new Uint8Array(readerByteLength);
       let offset = 0;
       for (const chunk of readerChunks) { readerBytes.set(chunk, offset); offset += chunk.length; }
-      diagnostics = decodeReaderDiagnostics(readerBytes, readerContext);
-      stderr = diagnostics.map(record => readerDiagnosticText(record, readerContext.text)).join('');
+      stderr = '';
+      diagnostics = decodeReaderDiagnostics(readerBytes, readerContext, text => { stderr += text; });
     } catch {
       diagnostics = [{ version: 1, code: 'reader-diagnostic-invalid', severity: 'error',
         path: readerContext.path, source_id: readerContext.sourceId, span: null,

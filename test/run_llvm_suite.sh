@@ -240,11 +240,11 @@ reader_error_location_e2e() {
     fi
     rm -rf "$tmp"
 }
-reader_error_location_e2e c "c:3:10: '++' has no value here; use it as a statement of its own"
-reader_error_location_e2e flow "flow:2:12: this expression is not in the flow subset"
-reader_error_location_e2e forth "forth:2:5: stack underflow"
-reader_error_location_e2e minilisp "minilisp:2:5: a call's head must be a symbol, an operator, or a list '2'"
-reader_error_location_e2e minipy "minipy:2:26: range's step must be an integer literal"
+reader_error_location_e2e c "test/reader_error_c.c:3:10: '++' has no value here; use it as a statement of its own"
+reader_error_location_e2e flow "test/reader_error_flow.flow:2:12: this expression is not in the flow subset"
+reader_error_location_e2e forth "test/reader_error_forth.forth:2:5: stack underflow"
+reader_error_location_e2e minilisp "test/reader_error_minilisp.minilisp:2:5: a call's head must be a symbol, an operator, or a list '2'"
+reader_error_location_e2e minipy "test/reader_error_minipy.minipy:2:26: range's step must be an integer literal"
 
 reader_unicode_locations_e2e() {
     local log=$(mktemp "${TMPDIR:-/tmp}/lang-results.XXXXXX")
@@ -553,7 +553,7 @@ include "example/forth/forth.lang"
 }
 func main() i64 { return bad(); }
 FORTHBAD
-    reader_must_fail forth "forth:2:16: stack underflow"
+    reader_must_fail forth "$tmp/forth.lang:3:16: stack underflow"
 
     # A word that is never declared cannot be called.
     cat > "$tmp/forthword.lang" <<'FORTHWORD'
@@ -563,7 +563,7 @@ include "example/forth/forth.lang"
 }
 func main() i64 { return bad(1); }
 FORTHWORD
-    reader_must_fail forthword "forth:2:18: undefined word"
+    reader_must_fail forthword "$tmp/forthword.lang:3:18: undefined word"
 
     # A list headed by a number is not a call; it used to become nil silently.
     cat > "$tmp/lisp.lang" <<'LISPBAD'
@@ -574,7 +574,7 @@ include "example/minilisp/lisp_runtime.lang"
 }
 func main() i64 { return 0; }
 LISPBAD
-    reader_must_fail lisp "minilisp:2:21: a call's head must be a symbol"
+    reader_must_fail lisp "$tmp/lisp.lang:4:21: a call's head must be a symbol"
 
     # The readers still build what they always did.
     for good in example/forth/test_forth.lang example/minilisp/test_minilisp.lang; do
@@ -618,7 +618,7 @@ include "example/c/c.lang"
 }
 func main() i64 { return 0; }
 CINCDEC
-    position_must_fail cincdec "c:2:34: '++' has no value here"
+    position_must_fail cincdec "$tmp/cincdec.lang:3:34: '++' has no value here"
 
     # Assignment is a statement in the shared AST; there is no assignment
     # expression to lower `f(a = b)` to.
@@ -749,7 +749,7 @@ func main() i64 { return 0; }
 SPANCOMMENT
     LANG_CACHE="$tmp/cache-span" LANGBE=llvm $COMPILER "$tmp/span.lang" \
         -o "$tmp/span.ll" >"$tmp/span.out" 2>&1 && ok=0
-    grep -Fq "minipy:5:18: chained comparison" "$tmp/span.out" || ok=0
+    grep -Fq "$tmp/span.lang:6:18: chained comparison" "$tmp/span.out" || ok=0
 
     if [ "$ok" = 1 ]; then
         echo "PASS $name" >> "$results_file"
@@ -938,8 +938,8 @@ QUOTED_AST
     printf 'answer nope\n' >"$tmp/bad.demo"
     (cd "$tmp" && ! LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache" LANGBE=llvm \
         "$compiler_path" read demo.lang bad.demo -o bad.ast >bad.out 2>bad.err) || ok=0
-    grep -Fq 'demo:1:8: expected number, found nope' "$tmp/bad.err" || ok=0
-    grep -Fq "bad.demo:1:1: error: reader 'demo' exited with status 1" "$tmp/bad.err" || ok=0
+    grep -Fxq 'bad.demo:1:8: expected number, found nope @7:11' "$tmp/bad.err" || ok=0
+    ! grep -Fq 'invalid reader diagnostic' "$tmp/bad.err" || ok=0
     ! grep -Fq 'compilation failed' "$tmp/bad.err" || ok=0
     grep -Fxq 'keep me' "$tmp/bad.ast" || ok=0
     "$compiler_path" help read >"$tmp/help.out" 2>&1 || ok=0

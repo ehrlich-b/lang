@@ -260,6 +260,48 @@ func main(argc i64, argv **u8) i64 {
         valid_embedded = replay.run([str(embedded), str(valid_path)], 'embedded-valid', clone)
         require(valid_embedded.stdout == b'(program)' and not valid_embedded.stderr,
                 'embedded valid AST changed')
+        # Both native invocation paths preserve raw stderr byte-for-byte, and
+        # still reject malformed/invalid records even beside valid AST output.
+        legacy_cases = {}
+        for mode in ['plain-stderr', 'legacy-error', 'legacy-exit', 'mixed-stderr', 'plain-malformed']:
+            path = scratch / (mode + '.broken')
+            path.write_text(mode)
+            retain_input(path)
+            legacy_cases[mode] = path
+
+        def legacy_stderr(command, name):
+            for mode, path in legacy_cases.items():
+                expected_exit = 0 if mode == 'plain-stderr' else 1
+                result = replay.run([*command, str(path)], name + '-' + mode, clone, expected=expected_exit)
+                if mode == 'plain-stderr':
+                    require(result.stderr == b'debug \xc3\xa9\r\n\0\xffR', name + ': changed raw stderr bytes')
+                    require(b'(program)' in result.stdout, name + ': debug output rejected valid AST')
+                else:
+                    require(not result.stdout, name + ': error accepted as AST')
+                    if mode in ['legacy-error', 'legacy-exit']:
+                        require(result.stderr.startswith(b'legacy: lowering failed\n') and
+                                b'invalid reader diagnostic' not in result.stderr, name + ': lost legacy explanation')
+                    elif mode == 'mixed-stderr':
+                        require(result.stderr == ('debug before é\n' + str(path) + ': guest failure\n' +
+                                                  'debug after é\n').encode(), name + ': changed mixed stderr order')
+                    else:
+                        require(result.stderr == ('debug before é\n' + str(path) +
+                                                  ': invalid reader diagnostic\n').encode(), name + ': accepted bad marker')
+
+        legacy_stderr([str(compiler), 'read', broken], 'worker-stderr')
+        legacy_stderr([str(embedded)], 'embedded-stderr')
+        for reader, source, expected in [
+                ('test/pnode_dump_reader.lang', 'test/pnode_dump_source.pdebug', 'test/pnode_dump.expected'),
+                ('test/pnode_ambiguity_reader.lang', 'test/pnode_ambiguity_source.pambiguity', 'test/pnode_ambiguity.expected'),
+                ('test/prec_unlisted_reader.lang', 'test/prec_unlisted_source.punlisted', 'test/prec_unlisted.expected'),
+                ('test/branch_unhandled_reader.lang', 'test/branch_unhandled_source.bunhandled', 'test/branch_unhandled.expected')]:
+            success = 'dump' in reader
+            result = replay.run([str(compiler), 'read', reader, source],
+                                Path(reader).stem, clone, expected=0 if success else 1)
+            require(result.stderr.startswith((clone / expected).read_bytes()), 'documented stderr changed: ' + reader)
+            require(b'invalid reader diagnostic' not in result.stderr, 'legacy output misclassified')
+            require(bool(result.stdout) == success, 'legacy AST status changed')
+
         # Keep clang unoptimized above: loop-local stack slots can otherwise be
         # promoted away, hiding a crash in the actual embedded read caller.
         for kib in (128, 256, 512, 768):
@@ -373,6 +415,9 @@ func main() *u8 {{
             replay.env['LANGBE'] = 'wasm'
             replay.run([str(compiler), str(harness), '-o', str(wasm)], 'wasm-' + key, clone)
             replay.env['LANGBE'] = old
+            if key == 'broken':
+                replay.run(['node', '--disable-wasm-trap-handler', '--max-old-space-size=256',
+                            'test/reader_author/browser_stderr.cjs', str(wasm)], 'browser-stderr', clone)
             cases = [(duplicate_path, duplicate_record), (syntax_path, syntax_record)] if key == 'shipping' else broken_cases
             for index, (path, saved) in enumerate(cases):
                 replay.run(['node', '--disable-wasm-trap-handler', '--max-old-space-size=256', 'test/reader_author/browser_diagnostics.cjs', str(wasm), str(path), str(saved), key],
