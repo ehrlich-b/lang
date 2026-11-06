@@ -48,18 +48,24 @@ func rill_error(tok *u8, message *u8) void {
 }
 
 reader rill(text *u8) *u8 {
+    // Entry-block storage also keeps unoptimized readers bounded on bundles.
+    var tok *u8 = nil;
+    var kind i64 = 0;
     // The configurable scanner also diagnoses an unterminated block comment;
     // the shared compiler lexer historically skips that comment through EOF.
     var comments *Tokenizer = tok_new(text);
-    while !tok_eof(comments) && comments.comment_error < 0 { tok_next(comments); }
+    while !tok_eof(comments) {
+        if comments.comment_error >= 0 { break; }
+        tok_next(comments);
+    }
     if !tok_expect_end(comments) { tok_print_error(comments, "rill"); return nil; }
 
     parser_set_source_name("rill");
     parser_tokenize(text);
     var i i64 = 0;
     while i < parser_token_count() {
-        var tok *u8 = get_token(i);
-        var kind i64 = tok_type(tok);
+        tok = get_token(i);
+        kind = tok_type(tok);
         if kind == TOKEN_ERROR { rill_error(tok, tok_lexeme(tok)); return nil; }
         if !rill_supported(kind) {
             rill_error(tok, "unsupported Rill token (use fun/local/record/use/syntax/needs)");
