@@ -12,7 +12,7 @@ import uuid
 from project import ProjectReplay
 from route import ROOT, dump, require, sha
 
-BASE = '74c0af702c6065170621a53487834b2336d522b7'
+BASE = '8eac93cedda7a68a057605025715fd40c89c0bb3'
 
 
 def main():
@@ -42,6 +42,8 @@ def main():
         require(not result.stdout, 'commit candidate before replay')
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor', BASE, head], 'source-ancestry', ROOT)
+        replay.run(['git', 'diff', '--exit-code', BASE, head, '--', 'bootstrap/current', 'web'],
+                   'protected-inputs-unchanged', ROOT)
         clone = scratch / 'repo'
         replay.run(['git', 'clone', '--quiet', '--no-hardlinks', str(ROOT), str(clone)], 'clone', ROOT)
         files = replay.run(['git', 'ls-files', '-z'], 'inputs', clone).stdout.decode().split('\0')
@@ -59,12 +61,14 @@ def main():
         compiler = str(clone / 'out/lang_next')
         shipping = clone / 'example/shipping/project.lang-project'
 
-        def test(name, project=shipping, cwd=clone, fixture=None, expected=0, fixtures=None):
-            command = [compiler, 'test', '--project', str(project), '--evidence', str(evidence / name)]
+        def test(name, project=shipping, cwd=clone, fixture=None, expected=0, fixtures=None, invocation=compiler):
+            command = [invocation, 'test', '--project', str(project), '--evidence', str(evidence / name)]
             if fixture is not None:
                 command += ['--fixture', fixture]
             if fixtures is not None:
                 command += ['--fixtures', str(fixtures)]
+            dump(evidence / (name + '-environment.json'),
+                 {key: replay.env.get(key) for key in ['PATH', 'LANG_ROOT']})
             return replay.run(command, name, cwd, expected=expected)
 
         result = test('shipping')
@@ -79,6 +83,24 @@ def main():
         test('named', fixture='semantic')
         named = json.loads((evidence / 'named/result.json').read_text())
         require(named['fixtures'] == [{'name': 'semantic', 'pass': True}], 'filter ran extra fixtures')
+        # Resolve a bare executable name even when resources have an explicit root.
+        # Both positive native builds and reader rejections use the same binary.
+        saved_env = replay.env.copy()
+        try:
+            replay.env['PATH'] = str(clone / 'out') + os.pathsep + replay.env['PATH']
+            for configured in (False, True):
+                replay.env.pop('LANG_ROOT', None)
+                if configured:
+                    replay.env['LANG_ROOT'] = str(clone)
+                for fixture in ['policy', 'semantic']:
+                    name = 'path-' + ('configured-' if configured else 'inferred-') + fixture
+                    test(name, fixture=fixture, invocation='lang_next')
+                    result = json.loads((evidence / name / 'result.json').read_text())
+                    require(result['fixtures'] == [{'name': fixture, 'pass': True}] and
+                            result['compiler_sha256'] == sha(compiler),
+                            name + ': filter or compiler identity changed')
+        finally:
+            replay.env = saved_env
         result = test('unknown', fixture='absent', expected=1)
         require(b'unknown fixture' in result.stderr, 'empty filter silently passed')
         replay.run([compiler, 'new', 'language', 'parcel'], 'generate', scratch)
@@ -149,8 +171,8 @@ def main():
         require(not list((evidence / 'link-failure').glob('*.native')), 'failed link published an executable')
         require(all(sha(clone / p) == h for p, h in hashes.items()), 'oracle edited committed inputs')
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'compiler_sha256': sha(compiler),
-             'observations': len(replay.rows), 'controls': ['free_at', 'fee', 'exit', 'diagnostic', 'link-failure']})
-        print('PASS oracle: committed ancestry, shared compiler, shipped fixtures, filter, native outputs, structured negatives, mutations, exit and link failure')
+             'observations': len(replay.rows), 'controls': ['PATH', 'LANG_ROOT', 'free_at', 'fee', 'exit', 'diagnostic', 'link-failure']})
+        print('PASS oracle: committed ancestry, shared compiler through PATH with LANG_ROOT, shipped fixtures, filter, native outputs, structured negatives, mutations, exit and link failure')
         return 0
     except Exception as error:
         dump(evidence / 'result.json', {'pass': False, 'error': str(error)})
