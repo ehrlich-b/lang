@@ -56,7 +56,10 @@ func native_build_phase(stage i64, project *LanguageProject, source *u8,
         var content *u8 = read_file(source);
         if content == nil { os__exit(1); }
         var text *u8 = read_run_reader_raw(project_field(project, "reader_name"), source, content);
-        if text == nil { os__exit(1); }
+        if text == nil {
+            if phase_worker_status < 0 { os__exit(0 - phase_worker_status); }
+            os__exit(1);
+        }
         os__exit(native_build_write(ast, text));
     }
     if stage == 1 {
@@ -111,7 +114,17 @@ func native_build_pipeline(manifest *u8, source *u8, work *u8, emit *u8) i64 {
     return 1;
 }
 
+func cmd_help_native_build() i64 {
+    println("lang build --project PROJECT SOURCE -o OUTPUT [--emit=native|ast|llvm]");
+    println("Native Linux x86-64; default optimization -O0; tool: LANG_CLANG or clang in PATH.");
+    println("Use a fresh output path or a previous native ELF output; failed rebuilds invalidate it.");
+    return 0;
+}
+
 func cmd_native_build(argc i64, argv **u8) i64 {
+    if argc == 3 {
+        if streq(get_arg(argv, 2), "--help") || streq(get_arg(argv, 2), "-h") { return cmd_help_native_build(); }
+    }
     if !streq(os_platform_name(), "linux") || !streq(LANG_BUILD_ARCH, "x86_64") {
         eprintln("Error: native build requires a Linux x86-64 host"); return 1;
     }

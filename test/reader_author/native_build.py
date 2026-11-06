@@ -121,6 +121,11 @@ def main():
         require(b'native build reader failed' in result.stderr and b'expected' in result.stderr,
                 'reader failure lost its stage or original diagnostic')
         exe.write_bytes(saved_exe)
+        result = build('reader-exit-status', guest=fixtures / 'guest.readerexit',
+                       project=fixtures / 'exit.lang-project', expected=37)
+        require(b'reader exit control: original diagnostic' in result.stderr and b'exit 37' in result.stderr,
+                'reader exit status or original diagnostic was lost')
+        exe.write_bytes(saved_exe)
         result = build('validation-error', guest=fixtures / 'guest.invalid',
                        project=fixtures / 'invalid.lang-project', expected=1)
         require(b'native build validation failed' in result.stderr and b'ast' in result.stderr.lower(),
