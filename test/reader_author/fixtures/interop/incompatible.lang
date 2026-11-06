@@ -8,14 +8,14 @@ reader taggedparameter(text *u8) *u8 {
     var signature *ReaderExport = vec_get(exports, 0);
     var scalar *ReaderScalar = vec_get(signature.parameters, 0);
     scalar.representation = "tagged-i64-lowbit-1";
-    return fo_read(text, exports);
+    return fo_read(text, exports, "taggedparameter");
 }
 
 reader taggedresult(text *u8) *u8 {
     var exports *u8 = shipping_exports();
     var signature *ReaderExport = vec_get(exports, 0);
     signature.result.representation = "tagged-i64-lowbit-1";
-    return fo_read(text, exports);
+    return fo_read(text, exports, "taggedresult");
 }
 
 reader ownedparameter(text *u8) *u8 {
@@ -23,5 +23,5 @@ reader ownedparameter(text *u8) *u8 {
     var signature *ReaderExport = vec_get(exports, 0);
     var scalar *ReaderScalar = vec_get(signature.parameters, 0);
     scalar.ownership = "transfer";
-    return fo_read(text, exports);
+    return fo_read(text, exports, "ownedparameter");
 }

@@ -76,6 +76,7 @@ include "std/reader_exports.lang"
 // 4=list/seq, 5=operator.
 
 var fo_src *u8 = nil;
+var fo_label *u8 = "forth";
 
 // ============================================================
 // Comments
@@ -260,7 +261,7 @@ func fo_fail(msg *u8, what *u8, node *PNode) void {
         sb_str(sb, what);
         sb_str(sb, "'");
     }
-    pnode_print_error(node, fo_src, "forth", sb_finish(sb));
+    pnode_print_error(node, fo_src, fo_label, sb_finish(sb));
     exit(1);
 }
 
@@ -724,17 +725,18 @@ func fo_check_exports(prog *PNode, exports *u8) void {
     }
 }
 
-func fo_read(text *u8, exports *u8) *u8 {
+func fo_read(text *u8, exports *u8, label *u8) *u8 {
     fo_src = text;
+    fo_label = label;
     // Forth's line comment is `\\`, which the shared scanner can now be told.
     // `( ... )` stays a source pre-pass, because in THIS Forth a parenthesized
     // group is not a comment: the stack effect wears the same parentheses and
     // the grammar parses it (see fo_sanitize_comments).
     var t *Tokenizer = tok_new_comments(fo_sanitize_comments(text), "\\", nil, nil);
     var prog *PNode = parse_fo_program(t);
-    if prog == nil || !tok_expect_end(t) { tok_print_error(t, "forth"); return nil; }
+    if prog == nil || !tok_expect_end(t) { tok_print_error(t, fo_label); return nil; }
     if exports != nil { fo_check_exports(prog, exports); }
     return fo_emit_program(prog);
 }
 
-reader forth(text *u8) *u8 { return fo_read(text, nil); }
+reader forth(text *u8) *u8 { return fo_read(text, nil, "forth"); }
