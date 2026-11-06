@@ -169,6 +169,16 @@ says nothing gets lang's `//` and `/* */`. Comments are skipped between tokens,
 which is why the syntax has to be settled before the first one is scanned—and
 why a reader used to have to rewrite its own source text instead.
 
+For explicit numeric and keyword boundaries, declare a `TokProfile` beside the
+`#parser{}` block and use `tok_new_profile(text, profile)`. For example,
+`tok_profile_new(TOK_NUM_DECIMAL, nil, "//", "/*", "*/")` admits unsigned
+decimal integer tokens and rejects fractions, exponents and glued number/name
+text at their complete original ranges. Identifier continuation bytes and
+comment delimiters are local to that profile; quoted keywords match whole
+identifiers. See [lexical profiles](./PARSER_GENERATOR.md#reader-local-lexical-profiles)
+for the contract, a second grammar with different comments, and the bounded
+`two-readers` check. Existing constructors retain their default scanning.
+
 Operator precedence is shared rather than rewritten per reader: declare the
 ladder with `std/prec.lang` (`prec_assign`/`prec_left`/`prec_right`/
 `prec_prefix`, loosest level first), push operands and operators in source

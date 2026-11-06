@@ -14,7 +14,13 @@ include "std/layout_recipe.lang"
     shipping_value = number | '-' number
 }
 
-// Validate before converting: the scanner also recognizes nondecimal numbers.
+// Lexical policy belongs to this reader, beside its grammar. Keywords match
+// whole identifiers; comments are skipped without rewriting the source.
+func shipping_profile() *TokProfile {
+    return tok_profile_new(TOK_NUM_DECIMAL, nil, "//", "/*", "*/");
+}
+
+// Domain bounds remain lowering's responsibility after lexical validation.
 func shipping_number(node *PNode, text *u8) i64 {
     var value i64 = 0;
     var i i64 = node.start;
@@ -55,7 +61,7 @@ func shipping_layout(tree *PNode, text *u8, tokens *Tokenizer) void {
 }
 
 func shipping_read(text *u8, with_main bool) *u8 {
-    var tokens *Tokenizer = tok_new(text);
+    var tokens *Tokenizer = tok_new_profile(text, shipping_profile());
     var tree *PNode = parse_shipping_policy(tokens);
     var complete bool = false;
     if tree != nil { complete = tok_expect_end(tokens); }

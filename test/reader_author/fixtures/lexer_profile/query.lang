@@ -1,0 +1,22 @@
+include "std/parser_reader.lang"
+include "std/ast.lang"
+
+#parser{
+    !captures;
+    lookup = 'select' field:symbol 'limit' count:number ';'
+}
+
+// Hyphen continues an identifier, so select-all is never the select keyword.
+func query_profile() *TokProfile {
+    return tok_profile_new(TOK_NUM_DECIMAL, "-", "--", "(*", "*)");
+}
+
+reader query(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new_profile(text, query_profile());
+    var tree *PNode = parse_lookup(tokens);
+    var complete bool = false;
+    if tree != nil { complete = tok_expect_end(tokens); }
+    if !complete { tok_print_error(tokens, "query"); return nil; }
+    var count *PNode = capture_lookup_required(tree, "count");
+    return ast_span(ast_number(count.text), count.start, count.end);
+}

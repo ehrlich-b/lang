@@ -166,3 +166,10 @@ to save it. The explicit CST recipe preserves setting order and decimal spelling
 uses four spaces and a final newline, and refuses comments with a located
 `unsupported-trivia` error. It validates the complete policy before printing;
 invalid policies remain errors. See [recipe authoring](../../docs/READERS.md#opt-in-guest-source-formatting).
+
+Shipping declares its decimal lexical profile beside the grammar. Values are
+unsigned decimal tokens; fractions, exponents and glued names fail at their
+complete source range. `//` and `/* ... */` comments retain original offsets.
+The reader still checks the domain bound `0..1000000` and required settings.
+See [reader-local profiles](../../docs/PARSER_GENERATOR.md#reader-local-lexical-profiles)
+for the API and focused verification command.

@@ -1,0 +1,109 @@
+include "example/shipping/shipping.lang"
+include "test/reader_author/fixtures/lexer_profile/query.lang"
+
+func same_text(a *u8, b *u8) bool {
+    if a == nil || b == nil { return a == b; }
+    return streq(a, b);
+}
+
+// Include internal capture wrappers, branch labels and every exact byte span.
+func same_tree(a *PNode, b *PNode) bool {
+    if a == nil || b == nil { return false; }
+    if a.kind != b.kind || a.start != b.start || a.end != b.end ||
+       !same_text(a.text, b.text) || !same_text(a.branch, b.branch) { return false; }
+    if a.children == nil || b.children == nil { return a.children == b.children; }
+    if vec_len(a.children) != vec_len(b.children) { return false; }
+    var i i64 = 0;
+    while i < vec_len(a.children) {
+        if !same_tree(vec_get(a.children, i), vec_get(b.children, i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+func config_source() *u8 { return "// café\nshipping { base 00010; /* units */ free_over 100; } // end"; }
+func config_manual() *Tokenizer {
+    var stream *u8 = tok_stream_new();
+    tok_stream_push(stream, TOK_IDENT, 9, 8, nil);
+    tok_stream_push(stream, TOK_LBRACE, 18, 1, nil);
+    tok_stream_push(stream, TOK_IDENT, 20, 4, nil);
+    tok_stream_push(stream, TOK_NUMBER, 25, 5, nil);
+    tok_stream_push(stream, TOK_SEMI, 30, 1, nil);
+    tok_stream_push(stream, TOK_IDENT, 44, 9, nil);
+    tok_stream_push(stream, TOK_NUMBER, 54, 3, nil);
+    tok_stream_push(stream, TOK_SEMI, 57, 1, nil);
+    tok_stream_push(stream, TOK_RBRACE, 59, 1, nil);
+    return tok_new_stream(config_source(), stream);
+}
+
+func query_source() *u8 { return "-- café\nselect order-total (* units *) limit 003; -- end"; }
+func query_manual() *Tokenizer {
+    var stream *u8 = tok_stream_new();
+    tok_stream_push(stream, TOK_IDENT, 9, 6, nil);
+    tok_stream_push(stream, TOK_IDENT, 16, 11, nil);
+    tok_stream_push(stream, TOK_IDENT, 40, 5, nil);
+    tok_stream_push(stream, TOK_NUMBER, 46, 3, nil);
+    tok_stream_push(stream, TOK_SEMI, 49, 1, nil);
+    return tok_new_stream(query_source(), stream);
+}
+
+func main(argc i64, argv **u8) i64 {
+    if argc > 1 {
+        var tokens *Tokenizer = tok_new_profile(argv[1], shipping_profile());
+        var tree *PNode = nil;
+        if argc > 2 {
+            tokens = tok_new_profile(argv[1], query_profile());
+            tree = parse_lookup(tokens);
+        } else { tree = parse_shipping_policy(tokens); }
+        var complete bool = false;
+        if tree != nil { complete = tok_expect_end(tokens); }
+        if !complete { tok_print_error(tokens, "profile"); return 1; }
+        pnode_dump(tree);
+        return 0;
+    }
+    var a *Tokenizer = tok_new_profile(config_source(), shipping_profile());
+    var b *Tokenizer = config_manual();
+    var first *PNode = parse_shipping_policy(a);
+    var second *PNode = parse_shipping_policy(b);
+    if !same_tree(first, second) || !tok_expect_end(a) || !tok_expect_end(b) { return 10; }
+    if vec_len(capture_shipping_policy_repeated(first, "settings")) != 2 { return 11; }
+    pnode_dump(first);
+    a = tok_new_profile(query_source(), query_profile());
+    b = query_manual();
+    first = parse_lookup(a);
+    second = parse_lookup(b);
+    if !same_tree(first, second) || !tok_expect_end(a) || !tok_expect_end(b) { return 12; }
+    if !streq(capture_lookup_required(first, "field").text, "order-total") { return 13; }
+    pnode_dump(first);
+    // Profiles are per tokenizer, even when their scans are interleaved.
+    a = tok_new_profile("12-- end", query_profile());
+    b = tok_new("-12 1.5 2e3 4name // inherited");
+    if tok_kind(a) != TOK_NUMBER || !streq(tok_text(a), "12") { return 14; }
+    tok_next(a);
+    if !tok_eof(a) || tok_kind(b) != TOK_NUMBER || tok_number(b) != -12 { return 15; }
+    tok_next(b);
+    if !streq(tok_text(b), "1") { return 16; }
+    tok_next(b);
+    if tok_kind(b) != TOK_DOT { return 17; }
+    tok_next(b);
+    tok_next(b);
+    if !streq(tok_text(b), "2") { return 18; }
+    tok_next(b);
+    if !streq(tok_text(b), "e3") { return 19; }
+    tok_next(b);
+    if !streq(tok_text(b), "4") { return 20; }
+    tok_next(b);
+    if !streq(tok_text(b), "name") { return 21; }
+    tok_next(b);
+    if !tok_eof(b) { return 22; }
+    // A lexical error stays exact across rewind, another expectation and EOF.
+    a = tok_new_profile("7 1e+3;", shipping_profile());
+    var mark i64 = tok_mark(a);
+    tok_next(a);
+    tok_reset(a, mark);
+    tok_note_expected(a, "something else");
+    if tok_expect_end(a) || tok_eof(a) || tok_error_offset(a) != 2 ||
+       tok_error_end_offset(a) != 6 || !streq(tok_error_expected(a), "decimal integer") { return 23; }
+    println("PASS two-readers");
+    return 0;
+}

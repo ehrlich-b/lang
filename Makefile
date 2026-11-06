@@ -487,6 +487,9 @@ verify:
 else ifeq ($(VERIFY_CASE),inspect)
 verify:
 	python3 -B test/reader_author/inspect.py --case shipping
+else ifeq ($(VERIFY_CASE),two-readers)
+verify:
+	python3 -B test/reader_author/lexer_profile.py --case two-readers
 else ifeq ($(VERIFY_CASE),contracts)
 verify:
 	python3 -B test/reader_author/captures.py --case contracts

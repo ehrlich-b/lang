@@ -68,6 +68,68 @@ Built-in token names are `number`, `symbol`/`ident`, `string`, and `operator`.
 Quoted literals match exact token text: `'return'` matches a keyword and `'=='`,
 `'->'`, or `'++'` match multi-character operators.
 
+## Reader-local lexical profiles
+
+Declare a profile beside the grammar and pass it when creating the tokenizer.
+The generated `parse_rule(tokens)` functions also accept manual token streams;
+no compiler or grammar-generator special case is needed for the language.
+
+```lang
+#parser{
+    setting = 'limit' value:number ';'
+}
+
+func config_profile() *TokProfile {
+    return tok_profile_new(TOK_NUM_DECIMAL, nil, "//", "/*", "*/");
+}
+
+var tokens *Tokenizer = tok_new_profile(source, config_profile());
+var tree *PNode = parse_setting(tokens);
+```
+
+`tok_profile_new(numbers, identifier_extra, line, open, close)` declares:
+
+- `TOK_NUM_DECIMAL`: unsigned ASCII `[0-9]+`, including leading zeroes. Signs
+  are separate punctuation tokens. Fractions (`1.5`, `.5`, `1.`), exponents
+  (`1e3`, `1E-3`) and glued number/name spellings (`10base`, `0x10`, `1_000`)
+  fail lexically over the complete spelling, rather than accepting a prefix.
+  Numeric bounds and sign restrictions still belong to the reader's lowering.
+- Identifiers start with ASCII letters or `_`, and continue with letters,
+  digits, `_`, or bytes from `identifier_extra` (nil means no extra bytes).
+  Keywords in quoted grammar literals match the **whole** token. For example,
+  an extra `"-"` keeps `select-all` one identifier, distinct from `'select'`.
+  Continuation bytes should exclude whitespace, digits, and comment delimiters;
+  whitespace and comments are recognized between tokens. This is a byte policy,
+  not Unicode identifier classification.
+- Comment delimiters use the existing `tok_new_comments` contract: nil disables
+  a form, both block markers are required, blocks do not nest, and line comments
+  may end at EOF. A comment may immediately follow a decimal token.
+
+`tok_new_profile` snapshots these fields before scanning the first token;
+independent tokenizers can use different profiles at the same time. Input text
+is never rewritten. Token, tree and diagnostic spans remain half-open UTF-8
+byte offsets into that exact input, including skipped comments. Invalid numeric
+spellings and unclosed comments retain their lexical diagnostic across parser
+backtracking and cannot satisfy `tok_expect_end`.
+
+`TOK_NUM_DEFAULT` preserves the inherited number scanning (including negative
+integer tokens and splitting `1.5` or `1e3`). `tok_new`, `tok_new_comments`,
+manual `tok_new_stream`, existing grammars and checked capture schemas keep
+their existing behavior. A profile changes scanning only; supplied streams
+remain the reader's responsibility and are not revalidated against a profile.
+
+See [Shipping](../example/shipping/shipping.lang) and the independent
+[query reader](../test/reader_author/fixtures/lexer_profile/query.lang), which
+uses `--` and `(* ... *)` comments and hyphenated identifiers. Run only this
+fragment with `python3 -B test/reader_author/lexer_profile.py --case two-readers`
+or `env JOBS=2 make verify VERIFY_CASE=two-readers`. The runner requires a
+committed candidate, uses two CPUs and a 2 GiB address-space limit, and retains
+commands, source/tool hashes, stdout, stderr and exit codes outside the checkout.
+It compares complete generated trees from scanned and independently authored
+manual streams, checks exact rejection ranges, exercises both reader wrappers
+and the minted Shipping compiler, and retains bounded capture/default-grammar
+checks. A deliberately failed expectation must exit unsuccessfully.
+
 ## Supplying your own tokens
 
 A generated parser asks the tokenizer only for the current token's kind, text

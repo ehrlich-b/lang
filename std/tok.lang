@@ -53,6 +53,30 @@ var TOK_UNKNOWN i64 = 99;
 // match a token some reader put there deliberately.
 var TOK_USER i64 = 100;
 
+// Reader-local numeric and identifier policies. Existing constructors retain
+// the inherited scanner. Decimal profiles use unsigned [0-9]+; signs are tokens.
+var TOK_NUM_DEFAULT i64 = 0;
+var TOK_NUM_DECIMAL i64 = 1;
+
+struct TokProfile {
+    numbers i64;
+    identifier_extra *u8; // extra continuation bytes, e.g. "-"; nil for ASCII
+    line *u8;
+    open *u8;
+    close *u8;
+}
+
+pub func tok_profile_new(numbers i64, identifier_extra *u8, line *u8,
+                         open *u8, close *u8) *TokProfile {
+    var profile *TokProfile = alloc(40);
+    profile.numbers = numbers;
+    profile.identifier_extra = identifier_extra;
+    profile.line = line;
+    profile.open = open;
+    profile.close = close;
+    return profile;
+}
+
 // ============================================================
 // Tokenizer State
 // ============================================================
@@ -80,7 +104,9 @@ struct Tokenizer {
     comment_open *u8;    // block-comment opener, or nil
     comment_close *u8;   // block-comment closer, or nil
     recovery i64;       // editor-only, zero for every ordinary tokenizer
-    comment_error i64;   // unterminated opener byte offset, or -1 (sticky)
+    comment_error i64;   // sticky lexical failure offset, or -1
+    numbers i64;
+    identifier_extra *u8;
     parser_work i64;
     parser_depth i64;
     parser_peak i64;
@@ -92,7 +118,7 @@ struct Tokenizer {
 }
 
 func tok_new_state(input *u8) *Tokenizer {
-    var t *Tokenizer = alloc(224);  // 28 fields * 8 bytes
+    var t *Tokenizer = alloc(240);  // 30 fields * 8 bytes
     t.input = input;
     t.pos = 0;
     t.len = strlen(input);
@@ -130,6 +156,8 @@ func tok_new_state(input *u8) *Tokenizer {
     if t.parser_source == nil { t.parser_source = getenv("LANG_PARSER_SOURCE"); }
     if t.parser_source == nil { t.parser_source = "<reader-input>"; }
     t.parser_enabled = tok_parser_instrumentation;
+    t.numbers = TOK_NUM_DEFAULT;
+    t.identifier_extra = nil;
     return t;
 }
 
@@ -153,6 +181,19 @@ pub func tok_new_comments(input *u8, line *u8, open *u8, close *u8) *Tokenizer {
     t.comment_line = line;
     t.comment_open = open;
     t.comment_close = close;
+    tok_next(t);
+    return t;
+}
+
+// Copy policy before scanning the first token. Profiles can be declared beside
+// their grammar and reused without sharing cursor or diagnostic state.
+pub func tok_new_profile(input *u8, profile *TokProfile) *Tokenizer {
+    var t *Tokenizer = tok_new_state(input);
+    t.numbers = profile.numbers;
+    t.identifier_extra = profile.identifier_extra;
+    t.comment_line = profile.line;
+    t.comment_open = profile.open;
+    t.comment_close = profile.close;
     tok_next(t);
     return t;
 }
@@ -238,6 +279,17 @@ pub func tok_is_alpha(c i64) bool {
 
 pub func tok_is_alnum(c i64) bool {
     return tok_is_digit(c) || tok_is_alpha(c);
+}
+
+func tok_identifier_continue(t *Tokenizer, c i64) bool {
+    if tok_is_alnum(c) { return true; }
+    if c == 0 || t.identifier_extra == nil { return false; }
+    var extra *u8 = t.identifier_extra;
+    while *extra != 0 {
+        if *extra == c { return true; }
+        extra = extra + 1;
+    }
+    return false;
 }
 
 pub func tok_is_space(c i64) bool {
@@ -362,6 +414,44 @@ func tok_utf8_width(t *Tokenizer) i64 {
     return width;
 }
 
+// Consume one complete invalid numeric spelling rather than accepting a
+// numeric prefix. Delimiters/comments retain their original source positions.
+func tok_decimal(t *Tokenizer) void {
+    var invalid bool = false;
+    while tok_is_digit(tok_peek_char(t)) { tok_advance_char(t); }
+    var c i64 = tok_peek_char(t);
+    var comment bool = tok_marker_at(t, t.comment_line) > 0;
+    if t.comment_close != nil && tok_marker_at(t, t.comment_open) > 0 { comment = true; }
+    if !comment && (c == 46 || tok_identifier_continue(t, c)) {
+        invalid = true;
+        var previous i64 = 0;
+        while t.pos < t.len {
+            if tok_marker_at(t, t.comment_line) > 0 { break; }
+            if t.comment_close != nil && tok_marker_at(t, t.comment_open) > 0 { break; }
+            c = tok_peek_char(t);
+            if c != 46 && !tok_identifier_continue(t, c) &&
+               !((c == 43 || c == 45) && (previous == 101 || previous == 69)) { break; }
+            previous = c;
+            tok_advance_char(t);
+        }
+    }
+    t.tok_len = t.pos - t.tok_start;
+    t.tok_kind = TOK_NUMBER;
+    if invalid {
+        t.tok_kind = TOK_UNKNOWN;
+        t.comment_error = t.tok_start;
+        t.error_pos = -1;
+        t.error_end = t.pos;
+        t.error_expected_len = 0;
+        *t.error_expected = 0;
+        // Install the lexical expectation once; parser backtracking cannot
+        // overwrite it or turn the bad token into EOF.
+        t.comment_error = -1;
+        tok_note_expected(t, "decimal integer");
+        t.comment_error = t.tok_start;
+    }
+}
+
 pub func tok_next(t *Tokenizer) void {
     if t.stream != nil {
         tok_stream_load(t, t.stream_index + 1);
@@ -371,7 +461,7 @@ pub func tok_next(t *Tokenizer) void {
 
     if t.comment_error >= 0 {
         t.tok_start = t.comment_error;
-        t.tok_len = t.len - t.comment_error;
+        t.tok_len = t.error_end - t.comment_error;
         t.tok_kind = TOK_UNKNOWN;
         return;
     }
@@ -385,6 +475,12 @@ pub func tok_next(t *Tokenizer) void {
     }
 
     var c i64 = tok_peek_char(t);
+
+    if t.numbers == TOK_NUM_DECIMAL &&
+       (tok_is_digit(c) || (c == 46 && tok_is_digit(tok_peek_char_at(t, 1)))) {
+        tok_decimal(t);
+        return;
+    }
 
     // Single character tokens
     if c == 40 { t.tok_kind = TOK_LPAREN; t.tok_len = 1; tok_advance_char(t); return; }
@@ -494,7 +590,7 @@ pub func tok_next(t *Tokenizer) void {
             t.tok_kind = TOK_MINUS;
             return;
         }
-        if tok_is_digit(tok_peek_char_at(t, 1)) {
+        if t.numbers == TOK_NUM_DEFAULT && tok_is_digit(tok_peek_char_at(t, 1)) {
             // Negative number
             tok_advance_char(t);
             while tok_is_digit(tok_peek_char(t)) {
@@ -522,7 +618,7 @@ pub func tok_next(t *Tokenizer) void {
 
     // Identifier
     if tok_is_alpha(c) {
-        while tok_is_alnum(tok_peek_char(t)) {
+        while tok_identifier_continue(t, tok_peek_char(t)) {
             tok_advance_char(t);
         }
         t.tok_len = t.pos - t.tok_start;
