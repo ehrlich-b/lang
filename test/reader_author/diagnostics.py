@@ -255,13 +255,8 @@ func main() *u8 {{
                 replay.run(['node', '--disable-wasm-trap-handler', '--max-old-space-size=256', 'test/reader_author/browser_diagnostics.cjs', str(wasm), str(path), str(saved), key],
                            f'browser-{key}-{index}', clone)
         for mode in ['bundled', 'current']:
-            work = scratch / ('lab-' + mode)
-            work.mkdir()
             replay.run(['node', '--disable-wasm-trap-handler', '--max-old-space-size=256',
-                        'test/reader_author/lab_diagnostics.cjs', mode, str(compiler), str(work)], 'lab-' + mode, clone)
-            for path in work.iterdir():
-                if path.suffix in ('.lang', '.ast', '.read'):
-                    retain_input(path)
+                        'test/reader_author/lab_diagnostics.cjs', mode], 'lab-' + mode, clone)
         dump(evidence / 'observations.json', observations)
         dump(evidence / 'artifacts.json', {'compiler': sha(compiler.resolve()), 'minted': sha(minted)})
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'commands': len(replay.rows)})

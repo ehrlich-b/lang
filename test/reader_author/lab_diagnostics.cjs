@@ -2,7 +2,6 @@
 // Exercise the actual Lab button handler with its bundled compiler/stdlib and
 // with the current source library, without regenerating either web artifact.
 const fs = require('node:fs');
-const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
@@ -10,7 +9,7 @@ const { runLangCompiler } = require('../../web/compiler_host.js');
 const { runLangProgram, formatLangAst } = require('../../web/program_host.js');
 
 (async () => {
-  const [mode, compiler, scratch] = process.argv.slice(2);
+  const [mode] = process.argv.slice(2);
   const html = fs.readFileSync('web/lab.html', 'utf8');
   const elements = new Map();
   function element(id) {
@@ -25,21 +24,13 @@ const { runLangProgram, formatLangAst } = require('../../web/program_host.js');
   const bundled = JSON.parse(fs.readFileSync('web/stdlib.json', 'utf8'));
   const stdlib = { ...bundled };
   if (mode === 'current') {
-    for (const name of ['std/reader_diagnostics.lang']) stdlib[name] = fs.readFileSync(name, 'utf8');
+    const paths = spawnSync('git', ['ls-files', '-z', '--', 'std', 'src'], { encoding: 'utf8' }).stdout.split('\0');
+    for (const name of paths.filter(name => name.endsWith('.lang'))) {
+      stdlib[name] = fs.readFileSync(name, 'utf8');
+    }
   }
   const builds = [];
   const runs = [];
-  const compile = mode === 'bundled' ? runLangCompiler : async (_, args, files) => {
-    for (const name of ['reader.lang', 'program.ast', 'source.read']) {
-      if (files[name] !== undefined) fs.writeFileSync(path.join(scratch, name), files[name]);
-    }
-    const actual = args.map(arg => files[arg] !== undefined || arg.endsWith('.wasm')
-      ? path.join(scratch, arg) : arg);
-    const result = spawnSync(compiler, actual, { encoding: 'utf8', env: { ...process.env, LANGBE: 'wasm' } });
-    const output = actual[actual.indexOf('-o') + 1];
-    return { exit: result.status, stdout: result.stdout, stderr: result.stderr,
-      files: new Map(fs.existsSync(output) ? [[args[args.indexOf('-o') + 1], fs.readFileSync(output)]] : []) };
-  };
   const context = vm.createContext({
     document: { getElementById: element, addEventListener() {} },
     localStorage: { getItem() { return null; }, setItem() {} },
@@ -49,7 +40,7 @@ const { runLangProgram, formatLangAst } = require('../../web/program_host.js');
     fetch: async url => ({ ok: true,
       arrayBuffer: async () => fs.readFileSync('web/compiler.wasm'), json: async () => stdlib }),
     runLangCompiler: async (...args) => {
-      const result = await compile(...args);
+      const result = await runLangCompiler(...args);
       builds.push({ args: args[1], exit: result.exit, stderr: result.stderr });
       return result;
     },
