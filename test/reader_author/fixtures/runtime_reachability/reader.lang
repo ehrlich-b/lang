@@ -1,0 +1,2 @@
+include "std/core.lang"
+reader core_ast(text *u8) *u8 { return text; }

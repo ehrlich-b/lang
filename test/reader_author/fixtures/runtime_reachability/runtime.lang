@@ -1,0 +1,10 @@
+include "std/core.lang"
+
+func dead_helper() i64 { return 901; }
+func exported_leaf() i64 { return 42; }
+pub func external_export() i64 { return exported_leaf(); }
+pub func second_export() i64 { return 43; }
+func callback_value(value i64) i64 { return value + 7; }
+var initialized_callback fn(i64) i64 = callback_value;
+var initialized_seed i64 = 35;
+func read_initialized_seed() i64 { return initialized_seed; }

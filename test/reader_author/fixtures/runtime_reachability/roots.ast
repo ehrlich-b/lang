@@ -1,0 +1,3 @@
+(program
+  (func guest_entry () (type_base i64)
+    (block (return (call (ident read_initialized_seed))))))

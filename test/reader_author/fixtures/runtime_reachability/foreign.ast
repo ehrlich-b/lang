@@ -1,0 +1,4 @@
+(program
+  (extern_func foreign_dependency () (type_base i64) nil)
+  (func guest_entry () (type_base i64)
+    (block (return (call (ident foreign_dependency))))))
