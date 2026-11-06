@@ -461,6 +461,9 @@ verify:
 else ifeq ($(VERIFY_CASE),project-tests)
 verify:
 	python3 -B test/reader_author/project_tests.py --case oracle
+else ifeq ($(VERIFY_CASE),package)
+verify:
+	python3 -B test/reader_author/package.py --case relocated
 else ifeq ($(VERIFY_CASE),standalone-native)
 verify:
 	python3 -B test/reader_author/standalone.py --case native

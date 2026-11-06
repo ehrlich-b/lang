@@ -216,3 +216,67 @@ product-wide suite. Replay this fragment with
 `python3 -B test/reader_author/project_tests.py --case oracle`, or
 `env JOBS=2 VERIFY_CASE=project-tests make verify`. Plain `make verify` retains
 integration suites and fixed points.
+
+## Export a local compiler kit
+
+Build the current committed sources with `make init` and `make build`, then run:
+
+```bash
+LANGBE=llvm LANGOS=linux ./out/lang_next package --project example/shipping/project.lang-project --metadata example/shipping/package.json -o ../shipping-kit.tar.gz
+```
+
+This creates one local archive and refuses an occupied destination. It never
+installs, publishes or uploads. Packaging requires the matching standard compiler
+build receipt in `out/build-receipt.json`; changed compiler/source hashes fail.
+Only the existing Linux x86-64 LLVM profile is supported. Python 3, Clang, the
+system linker, `ldd` and `getconf` are required on the packaging host.
+
+The metadata JSON has `schema: 1`, a nonempty `runtime_contract` string, and a
+`licenses` list. Each notice has `component` and `file`; compiler, reader and
+runtime must each be covered. Notice paths resolve beside the metadata file.
+For a language with no runtime, use an explicit contract stating that choice
+and a runtime notice explaining it. Missing metadata, empty notices or missing
+notice files fail before minting. The shipping example includes a complete
+[metadata file](../example/shipping/package.json).
+
+The archive contains `kit/bin/compiler`, the project entry as an example, selected
+runtime sources and contract, license notices, `README.md`, `kit.py` and
+`receipt.json`. Runtime AST is embedded in the compiler; retained runtime source
+is for inspection, with transitive source hashes in the receipt. This export is
+a ready compiler, not an editable frontend SDK. The compiler's existing trusted
+native reader contract applies. OS/architecture, libc, actual `ldd` observations,
+shared-library hashes, tool paths/hashes/versions, resolved project input hashes,
+compiler build receipt and exact mint/build commands are recorded. It describes
+a dynamically linked compiler and target runtime, with no static/runtime-free
+claim and no cross-host ABI compatibility promise. System libraries are not
+bundled; the recipient supplies the recorded host profile, Python 3 for the
+verifier and, for native mode, Clang/linker and libc development files.
+
+After extracting under a fresh directory, from inside `kit/`:
+
+```bash
+python3 kit.py verify
+mkdir ../kit-output
+PATH=/nonexistent /usr/bin/python3 kit.py llvm --output ../kit-output/policy.ll
+python3 kit.py native --clang /absolute/path/to/clang --output ../kit-output/shipping
+../kit-output/shipping 99
+../kit-output/shipping 100
+```
+
+The shipping example prints `10` and `0`. The kit README records the packaging
+host's exact Clang path; select a suitable absolute path on the recipient host.
+Outputs must be outside the kit so its inventory stays immutable. `kit.py` checks
+all bundled hashes, required runtime metadata and notices before invoking the
+compiler. A changed or missing artifact fails; this integrity receipt is not a
+signature against a malicious distributor. Direct binary invocation bypasses
+the verifier. IR emission uses no toolchain or original source roots; native
+mode requires explicit `--clang` and uses the shared `-O0` native host driver.
+
+Run only `python3 -B test/reader_author/package.py --case relocated`, or
+`env JOBS=2 VERIFY_CASE=package make verify`. This fragment uses bubblewrap to
+mount the extracted kit and system tools/libraries while excluding both original
+source roots and caches. It compares IR bytes and runtime results with the
+unbundled shipping fixture, and exercises missing metadata, every bundled hash,
+explicit Clang selection and an input changed during packaging. Commands, input
+and tool hashes, stdout, stderr, exits, archive and receipt stay outside the
+checkout under `../evidence/`. All expectations fail the runner on mismatch.
