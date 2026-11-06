@@ -78,8 +78,13 @@ pub func find_in_path(tool *u8) *u8 {
     return nil;
 }
 
-// Find clang - checks PATH and common LLVM install locations
+// Find clang - explicit selection, then PATH and common LLVM locations.
 pub func find_clang() *u8 {
+    // Reader builds and compiler minting must use the same selected host tool
+    // as native builds so dependency receipts identify the actual executable.
+    var selected *u8 = getenv("LANG_CLANG");
+    if selected != nil && *selected != 0 { return selected; }
+
     // First try PATH
     var path_clang *u8 = find_in_path("clang");
     if path_clang != nil { return path_clang; }
