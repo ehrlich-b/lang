@@ -9,7 +9,8 @@ No compiler source changes are needed to edit this language.
 The policy requires `base` and `free_over` once each, in either order. Values
 are decimal whole units in 0..1000000. Orders at or above `free_over` ship free.
 `policy.@NAME@` is positive; `syntax.@NAME@` and `semantic.@NAME@` must fail for
-different reasons. `cases.json` records runtime inputs and exact expected output.
+different reasons. `tests.json` records native inputs, exact output/exits and located negative assertions.
+`cases.json` retains the comparison for the older minted-compiler checker.
 
 Run the commands printed by `lang new language @NAME@`, from the directory
 where you generated this project. They select LLVM/Linux x86-64 and use the
@@ -36,3 +37,9 @@ destination (including an empty directory or symlink) is refused before writes.
 If a later write fails, the command exits nonzero and leaves its incomplete new
 directory for inspection. It never replaces or removes existing content; choose
 a fresh name after fixing the storage problem.
+
+Run the printed `test --project project.lang-project` command after edits.
+Use `--fixture policy` for only the positive source. Changes to `free_over` or
+`base` produce a visible test failure until `tests.json` is updated to match.
+Receipts default to a fresh directory under `build/`; `--evidence DIR` selects
+a fresh directory elsewhere. See the Lang language-project guide for the format.

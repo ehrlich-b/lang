@@ -1,0 +1,45 @@
+// Fixture orchestration is a host resource, using the same compiler and native driver.
+func cmd_project_tests(argc i64, argv **u8) i64 {
+    if argc == 3 && (streq(get_arg(argv, 2), "--help") || streq(get_arg(argv, 2), "-h")) {
+        println("lang test --project PROJECT [--fixture NAME] [--fixtures FILE] [--evidence DIR]");
+        println("Run project fixtures; product-wide verification remains make verify.");
+        return 0;
+    }
+    var options *u8 = map_new();
+    var i i64 = 2;
+    while i < argc {
+        var key *u8 = get_arg(argv, i);
+        if !streq(key, "--project") && !streq(key, "--fixture") &&
+           !streq(key, "--fixtures") && !streq(key, "--evidence") {
+            eprintln("Error: unknown test option"); return 1;
+        }
+        if map_has(options, key) || i + 1 >= argc {
+            eprintln("Error: duplicate test option or missing value"); return 1;
+        }
+        var value *u8 = get_arg(argv, i + 1);
+        if *value == '-' || *value == 0 { eprintln("Error: test option needs a value"); return 1; }
+        map_set(options, key, value); i = i + 2;
+    }
+    var manifest *u8 = map_get(options, "--project");
+    if manifest == nil { eprintln("Usage: lang test --project PROJECT [--fixture NAME]"); return 1; }
+    var project *LanguageProject = project_load(manifest);
+    var python *u8 = find_in_path("python3");
+    var script *u8 = resource_path("std/project_tests.py");
+    if python == nil || script == nil {
+        eprintln("Error: project tests require Python 3 and a Lang source installation"); return 1;
+    }
+    var arguments *u8 = vec_new(32);
+    vec_push(arguments, python); vec_push(arguments, script);
+    vec_push(arguments, "--compiler"); vec_push(arguments, phase_compiler_path);
+    vec_push(arguments, "--input-identity"); vec_push(arguments, project.identity);
+    vec_push(arguments, "--reader"); vec_push(arguments, project_field(project, "reader_source"));
+    i = 0;
+    while i < vec_len(project.runtimes) {
+        vec_push(arguments, "--runtime"); vec_push(arguments, vec_get(project.runtimes, i)); i = i + 1;
+    }
+    i = 2;
+    while i < argc { vec_push(arguments, get_arg(argv, i)); i = i + 1; }
+    var pid i64 = os_fork();
+    if pid == 0 { os_execve(python, project_argv(arguments), ___envp); os__exit(127); }
+    return native_build_wait(pid, "project tests");
+}

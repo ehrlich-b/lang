@@ -161,3 +161,54 @@ linker rejection of an unresolved symbol, stale-output removal and quoted paths.
 Every expectation uses an explicit check, including under optimized Python.
 Use `env JOBS=2 VERIFY_CASE=native-shipping make verify` for this fragment's gate.
 Plain verification continues to select integration suites and fixed points.
+
+## Run project fixtures
+
+`lang test --project PROJECT` reads `tests.json` beside the manifest. Use
+`--fixture NAME` for one exact fixture; an unknown name fails. `--fixtures FILE`
+selects a different suite, with source paths relative to that file. `--evidence DIR`
+reserves a fresh directory for receipts; the default is `build/tests-<id>` beside
+the project. The caller's working directory continues to resolve reader includes.
+The runner requires Python 3 and a Lang source installation, like scaffolding.
+
+```bash
+./out/lang_next test --project example/shipping/project.lang-project
+./out/lang_next test --project example/shipping/project.lang-project --fixture policy
+```
+
+The small format is versioned JSON. Each fixture has a unique `name`, `source`,
+and either `runs` or `diagnostic`. Positive fixtures need at least two distinct
+argument lists. Every run asserts exact UTF-8 stdout, stderr and process exit:
+
+```json
+{"version":1,"fixtures":[{"name":"policy","source":"policy.shipping",
+ "runs":[{"args":["99"],"stdout":"10\n","stderr":"","exit":0},
+         {"args":["100"],"stdout":"0\n","stderr":"","exit":0}]}]}
+```
+
+A negative instead uses `"diagnostic":{"label":"shipping","line":1,"column":21,
+"message_contains":"duplicate setting"}`. These are structured assertions against
+located reader-toolkit diagnostics (`label:line:column: message`); line/column
+are one-based byte positions. They do not require the compiler's separate JSON
+transport. Negative fixtures require exit 1 at the reader phase and no AST output.
+Toolchain, manifest, validation, LLVM and link failures cannot satisfy negatives.
+
+All fixtures use the invoking compiler's native build driver. Positive builds
+must publish an ELF executable after reader, shared-AST validation, LLVM emission,
+object compilation and native link all succeed. A failed compile or link fails
+the fixture. Any wrong output, exit or diagnostic makes the runner exit 1.
+Receipts include commands, stdout/stderr, exits, per-phase exits and wall times, runtime
+wall/CPU times, compiler/reader/runtime/source SHA-256 identities, the project
+input digest (including dependencies), toolchain/linker identities and tool version.
+Readers are trusted native code; command timeouts are 120 seconds per fixture
+subprocess. Timings measure machine work. `LANG_TEST_TIMINGS=1` enables the native
+driver's phase timing records; normal builds keep their existing output.
+
+New language projects include `tests.json`. Change the inclusive threshold
+`free_over` or fee `base` in `policy.NAME`, then rerun to see an expected failure;
+update expectations when that change is intended. The older `cases.json` and
+`check.py` remain available for minted compilers. Project tests do not invoke the
+product-wide suite. Replay this fragment with
+`python3 -B test/reader_author/project_tests.py --case oracle`, or
+`env JOBS=2 VERIFY_CASE=project-tests make verify`. Plain `make verify` retains
+integration suites and fixed points.

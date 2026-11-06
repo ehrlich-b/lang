@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "fixtures": [
+    {
+      "name": "policy",
+      "source": "policy.@NAME@",
+      "runs": [
+        {
+          "args": [
+            "99"
+          ],
+          "stdout": "10\n",
+          "stderr": "",
+          "exit": 0
+        },
+        {
+          "args": [
+            "100"
+          ],
+          "stdout": "0\n",
+          "stderr": "",
+          "exit": 0
+        },
+        {
+          "args": [
+            "bad"
+          ],
+          "stdout": "",
+          "stderr": "@NAME@: order total must be a decimal integer in 0..1000000\n",
+          "exit": 64
+        }
+      ]
+    },
+    {
+      "name": "syntax",
+      "source": "syntax.@NAME@",
+      "diagnostic": {
+        "label": "@NAME@",
+        "line": 1,
+        "column": @SYNTAX_COLUMN@,
+        "message_contains": "expected ';'"
+      }
+    },
+    {
+      "name": "semantic",
+      "source": "semantic.@NAME@",
+      "diagnostic": {
+        "label": "@NAME@",
+        "line": 1,
+        "column": @SEMANTIC_COLUMN@,
+        "message_contains": "duplicate setting"
+      }
+    }
+  ]
+}

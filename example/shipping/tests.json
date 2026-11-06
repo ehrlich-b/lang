@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "fixtures": [
+    {
+      "name": "policy",
+      "source": "policy.shipping",
+      "runs": [
+        {
+          "args": [
+            "99"
+          ],
+          "stdout": "10\n",
+          "stderr": "",
+          "exit": 0
+        },
+        {
+          "args": [
+            "100"
+          ],
+          "stdout": "0\n",
+          "stderr": "",
+          "exit": 0
+        },
+        {
+          "args": [
+            "bad"
+          ],
+          "stdout": "",
+          "stderr": "shipping: order total must be a decimal integer in 0..1000000\n",
+          "exit": 64
+        }
+      ]
+    },
+    {
+      "name": "reordered",
+      "source": "reordered.shipping",
+      "runs": [
+        {
+          "args": [
+            "0"
+          ],
+          "stdout": "10\n",
+          "stderr": "",
+          "exit": 0
+        },
+        {
+          "args": [
+            "120"
+          ],
+          "stdout": "0\n",
+          "stderr": "",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "name": "syntax",
+      "source": "syntax.shipping",
+      "diagnostic": {
+        "label": "shipping",
+        "line": 1,
+        "column": 20,
+        "message_contains": "expected ';'"
+      }
+    },
+    {
+      "name": "semantic",
+      "source": "invalid/duplicate.shipping",
+      "diagnostic": {
+        "label": "shipping",
+        "line": 1,
+        "column": 21,
+        "message_contains": "duplicate setting"
+      }
+    }
+  ]
+}

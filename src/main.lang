@@ -2,6 +2,7 @@
 include "src/project.lang"
 include "src/project_scaffold.lang"
 include "src/native_build.lang"
+include "src/project_tests.lang"
 
 // ============================================================
 // CLI helpers
@@ -1191,6 +1192,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("  version    Show version information");
     println("  env        Show environment variables");
     println("  build      Build a project guest into a native executable");
+    println("  test       Run named project fixtures and native expectations");
     println("  tools      Show toolchain availability");
     println("  tooling    Show reader capabilities and query availability");
     println("");
@@ -1565,6 +1567,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
             return cmd_new(argc - 2, argv, 2);
         }
         if streq(first, "build") { return cmd_native_build(argc, argv); }
+        if streq(first, "test") { return cmd_project_tests(argc, argv); }
         if streq(first, "project") { return cmd_project(argc, argv); }
         if streq(first, "read") {
             return cmd_read(argc - 2, argv, 2);

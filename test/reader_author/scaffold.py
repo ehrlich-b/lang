@@ -69,7 +69,7 @@ def main():
         require(not result.stderr, 'generation emitted diagnostics')
         project = scratch / 'parcel'
         expected = {'reader.lang', 'runtime.lang', 'project.lang-project', 'policy.parcel',
-                    'syntax.parcel', 'semantic.parcel', 'cases.json', 'check.py', 'README.md'}
+                    'syntax.parcel', 'semantic.parcel', 'tests.json', 'cases.json', 'check.py', 'README.md'}
         require({p.name for p in project.iterdir()} == expected, 'incomplete project')
         shutil.copytree(project, evidence / 'generated')
         initial = snapshot(project)
