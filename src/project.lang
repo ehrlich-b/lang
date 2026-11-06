@@ -52,6 +52,15 @@ func project_input(project *LanguageProject, field *u8, path *u8) *u8 {
     return phase_source_get(id).text;
 }
 
+func project_dependencies(project *LanguageProject, field *u8, text *u8,
+                          path *u8, seen *u8, bytes *PhaseBuffer) void {
+    var error *PhaseDependencyError = phase_dependency_try_visit(text, path, seen, bytes, 0);
+    if error != nil {
+        project_fail_field(project, field, str_concat(str_concat(field, ": "),
+            str_concat(str_concat(error.code, ": "), error.source)));
+    }
+}
+
 func project_load(path *u8) *LanguageProject {
     var project *LanguageProject = alloc(40);
     project.path = path; project.fields = map_new(); project.tokens = map_new();
@@ -155,14 +164,14 @@ func project_load(path *u8) *LanguageProject {
     var seen *u8 = map_new();
     phase_buffer_field(bytes, phase_source_snapshot(path).digest);
     phase_buffer_field(bytes, path);
-    phase_dependency_visit(source_text, source, seen, bytes, 0);
+    project_dependencies(project, "reader_source", source_text, source, seen, bytes);
     phase_buffer_field(bytes, entry); phase_buffer_field(bytes, phase_source_snapshot(entry).digest);
     i = 0;
     while i < vec_len(project.runtimes) {
         var runtime *u8 = vec_get(project.runtimes, i);
         if is_lang_extension(get_extension(runtime)) == 0 { project_fail_field(project, "runtime_files", "runtime source must be .lang"); }
         var runtime_text *u8 = project_input(project, "runtime_files", runtime);
-        phase_dependency_visit(runtime_text, runtime, seen, bytes, 0);
+        project_dependencies(project, "runtime_files", runtime_text, runtime, seen, bytes);
         i = i + 1;
     }
     project.identity = phase_digest(bytes.data, bytes.len);

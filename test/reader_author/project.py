@@ -88,6 +88,20 @@ def main():
             require(message.encode() in result.stderr, name + ': missing diagnostic')
             require(re.search(re.escape(str(path).encode()) + rb':\d+:\d+: error:', result.stderr),
                     name + ': missing manifest location')
+        # Resolver failures retain the originating manifest field through recursion.
+        for source, field in [('reader', 'reader_source'), ('runtime', 'runtime_files')]:
+            for suffix in ('', '-transitive'):
+                name = 'dependency-' + source + suffix
+                path = fixtures / (name + '.lang-project')
+                replay.env['PATH'], saved_path = '/nonexistent', replay.env['PATH']
+                result = replay.run([compiler, 'project', 'check', str(path)], 'reject-' + name, scratch, expected=1)
+                replay.env['PATH'] = saved_path
+                line = next(i for i, text in enumerate(path.read_text().splitlines(), 1)
+                            if text.strip().startswith(field + ' '))
+                expected = (f'{path}:{line}:5: error: {field}: missing-dependency: '
+                            f'missing-project-{source}-dependency.lang\n').encode()
+                require(result.stderr == expected and not result.stdout, name + ': lost manifest field or dependency')
+                require(not (scratch / 'cache').exists(), name + ': dependency validation executed a reader')
         # Same-name projects must be isolated by source identities, not reader name.
         outputs = []
         for name, number in [('alpha', 42), ('beta', 7), ('alpha', 42)]:
