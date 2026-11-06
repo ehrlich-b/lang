@@ -71,3 +71,22 @@ Those times measure machine work, not human authoring time. The runner limits
 itself and children to two CPUs, JOBS=2 and a 2 GiB address-space ceiling.
 For the fragment gate, run `env JOBS=2 make verify VERIFY_CASE=shipping`;
 plain `make verify` retains the integration suites and fixed-point checks.
+
+### Inspect the project
+
+With the compiler built from current sources (`make init`, then `make build`),
+run `out/lang_next inspect --project example/shipping/project.lang-project --stage tree`
+from the checkout root. Select `tokens`, `tree`, `core` or `llvm`; add `-o path`
+to save the artifact. Stdout contains only that artifact; errors go to stderr.
+The tree keeps named captures, values and half-open UTF-8 byte spans. Core shows
+`shipping_fee` and calls across the separate `shipping_total` / `shipping_print`
+runtime boundary; LLVM includes the runtime implementations.
+
+The grammar's `!inspect shipping_policy;` metadata names its complete-input
+boundary. Inspection invokes the actual reader and uses its configured tokenizer
+and generated parser. Tree inspection stops before lowering, so a lowering error
+can still be diagnosed from the tree. A tree parse checks end of input. Tokens
+stop at the scanner boundary and can succeed even when later parsing would fail.
+Custom readers without this opt-in boundary report tokens/tree as unsupported;
+their core and LLVM remain available. Native readers retain their normal host
+access; this command does not imply sandboxing.

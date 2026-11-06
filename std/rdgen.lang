@@ -816,6 +816,11 @@ func rdgen_gen_rule(rd *RDGen, rule *GNode) void {
     rdgen_newline(rd);
 
     rd.indent = rd.indent + 1;
+    var inspecting i64 = 0;
+    if rd.grammar.inspect != nil {
+        if streq(rd.grammar.inspect, str_dup_n(rule.name, rule.name_len)) { inspecting = 1; }
+    }
+    if inspecting != 0 { rdgen_line(rd, "parser_inspect_begin(t);"); }
     rdgen_line(rd, "var result *PNode = nil;");
     if rd.grammar.contracts != 0 {
         var body *GNode = rule.child;
@@ -827,11 +832,16 @@ func rdgen_gen_rule(rd *RDGen, rule *GNode) void {
 
     if rd.grammar.contracts != 0 {
         rdgen_indent(rd);
-        sb_str(rd.sb, "return capture_tree(result, \"");
+        sb_str(rd.sb, "result = capture_tree(result, \"");
         rdgen_strn(rd, rule.name, rule.name_len);
         sb_str(rd.sb, "\", _alternative);");
         rdgen_newline(rd);
-    } else { rdgen_line(rd, "return result;"); }
+    }
+    if inspecting != 0 {
+        rdgen_indent(rd); sb_str(rd.sb, "parser_inspect_end(t, result, \"");
+        rdgen_strn(rd, rule.name, rule.name_len); sb_str(rd.sb, "\");"); rdgen_newline(rd);
+    }
+    rdgen_line(rd, "return result;");
     rd.indent = rd.indent - 1;
     rdgen_line(rd, "}");
     rdgen_newline(rd);

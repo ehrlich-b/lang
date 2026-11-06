@@ -1,6 +1,7 @@
 // src/main.lang - Main entry point for self-hosting compiler
 include "src/project.lang"
 include "src/project_scaffold.lang"
+include "src/inspect.lang"
 
 // ============================================================
 // CLI helpers
@@ -1153,6 +1154,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
         if streq(subcmd, "compile") { return cmd_help_compile(); }
         if streq(subcmd, "run") { return cmd_help_run(); }
         if streq(subcmd, "read") { return cmd_help_read(); }
+        if streq(subcmd, "inspect") { return cmd_help_inspect(); }
         if streq(subcmd, "compiler") { return cmd_help_compiler(); }
         if streq(subcmd, "new") { return cmd_help_new(); }
         if streq(subcmd, "reader") || streq(subcmd, "readers") { return cmd_help_reader(); }
@@ -1175,6 +1177,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("  compile    Compile source files (default)");
     println("  project    Check or build a language project manifest");
     println("  run        Compile, link, and run a program");
+    println("  inspect    Show project tokens, tree, core or LLVM");
     println("  read       Run a reader and inspect its AST");
     println("  compiler   Build a native compiler from a reader");
     println("  new reader Scaffold a reader and sample source");
@@ -1555,6 +1558,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
         if streq(first, "new") {
             return cmd_new(argc - 2, argv, 2);
         }
+        if streq(first, "inspect") { return cmd_inspect(argc, argv); }
         if streq(first, "project") { return cmd_project(argc, argv); }
         if streq(first, "read") {
             return cmd_read(argc - 2, argv, 2);

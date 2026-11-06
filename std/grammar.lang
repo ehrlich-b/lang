@@ -82,10 +82,12 @@ struct Grammar {
     rules *u8;      // Vec of GNode (GNODE_RULE)
     rule_names *u8; // Map of rule names to GNode
     contracts i64;  // opt-in checked capture generation
+    inspect *u8;    // explicit complete-input rule, or nil
 }
 
 func grammar_new() *Grammar {
-    var g *Grammar = alloc(24);
+    var g *Grammar = alloc(32);
+    g.inspect = nil;
     g.contracts = 0;
     g.rules = vec_new(8);
     g.rule_names = map_new();
@@ -687,14 +689,21 @@ func grammar_parse(text *u8) *Grammar {
     var gp *GrammarParser = gp_new(text);
     var g *Grammar = grammar_new();
 
-    // A leading directive opts in without reserving an ordinary rule name.
-    if tok_kind(gp.t) == TOK_BANG {
+    // Directives do not reserve ordinary rule names. Inspection explicitly
+    // names a complete-input boundary; never guess one from rule order.
+    while tok_kind(gp.t) == TOK_BANG {
         tok_next(gp.t);
-        if !gp_is_keyword(gp, "captures") { gp_fail(gp, "captures"); return nil; }
-        tok_next(gp.t);
+        if gp_is_keyword(gp, "captures") {
+            if g.contracts != 0 { gp_fail(gp, "unique directive"); return nil; }
+            tok_next(gp.t); g.contracts = 1;
+        } else if gp_is_keyword(gp, "inspect") {
+            if g.inspect != nil { gp_fail(gp, "unique directive"); return nil; }
+            tok_next(gp.t);
+            if tok_kind(gp.t) != TOK_IDENT { gp_fail(gp, "inspection rule"); return nil; }
+            g.inspect = tok_text(gp.t); tok_next(gp.t);
+        } else { gp_fail(gp, "captures or inspect"); return nil; }
         if tok_kind(gp.t) != TOK_SEMI { gp_fail(gp, "';'"); return nil; }
         tok_next(gp.t);
-        g.contracts = 1;
     }
 
     // Native reader expansion passes only the block body; the browser's direct
@@ -720,6 +729,9 @@ func grammar_parse(text *u8) *Grammar {
         return nil;
     }
 
+    if g.inspect != nil && grammar_get_rule(g, g.inspect, strlen(g.inspect)) == nil {
+        gp_fail(gp, "declared inspection rule"); return nil;
+    }
     var count i64 = vec_len(g.rules);
     var i i64 = 0;
     while i < count {

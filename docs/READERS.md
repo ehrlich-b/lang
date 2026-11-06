@@ -275,3 +275,22 @@ Run just this fragment with `python3 -B test/reader_author/captures.py --case
 contracts`, or `env JOBS=2 make verify VERIFY_CASE=contracts`. It retains command
 receipts, source/tool hashes and exact output outside the checkout. Plain
 `make verify` remains the integration fixed-point gate.
+
+### Project stage inspection
+
+`lang inspect --project path.lang-project --stage tokens|tree|core|llvm [-o output]`
+selects one artifact. Diagnostics stay on stderr, including when `-o` is used.
+Core is the existing reader AST, formatted with spans intact; calls into the
+project runtime remain visible there. LLVM combines that core with the manifest's
+runtime files and uses its native LLVM profile.
+
+A `#parser{}` grammar can declare `!inspect complete_input_rule;` alongside
+`!captures;`. The generator records this boundary and emits inspection hooks only
+for that rule. It must be the reader's complete-input entry, not an internal
+expression rule. The real reader still constructs the tokenizer (including
+custom streams/comment rules), then calls its generated parser normally. Tokens
+capture that stream; tree validates end of input and dumps the resulting PNode
+before lowering. Recursive calls to the boundary rule finish before the outer
+entry is captured. No source-text or core-AST reconstruction stands in for a tree.
+Readers without an explicit generated boundary report those syntax stages as
+unsupported. Choose core or LLVM for such readers.
