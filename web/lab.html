@@ -432,7 +432,7 @@ func main() *u8 {
     }
     if chunk < 0 { return nil; }
     *(text + length) = 0;
-    ${structuredDiagnostics ? 'reader_diagnostic_wire = 1;' : ''}
+    ${structuredDiagnostics ? 'reader_diagnostic_snapshot = str_dup(text); reader_diagnostic_wire = 1;' : ''}
     return ${name}(text);
 }
 `;

@@ -74,6 +74,36 @@ const { runLangProgram, formatLangAst } = require('../../web/program_host.js');
     assert.equal(last.diagnostics[0].code, 'reader-syntax');
     assert.equal(last.diagnostics[0].path, 'source.read');
     assert.deepEqual(last.diagnostics[0].span, { start: 17, end: 21 });
+
+    // Compile and invoke a real Lab reader through the bundled Wasm compiler.
+    // The same valid range must be rejected when its text is not the input.
+    element('reader').value = `reader snapshot(text *u8) *u8 {
+      if streq(text, "guest input") {
+        reader_error("snapshot", "wrong snapshot", "snapshot", "other input", 0, 5);
+      } else {
+        reader_error("snapshot", "matching snapshot", "snapshot", text, 0, 5);
+      }
+      return nil;
+    }`;
+    element('custom-source').value = 'guest input';
+    await element('compile').onclick();
+    const mismatch = runs[runs.length - 1].diagnostics;
+    assert.equal(mismatch.length, 1);
+    assert.equal(mismatch[0].code, 'reader-diagnostic-invalid');
+    assert.equal(mismatch[0].category, 'reader');
+    assert.equal(mismatch[0].span, null);
+    assert.equal(element('jump-error').hidden, true);
+
+    element('custom-source').value = 'other input';
+    await element('compile').onclick();
+    const matching = runs[runs.length - 1].diagnostics;
+    assert.equal(matching.length, 1);
+    assert.equal(matching[0].code, 'snapshot');
+    assert.equal(matching[0].category, 'guest');
+    assert.deepEqual(matching[0].span, { start: 0, end: 5 });
+    assert.equal(element('jump-error').hidden, false);
+    assert.deepEqual(element('custom-source').selection, [0, 5]);
+    console.log(JSON.stringify({ mismatch, matching }));
   }
   console.log(JSON.stringify({ pass: true, mode, builds, message: element('output').textContent,
     diagnostics: last.diagnostics, selection: element('custom-source').selection }));
