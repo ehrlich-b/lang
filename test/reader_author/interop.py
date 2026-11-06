@@ -125,8 +125,10 @@ def main():
             source = fixtures + filename
             result = replay.run([compiler, shipping, fixtures + 'incompatible.lang', library,
                                  source, harness, '-o', str(output)], 'reject-' + filename, clone, expected=1)
-            require(message.encode() in result.stderr and re.search(rb':1:8:.*' + re.escape(message.encode()), result.stderr),
-                    filename + ': missing refusal at import symbol (line 1, byte column 8)')
+            line, column = {'shadow.shippingforth': (1, 3), 'duplicate.shippingforth': (2, 8)}.get(filename, (1, 8))
+            location = f':{line}:{column}:'.encode()
+            require(message.encode() in result.stderr and re.search(re.escape(location) + rb'.*' + re.escape(message.encode()), result.stderr),
+                    f'{filename}: missing refusal at symbol (line {line}, byte column {column})')
             require(not output.exists(), filename + ': incompatible export emitted native IR')
         # Exercise the very assertion used above in a subprocess. It must fail
         # even under python -O, where ordinary assert statements disappear.
