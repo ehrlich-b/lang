@@ -1,0 +1,2 @@
+# These diagnostic inputs deliberately retain CRLF and byte-exact UTF-8 spans.
+test/reader_author/fixtures/*/*.shipping -text whitespace=cr-at-eol

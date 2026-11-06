@@ -1,7 +1,7 @@
 // Optional structured stderr records. Callers own codes and source locations;
 // this transport owns byte-safe JSON encoding and bounded message storage.
 // Direct calls keep this optional transport usable by every backend.
-var ___compiler_diagnostic_details fn() void = nil;
+var ___compiler_diagnostic_details *u8 = nil;
 var ___compiler_diagnostic_json i64 = 0;
 var ___compiler_diagnostic_default_code *u8 = "error";
 var ___compiler_diagnostic_code *u8 = "error";
@@ -96,7 +96,9 @@ pub func ___compiler_diagnostic_sink(data *u8, len i64, complete i64) void {
     ___compiler_diagnostic_write(",\"message\":"); ___compiler_diagnostic_string(___compiler_diagnostic_message, ___compiler_diagnostic_len);
     ___compiler_diagnostic_write(",\"truncated\":");
     if ___compiler_diagnostic_truncated != 0 { ___compiler_diagnostic_write("true"); } else { ___compiler_diagnostic_write("false"); }
-    if ___compiler_diagnostic_details != nil { ___compiler_diagnostic_details(); }
+    if ___compiler_diagnostic_details != nil {
+        var details fn() void = ___compiler_diagnostic_details; details();
+    }
     ___compiler_diagnostic_details = nil;
     ___compiler_diagnostic_write("}\n");
     ___compiler_diagnostic_len = 0; ___compiler_diagnostic_truncated = 0;

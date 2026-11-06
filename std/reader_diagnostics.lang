@@ -3,7 +3,7 @@
 struct ReaderDiagnostic {
     code *u8; message *u8; source *u8; start i64; end i64; category i64;
 }
-var reader_diagnostic_hook fn(*ReaderDiagnostic, *u8) void = nil;
+var reader_diagnostic_hook *u8 = nil;
 var reader_diagnostic_wire i64 = 0;
 var reader_diagnostic_count i64 = 0;
 
@@ -56,7 +56,10 @@ pub func reader_diagnostic_text(d *ReaderDiagnostic, text *u8) void {
 }
 pub func reader_diagnostic_emit(d *ReaderDiagnostic, text *u8) void {
     reader_diagnostic_count = reader_diagnostic_count + 1;
-    if reader_diagnostic_hook != nil { reader_diagnostic_hook(d, text); return; }
+    if reader_diagnostic_hook != nil {
+        var report fn(*ReaderDiagnostic, *u8) void = reader_diagnostic_hook;
+        report(d, text); return;
+    }
     if reader_diagnostic_valid(d, text) == 0 {
         eprintln("reader: invalid diagnostic"); return;
     }
