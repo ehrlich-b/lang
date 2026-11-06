@@ -223,6 +223,10 @@ func main(argc i64, argv **u8) i64 {
     var args *u8 = argv;
     var slot **u8 = args + 8;
     var path *u8 = *slot;
+    if argc > 3 {
+        var b *PhaseBuffer = phase_buffer_new(1048576, "<diagnostic-json>");
+        reader_host_json_string(b, phase_read_file(path)); print(b.data); return 0;
+    }
     if argc > 2 { ___compiler_diagnostic_enable(); }
     embedded_reader_names[0] = "broken";
     embedded_reader_funcs[0] = &embedded_transform;
@@ -261,6 +265,13 @@ func main(argc i64, argv **u8) i64 {
         large_message = bytearray(b'x' * 131072)
         for offset in range(0, len(large_message), 32):
             large_message[offset:offset + 8] = b'"\\\n\t\r\x01\xc3\xa9'
+        metadata_path = scratch / 'large-metadata.txt'
+        metadata_path.write_bytes(large_message)
+        retain_input(metadata_path)
+        metadata = replay.run([str(embedded), str(metadata_path), 'json', 'metadata'],
+                              'large-origin-json-string', clone)
+        require(not metadata.stderr and json.loads(metadata.stdout) == large_message.decode(),
+                'large origin JSON string changed bytes')
         for value in ['large-truncated', 'large-mixed', 'large-mixed-truncated']:
             path = scratch / (value + '.broken')
             path.write_text(value)
