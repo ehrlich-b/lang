@@ -140,7 +140,8 @@ func ast_shape_validate(node *PNode, role u8) void {
         return;
     }
     if *schema != role {
-        if role != 'n' || *schema != 'd' { ast_shape_error(node); return; }
+        if (role != 'n' || *schema != 'd') &&
+           (role != 'd' || streq(head, "reader_expr") == 0) { ast_shape_error(node); return; }
     }
     signature = schema + 2;
     if streq(head, "func") || streq(head, "extern_func") || streq(head, "var") ||

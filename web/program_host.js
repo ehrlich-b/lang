@@ -166,7 +166,8 @@ function formatLangAst(source) {
       validate(children[1], '#'); validate(children[2], '#');
       validate(children[3], role); return;
     }
-    if (schema[0] !== role && !(role === 'n' && schema[0] === 'd')) return invalid(node);
+    if (schema[0] !== role && !(role === 'n' && schema[0] === 'd') &&
+        !(role === 'd' && head === 'reader_expr')) return invalid(node);
     let signature = schema.slice(2);
     let index = 1;
     if (['func', 'extern_func', 'var', 'extern_var', 'struct', 'enum', 'effect', 'reader'].includes(head) &&
