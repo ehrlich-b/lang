@@ -66,8 +66,9 @@ def main():
          '--input', build_receipt, '--compiler', args.compiler.resolve()], ROOT)
     build = json.loads(build_receipt.read_text())
     require(not build['source']['dirty'], 'package requires a committed compiler build')
+    resolved_inputs = [p if p.is_file() else ROOT / p for p in args.input]
     inputs = {str(p.resolve()): digest(p) for p in
-              [*args.input, *args.runtime, args.project, args.entry, args.metadata,
+              [*resolved_inputs, *args.runtime, args.project, args.entry, args.metadata,
                *license_paths, args.compiler, build_receipt,
                Path(__file__), ROOT / 'scripts/package_kit.py']}
     tools = {}
