@@ -80,6 +80,9 @@ def main():
     if hard != resource.RLIM_INFINITY:
         ceiling = min(ceiling, hard)
     resource.setrlimit(resource.RLIMIT_AS, (ceiling, ceiling))
+    stack, stack_hard = resource.getrlimit(resource.RLIMIT_STACK)
+    stack = min(stack, 8 * 1024**2) if stack != resource.RLIM_INFINITY else 8 * 1024**2
+    resource.setrlimit(resource.RLIMIT_STACK, (stack, stack_hard))
     token = uuid.uuid4().hex
     evidence = (args.evidence or ROOT.parent / 'evidence' / ('diagnostics-' + token)).resolve()
     require(ROOT != evidence and ROOT not in evidence.parents, 'evidence must be outside checkout')
@@ -105,7 +108,7 @@ def main():
                  for name in ('python3', 'make', 'clang', 'ld', 'git', 'node')}
         dump(evidence / 'identity.json', {'head': head,
              'source_sha256': {p: sha(clone / p) for p in paths if p and (clone / p).is_file()},
-             'tools': tools, 'limits': {'cpus': cpus, 'address_space_bytes': ceiling, 'JOBS': 2},
+             'tools': tools, 'limits': {'cpus': cpus, 'address_space_bytes': ceiling, 'stack_bytes': stack, 'JOBS': 2},
              'assumptions': 'Linux x86-64 libc; sequential commands; Node executes browser host Wasm with trap handler disabled to stay within address-space cap; no OS kernel tests; no web artifact regeneration; unchanged visual layout'})
         replay.run(['make', 'init'], 'seed', clone)
         replay.run(['make', 'build'], 'build', clone)
@@ -253,6 +256,38 @@ func main(argc i64, argv **u8) i64 {
         valid_embedded = replay.run([str(embedded), str(valid_path)], 'embedded-valid', clone)
         require(valid_embedded.stdout == b'(program)' and not valid_embedded.stderr,
                 'embedded valid AST changed')
+        # Keep clang unoptimized above: loop-local stack slots can otherwise be
+        # promoted away, hiding a crash in the actual embedded read caller.
+        large_message = bytearray(b'x' * 131072)
+        for offset in range(0, len(large_message), 32):
+            large_message[offset:offset + 8] = b'"\\\n\t\r\x01\xc3\xa9'
+        for value in ['large-truncated', 'large-mixed', 'large-mixed-truncated']:
+            path = scratch / (value + '.broken')
+            path.write_text(value)
+            retain_input(path)
+            message = 'x' * 131072 if value == 'large-truncated' else large_message.decode()
+            expected = [('large-message', message, 'guest', None)]
+            if value != 'large-truncated':
+                expected.extend([('reader-implementation', 'after large message', 'reader', None),
+                                 ('last-guest', 'last guest message', 'guest', {'start': 0, 'end': 1})])
+            if value != 'large-mixed':
+                expected.append(('reader-diagnostic-invalid', 'invalid reader diagnostic', 'reader', None))
+            result = replay.run([str(embedded), str(path), '--diagnostics=json'], value, clone, expected=1)
+            require(not result.stdout, value + ': accepted AST')
+            records = [json.loads(line) for line in result.stderr.splitlines()]
+            require(len(records) == len(expected), value + ': lost records')
+            for record, (code, message, category, span) in zip(records, expected):
+                require((record['code'], record['message'], record['category'], record['span']) ==
+                        (code, message, category, span), value + ': changed diagnostic bytes or order')
+                require(record['path'] == str(path) and record['source_id'] > 0 and not record['truncated'],
+                        value + ': changed source identity or truncated message')
+            if value == 'large-mixed-truncated':
+                text = replay.run([str(embedded), str(path)], value + '-text', clone, expected=1)
+                expected_text = ''.join(f"{path}:{'1:1:' if span else ''} {message}\n"
+                                        for _, message, _, span in expected).encode()
+                require(not text.stdout and text.stderr == expected_text, value + ': text/JSON differ')
+        replay.run(['node', '--max-old-space-size=256', 'test/reader_author/diagnostic_streams.cjs'],
+                   'browser-streams', clone)
         nested = replay.run([str(compiler), 'test/reader_author/fixtures/nested.lang',
                     '--diagnostics=json', '-o', str(scratch / 'nested.ll')], 'nested', clone, expected=1)
         nd = [json.loads(line) for line in nested.stderr.splitlines()]
