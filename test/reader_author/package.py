@@ -16,6 +16,19 @@ from route import ROOT, dump, require, sha
 BASE = 'dea0065aaba6729afdc97097d4998216d6baa1f6'
 
 
+class PackageReplay(NativeReplay):
+    def run(self, command, name, cwd, expected=0):
+        try:
+            return super().run(command, name, cwd, expected)
+        finally:
+            if self.rows and self.rows[-1]['name'] == name:
+                row = self.rows[-1]
+                row['environment'].update({k: v for k, v in self.env.items() if k.startswith('PACKAGE_')})
+                dump(self.evidence / (Path(row['stdout']).stem + '.json'), row)
+                dump(self.evidence / 'stages.json', self.rows)
+
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--case', choices=['relocated'], required=True)
@@ -35,7 +48,7 @@ def main():
     evidence.mkdir(parents=True, exist_ok=False)
     scratch = ROOT.parent / 'scratch' / ('package-' + token)
     scratch.mkdir(parents=True)
-    replay = NativeReplay(evidence, scratch)
+    replay = PackageReplay(evidence, scratch)
     replay.env.update(MAKEFLAGS='-j2', PYTHONDONTWRITEBYTECODE='1')
     for key in ('VERIFY_CASE', 'LANG_CLANG', 'LANG_ROOT'):
         replay.env.pop(key, None)
