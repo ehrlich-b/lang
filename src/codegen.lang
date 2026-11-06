@@ -1855,7 +1855,7 @@ func process_decl_first_pass(decl *u8) void {
             var exe_path *u8 = build_reader_cache_path(name, name_len);
 
             // Execute reader with content as input
-            output = phase_worker_call(exe_path, content, content_len);
+            output = phase_reader_call(exe_path, content, content_len, nil);
             var n i64 = phase_worker_status;
             if output != nil { n = strlen(output); }
 
@@ -4075,7 +4075,7 @@ func gen_expr(expr *u8) void {
             var exe_path *u8 = build_reader_cache_path(name, name_len);
 
             // Execute reader with content as input
-            output = phase_worker_call(exe_path, content, content_len);
+            output = phase_reader_call(exe_path, content, content_len, nil);
             var n i64 = phase_worker_status;
             if output != nil { n = strlen(output); }
 
@@ -5855,7 +5855,7 @@ func gen_decl(decl *u8) void {
             var exe_path *u8 = build_reader_cache_path(name, name_len);
 
             // Execute reader with content as input
-            output = phase_worker_call(exe_path, content, content_len);
+            output = phase_reader_call(exe_path, content, content_len, nil);
             var n i64 = phase_worker_status;
             if output != nil { n = strlen(output); }
 

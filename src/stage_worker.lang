@@ -10,6 +10,31 @@ pub func phase_worker_call(program *u8, input *u8, len i64) *u8 {
     if phase_worker_hook == nil { return phase_exec_capture(program, input, len); }
     return phase_worker_hook(program, input, len);
 }
+// Syntax inspection belongs to one explicit reader request. All ordinary
+// reader clients use nil, regardless of the compiler's inherited environment.
+pub func phase_reader_call(program *u8, input *u8, len i64, stage *u8) *u8 {
+    var saved **u8 = ___envp;
+    var count i64 = 0;
+    while saved[count] != nil { count = count + 1; }
+    var data *u8 = alloc((count + 2) * 8);
+    var env **u8 = data;
+    var i i64 = 0;
+    var used i64 = 0;
+    while i < count {
+        if strlen(saved[i]) < 19 || !memcmp(saved[i], "LANG_INSPECT_STAGE=", 19) {
+            env[used] = saved[i]; used = used + 1;
+        }
+        i = i + 1;
+    }
+    if stage != nil {
+        env[used] = str_concat("LANG_INSPECT_STAGE=", stage); used = used + 1;
+    }
+    env[used] = nil;
+    ___envp = env;
+    var output *u8 = phase_worker_call(program, input, len);
+    ___envp = saved;
+    return output;
+}
 pub func phase_exec_capture(program *u8, input *u8, input_len i64) *u8 {
     return phase_exec_capture_mode(program, input, input_len, 0);
 }

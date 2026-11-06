@@ -298,7 +298,7 @@ func pnode_dump_int(fd i64, value i64) void {
     pnode_dump_write(fd, buffer);
 }
 
-func pnode_dump_text_to(fd i64, text *u8) void {
+pub func pnode_dump_text_to(fd i64, text *u8) void {
     pnode_dump_write(fd, "\"");
     var p *u8 = text;
     while p != nil && *p != 0 {
@@ -317,7 +317,7 @@ func pnode_dump_text_to(fd i64, text *u8) void {
     pnode_dump_write(fd, "\"");
 }
 
-func pnode_dump_to(fd i64, node *PNode, depth i64) void {
+pub func pnode_dump_to(fd i64, node *PNode, depth i64) void {
     var i i64 = 0;
     while i < depth {
         pnode_dump_write(fd, "  ");

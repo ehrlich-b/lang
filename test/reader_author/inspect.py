@@ -113,6 +113,24 @@ def main():
                 and b'define i64 @shipping_print(' in snapshots['llvm'], 'LLVM lost policy or linked runtime')
         legacy = replay.run([compiler, 'read', str(shipping), str(policy)], 'reader-core-oracle', clone)
         exact(legacy, core)
+        # Exercise normal compiler clients as well as project/read commands.
+        # These paths must retain AST transport and module visibility rules.
+        ordinary = {}
+        for name, fixture, arguments, expected in (
+            ('parser', 'test/parser_reader_test.lang', [],
+             b'PASS: parser_reader_test - parsed 3 numbers\n'),
+            ('declaration', 'test/reader_author/fixtures/inspect/shipping-declaration.lang',
+             ['99'], b'10\n'),
+            ('expression', 'test/reader_author/fixtures/inspect/number-expression.lang',
+             [], b'42\n'),
+        ):
+            ir = scratch / (name + '.ll')
+            executable = scratch / name
+            result = replay.run([compiler, fixture, '-o', str(ir)], name + '-baseline', clone)
+            exact(result, f'Wrote {ir}\n'.encode())
+            ordinary[name] = (fixture, ir, executable, arguments, expected, ir.read_bytes())
+            replay.run(['clang', str(ir), '-o', str(executable)], name + '-link', clone)
+            exact(replay.run([str(executable), *arguments], name + '-run', clone), expected)
         minted = scratch / 'shippingc'
         replay.run([compiler, 'project', 'compiler', str(project), '-o', str(minted)],
                    'mint-shipping-compiler', clone)
@@ -138,6 +156,16 @@ def main():
                 for stage in ('tokens', 'tree', 'core', 'llvm'):
                     exact(inspect(project, stage, 'ambient-' + inherited + '-' + stage),
                           snapshots[stage])
+                for name, (fixture, ir, executable, arguments, expected, baseline_ir) in ordinary.items():
+                    for temperature in ('cold', 'warm'):
+                        replay.env['LANG_CACHE'] = str(scratch / ('ambient-' + inherited + '-' + name))
+                        result = replay.run([compiler, fixture, '-o', str(ir)],
+                            'ambient-' + inherited + '-' + name + '-' + temperature, clone)
+                        exact(result, f'Wrote {ir}\n'.encode())
+                        require(ir.read_bytes() == baseline_ir,
+                                inherited + ': ambient inspection changed ' + name + ' LLVM')
+                    exact(replay.run([str(executable), *arguments],
+                        'ambient-' + inherited + '-' + name + '-run', clone), expected)
                 # The embedded reader never receives a syntax worker request.
                 # A successful exit alone is insufficient: require the full IR.
                 output = scratch / ('standalone-' + inherited + '.ll')
@@ -240,9 +268,12 @@ def main():
         require(b'unexpected exact stdout/stderr' in result.stderr, 'failed expectation was swallowed')
         require(all(sha(clone / p) == h for p, h in hashes.items()), 'tracked source changed during fragment')
         shutil.copyfile(baseline, evidence / 'standalone.ll')
-        dump(evidence / 'artifacts.json', {p.name: sha(p) for p in (Path(compiler), minted, llvm, native, baseline)})
+        dump(evidence / 'artifacts.json', {p.name: sha(p) for p in
+             (Path(compiler), minted, llvm, native, baseline,
+              *(case[1] for case in ordinary.values()),
+              *(case[2] for case in ordinary.values()))})
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'observations': len(replay.rows)})
-        print('PASS inspect: actual tokenizer/tree, core/runtime, LLVM, lowering failure, capture contract, stdout isolation and standalone environment isolation')
+        print('PASS inspect: actual tokenizer/tree, core/runtime, LLVM, lowering failure, capture contract, stdout isolation and ordinary/standalone reader environment isolation')
         return 0
     except Exception as error:
         dump(evidence / 'result.json', {'pass': False, 'error': str(error)})

@@ -12,7 +12,7 @@ func compiler_expand_direct_reader(name *u8, name_len i64, text *u8, text_len i6
         cg_error_prefix(); eprint("reader macro '"); eprint_buf(name, name_len);
         eprintln("' not found"); cg_had_error = 1; return nil;
     }
-    var output *u8 = phase_worker_call(build_reader_cache_path(name, name_len), text, text_len);
+    var output *u8 = phase_reader_call(build_reader_cache_path(name, name_len), text, text_len, nil);
     if output == nil || *output == 0 {
         cg_error_prefix(); eprint("reader '"); eprint_buf(name, name_len);
         eprintln("' failed or returned no AST"); cg_had_error = 1; return nil;
