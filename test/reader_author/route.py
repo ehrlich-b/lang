@@ -106,8 +106,8 @@ def main():
              'limits': {'cpus': cpus, 'address_space_bytes': ceiling, 'JOBS': 2},
              'assumptions': 'Linux x86-64 libc; base 10, inclusive free_over 100; whole units; no OS kernel operations; machine timings only'})
         doc = (clone / 'example/shipping/README.md').read_text()
-        blocks = re.findall(r'```bash\n(.*?)```', doc, re.S)
-        require(len(blocks) == 1, 'README must have one complete executable walkthrough')
+        blocks = re.findall(r'<!-- shipping-walkthrough -->\s*\n```bash\n(.*?)```', doc, re.S)
+        require(len(blocks) == 1, 'README must mark exactly one complete executable walkthrough')
         cwd = clone
         run_number = 0
         for index, raw in enumerate(blocks[0].splitlines(), 1):
