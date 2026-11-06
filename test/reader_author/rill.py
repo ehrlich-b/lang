@@ -123,12 +123,7 @@ def main():
         shutil.copyfile(ir, evidence / ir.name)
         rill_ast = replay.run([compiler, 'read', reader,
             'test/reader_author/fixtures/rill/preservation.rill'], 'preservation-ast', clone)
-        lang_ast = replay.run([compiler, 'read', 'src/lang_reader.lang',
-            'test/reader_author/fixtures/rill/equivalent.lang'],
-            'lang-equivalent-ast', clone)
-        require(not rill_ast.stderr and not lang_ast.stderr, 'AST oracle diagnostic')
-        require(core(rill_ast.stdout) == core(lang_ast.stdout), 'Rill and Lang shared AST differ')
-        (evidence / 'equivalent.ast').write_bytes(lang_ast.stdout)
+        require(not rill_ast.stderr, 'AST diagnostic')
         source = (clone / 'test/reader_author/fixtures/rill/preservation.rill').read_bytes()
         start = source.index(b'fun marker')
         require(re.search(fr'\(span\s+{start}\s+{start}\s+\(func marker'.encode(), rill_ast.stdout),
@@ -139,8 +134,12 @@ def main():
         replay.run([compiler, 'test/reader_author/fixtures/rill/preservation.lang',
                     '-o', str(probe_ir)], 'compile-preservation-probe', clone)
         replay.run(['clang', str(probe_ir), '-o', str(probe)], 'link-preservation-probe', clone)
-        exact(replay.run([str(probe)], 'token-byte-origin-preservation', clone),
-              b'PASS token slices, literal/comment bytes, source snapshot, positions and emitter isolation\n')
+        observed = replay.run([str(probe)], 'token-byte-origin-preservation', clone)
+        marker = b'PASS token slices, literal/comment bytes, source snapshot, positions and emitter isolation\n'
+        require(not observed.stderr and observed.stdout.startswith(marker), 'preservation probe failed')
+        equivalent = observed.stdout[len(marker):]
+        require(core(rill_ast.stdout) == core(equivalent), 'Rill and Lang shared AST differ')
+        (evidence / 'equivalent.ast').write_bytes(equivalent)
         artifacts.extend((probe_ir, probe))
 
         negative = replay.run([str(minted), 'example/rill/invalid.rill',

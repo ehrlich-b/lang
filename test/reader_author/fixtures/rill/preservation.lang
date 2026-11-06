@@ -34,5 +34,10 @@ func main() i64 {
     ast_emit_program_with_origins(prog);
     if !streq(ordinary, ast_emit_program(prog)) { return 7; }
     println("PASS token slices, literal/comment bytes, source snapshot, positions and emitter isolation");
+    // Direct shared-parser oracle, without a CLI-generated include wrapper.
+    var reference *u8 = phase_read_file("test/reader_author/fixtures/rill/equivalent.lang");
+    var expected *u8 = parse_program_from_named_string(reference, "equivalent.lang");
+    if expected == nil { return 8; }
+    print(ast_emit_program(expected));
     return 0;
 }
