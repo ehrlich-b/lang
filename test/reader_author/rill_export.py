@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Replay only the committed Rill compiler-source closure fragment."""
 import argparse
-import gzip
 import io
 import json
+import lzma
 import os
 from pathlib import Path
 import re
@@ -105,7 +105,7 @@ def validate(pack, source):
 
 def archive(path, files):
     # Stable metadata, safe relative member names, no copied build trees/binaries.
-    with path.open('wb') as raw, gzip.GzipFile(fileobj=raw, filename='', mtime=0) as compressed:
+    with lzma.open(path, 'wb', preset=6) as compressed:
         with tarfile.open(fileobj=compressed, mode='w') as tar:
             for name, source in sorted(files.items()):
                 data = source.read_bytes()
@@ -235,7 +235,14 @@ def main():
         files['probe/before.rill'] = probe / 'program.rill'
         files['probe/after.rill'] = edited_probe / 'program.rill'
         # Snapshot source bytes before restoring the intentionally edited scratch clone.
-        archive(evidence / 'closure.tar.gz', files)
+        archive(evidence / 'closure.tar.xz', files)
+        with tarfile.open(evidence / 'closure.tar.xz', 'r:xz') as saved:
+            import hashlib
+            for row in manifest['modules']:
+                for name, expected in [('source/' + row['source'], row['source_sha256']),
+                                       ('export/' + row['export'], row['export_sha256'])]:
+                    require(hashlib.sha256(saved.extractfile(name).read()).hexdigest() == expected,
+                            'archived source/export hash mismatch: ' + name)
         limits.write_bytes(old)
         # Rejected constructs cannot produce a partial export, Lang envelope or AST.
         rejected = {}
@@ -265,14 +272,18 @@ def main():
             'expectation-must-fail', clone / 'test/reader_author', expected=1)
         require(b'unexpected exact stdout/stderr' in result.stderr, 'failed expectation swallowed')
         require(all(sha(clone / p) == h for p, h in hashes.items()), 'tracked sources changed')
+        memory = {'runner_peak_bytes': resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
+                  'child_peak_bytes': resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss * 1024}
+        require(sum(memory.values()) <= ceiling, 'runner and child memory peaks exceeded 2 GiB')
         dump(evidence / 'checks.json', {'modules': len(manifest['modules']), 'keyword_identifier_edits': changes,
+             'memory_peaks': memory,
              'unchanged_exports_identical': True, 'core_comparisons': comparisons, 'rejections': rejected,
              'changed_modules': different, 'runtime_stdout_before': '16\n', 'runtime_stdout_after': '17\n',
              'llvm_before_sha256': before_ir, 'llvm_after_sha256': after_ir,
              'remaining_closure_source_blockers': [],
              'outside_subset': ['macros/quotes', 'reader invocations', 'enums/match', 'effects',
                                 'let/in', 'closures', 'import', ':=', 'nondecimal numbers']})
-        dump(evidence / 'artifacts.json', {'closure.tar.gz': sha(evidence / 'closure.tar.gz'),
+        dump(evidence / 'artifacts.json', {'closure.tar.xz': sha(evidence / 'closure.tar.xz'),
              'compiler': sha(compiler), 'rillc': sha(minted), 'oracle': sha(oracle)})
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'observations': len(replay.rows)})
         print(f'PASS compiler closure: {len(manifest["modules"])} genuine Rill modules, '

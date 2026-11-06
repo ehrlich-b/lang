@@ -190,6 +190,10 @@ class Exporter:
         return b''.join(chunks), spans
 
     def export(self, closures, output):
+        closures = {label: [relative(name) for name in roots] for label, roots in closures.items()}
+        for label in closures:
+            if not re.fullmatch(r'[A-Za-z0-9_-]+', label):
+                raise Unsupported(f'invalid closure name: {label}')
         for roots in closures.values():
             for name in roots:
                 self.load(name)
@@ -210,8 +214,6 @@ class Exporter:
                 'source_bytes': len(module['source']), 'export_bytes': len(data),
                 'dependencies': module['dependencies'], 'spans': spans})
         for label, roots in sorted(closures.items()):
-            if not re.fullmatch(r'[A-Za-z0-9_-]+', label):
-                raise Unsupported(f'invalid closure name: {label}')
             order = self.order(roots)
             chunks, mapping, offset = [], [], 0
             for name in order:

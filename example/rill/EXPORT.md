@@ -66,7 +66,7 @@ stdout from `16` to `17`. The minted Rill compiler emits that LLVM with an empty
 tool PATH. Commands, stdout/stderr, exits, resource limits, source/tool hashes,
 exported sources, original snapshots, selected ASTs and generated input snapshots
 are retained outside the checkout. Bulky reproducible text is compressed in
-`closure.tar.gz`; this is an evidence archive, not an input to the frontend.
+`closure.tar.xz`; this is an evidence archive, not an input to the frontend.
 
 Assumptions are Linux x86-64, Clang/LLVM/libc, repository-root dependency paths
 and a trusted native reader. Flattening preserves declaration order after

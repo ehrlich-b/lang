@@ -50,8 +50,9 @@ origin chain. Rill-to-Rill includes and a separate module resolver are not
 implemented. The example uses the actual `std/core.lang` and `std/ast.lang`
 libraries; it does not hide a compiler implementation in a Lang block.
 
-The frontend changes only token kinds, retaining lexeme pointers, lengths and
-line/byte columns into the untouched UTF-8 input. Comments remain in the source
+The frontend changes token kinds and selects suffix slices for escaped
+identifiers. Unescaped lexeme pointers/lengths and all line/byte columns refer
+to the untouched UTF-8 input. Comments remain in the source
 snapshot; as in Lang, they are trivia and are absent from the AST. String
 escapes retain the shared lexer's spelling until normal AST decoding; character
 literals undergo the shared lexer's ordinary numeric normalization. A general,
