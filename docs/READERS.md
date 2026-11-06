@@ -454,3 +454,22 @@ Run the focused fragment with `JOBS=2 python3 -B test/reader_author/format.py --
 or `VERIFY_CASE=format JOBS=2 make verify`. It records command exits, stdout,
 stderr, source/tool hashes and resource limits outside the checkout. Full
 bootstrap fixed points remain part of integration verification.
+
+### Embedded runtime exports and reachability
+
+A minted compiler retains runtime functions referenced by the emitted guest
+program, including function values stored in global initializers. The explicit
+artifact export set consists of `pub func` declarations in the files passed to
+`--runtime`. These functions remain available to external callers even if no
+guest function calls them. A public wrapper in a supplied runtime file can
+export a helper from an included module. `pub` declarations inside transitively
+included modules describe module visibility; they do not automatically become
+external entry points of each minted artifact.
+
+Runtime globals, their initializers, types and every guest declaration remain
+included. Function references retain all matching overloads. Indirect or
+unresolved calls, opaque syntax, pointer casts and foreign imports outside the
+compiler's exact system-libc leaf ABI contracts keep the whole runtime. This
+conservative fallback also preserves diagnostics and supports runtimes whose
+dependencies cannot be determined statically. The same boundary applies to
+`--from-ast --runtime`.

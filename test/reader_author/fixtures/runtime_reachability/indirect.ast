@@ -1,5 +1,5 @@
 (program
   (func main () (type_base i64)
     (block
-      (var callback (type_func ((type_base i64)) (type_base i64)) (ident callback_value))
+      (var callback (type_func ((type_base i64)) (type_base i64)) (unop & (ident callback_value)))
       (return (binop - (call (ident callback) (number 35)) (number 42))))))

@@ -34,7 +34,7 @@ def check_measurements():
     candidates = []
     for path in (ROOT.parent / 'evidence').glob('reachability-*/result.json'):
         result = json.loads(path.read_text())
-        if result.get('pass') and result.get('head') == head:
+        if result.get('pass') and not result.get('audit_only') and result.get('head') == head:
             candidates.append(path)
     require(candidates, 'run --case shipping at the current committed HEAD first')
     path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
