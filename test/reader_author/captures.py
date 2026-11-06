@@ -45,6 +45,8 @@ def main():
         require(not status.stdout, 'commit the candidate before replaying it')
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor', BASE, head], 'required-base', ROOT)
+        replay.run(['git', 'diff', '--exit-code', BASE, head, '--', 'bootstrap', 'web'],
+                   'protected-inputs', ROOT)
         clone = scratch / 'repo'
         replay.run(['git', 'clone', '--no-hardlinks', '--quiet', str(ROOT), str(clone)], 'clone', ROOT)
         files = replay.run(['git', 'ls-files', '-z'], 'inputs', clone).stdout.decode().split('\0')
