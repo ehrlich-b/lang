@@ -215,5 +215,5 @@ func cmd_project(argc i64, argv **u8) i64 {
         }
     }
     if argc == 6 { vec_push(arguments, "-o"); vec_push(arguments, get_arg(argv, 5)); }
-    return main(vec_len(arguments), project_argv(arguments));
+    return main_dispatch(vec_len(arguments), project_argv(arguments));
 }
