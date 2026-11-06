@@ -57,8 +57,7 @@ def main():
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor', 'ed73e20a974eccdba76e0cdb4ca9409260ffa37f', head],
                    'required-base', ROOT)
-        replay.run(['git', 'diff', '--exit-code', '0149c1d',
-                    head, '--', 'bootstrap/current', 'web'], 'protected-inputs-unchanged', ROOT)
+        replay.run([sys.executable, '-B', 'test/reader_author/protected_inputs.py'], 'protected-inputs-unchanged', ROOT)
         clone = scratch / 'repo'
         replay.run(['git', 'clone', '--no-hardlinks', '--quiet', str(ROOT), str(clone)], 'clone', ROOT)
         files = replay.run(['git', 'ls-files', '-z'], 'inputs', clone).stdout.decode().split('\0')

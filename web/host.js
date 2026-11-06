@@ -57,6 +57,7 @@ async function runLangWasm(wasmBytes, onWrite) {
     free: () => {},
     exit: (code) => { throw new ExitTrap(code); },
     _exit: (code) => { throw new ExitTrap(code); },
+    clock_gettime: () => -1n,
     getpid: () => 1n,
     getppid: () => 0n,
     getenv: () => 0,
