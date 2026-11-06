@@ -57,6 +57,8 @@ def main():
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor', 'ed73e20a974eccdba76e0cdb4ca9409260ffa37f', head],
                    'required-base', ROOT)
+        replay.run(['git', 'diff', '--exit-code', 'ed73e20a974eccdba76e0cdb4ca9409260ffa37f',
+                    head, '--', 'bootstrap/current', 'web'], 'protected-inputs-unchanged', ROOT)
         clone = scratch / 'repo'
         replay.run(['git', 'clone', '--no-hardlinks', '--quiet', str(ROOT), str(clone)], 'clone', ROOT)
         files = replay.run(['git', 'ls-files', '-z'], 'inputs', clone).stdout.decode().split('\0')
@@ -89,12 +91,17 @@ def main():
             require(not list(output.parent.glob(output.name + '.lang-build-*')), name + ': staging files leaked')
             if expected:
                 require(not output.exists(), name + ': stale or partial output survived')
+                require(b'Built ' not in result.stdout, name + ': failure announced success')
             return result
 
         result = build('shipping-valid')
         require(b'optimization=-O0' in result.stderr, 'default optimization was not recorded')
         require(exe.read_bytes().startswith(b'\x7fELF'), 'build did not publish a native executable')
         saved_exe = exe.read_bytes()
+
+        def seed_previous():
+            exe.write_bytes(saved_exe)
+            exe.chmod(0o755)
         for total, expected in [('0', b'10\n'), ('99', b'10\n'), ('100', b'0\n'), ('120', b'0\n')]:
             path = replay.env['PATH']
             replay.env['PATH'] = '/nonexistent'
@@ -105,8 +112,10 @@ def main():
         # Inspectable alternatives use the same reader and validation boundary.
         ast = scratch / 'policy.ast'
         llvm = scratch / 'policy.ll'
+        replay.env['LANG_CLANG'] = str(scratch / 'absent final toolchain')
         build('emit-ast', output=ast, emit='ast')
         build('emit-llvm', output=llvm, emit='llvm')
+        replay.env.pop('LANG_CLANG')
         require(b'(binop >=' in ast.read_bytes() and b'(ident total)' in ast.read_bytes(), 'wrong shared AST')
         require(b'define i64 @main' in llvm.read_bytes(), 'LLVM is not inspectable')
         shutil.copyfile(ast, evidence / ast.name)
@@ -116,16 +125,16 @@ def main():
         require(result.stdout == b'0\n', 'inspectable LLVM disagrees with native output')
 
         # Each negative begins with the actual prior success artifact.
-        exe.write_bytes(saved_exe)
+        seed_previous()
         result = build('syntax-error', guest=fixtures / 'syntax.shipping', expected=1)
         require(b'native build reader failed' in result.stderr and b'expected' in result.stderr,
                 'reader failure lost its stage or original diagnostic')
-        exe.write_bytes(saved_exe)
+        seed_previous()
         result = build('reader-exit-status', guest=fixtures / 'guest.readerexit',
                        project=fixtures / 'exit.lang-project', expected=37)
         require(b'reader exit control: original diagnostic' in result.stderr and b'exit 37' in result.stderr,
                 'reader exit status or original diagnostic was lost')
-        exe.write_bytes(saved_exe)
+        seed_previous()
         result = build('validation-error', guest=fixtures / 'guest.invalid',
                        project=fixtures / 'invalid.lang-project', expected=1)
         require(b'native build validation failed' in result.stderr and b'ast' in result.stderr.lower(),
@@ -134,7 +143,7 @@ def main():
         # Warm shipping reader cache allows this to target the final tool lookup.
         path = replay.env['PATH']
         replay.env['PATH'] = '/nonexistent'
-        exe.write_bytes(saved_exe)
+        seed_previous()
         result = build('missing-clang', expected=127)
         replay.env['PATH'] = path
         require(b'toolchain: clang not found in PATH' in result.stderr, 'missing Clang was not distinct')
@@ -146,7 +155,7 @@ def main():
         log = evidence / 'native-tool-argv.jsonl'
         replay.env.update(LANG_CLANG=str(tool), NATIVE_TOOL_LOG=str(log),
                           NATIVE_REAL_CLANG=tools['clang']['path'], NATIVE_BAD_IR=str(fixtures / 'malformed.ll'))
-        exe.write_bytes(saved_exe)
+        seed_previous()
         result = build('optimizer-error', expected=1)
         require(b'optimizer/object compilation failed' in result.stderr and b'expected top-level entity' in result.stderr,
                 'Clang optimizer diagnostic was not preserved')
@@ -196,7 +205,7 @@ def main():
                    'refuse-output-symlink', scratch, expected=1)
         require(link.is_symlink() and sha(spaced_exe) == prior, 'symlink destination was destroyed')
         # Invalid manifests also invalidate the previous native success.
-        exe.write_bytes(saved_exe)
+        seed_previous()
         build('manifest-error', project=clone / 'test/reader_author/fixtures/project/version.lang-project', expected=1)
         require(all(sha(clone / p) == h for p, h in hashes.items()), 'test edited committed source inputs')
         dump(evidence / 'artifacts.json', {'compiler': sha(compiler), 'native': sha(spaced_exe),
