@@ -1,0 +1,2 @@
+include "test/reader_author/fixtures/project/dependency-reader.lang"
+reader same(text *u8) *u8 { return nil; }

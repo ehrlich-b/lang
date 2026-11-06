@@ -1,0 +1,11 @@
+project {
+    version 1;
+    reader_source "alpha/reader.lang";
+    reader_name "same";
+    source_suffix ".same";
+    runtime_files ["dependency-runtime.lang"];
+    entry "alpha/answer.same";
+    backend "llvm";
+    native_profile "llvm-linux-x86_64";
+    native_toolchain "clang";
+}

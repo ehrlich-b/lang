@@ -34,6 +34,9 @@ sources keep the existing compiler resource resolver: the working directory,
 then the compiler's resource root (`LANG_ROOT` when configured). Manifest
 paths themselves never fall back to that root. There is no directory change,
 implicit include rebasing or new dependency scanner.
+Missing reader and runtime dependencies report the manifest location of
+`reader_source` or `runtime_files`, together with the resolver's error code
+and failing dependency path, including failures in transitive dependencies.
 
 From the repository root, build the current compiler, then validate and use the
 shipping project:
@@ -59,7 +62,7 @@ runtime source tree when emitting IR. The original editable
 [shipping walkthrough](../example/shipping/README.md) remains available.
 
 `project check` only loads, parses and hashes inputs. It uses immutable
-`PhaseSource` snapshots and the existing `phase_dependency_visit` resolver for
+`PhaseSource` snapshots and the existing dependency resolver for
 transitive include/require identities. It never expands a reader, compiles,
 looks up a reader artifact or executes a subprocess. The printed digest covers
 the manifest bytes/path, reader dependencies, entry bytes/path and runtime
