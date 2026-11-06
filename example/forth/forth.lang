@@ -53,6 +53,7 @@ include "std/core.lang"
 include "std/tok.lang"
 include "std/parser_reader.lang"
 include "std/ast.lang"
+include "std/reader_exports.lang"
 
 // The grammar is almost nothing - which is the point. A body is a FLAT word
 // list; `if`/`else`/`then` are ordinary words that the converter gives meaning
@@ -620,8 +621,8 @@ func fo_emit_word(w *u8, node *PNode, items *u8, ip *i64, stack *u8, stmts *u8, 
 
 // `: name ( a b -- s ) words ;` -> func name(a i64, b i64) i64 { ... }
 // The stack starts holding the parameters; whatever is on top at `;` is the
-// result. Every word is i64, which is the ABI the other polyglot languages
-// speak, so a Forth word is directly callable from C, Lisp, flow and lang.
+// result. Every word uses raw i64 values. Other readers must agree about tags
+// and ownership as well as storage before a direct call is valid.
 func fo_emit_worddef(d *PNode, sigs *u8) *u8 {
     var namen *PNode = pnode_require(d, "name");
     var wname *u8 = fo_name_text(namen);
@@ -683,7 +684,47 @@ func fo_emit_program(prog *PNode) *u8 {
     return ast_program(decls);
 }
 
-reader forth(text *u8) *u8 {
+// Opt-in project boundary: all externs must match the producer's catalog.
+// Existing `forth` externs remain trusted, unchecked native declarations.
+func fo_check_exports(prog *PNode, exports *u8) void {
+    var seen *u8 = map_new();
+    var defs *u8 = prog.children;
+    var i i64 = 0;
+    while i < vec_len(defs) {
+        var d *PNode = vec_get(defs, i);
+        var kind i64 = fo_def_kind(d);
+        if kind != 0 {
+            var node *PNode = pnode_require(d, "name");
+            var name *u8 = fo_name_text(node);
+            if map_has(seen, name) { fo_fail("duplicate word", name, node); }
+            map_set(seen, name, "seen");
+            var actual *ReaderExport = reader_export_find(exports, name);
+            if kind == 1 && actual != nil { fo_fail("definition shadows export", name, node); }
+            if kind == 2 {
+                var names *u8 = vec_new(8);
+                var results i64 = fo_effect_split(pnode_require(d, "effect"), names);
+                if results != 1 { fo_fail("export requires one i64 value result", name, node); }
+                var parameters *u8 = vec_new(8);
+                var j i64 = 0;
+                while j < vec_len(names) { vec_push(parameters, reader_i64_value()); j = j + 1; }
+                var message *u8 = reader_export_mismatch(actual, reader_export(name, parameters, reader_i64_value()));
+                if message != nil { fo_fail(str_concat(message, "; explicit adapter required for incompatible exports"), name, node); }
+                // Ambiguous catalogs cannot select an arbitrary definition.
+                j = 0;
+                var count i64 = 0;
+                while j < vec_len(exports) {
+                    var candidate *ReaderExport = vec_get(exports, j);
+                    if streq(candidate.symbol, name) { count = count + 1; }
+                    j = j + 1;
+                }
+                if count != 1 { fo_fail("duplicate export", name, node); }
+            }
+        }
+        i = i + 1;
+    }
+}
+
+func fo_read(text *u8, exports *u8) *u8 {
     fo_src = text;
     // Forth's line comment is `\\`, which the shared scanner can now be told.
     // `( ... )` stays a source pre-pass, because in THIS Forth a parenthesized
@@ -691,5 +732,9 @@ reader forth(text *u8) *u8 {
     // the grammar parses it (see fo_sanitize_comments).
     var t *Tokenizer = tok_new_comments(fo_sanitize_comments(text), "\\", nil, nil);
     var prog *PNode = parse_fo_program(t);
+    if prog == nil || !tok_expect_end(t) { tok_print_error(t, "forth"); return nil; }
+    if exports != nil { fo_check_exports(prog, exports); }
     return fo_emit_program(prog);
 }
+
+reader forth(text *u8) *u8 { return fo_read(text, nil); }

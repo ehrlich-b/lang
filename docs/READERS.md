@@ -7,7 +7,8 @@ identities and a deterministic native/browser smoke replay.
 Lang is a compiler compiler: give its kernel a function that turns source text
 into Lang AST, and you have taught it a new language. That function is a
 **reader**. The kernel supplies type checking, LLVM generation, native code,
-WebAssembly, and interop with every other reader.
+WebAssembly, and shared core calls between readers. Direct calls require matching
+representations and ownership; see [project exports](READER_EXPORTS.md).
 
 Start a generated-grammar reader and run its sample:
 

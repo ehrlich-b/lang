@@ -473,6 +473,9 @@ verify:
 else ifeq ($(VERIFY_CASE),project)
 verify:
 	python3 -B test/reader_author/scaffold.py --case project
+else ifeq ($(VERIFY_CASE),shipping-client)
+verify:
+	python3 -B test/reader_author/interop.py --case shipping-client
 else ifeq ($(VERIFY_CASE),manifest)
 verify:
 	python3 -B test/reader_author/project.py --case manifest

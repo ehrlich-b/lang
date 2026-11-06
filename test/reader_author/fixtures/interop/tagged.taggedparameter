@@ -1,0 +1,2 @@
+extern shipping_cost ( total -- fee ) ;
+: client_fee ( total -- fee ) shipping_cost ;

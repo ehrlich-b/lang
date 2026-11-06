@@ -1,5 +1,6 @@
 include "std/parser_reader.lang"
 include "std/ast.lang"
+include "example/shipping/exports.lang"
 
 #parser{
     shipping_policy = 'shipping' '{' settings:shipping_setting* '}'
@@ -27,7 +28,7 @@ func shipping_number(node *PNode, text *u8) i64 {
     return value;
 }
 
-reader shipping(text *u8) *u8 {
+func shipping_read(text *u8, with_main bool) *u8 {
     var tokens *Tokenizer = tok_new(text);
     var tree *PNode = parse_shipping_policy(tokens);
     var complete bool = false;
@@ -56,14 +57,16 @@ reader shipping(text *u8) *u8 {
         reader_error("shipping-missing", "missing setting; require base and free_over", "shipping", text, tree.start, tree.end); return nil;
     }
     // Shared AST boundary: policy constants become data; total stays a variable.
-    var params *u8 = ast_vec();
-    ast_push(params, ast_param("total", ast_type_i64()));
+    var names *u8 = vec_new(1);
+    vec_push(names, "total");
     var body *u8 = ast_vec();
     ast_push(body, ast_if_then(ast_ge(ast_ident("total"), ast_int(free_over)), ast_block1(ast_return(ast_int(0)))));
     ast_push(body, ast_return(ast_int(base)));
     var decls *u8 = ast_vec();
-    ast_push(decls, ast_span(ast_func("shipping_cost", params, ast_type_i64(), ast_block(body)), tree.start, tree.end));
-    params = ast_vec();
+    ast_push(decls, ast_span(reader_export_func(reader_export_find(shipping_exports(), "shipping_cost"),
+        names, ast_block(body)), tree.start, tree.end));
+    if !with_main { return ast_program(decls); }
+    var params *u8 = ast_vec();
     ast_push(params, ast_param("argc", ast_type_i64()));
     ast_push(params, ast_param("argv", ast_type_ptr(ast_type_str())));
     body = ast_vec();
@@ -72,3 +75,8 @@ reader shipping(text *u8) *u8 {
     ast_push(decls, ast_func("main", params, ast_type_i64(), ast_block(body)));
     return ast_program(decls);
 }
+
+reader shipping(text *u8) *u8 { return shipping_read(text, true); }
+
+// Library mode emits the exported function without a competing entry point.
+reader shippinglib(text *u8) *u8 { return shipping_read(text, false); }

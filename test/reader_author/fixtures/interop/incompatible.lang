@@ -1,0 +1,27 @@
+include "example/shipping/client/reader.lang"
+
+// Tagged integers occupy i64 too: (n << 1) | 1. Passing raw 80 as this
+// representation would decode to 40; passing encoded 80 to raw shipping would
+// instead compare 161 >= 100. Storage equality alone cannot justify the call.
+reader taggedparameter(text *u8) *u8 {
+    var exports *u8 = shipping_exports();
+    var signature *ReaderExport = vec_get(exports, 0);
+    var scalar *ReaderScalar = vec_get(signature.parameters, 0);
+    scalar.representation = "tagged-i64-lowbit-1";
+    return fo_read(text, exports);
+}
+
+reader taggedresult(text *u8) *u8 {
+    var exports *u8 = shipping_exports();
+    var signature *ReaderExport = vec_get(exports, 0);
+    signature.result.representation = "tagged-i64-lowbit-1";
+    return fo_read(text, exports);
+}
+
+reader ownedparameter(text *u8) *u8 {
+    var exports *u8 = shipping_exports();
+    var signature *ReaderExport = vec_get(exports, 0);
+    var scalar *ReaderScalar = vec_get(signature.parameters, 0);
+    scalar.ownership = "transfer";
+    return fo_read(text, exports);
+}

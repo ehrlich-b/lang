@@ -1,0 +1,1 @@
+: shipping_cost ( total -- fee ) drop 0 ;

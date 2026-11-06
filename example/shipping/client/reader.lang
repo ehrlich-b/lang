@@ -1,0 +1,7 @@
+include "example/forth/forth.lang"
+include "example/shipping/exports.lang"
+
+// A project chooses the producer catalog; client syntax cannot rewrite it.
+reader shippingforth(text *u8) *u8 {
+    return fo_read(text, shipping_exports());
+}
