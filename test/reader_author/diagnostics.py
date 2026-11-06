@@ -194,6 +194,7 @@ include "src/sexpr_reader.lang"
 include "test/reader_author/fixtures/broken.lang"
 var add_reader_mode i64 = 0;
 func find_kernel_builtin(name *u8, len i64) *u8 { return nil; }
+func embedded_transform(text *u8) *u8 { return broken(text); }
 ''' + caller + '''
 func main(argc i64, argv **u8) i64 {
     var args *u8 = argv;
@@ -201,7 +202,7 @@ func main(argc i64, argv **u8) i64 {
     var path *u8 = *slot;
     if argc > 2 { ___compiler_diagnostic_enable(); }
     embedded_reader_names[0] = "broken";
-    embedded_reader_funcs[0] = &broken;
+    embedded_reader_funcs[0] = &embedded_transform;
     var output *u8 = read_run_reader("broken", path, phase_read_file(path));
     if output == nil { return 1; }
     print(output); return 0;
