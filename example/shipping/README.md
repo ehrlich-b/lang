@@ -27,6 +27,7 @@ needed. Copy and run this entire block. The copied reader is your editable
 language implementation: replace the generated scaffold, then change the
 threshold relation below to see the language's behavior change.
 
+<!-- shipping-walkthrough -->
 ```bash
 set -euo pipefail
 export JOBS=2 LANGBE=llvm LANGOS=linux
