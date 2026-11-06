@@ -482,7 +482,10 @@ func build_embedded_runtime_ast(runtime_files *u8) *u8 {
     var i i64 = 0;
     while i < vec_len(runtime_files) {
         var path *u8 = vec_get(runtime_files, i);
-        var text *u8 = read_file(path);
+        var snapshot *PhaseSource = phase_source_snapshot(path);
+        var text *u8 = nil;
+        if snapshot != nil { text = snapshot.text; }
+        else { text = read_file(path); }
         if text == nil { return nil; }
         phase_source_capture(path, text);
         append_str(&source, &source_len, &source_cap, "include \"");

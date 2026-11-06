@@ -27,7 +27,7 @@ func native_build_phase_run(stage i64, project *LanguageProject, source *u8,
         var readers *u8 = vec_new(1);
         vec_push(readers, project_field(project, "reader_source"));
         if read_prepare_readers(readers) == 0 { os__exit(1); }
-        var content *u8 = read_file(source);
+        var content *u8 = phase_source_snapshot(source).text;
         if content == nil { os__exit(1); }
         var text *u8 = read_run_reader_raw(project_field(project, "reader_name"), source, content);
         if text == nil {
@@ -38,7 +38,7 @@ func native_build_phase_run(stage i64, project *LanguageProject, source *u8,
     }
     if stage == 1 {
         var text *u8 = read_file(ast);
-        var content *u8 = read_file(source);
+        var content *u8 = phase_source_snapshot(source).text;
         if text == nil || content == nil { os__exit(1); }
         if parse_ast_from_reader_string(text, source, content) == nil { os__exit(1); }
         os__exit(native_build_write(str_concat(work, "/formatted.ast"), read_ast_format(text)));
@@ -73,6 +73,16 @@ func native_build_pipeline(manifest *u8, source *u8, work *u8, emit *u8) i64 {
     var pid i64 = os_fork();
     if pid != 0 { return native_build_wait(pid, "manifest/pipeline"); }
     var project *LanguageProject = project_load(manifest);
+    // Bind watch publication to the bytes this pipeline actually captured.
+    var timings *u8 = getenv("LANG_TEST_TIMINGS");
+    if timings != nil && streq(timings, "1") {
+        eprint("Native inputs "); eprintln(project.identity);
+    }
+    if phase_source_snapshot(source) == nil {
+        var content *u8 = read_file(source);
+        if content == nil { os__exit(1); }
+        phase_source_capture(source, content);
+    }
     var extension *u8 = get_extension(source);
     if extension == nil { eprintln("Error: build source suffix must match project reader"); os__exit(1); }
     if !streq(extension, project_field(project, "reader_name")) {

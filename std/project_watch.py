@@ -157,13 +157,20 @@ class Watch:
             start = time.monotonic()
             process = subprocess.Popen(command, env=self.env, stdout=stdout, stderr=stderr, start_new_session=True)
             self.active = dict(process=process, command=command, generation=self.generation,
-                directory=directory, stdout=stdout, stderr=stderr, start=start)
+                directory=directory, stdout=stdout, stderr=stderr, start=start,
+                input_identity=result.stdout.decode().splitlines()[0])
             self.event('building', command=command, directory=str(directory),
                        input_identity=result.stdout.decode().splitlines()[0], tools=key[3])
         elif self.active is not None and self.active['process'].poll() is not None:
             build = self.active
             self.active = None
             if build['process'].returncode == 0:
+                build['stderr'].flush()
+                actual = re.findall(rb'^Native inputs (\w+)$', (build['directory'] / 'stderr').read_bytes(), re.M)
+                if actual != [build['input_identity'].encode()]:
+                    self.finish_record(build, 'superseded', reason='pipeline captured different inputs')
+                    self.key = None
+                    return
                 # tick observed the current dependency identity immediately before
                 # this branch; a superseded generation never reaches publication.
                 self.check_output()
@@ -201,7 +208,7 @@ def main():
     try:
         while not watch.stopped:
             watch.tick()
-            if args.once and watch.active is None:
+            if args.once and watch.active is None and watch.key is not None:
                 return watch.last_exit
             time.sleep(args.interval)
         return 130

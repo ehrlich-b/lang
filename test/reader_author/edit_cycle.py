@@ -133,10 +133,14 @@ def main():
                         dest = directory / p.relative_to(build)
                         dest.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copyfile(p, dest)
+            cache = scratch / 'cache/readers'
+            for p in cache.iterdir():
+                if p.suffix in ('.lang', '.identity'):
+                    shutil.copyfile(p, directory / ('reader-cache-' + p.name))
             return directory
 
         def phase(name, expected='published'):
-            before, start, index = forks(), time.monotonic(), len(watch.events)
+            before, start, index, probes = forks(), time.monotonic(), len(watch.events), watch.probes
             watch.tick()
             wait_for(completed, name + ' did not complete', timeout=90)
             events = watch.events[index:]
@@ -144,8 +148,8 @@ def main():
             require(event is not None and event['event'] == expected, name + ': wrong result ' + str(event))
             directory = archive(name)
             count = forks() - before
-            row = dict(name=name, seconds=time.monotonic() - start, subprocess_forks=count,
-                       build_subprocesses=1 + count, identity_probe_subprocesses=None,
+            row = dict(name=name, seconds=time.monotonic() - start, descendant_subprocesses=count,
+                       build_subprocesses=1 + count, identity_probe_subprocesses=watch.probes - probes,
                        phase_seconds=event.get('phase_seconds', {}), event=event,
                        readers=readers(), evidence=str(directory))
             metrics.append(row)
@@ -153,7 +157,7 @@ def main():
             return row
 
         cold = phase('cold')
-        require(set(cold['phase_seconds']) == set(module.PHASES) and cold['subprocess_forks'] > 0, 'missing phase/process measurements')
+        require(set(cold['phase_seconds']) == set(module.PHASES) and cold['descendant_subprocesses'] > 0, 'missing phase/process measurements')
         cold_readers = readers()
         require(cold_readers, 'cold build did not mint any readers')
         result = replay.run([str(output), '99'], 'cold-runtime', scratch)
@@ -163,7 +167,7 @@ def main():
         require(watch.active is None and watch.generation == generation and readers() == cold_readers and forks() == before,
                 'unchanged inputs rebuilt a stage')
         metrics.append(dict(name='unchanged', seconds=time.monotonic() - start,
-            build_subprocesses=0, subprocess_forks=0, identity_probe_subprocesses=watch.probes - probes,
+            build_subprocesses=0, descendant_subprocesses=0, identity_probe_subprocesses=watch.probes - probes,
             phase_seconds={name: 0 for name in module.PHASES}, readers=readers()))
         same_time(guest, guest.read_text().replace('base 10', 'base 11'))
         edited = phase('guest-edit')
@@ -172,14 +176,40 @@ def main():
         require(result.stdout == b'11\n', 'same-time guest edit was missed')
         same_time(reader, reader.read_text().replace('settings:shipping_setting*', 'settings:shipping_setting+'))
         grammar = phase('grammar-edit')
-        require(readers() != cold_readers and grammar['subprocess_forks'] > edited['subprocess_forks'], 'grammar edit did not remint the reader')
+        require(readers() != cold_readers and grammar['descendant_subprocesses'] > edited['descendant_subprocesses'], 'grammar edit did not remint the reader')
         grammar_readers = readers()
         same_time(runtime, runtime.read_text().replace('print_int(fee);', 'print_int(fee + 1);'))
         phase('runtime-edit')
         require(readers() == grammar_readers, 'runtime edit rebuilt the frontend')
         result = replay.run([str(output), '99'], 'runtime-edited-result', scratch)
         require(result.stdout == b'12\n', 'runtime package was stale')
+        # A failed mint must not execute a stale cached reader.
+        valid_reader = reader.read_text()
+        same_time(reader, valid_reader.replace('return ast_program(decls);', 'return edit_cycle_undefined(decls);'))
+        failed_mint = phase('failed-mint', 'failed')
+        require(not output.exists() and b'edit_cycle_undefined' in (Path(failed_mint['evidence']) / 'stderr').read_bytes(),
+                'failed reader mint reused stale code or hid the compiler error')
+        same_time(reader, valid_reader)
+        phase('mint-recovery')
         valid_guest = guest.read_text()
+        # An ABA edit between the probe and pipeline capture must never publish
+        # output compiled from the intervening bytes, even if both probes agree.
+        original_inputs = watch.inputs
+        def intervening_inputs():
+            value = original_inputs()
+            same_time(guest, valid_guest.replace('base 11', 'base 19'))
+            return value
+        watch.inputs = intervening_inputs
+        before_race = len(watch.events)
+        watch.key = None
+        watch.tick()
+        watch.inputs = original_inputs
+        wait_for(lambda: watch.active['process'].poll() is not None, 'ABA control build did not finish')
+        same_time(guest, valid_guest)
+        watch.tick()
+        require(watch.events[-1]['event'] == 'superseded' and not output.exists(), 'ABA build published stale bytes')
+        phase('capture-race-recovery')
+        require(sum(e['event'] == 'published' for e in watch.events[before_race:]) == 1, 'ABA output was published')
         same_time(guest, 'shipping { base 11 free_over 100; }\n')
         failure = phase('reader-failure', 'failed')
         require(not output.exists() and failure['event']['exit'] == 1, 'failed build left a published output')
@@ -260,15 +290,10 @@ def main():
         require(sentinel.read_text() == 'keep this input\n', 'watch overwrote an unrelated file')
         replay.env = saved_env
         require(all(sha(clone / p) == h for p, h in hashes.items()), 'edit cycle mutated committed sources')
-        for row in metrics:
-            if row.get('identity_probe_subprocesses') is None:
-                # Build counts include the root native driver and its observed
-                # forks; probes are recorded individually in watch/probes.jsonl.
-                row['identity_probe_subprocesses'] = 'see watch/probes.jsonl'
         dump(evidence / 'measurements.json', metrics)
         dump(evidence / 'result.json', dict({'pass': True}, head=head, compiler_sha256=sha(compiler),
              controls=['same-mtime-guest', 'same-mtime-grammar', 'runtime', 'reader-failure', 'link-failure',
-                       'missing-dependency', 'rapid-edits', 'process-tree-cancellation', 'CLI', 'output-protection']))
+                       'failed-mint', 'capture-race', 'missing-dependency', 'rapid-edits', 'process-tree-cancellation', 'CLI', 'output-protection']))
         print('PASS content-changes: cold/unchanged/guest/grammar phase timings and process counts, runtime invalidation, errors, rapid edits and cancellation')
         return 0
     except Exception as error:
