@@ -3,6 +3,7 @@ include "std/parser_reader.lang"
     ambiguous = '(' ambiguous ')' | '(' ambiguous ']' | number
     chain = number chain?
     flat = number*
+    ordered = first:number | second:number
 }
 func budget_arg(argv **u8, index i64) *u8 {
     var bytes *u8 = argv;
@@ -30,12 +31,17 @@ func main(argc i64, argv **u8) i64 {
         tok_reset(t, 0);
         if streq(budget_arg(argv, 1), "ambiguous") { result = parse_ambiguous(t); }
         else if streq(budget_arg(argv, 1), "flat") { result = parse_flat(t); }
+        else if streq(budget_arg(argv, 1), "ordered") {
+            result = parse_ordered(t);
+            if !pnode_is(result, "first") { return 3; }
+        }
         else { result = parse_chain(t); }
-        if result == nil || !tok_expect_end(t) { tok_print_error(t, "budget"); return 1; }
         if t.parser_depth != 0 { return 2; }
+        if result == nil || !tok_expect_end(t) { tok_print_error(t, "budget"); return 1; }
         i = i + 1;
     }
-    print_i64(t.parser_work); print(" "); print_i64(t.parser_peak);
-    print(" "); print_i64(tok_start_offset(t)); println("");
+    pnode_dump(result);
+    print_int(t.parser_work); print(" "); print_int(t.parser_peak);
+    print(" "); print_int(tok_start_offset(t)); println("");
     return 0;
 }

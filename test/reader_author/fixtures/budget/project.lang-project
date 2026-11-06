@@ -1,6 +1,6 @@
 project {
     version 1;
-    parser_work 12;
+    parser_work 1000;
     parser_depth 4;
     reader_source "budget.lang";
     reader_name "budget";

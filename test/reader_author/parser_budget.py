@@ -76,11 +76,11 @@ def main():
                 path.write_text(text)
                 good = recognize(grammar, path, 1000000, 128, name=f'{grammar}-{n}-success')
                 work, peak, end = map(int, good.stdout.split())
-                require(work > 0 and peak >= n and end == len(text) and not good.stderr, 'bad counters or parse')
+                require(work > 0 and peak >= n and end == len(text) and good.stderr, 'bad counters or parse')
                 again = recognize(grammar, path, 1000000, 128, repeat=2, name=f'{grammar}-{n}-reset')
-                require(again.stdout == good.stdout and not again.stderr, 'invocation counters did not reset')
+                require(again.stdout == good.stdout and again.stderr == good.stderr, 'invocation counters did not reset')
                 off = recognize(grammar, path, 1000000, 128, enabled=0, name=f'{grammar}-{n}-disabled')
-                require(off.stdout == f'0 0 {len(text)}\n'.encode() and not off.stderr, 'disabled parse semantics changed')
+                require(off.stdout == f'0 0 {len(text)}\n'.encode() and off.stderr == good.stderr, 'disabled parse semantics changed')
                 for kind, quota, dep in [('work', work - 1, 128), ('depth', 1000000, 4)]:
                     outputs = []
                     for attempt in range(2):
@@ -103,6 +103,15 @@ def main():
         path = evidence / 'flat.input'
         path.write_text('1 ' * 32)
         recognize('flat', path, 8, 128, expected=1, name='flat-terminal-budget')
+        ordered = evidence / 'ordered.input'
+        ordered.write_text('1')
+        for enabled in (0, 1):
+            recognize('ordered', ordered, 1000, 128, enabled=enabled, name='ordered-first-alternative')
+        malformed = evidence / 'malformed.input'
+        malformed.write_text(']')
+        result = recognize('chain', malformed, 1000, 128, expected=1, name='ordinary-failure')
+        require(b'parser-' not in result.stderr and b'expected number' in result.stderr,
+                'ordinary failure became a budget error')
         # Real manifest execution, cached worker reuse and minted compiler quotas.
         manifest = str(clone / fixture / 'project.lang-project')
         replay.env.update(LANG_PARSER_MAX_WORK='1000000', LANG_PARSER_MAX_DEPTH='256')
@@ -110,7 +119,16 @@ def main():
             result = replay.run([compiler, 'project', 'read', manifest], f'project-budget-{i}', clone, expected=1)
             require(b'parser-depth-budget' in result.stderr and b'parser rule chain' in result.stderr and
                     b'input.budget @8' in result.stderr, 'manifest limit or source did not reach cached reader')
-        minted = scratch / 'budgetc'
+        work_manifest = scratch / 'work.lang-project'
+        work_manifest.write_text(Path(manifest).read_text().replace('parser_work 1000', 'parser_work 3')
+                                 .replace('parser_depth 4', 'parser_depth 128')
+                                 .replace('"budget.lang"', '"' + str(clone / fixture / 'budget.lang') + '"')
+                                 .replace('"input.budget"', '"' + str(clone / fixture / 'input.budget') + '"'))
+        shutil.copyfile(work_manifest, evidence / work_manifest.name)
+        result = replay.run([compiler, 'project', 'read', str(work_manifest)], 'project-work-budget', clone, expected=1)
+        require(b'parser-work-budget' in result.stderr and b'parser rule chain' in result.stderr,
+                'project work limit did not reach reader')
+        minted = scratch / 'budgetc' 
         replay.run([compiler, 'project', 'compiler', manifest, '-o', str(minted)], 'mint-budget-compiler', clone)
         result = replay.run([str(minted), str(clone / fixture / 'input.budget'), '-o', str(scratch / 'bad.ll')],
                             'minted-budget', clone, expected=1)
@@ -119,7 +137,7 @@ def main():
         # Validate located manifest failures for zero, overflow, and unsafe depth.
         for field, value in [('parser_work', '0'), ('parser_work', '999999999999999999999'), ('parser_depth', '257')]:
             project = scratch / f'invalid-{field}-{value}.lang-project'
-            project.write_text(Path(manifest).read_text().replace(f'{field} ' + ('12' if field == 'parser_work' else '4'), f'{field} {value}'))
+            project.write_text(Path(manifest).read_text().replace(f'{field} ' + ('1000' if field == 'parser_work' else '4'), f'{field} {value}'))
             shutil.copyfile(project, evidence / project.name)
             result = replay.run([compiler, 'project', 'check', str(project)], 'invalid-limit', clone, expected=1)
             require(b'invalid parser limit' in result.stderr and re.search(rb':\d+:\d+: error:', result.stderr),
