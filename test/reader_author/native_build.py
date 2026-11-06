@@ -140,6 +140,29 @@ def main():
         require(b'native build validation failed' in result.stderr and b'ast' in result.stderr.lower(),
                 'invalid shared AST reached LLVM or lost its diagnostic')
 
+        # Invalid options invalidate the prior native output, regardless of ordering.
+        for before_output in (False, True):
+            seed_previous()
+            command = [compiler, 'build', '--project', str(manifest), str(source)]
+            if before_output:
+                command += ['--emit=bogus']
+            command += ['-o', str(exe)]
+            if not before_output:
+                command += ['--emit=bogus']
+            result = replay.run(command, 'invalid-emit-' + str(before_output), scratch, expected=1)
+            require(b'--emit must be native, ast or llvm' in result.stderr and not exe.exists(),
+                    'invalid emit left a previous executable or lost its diagnostic')
+
+        # A configured executable that cannot be launched is a toolchain failure.
+        seed_previous()
+        missing_tool = scratch / 'missing configured clang'
+        replay.env['LANG_CLANG'] = str(missing_tool)
+        result = build('missing-configured-clang', expected=127)
+        require(b'toolchain could not execute:' in result.stderr and
+                str(missing_tool).encode() in result.stderr and b'optimizer/object' not in result.stderr,
+                'configured Clang launch failure was not attributed to the toolchain')
+        replay.env.pop('LANG_CLANG')
+
         # Warm shipping reader cache allows this to target the final tool lookup.
         path = replay.env['PATH']
         replay.env['PATH'] = '/nonexistent'
