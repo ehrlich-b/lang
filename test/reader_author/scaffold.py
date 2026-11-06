@@ -155,6 +155,25 @@ def main():
         shutil.copytree(scratch / 'failed', evidence / 'failed-write')
         dump(evidence / 'collisions.json', {'occupied_before': before, 'occupied_after': snapshot(occupied),
              'repeat_before': after, 'repeat_after': snapshot(project), 'failed_write': snapshot(scratch / 'failed')})
+        # Each name is itself free, but its generated helper collides with the
+        # toolkit/compiler. Refusal must happen before reserving any directory.
+        for name, symbol in [('tok', 'tok_number'), ('parse', 'parse_check'), ('scan', 'scan_number')]:
+            before = {p.name for p in scratch.iterdir()}
+            result = replay.run([compiler, 'new', 'language', name],
+                                'derived-collision-' + name, scratch, expected=1)
+            require(b'conflicts with a compiler or reader toolkit symbol' in result.stderr,
+                    'missing derived-symbol diagnostic: ' + symbol)
+            require(not result.stdout and {p.name for p in scratch.iterdir()} == before,
+                    'derived-symbol collision wrote a destination: ' + symbol)
+        # Existing content remains untouched even for a colliding helper name.
+        (scratch / 'tok').mkdir()
+        (scratch / 'tok/reader.lang').write_text('keep existing reader\n')
+        before = snapshot(scratch / 'tok')
+        replay.run([compiler, 'new', 'language', 'tok'], 'derived-collision-occupied', scratch, expected=1)
+        require(snapshot(scratch / 'tok') == before, 'derived collision changed existing content')
+        dump(evidence / 'derived-collisions.json', {
+            'rejected': {'tok': 'tok_number', 'parse': 'parse_check', 'scan': 'scan_number'},
+            'occupied_before': before, 'occupied_after': snapshot(scratch / 'tok')})
         for name in ('lang', 'ast', 'if', '../escape', 'bad-name', 'x' * 65,
                      'main', 'print', 'alloc', 'reader_transform', 'TOKEN_EOF',
                      'parcel ', ' parcel', 'parcel\t', 'parcel\n', 'parcel/*comment*/'):
