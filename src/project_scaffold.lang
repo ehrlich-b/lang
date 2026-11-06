@@ -1,0 +1,93 @@
+// Project templates are frontend resources; no language rules enter the kernel.
+func scaffold_project_template(path *u8, name *u8) *u8 {
+    var text *u8 = compiler_read_text_file(str_concat("std/project/", path), 65536);
+    if text == nil { return nil; }
+    var cap i64 = 4096;
+    var result *u8 = alloc(cap);
+    var len i64 = 0;
+    while *text != 0 {
+        if str_starts_with(text, "@NAME@") != 0 {
+            append_str(&result, &len, &cap, name);
+            text = text + 6;
+        } else {
+            append_str(&result, &len, &cap, str_dup_n(text, 1));
+            text = text + 1;
+        }
+    }
+    *(result + len) = 0;
+    return result;
+}
+
+func scaffold_shell_quote(text *u8) void {
+    print("'");
+    while *text != 0 {
+        if *text == 39 { print("'\\''"); }
+        else { print(str_dup_n(text, 1)); }
+        text = text + 1;
+    }
+    print("'");
+}
+
+func cmd_new_language(name *u8) i64 {
+    if scaffold_valid_name(name) == 0 || streq(name, "lang") || streq(name, "ast") {
+        eprintln("Error: language name must be a non-keyword identifier other than lang or ast (up to 64 characters)");
+        return 1;
+    }
+    var templates *u8 = vec_new(9);
+    var paths *u8 = vec_new(9);
+    vec_push(templates, "reader.lang.in"); vec_push(paths, "reader.lang");
+    vec_push(templates, "runtime.lang.in"); vec_push(paths, "runtime.lang");
+    vec_push(templates, "project.lang-project.in"); vec_push(paths, "project.lang-project");
+    vec_push(templates, "policy.source.in"); vec_push(paths, str_concat("policy.", name));
+    vec_push(templates, "syntax.source.in"); vec_push(paths, str_concat("syntax.", name));
+    vec_push(templates, "semantic.source.in"); vec_push(paths, str_concat("semantic.", name));
+    vec_push(templates, "cases.json.in"); vec_push(paths, "cases.json");
+    vec_push(templates, "check.py.in"); vec_push(paths, "check.py");
+    vec_push(templates, "README.md.in"); vec_push(paths, "README.md");
+    var sources *u8 = vec_new(9);
+    var i i64 = 0;
+    // Load every resource before creating any destination content.
+    while i < vec_len(templates) {
+        var source *u8 = scaffold_project_template(vec_get(templates, i), name);
+        if source == nil { return 1; }
+        vec_push(sources, source);
+        i = i + 1;
+    }
+    var tool *u8 = phase_compiler_path;
+    if *tool != '/' {
+        var cwd *u8 = alloc(4096);
+        if os_getcwd(cwd, 4096) < 0 { eprintln("Error: cannot resolve compiler path"); return 1; }
+        tool = str_concat(str_concat(cwd, "/"), tool);
+    }
+    // mkdir is the preflight/reservation: any occupied destination fails before
+    // file creation, including directories and dangling symlinks. Never merge.
+    if os_mkdir(name, 493) < 0 {
+        eprint("Error: cannot create new project directory (destination may exist): ");
+        eprintln(name); return 1;
+    }
+    i = 0;
+    while i < vec_len(paths) {
+        var path *u8 = str_concat(str_concat(name, "/"), vec_get(paths, i));
+        var fd i64 = file_open(path, O_WRONLY_CREAT_EXCL);
+        var ok i64 = 0;
+        if fd >= 0 {
+            ok = file_write_all(fd, vec_get(sources, i));
+            if os_close(fd) < 0 { ok = 0; }
+        }
+        if ok == 0 {
+            eprint("Error: cannot finish "); eprintln(path);
+            eprintln("Incomplete new project retained for inspection; existing content was not replaced.");
+            return 1;
+        }
+        i = i + 1;
+    }
+    print("Created language project "); println(name);
+    println("Run these commands from this directory:");
+    print("cd "); scaffold_shell_quote(name); println("");
+    println("export LANGBE=llvm LANGOS=linux");
+    scaffold_shell_quote(tool); println(" project check project.lang-project");
+    scaffold_shell_quote(tool); println(" project read project.lang-project -o policy.ast");
+    scaffold_shell_quote(tool); print(" project compiler project.lang-project -o "); print(name); println("c");
+    print("python3 check.py ./"); print(name); println("c");
+    return 0;
+}

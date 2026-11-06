@@ -1,5 +1,6 @@
 // src/main.lang - Main entry point for self-hosting compiler
 include "src/project.lang"
+include "src/project_scaffold.lang"
 
 // ============================================================
 // CLI helpers
@@ -515,11 +516,13 @@ func scaffold_reader_source(name *u8) *u8 {
 }
 
 func cmd_help_new() i64 {
-    println("lang new reader - start a source language");
+    println("lang new - start a reader or language project");
     println("");
     println("Usage: lang new reader <name>");
+    println("       lang new language <name>");
     println("");
     println("Creates <name>.lang and answer.<name> without overwriting files.");
+    println("language creates a new <name>/ project with manifest, frontend, runtime and fixtures.");
     println("");
     println("Example:");
     println("  lang new reader tiny");
@@ -621,10 +624,11 @@ func cmd_new(argc i64, argv **u8, arg_offset i64) i64 {
         if streq(only, "--help") || streq(only, "-h") { return cmd_help_new(); }
     }
     if argc != 2 {
-        eprintln("Error: expected `lang new reader <name>`");
+        eprintln("Error: expected `lang new reader|language <name>`");
         return 1;
     }
     var kind *u8 = get_arg(argv, arg_offset);
+    if streq(kind, "language") { return cmd_new_language(get_arg(argv, arg_offset + 1)); }
     if !streq(kind, "reader") {
         eprint("Error: cannot scaffold ");
         eprintln(kind);
@@ -1178,6 +1182,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("  read       Run a reader and inspect its AST");
     println("  compiler   Build a native compiler from a reader");
     println("  new reader Scaffold a reader and sample source");
+    println("  new language Scaffold a complete editable language project");
     println("  help       Show this help message");
     println("  version    Show version information");
     println("  env        Show environment variables");
