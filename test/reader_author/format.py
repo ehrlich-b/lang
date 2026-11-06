@@ -117,6 +117,33 @@ def main():
             shutil.copyfile(shipping, path)
             dump(evidence / (name + '.sha256.json'), {path.name: sha(path)})
 
+        # The host must preserve the author's explicit ending on both outputs.
+        ending = 'layout_text(doc, "}"); layout_line(doc, 0);'
+        require(original.count(ending) == 1, 'ambiguous layout ending mutation')
+        for name, recipe, suffix in (
+            ('no-final-newline', 'layout_text(doc, "}");', b''),
+            ('trailing-space', 'layout_text(doc, "} \\t");', b' \t'),
+            ('blank-final-line', ending + ' layout_line(doc, 0);', b'\n\n'),
+        ):
+            shipping.write_text(original.replace(ending, recipe))
+            retain_reader(name + '-reader')
+            expected = source[:-1] + suffix
+            policy.write_bytes(source)
+            result = format_source(name + '-format')
+            exact(result, expected)
+            require(policy.read_bytes() == source, 'formatter changed its input')
+            saved = scratch / (name + '.shipping')
+            saved.write_bytes(b'replace existing output')
+            exact(format_source(name + '-save', extra=('-o', saved)))
+            require(saved.read_bytes() == expected, '-o changed explicit layout ending')
+            policy.write_bytes(result.stdout)
+            exact(format_source(name + '-idempotent'), expected)
+            after = read_core(name + '-model-after')
+            require(core(after.stdout).decode() == models['canonical'] and not after.stderr,
+                    'explicit layout ending changed semantic model')
+            (evidence / (name + '.shipping')).write_bytes(result.stdout)
+        shipping.write_text(original); policy.write_bytes(source)
+
         # No lowering inversion: a recipe still works when lowering cannot run.
         require(original.count('return ast_program(decls);') == 1, 'ambiguous lowering mutation')
         shipping.write_text(original.replace('return ast_program(decls);',
@@ -205,7 +232,7 @@ def main():
         require(all(sha(clone / p) == h for p, h in hashes.items()), 'tracked sources changed during fragment')
         dump(evidence / 'artifacts.json', {'compiler': sha(compiler)})
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'observations': len(replay.rows)})
-        print('PASS format: CST recipe, setting order/values, semantic round trip, idempotence, trivia refusal, '
+        print('PASS format: exact recipe bytes, CST recipe, setting order/values, semantic round trip, idempotence, trivia refusal, '
               'malformed input, unsupported reader, lowering independence and failure propagation')
         return 0
     except Exception as error:

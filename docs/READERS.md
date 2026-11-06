@@ -435,7 +435,9 @@ with `layout_new`, `layout_text`, `layout_field` (original CST byte spans), and
 `layout_line` (newline followed by an explicit count of spaces). End with
 `layout_publish`, which returns the private source artifact to the project host.
 The reader chooses fields, repetition order, punctuation and indentation. The
-library has no language-specific rules and does not inspect shared core nodes.
+host writes the published bytes exactly, including the presence or absence of a
+final newline, to both stdout and `-o`. The library has no language-specific
+rules and does not inspect shared core nodes.
 Readers own the validity and round-trip contract of their recipes.
 
 The [shipping recipe](../example/shipping/shipping.lang) uses checked named

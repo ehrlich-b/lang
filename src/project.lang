@@ -301,7 +301,8 @@ func project_format(project *LanguageProject, output *u8) i64 {
     var fd i64 = 1;
     if output != nil { fd = file_open(output, O_WRONLY_CREAT_TRUNC); }
     if fd < 0 { eprintln("Error: cannot create format output"); return 1; }
-    var ok i64 = read_write_ast(fd, artifact + len, 0);
+    // The recipe owns every source byte, including any final newline.
+    var ok i64 = file_write_all(fd, artifact + len);
     if output != nil { file_close(fd); }
     if ok == 0 { eprintln("Error: cannot write format output"); return 1; }
     return 0;
