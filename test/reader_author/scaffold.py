@@ -100,7 +100,7 @@ def main():
         replay.run([minted, 'policy.parcel', '-o', 'isolated.ll'], 'minted-no-tools', project)
         replay.env['PATH'] = saved_path
         for total, expected_output in json.loads((project / 'cases.json').read_text()):
-            result = replay.run([str(project / 'policy'), total], 'runtime-' + total, project)
+            result = replay.run([str(project / 'build/policy'), total], 'runtime-' + total, project)
             require(result.stdout == expected_output.encode() and not result.stderr, 'wrong runtime result')
         # An intentionally incorrect expectation must fail the generated runner.
         wrong = scratch / 'wrong-expectation'
@@ -155,8 +155,28 @@ def main():
         shutil.copytree(scratch / 'failed', evidence / 'failed-write')
         dump(evidence / 'collisions.json', {'occupied_before': before, 'occupied_after': snapshot(occupied),
              'repeat_before': after, 'repeat_after': snapshot(project), 'failed_write': snapshot(scratch / 'failed')})
-        for name in ('lang', 'ast', 'if', '../escape', 'bad-name', 'x' * 65):
-            replay.run([compiler, 'new', 'language', name], 'invalid-name-' + str(len(replay.rows)), scratch, expected=1)
+        for name in ('lang', 'ast', 'if', '../escape', 'bad-name', 'x' * 65,
+                     'main', 'print', 'alloc', 'reader_transform', 'TOKEN_EOF',
+                     'parcel ', ' parcel', 'parcel\t', 'parcel\n', 'parcel/*comment*/'):
+            before = {p.name for p in scratch.iterdir()}
+            result = replay.run([compiler, 'new', 'language', name],
+                                'invalid-name-' + str(len(replay.rows)), scratch, expected=1)
+            require(b'Error: language name' in result.stderr, 'missing name diagnostic')
+            require({p.name for p in scratch.iterdir()} == before, 'invalid name wrote a destination')
+        # The extension ll used to make the checker overwrite its own source.
+        result = replay.run([compiler, 'new', 'language', 'll'], 'generate-ll', scratch)
+        ll = scratch / 'll'
+        ll_initial = snapshot(ll)
+        commands = result.stdout.decode().split('Run these commands from this directory:\n', 1)[1]
+        (evidence / 'll-commands.sh').write_text('set -euo pipefail\n' + commands)
+        replay.shell(commands, 'll-printed-commands', scratch)
+        replay.run(['python3', '-B', 'check.py', './llc'], 'll-repeat-check', ll)
+        require(all(sha(ll / p) == h for p, h in ll_initial.items()),
+                'll workflow overwrote generated source')
+        require((ll / 'build/policy.ll').is_file() and (ll / 'build/policy').is_file(),
+                'checker outputs are not separated from guest sources')
+        dump(evidence / 'll-source-preservation.json', {
+            'before': ll_initial, 'after': {p: sha(ll / p) for p in ll_initial}})
         legacy = scratch / 'legacy'
         legacy.mkdir()
         replay.run([compiler, 'new', 'reader', 'tiny'], 'legacy-scaffold', legacy)
@@ -168,7 +188,7 @@ def main():
         require(all(sha(clone / p) == h for p, h in hashes.items()), 'compiler sources changed during project work')
         require(all(sha(project / p) == h for p, h in initial.items()), 'fixture run edited generated source')
         dump(evidence / 'artifacts.json', {'compiler': sha(compiler), 'minted': sha(minted),
-             'program': sha(project / 'policy'), 'llvm': sha(project / 'policy.ll')})
+             'program': sha(project / 'build/policy'), 'llvm': sha(project / 'build/policy.ll')})
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'observations': len(replay.rows)})
         print('PASS project: ancestry, generation, printed commands, runtime, negatives, edits, collisions, write failure and legacy reader')
         return 0

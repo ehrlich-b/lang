@@ -18,15 +18,17 @@ def main():
     if len(sys.argv) != 2:
         raise RuntimeError('usage: python3 check.py ./@NAME@c')
     compiler = str(Path(sys.argv[1]).resolve())
-    run([compiler, 'policy.@NAME@', '-o', 'policy.ll'])
-    run(['clang', 'policy.ll', '-o', 'policy'])
+    build = Path('build')
+    build.mkdir(exist_ok=True)
+    run([compiler, 'policy.@NAME@', '-o', str(build / 'policy.ll')])
+    run(['clang', str(build / 'policy.ll'), '-o', str(build / 'policy')])
     for total, expected in json.loads(Path('cases.json').read_text()):
-        result = run([str(Path('policy').resolve()), total])
+        result = run([str((build / 'policy').resolve()), total])
         if result.stdout != expected.encode() or result.stderr:
             raise RuntimeError(f'total {total}: expected {expected!r}, got {result.stdout!r}, {result.stderr!r}')
     for fixture, diagnostic in [('syntax.@NAME@', b'expected'),
                                 ('semantic.@NAME@', b'duplicate setting')]:
-        result = run([compiler, fixture, '-o', 'rejected.ll'], expected=1)
+        result = run([compiler, fixture, '-o', str(build / 'rejected.ll')], expected=1)
         if diagnostic not in result.stderr:
             raise RuntimeError(f'{fixture}: missing {diagnostic!r}: {result.stderr!r}')
     print('PASS runtime comparison, syntax rejection, semantic rejection')
