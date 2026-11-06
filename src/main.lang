@@ -1149,6 +1149,7 @@ func cmd_help_compile() i64 {
     println("  --from-ast          Input is AST, not source");
     println("  --ast-source <file> Bind reader-relative AST spans to this source");
     println("  --runtime <file>    Add Lang runtime to a compiler or AST input");
+    println("  --runtime-leaf <name>  Assert an import cannot call back into the runtime");
     println("  --embed-self        Inject AST file into self_kernel variable");
     println("  --timings           Report phase CPU milliseconds and input counts to stderr");
     println("  --expand-macros     Print macro expansions to stderr");
@@ -1178,7 +1179,7 @@ func cmd_help_run() i64 {
 func cmd_help_compiler() i64 {
     println("lang compiler - build a native compiler from a reader");
     println("");
-    println("Usage: lang compiler <reader> <reader-files...> [--runtime file.lang] [-o binary]");
+    println("Usage: lang compiler <reader> <reader-files...> [--runtime file.lang] [--runtime-leaf name] [-o binary]");
     println("");
     println("Example:");
     println("  lang compiler tiny example/tiny/tiny.lang -o /tmp/tinyc");
@@ -1646,7 +1647,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
             ___compiler_diagnostic_enable();
         }
         // Option values are data, including a path that resembles a flag.
-        if streq(option, "-o") || streq(option, "--ast-source") || streq(option, "--runtime") || streq(option, "-c") {
+        if streq(option, "-o") || streq(option, "--ast-source") || streq(option, "--runtime") || streq(option, "--runtime-leaf") || streq(option, "-c") {
             diagnostic_arg = diagnostic_arg + 1;
         } else if streq(option, "-r") { diagnostic_arg = diagnostic_arg + 2; }
         diagnostic_arg = diagnostic_arg + 1;
@@ -1731,6 +1732,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
     var dump_tokens_mode i64 = 0;
     var input_files *u8 = vec_new(16);  // Collect input file paths
     var runtime_files *u8 = vec_new(4); // Lang runtime embedded in a minted compiler
+    var runtime_leaves *u8 = vec_new(4); // Explicit contracts for linked foreign implementations
 
     var i i64 = arg_start;
     while i < argc {
@@ -1789,6 +1791,15 @@ func main_dispatch(argc i64, argv **u8) i64 {
             // Check for --dump-tokens flag
             if handled == 0 && streq(arg, "--dump-tokens") {
                 dump_tokens_mode = 1;
+                handled = 1;
+            }
+            if handled == 0 && streq(arg, "--runtime-leaf") {
+                if i + 1 >= argc || *get_arg(argv, i + 1) == '-' || *get_arg(argv, i + 1) == 0 {
+                    eprintln("Error: --runtime-leaf needs a foreign symbol name");
+                    return 1;
+                }
+                i = i + 1;
+                vec_push(runtime_leaves, get_arg(argv, i));
                 handled = 1;
             }
             if handled == 0 && streq(arg, "--runtime") {
@@ -1865,6 +1876,10 @@ func main_dispatch(argc i64, argv **u8) i64 {
         return 1;
     }
 
+    if vec_len(runtime_leaves) > 0 && vec_len(runtime_files) == 0 {
+        eprintln("Error: --runtime-leaf requires --runtime");
+        return 1;
+    }
     if vec_len(runtime_files) > 0 && gen_compiler == nil && from_ast_mode == 0 {
         eprintln("Error: --runtime requires compiler generation or --from-ast");
         return 1;
@@ -1943,6 +1958,16 @@ func main_dispatch(argc i64, argv **u8) i64 {
         append_str(&source_buf, &source_len, &source_cap, "var reader_runtime_ast *u8 = \"");
         append_str(&source_buf, &source_len, &source_cap, escape_string_literal(runtime_ast));
         append_str(&source_buf, &source_len, &source_cap, "\";\n");
+        // Embed contracts alongside this runtime; they never affect other builds.
+        append_str(&source_buf, &source_len, &source_cap, "func reader_runtime_leaves() *u8 { var leaves *u8 = vec_new(4);\n");
+        i = 0;
+        while i < vec_len(runtime_leaves) {
+            append_str(&source_buf, &source_len, &source_cap, "vec_push(leaves, \"");
+            append_str(&source_buf, &source_len, &source_cap, escape_string_literal(vec_get(runtime_leaves, i)));
+            append_str(&source_buf, &source_len, &source_cap, "\");\n");
+            i = i + 1;
+        }
+        append_str(&source_buf, &source_len, &source_cap, "return leaves; }\n");
         append_str(&source_buf, &source_len, &source_cap, "var reader_compiler_name *u8 = \"");
         append_str(&source_buf, &source_len, &source_cap, gen_compiler);
         append_str(&source_buf, &source_len, &source_cap, "\";\n");
@@ -2103,7 +2128,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
                 eprintln("Error: failed to parse AST runtime");
                 return 1;
             }
-            prog = main_combine_programs(runtime_reachable(runtime_prog, prog), prog);
+            prog = main_combine_programs(runtime_reachable(runtime_prog, prog, runtime_leaves), prog);
         }
 
         if emit_ast_mode != 0 {

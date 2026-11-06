@@ -91,48 +91,19 @@ func runtime_reach_walk(node *u8) void {
     }
 }
 
-// This is an ABI contract for the small libc leaf set, not a guess based on
-// callee spelling. Overloads are all visited and each declaration must match.
-// Foreign callbacks and dynamic symbol lookup outside this contract fall back.
-func runtime_reach_leaf_type(t *u8, code i64) i64 {
-    if t == nil { return 0; }
-    if code == 2 {
-        if type_kind(t) != TYPE_PTR { return 0; }
-        var elem *u8 = ptr_type_elem(t);
-        if elem == nil || type_kind(elem) != TYPE_BASE { return 0; }
-        return str_eq_n(base_type_name(elem), base_type_name_len(elem), "u8", 2);
-    }
-    if type_kind(t) != TYPE_BASE { return 0; }
-    if code == 1 { return str_eq_n(base_type_name(t), base_type_name_len(t), "i64", 3); }
-    return str_eq_n(base_type_name(t), base_type_name_len(t), "void", 4);
-}
-
-func runtime_reach_libc_leaf(decl *u8) i64 {
-    var name *u8 = str_dup_n(func_decl_name(decl), func_decl_name_len(decl));
-    var count i64 = 0;
-    var ret i64 = 0;
-    var first i64 = 1;
-    var second i64 = 1;
-    if streq(name, "read") || streq(name, "write") { count = 3; ret = 1; second = 2; }
-    else if streq(name, "exit") { count = 1; ret = 3; }
-    else if streq(name, "malloc") { count = 1; ret = 2; }
-    else if streq(name, "calloc") { count = 2; ret = 2; }
-    else if streq(name, "free") { count = 1; ret = 3; first = 2; }
-    else { return 0; }
-    if func_decl_param_count(decl) != count || runtime_reach_leaf_type(func_decl_ret_type(decl), ret) == 0 { return 0; }
+// A leaf contract is an explicit assertion about the linked implementation,
+// never inferred from a symbol's spelling, signature or source module.
+func runtime_reach_foreign_leaf(decl *u8, leaves *u8) i64 {
     var i i64 = 0;
-    while i < count {
-        var param *u8 = func_decl_params(decl) + i * 24;
-        var code i64 = 1;
-        if i == 0 { code = first; }
-        if i == 1 { code = second; }
-        if runtime_reach_leaf_type(param_type(param), code) == 0 { return 0; }
+    while i < vec_len(leaves) {
+        var name *u8 = vec_get(leaves, i);
+        if str_eq_n(func_decl_name(decl), func_decl_name_len(decl), name, strlen(name)) { return 1; }
         i = i + 1;
     }
-    return 1;
+    return 0;
 }
 
-func runtime_reach_function(decl *u8) void {
+func runtime_reach_function(decl *u8, leaves *u8) void {
     runtime_reach_locals = map_new();
     var i i64 = 0;
     while i < func_decl_param_count(decl) {
@@ -141,13 +112,13 @@ func runtime_reach_function(decl *u8) void {
         i = i + 1;
     }
     if func_decl_is_extern(decl) {
-        if runtime_reach_libc_leaf(decl) == 0 { runtime_reach_unknown = 1; }
+        if runtime_reach_foreign_leaf(decl, leaves) == 0 { runtime_reach_unknown = 1; }
     } else { runtime_reach_walk(func_decl_body(decl)); }
 }
 
 // Returns a fresh runtime program, preserving declaration order and AST nodes.
 // Guest declarations are never removed. On uncertainty return the original.
-func runtime_reachable(runtime *u8, guests *u8) *u8 {
+func runtime_reachable(runtime *u8, guests *u8, leaves *u8) *u8 {
     runtime_reach_functions = vec_new(128);
     runtime_reach_unknown = 0;
     var programs *u8 = vec_new(2);
@@ -201,7 +172,7 @@ func runtime_reachable(runtime *u8, guests *u8) *u8 {
         while i < vec_len(runtime_reach_functions) {
             if *(runtime_reach_marks + i) == 1 {
                 *(runtime_reach_marks + i) = 2; changed = 1;
-                runtime_reach_function(vec_get(runtime_reach_functions, i));
+                runtime_reach_function(vec_get(runtime_reach_functions, i), leaves);
             }
             i = i + 1;
         }

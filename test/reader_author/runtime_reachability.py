@@ -16,6 +16,8 @@ from route import ROOT, dump, require, sha
 
 BASE = 'dea0065aaba6729afdc97097d4998216d6baa1f6'
 FIXTURES = Path('test/reader_author/fixtures/runtime_reachability')
+# Valid only for these tests' ordinary system-libc linkage, without interposition.
+SHIPPING_LEAVES = ['--runtime-leaf', 'write', '--runtime-leaf', 'exit', '--runtime-leaf', 'calloc']
 
 
 def limits():
@@ -92,6 +94,8 @@ def main():
              'assumptions': 'Linux x86-64 with ordinary system libc; trusted native reader; '
                             'pub in supplied runtime files is the explicit export root set; '
                             'included module pub is module visibility; no OS kernel operations; '
+                            'shipping explicitly contracts write/exit/calloc as leaves under non-interposed libc linkage; '
+                            'all foreign imports otherwise unknown; '
                             'sequential fragment only, no fixed points or web rebuilds; CPU times are noisy observations'})
         require(len(bounded['cpus']) <= 2 and bounded['address_space_bytes'] <= 2 * 1024**3,
                 'resource bounds not enforced')
@@ -113,7 +117,9 @@ def main():
             ship = clone / 'example/shipping'
             minted = scratch / (variant + '-shipc')
             replay.run([compiler, 'compiler', 'shipping', str(ship / 'shipping.lang'),
-                        '--runtime', str(ship / 'runtime.lang'), '-o', str(minted)], variant + '-mint', clone)
+                        '--runtime', str(ship / 'runtime.lang'),
+                        *(SHIPPING_LEAVES if variant == 'after' else []),
+                        '-o', str(minted)], variant + '-mint', clone)
             ir = evidence / (variant + '-shipping.ll')
             replay.run([str(minted), str(ship / 'policy.shipping'), '-o', str(ir)], variant + '-guest-ir', scratch)
             versions[variant] = (clone, compiler, minted, ir)
@@ -163,6 +169,7 @@ def main():
             for index in range(len(runtime_inputs)):
                 require(observed[('before', opt, index)] == observed[('after', opt, index)], 'runtime semantic regression')
         dump(evidence / 'measurements.json', {'ir_lines': ir_lines, 'samples': samples,
+             'after_foreign_leaf_contracts': SHIPPING_LEAVES[1::2],
              'timing_note': 'Five alternating interleaved before/after pairs at O0 and O2; machine-local CPU observations, no speed target.'})
         clone, compiler, _, _ = versions['after']
         fixtures = clone / FIXTURES
@@ -187,19 +194,67 @@ def main():
                 replay.run(['clang', '-' + opt, str(ir), *c, '-o', str(exe)], name + '-' + opt + '-clang', scratch)
                 result = replay.run([str(exe)], name + '-' + opt + '-run', scratch)
                 require(not result.stdout and not result.stderr, name + ': external ABI or callback failed')
-        # The shared --from-ast path must apply the same runtime boundary.
-        direct_ir = evidence / 'from-ast.ll'
-        replay.run([compiler, '--from-ast', str(fixtures / 'roots.ast'), '--runtime', str(fixtures / 'runtime.lang'),
-                    '-o', str(direct_ir)], 'from-ast-ir', clone)
-        require('@dead_helper(' not in direct_ir.read_text(), 'shared AST runtime did not prune')
+        # Both entry paths must default to retaining an ABI-compatible interposed
+        # libc import; the linked implementation, not its name, owns dependencies.
+        # A separately compiled leaf implementation checks the explicit contract.
+        leaf_minted = scratch / 'leaf-fixturec'
+        replay.run([compiler, 'compiler', 'core_ast', str(fixtures / 'reader.lang'),
+                    '--runtime', str(fixtures / 'runtime.lang'), '--runtime-leaf', 'write',
+                    '-o', str(leaf_minted)], 'mint-leaf-fixture', clone)
+        compiler_artifacts['leaf_fixture_compiler_sha256'] = sha(leaf_minted)
+        dump(evidence / 'compiler-artifacts.json', compiler_artifacts)
+        for route in ('minted', 'from-ast'):
+            for name in ('roots', 'interposed', 'leaf'):
+                ast = fixtures / ('interposed.ast' if name == 'leaf' else name + '.ast')
+                ir = evidence / (route + '-' + name + '.ll')
+                if route == 'minted':
+                    command = [str(leaf_minted if name == 'leaf' else minted), str(ast)]
+                else:
+                    command = [compiler, '--from-ast', str(ast), '--runtime', str(fixtures / 'runtime.lang')]
+                    if name == 'leaf':
+                        command += ['--runtime-leaf', 'write']
+                replay.run([*command, '-o', str(ir)], route + '-' + name + '-ir', clone)
+                text = ir.read_text()
+                retained = '@dead_helper(' in text and '@vec_new(' in text
+                pruned = '@dead_helper(' not in text and '@vec_new(' not in text
+                require(retained if name == 'interposed' else pruned,
+                        route + '-' + name + ': foreign dependency boundary failed')
+                for opt in ('O0', 'O2'):
+                    exe = scratch / (route + '-' + name + '-' + opt)
+                    c = fixtures / ('roots.c' if name == 'roots' else 'interposed.c')
+                    defines = ['-DLEAF_WRITE'] if name == 'leaf' else []
+                    replay.run(['clang', '-' + opt, *defines, str(ir), str(c), '-o', str(exe)],
+                               exe.name + '-clang', scratch)
+                    result = replay.run([str(exe)], exe.name + '-run', scratch)
+                    require(not result.stdout and not result.stderr, exe.name + ': runtime output mismatch')
+        # No contracts is also valid for shipping: full inclusion, identical output.
+        ship = clone / 'example/shipping'
+        default_minted = scratch / 'default-shipc'
+        replay.run([compiler, 'compiler', 'shipping', str(ship / 'shipping.lang'),
+                    '--runtime', str(ship / 'runtime.lang'), '-o', str(default_minted)], 'mint-default-shipping', clone)
+        compiler_artifacts['default_shipping_compiler_sha256'] = sha(default_minted)
+        dump(evidence / 'compiler-artifacts.json', compiler_artifacts)
+        default_ir = evidence / 'default-shipping.ll'
+        replay.run([str(default_minted), str(ship / 'policy.shipping'), '-o', str(default_ir)], 'default-shipping-ir', scratch)
+        require('@vec_new(' in default_ir.read_text() and '@map_new(' in default_ir.read_text(),
+                'default shipping must retain runtime for unknown foreign dependencies')
         for opt in ('O0', 'O2'):
-            exe = scratch / ('from-ast-' + opt)
-            replay.run(['clang', '-' + opt, str(direct_ir), str(fixtures / 'roots.c'), '-o', str(exe)], 'from-ast-' + opt, scratch)
-            replay.run([str(exe)], 'from-ast-' + opt + '-run', scratch)
+            exe = scratch / ('default-shipping-' + opt)
+            replay.run(['clang', '-' + opt, str(default_ir), '-o', str(exe)], exe.name + '-clang', scratch)
+            for index, (argv, exit_code, _, _) in enumerate(runtime_inputs):
+                result = replay.run([str(exe), *argv], exe.name + '-runtime-' + str(index), scratch, exit_code)
+                require((result.returncode, result.stdout, result.stderr) == observed[('before', opt, index)],
+                        'default shipping semantic regression')
+        # Reject misplaced or valueless contracts before creating any artifact.
+        for index, argv in enumerate((['--runtime-leaf'], ['--runtime-leaf', 'write'],
+                                      ['--runtime', str(fixtures / 'runtime.lang'), '--runtime-leaf', '-o'])):
+            result = replay.run([compiler, '--from-ast', str(fixtures / 'roots.ast'), *argv],
+                                'reject-leaf-option-' + str(index), clone, 1)
+            require(b'--runtime-leaf' in result.stderr, 'missing leaf contract diagnostic')
         require(all(sha(ROOT / p) == h for p, h in hashes.items()), 'test edited committed input files')
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'base': BASE, 'stages': len(replay.rows),
              'ir_lines': ir_lines, 'semantic_vectors': len(runtime_inputs), 'optimizations': ['O0', 'O2']})
-        print('PASS shipping reachability: O0/O2 outputs, external exports, initializer/address-taken callback, indirect/foreign fallback and five interleaved samples')
+        print('PASS shipping reachability: O0/O2 outputs, external exports, initializer/address-taken callback, indirect/foreign/interposed-libc fallback, explicit leaf contracts and five interleaved samples')
         return 0
     except Exception as error:
         dump(evidence / 'result.json', {'pass': False, 'error': str(error)})

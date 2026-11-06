@@ -11,7 +11,10 @@ that foreign dependencies cannot be pruned by callee name.
 
 Pruning removes only runtime functions. Every global, initializer, type, and
 guest declaration is retained. All matching overload declarations are marked.
-Unrecognized syntax, unresolved or indirect calls, casts, and foreign imports
-outside the exact read/write/exit/malloc/calloc/free libc leaf ABIs retain the
-whole runtime. The libc contracts assume the ordinary system libc implementation.
+Unrecognized syntax, unresolved or indirect calls, casts, and reachable foreign
+imports retain the whole runtime unless an explicit `--runtime-leaf` contract
+asserts no hidden runtime dependencies for that linked symbol. No libc names or
+ABIs receive implicit exemptions. The interposed fixture provides the ordinary
+`write` ABI from C but calls `dead_helper`, and must work through both a minted
+compiler and `--from-ast --runtime` without any contract.
 This pass does not narrow the language or reject previously supported programs.

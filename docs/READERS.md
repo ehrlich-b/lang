@@ -468,8 +468,23 @@ external entry points of each minted artifact.
 
 Runtime globals, their initializers, types and every guest declaration remain
 included. Function references retain all matching overloads. Indirect or
-unresolved calls, opaque syntax, pointer casts and foreign imports outside the
-compiler's exact system-libc leaf ABI contracts keep the whole runtime. This
-conservative fallback also preserves diagnostics and supports runtimes whose
+unresolved calls, opaque syntax, pointer casts and reachable foreign imports keep
+the whole runtime by default. Even a libc-compatible name and ABI do not establish
+its implementation: an interposed `write` may call an otherwise unused helper.
+This conservative fallback also preserves diagnostics and supports runtimes whose
 dependencies cannot be determined statically. The same boundary applies to
 `--from-ast --runtime`.
+
+A build that controls its foreign implementations may repeat `--runtime-leaf NAME`
+with `compiler` or `--from-ast --runtime`. Each entry is an explicit contract that
+**every linked implementation of that symbol has no hidden runtime dependencies**,
+including callbacks or dynamic symbol lookup. The contract is embedded with the
+minted runtime, and applies to all overloads of that symbol. It does not follow
+from a declaration's name, ABI or module origin. Omit the option when interposition
+or other linkage makes that assertion uncertain; the complete runtime is retained.
+Indirect calls and other unknown dependencies still force full inclusion.
+
+For the shipping example linked against ordinary system libc with no interposition,
+`--runtime-leaf write --runtime-leaf exit --runtime-leaf calloc` states the foreign
+leaf contracts needed to prune unused standard helpers. Without those explicit
+contracts shipping retains the complete runtime and has the same output.
