@@ -117,6 +117,63 @@ func alphabetic_comment_boundaries() bool {
     return true;
 }
 
+func number_at(t *Tokenizer, text *u8, end i64) bool {
+    return tok_kind(t) == TOK_NUMBER && streq(tok_text(t), text) &&
+           tok_start_offset(t) == 0 && tok_end_offset(t) == end;
+}
+
+func decimal_comment_tail(source *u8, line *u8, open *u8, close *u8,
+                          digits *u8, end i64, tail i64) bool {
+    var t *Tokenizer = tok_new_profile(source,
+        tok_profile_new(TOK_NUM_DECIMAL, nil, line, open, close));
+    if !number_at(t, digits, end) { return false; }
+    var mark i64 = tok_mark(t);
+    tok_next(t);
+    if !identifier_at(t, "tail", tail, tail + 4) { return false; }
+    tok_reset(t, mark);
+    if !number_at(t, digits, end) { return false; }
+    tok_next(t);
+    if !identifier_at(t, "tail", tail, tail + 4) { return false; }
+    tok_next(t);
+    return tok_eof(t) && tok_expect_end(t);
+}
+
+// Comment markers may overlap decimal digits, including single-byte markers.
+func decimal_comment_boundaries() bool {
+    if !decimal_comment_tail("1239comment\ntail", "9", nil, nil, "123", 3, 12) { return false; }
+    if !decimal_comment_tail("12390comment\ntail", "90", nil, nil, "123", 3, 13) { return false; }
+    if !decimal_comment_tail("1239[body]tail", nil, "9[", "]", "123", 3, 10) { return false; }
+    if !decimal_comment_tail("1239body0tail", nil, "9", "0", "123", 3, 9) { return false; }
+    // Partial markers and unpaired block delimiters do not interrupt digits.
+    if !decimal_comment_tail("1239 tail", "90", nil, nil, "1239", 4, 5) { return false; }
+    if !decimal_comment_tail("1239 tail", nil, "9", nil, "1239", 4, 5) { return false; }
+    var t *Tokenizer = tok_new_profile("1239comment",
+        tok_profile_new(TOK_NUM_DECIMAL, nil, "9", nil, nil));
+    if !number_at(t, "123", 3) { return false; }
+    tok_next(t);
+    if !tok_eof(t) || !tok_expect_end(t) { return false; }
+    t = tok_new_profile("9comment\ntail",
+        tok_profile_new(TOK_NUM_DECIMAL, nil, "9", nil, nil));
+    if !identifier_at(t, "tail", 9, 13) { return false; }
+    // Invalid numeric text before an opener keeps its complete diagnostic.
+    t = tok_new_profile("12name9comment\ntail",
+        tok_profile_new(TOK_NUM_DECIMAL, nil, "9", nil, nil));
+    if tok_kind(t) != TOK_UNKNOWN || tok_error_offset(t) != 0 ||
+       tok_error_end_offset(t) != 6 || !streq(tok_error_found(t), "12name") { return false; }
+    t = tok_new_profile("1239[body",
+        tok_profile_new(TOK_NUM_DECIMAL, nil, nil, "9[", "]"));
+    if !number_at(t, "123", 3) { return false; }
+    tok_next(t);
+    if tok_error_offset(t) != 3 || tok_error_end_offset(t) != 9 || tok_expect_end(t) { return false; }
+    // The inherited constructor still consumes all decimal digits first.
+    t = tok_new_comments("1239comment\ntail", "9", nil, nil);
+    if !number_at(t, "1239", 4) { return false; }
+    tok_next(t);
+    if !identifier_at(t, "comment", 4, 11) { return false; }
+    tok_next(t);
+    return identifier_at(t, "tail", 12, 16);
+}
+
 func main(argc i64, argv **u8) i64 {
     if argc > 1 {
         var tokens *Tokenizer = tok_new_profile(argv[1], shipping_profile());
@@ -192,6 +249,7 @@ func main(argc i64, argv **u8) i64 {
                         tok_profile_new(TOK_NUM_DECIMAL, "-", nil, "-*", nil));
     if !streq(tok_text(a), "item-") || tok_end_offset(a) != 5 { return 30; }
     if !alphabetic_comment_boundaries() { return 31; }
+    if !decimal_comment_boundaries() { return 32; }
     println("PASS two-readers");
     return 0;
 }

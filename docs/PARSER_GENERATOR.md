@@ -105,6 +105,8 @@ var tree *PNode = parse_setting(tokens);
 - Comment delimiters use the existing `tok_new_comments` contract: nil disables
   a form, both block markers are required, blocks do not nest, and line comments
   may end at EOF. A comment may immediately follow a decimal or identifier token.
+  Openers take priority even when they start with digits: with line marker `"9"`,
+  `1239comment` yields the decimal `123` followed by a comment.
 
 `tok_new_profile` snapshots these fields before scanning the first token;
 independent tokenizers can use different profiles at the same time. Input text

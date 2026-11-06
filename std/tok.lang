@@ -424,7 +424,12 @@ func tok_utf8_width(t *Tokenizer) i64 {
 // numeric prefix. Delimiters/comments retain their original source positions.
 func tok_decimal(t *Tokenizer) void {
     var invalid bool = false;
-    while tok_is_digit(tok_peek_char(t)) { tok_advance_char(t); }
+    while tok_is_digit(tok_peek_char(t)) {
+        // An opener can itself start with a digit; it still ends the number.
+        if tok_marker_at(t, t.comment_line) > 0 { break; }
+        if t.comment_close != nil && tok_marker_at(t, t.comment_open) > 0 { break; }
+        tok_advance_char(t);
+    }
     var c i64 = tok_peek_char(t);
     var comment bool = tok_marker_at(t, t.comment_line) > 0;
     if t.comment_close != nil && tok_marker_at(t, t.comment_open) > 0 { comment = true; }

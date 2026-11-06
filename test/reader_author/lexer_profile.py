@@ -75,7 +75,7 @@ def main():
         binary = build(fixtures / 'two_readers.lang', 'two-readers')
         result = replay.run([str(binary)], 'equivalent-trees-and-defaults', clone)
         require(result.stdout == b'PASS two-readers\n' and b'order-total' in result.stderr,
-                'profile/manual trees, checked captures, rewind, legacy tokens or alphabetic comment boundaries differ')
+                'profile/manual trees, checked captures, rewind, legacy tokens or identifier/decimal comment boundaries differ')
         # The same generated parser reads manual streams and both scanning policies.
         for name, extra in [('config.shipping', []), ('query.query', ['query'])]:
             source = (fixtures / name).read_text()
