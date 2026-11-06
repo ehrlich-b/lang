@@ -121,6 +121,13 @@ pub func phase_exec_capture_buffer(program *u8, input *u8, input_len i64, binary
     } else if binary != 0 { captured = phase_read_bytes_fd(stdout_read, phase_limit(), phase_diagnostic_source); }
     else { captured = phase_read_fd(stdout_read, phase_limit(), phase_diagnostic_source); }
     os_close(stdout_read);
+    if binary == 0 {
+        var byte i64 = 0;
+        while byte < captured.len {
+            if *(captured.data + byte) == 0 { phase_error("embedded-nul", phase_diagnostic_source); }
+            byte = byte + 1;
+        }
+    }
 
     // Wait for child
     var status *i64 = alloc(8);

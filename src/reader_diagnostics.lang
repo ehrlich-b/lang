@@ -100,9 +100,6 @@ func reader_host_decode(bytes *PhaseBuffer) void {
         if strlen(d.code) != code || strlen(d.source) != key || strlen(d.message) != message {
             reader_host_protocol(); return;
         }
-        phase_utf8_validate(d.code, "<reader-diagnostic>");
-        phase_utf8_validate(d.source, "<reader-diagnostic>");
-        phase_utf8_validate(d.message, "<reader-diagnostic>");
         reader_host_accept(d, reader_host_text);
         pos = pos + 28 + code + key + message;
     }

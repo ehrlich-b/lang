@@ -14,11 +14,22 @@ pub func reader_diagnostic_put32(p *u8, value i64) void {
 pub func reader_diagnostic_u32(p *u8) i64 {
     return *p + *(p + 1) * 256 + *(p + 2) * 65536 + *(p + 3) * 16777216;
 }
+func reader_diagnostic_utf8(text *u8) i64 {
+    var len i64 = strlen(text); var i i64 = 0;
+    while i < len {
+        var width i64 = ___compiler_diagnostic_utf8_width(text + i, len - i);
+        if width == 0 { return 0; }
+        i = i + width;
+    }
+    return 1;
+}
 pub func reader_diagnostic_valid(d *ReaderDiagnostic, text *u8) i64 {
     if d == nil || text == nil { return 0; }
     if d.code == nil || d.message == nil || d.source == nil { return 0; }
     if *d.code == 0 || *d.source == 0 || d.category < 0 || d.category > 1 { return 0; }
     if strlen(d.code) > 256 || strlen(d.source) > 4096 || strlen(d.message) > 1048576 { return 0; }
+    if reader_diagnostic_utf8(d.code) == 0 || reader_diagnostic_utf8(d.source) == 0 ||
+       reader_diagnostic_utf8(d.message) == 0 { return 0; }
     if d.start == -1 && d.end == -1 { return 1; }
     if d.start < 0 || d.end < d.start || d.end > strlen(text) { return 0; }
     var a i64 = *(text + d.start); var b i64 = *(text + d.end);

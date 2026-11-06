@@ -6,10 +6,65 @@ import os
 from pathlib import Path
 import resource
 import shutil
+import signal
+import subprocess
+import time
 import sys
 import uuid
 
 from route import ROOT, Replay, dump, require, sha
+
+
+class DiagnosticReplay(Replay):
+    """Monitor aggregate resident memory of the sequential fragment process tree."""
+
+    @staticmethod
+    def resident_tree(pid):
+        total = 0
+        pending = [pid]
+        seen = set()
+        while pending:
+            child = pending.pop()
+            if child in seen:
+                continue
+            seen.add(child)
+            try:
+                total += int(Path(f"/proc/{child}/statm").read_text().split()[1]) * os.sysconf("SC_PAGE_SIZE")
+                pending.extend(int(p) for p in Path(f"/proc/{child}/task/{child}/children").read_text().split())
+            except (FileNotFoundError, ProcessLookupError):
+                pass
+        return total
+
+    def run(self, command, name, cwd, expected=0):
+        prefix = self.evidence / f"{len(self.rows) + 1:03d}-{name}"
+        before = resource.getrusage(resource.RUSAGE_CHILDREN)
+        start = time.perf_counter()
+        peak = 0
+        failure = None
+        with prefix.with_suffix(".stdout").open("wb") as stdout, prefix.with_suffix(".stderr").open("wb") as stderr:
+            process = subprocess.Popen(command, cwd=cwd, env=self.env, stdout=stdout, stderr=stderr, start_new_session=True)
+            while process.poll() is None:
+                peak = max(peak, self.resident_tree(os.getpid()))
+                if peak > 2 * 1024**3 or time.perf_counter() - start > 240:
+                    failure = "aggregate memory limit" if peak > 2 * 1024**3 else "timeout"
+                    os.killpg(process.pid, signal.SIGKILL)
+                    break
+                time.sleep(0.05)
+            status = process.wait()
+        after = resource.getrusage(resource.RUSAGE_CHILDREN)
+        row = {"name": name, "command": command, "cwd": str(cwd),
+               "environment": {k: self.env[k] for k in ("JOBS", "LANGBE", "LANGOS", "LANG_CACHE", "TMPDIR")},
+               "exit": status, "wall_seconds": time.perf_counter() - start,
+               "cpu_user_seconds": after.ru_utime - before.ru_utime,
+               "cpu_system_seconds": after.ru_stime - before.ru_stime,
+               "aggregate_peak_rss_bytes_sampled": peak, "monitor_failure": failure,
+               "stdout": prefix.name + ".stdout", "stderr": prefix.name + ".stderr"}
+        dump(prefix.with_suffix(".json"), row)
+        self.rows.append(row)
+        dump(self.evidence / "stages.json", self.rows)
+        require(failure is None and status == expected,
+                f"{name}: expected exit {expected}, got {status} ({failure}); see {prefix}.stderr")
+        return subprocess.CompletedProcess(command, status, prefix.with_suffix(".stdout").read_bytes(), prefix.with_suffix(".stderr").read_bytes())
 
 
 def main():
@@ -31,7 +86,7 @@ def main():
     evidence.mkdir(parents=True, exist_ok=False)
     scratch = ROOT.parent / 'scratch' / ('diagnostics-' + token)
     scratch.mkdir(parents=True)
-    replay = Replay(evidence, scratch)
+    replay = DiagnosticReplay(evidence, scratch)
     print(f'evidence: {evidence}', flush=True)
     try:
         status = replay.run(['git', 'status', '--porcelain', '--untracked-files=all'], 'clean', ROOT)
@@ -48,7 +103,7 @@ def main():
         dump(evidence / 'identity.json', {'head': head,
              'source_sha256': {p: sha(clone / p) for p in paths if p and (clone / p).is_file()},
              'tools': tools, 'limits': {'cpus': cpus, 'address_space_bytes': ceiling, 'JOBS': 2},
-             'assumptions': 'Linux x86-64 libc; sequential commands; Node executes browser host Wasm; no OS kernel tests; no web artifact regeneration; unchanged visual layout'})
+             'assumptions': 'Linux x86-64 libc; sequential commands; Node executes browser host Wasm with trap handler disabled to stay within address-space cap; no OS kernel tests; no web artifact regeneration; unchanged visual layout'})
         replay.run(['make', 'init'], 'seed', clone)
         replay.run(['make', 'build'], 'build', clone)
         compiler = clone / 'out/lang_next'
@@ -113,7 +168,8 @@ def main():
         nested = replay.run([str(compiler), 'test/reader_author/fixtures/nested.lang',
                     '--diagnostics=json', '-o', str(scratch / 'nested.ll')], 'nested', clone, expected=1)
         nd = [json.loads(line) for line in nested.stderr.splitlines()]
-        require(len(nd) == 1 and nd[0]['code'] == 'shipping-duplicate', 'nested guest failure lost')
+        require(len(nd) == 2 and nd[0]['code'] == 'shipping-duplicate' and
+                nd[1]['message'] == 'error: compilation failed', 'nested guest failure lost')
         require(len(nd[0]['origin_chain']) >= 2, 'nested expansion chain lost')
         require(any(o['path'].endswith('nested.lang') for o in nd[0]['origin_chain']), 'outer source lost')
 
@@ -144,7 +200,7 @@ func main() *u8 {{
             replay.env['LANGBE'] = old
             cases = [(duplicate_path, duplicate_record), (syntax_path, syntax_record)] if key == 'shipping' else broken_cases
             for index, (path, saved) in enumerate(cases):
-                replay.run(['node', 'test/reader_author/browser_diagnostics.cjs', str(wasm), str(path), str(saved), key],
+                replay.run(['node', '--disable-wasm-trap-handler', '--max-old-space-size=256', 'test/reader_author/browser_diagnostics.cjs', str(wasm), str(path), str(saved), key],
                            f'browser-{key}-{index}', clone)
         dump(evidence / 'observations.json', observations)
         dump(evidence / 'artifacts.json', {'compiler': sha(compiler.resolve()), 'minted': sha(minted)})

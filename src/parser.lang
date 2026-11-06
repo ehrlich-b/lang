@@ -4397,7 +4397,9 @@ pub func parse_program() *u8 {
         var start_tok *u8 = parse_peek();
         var decl *u8 = parse_declaration();
         if decl != nil {
-            node_set_origin(decl, parse_source_name, tok_line(start_tok), tok_col(start_tok));
+            if node_origin_id(decl) == 0 {
+                node_set_origin(decl, parse_source_name, tok_line(start_tok), tok_col(start_tok));
+            }
             var p **u8 = decls + (decl_count * 8);
             *p = decl;
             decl_count = decl_count + 1;
