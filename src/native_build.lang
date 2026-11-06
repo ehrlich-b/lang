@@ -175,20 +175,34 @@ func cmd_native_build(argc i64, argv **u8) i64 {
     var emit *u8 = "native";
     var invalid_emit i64 = 0;
     var invalid_argument i64 = 0;
+    var seen_emit i64 = 0;
+    var seen_output i64 = 0;
+    var seen_project i64 = 0;
     var i i64 = 2;
     while i < argc {
         var arg *u8 = get_arg(argv, i);
         if streq(arg, "--project") || streq(arg, "-o") {
-            if i + 1 >= argc { eprintln("Error: build option needs a path"); return 1; }
-            i = i + 1;
+            var duplicate i64 = 0;
             if streq(arg, "--project") {
-                if manifest != nil { eprintln("Error: duplicate --project"); return 1; }
-                manifest = get_arg(argv, i);
+                if seen_project != 0 { eprintln("Error: duplicate --project"); duplicate = 1; }
+                seen_project = 1;
             } else {
-                if output != nil { eprintln("Error: duplicate -o"); return 1; }
-                output = get_arg(argv, i);
+                if seen_output != 0 { eprintln("Error: duplicate -o"); duplicate = 1; }
+                seen_output = 1;
+            }
+            if duplicate != 0 { invalid_argument = 1; }
+            if i + 1 >= argc || *get_arg(argv, i + 1) == '-' {
+                eprintln("Error: build option needs a path"); invalid_argument = 1;
+            } else {
+                i = i + 1;
+                if duplicate == 0 {
+                    if streq(arg, "--project") { manifest = get_arg(argv, i); }
+                    else { output = get_arg(argv, i); }
+                }
             }
         } else if str_starts_with(arg, "--emit=") {
+            if seen_emit != 0 { eprintln("Error: duplicate --emit"); invalid_argument = 1; }
+            seen_emit = 1;
             emit = arg + 7;
             if !streq(emit, "ast") && !streq(emit, "llvm") && !streq(emit, "native") {
                 invalid_emit = 1;
@@ -199,11 +213,15 @@ func cmd_native_build(argc i64, argv **u8) i64 {
         i = i + 1;
     }
     if manifest == nil || source == nil || output == nil || *output == 0 {
-        eprintln("Usage: lang build --project PROJECT SOURCE -o OUTPUT [--emit=native|ast|llvm]"); return 1;
+        eprintln("Usage: lang build --project PROJECT SOURCE -o OUTPUT [--emit=native|ast|llvm]"); invalid_argument = 1;
     }
-    if native_build_same_file(output, source) || native_build_same_file(output, manifest) {
+    if output == nil || *output == 0 { return 1; }
+    if (source != nil && native_build_same_file(output, source)) ||
+       (manifest != nil && native_build_same_file(output, manifest)) {
         eprintln("Error: build output would overwrite an input"); return 1;
     }
+    // The first -o selects the only candidate for invalidation, even on parse
+    // failure. Later duplicate destinations are never touched.
     // Only replace a prior native executable. Never destroy an unrelated source,
     // symlink or directory supplied accidentally as the destination.
     var info *u8 = alloc(256);
@@ -219,8 +237,8 @@ func cmd_native_build(argc i64, argv **u8) i64 {
         }
         if os_unlink(output) != 0 { eprintln("Error: cannot invalidate previous build output"); return 1; }
     }
-    if invalid_argument != 0 { return 1; }
-    if invalid_emit != 0 { eprintln("Error: build --emit must be native, ast or llvm"); return 1; }
+    if invalid_emit != 0 { eprintln("Error: build --emit must be native, ast or llvm"); }
+    if invalid_argument != 0 || invalid_emit != 0 { return 1; }
     // A private directory next to OUTPUT provides exclusive paths and same-device
     // rename publication, independent of TMPDIR and quoting in file operands.
     var work *u8 = mkdtemp(str_concat(output, ".lang-build-XXXXXX"));

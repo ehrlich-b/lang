@@ -164,6 +164,42 @@ def main():
                 require(b'unknown build option or extra source' in result.stderr and not exe.exists(),
                         'parse error left a previous executable or lost its diagnostic')
 
+        # All parser errors reach the same first-output invalidation boundary.
+        # A later -o is ambiguous and must never be treated as a destination.
+        sentinel = scratch / 'unrelated native sentinel'
+        sentinel.write_bytes(saved_exe)
+        sentinel.chmod(0o755)
+        sentinel_hash = sha(sentinel)
+        project_args = ['--project', str(manifest), str(source)]
+        output_args = ['-o', str(exe)]
+        cases = [
+            ('terra-trailing-project', project_args + output_args + ['--emit=bogus', '--project'], b'needs a path'),
+            ('duplicate-project', project_args + output_args + ['--project', str(manifest)], b'duplicate --project'),
+            ('duplicate-output', project_args + output_args + ['-o', str(sentinel)], b'duplicate -o'),
+            ('trailing-output', project_args + output_args + ['-o'], b'duplicate -o'),
+            ('duplicate-emit-before', ['--emit=ast', '--emit=llvm'] + project_args + output_args, b'duplicate --emit'),
+            ('duplicate-emit-after', project_args + output_args + ['--emit=ast', '--emit=llvm'], b'duplicate --emit'),
+            ('unknown-before', ['--unknown'] + project_args + output_args, b'unknown build option'),
+            ('unknown-after', project_args + output_args + ['--unknown'], b'unknown build option'),
+            ('extra-before', project_args + ['extra.shipping'] + output_args, b'extra source'),
+            ('extra-after', project_args + output_args + ['extra.shipping'], b'extra source'),
+            ('missing-project-before', [str(source), '--project'] + output_args, b'needs a path'),
+            ('missing-source', ['--project', str(manifest)] + output_args, b'Usage:'),
+            ('missing-output-before', project_args + ['-o', '--emit=llvm', '-o', str(sentinel)], b'needs a path'),
+        ]
+        for label, arguments, diagnostic in cases:
+            seed_previous()
+            result = replay.run([compiler, 'build'] + arguments, 'parser-' + label, scratch, expected=1)
+            require(diagnostic in result.stderr and b'Built ' not in result.stdout,
+                    label + ': parser diagnostic or failure status lost')
+            if label == 'missing-output-before':
+                # No first destination was selected: the second is ambiguous.
+                require(exe.exists(), label + ': unselected output was changed')
+            else:
+                require(not exe.exists(), label + ': selected stale artifact survived')
+            require(sha(sentinel) == sentinel_hash, label + ': unrelated native sentinel changed')
+            require(not list(scratch.glob('*.lang-build-*')), label + ': staging files leaked')
+
         # A configured executable that cannot be launched is a toolchain failure.
         seed_previous()
         missing_tool = scratch / 'missing configured clang'
