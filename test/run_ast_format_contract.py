@@ -18,7 +18,7 @@ native_schema = dict(re.findall(r'if streq\(head, "([^"]+)"\) \{ return "([^"]*)
                                 (ROOT / 'src/ast_shape.lang').read_text()))
 browser_schema = dict(re.findall(r"^  '([^']+)': '([^']*)',", (ROOT / 'web/program_host.js').read_text(), re.M))
 assert native_schema == browser_schema and native_schema, 'native/browser shape schemas differ'
-EXPECTED_COUNTS = {'effects': 26, 'empty': 1, 'escaped': 9, 'metadata': 11, 'shapes': 24}
+EXPECTED_COUNTS = {'effects': 26, 'empty': 1, 'escaped': 9, 'metadata': 11, 'reader': 2, 'shapes': 24}
 TOKEN = re.compile(r'''\s+|/\*.*?\*/|//[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[()]|[^\s()]+''', re.S)
 
 
