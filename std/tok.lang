@@ -341,6 +341,21 @@ func tok_skip_marker(t *Tokenizer, n i64) void {
     }
 }
 
+// One sticky lexical diagnostic, shared by numeric and comment policies.
+func tok_fail_lexical(t *Tokenizer, start i64, end i64, expected *u8, found *u8) void {
+    t.comment_error = start;
+    t.error_pos = start;
+    t.error_end = end;
+    t.error_expected_len = 0;
+    while *expected != 0 && t.error_expected_len < 511 {
+        *(t.error_expected + t.error_expected_len) = *expected;
+        t.error_expected_len = t.error_expected_len + 1;
+        expected = expected + 1;
+    }
+    *(t.error_expected + t.error_expected_len) = 0;
+    t.error_found = found;
+}
+
 pub func tok_skip_whitespace(t *Tokenizer) void {
     if t.comment_error >= 0 { return; }
     var again i64 = 1;
@@ -370,19 +385,7 @@ pub func tok_skip_whitespace(t *Tokenizer) void {
                 if close == 0 {
                     // Lexical failure survives parser alternatives and end checks.
                     // Select the entire unfinished comment in original bytes.
-                    t.comment_error = start;
-                    t.error_pos = start;
-                    t.error_end = t.len;
-                    t.error_expected_len = 0;
-                    *t.error_expected = 0;
-                    var expected *u8 = t.comment_close;
-                    while *expected != 0 && t.error_expected_len < 511 {
-                        *(t.error_expected + t.error_expected_len) = *expected;
-                        t.error_expected_len = t.error_expected_len + 1;
-                        expected = expected + 1;
-                    }
-                    *(t.error_expected + t.error_expected_len) = 0;
-                    t.error_found = "unterminated block comment";
+                    tok_fail_lexical(t, start, t.len, t.comment_close, "unterminated block comment");
                     return;
                 }
                 tok_skip_marker(t, close);
@@ -439,16 +442,7 @@ func tok_decimal(t *Tokenizer) void {
     t.tok_kind = TOK_NUMBER;
     if invalid {
         t.tok_kind = TOK_UNKNOWN;
-        t.comment_error = t.tok_start;
-        t.error_pos = -1;
-        t.error_end = t.pos;
-        t.error_expected_len = 0;
-        *t.error_expected = 0;
-        // Install the lexical expectation once; parser backtracking cannot
-        // overwrite it or turn the bad token into EOF.
-        t.comment_error = -1;
-        tok_note_expected(t, "decimal integer");
-        t.comment_error = t.tok_start;
+        tok_fail_lexical(t, t.tok_start, t.pos, "decimal integer", tok_text(t));
     }
 }
 

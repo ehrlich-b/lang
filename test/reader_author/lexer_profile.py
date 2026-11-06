@@ -105,7 +105,7 @@ def main():
             ('select2 x limit 1;', ['query'], 'select2', "'select'"),
             ('select x limit_more 1;', ['query'], 'limit_more', "'limit'"),
             ('select x limit 1; // foreign', ['query'], '/', 'end of input'),
-            ('shipping { base 1; free_over 2; } -- foreign', [], '-', 'end of input'),
+            ('shipping { base 1; free_over 2; } -- foreign', [], '--', 'end of input'),
             ('select x limit 1; (* unfinished', ['query'], '(* unfinished', '*)'),
             ('shipping { base 1; free_over 2; } /* unfinished', [], '/* unfinished', '*/'),
         ]:
