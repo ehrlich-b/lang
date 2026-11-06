@@ -107,6 +107,7 @@ struct Tokenizer {
     comment_error i64;   // sticky lexical failure offset, or -1
     numbers i64;
     identifier_extra *u8;
+    profile_boundaries bool; // only explicit profiles split identifiers at openers
     parser_work i64;
     parser_depth i64;
     parser_peak i64;
@@ -118,7 +119,7 @@ struct Tokenizer {
 }
 
 func tok_new_state(input *u8) *Tokenizer {
-    var t *Tokenizer = alloc(240);  // 30 fields * 8 bytes
+    var t *Tokenizer = alloc(248);  // 31 fields * 8 bytes
     t.input = input;
     t.pos = 0;
     t.len = strlen(input);
@@ -158,6 +159,7 @@ func tok_new_state(input *u8) *Tokenizer {
     t.parser_enabled = tok_parser_instrumentation;
     t.numbers = TOK_NUM_DEFAULT;
     t.identifier_extra = nil;
+    t.profile_boundaries = false;
     return t;
 }
 
@@ -189,6 +191,7 @@ pub func tok_new_comments(input *u8, line *u8, open *u8, close *u8) *Tokenizer {
 // their grammar and reused without sharing cursor or diagnostic state.
 pub func tok_new_profile(input *u8, profile *TokProfile) *Tokenizer {
     var t *Tokenizer = tok_new_state(input);
+    t.profile_boundaries = true;
     t.numbers = profile.numbers;
     t.identifier_extra = profile.identifier_extra;
     t.comment_line = profile.line;
@@ -613,9 +616,12 @@ pub func tok_next(t *Tokenizer) void {
     // Identifier
     if tok_is_alpha(c) {
         while tok_identifier_continue(t, tok_peek_char(t)) {
-            // A comment opener wins over identifier continuation bytes.
-            if tok_marker_at(t, t.comment_line) > 0 { break; }
-            if t.comment_close != nil && tok_marker_at(t, t.comment_open) > 0 { break; }
+            // Explicit profiles give openers priority inside an identifier.
+            // Legacy constructors only recognize comments between tokens.
+            if t.profile_boundaries {
+                if tok_marker_at(t, t.comment_line) > 0 { break; }
+                if t.comment_close != nil && tok_marker_at(t, t.comment_open) > 0 { break; }
+            }
             tok_advance_char(t);
         }
         t.tok_len = t.pos - t.tok_start;

@@ -62,6 +62,61 @@ func adjacent_comment_tree() bool {
     return same_tree(first, second) && tok_expect_end(scanned) && tok_expect_end(manual);
 }
 
+func identifier_at(t *Tokenizer, text *u8, start i64, end i64) bool {
+    return tok_kind(t) == TOK_IDENT && streq(tok_text(t), text) &&
+           tok_start_offset(t) == start && tok_end_offset(t) == end;
+}
+
+// Alphabetic comment markers overlap ordinary identifier continuation bytes.
+// Existing constructors consume the whole identifier; explicit profiles give
+// the marker priority regardless of their numeric mode or extra name bytes.
+func alphabetic_comment_boundaries() bool {
+    var legacy *Tokenizer = tok_new_comments("weekend tail", "end", nil, nil);
+    if !identifier_at(legacy, "weekend", 0, 7) { return false; }
+    tok_next(legacy);
+    if !identifier_at(legacy, "tail", 8, 12) { return false; }
+    tok_next(legacy);
+    if !tok_eof(legacy) { return false; }
+    legacy = tok_new_comments("weekbegin body stop tail", nil, "begin", "stop");
+    if !identifier_at(legacy, "weekbegin", 0, 9) { return false; }
+    tok_next(legacy);
+    if !identifier_at(legacy, "body", 10, 14) { return false; }
+    tok_next(legacy);
+    if !identifier_at(legacy, "stop", 15, 19) { return false; }
+    tok_next(legacy);
+    if !identifier_at(legacy, "tail", 20, 24) { return false; }
+    tok_next(legacy);
+    if !tok_eof(legacy) { return false; }
+    // Legacy comments are still recognized at token boundaries.
+    legacy = tok_new_comments("week end ignored\ntail", "end", nil, nil);
+    if !identifier_at(legacy, "week", 0, 4) { return false; }
+    tok_next(legacy);
+    if !identifier_at(legacy, "tail", 17, 21) { return false; }
+    legacy = tok_new_comments("week begin ignored stop tail", nil, "begin", "stop");
+    tok_next(legacy);
+    if !identifier_at(legacy, "tail", 24, 28) { return false; }
+
+    var mode i64 = TOK_NUM_DEFAULT;
+    while mode <= TOK_NUM_DECIMAL {
+        var profiled *Tokenizer = tok_new_profile("weekend ignored\ntail",
+            tok_profile_new(mode, nil, "end", nil, nil));
+        if !identifier_at(profiled, "week", 0, 4) { return false; }
+        tok_next(profiled);
+        if !identifier_at(profiled, "tail", 16, 20) { return false; }
+        tok_next(profiled);
+        if !tok_eof(profiled) { return false; }
+        profiled = tok_new_profile("weekbegin body stop tail",
+            tok_profile_new(mode, nil, nil, "begin", "stop"));
+        if !identifier_at(profiled, "week", 0, 4) { return false; }
+        tok_next(profiled);
+        if !identifier_at(profiled, "tail", 20, 24) { return false; }
+        tok_next(profiled);
+        if !tok_eof(profiled) { return false; }
+        mode = mode + 1;
+    }
+    return true;
+}
+
 func main(argc i64, argv **u8) i64 {
     if argc > 1 {
         var tokens *Tokenizer = tok_new_profile(argv[1], shipping_profile());
@@ -136,6 +191,7 @@ func main(argc i64, argv **u8) i64 {
     a = tok_new_profile("item-*comment",
                         tok_profile_new(TOK_NUM_DECIMAL, "-", nil, "-*", nil));
     if !streq(tok_text(a), "item-") || tok_end_offset(a) != 5 { return 30; }
+    if !alphabetic_comment_boundaries() { return 31; }
     println("PASS two-readers");
     return 0;
 }

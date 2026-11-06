@@ -118,6 +118,10 @@ integer tokens and splitting `1.5` or `1e3`). `tok_new`, `tok_new_comments`,
 manual `tok_new_stream`, existing grammars and checked capture schemas keep
 their existing behavior. A profile changes scanning only; supplied streams
 remain the reader's responsibility and are not revalidated against a profile.
+In particular, `tok_new_comments("weekend tail", "end", nil, nil)` keeps
+`weekend` and `tail` as identifiers: its comments start between tokens. Explicit
+profiles give comment openers priority within identifiers, including profiles
+using `TOK_NUM_DEFAULT`; that number mode only controls number syntax.
 
 See [Shipping](../example/shipping/shipping.lang) and the independent
 [query reader](../test/reader_author/fixtures/lexer_profile/query.lang), which
