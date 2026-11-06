@@ -1,0 +1,89 @@
+'use strict';
+// Exercise the actual Lab button handler with its bundled compiler/stdlib and
+// with the current source library, without regenerating either web artifact.
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const { runLangCompiler } = require('../../web/compiler_host.js');
+const { runLangProgram, formatLangAst } = require('../../web/program_host.js');
+
+(async () => {
+  const [mode, compiler, scratch] = process.argv.slice(2);
+  const html = fs.readFileSync('web/lab.html', 'utf8');
+  const elements = new Map();
+  function element(id) {
+    if (!elements.has(id)) elements.set(id, {
+      value: '', textContent: '', hidden: true, disabled: false,
+      addEventListener() {}, removeAttribute() {}, focus() {},
+      setSelectionRange(start, end) { this.selection = [start, end]; },
+    });
+    return elements.get(id);
+  }
+  element('reader').value = html.match(/<textarea id="reader"[^>]*>([\s\S]*?)<\/textarea>/)[1];
+  const bundled = JSON.parse(fs.readFileSync('web/stdlib.json', 'utf8'));
+  const stdlib = { ...bundled };
+  if (mode === 'current') {
+    for (const name of ['std/reader_diagnostics.lang']) stdlib[name] = fs.readFileSync(name, 'utf8');
+  }
+  const builds = [];
+  const runs = [];
+  const compile = mode === 'bundled' ? runLangCompiler : async (_, args, files) => {
+    for (const name of ['reader.lang', 'program.ast', 'source.read']) {
+      if (files[name] !== undefined) fs.writeFileSync(path.join(scratch, name), files[name]);
+    }
+    const actual = args.map(arg => files[arg] !== undefined || arg.endsWith('.wasm')
+      ? path.join(scratch, arg) : arg);
+    const result = spawnSync(compiler, actual, { encoding: 'utf8', env: { ...process.env, LANGBE: 'wasm' } });
+    const output = actual[actual.indexOf('-o') + 1];
+    return { exit: result.status, stdout: result.stdout, stderr: result.stderr,
+      files: new Map(fs.existsSync(output) ? [[args[args.indexOf('-o') + 1], fs.readFileSync(output)]] : []) };
+  };
+  const context = vm.createContext({
+    document: { getElementById: element, addEventListener() {} },
+    localStorage: { getItem() { return null; }, setItem() {} },
+    installCodeEditor() {}, TextEncoder, TextDecoder, Uint8Array, Blob, URL, performance,
+    getComputedStyle: () => ({ lineHeight: '20', fontSize: '14' }),
+    setTimeout, clearTimeout,
+    fetch: async url => ({ ok: true,
+      arrayBuffer: async () => fs.readFileSync('web/compiler.wasm'), json: async () => stdlib }),
+    runLangCompiler: async (...args) => {
+      const result = await compile(...args);
+      builds.push({ args: args[1], exit: result.exit, stderr: result.stderr });
+      return result;
+    },
+    runLangProgram: async (...args) => {
+      const result = await runLangProgram(...args);
+      runs.push(result);
+      return result;
+    },
+    formatLangAst,
+  });
+  vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], context);
+  // Let the local fetch promises and Lab initialization complete.
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(element('compile').disabled, false);
+  element('custom-source').value = 'answer 42';
+  await element('compile').onclick();
+  assert.match(element('output').textContent, /main\(\) → 42/);
+  assert.equal(builds.length, 2);
+  assert.ok(builds.every(build => build.exit === 0), JSON.stringify(builds));
+  const source = '// café\r\nanswer nope';
+  element('custom-source').value = source;
+  await element('compile').onclick();
+  assert.match(element('output').textContent, /:2:8: expected number, found nope @17:21/);
+  assert.doesNotMatch(element('output').textContent, /invalid reader diagnostic/);
+  assert.equal(element('jump-error').hidden, false);
+  assert.deepEqual(element('custom-source').selection, [16, 20]);
+  assert.equal(builds.length, 2, 'cached reader should reject before AST compilation');
+  const last = runs[runs.length - 1];
+  if (mode === 'current') {
+    assert.equal(last.diagnostics.length, 1);
+    assert.equal(last.diagnostics[0].code, 'reader-syntax');
+    assert.equal(last.diagnostics[0].path, 'source.read');
+    assert.deepEqual(last.diagnostics[0].span, { start: 17, end: 21 });
+  }
+  console.log(JSON.stringify({ pass: true, mode, builds, message: element('output').textContent,
+    diagnostics: last.diagnostics, selection: element('custom-source').selection }));
+})().catch(error => { console.error(error); process.exitCode = 1; });

@@ -204,6 +204,23 @@ def main():
         for field in ('code', 'path', 'span', 'message', 'category'):
             require(md[field] == duplicate[field], 'minted compiler differs: ' + field)
         require(not (scratch / 'rejected.ll').exists(), 'minted compiler accepted diagnostic as AST')
+        broken_compiler = scratch / 'brokenc'
+        replay.run([str(compiler), 'compiler', 'broken', broken, '-o', str(broken_compiler)], 'mint-broken', clone)
+        for index, (path, saved) in enumerate(broken_cases):
+            expected = json.loads(saved.read_text())
+            for format in ['text', 'json']:
+                rejected = scratch / f'broken-{index}-{format}.ll'
+                command = [str(broken_compiler), str(path), '-o', str(rejected)]
+                if format == 'json':
+                    command.append('--diagnostics=json')
+                result = replay.run(command, f'minted-broken-{index}-{format}', clone, expected=1)
+                require(not rejected.exists() and not result.stdout, 'minted compiler accepted malformed reader output')
+                if format == 'json':
+                    record = json.loads(result.stderr)
+                    for field in ('code', 'path', 'span', 'message', 'category'):
+                        require(record[field] == expected[field], 'minted broken diagnostic differs: ' + field)
+                else:
+                    require(result.stderr == (f"{path}: {expected['message']}\n").encode(), 'minted broken text differs')
         # Equal basenames remain distinct immutable sources in one compilation.
         first = scratch / 'two/left/policy.shipping'
         second = scratch / 'two/right/policy.shipping'
@@ -237,6 +254,14 @@ func main() *u8 {{
             for index, (path, saved) in enumerate(cases):
                 replay.run(['node', '--disable-wasm-trap-handler', '--max-old-space-size=256', 'test/reader_author/browser_diagnostics.cjs', str(wasm), str(path), str(saved), key],
                            f'browser-{key}-{index}', clone)
+        for mode in ['bundled', 'current']:
+            work = scratch / ('lab-' + mode)
+            work.mkdir()
+            replay.run(['node', '--disable-wasm-trap-handler', '--max-old-space-size=256',
+                        'test/reader_author/lab_diagnostics.cjs', mode, str(compiler), str(work)], 'lab-' + mode, clone)
+            for path in work.iterdir():
+                if path.suffix in ('.lang', '.ast', '.read'):
+                    retain_input(path)
         dump(evidence / 'observations.json', observations)
         dump(evidence / 'artifacts.json', {'compiler': sha(compiler.resolve()), 'minted': sha(minted)})
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'commands': len(replay.rows)})
