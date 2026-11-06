@@ -137,6 +137,16 @@ func gp_is_keyword(gp *GrammarParser, kw *u8) bool {
     return str_eq_n(text, len, kw, strlen(kw));
 }
 
+// Keep an existing rule named recover usable as an ordinary reference.
+func gp_is_recovery(gp *GrammarParser) bool {
+    if !gp_is_keyword(gp, "recover") { return false; }
+    var mark i64 = tok_mark(gp.t);
+    tok_next(gp.t);
+    var call bool = tok_kind(gp.t) == TOK_LPAREN;
+    tok_reset(gp.t, mark);
+    return call;
+}
+
 // Parse a single element (atom or modified atom)
 func gp_parse_element(gp *GrammarParser) *GNode {
     var node *GNode = nil;
@@ -166,7 +176,7 @@ func gp_parse_element(gp *GrammarParser) *GNode {
     }
 
     // An explicit statement boundary; the child remains a strict rule parse.
-    if gp_is_keyword(gp, "recover") {
+    if gp_is_recovery(gp) {
         var recovery_start i64 = tok_start_offset(gp.t);
         tok_next(gp.t);
         if !tok_match(gp.t, TOK_LPAREN) { gp_fail(gp, "'('"); return nil; }
