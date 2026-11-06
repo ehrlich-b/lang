@@ -2070,10 +2070,11 @@ struct ReaderExpr {
     name_len i64;
     content *u8;
     content_len i64;
+    content_offset i64;
 }
 
 func reader_expr_alloc() *u8 {
-    var node *u8 = alloc(40);
+    var node *u8 = alloc(48);
     node_set_kind(node, NODE_READER_EXPR);
     return node;
 }
@@ -3406,6 +3407,8 @@ func parse_primary() *u8 {
         reader_expr_set_content_len(node, tok_content_len(tok));
         var content_start i64 = tok_content(tok) - lex_source;
         node_set_span(node, parse_source_name, lex_source, content_start, content_start + tok_content_len(tok));
+        var reader *ReaderExpr = node;
+        reader.content_offset = content_start;
         return node;
     }
 
@@ -4436,6 +4439,8 @@ func parse_declaration() *u8 {
         reader_expr_set_content_len(node, tok_content_len(tok));
         var content_start i64 = tok_content(tok) - lex_source;
         node_set_span(node, parse_source_name, lex_source, content_start, content_start + tok_content_len(tok));
+        var reader *ReaderExpr = node;
+        reader.content_offset = content_start;
         return node;
     }
 

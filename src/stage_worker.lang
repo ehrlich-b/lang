@@ -216,7 +216,7 @@ func phase_capture_channels(out i64, err i64) *PhaseBuffer {
 func phase_recognition_environment() **u8 {
     var count i64 = 0;
     if ___envp != nil { while *(___envp + count) != nil { count = count + 1; } }
-    var data *u8 = alloc((count + 4) * 8);
+    var data *u8 = alloc((count + 5) * 8);
     var out **u8 = data;
     var used i64 = 0;
     // Overrides precede inherited entries, matching getenv's first entry rule.
@@ -232,6 +232,9 @@ func phase_recognition_environment() **u8 {
     }
     if phase_recognition_source != nil {
         *(out + used) = str_concat("LANG_PARSER_SOURCE=", phase_recognition_source); used = used + 1;
+        var b *PhaseBuffer = phase_buffer_new(128, "recognition environment");
+        phase_buffer_text(b, "LANG_PARSER_OFFSET="); phase_buffer_int(b, phase_recognition_offset);
+        *(out + used) = b.data; used = used + 1;
     }
     var i i64 = 0;
     while i < count { *(out + used) = *(___envp + i); used = used + 1; i = i + 1; }

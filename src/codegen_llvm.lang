@@ -4197,7 +4197,7 @@ func llvm_emit_expr_inner(expr *u8) void {
         var reader_func *u8 = find_embedded_reader_func(name, name_len);
         if reader_func != nil {
             // Call embedded reader function directly
-            var output *u8 = reader_host_embedded(reader_func, str_dup_n(content, content_len), str_dup_n(name, name_len), node_origin_source(expr), expr);
+            var output *u8 = compiler_invoke_reader(expr, reader_func, nil);
             if output != nil {
                 var expanded *u8 = parse_ast_expression_from_reader_string(
                     output, node_origin_source(expr), content
@@ -4224,7 +4224,7 @@ func llvm_emit_expr_inner(expr *u8) void {
         var exe_path *u8 = build_reader_cache_path(name, name_len);
 
         // Execute reader with content as input
-        var output *u8 = reader_host_worker(exe_path, content, content_len, str_dup_n(name, name_len), node_origin_source(expr), expr);
+        var output *u8 = compiler_invoke_reader(expr, nil, exe_path);
         var n i64 = phase_worker_status;
         if output != nil { n = strlen(output); }
 
@@ -7720,8 +7720,7 @@ func llvm_emit_decl_inner(decl *u8) void {
         var embedded_func *u8 = find_embedded_reader_func(name, name_len);
         if embedded_func != nil {
             // Call embedded reader function directly (signature: fn(*u8) *u8)
-            var reader_fn fn(*u8) *u8 = embedded_func;
-            var output *u8 = reader_host_embedded(embedded_func, str_dup_n(content, content_len), str_dup_n(name, name_len), node_origin_source(decl), decl);
+            var output *u8 = compiler_invoke_reader(decl, embedded_func, nil);
             if output != nil {
                 // Parse output as S-expr AST (readers MUST output AST)
                 var prog *u8 = parse_ast_from_reader_string(
@@ -7753,7 +7752,7 @@ func llvm_emit_decl_inner(decl *u8) void {
         var exe_path *u8 = build_reader_cache_path(name, name_len);
 
         // Execute reader with content as input
-        var output *u8 = reader_host_worker(exe_path, content, content_len, str_dup_n(name, name_len), node_origin_source(decl), decl);
+        var output *u8 = compiler_invoke_reader(decl, nil, exe_path);
         var n i64 = phase_worker_status;
         if output != nil { n = strlen(output); }
 

@@ -1,0 +1,4 @@
+// Inline expression; UTF-8 provenance: café.
+func main() i64 {
+    return #budget{1 1 1 1 1 1};
+}

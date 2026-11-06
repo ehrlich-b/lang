@@ -791,6 +791,7 @@ func read_error_prefix(source_path *u8) void {
 
 func read_run_reader_raw(name *u8, source_path *u8, content *u8) *u8 {
     phase_recognition_source = source_path;
+    phase_recognition_offset = 0;
     var name_len i64 = strlen(name);
     var output *u8 = nil;
     var embedded_func *u8 = find_embedded_reader_func(name, name_len);
@@ -2575,7 +2576,12 @@ func main_dispatch(argc i64, argv **u8) i64 {
     while i < vec_len(input_files) && i < root_decl_count {
         var input_path *u8 = vec_get(input_files, i);
         if phase_source_latest(input_path) != 0 {
-            node_set_origin(get_decl(root_decls, i), input_path, 1, 1);
+            var input_decl *u8 = get_decl(root_decls, i);
+            node_set_origin(input_decl, input_path, 1, 1);
+            if node_kind(input_decl) == NODE_READER_EXPR {
+                var reader *ReaderExpr = input_decl;
+                reader.content_offset = 0;
+            }
         }
         i = i + 1;
     }

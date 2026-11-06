@@ -2,17 +2,16 @@
 // the native backend; the worker itself always targets the host.
 func compiler_register_direct_reader(decl *u8) void { add_reader(decl); }
 func compiler_direct_reader_runtime_only() i64 { return 0; }
-func compiler_expand_direct_reader(name *u8, name_len i64, text *u8, text_len i64) *u8 {
+func compiler_expand_direct_reader(node *u8, name *u8, name_len i64, text *u8, text_len i64) *u8 {
     var embedded *u8 = find_embedded_reader_func(name, name_len);
     if embedded != nil {
-        var reader_fn fn(*u8) *u8 = embedded;
-        return reader_host_embedded(embedded, str_dup_n(text, text_len), str_dup_n(name, name_len), node_origin_source(cg_diagnostic_node), cg_diagnostic_node);
+        return compiler_invoke_reader(node, embedded, nil);
     }
     if find_reader(name, name_len) == nil {
         cg_error_prefix(); eprint("reader macro '"); eprint_buf(name, name_len);
         eprintln("' not found"); cg_had_error = 1; return nil;
     }
-    var output *u8 = reader_host_worker(build_reader_cache_path(name, name_len), text, text_len, str_dup_n(name, name_len), node_origin_source(cg_diagnostic_node), cg_diagnostic_node);
+    var output *u8 = compiler_invoke_reader(node, nil, build_reader_cache_path(name, name_len));
     if reader_host_errors != 0 { return nil; }
     if output == nil || *output == 0 {
         cg_error_prefix(); eprint("reader '"); eprint_buf(name, name_len);

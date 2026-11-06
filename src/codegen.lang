@@ -23,6 +23,25 @@ var cg_has_llvm_backend i64 = 0; // set to 1 by codegen_llvm.lang if included
 var cg_has_wasm_backend i64 = 0; // set to 1 by codegen_wasm.lang if included
 var cg_diagnostic_node *u8 = nil;
 
+// Scope recognition provenance to one reader invocation, including worker input
+// slices; later readers must not inherit the preceding invocation's location.
+func compiler_invoke_reader(node *u8, embedded *u8, program *u8) *u8 {
+    var previous_source *u8 = phase_recognition_source;
+    var previous_offset i64 = phase_recognition_offset;
+    var reader *ReaderExpr = node;
+    phase_recognition_source = node_origin_source(node);
+    phase_recognition_offset = reader.content_offset;
+    var output *u8 = nil;
+    if embedded != nil {
+        output = reader_host_embedded(embedded, reader.content, str_dup_n(reader.name, reader.name_len), node_origin_source(node), node);
+    } else {
+        output = reader_host_worker(program, reader.content, reader.content_len, str_dup_n(reader.name, reader.name_len), node_origin_source(node), node);
+    }
+    phase_recognition_source = previous_source;
+    phase_recognition_offset = previous_offset;
+    return output;
+}
+
 // Source checkouts keep std/ beside out/. Main discovers that root from
 // argv[0], allowing an absolute `out/lang` to compile from any working
 // directory. The current directory still wins for project-local overrides.
@@ -1886,7 +1905,7 @@ func expand_reader_decl(decl *u8) *u8 {
         if embedded_func != nil {
             // Call embedded reader function directly
             var reader_fn fn(*u8) *u8 = embedded_func;
-            output = reader_host_embedded(embedded_func, str_dup_n(content, content_len), str_dup_n(name, name_len), node_origin_source(decl), decl);
+            output = compiler_invoke_reader(decl, embedded_func, nil);
             if output == nil {
                 if reader_host_errors != 0 { return nil; }
                 cg_error_prefix();
@@ -1912,7 +1931,7 @@ func expand_reader_decl(decl *u8) *u8 {
             var exe_path *u8 = build_reader_cache_path(name, name_len);
 
             // Execute reader with content as input
-            output = reader_host_worker(exe_path, content, content_len, str_dup_n(name, name_len), node_origin_source(decl), decl);
+            output = compiler_invoke_reader(decl, nil, exe_path);
             var n i64 = phase_worker_status;
             if output != nil { n = strlen(output); }
 
@@ -4142,8 +4161,7 @@ func gen_expr(expr *u8) void {
 
         if embedded_func != nil {
             // Call embedded reader function directly
-            var reader_fn fn(*u8) *u8 = embedded_func;
-            output = reader_host_embedded(embedded_func, str_dup_n(content, content_len), str_dup_n(name, name_len), node_origin_source(expr), expr);
+            output = compiler_invoke_reader(expr, embedded_func, nil);
             if output == nil {
                 if reader_host_errors != 0 { return; }
                 cg_error_prefix();
@@ -4169,7 +4187,7 @@ func gen_expr(expr *u8) void {
             var exe_path *u8 = build_reader_cache_path(name, name_len);
 
             // Execute reader with content as input
-            output = reader_host_worker(exe_path, content, content_len, str_dup_n(name, name_len), node_origin_source(expr), expr);
+            output = compiler_invoke_reader(expr, nil, exe_path);
             var n i64 = phase_worker_status;
             if output != nil { n = strlen(output); }
 
@@ -5930,8 +5948,7 @@ func gen_decl(decl *u8) void {
 
         if embedded_func != nil {
             // Call embedded reader function directly
-            var reader_fn fn(*u8) *u8 = embedded_func;
-            output = reader_host_embedded(embedded_func, str_dup_n(content, content_len), str_dup_n(name, name_len), node_origin_source(decl), decl);
+            output = compiler_invoke_reader(decl, embedded_func, nil);
             if output == nil {
                 if reader_host_errors != 0 { return; }
                 // Error already reported in first pass
@@ -5949,7 +5966,7 @@ func gen_decl(decl *u8) void {
             var exe_path *u8 = build_reader_cache_path(name, name_len);
 
             // Execute reader with content as input
-            output = reader_host_worker(exe_path, content, content_len, str_dup_n(name, name_len), node_origin_source(decl), decl);
+            output = compiler_invoke_reader(decl, nil, exe_path);
             var n i64 = phase_worker_status;
             if output != nil { n = strlen(output); }
 

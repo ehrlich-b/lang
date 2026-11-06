@@ -88,6 +88,7 @@ struct Tokenizer {
     parser_depth_limit i64;
     parser_enabled i64;
     parser_source *u8;
+    parser_offset i64;
 }
 
 func tok_new_state(input *u8) *Tokenizer {
@@ -120,6 +121,10 @@ func tok_new_state(input *u8) *Tokenizer {
     t.parser_depth_limit = phase_recognition_depth;
     if t.parser_depth_limit == 0 {
         t.parser_depth_limit = phase_recognition_limit("LANG_PARSER_MAX_DEPTH", 128, 256);
+    }
+    t.parser_offset = phase_recognition_offset;
+    if phase_recognition_source == nil {
+        t.parser_offset = phase_recognition_setting("LANG_PARSER_OFFSET", 0, 1073741824, 0);
     }
     t.parser_source = phase_recognition_source;
     if t.parser_source == nil { t.parser_source = getenv("LANG_PARSER_SOURCE"); }
@@ -840,8 +845,9 @@ pub func tok_expect(t *Tokenizer, kind i64) bool {
 pub func tok_parser_error(t *Tokenizer, code *u8, rule *u8, grammar i64) void {
     eprint("parser rule "); eprint(rule); eprint(" grammar @");
     eprint_i64(grammar); eprint(" source "); eprint(t.parser_source);
-    eprint(" @"); eprint_i64(t.tok_start); eprintln("");
-    phase_error_at(code, t.parser_source, t.tok_start, t.tok_start + t.tok_len);
+    eprint(" @"); eprint_i64(t.parser_offset + t.tok_start); eprintln("");
+    phase_error_at(code, t.parser_source, t.parser_offset + t.tok_start,
+                   t.parser_offset + t.tok_start + t.tok_len);
 }
 pub func tok_parser_enter(t *Tokenizer, rule *u8, grammar i64) void {
     if t.parser_enabled == 0 { return; }

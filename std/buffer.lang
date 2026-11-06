@@ -168,7 +168,11 @@ pub func phase_read_bytes_fd(fd i64, limit i64, source *u8) *PhaseBuffer {
 var phase_recognition_work i64 = 0;
 var phase_recognition_depth i64 = 0;
 var phase_recognition_source *u8 = nil;
+var phase_recognition_offset i64 = 0;
 pub func phase_recognition_limit(name *u8, fallback i64, maximum i64) i64 {
+    return phase_recognition_setting(name, fallback, maximum, 1);
+}
+pub func phase_recognition_setting(name *u8, fallback i64, maximum i64, minimum i64) i64 {
     var text *u8 = getenv(name);
     if text == nil || *text == 0 { return fallback; }
     var n i64 = 0;
@@ -179,6 +183,6 @@ pub func phase_recognition_limit(name *u8, fallback i64, maximum i64) i64 {
         n = n * 10 + *text - 48; text = text + 1;
         if n > maximum { phase_error("invalid-recognition-limit", phase_diagnostic_source); }
     }
-    if n < 1 { phase_error("invalid-recognition-limit", phase_diagnostic_source); }
+    if n < minimum { phase_error("invalid-recognition-limit", phase_diagnostic_source); }
     return n;
 }

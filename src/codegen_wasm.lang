@@ -678,7 +678,7 @@ func wasm_expand_reader_expr(expr *u8) *u8 {
     }
     cg_diagnostic_node = expr;
     var content *u8 = reader_expr_content(expr);
-    var output *u8 = compiler_expand_direct_reader(reader_expr_name(expr), reader_expr_name_len(expr), content, reader_expr_content_len(expr));
+    var output *u8 = compiler_expand_direct_reader(expr, reader_expr_name(expr), reader_expr_name_len(expr), content, reader_expr_content_len(expr));
     var expanded *u8 = nil;
     if output != nil {
         expanded = parse_ast_expression_from_reader_string(output, node_origin_source(expr), content);
@@ -1657,7 +1657,7 @@ func wasm_collect_decl(decl *u8) void {
         var name *u8 = reader_expr_name(decl);
         var name_len i64 = reader_expr_name_len(decl);
         var output *u8 = compiler_expand_direct_reader(
-            name, name_len, reader_expr_content(decl), reader_expr_content_len(decl)
+            decl, name, name_len, reader_expr_content(decl), reader_expr_content_len(decl)
         );
         if output == nil {
             if cg_had_error != 0 { wasm_had_error = 1; }

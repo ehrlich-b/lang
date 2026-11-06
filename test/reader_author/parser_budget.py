@@ -36,7 +36,7 @@ def main():
     replay = Replay(evidence, scratch)
     replay.env.update(MAKEFLAGS='-j2', PYTHONDONTWRITEBYTECODE='1')
     # Ambient quotas must not alter test expectations; projects also override them.
-    for key in ('LANG_PARSER_MAX_WORK', 'LANG_PARSER_MAX_DEPTH', 'LANG_PARSER_SOURCE'):
+    for key in ('LANG_PARSER_MAX_WORK', 'LANG_PARSER_MAX_DEPTH', 'LANG_PARSER_SOURCE', 'LANG_PARSER_OFFSET'):
         replay.env.pop(key, None)
     print(f'evidence: {evidence}', flush=True)
     try:
@@ -112,6 +112,24 @@ def main():
         result = recognize('chain', malformed, 1000, 128, expected=1, name='ordinary-failure')
         require(b'parser-' not in result.stderr and b'expected number' in result.stderr,
                 'ordinary failure became a budget error')
+        # Compiler expansion must locate whole-file and inline reader slices,
+        # including expression codegen after declaration expansion has completed.
+        replay.env.update(LANG_PARSER_MAX_DEPTH='4', LANG_PARSER_OFFSET='999')
+        for backend in ('llvm', 'x86'):
+            replay.env['LANGBE'] = backend
+            for source, offset in [('input.budget', 8), ('inline-decl.lang', None), ('inline-expr.lang', None)]:
+                path = clone / fixture / source
+                if offset is None:
+                    offset = path.read_bytes().index(b'#budget{') + len(b'#budget{') + 8
+                for attempt in range(2):
+                    output = scratch / f'{backend}-{source}-{attempt}.out'
+                    result = replay.run([compiler, 'std/core.lang', f'{fixture}/budget.lang', str(path),
+                                         '-o', str(output)], f'compiler-{backend}-{source}-{attempt}', clone, expected=1)
+                    require(f'parser rule chain grammar @1 source {path} @{offset}\n'.encode() in result.stderr
+                            and b'parser-depth-budget' in result.stderr and not output.exists(),
+                            'compiler reader lost original source/byte offset or emitted a failed artifact')
+        replay.env['LANGBE'] = 'llvm'
+        replay.env.pop('LANG_PARSER_OFFSET')
         # Real manifest execution, cached worker reuse and minted compiler quotas.
         manifest = str(clone / fixture / 'project.lang-project')
         replay.env.update(LANG_PARSER_MAX_WORK='1000000', LANG_PARSER_MAX_DEPTH='256')
@@ -173,7 +191,7 @@ def main():
                                               'complexity': 'No linear complexity claim for unrestricted backtracking.'})
         dump(evidence / 'artifacts.json', {p.name: sha(p) for p in (Path(compiler), scratch / 'recognition', scratch / 'overhead', minted)})
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'observations': len(replay.rows)})
-        print('PASS bounded: work/depth, deterministic located breaches, reset, exact limits, project/minted propagation and reader overhead')
+        print('PASS bounded: work/depth, deterministic located breaches, reset, exact limits, compiler source slices, project/minted propagation and reader overhead')
         return 0
     except Exception as error:
         dump(evidence / 'result.json', {'pass': False, 'error': str(error)})
