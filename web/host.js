@@ -62,6 +62,7 @@ async function runLangWasm(wasmBytes, onWrite) {
     lstat: () => -1n,
     fcntl: () => -1n,
     mkdtemp: () => 0,
+    access: () => -1n,
     getpid: () => 1n,
     getppid: () => 0n,
     getenv: () => 0,

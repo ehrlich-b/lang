@@ -147,6 +147,7 @@ async function runLangCompiler(wasmBytes, args, initialFiles, onWrite, environme
     lstat: () => -1n,
     fcntl: () => -1n,
     mkdtemp: () => 0,
+    access: () => -1n,
     getpid: () => 1n,
     getppid: () => 0n,
     fork: () => -1n,

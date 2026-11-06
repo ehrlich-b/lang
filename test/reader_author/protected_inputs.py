@@ -11,6 +11,6 @@ for path in paths:
     expected = original.replace(b'    getpid: () => 1n,',
                                 b'    clock_gettime: () => -1n,\n    realpath: () => 0,\n'
                                 b'    lstat: () => -1n,\n    fcntl: () => -1n,\n'
-                                b'    mkdtemp: () => 0,\n    getpid: () => 1n,')
+                                b'    mkdtemp: () => 0,\n    access: () => -1n,\n    getpid: () => 1n,')
     if expected == original or Path(path).read_bytes() != expected:
         raise SystemExit(path + ': unexpected change to protected input')
