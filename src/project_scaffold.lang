@@ -96,9 +96,21 @@ func scaffold_project_reserved(name *u8) i64 {
     return 0;
 }
 
+// Project names also become native symbols and file extensions.
+func scaffold_project_spelling(name *u8) i64 {
+    if *name < 97 || *name > 122 { return 0; }
+    name = name + 1;
+    while *name != 0 {
+        var c i64 = *name;
+        if (c < 97 || c > 122) && (c < 48 || c > 57) && c != 95 { return 0; }
+        name = name + 1;
+    }
+    return 1;
+}
+
 func cmd_new_language(name *u8) i64 {
-    if scaffold_valid_name(name) == 0 || streq(name, "lang") || streq(name, "ast") {
-        eprintln("Error: language name must be a non-keyword identifier other than lang or ast (up to 64 characters)");
+    if scaffold_project_spelling(name) == 0 || scaffold_valid_name(name) == 0 || streq(name, "lang") || streq(name, "ast") {
+        eprintln("Error: language name must match [a-z][a-z0-9_]* and be a non-keyword other than lang or ast (up to 64 characters)");
         return 1;
     }
     // The lexer skips whitespace and comments; require the entire argument to

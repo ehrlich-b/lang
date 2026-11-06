@@ -174,7 +174,7 @@ def main():
         dump(evidence / 'derived-collisions.json', {
             'rejected': {'tok': 'tok_number', 'parse': 'parse_check', 'scan': 'scan_number'},
             'occupied_before': before, 'occupied_after': snapshot(scratch / 'tok')})
-        for name in ('lang', 'ast', 'if', '../escape', 'bad-name', 'x' * 65,
+        for name in ('_start', '__dso_handle', 'Upper', 'aB', '9name', 'lang', 'ast', 'if', '../escape', 'bad-name', 'x' * 65,
                      'main', 'print', 'alloc', 'reader_transform', 'reader_build_arch', 'TOKEN_EOF',
                      'parcel ', ' parcel', 'parcel\t', 'parcel\n', 'parcel/*comment*/'):
             before = {p.name for p in scratch.iterdir()}

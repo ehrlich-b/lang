@@ -21,7 +21,7 @@ embedded by `project compiler`; the resulting compiler needs only guest source
 to emit LLVM. Clang links that LLVM into the program.
 The checker writes its LLVM and executable outputs under `build/`, keeping
 guest sources intact even when the language is named `ll`.
-Names must contain only identifier characters and must not conflict with
+Names must match `[a-z][a-z0-9_]*` and must not conflict with
 compiler or reader toolkit symbols, such as `main` or `print`. Generated helper
 names must also be free: `tok`, `parse`, and `scan` are refused because their
 helpers would conflict with `tok_number`, `parse_check`, and `scan_number`.
