@@ -817,7 +817,8 @@ func rdgen_gen_rule(rd *RDGen, rule *GNode) void {
     rd.indent = rd.indent + 1;
     rdgen_line(rd, "var result *PNode = nil;");
     if rd.grammar.contracts != 0 {
-        if rule.child.kind == GNODE_CHOICE { rdgen_line(rd, "var _alternative i64 = -1;"); }
+        var body *GNode = rule.child;
+        if body.kind == GNODE_CHOICE { rdgen_line(rd, "var _alternative i64 = -1;"); }
         else { rdgen_line(rd, "var _alternative i64 = 0;"); }
     }
 
