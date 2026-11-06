@@ -122,3 +122,30 @@ stop at the scanner boundary and can succeed even when later parsing would fail.
 Custom readers without this opt-in boundary report tokens/tree as unsupported;
 their core and LLVM remain available. Native readers retain their normal host
 access; this command does not imply sandboxing.
+
+### Rebuild after edits
+
+From a source installation, watch the manifest's entry program:
+
+```bash
+out/lang_next watch --project example/shipping/project.lang-project
+```
+
+The default output is `example/shipping/build/policy`; use `-o PATH` to choose
+another destination. `--once` builds one generation and exits. Stop continuous
+watching with Ctrl-C. Python 3 and the native Linux x86-64 Clang toolchain are
+required, as for project fixtures.
+
+The watch uses the compiler's content identities, including transitive reader
+and runtime dependencies. An unchanged project does no build work. Guest edits
+reuse the reader; grammar edits rebuild it; runtime edits rebuild the program.
+Changed or failed generations invalidate the prior managed output. Only a
+successful current generation publishes an executable. Each output has one
+watch owner; a second watcher for that destination fails.
+
+Events, identity probes, original diagnostics and phase timings live under the
+printed evidence directory. Events name private build directories beside the
+output, where intermediate AST, LLVM, object files and failed builds remain
+inspectable. Tool and compiler content changes also trigger rebuilding. Reusing
+reader artifacts follows the native driver's existing cache rules; watch adds
+no persistent artifact cache.

@@ -3,6 +3,7 @@ include "src/project.lang"
 include "src/project_scaffold.lang"
 include "src/native_build.lang"
 include "src/project_tests.lang"
+include "src/project_watch.lang"
 
 include "src/package.lang"
 include "src/inspect.lang"
@@ -1639,6 +1640,8 @@ func main_dispatch(argc i64, argv **u8) i64 {
         if streq(first, "build") { return cmd_native_build(argc, argv); }
         if streq(first, "test") { return cmd_project_tests(argc, argv); }
         if streq(first, "inspect") { return cmd_inspect(argc, argv); }
+
+        if streq(first, "watch") { return cmd_project_watch(argc, argv); }
         if streq(first, "project") { return cmd_project(argc, argv); }
         if streq(first, "package") { return cmd_package(argc, argv); }
         if streq(first, "read") {

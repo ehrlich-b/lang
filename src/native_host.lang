@@ -152,6 +152,11 @@ func native_build_publish(work *u8, artifact *u8, output *u8, result i64) i64 {
     if result == 0 {
         if rename(artifact, output) != 0 { eprintln("Error: native build publication failed"); result = 1; }
     }
+    var retain *u8 = getenv("LANG_BUILD_RETAIN");
+    if retain != nil && streq(retain, "1") {
+        eprint("Native artifacts: "); eprintln(work);
+        return result;
+    }
     os_unlink(str_concat(work, "/guest.ast"));
     os_unlink(str_concat(work, "/formatted.ast"));
     os_unlink(str_concat(work, "/guest.ll"));

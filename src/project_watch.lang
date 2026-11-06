@@ -1,0 +1,15 @@
+// The edit loop is a host service using the native driver's reader identities.
+func cmd_project_watch(argc i64, argv **u8) i64 {
+    var python *u8 = find_in_path("python3");
+    var script *u8 = resource_path("std/project_watch.py");
+    if python == nil || script == nil {
+        eprintln("Error: project watch requires Python 3 and a Lang source installation"); return 1;
+    }
+    var arguments *u8 = vec_new(argc + 4);
+    vec_push(arguments, python); vec_push(arguments, script);
+    vec_push(arguments, "--compiler"); vec_push(arguments, phase_compiler_path);
+    var i i64 = 2;
+    while i < argc { vec_push(arguments, get_arg(argv, i)); i = i + 1; }
+    os_execve(python, project_argv(arguments), ___envp);
+    eprintln("Error: cannot execute project watch"); return 127;
+}
