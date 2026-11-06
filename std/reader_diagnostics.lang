@@ -20,9 +20,9 @@ pub func reader_diagnostic_u32(p *u8) i64 {
     return *p + *(p + 1) * 256 + *(p + 2) * 65536 + *(p + 3) * 16777216;
 }
 func reader_diagnostic_utf8(text *u8) i64 {
-    var len i64 = strlen(text); var i i64 = 0;
+    var len i64 = strlen(text); var i i64 = 0; var width i64 = 0;
     while i < len {
-        var width i64 = ___compiler_diagnostic_utf8_width(text + i, len - i);
+        width = ___compiler_diagnostic_utf8_width(text + i, len - i);
         if width == 0 { return 0; }
         i = i + width;
     }

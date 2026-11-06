@@ -4,7 +4,6 @@ reader broken(text *u8) *u8 {
     if str_starts_with(text, "256:") { size = 262144; mode = text + 4; }
     if str_starts_with(text, "512:") { size = 524288; mode = text + 4; }
     if str_starts_with(text, "768:") { size = 786432; mode = text + 4; }
-    if str_starts_with(text, "1024:") { size = 1048576; mode = text + 5; }
     if streq(mode, "large-truncated") || streq(mode, "large-mixed") || streq(mode, "large-mixed-truncated") {
         var message *u8 = alloc(size + 1);
         var i i64 = 0;

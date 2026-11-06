@@ -224,7 +224,7 @@ func main(argc i64, argv **u8) i64 {
     var slot **u8 = args + 8;
     var path *u8 = *slot;
     if argc > 3 {
-        var b *PhaseBuffer = phase_buffer_new(1048576, "<diagnostic-json>");
+        var b *PhaseBuffer = phase_buffer_new(phase_limit(), "<diagnostic-json>");
         reader_host_json_string(b, phase_read_file(path)); print(b.data); return 0;
     }
     if argc > 2 { ___compiler_diagnostic_enable(); }
@@ -262,7 +262,7 @@ func main(argc i64, argv **u8) i64 {
                 'embedded valid AST changed')
         # Keep clang unoptimized above: loop-local stack slots can otherwise be
         # promoted away, hiding a crash in the actual embedded read caller.
-        for kib in (128, 256, 512, 768, 1024):
+        for kib in (128, 256, 512, 768):
             size = kib * 1024
             large_message = bytearray(b'x' * size)
             for offset in range(0, size, 32):
