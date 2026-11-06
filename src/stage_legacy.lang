@@ -256,9 +256,9 @@ pub func compile_reader_to_executable(decl *u8) void {
     *wp = 10; wp = wp + 1;  // newline
 
     // main() wrapper - use the reader's parameter name
-    var main_src *u8 = "func main() i64 {\n    var input *PhaseBuffer = phase_read_fd(0, phase_limit(), \"<reader-input>\");\n    var buf *u8 = input.data;\n    reader_diagnostic_wire = 1;\n    var result *u8 = ";
+    var main_src *u8 = "func main() i64 {\n    var input *PhaseBuffer = phase_read_fd(0, phase_limit(), \"<reader-input>\");\n    var buf *u8 = input.data;\n    reader_diagnostic_snapshot = str_dup(buf);\n    reader_diagnostic_wire = 1;\n    var result *u8 = ";
     if phase_isolated_enabled() != 0 {
-        main_src = "include \"std/stage.lang\"\nfunc main() i64 {\n    var input *StageValue = stage_read();\n    var buf *u8 = stage_reader_text(input);\n    reader_diagnostic_wire = 1;\n    var result *u8 = ";
+        main_src = "include \"std/stage.lang\"\nfunc main() i64 {\n    var input *StageValue = stage_read();\n    var buf *u8 = stage_reader_text(input);\n    reader_diagnostic_snapshot = str_dup(buf);\n    reader_diagnostic_wire = 1;\n    var result *u8 = ";
     }
     while *main_src != 0 { *wp = *main_src; wp = wp + 1; main_src = main_src + 1; }
     j = 0;
@@ -440,9 +440,9 @@ pub func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
     *wp = 10; wp = wp + 1;  // newline
 
     // Add main wrapper that reads stdin, calls reader, prints result
-    var main_src *u8 = "func main() i64 {\n    var input *PhaseBuffer = phase_read_fd(0, phase_limit(), \"<reader-input>\");\n    var buf *u8 = input.data;\n    reader_diagnostic_wire = 1;\n    var result *u8 = ";
+    var main_src *u8 = "func main() i64 {\n    var input *PhaseBuffer = phase_read_fd(0, phase_limit(), \"<reader-input>\");\n    var buf *u8 = input.data;\n    reader_diagnostic_snapshot = str_dup(buf);\n    reader_diagnostic_wire = 1;\n    var result *u8 = ";
     if phase_isolated_enabled() != 0 {
-        main_src = "include \"std/stage.lang\"\nfunc main() i64 {\n    var input *StageValue = stage_read();\n    var buf *u8 = stage_reader_text(input);\n    reader_diagnostic_wire = 1;\n    var result *u8 = ";
+        main_src = "include \"std/stage.lang\"\nfunc main() i64 {\n    var input *StageValue = stage_read();\n    var buf *u8 = stage_reader_text(input);\n    reader_diagnostic_snapshot = str_dup(buf);\n    reader_diagnostic_wire = 1;\n    var result *u8 = ";
     }
     while *main_src != 0 { *wp = *main_src; wp = wp + 1; main_src = main_src + 1; }
 

@@ -182,6 +182,12 @@ def main():
             require(record['span'] is None, 'missing/bad span gained a position')
             require(record['category'] == ('guest' if value in ['missing', 'bom'] else 'reader'), 'reader implementation misclassified')
             broken_cases.append((path, saved))
+        snapshot_path = scratch / 'snapshot.broken'
+        snapshot_path.write_text('snapshot')
+        retain_input(snapshot_path)
+        snapshot, _ = diagnostic(snapshot_path, broken, 'worker-snapshot', 'reader-diagnostic-invalid')
+        require(snapshot['category'] == 'reader' and snapshot['span'] is None,
+                'worker accepted a diagnostic for a different snapshot')
         native_cases = list(broken_cases)
         for value in ['exit-invalid-0', 'exit-invalid-1', 'exit-error-0', 'exit-error-1']:
             path = scratch / (value + '.broken')
