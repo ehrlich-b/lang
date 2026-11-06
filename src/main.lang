@@ -1492,7 +1492,10 @@ func cmd_tooling(argc i64, argv **u8, start i64) i64 {
     phase_error("tooling-query", "reader"); return 1;
 }
 
-func main(argc i64, argv **u8) i64 {
+// Keep the ABI entry separate: re-entering main would reset its hidden envp.
+func main(argc i64, argv **u8) i64 { return main_dispatch(argc, argv); }
+
+func main_dispatch(argc i64, argv **u8) i64 {
     // Select the transport before validating any options, regardless of order.
     var diagnostic_arg i64 = 1;
     while diagnostic_arg < argc {
