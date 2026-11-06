@@ -316,7 +316,9 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContext) {
   let inputPos = 0;
   let stdout = '';
   let stderr = '';
-  const readerBytes = [];
+  const readerChunks = [];
+  let readerByteLength = 0;
+  let readerOverflow = false;
   const decoder = new TextDecoder();
   const input = typeof inputText === 'string'
     ? new TextEncoder().encode(inputText)
@@ -361,7 +363,10 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContext) {
     },
     write: (fdValue, ptrValue, countValue) => {
       const data = bytes().subarray(number(ptrValue), number(ptrValue) + number(countValue));
-      if (readerContext && number(fdValue) === 2) readerBytes.push(...data);
+      if (readerContext && number(fdValue) === 2) {
+        if (data.length > 1048576 - readerByteLength) readerOverflow = true;
+        else { readerChunks.push(data.slice()); readerByteLength += data.length; }
+      }
       else emit(decoder.decode(data), number(fdValue) === 2);
       return BigInt(data.length);
     },
@@ -419,7 +424,11 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContext) {
   let diagnostics = [];
   if (readerContext) {
     try {
-      diagnostics = decodeReaderDiagnostics(new Uint8Array(readerBytes), readerContext);
+      if (readerOverflow) throw new Error('invalid reader diagnostic');
+      const readerBytes = new Uint8Array(readerByteLength);
+      let offset = 0;
+      for (const chunk of readerChunks) { readerBytes.set(chunk, offset); offset += chunk.length; }
+      diagnostics = decodeReaderDiagnostics(readerBytes, readerContext);
       stderr = diagnostics.map(record => readerDiagnosticText(record, readerContext.text)).join('');
     } catch {
       diagnostics = [{ version: 1, code: 'reader-diagnostic-invalid', severity: 'error',

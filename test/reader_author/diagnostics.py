@@ -94,6 +94,9 @@ def main():
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor',
                     'fcf6dd72f2296e28543132213d301dbe0d9a2b08', head], 'base', ROOT)
+        replay.run(['git', 'diff', '--exit-code', 'fcf6dd72f2296e28543132213d301dbe0d9a2b08',
+                    '--', 'bootstrap/current', 'web/stdlib.js', 'web/stdlib.json', 'web/compiler.wasm'],
+                   'protected-artifacts', ROOT)
         clone = scratch / 'repo'
         replay.run(['git', 'clone', '--no-hardlinks', '--quiet', str(ROOT), str(clone)], 'clone', ROOT)
         paths = replay.run(['git', 'ls-files', '-z'], 'inputs', clone).stdout.decode().split('\0')
@@ -110,6 +113,16 @@ def main():
         shipping = 'example/shipping/shipping.lang'
         fixture = clone / 'test/reader_author/fixtures'
         observations = []
+        inputs = {}
+
+        def retain_input(path):
+            relative = path.relative_to(scratch)
+            target = evidence / 'inputs' / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, target)
+            inputs[str(relative)] = sha(path)
+            dump(evidence / 'fixture-inputs.json', inputs)
+
 
         def diagnostic(path, reader=shipping, name='case', expected_code=None):
             commands = [str(compiler), 'read', reader, str(path)]
@@ -160,6 +173,7 @@ def main():
         for value in ['missing', 'implementation', 'raw', 'forged', 'reverse', 'overflow', 'é']:
             path = scratch / (value + '.broken')
             path.write_text(value)
+            retain_input(path)
             code = {'missing': 'missing-span', 'implementation': 'reader-implementation'}.get(value, 'reader-diagnostic-invalid')
             record, saved = diagnostic(path, broken, value, code)
             require(record['span'] is None, 'missing/bad span gained a position')
@@ -173,6 +187,14 @@ def main():
         require(len(nd[0]['origin_chain']) >= 2, 'nested expansion chain lost')
         require(any(o['path'].endswith('nested.lang') for o in nd[0]['origin_chain']), 'outer source lost')
 
+        inline = replay.run([str(compiler), 'test/reader_author/fixtures/inline.lang',
+                             '--diagnostics=json', '-o', str(scratch / 'inline.ll')], 'inline-range', clone, expected=1)
+        inline_records = [json.loads(line) for line in inline.stderr.splitlines()]
+        ir = inline_records[0]
+        raw = (fixture / 'inline.lang').read_bytes()
+        require(ir['code'] == 'shipping-duplicate' and ir['span']['start'] == raw.rindex(b'base') and
+                raw[ir['span']['start']:ir['span']['end']] == b'base', 'inline invocation bytes not mapped to file')
+
         # Minted compilers use the same host mapping and JSON format.
         minted = scratch / 'shippingc'
         replay.run([str(compiler), 'compiler', 'shipping', shipping, '-o', str(minted)], 'mint', clone)
@@ -182,6 +204,18 @@ def main():
         for field in ('code', 'path', 'span', 'message', 'category'):
             require(md[field] == duplicate[field], 'minted compiler differs: ' + field)
         require(not (scratch / 'rejected.ll').exists(), 'minted compiler accepted diagnostic as AST')
+        # Equal basenames remain distinct immutable sources in one compilation.
+        first = scratch / 'two/left/policy.shipping'
+        second = scratch / 'two/right/policy.shipping'
+        first.parent.mkdir(parents=True); second.parent.mkdir(parents=True)
+        first.write_bytes((clone / 'example/shipping/policy.shipping').read_bytes())
+        second.write_bytes(duplicate_path.read_bytes())
+        retain_input(first); retain_input(second)
+        same = replay.run([str(minted), str(first), str(second), '--diagnostics=json',
+                           '-o', str(scratch / 'same.ll')], 'same-names-one-compilation', clone, expected=1)
+        sd = json.loads(same.stderr)
+        require(sd['path'] == str(second) and sd['source_id'] > md['source_id'], 'same-name source IDs collapsed')
+
 
         for key, source in [('shipping', shipping), ('broken', broken)]:
             harness = scratch / (key + '-harness.lang')
@@ -193,6 +227,7 @@ func main() *u8 {{
     return {key}(input.data);
 }}
 ''')
+            retain_input(harness)
             wasm = scratch / (key + '.wasm')
             old = replay.env.get('LANGBE')
             replay.env['LANGBE'] = 'wasm'

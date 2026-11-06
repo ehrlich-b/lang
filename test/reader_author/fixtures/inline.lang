@@ -1,0 +1,3 @@
+include "example/shipping/shipping.lang"
+// café 🧭 before the reader block
+#shipping{shipping { base 1; /* été */ base 2; free_over 3; }}
