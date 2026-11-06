@@ -143,7 +143,7 @@ async function runLangCompiler(wasmBytes, args, initialFiles, onWrite, environme
     exit: (code) => { throw new ExitTrap(code); },
     _exit: (code) => { throw new ExitTrap(code); },
     clock_gettime: () => -1n,
-    realpath: (path) => path,
+    realpath: (path) => Number(path),
     lstat: () => -1n,
     fcntl: () => -1n,
     mkdtemp: () => 0,
