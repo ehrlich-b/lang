@@ -87,18 +87,34 @@ def main():
         # Both positive native builds and reader rejections use the same binary.
         saved_env = replay.env.copy()
         try:
-            replay.env['PATH'] = str(clone / 'out') + os.pathsep + replay.env['PATH']
-            for configured in (False, True):
-                replay.env.pop('LANG_ROOT', None)
-                if configured:
-                    replay.env['LANG_ROOT'] = str(clone)
-                for fixture in ['policy', 'semantic']:
-                    name = 'path-' + ('configured-' if configured else 'inferred-') + fixture
-                    test(name, fixture=fixture, invocation='lang_next')
-                    result = json.loads((evidence / name / 'result.json').read_text())
-                    require(result['fixtures'] == [{'name': fixture, 'pass': True}] and
-                            result['compiler_sha256'] == sha(compiler),
-                            name + ': filter or compiler identity changed')
+            shadow_file = scratch / 'path-nonexecutable'
+            shadow_file.mkdir()
+            (shadow_file / 'lang_next').write_text('readable but not executable\n')
+            (shadow_file / 'lang_next').chmod(0o644)
+            shadow_dir = scratch / 'path-directory'
+            (shadow_dir / 'lang_next').mkdir(parents=True)
+            dump(evidence / 'path-shadows.json', {
+                'file': {'path': str(shadow_file / 'lang_next'), 'mode': '0644',
+                         'sha256': sha(shadow_file / 'lang_next')},
+                'directory': str(shadow_dir / 'lang_next')})
+            for shadowed in (False, True):
+                prefix = [shadow_file, shadow_dir] if shadowed else []
+                replay.env['PATH'] = os.pathsep.join(map(str, prefix + [clone / 'out'])) + os.pathsep + saved_env['PATH']
+                require(Path(shutil.which('lang_next', path=replay.env['PATH'])).resolve() == Path(compiler).resolve(),
+                        'PATH control did not select the compiler')
+                for configured in (False, True):
+                    replay.env.pop('LANG_ROOT', None)
+                    if configured:
+                        replay.env['LANG_ROOT'] = str(clone)
+                    for fixture in ['policy', 'semantic']:
+                        name = 'path-' + ('shadowed-' if shadowed else '') + ('configured-' if configured else 'inferred-') + fixture
+                        test(name, fixture=fixture, invocation='lang_next')
+                        result = json.loads((evidence / name / 'result.json').read_text())
+                        ident = json.loads((evidence / name / 'identity.json').read_text())
+                        require(result['fixtures'] == [{'name': fixture, 'pass': True}] and
+                                result['compiler_sha256'] == sha(compiler) and
+                                ident['compiler']['path'] == str(Path(compiler).resolve()),
+                                name + ': filter or compiler identity changed')
         finally:
             replay.env = saved_env
         result = test('unknown', fixture='absent', expected=1)
@@ -171,8 +187,8 @@ def main():
         require(not list((evidence / 'link-failure').glob('*.native')), 'failed link published an executable')
         require(all(sha(clone / p) == h for p, h in hashes.items()), 'oracle edited committed inputs')
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'compiler_sha256': sha(compiler),
-             'observations': len(replay.rows), 'controls': ['PATH', 'LANG_ROOT', 'free_at', 'fee', 'exit', 'diagnostic', 'link-failure']})
-        print('PASS oracle: committed ancestry, shared compiler through PATH with LANG_ROOT, shipped fixtures, filter, native outputs, structured negatives, mutations, exit and link failure')
+             'observations': len(replay.rows), 'controls': ['PATH', 'nonexecutable-shadow', 'directory-shadow', 'LANG_ROOT', 'free_at', 'fee', 'exit', 'diagnostic', 'link-failure']})
+        print('PASS oracle: committed ancestry, shared compiler through PATH with nonexecutable/directory shadows and LANG_ROOT, shipped fixtures, filter, native outputs, structured negatives, mutations, exit and link failure')
         return 0
     except Exception as error:
         dump(evidence / 'result.json', {'pass': False, 'error': str(error)})
