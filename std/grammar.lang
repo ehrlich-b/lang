@@ -41,7 +41,7 @@ var GNODE_PLUS i64 = 9;       // + (one or more)
 var GNODE_OPT i64 = 10;       // ? (optional)
 var GNODE_CAPTURE i64 = 11;   // name:element (named lowering capture)
 var GNODE_BRANCH i64 = 12;    // name:alternative (labeled choice branch)
-var GNODE_RECOVER i64 = 14;   // recover(rule, terminator, stop)
+var GNODE_RECOVER i64 = 14;   // @recover(rule, terminator, stop)
 var GNODE_USERTOK i64 = 13;   // <name> (a token kind the reader defines)
 
 // ============================================================
@@ -137,12 +137,14 @@ func gp_is_keyword(gp *GrammarParser, kw *u8) bool {
     return str_eq_n(text, len, kw, strlen(kw));
 }
 
-// Keep an existing rule named recover usable as an ordinary reference.
+// A sigil leaves ordinary rule references and following groups unambiguous.
 func gp_is_recovery(gp *GrammarParser) bool {
-    if !gp_is_keyword(gp, "recover") { return false; }
+    if tok_text_len(gp.t) != 1 || *tok_text_ptr(gp.t) != 64 { return false; }
     var mark i64 = tok_mark(gp.t);
     tok_next(gp.t);
-    var call bool = tok_kind(gp.t) == TOK_LPAREN;
+    var call bool = gp_is_keyword(gp, "recover");
+    tok_next(gp.t);
+    call = call && tok_kind(gp.t) == TOK_LPAREN;
     tok_reset(gp.t, mark);
     return call;
 }
@@ -178,7 +180,8 @@ func gp_parse_element(gp *GrammarParser) *GNode {
     // An explicit statement boundary; the child remains a strict rule parse.
     if gp_is_recovery(gp) {
         var recovery_start i64 = tok_start_offset(gp.t);
-        tok_next(gp.t);
+        tok_next(gp.t); // @
+        tok_next(gp.t); // recover
         if !tok_match(gp.t, TOK_LPAREN) { gp_fail(gp, "'('"); return nil; }
         if tok_kind(gp.t) != TOK_IDENT { gp_fail(gp, "rule name"); return nil; }
         var target *GNode = gnode_with_name(GNODE_REF, tok_text_ptr(gp.t), tok_text_len(gp.t));

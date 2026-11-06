@@ -3,11 +3,12 @@ include "example/shipping/shipping.lang"
 
 #parser{
     recovery_choice = long:('do' symbol '=' number) | short:('do' symbol)
-    recovery_choice_boundary = recover(recovery_choice, ';', "}")
+    recovery_choice_boundary = @recover(recovery_choice, ';', "}")
     probe_setting = name:symbol value:number ';'
     recover = number
     recovery_legacy_name = recover
-    recovery_zero = recover(probe_setting, ';', "}")*
+    recovery_legacy_group = recover (number)
+    recovery_zero = @recover(probe_setting, ';', "}")*
 }
 
 func main(argc i64, argv **u8) i64 {
@@ -22,6 +23,7 @@ func main(argc i64, argv **u8) i64 {
     else if streq(mode, "strict") { tree = parse_shipping_policy(t); }
     else if streq(mode, "disabled") { tree = parse_shipping_editor_policy(t); }
     else if streq(mode, "choice") { t.recovery = 1; tree = parse_recovery_choice_boundary(t); }
+    else if streq(mode, "legacy-group") { tree = parse_recovery_legacy_group(t); }
     else if streq(mode, "legacy") { tree = parse_recovery_legacy_name(t); }
     else if streq(mode, "setting") {
         t.recovery = 1;

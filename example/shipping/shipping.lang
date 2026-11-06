@@ -8,7 +8,7 @@ include "example/shipping/exports.lang"
     shipping_policy = 'shipping' '{' settings:shipping_setting* '}'
     shipping_setting = name:symbol value:shipping_value ';'
     shipping_editor_policy = 'shipping' '{' settings:shipping_editor_setting* '}'
-    shipping_editor_setting = recover(shipping_setting, ';', "}")
+    shipping_editor_setting = @recover(shipping_setting, ';', "}")
     shipping_value = number | '-' number
 }
 

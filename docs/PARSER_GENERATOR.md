@@ -256,12 +256,13 @@ semantic lookahead. Editor statement recovery is opt-in below.
 
 ## Editor statement recovery
 
-Declare one statement boundary with `recover(rule, 'terminator', 'stop')`:
+The `@` sigil keeps existing rule names and grouped sequences unambiguous.
+Declare one statement boundary with `@recover(rule, 'terminator', 'stop')`:
 
 ```lang
 #parser{
     policy = 'shipping' '{' settings:setting* '}'
-    setting = recover(strict_setting, ';', "}")
+    setting = @recover(strict_setting, ';', "}")
     strict_setting = name:symbol value:number ';'
 }
 var tokens *Tokenizer = tok_new(text);

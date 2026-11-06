@@ -88,6 +88,9 @@ def main():
                 strict.stderr == editor.stderr == disabled.stderr, 'successful parse shape changed')
         legacy = run('legacy', 'number.shipping', 'legacy-rule-name')
         require(b'number "42"' in legacy.stderr, 'existing recover rule name changed')
+        grouped = run('legacy-group', 'numbers.shipping', 'legacy-rule-group')
+        require(b'number "42"' in grouped.stderr and b'number "43"' in grouped.stderr,
+                'ordinary rule followed by a group changed')
         choice = run('choice', 'choice.shipping', 'ordered-choice')
         require(b'<short>' in choice.stderr and b'<long>' not in choice.stderr, 'ordered transactional choice changed')
         repeated = run('editor', 'repeated.shipping', 'repeated-delimiters')
