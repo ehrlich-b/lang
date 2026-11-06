@@ -12,6 +12,7 @@ include "src/parser.lang"
 include "src/codegen.lang"
 include "src/codegen_llvm.lang"
 include "src/sexpr_reader.lang"
+include "src/native_host.lang"
 
 // codegen's require handling consults this composition-mode flag. The full
 // compiler owns it in main.lang; a generated standalone compiler never runs
@@ -83,54 +84,17 @@ func standalone_help() void {
     println("");
     print("Usage: ");
     print(reader_compiler_name);
-    println(" <file>... [-o output]");
+    println(" <file>... [--emit=llvm|native] [-o output]");
     println("");
     println("Options:");
-    println("  -o <file>  Write LLVM IR or assembly to this path");
+    println("  --emit=llvm    Write LLVM IR without a native toolchain");
+    println("  --emit=native  Build Linux x86-64 at -O0 using LANG_CLANG or clang in PATH");
+    println("  -o <file>      Output path (default: a.ll/a.s, or a.out for native)");
     println("  -h, --help Show this help");
 }
 
-func main(argc i64, argv **u8) i64 {
-    if argc < 2 {
-        standalone_help();
-        return 0;
-    }
-
-    var output_file *u8 = nil;
-    var input_files *u8 = vec_new(16);
-
-    // First pass: parse arguments
-    var i i64 = 1;
-    while i < argc {
-        var arg *u8 = standalone_get_arg(argv, i);
-
-        if streq(arg, "--diagnostics=json") {
-            ___compiler_diagnostic_enable();
-        } else if streq(arg, "--help") || streq(arg, "-h") {
-            standalone_help();
-            return 0;
-        } else if *arg == '-' && *(arg + 1) == 'o' && *(arg + 2) == 0 {
-            i = i + 1;
-            if i >= argc {
-                eprintln("Error: -o needs an output path");
-                return 1;
-            }
-            output_file = standalone_get_arg(argv, i);
-        } else if *arg == '-' {
-            eprint("Error: unknown option: ");
-            eprintln(arg);
-            return 1;
-        } else {
-            vec_push(input_files, arg);
-        }
-        i = i + 1;
-    }
-
-    if vec_len(input_files) == 0 {
-        eprintln("Error: no input files");
-        return 1;
-    }
-
+func standalone_emit(input_files *u8, output_file *u8, use_llvm i64) i64 {
+    var i i64 = 0;
     var programs *u8 = vec_new(vec_len(input_files) + 2);
 
     // Runtime declarations are Lang AST embedded when this compiler is minted;
@@ -158,6 +122,7 @@ func main(argc i64, argv **u8) i64 {
         var ast *u8 = standalone_transform(content, arg);
         if reader_host_errors != 0 { return 1; }
         if ast == nil {
+            eprint(arg); eprintln(": error: reader phase failed");
             return 1;
         }
 
@@ -173,7 +138,7 @@ func main(argc i64, argv **u8) i64 {
 
     // Add ___main wrapper as AST (must match main.lang's version for fixed point)
     // Skip for LLVM backend - clang provides entry point
-    var is_llvm i64 = cg_backend_is_llvm();
+    var is_llvm i64 = use_llvm;
     if is_llvm == 0 {
         var wrapper_ast *u8 = "(program (func ___main ((param argc (type_base i64)) (param argv (type_ptr (type_ptr (type_base u8)))) (param envp (type_ptr (type_ptr (type_base u8))))) (type_base i64) (block (return (call (ident main) (ident argc) (ident argv))))))";
         var wrapper_prog *u8 = parse_ast_from_string(wrapper_ast);
@@ -183,20 +148,77 @@ func main(argc i64, argv **u8) i64 {
 
     var prog *u8 = standalone_combine_programs(programs);
 
+    if use_llvm != 0 { generate_llvm(prog, output_file); }
+    else { generate(prog, output_file); }
+    return 0;
+}
+
+func main(argc i64, argv **u8) i64 {
+    if argc < 2 { standalone_help(); return 0; }
+    var output_file *u8 = nil;
+    var input_files *u8 = vec_new(16);
+    // An omitted mode retains the original backend-dependent IR/assembly output.
+    var emit *u8 = nil;
+    var invalid i64 = 0;
+    var native i64 = 0;
+    var i i64 = 1;
+    while i < argc {
+        var arg *u8 = standalone_get_arg(argv, i);
+        if streq(arg, "--diagnostics=json") { ___compiler_diagnostic_enable(); }
+        else if streq(arg, "--help") || streq(arg, "-h") { standalone_help(); return 0; }
+        else if streq(arg, "-o") {
+            if output_file != nil { eprintln("Error: duplicate -o"); invalid = 1; }
+            if i + 1 >= argc || *standalone_get_arg(argv, i + 1) == '-' {
+                eprintln("Error: -o needs an output path"); invalid = 1;
+            } else {
+                i = i + 1;
+                if output_file == nil { output_file = standalone_get_arg(argv, i); }
+            }
+        } else if str_starts_with(arg, "--emit=") {
+            if streq(arg + 7, "native") { native = 1; }
+            if emit != nil { eprintln("Error: duplicate --emit"); invalid = 1; }
+            else { emit = arg + 7; }
+            if native_build_emit_valid(arg + 7, 0) == 0 {
+                eprintln("Error: --emit must be native or llvm"); invalid = 1;
+            }
+        } else if *arg == '-' {
+            eprint("Error: unknown option: "); eprintln(arg); invalid = 1;
+        } else { vec_push(input_files, arg); }
+        i = i + 1;
+    }
+    if vec_len(input_files) == 0 { eprintln("Error: no input files"); invalid = 1; }
+    var use_llvm i64 = cg_backend_is_llvm();
+    if emit != nil && streq(emit, "llvm") { use_llvm = 1; }
     if output_file == nil {
-        if cg_backend_is_llvm() != 0 { output_file = "a.ll"; }
+        if native != 0 { output_file = "a.out"; }
+        else if use_llvm != 0 { output_file = "a.ll"; }
         else { output_file = "a.s"; }
     }
-
-    // Check backend
-    if cg_backend_is_llvm() != 0 {
-        generate_llvm(prog, output_file);
-    } else {
-        generate(prog, output_file);
+    if *output_file == 0 { eprintln("Error: empty output path"); return 1; }
+    if native == 0 {
+        if invalid != 0 { return 1; }
+        var result i64 = standalone_emit(input_files, output_file, use_llvm);
+        if result == 0 { print("Wrote "); println(output_file); }
+        return result;
     }
-
-    print("Wrote ");
-    println(output_file);
-
-    return 0;
+    // Share output protection, tool selection, -O0, object/link phases and
+    // atomic publication with `lang build`. Parent cleanup also covers fatal
+    // reader/validator/codegen exits in the child.
+    if native_build_prepare_output(output_file, input_files) != 0 { return 1; }
+    if invalid != 0 { return 1; }
+    var source *u8 = vec_get(input_files, 0);
+    if native_build_profile(source, reader_build_arch) != 0 { return 1; }
+    var work *u8 = mkdtemp(str_concat(output_file, ".lang-build-XXXXXX"));
+    if work == nil { eprintln("Error: cannot reserve native build directory"); return 1; }
+    var pid i64 = os_fork();
+    if pid == 0 {
+        cg_langos_override = "linux";
+        os__exit(standalone_emit(input_files, str_concat(work, "/guest.ll"), 1));
+    }
+    var result i64 = native_build_wait(pid, "LLVM emission");
+    if result != 0 { native_build_source_error(source, "reader/validation/LLVM emission"); }
+    if result == 0 { result = native_build_link(work, source, "clang"); }
+    result = native_build_publish(work, str_concat(work, "/program"), output_file, result);
+    if result == 0 { print("Built "); println(output_file); }
+    return result;
 }

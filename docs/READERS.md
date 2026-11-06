@@ -83,12 +83,22 @@ Or mint a native compiler that understands `.tiny` directly:
 
 ```bash
 ./out/lang compiler tiny example/tiny/tiny.lang -o /tmp/tinyc
-/tmp/tinyc example/tiny/answer.tiny -o /tmp/answer.ll
+/tmp/tinyc example/tiny/answer.tiny --emit=native -o /tmp/answer
+/tmp/answer
+echo $?    # 42
+/tmp/tinyc example/tiny/answer.tiny --emit=llvm -o /tmp/answer.ll
 ```
 
 That is the “compiler compiler” part: `tiny.lang` is ordinary Lang code, while
 `tinyc` is a native compiler produced from it. For an editable policy reader with runtime input and the complete LLVM/link/run
 route, follow the [shipping walkthrough](../example/shipping/README.md).
+Minted compilers keep LLVM IR as their default on LLVM builds; `--emit=llvm`
+needs no Clang on PATH. `--emit=native` uses the same host driver as `lang build`:
+Linux x86-64, `LANGBE=llvm`, `LANGOS=linux`, `-O0`, and `LANG_CLANG` or `clang`
+in PATH. Native failures identify the phase and guest file. A native destination
+must be fresh or a previous ELF output; failed rebuilds invalidate that output.
+The runtime remains embedded in either mode.
+
 The lower-level `-c tiny` form
 emits compiler IR when you need to inspect or cross-compile it.
 
