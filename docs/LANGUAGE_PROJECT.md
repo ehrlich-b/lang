@@ -193,7 +193,11 @@ are one-based byte positions. They do not require the compiler's separate JSON
 transport. Negative fixtures require exit 1 at the reader phase and no AST output.
 Toolchain, manifest, validation, LLVM and link failures cannot satisfy negatives.
 
-All fixtures use the invoking compiler's native build driver. Positive builds
+All fixtures use the invoking compiler's native build driver. On the supported
+Linux host, the compiler identifies its running image through `/proc/self/exe`;
+procfs must be available. Shell command caches, a changed `PATH`, caller-supplied
+`argv[0]` and `LANG_ROOT` cannot select a different compiler for these fixtures.
+Positive builds
 must publish an ELF executable after reader, shared-AST validation, LLVM emission,
 object compilation and native link all succeed. A failed compile or link fails
 the fixture. Any wrong output, exit or diagnostic makes the runner exit 1.
