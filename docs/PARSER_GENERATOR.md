@@ -98,12 +98,13 @@ var tree *PNode = parse_setting(tokens);
   digits, `_`, or bytes from `identifier_extra` (nil means no extra bytes).
   Keywords in quoted grammar literals match the **whole** token. For example,
   an extra `"-"` keeps `select-all` one identifier, distinct from `'select'`.
-  Continuation bytes should exclude whitespace, digits, and comment delimiters;
-  whitespace and comments are recognized between tokens. This is a byte policy,
-  not Unicode identifier classification.
+  Configured comment openers terminate an identifier even when their bytes are
+  identifier continuations: with `"-"` and line marker `"--"`, `item--comment`
+  yields `item` followed by a comment. A single hyphen still continues the name.
+  This is a byte policy, not Unicode identifier classification.
 - Comment delimiters use the existing `tok_new_comments` contract: nil disables
   a form, both block markers are required, blocks do not nest, and line comments
-  may end at EOF. A comment may immediately follow a decimal token.
+  may end at EOF. A comment may immediately follow a decimal or identifier token.
 
 `tok_new_profile` snapshots these fields before scanning the first token;
 independent tokenizers can use different profiles at the same time. Input text

@@ -613,6 +613,9 @@ pub func tok_next(t *Tokenizer) void {
     // Identifier
     if tok_is_alpha(c) {
         while tok_identifier_continue(t, tok_peek_char(t)) {
+            // A comment opener wins over identifier continuation bytes.
+            if tok_marker_at(t, t.comment_line) > 0 { break; }
+            if t.comment_close != nil && tok_marker_at(t, t.comment_open) > 0 { break; }
             tok_advance_char(t);
         }
         t.tok_len = t.pos - t.tok_start;

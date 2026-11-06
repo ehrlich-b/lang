@@ -82,6 +82,12 @@ def main():
             result = replay.run([str(binary), source, *extra], 'tree-' + name, clone)
             require(not result.stdout and b'@' in result.stderr, 'missing complete tree and offsets')
 
+        source = (fixtures / 'adjacent.query').read_text()
+        result = replay.run([str(binary), source, 'query'], 'adjacent-identifier-comment', clone)
+        require(not result.stdout and b'symbol "item" @7:11\n' in result.stderr
+                and b'number "3" @27:28\n' in result.stderr,
+                'adjacent line comment changed the field or original token ranges')
+
         bad_numbers = ['1.5', '.5', '1.', '1e3', '1E-3', '1e+3', '1e', '10base', '0x10', '1_000']
         for number in bad_numbers:
             for label, prefix, suffix, extra in [

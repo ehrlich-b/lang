@@ -47,6 +47,21 @@ func query_manual() *Tokenizer {
     return tok_new_stream(query_source(), stream);
 }
 
+func adjacent_comment_tree() bool {
+    var source *u8 = "select item--comment\nlimit 3;";
+    var stream *u8 = tok_stream_new();
+    tok_stream_push(stream, TOK_IDENT, 0, 6, nil);
+    tok_stream_push(stream, TOK_IDENT, 7, 4, nil);
+    tok_stream_push(stream, TOK_IDENT, 21, 5, nil);
+    tok_stream_push(stream, TOK_NUMBER, 27, 1, nil);
+    tok_stream_push(stream, TOK_SEMI, 28, 1, nil);
+    var scanned *Tokenizer = tok_new_profile(source, query_profile());
+    var manual *Tokenizer = tok_new_stream(source, stream);
+    var first *PNode = parse_lookup(scanned);
+    var second *PNode = parse_lookup(manual);
+    return same_tree(first, second) && tok_expect_end(scanned) && tok_expect_end(manual);
+}
+
 func main(argc i64, argv **u8) i64 {
     if argc > 1 {
         var tokens *Tokenizer = tok_new_profile(argv[1], shipping_profile());
@@ -104,6 +119,23 @@ func main(argc i64, argv **u8) i64 {
     tok_note_expected(a, "something else");
     if tok_expect_end(a) || tok_eof(a) || tok_error_offset(a) != 2 ||
        tok_error_end_offset(a) != 6 || !streq(tok_error_expected(a), "decimal integer") { return 23; }
+    if !adjacent_comment_tree() { return 24; }
+    // Both kinds of opener win over continuation bytes, including at EOF.
+    a = tok_new_profile("item--comment", query_profile());
+    if !streq(tok_text(a), "item") || tok_end_offset(a) != 4 { return 25; }
+    tok_next(a);
+    if !tok_eof(a) { return 26; }
+    a = tok_new_profile("item-*comment*-next",
+                        tok_profile_new(TOK_NUM_DECIMAL, "-", nil, "-*", "*-"));
+    if !streq(tok_text(a), "item") || tok_end_offset(a) != 4 { return 27; }
+    tok_next(a);
+    if !streq(tok_text(a), "next") || tok_start_offset(a) != 15 { return 28; }
+    tok_next(a);
+    if !tok_eof(a) { return 29; }
+    // An opener alone does not enable block comments.
+    a = tok_new_profile("item-*comment",
+                        tok_profile_new(TOK_NUM_DECIMAL, "-", nil, "-*", nil));
+    if !streq(tok_text(a), "item-") || tok_end_offset(a) != 5 { return 30; }
     println("PASS two-readers");
     return 0;
 }
