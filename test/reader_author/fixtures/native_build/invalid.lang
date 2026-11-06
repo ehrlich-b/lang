@@ -1,0 +1,2 @@
+include "std/ast.lang"
+reader invalid(text *u8) *u8 { return "(program (number 1 extra))"; }

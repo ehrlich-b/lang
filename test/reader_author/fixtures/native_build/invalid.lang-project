@@ -1,0 +1,11 @@
+project {
+    version 1;
+    reader_source "invalid.lang";
+    reader_name "invalid";
+    source_suffix ".invalid";
+    runtime_files [];
+    entry "guest.invalid";
+    backend "llvm";
+    native_profile "llvm-linux-x86_64";
+    native_toolchain "clang";
+}

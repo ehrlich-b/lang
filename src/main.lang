@@ -1,6 +1,7 @@
 // src/main.lang - Main entry point for self-hosting compiler
 include "src/project.lang"
 include "src/project_scaffold.lang"
+include "src/native_build.lang"
 
 // ============================================================
 // CLI helpers
@@ -692,7 +693,7 @@ func read_error_prefix(source_path *u8) void {
     eprint(":1:1: error: ");
 }
 
-func read_run_reader(name *u8, source_path *u8, content *u8) *u8 {
+func read_run_reader_raw(name *u8, source_path *u8, content *u8) *u8 {
     var name_len i64 = strlen(name);
     var output *u8 = nil;
     var embedded_func *u8 = find_embedded_reader_func(name, name_len);
@@ -738,6 +739,12 @@ func read_run_reader(name *u8, source_path *u8, content *u8) *u8 {
         }
     }
 
+    return output;
+}
+
+func read_run_reader(name *u8, source_path *u8, content *u8) *u8 {
+    var output *u8 = read_run_reader_raw(name, source_path, content);
+    if output == nil { return nil; }
     var parsed *u8 = parse_ast_from_reader_string(output, source_path, content);
     if parsed == nil {
         read_error_prefix(source_path);
@@ -1182,6 +1189,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("  help       Show this help message");
     println("  version    Show version information");
     println("  env        Show environment variables");
+    println("  build      Build a project guest into a native executable");
     println("  tools      Show toolchain availability");
     println("  tooling    Show reader capabilities and query availability");
     println("");
@@ -1555,6 +1563,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
         if streq(first, "new") {
             return cmd_new(argc - 2, argv, 2);
         }
+        if streq(first, "build") { return cmd_native_build(argc, argv); }
         if streq(first, "project") { return cmd_project(argc, argv); }
         if streq(first, "read") {
             return cmd_read(argc - 2, argv, 2);
