@@ -9,6 +9,8 @@ subprocess.run(['git', 'diff', '--exit-code', '0149c1d', 'HEAD', '--',
 for path in paths:
     original = subprocess.check_output(['git', 'show', '0149c1d:' + path])
     expected = original.replace(b'    getpid: () => 1n,',
-                                b'    clock_gettime: () => -1n,\n    getpid: () => 1n,')
+                                b'    clock_gettime: () => -1n,\n    realpath: () => 0,\n'
+                                b'    lstat: () => -1n,\n    fcntl: () => -1n,\n'
+                                b'    mkdtemp: () => 0,\n    getpid: () => 1n,')
     if expected == original or Path(path).read_bytes() != expected:
         raise SystemExit(path + ': unexpected change to protected input')
