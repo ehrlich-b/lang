@@ -313,3 +313,33 @@ unbundled shipping fixture, and exercises missing metadata, every bundled hash,
 explicit Clang selection and an input changed during packaging. Commands, input
 and tool hashes, stdout, stderr, exits, archive and receipt stay outside the
 checkout under `../evidence/`. All expectations fail the runner on mismatch.
+
+Generated parsers bound recognition independently for each outer `parse_<rule>`
+call. Optional numeric project fields `parser_work` and `parser_depth` default to
+1000000 expression visits and 128 active rule calls. Work accepts 1..1000000000;
+depth accepts 1..256. A project overrides ambient parser limits, including in its
+minted compiler. `project check` validates these fields without running a reader.
+
+Every attempted grammar expression costs one visit, including failed alternatives,
+repeated terminals and optional probes. Token rewinds never refund work. Nested
+rule calls share the invocation counters; returning from the root leaves the
+work count and peak depth available on the tokenizer. The next root call resets
+them, on success or ordinary parse failure. Budget exhaustion exits with status 1
+through the host diagnostic path and reports the rule, grammar byte offset,
+guest source path and current token byte offset. It cannot be swallowed by a
+choice or optional element. Existing ordered alternatives and parse trees are
+unchanged within the limits. These quotas do not promise linear complexity for
+unrestricted backtracking, nor bound arbitrary handwritten reader code.
+
+Outside a project, `LANG_PARSER_MAX_WORK` and `LANG_PARSER_MAX_DEPTH` configure the
+same positive limits. Trusted reader authors can set `tok_parser_instrumentation`
+to zero before constructing a tokenizer for an unbounded measurement control;
+projects do not expose this switch. The tiny reader is handwritten and serves as
+a control with no generated recognition visits. Shipping exercises the counters.
+
+Run the bounded fragment with `python3 -B test/reader_author/parser_budget.py
+--case bounded` from a committed checkout, or `env JOBS=2 VERIFY_CASE=bounded make
+verify`. Receipts contain bounded ambiguous-prefix and right-recursive sizes,
+exact-limit and breach checks, source/tool hashes, command logs and alternating
+small reader timing samples. The selector keeps this fragment separate from the
+integration fixed points and full suites.

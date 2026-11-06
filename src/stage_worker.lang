@@ -112,7 +112,7 @@ pub func phase_exec_capture_buffer(program *u8, input *u8, input_len i64, binary
         *ap2 = nil;
 
         // Readers are ordinary programs and should see the compiler's environment.
-        var envp **u8 = ___envp;
+        var envp **u8 = phase_recognition_environment();
         os_execve(program, argv, envp);
         // If execve fails, exit
         os__exit(127);
@@ -211,4 +211,29 @@ func phase_capture_channels(out i64, err i64) *PhaseBuffer {
     }
     os_close(err); phase_buffer_reserve(result, 0);
     phase_buffer_reserve(phase_worker_stderr, 0); return result;
+}
+
+func phase_recognition_environment() **u8 {
+    var count i64 = 0;
+    if ___envp != nil { while *(___envp + count) != nil { count = count + 1; } }
+    var data *u8 = alloc((count + 4) * 8);
+    var out **u8 = data;
+    var used i64 = 0;
+    // Overrides precede inherited entries, matching getenv's first entry rule.
+    if phase_recognition_work != 0 {
+        var b *PhaseBuffer = phase_buffer_new(128, "recognition environment");
+        phase_buffer_text(b, "LANG_PARSER_MAX_WORK="); phase_buffer_int(b, phase_recognition_work);
+        *(out + used) = b.data; used = used + 1;
+    }
+    if phase_recognition_depth != 0 {
+        var b *PhaseBuffer = phase_buffer_new(128, "recognition environment");
+        phase_buffer_text(b, "LANG_PARSER_MAX_DEPTH="); phase_buffer_int(b, phase_recognition_depth);
+        *(out + used) = b.data; used = used + 1;
+    }
+    if phase_recognition_source != nil {
+        *(out + used) = str_concat("LANG_PARSER_SOURCE=", phase_recognition_source); used = used + 1;
+    }
+    var i i64 = 0;
+    while i < count { *(out + used) = *(___envp + i); used = used + 1; i = i + 1; }
+    *(out + used) = nil; return out;
 }

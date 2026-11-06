@@ -143,7 +143,7 @@ func rdgen_can_be_absent(node *GNode) i64 {
 }
 
 // Generate code for an expression using iterative stack
-func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
+func rdgen_gen_expr(rd *RDGen, rule *GNode, root *GNode, root_result_var *u8) void {
     if root == nil {
         return;
     }
@@ -158,6 +158,14 @@ func rdgen_gen_expr(rd *RDGen, root *GNode, root_result_var *u8) void {
         var result_var *u8 = work.result_var;
         var phase i64 = work.phase;
         var kind i64 = node.kind;
+
+        if phase == 0 {
+            rdgen_indent(rd);
+            sb_str(rd.sb, "tok_parser_work(t, \"");
+            rdgen_strn(rd, rule.name, rule.name_len);
+            sb_str(rd.sb, "\", "); sb_int(rd.sb, node.start);
+            sb_str(rd.sb, ");"); rdgen_newline(rd);
+        }
 
         // LITERAL: '(' or similar
         if kind == GNODE_LITERAL {
@@ -860,7 +868,12 @@ func rdgen_gen_rule(rd *RDGen, rule *GNode) void {
         else { rdgen_line(rd, "var _alternative i64 = 0;"); }
     }
 
-    rdgen_gen_expr(rd, rule.child, "result");
+    rdgen_indent(rd); sb_str(rd.sb, "tok_parser_enter(t, \"");
+    rdgen_strn(rd, rule.name, rule.name_len);
+    sb_str(rd.sb, "\", "); sb_int(rd.sb, rule.start);
+    sb_str(rd.sb, ");"); rdgen_newline(rd);
+    rdgen_gen_expr(rd, rule, rule.child, "result");
+    rdgen_line(rd, "tok_parser_leave(t);");
 
     if rd.grammar.contracts != 0 {
         rdgen_indent(rd);

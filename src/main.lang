@@ -790,6 +790,7 @@ func read_error_prefix(source_path *u8) void {
 }
 
 func read_run_reader_raw(name *u8, source_path *u8, content *u8) *u8 {
+    phase_recognition_source = source_path;
     var name_len i64 = strlen(name);
     var output *u8 = nil;
     var embedded_func *u8 = find_embedded_reader_func(name, name_len);
@@ -1932,7 +1933,15 @@ func main_dispatch(argc i64, argv **u8) i64 {
         append_str(&source_buf, &source_len, &source_cap, "\";\n");
 
         // 2. Generate glue function that calls the reader directly
-        append_str(&source_buf, &source_len, &source_cap, "func reader_transform(t *u8) *u8 { return ");
+        append_str(&source_buf, &source_len, &source_cap, "func reader_transform(t *u8) *u8 { ");
+        if phase_recognition_work != 0 {
+            var quota *PhaseBuffer = phase_buffer_new(128, "parser configuration");
+            phase_buffer_text(quota, "phase_recognition_work = "); phase_buffer_int(quota, phase_recognition_work);
+            phase_buffer_text(quota, "; phase_recognition_depth = "); phase_buffer_int(quota, phase_recognition_depth);
+            phase_buffer_text(quota, "; ");
+            append_str(&source_buf, &source_len, &source_cap, quota.data);
+        }
+        append_str(&source_buf, &source_len, &source_cap, "return ");
         append_str(&source_buf, &source_len, &source_cap, gen_compiler);
         append_str(&source_buf, &source_len, &source_cap, "(t); }\n");
 

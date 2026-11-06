@@ -162,3 +162,23 @@ pub func phase_read_bytes_fd(fd i64, limit i64, source *u8) *PhaseBuffer {
     if n < 0 { phase_error("read-failed", source); }
     phase_buffer_reserve(b, 0); return b;
 }
+
+// Recognition quotas share host configuration and diagnostics. Zero overrides
+// mean the process defaults; projects only accept positive, bounded limits.
+var phase_recognition_work i64 = 0;
+var phase_recognition_depth i64 = 0;
+var phase_recognition_source *u8 = nil;
+pub func phase_recognition_limit(name *u8, fallback i64, maximum i64) i64 {
+    var text *u8 = getenv(name);
+    if text == nil || *text == 0 { return fallback; }
+    var n i64 = 0;
+    while *text != 0 {
+        if *text < 48 || *text > 57 || n > maximum / 10 {
+            phase_error("invalid-recognition-limit", phase_diagnostic_source);
+        }
+        n = n * 10 + *text - 48; text = text + 1;
+        if n > maximum { phase_error("invalid-recognition-limit", phase_diagnostic_source); }
+    }
+    if n < 1 { phase_error("invalid-recognition-limit", phase_diagnostic_source); }
+    return n;
+}

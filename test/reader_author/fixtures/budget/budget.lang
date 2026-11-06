@@ -1,0 +1,9 @@
+include "std/parser_reader.lang"
+include "std/ast.lang"
+#parser{ chain = number chain? }
+reader budget(text *u8) *u8 {
+    var t *Tokenizer = tok_new(text);
+    var tree *PNode = parse_chain(t);
+    if tree == nil || !tok_expect_end(t) { return nil; }
+    return ast_main_i64(ast_int(42));
+}

@@ -85,6 +85,22 @@ func project_load(path *u8) *LanguageProject {
             var version *u8 = project_expect(project, TOKEN_NUMBER, "expected schema version 1");
             value = str_dup_n(tok_lexeme(version), tok_lexeme_len(version));
             if !streq(value, "1") { project_error(project, version, "unsupported project schema version"); }
+        } else if streq(name, "parser_work") || streq(name, "parser_depth") {
+            var number *u8 = project_expect(project, TOKEN_NUMBER, "expected positive parser limit");
+            value = str_dup_n(tok_lexeme(number), tok_lexeme_len(number));
+            var maximum i64 = 1000000000;
+            if streq(name, "parser_depth") { maximum = 256; }
+            var n i64 = 0; var digit i64 = 0;
+            while *(value + digit) != 0 {
+                var ch i64 = *(value + digit);
+                if ch < 48 || ch > 57 || n > maximum / 10 {
+                    project_error(project, number, "invalid parser limit");
+                }
+                n = n * 10 + ch - 48;
+                if n > maximum { project_error(project, number, "invalid parser limit"); }
+                digit = digit + 1;
+            }
+            if n < 1 { project_error(project, number, "invalid parser limit"); }
         } else if streq(name, "runtime_files") {
             project_expect(project, TOKEN_LBRACKET, "expected runtime file list");
             if tok_type(parse_peek()) != TOKEN_RBRACKET {
@@ -231,6 +247,13 @@ func cmd_project(argc i64, argv **u8) i64 {
     if cg_backend_is_llvm() == 0 || (target != nil && !streq(target, "linux")) || !streq(os_platform_name(), "linux") || !streq(LANG_BUILD_ARCH, "x86_64") {
         project_fail_field(project, "native_profile", "project execution requires LANGBE=llvm LANGOS=linux on Linux x86-64");
     }
+    phase_recognition_work = 1000000; phase_recognition_depth = 128;
+    if project_field(project, "parser_work") != nil {
+        phase_recognition_work = project_limit_value(project_field(project, "parser_work"));
+    }
+    if project_field(project, "parser_depth") != nil {
+        phase_recognition_depth = project_limit_value(project_field(project, "parser_depth"));
+    }
     cg_langos_override = "linux";
     var arguments *u8 = vec_new(16);
     vec_push(arguments, get_arg(argv, 0));
@@ -247,4 +270,11 @@ func cmd_project(argc i64, argv **u8) i64 {
     }
     if argc == 6 { vec_push(arguments, "-o"); vec_push(arguments, get_arg(argv, 5)); }
     return main_dispatch(vec_len(arguments), project_argv(arguments));
+}
+
+// Called only after project_load has validated every decimal digit and bound.
+func project_limit_value(text *u8) i64 {
+    var n i64 = 0;
+    while *text != 0 { n = n * 10 + *text - 48; text = text + 1; }
+    return n;
 }

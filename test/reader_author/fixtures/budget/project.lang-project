@@ -1,0 +1,13 @@
+project {
+    version 1;
+    parser_work 12;
+    parser_depth 4;
+    reader_source "budget.lang";
+    reader_name "budget";
+    source_suffix ".budget";
+    runtime_files [];
+    entry "input.budget";
+    backend "llvm";
+    native_profile "llvm-linux-x86_64";
+    native_toolchain "clang";
+}

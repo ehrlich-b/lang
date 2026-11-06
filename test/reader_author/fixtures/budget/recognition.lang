@@ -1,0 +1,41 @@
+include "std/parser_reader.lang"
+#parser{
+    ambiguous = '(' ambiguous ')' | '(' ambiguous ']' | number
+    chain = number chain?
+    flat = number*
+}
+func budget_arg(argv **u8, index i64) *u8 {
+    var bytes *u8 = argv;
+    var slot **u8 = bytes + index * 8;
+    return *slot;
+}
+func budget_decimal(text *u8) i64 {
+    var n i64 = 0;
+    while *text != 0 { n = n * 10 + *text - 48; text = text + 1; }
+    return n;
+}
+func main(argc i64, argv **u8) i64 {
+    if argc != 7 { return 64; }
+    var path *u8 = budget_arg(argv, 2);
+    phase_recognition_source = path;
+    phase_recognition_work = budget_decimal(budget_arg(argv, 3));
+    phase_recognition_depth = budget_decimal(budget_arg(argv, 4));
+    tok_parser_instrumentation = budget_decimal(budget_arg(argv, 5));
+    var text *u8 = phase_read_file(path);
+    var t *Tokenizer = tok_new(text);
+    var result *PNode = nil;
+    var repeat i64 = budget_decimal(budget_arg(argv, 6));
+    var i i64 = 0;
+    while i < repeat {
+        tok_reset(t, 0);
+        if streq(budget_arg(argv, 1), "ambiguous") { result = parse_ambiguous(t); }
+        else if streq(budget_arg(argv, 1), "flat") { result = parse_flat(t); }
+        else { result = parse_chain(t); }
+        if result == nil || !tok_expect_end(t) { tok_print_error(t, "budget"); return 1; }
+        if t.parser_depth != 0 { return 2; }
+        i = i + 1;
+    }
+    print_i64(t.parser_work); print(" "); print_i64(t.parser_peak);
+    print(" "); print_i64(tok_start_offset(t)); println("");
+    return 0;
+}

@@ -120,6 +120,7 @@ func standalone_emit(input_files *u8, output_file *u8, use_llvm i64) i64 {
         }
 
         // Transform through reader → S-expression AST
+        phase_recognition_source = arg;
         var ast *u8 = standalone_transform(content, arg);
         if reader_host_errors != 0 { return 1; }
         if ast == nil {

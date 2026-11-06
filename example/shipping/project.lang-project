@@ -1,5 +1,7 @@
 project {
     version 1;
+    parser_work 1000000;
+    parser_depth 128;
     reader_source "shipping.lang";
     reader_name "shipping";
     source_suffix ".shipping";

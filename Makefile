@@ -483,6 +483,9 @@ verify:
 else ifeq ($(VERIFY_CASE),shipping-client)
 verify:
 	python3 -B test/reader_author/interop.py --case shipping-client
+else ifeq ($(VERIFY_CASE),bounded)
+verify:
+	python3 -B test/reader_author/parser_budget.py --case bounded
 else ifeq ($(VERIFY_CASE),manifest)
 verify:
 	python3 -B test/reader_author/project.py --case manifest
