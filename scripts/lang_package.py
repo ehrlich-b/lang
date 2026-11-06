@@ -121,7 +121,8 @@ def main():
             'Keep the system ELF loader and the shared libraries recorded in receipt.json available.\n'
             'IR needs this host ABI and Python 3 for verification; it needs no Clang or source tree.\n'
             'Native mode additionally needs an explicitly selected Clang and its system linker,\n'
-            'libc development objects and headers for the same host profile. Native uses -O0.\n'
+            'libc development objects and headers for the same host profile; ld must be on PATH.\n'
+            'Native uses -O0.\n'
             'The receipt records observed tool/library versions and hashes, not a compatibility guarantee.\n'
             'This is trusted native frontend code, not a sandbox. Nothing installs or publishes.\n\n'
             'From the extracted kit directory, with a fresh output directory beside it:\n\n```sh\n'
@@ -153,6 +154,8 @@ def main():
         # Recheck the compiler receipt, including its source inventory, after minting.
         run([sys.executable, ROOT / 'scripts/build_receipt.py', 'check',
              '--input', build_receipt, '--compiler', compiler], ROOT)
+        write(kit / 'receipt.json', receipt)
+        verify(kit)
         with args.output.open('xb') as target:
             with tarfile.open(fileobj=target, mode='w:gz') as archive:
                 archive.add(kit, arcname='kit')
