@@ -1,0 +1,5 @@
+include "example/shipping/runtime.lang"
+
+func main(argc i64, argv **u8) i64 {
+    return shipping_print(client_fee(shipping_total(argc, argv)));
+}

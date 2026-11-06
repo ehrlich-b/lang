@@ -1,0 +1,11 @@
+include "std/reader_exports.lang"
+
+// Project exports: signed whole-unit i64 values copied in and out. No pointers,
+// allocation, retained argument, cleanup, tag bits or ownership transfer.
+func shipping_exports() *u8 {
+    var parameters *u8 = vec_new(1);
+    vec_push(parameters, reader_i64_value());
+    var exports *u8 = vec_new(1);
+    vec_push(exports, reader_export("shipping_cost", parameters, reader_i64_value()));
+    return exports;
+}

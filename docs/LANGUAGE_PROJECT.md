@@ -71,6 +71,11 @@ claim. Reader artifact caching still includes compiler identity through the
 existing compiler-host path. Two projects can declare the same reader name;
 their source paths and bytes distinguish their inputs.
 
+For composing the shipping function with a second reader, see
+[project export signatures](READER_EXPORTS.md). The frontend-owned catalog
+describes representations and ownership; sharing native storage alone does not
+make an export compatible.
+
 `read` and `compiler` deliberately execute trusted native frontend code. For
 version 1, backend `llvm`, profile `llvm-linux-x86_64` and toolchain `clang` are
 the only supported combination. Conflicting `LANGBE`/`LANGOS` selections fail;

@@ -1,0 +1,2 @@
+extern private_shipping ( total -- fee ) ;
+: client_fee ( total -- fee ) private_shipping ;

@@ -1,0 +1,97 @@
+// Frontend-owned native export contracts. These are erased before core lowering.
+include "std/ast.lang"
+
+struct ReaderScalar {
+    core_type *u8;
+    representation *u8;
+    ownership *u8;
+}
+
+struct ReaderExport {
+    version i64;
+    abi *u8;
+    symbol *u8;
+    parameters *u8;
+    result *ReaderScalar;
+}
+
+func reader_scalar(core_type *u8, representation *u8, ownership *u8) *ReaderScalar {
+    var scalar *ReaderScalar = alloc(24);
+    scalar.core_type = core_type;
+    scalar.representation = representation;
+    scalar.ownership = ownership;
+    return scalar;
+}
+
+func reader_i64_value() *ReaderScalar {
+    return reader_scalar("i64", "signed-i64", "value");
+}
+
+func reader_export(symbol *u8, parameters *u8, result *ReaderScalar) *ReaderExport {
+    var signature *ReaderExport = alloc(40);
+    signature.version = 1;
+    signature.abi = "lang-native-v1";
+    signature.symbol = symbol;
+    signature.parameters = parameters;
+    signature.result = result;
+    return signature;
+}
+
+func reader_export_find(exports *u8, symbol *u8) *ReaderExport {
+    var i i64 = 0;
+    while i < vec_len(exports) {
+        var signature *ReaderExport = vec_get(exports, i);
+        if streq(signature.symbol, symbol) { return signature; }
+        i = i + 1;
+    }
+    return nil;
+}
+
+func reader_scalar_mismatch(actual *ReaderScalar, expected *ReaderScalar) *u8 {
+    if !streq(actual.core_type, expected.core_type) { return "core type mismatch"; }
+    if !streq(actual.representation, expected.representation) {
+        return str_concat("representation mismatch; expected ",
+            str_concat(expected.representation, str_concat(", got ", actual.representation)));
+    }
+    if !streq(actual.ownership, expected.ownership) { return "ownership mismatch"; }
+    return nil;
+}
+
+// A nil result means a direct call is compatible, not that an adapter exists.
+func reader_export_mismatch(actual *ReaderExport, expected *ReaderExport) *u8 {
+    if actual == nil { return "missing export"; }
+    if actual.version != 1 || expected.version != 1 { return "unsupported export version"; }
+    if !streq(actual.abi, expected.abi) { return "native ABI mismatch"; }
+    if !streq(actual.symbol, expected.symbol) { return "symbol mismatch"; }
+    if vec_len(actual.parameters) != vec_len(expected.parameters) { return "parameter count mismatch"; }
+    var i i64 = 0;
+    while i < vec_len(actual.parameters) {
+        var message *u8 = reader_scalar_mismatch(vec_get(actual.parameters, i), vec_get(expected.parameters, i));
+        if message != nil { return str_concat("parameter ", message); }
+        i = i + 1;
+    }
+    var message *u8 = reader_scalar_mismatch(actual.result, expected.result);
+    if message != nil { return str_concat("result ", message); }
+    return nil;
+}
+
+// Build the definition from the same signature that consumers inspect: no
+// separately handwritten core parameter/result types can drift from it.
+// This first profile supports scalar i64 storage only; tags remain meaningful
+// metadata even when their storage is also i64. The author supplies semantics.
+func reader_export_func(signature *ReaderExport, names *u8, body *u8) *u8 {
+    if signature.version != 1 || !streq(signature.abi, "lang-native-v1") ||
+       vec_len(names) != vec_len(signature.parameters) {
+        eprintln("invalid native export definition"); exit(1);
+    }
+    var parameters *u8 = ast_vec();
+    var i i64 = 0;
+    while i < vec_len(names) {
+        var scalar *ReaderScalar = vec_get(signature.parameters, i);
+        if !streq(scalar.core_type, "i64") { eprintln("unsupported export core type"); exit(1); }
+        ast_push(parameters, ast_param(vec_get(names, i), ast_type(scalar.core_type)));
+        i = i + 1;
+    }
+    if !streq(signature.result.core_type, "i64") { eprintln("unsupported export core type"); exit(1); }
+    return ast_func(signature.symbol, parameters, ast_type(signature.result.core_type), body);
+}
