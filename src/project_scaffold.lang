@@ -28,11 +28,33 @@ func scaffold_shell_quote(text *u8) void {
     print("'");
 }
 
+// Every name introduced by the project templates, including #parser helpers
+// and target-runtime functions, must be safe in the shared symbol namespace.
+func scaffold_project_symbols(name *u8) *u8 {
+    var symbols *u8 = vec_new(10);
+    vec_push(symbols, name);
+    vec_push(symbols, str_concat(name, "_number"));
+    vec_push(symbols, str_concat(name, "_check"));
+    vec_push(symbols, str_concat(name, "Policy"));
+    vec_push(symbols, str_concat(name, "_total"));
+    vec_push(symbols, str_concat(name, "_print"));
+    vec_push(symbols, str_concat(name, "_cost"));
+    var parser_prefix *u8 = str_concat("parse_", name);
+    vec_push(symbols, str_concat(parser_prefix, "_policy"));
+    vec_push(symbols, str_concat(parser_prefix, "_setting"));
+    vec_push(symbols, str_concat(parser_prefix, "_value"));
+    return symbols;
+}
+
 // Readers share symbols with their toolkit and standalone compiler. Inspect
 // those declarations before reserving a destination, without running a reader.
 func scaffold_project_reserved(name *u8) i64 {
-    if streq(name, "reader_transform") || streq(name, "reader_runtime_ast") ||
-       streq(name, "reader_compiler_name") || streq(name, "___main") { return 1; }
+    var symbols *u8 = scaffold_project_symbols(name);
+    var reserved *u8 = map_new();
+    map_set(reserved, "reader_transform", 1);
+    map_set(reserved, "reader_runtime_ast", 1);
+    map_set(reserved, "reader_compiler_name", 1);
+    map_set(reserved, "___main", 1);
     expand_included_map = map_new();
     expand_collected_decls = vec_new(256);
     emit_exe_ast_mode = 1;
@@ -55,8 +77,15 @@ func scaffold_project_reserved(name *u8) i64 {
             symbol = var_decl_name(decl); len = var_decl_name_len(decl);
         } else if node_kind(decl) == NODE_READER_DECL {
             symbol = reader_decl_name(decl); len = reader_decl_name_len(decl);
+        } else if node_kind(decl) == NODE_STRUCT_DECL {
+            symbol = struct_decl_name(decl); len = struct_decl_name_len(decl);
         }
-        if symbol != nil && streq(name, str_dup_n(symbol, len)) { return 1; }
+        if symbol != nil { map_set(reserved, str_dup_n(symbol, len), 1); }
+        i = i + 1;
+    }
+    i = 0;
+    while i < vec_len(symbols) {
+        if map_has(reserved, vec_get(symbols, i)) { return 1; }
         i = i + 1;
     }
     return 0;

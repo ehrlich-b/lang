@@ -21,7 +21,9 @@ to emit LLVM. Clang links that LLVM into the program.
 The checker writes its LLVM and executable outputs under `build/`, keeping
 guest sources intact even when the language is named `ll`.
 Names must contain only identifier characters and must not conflict with
-compiler or reader toolkit symbols, such as `main` or `print`.
+compiler or reader toolkit symbols, such as `main` or `print`. Generated helper
+names must also be free: `tok`, `parse`, and `scan` are refused because their
+helpers would conflict with `tok_number`, `parse_check`, and `scan_number`.
 
 After changing grammar, semantic checks, or the runtime, rerun `project check`,
 `project read`, `project compiler`, and `python3 check.py ./@NAME@c` using the
