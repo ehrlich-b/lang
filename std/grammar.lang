@@ -118,7 +118,7 @@ func gp_new(text *u8) *GrammarParser {
 func gp_fail(gp *GrammarParser, expected *u8) void {
     if gp.failed != 0 { return; }
     tok_note_expected(gp.t, expected);
-    tok_print_error(gp.t, "#parser");
+    tok_print_error(gp.t, "parser");
     gp.failed = 1;
 }
 

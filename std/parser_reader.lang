@@ -101,7 +101,8 @@
 //
 // GROUPING:
 //   item = (number | symbol)+   // parentheses for grouping
-//   Missing delimiters/elements are reported as #parser:line:column errors.
+//   Missing delimiters/elements use the parser reader source key; invoking
+//   hosts map it to the original guest file and its line/byte column.
 //
 // ============================================================
 // GENERATED CODE

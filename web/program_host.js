@@ -445,7 +445,7 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContext) {
       diagnostics = [{ version: 1, code: 'reader-diagnostic-invalid', severity: 'error',
         path: readerContext.path, source_id: readerContext.sourceId, span: null,
         message: 'invalid reader diagnostic', category: 'reader', origin_chain: readerContext.originChain || [] }];
-      stderr = `${readerContext.path}: invalid reader diagnostic\n`;
+      stderr += `${readerContext.path}: invalid reader diagnostic\n`;
     }
     if (diagnostics.length) { value = 0n; exit = 1; }
   }

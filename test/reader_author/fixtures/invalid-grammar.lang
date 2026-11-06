@@ -1,0 +1,4 @@
+include "std/parser_reader.lang"
+#parser{
+    thing = missing
+}

@@ -360,6 +360,17 @@ func main(argc i64, argv **u8) i64 {
         require(ir['code'] == 'shipping-duplicate' and ir['span']['start'] == raw.rindex(b'base') and
                 raw[ir['span']['start']:ir['span']['end']] == b'base', 'inline invocation bytes not mapped to file')
 
+        grammar_path = 'test/reader_author/fixtures/invalid-grammar.lang'
+        grammar = replay.run([str(compiler), grammar_path, '--diagnostics=json',
+                              '-o', str(scratch / 'invalid-grammar.ll')], 'grammar-source-key', clone, expected=1)
+        gd = json.loads(grammar.stderr.splitlines()[0])
+        raw = (clone / grammar_path).read_bytes()
+        require(gd['code'] == 'reader-syntax' and gd['path'] == grammar_path and
+                gd['category'] == 'guest' and raw[gd['span']['start']:gd['span']['end']] == b'missing',
+                'grammar diagnostic lost its registered source key or guest bytes')
+        require('expected defined rule, found missing' in gd['message'], 'grammar explanation lost')
+        require(not grammar.stdout and not (scratch / 'invalid-grammar.ll').exists(), 'bad grammar accepted')
+
         # Minted compilers use the same host mapping and JSON format.
         minted = scratch / 'shippingc'
         replay.run([str(compiler), 'compiler', 'shipping', shipping, '-o', str(minted)], 'mint', clone)

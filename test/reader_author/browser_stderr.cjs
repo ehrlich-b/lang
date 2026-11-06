@@ -17,8 +17,9 @@ const { runLangProgram } = require('../../web/program_host.js');
       assert.equal(result.exit, 1);
       assert.equal(result.diagnostics.length, 1);
       assert.equal(result.diagnostics[0].code, text === 'mixed-stderr' ? 'mixed-error' : 'reader-diagnostic-invalid');
-      if (text === 'mixed-stderr') assert.equal(result.stderr,
-        'debug before é\n/guest/input.broken: guest failure\ndebug after é\n');
+      assert.equal(result.stderr, text === 'mixed-stderr'
+        ? 'debug before é\n/guest/input.broken: guest failure\ndebug after é\n'
+        : 'debug before é\n/guest/input.broken: invalid reader diagnostic\n');
     }
   }
   console.log('PASS browser plain and mixed stderr, legacy errors, malformed records');

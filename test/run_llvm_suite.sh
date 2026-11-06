@@ -997,7 +997,7 @@ MISSING_READER
         >missing.out 2>missing.err) || ok=0
     grep -Fq "reader lowering error: required grammar capture 'typo' is absent" \
         "$tmp/missing.err" || ok=0
-    grep -Fq "answer.missing:1:1: error: reader 'missing' exited with status 1" \
+    grep -Fxq "answer.missing: error: reader 'missing' exited with status 1" \
         "$tmp/missing.err" || ok=0
     ! grep -Fq 'compilation failed' "$tmp/missing.err" || ok=0
 
@@ -1255,7 +1255,7 @@ BAD_GRAMMAR
         LANG_ROOT="$REPO_ROOT" LANG_CACHE="$tmp/cache-$case_name" LANGBE=llvm \
             "$compiler_path" "$tmp/$case_name.lang" -o "$tmp/$case_name.ll" \
             >"$tmp/$case_name.out" 2>"$tmp/$case_name.err" && ok=0
-        grep -Eq '#parser:[0-9]+:[0-9]+:' "$tmp/$case_name.err" || ok=0
+        grep -F "$tmp/$case_name.lang:" "$tmp/$case_name.err" | grep -Eq ':[0-9]+:[0-9]+:' || ok=0
         grep -Fq "$expected" "$tmp/$case_name.err" || ok=0
         test ! -e "$tmp/$case_name.ll" || ok=0
     done
