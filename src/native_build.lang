@@ -56,15 +56,6 @@ func native_build_phase_run(stage i64, project *LanguageProject, source *u8,
 }
 
 // Optional machine timings are emitted by the parent of each completed phase.
-extern func clock_gettime(clock i64, value *u8) i64;
-func native_build_nanoseconds() i64 {
-    var stamp *u8 = alloc(16);
-    if clock_gettime(1, stamp) != 0 { return 0; }
-    var seconds *i64 = stamp;
-    var nanos *i64 = stamp + 8;
-    return *seconds * 1000000000 + *nanos;
-}
-
 func native_build_phase(stage i64, project *LanguageProject, source *u8,
                         work *u8) i64 {
     var start i64 = native_build_nanoseconds();

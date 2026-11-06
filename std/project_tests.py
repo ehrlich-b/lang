@@ -160,7 +160,8 @@ def main():
                     require(code == 1 and b'native build reader failed' in stderr and not output.exists(),
                             'expected reader rejection with exit 1')
                     diag = case['diagnostic']
-                    pattern = (r'^' + re.escape(diag['label']) + r':(\d+):(\d+): (.*)$').encode()
+                    require(Path(source).suffix == '.' + diag['label'], 'diagnostic label does not match source')
+                    pattern = (r'^(?:' + re.escape(diag['label']) + '|' + re.escape(source) + r'):(\d+):(\d+): (.*)$').encode()
                     diagnostics = [{'label': diag['label'], 'line': int(line), 'column': int(column),
                                     'message': message.decode(errors='replace')}
                                    for line, column, message in re.findall(pattern, stderr, re.M)]

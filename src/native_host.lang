@@ -5,6 +5,23 @@ extern func realpath(path *u8, resolved *u8) *u8;
 extern func lstat(path *u8, buffer *u8) i64;
 extern func fcntl(fd i64, command i64, value i64) i64;
 
+extern func clock_gettime(clock i64, value *u8) i64;
+func native_build_nanoseconds() i64 {
+    var stamp *u8 = alloc(16);
+    if clock_gettime(1, stamp) != 0 { return 0; }
+    var seconds *i64 = stamp;
+    var nanos *i64 = stamp + 8;
+    return *seconds * 1000000000 + *nanos;
+}
+
+func native_build_record_timing(stage i64, start i64, result i64) void {
+    var enabled *u8 = getenv("LANG_TEST_TIMINGS");
+    if enabled != nil && streq(enabled, "1") {
+        eprint("Native phase "); eprint_i64(stage); eprint(" nanoseconds ");
+        eprint_i64(native_build_nanoseconds() - start); eprint(" exit "); eprint_i64(result); eprintln("");
+    }
+}
+
 func native_build_wait(pid i64, stage *u8) i64 {
     var result i64 = 1;
     if pid > 0 {
@@ -91,12 +108,16 @@ func native_build_link(work *u8, source *u8, toolchain *u8) i64 {
         eprintln("Error: native build toolchain: clang not found in PATH"); return 127;
     }
     eprint("Native build: profile=llvm-linux-x86_64 optimization=-O0 toolchain="); eprintln(tool);
+    var started i64 = native_build_nanoseconds();
     var result i64 = native_build_tool(tool, "-O0", "-c", str_concat(work, "/guest.ll"), "-o", str_concat(work, "/guest.o"));
+    native_build_record_timing(3, started, result);
     if result < 0 { native_build_source_error(source, "toolchain"); return 0 - result; }
     if result != 0 {
         native_build_source_error(source, "optimizer/object compilation"); return result;
     }
+    started = native_build_nanoseconds();
     result = native_build_tool(tool, str_concat(work, "/guest.o"), "-o", str_concat(work, "/program"), nil, nil);
+    native_build_record_timing(4, started, result);
     if result < 0 { native_build_source_error(source, "toolchain"); return 0 - result; }
     if result != 0 { native_build_source_error(source, "linker"); }
     return result;
