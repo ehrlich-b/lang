@@ -1810,6 +1810,10 @@ func main_dispatch(argc i64, argv **u8) i64 {
         append_str(&source_buf, &source_len, &source_cap, gen_compiler);
         append_str(&source_buf, &source_len, &source_cap, "\";\n");
 
+        append_str(&source_buf, &source_len, &source_cap, "var reader_build_arch *u8 = \"");
+        append_str(&source_buf, &source_len, &source_cap, LANG_BUILD_ARCH);
+        append_str(&source_buf, &source_len, &source_cap, "\";\n");
+
         // 2. Generate glue function that calls the reader directly
         append_str(&source_buf, &source_len, &source_cap, "func reader_transform(t *u8) *u8 { return ");
         append_str(&source_buf, &source_len, &source_cap, gen_compiler);

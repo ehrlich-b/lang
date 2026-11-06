@@ -455,7 +455,10 @@ bootstrap-verify: generate-os-layer generate-version-info
 	python3 scripts/build_receipt.py finish --input out/verify-input.json --compiler $(BOOTSTRAP_VERIFY_DIR)/kernel2 --output out/verify-receipt.json --artifact $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll --artifact $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll --artifact $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast --artifact $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
 
 # Non-promoting verification alias; never archives, installs or updates the seed.
-ifeq ($(VERIFY_CASE),native-shipping)
+ifeq ($(VERIFY_CASE),standalone-native)
+verify:
+	python3 -B test/reader_author/standalone.py --case native
+else ifeq ($(VERIFY_CASE),native-shipping)
 verify:
 	python3 -B test/reader_author/native_build.py --case shipping
 else ifeq ($(VERIFY_CASE),project)

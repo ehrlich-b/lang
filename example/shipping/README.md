@@ -85,3 +85,17 @@ Those times measure machine work, not human authoring time. The runner limits
 itself and children to two CPUs, JOBS=2 and a 2 GiB address-space ceiling.
 For the fragment gate, run `env JOBS=2 make verify VERIFY_CASE=shipping`;
 plain `make verify` retains the integration suites and fixed-point checks.
+
+To finish with a native program directly from the minted compiler, run outside
+the repository with the compiler and guest source:
+
+```bash
+./shippingc policy.shipping --emit=native -o shipping
+./shipping 99
+./shipping 100
+```
+
+These print `10` and `0`. Native emission needs Clang and its system linker;
+`--emit=llvm` and the original default IR mode still work without either tool.
+Replay this path with `python3 -B test/reader_author/standalone.py --case native`.
+Use `env JOBS=2 make verify VERIFY_CASE=standalone-native` for this fragment gate.

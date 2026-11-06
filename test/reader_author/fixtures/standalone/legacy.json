@@ -1,0 +1,12 @@
+{
+  "base": "74c0af702c6065170621a53487834b2336d522b7",
+  "standalone_sha256": "06841787e462a16f1f2844d0c4dc0bfd8b279c84874685dc9ef53b12a6ed4c4d",
+  "llvm_sha256": "99bceed4202aeb45b1d859b2bf6e60a806e924e0f1559b048e55853f96dd6c26",
+  "clang": {
+    "path": "/usr/bin/clang",
+    "sha256": "0a3c55936ac43954fbe4914e6e73b577ca9e35e75d89ef13d3e28c187f41ca1a"
+  },
+  "guest": "example/shipping/policy.shipping",
+  "runtime": "example/shipping/runtime.lang",
+  "command": "legacyc valid.ship -o legacy.ll (LANGBE=llvm LANGOS=linux PATH=/nonexistent)"
+}
