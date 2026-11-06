@@ -112,10 +112,16 @@ def main():
         dump(evidence / 'models.json', models)
         policy.write_bytes(source)
 
+        def retain_reader(name):
+            path = evidence / (name + '.lang')
+            shutil.copyfile(shipping, path)
+            dump(evidence / (name + '.sha256.json'), {path.name: sha(path)})
+
         # No lowering inversion: a recipe still works when lowering cannot run.
         require(original.count('return ast_program(decls);') == 1, 'ambiguous lowering mutation')
         shipping.write_text(original.replace('return ast_program(decls);',
             'pnode_print_error(tree, text, "shipping", "deliberate lowering error"); return nil;'))
+        retain_reader('lowering-error-reader')
         exact(format_source('independent-of-lowering'), source)
         result = replay.run([compiler, 'project', 'read', str(project)],
                             'prove-lowering-fails', clone, expected=1)
@@ -124,6 +130,7 @@ def main():
 
         # Grammar access is checked, rather than using positional children.
         shipping.write_text(original.replace('value:shipping_value', 'amount:shipping_value'))
+        retain_reader('renamed-capture-reader')
         result = format_source('capture-contract', expected=1)
         require(not result.stdout and b"rule 'shipping_setting', capture 'value'" in result.stderr,
                 'recipe bypassed capture contract')
@@ -136,6 +143,8 @@ def main():
         (custom / 'policy.same').write_text('ignored')
         (custom / 'same.lang').write_text('include "std/ast.lang"\n'
             'reader same(text *u8) *u8 { return ast_main_i64(ast_int(42)); }\n')
+        shutil.copytree(custom, evidence / 'unsupported-reader-inputs')
+        dump(evidence / 'unsupported-reader.sha256.json', {p.name: sha(p) for p in custom.iterdir()})
         result = format_source('unsupported-reader', expected=1, manifest=custom / 'project.lang-project')
         require(not result.stdout and b'unsupported format' in result.stderr, 'reader AST printed as guest syntax')
 
@@ -170,6 +179,7 @@ def main():
         # The trivia policy follows the tokenizer the reader actually supplied.
         shipping.write_text(original.replace('tok_new(text)', 'tok_new_comments(text, "#", nil, nil)'))
         policy.write_bytes(b'# configured by reader\n' + source)
+        retain_reader('custom-trivia-reader')
         result = format_source('custom-trivia', expected=1)
         require(not result.stdout and b'unsupported-trivia' in result.stderr, 'custom trivia silently discarded')
         shipping.write_text(original); policy.write_bytes(source)

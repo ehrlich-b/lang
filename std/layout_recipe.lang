@@ -1,5 +1,7 @@
 // Opt-in CST source layout. Readers choose literals, fields and indentation;
 // this module never visits shared AST nodes or guesses a surface grammar.
+include "std/tok.lang"
+include "std/pnode.lang"
 include "std/emit.lang"
 include "std/reader_request.lang"
 
