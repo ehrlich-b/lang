@@ -104,7 +104,20 @@ def main():
         path = scratch / 'absent-notice.json'
         dump(path, bad)
         package(path, scratch / 'absent-notice.tar.gz', 'absent-notice', 1)
+        # An explicit Clang distinct from PATH must mint the compiler as well
+        # as build the example. The PATH trap catches an unrecorded fallback.
+        selected_clang = clone / 'test/reader_author/fixtures/package/record_clang.py'
+        clang_log = evidence / 'selected-clang.jsonl'
+        trap_bin = scratch / 'path-tools'
+        trap_bin.mkdir()
+        (trap_bin / 'clang').symlink_to(selected_clang)
+        original_path = replay.env['PATH']
+        replay.env.update(LANG_CLANG=str(selected_clang), PACKAGE_CLANG_LOG=str(clang_log),
+                          PACKAGE_REAL_CLANG=tools['clang']['path'],
+                          PATH=str(trap_bin) + os.pathsep + original_path)
         package(metadata, archive, 'package')
+        replay.env['PATH'] = original_path
+        replay.env.pop('LANG_CLANG')
         unpacked = scratch / 'relocated directory with spaces'
         unpacked.mkdir()
         with tarfile.open(archive) as bundle:
@@ -115,6 +128,17 @@ def main():
         kit = unpacked / 'kit'
         receipt = json.loads((kit / 'receipt.json').read_text())
         shutil.copyfile(kit / 'receipt.json', evidence / 'dependency-receipt.json')
+        require(receipt['tools']['clang'] == dict(path=str(selected_clang), sha256=sha(selected_clang)),
+                'receipt does not identify the selected Clang')
+        invocations = [json.loads(line) for line in clang_log.read_text().splitlines()]
+        require(all(row['tool'] == str(selected_clang) for row in invocations),
+                'packaging invoked an unrecorded PATH Clang')
+        mint = [row['arguments'] for row in invocations if '-O2' in row['arguments']]
+        require(len(mint) == 1 and '-ffunction-sections' in mint[0] and
+                mint[0][-2] == '-o' and
+                mint[0][-1].endswith('/kit/bin/compiler'), 'selected Clang did not mint the compiler')
+        require(any('-O0' in row['arguments'] and '-c' in row['arguments'] for row in invocations),
+                'selected Clang did not compile the native example')
         require(receipt['compiler_build']['source']['revision'] == head, 'receipt names another candidate')
         for input_path in (project, shipping / 'shipping.lang', shipping / 'runtime.lang',
                            shipping / 'policy.shipping', clone / 'std/core.lang', clone / 'std/os/libc.lang'):
