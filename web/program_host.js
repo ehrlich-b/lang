@@ -284,7 +284,10 @@ function decodeReaderDiagnostics(data, context) {
     const code = decoder.decode(data.subarray(pos, pos += codeLen));
     const key = decoder.decode(data.subarray(pos, pos += keyLen));
     const message = decoder.decode(data.subarray(pos, pos += messageLen));
-    if (key !== context.key || [code, key, message].some(s => s.includes('\0'))) {
+    // The caller grants the reader name and this input's display path to the
+    // same immutable snapshot, including readers that already use that path.
+    if ((key !== context.key && key !== context.path) ||
+        [code, key, message].some(s => s.includes('\0'))) {
       throw new Error('invalid reader diagnostic');
     }
     records.push({ version: 1, code, message, severity: 'error', path: context.path,

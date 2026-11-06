@@ -63,7 +63,7 @@ const { runLangProgram, formatLangAst } = require('../../web/program_host.js');
   const source = '// café\r\nanswer nope';
   element('custom-source').value = source;
   await element('compile').onclick();
-  assert.match(element('output').textContent, /:2:8: expected number, found nope @17:21/);
+  assert.equal(element('output').textContent, 'source.read:2:8: expected number, found nope @17:21\n');
   assert.doesNotMatch(element('output').textContent, /invalid reader diagnostic/);
   assert.equal(element('jump-error').hidden, false);
   assert.deepEqual(element('custom-source').selection, [16, 20]);

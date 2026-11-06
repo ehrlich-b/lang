@@ -81,7 +81,7 @@ reader read(text *u8) *u8 {
     var complete bool = false;
     if tree != nil { complete = tok_expect_end(tokens); }
     if !complete {
-        tok_print_error(tokens, "read"); return nil;
+        tok_print_error(tokens, "source.read"); return nil;
     }
     var value *PNode = pnode_require(tree, "value");
     if value == nil { return nil; }
