@@ -4,6 +4,7 @@ include "std/tok.lang"
 include "src/lexer.lang"
 include "src/parser.lang"
 include "src/ast_emit.lang"
+include "src/include_parse.lang"
 
 func rill_word(tok *u8, word *u8) bool {
     return str_eq_n(tok_lexeme(tok), tok_lexeme_len(tok), word, strlen(word));
@@ -47,7 +48,7 @@ func rill_error(tok *u8, message *u8) void {
     eprint_i64(tok_col(tok)); eprint(": error: "); eprintln(message);
 }
 
-reader rill(text *u8) *u8 {
+func rill_parse_source(text *u8, name *u8) *u8 {
     // Entry-block storage also keeps unoptimized readers bounded on bundles.
     var tok *u8 = nil;
     var kind i64 = 0;
@@ -60,7 +61,7 @@ reader rill(text *u8) *u8 {
     }
     if !tok_expect_end(comments) { tok_print_error(comments, "rill"); return nil; }
 
-    parser_set_source_name("rill");
+    parser_set_source_name(name);
     parser_tokenize(text);
     var i i64 = 0;
     while i < parser_token_count() {
@@ -80,5 +81,105 @@ reader rill(text *u8) *u8 {
     // columns and the registered source snapshot all refer to the input.
     var prog *u8 = parse_program();
     if parse_error_count > 0 { return nil; }
+    return prog;
+}
+
+// A source package contains ordinary Rill modules, not serialized compiler AST.
+// Collect all slices before parsing any: the shared parser owns one token stream.
+func rill_package_dependencies(prog *u8, names *u8) bool {
+    if prog == nil { return false; }
+    var i i64 = 0;
+    var decl *u8 = nil;
+    var path *u8 = nil;
+    while i < program_decl_count(prog) {
+        decl = get_decl(program_decls(prog), i);
+        path = nil;
+        if node_kind(decl) == NODE_INCLUDE_DECL {
+            path = str_dup_n(include_decl_path(decl), include_decl_path_len(decl));
+        }
+        if node_kind(decl) == NODE_REQUIRE_DECL {
+            path = str_concat(str_dup_n(require_decl_module(decl), require_decl_module_len(decl)), ".lang");
+        }
+        if path != nil && !map_has(names, path) {
+            eprint("rill: missing package dependency: "); eprintln(path); return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+func rill_parse_package(text *u8) *u8 {
+    // The entry reader already tokenized the package for dispatch.
+    var names *u8 = vec_new(16);
+    var texts *u8 = vec_new(16);
+    var seen *u8 = map_new();
+    var entry *u8 = nil;
+    var i i64 = 2;
+    var tok *u8 = nil;
+    var name *u8 = nil;
+    var begin *u8 = nil;
+    var body *u8 = nil;
+    var depth i64 = 0;
+    var is_entry bool = false;
+    if tok_type(get_token(1)) != TOKEN_LBRACE { rill_error(get_token(1), "expected package '{'"); return nil; }
+    while i < parser_token_count() && tok_type(get_token(i)) != TOKEN_RBRACE {
+        tok = get_token(i);
+        is_entry = rill_word(tok, "entry");
+        name = nil;
+        if is_entry {
+            if entry != nil { rill_error(tok, "duplicate package entry"); return nil; }
+            i = i + 1;
+        } else {
+            if !rill_word(tok, "source") { rill_error(tok, "expected package source or entry"); return nil; }
+            i = i + 1;
+            tok = get_token(i);
+            if tok_type(tok) != TOKEN_STRING { rill_error(tok, "expected source name"); return nil; }
+            name = str_dup_n(tok_lexeme(tok) + 1, tok_lexeme_len(tok) - 2);
+            if map_has(seen, name) { rill_error(tok, "duplicate package source"); return nil; }
+            map_set(seen, name, 1);
+            i = i + 1;
+        }
+        tok = get_token(i);
+        if tok_type(tok) != TOKEN_LBRACE { rill_error(tok, "expected source '{'"); return nil; }
+        begin = tok_lexeme(tok) + 1;
+        depth = 1;
+        i = i + 1;
+        while i < parser_token_count() && depth > 0 {
+            tok = get_token(i);
+            if tok_type(tok) == TOKEN_LBRACE { depth = depth + 1; }
+            if tok_type(tok) == TOKEN_RBRACE { depth = depth - 1; }
+            if depth > 0 { i = i + 1; }
+        }
+        if depth != 0 { rill_error(tok, "unclosed package source"); return nil; }
+        body = str_dup_n(begin, tok_lexeme(tok) - begin);
+        if is_entry { entry = body; }
+        else { vec_push(names, name); vec_push(texts, body); }
+        i = i + 1;
+    }
+    if i + 1 >= parser_token_count() || tok_type(get_token(i + 1)) != TOKEN_EOF || entry == nil {
+        rill_error(get_token(i), "expected package end and entry"); return nil;
+    }
+    i = 0;
+    // Check grammar and closure completeness before publishing source inputs.
+    while i < vec_len(names) {
+        if !rill_package_dependencies(rill_parse_source(vec_get(texts, i), vec_get(names, i)), seen) { return nil; }
+        i = i + 1;
+    }
+    var prog *u8 = rill_parse_source(entry, "rill-entry");
+    if !rill_package_dependencies(prog, seen) { return nil; }
+    i = 0;
+    while i < vec_len(names) {
+        phase_source_provide(vec_get(names, i), vec_get(texts, i), &rill_parse_source);
+        i = i + 1;
+    }
+    return prog;
+}
+
+reader rill(text *u8) *u8 {
+    parser_tokenize(text);
+    var prog *u8 = nil;
+    if parser_token_count() > 1 && rill_word(get_token(0), "package") { prog = rill_parse_package(text); }
+    else { prog = rill_parse_source(text, "rill"); }
+    if prog == nil { return nil; }
     return ast_emit_program_with_origins(prog);
 }

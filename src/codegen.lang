@@ -40,6 +40,7 @@ func resource_open_read(path *u8) i64 {
 }
 
 func resource_file_mtime(path *u8) i64 {
+    if phase_source_input(path) != nil { return 1; }
     var modified i64 = file_mtime(path);
     if modified != 0 { return modified; }
     var fallback *u8 = resource_path(path);
@@ -7372,6 +7373,8 @@ func write_ascii_string(ptr *u8, len i64) void {
 
 func phase_read_resource(path *u8, len i64) *u8 {
     var name *u8 = str_dup_n(path, len);
+    var input *PhaseSourceInput = phase_source_input(name);
+    if input != nil { return input.text; }
     // A compilation and its dependency key consume the same immutable snapshot.
     var snapshot *PhaseSource = phase_source_snapshot(name);
     if snapshot != nil { return snapshot.text; }

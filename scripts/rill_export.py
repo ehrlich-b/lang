@@ -166,15 +166,12 @@ class Exporter:
             visit(name)
         return ordered
 
-    def render(self, name, flatten=False):
+    def render(self, name):
         module = self.modules[name]
-        omitted = {start for dep in module['dependencies'] for start in dep['tokens']} if flatten else set()
         chunks, spans, end = [], [], 0
         for token in module['tokens']:
             value, kind = token.value, 'copy'
-            if token.start in omitted:
-                value, kind = b'', 'dependency'
-            elif token.kind == 'word':
+            if token.kind == 'word':
                 if value in WORDS:
                     value, kind = WORDS[value], 'keyword'
                 elif value in RESERVED or value.startswith(PREFIX):
@@ -200,7 +197,7 @@ class Exporter:
         # Validate the entire closure before creating any output files.
         output = Path(output)
         output.mkdir(parents=True, exist_ok=False)
-        manifest = {'version': 1, 'dialect': 'rill-v2',
+        manifest = {'version': 2, 'dialect': 'rill-v2',
                     'span_columns': ['source_start', 'source_end', 'export_start', 'export_end', 'kind'],
                     'span_unit': 'half-open UTF-8 bytes', 'modules': [], 'closures': {}}
         for name, module in sorted(self.modules.items()):
@@ -215,19 +212,24 @@ class Exporter:
                 'dependencies': module['dependencies'], 'spans': spans})
         for label, roots in sorted(closures.items()):
             order = self.order(roots)
-            chunks, mapping, offset = [], [], 0
+            chunks, mapping = [b'package {\n'], []
+            offset = len(chunks[0])
             for name in order:
-                data, spans = self.render(name, flatten=True)
-                chunks.append(data + b'\n')
+                header = b'source ' + json.dumps(name).encode() + b' {'
+                data, spans = self.render(name)
+                chunks.extend([header, data, b'\n}\n'])
+                offset += len(header)
                 mapping.append({'source': name, 'export_start': offset,
                                 'export_end': offset + len(data), 'spans': spans})
-                offset += len(data) + 1
+                offset += len(data) + 3
+            entry = b''.join(b'use ' + json.dumps(name).encode() + b'\n' for name in roots)
+            chunks.extend([b'entry {\n', entry, b'}\n}\n'])
             data = b''.join(chunks)
             target = label + '.rill'
             (output / target).write_bytes(data)
             manifest['closures'][label] = {'roots': roots, 'order': order, 'export': target,
                 'export_sha256': digest(data), 'export_bytes': len(data), 'modules': mapping,
-                'separator': 'one generated newline after each module'}
+                'packaging': 'package/source/entry; dependency directives retained'}
         (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
         return manifest
 

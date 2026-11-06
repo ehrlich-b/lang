@@ -76,20 +76,24 @@ def validate(pack, source):
             visit(name)
         require(closure['order'] == expected, 'incomplete/noncanonical closure order: ' + label)
         bundle = (pack / closure['export']).read_bytes()
-        offset = 0
+        offset = len(b'package {\n')
+        require(bundle[:offset] == b'package {\n', 'missing package header')
+        require([row['source'] for row in closure['modules']] == expected, 'package module order mismatch')
         for row in closure['modules']:
             original = (source / row['source']).read_bytes()
             module = modules[row['source']]
+            header = b'source ' + json.dumps(row['source']).encode() + b' {'
+            require(bundle[offset:offset + len(header)] == header, 'missing source boundary')
+            offset += len(header)
             require(row['export_start'] == offset, 'bundle gap')
             section = bundle[offset:row['export_end']]
-            omitted = {t for dep in module['dependencies'] for t in dep['tokens']}
+            require(section == (pack / module['export']).read_bytes(), 'package changed module bytes')
+            require(row['spans'] == module['spans'], 'package changed module spans')
             old_end = new_end = 0
             for a, b, c, d, kind in row['spans']:
                 require(a == old_end and c == new_end and a < b, 'bundle span gap')
                 old, new = original[a:b], section[c:d]
-                if kind == 'dependency':
-                    require(a in omitted and not new, 'non-dependency omitted')
-                elif kind == 'copy':
+                if kind == 'copy':
                     require(old == new, 'bundle copy mismatch')
                 elif kind == 'keyword':
                     require(new == WORDS.get(old), 'bundle keyword mismatch')
@@ -97,9 +101,10 @@ def validate(pack, source):
                     require(kind == 'identifier' and new == b'rill__' + old, 'bundle identifier mismatch')
                 old_end, new_end = b, d
             require(old_end == len(original) and new_end == len(section), 'bundle map incomplete')
-            require(bundle[row['export_end']:row['export_end'] + 1] == b'\n', 'missing separator')
-            offset = row['export_end'] + 1
-        require(offset == len(bundle), 'trailing bundle bytes')
+            require(bundle[row['export_end']:row['export_end'] + 3] == b'\n}\n', 'missing source boundary end')
+            offset = row['export_end'] + 3
+        entry = b''.join(b'use ' + json.dumps(name).encode() + b'\n' for name in closure['roots'])
+        require(bundle[offset:] == b'entry {\n' + entry + b'}\n}\n', 'incorrect package roots')
     return manifest, changes
 
 
@@ -158,7 +163,7 @@ def main():
                                        'MAKEFLAGS': '-j2'},
              'assumptions': 'Linux x86-64 LLVM/libc; trusted native reader; generated OS/version '
                  'inputs come from make build; includes/requires identify repository-root paths; '
-                 'dependency bundles deduplicate modules in depth-first source order; '
+                 'source packages retain dependency edges and delegate visibility/deduplication to the host; '
                  'no OS kernel operations, full suites, fixed points, bootstrap promotion or web generation'})
         replay.run(['make', 'init'], 'init', clone)
         replay.run(['make', 'build'], 'build-current-sources', clone)
@@ -202,6 +207,55 @@ def main():
         validate(probe, clone)
         minted = scratch / 'rillc'
         replay.run([compiler, 'compiler', 'rill', 'example/rill/rill.lang', '-o', str(minted)], 'mint-rill-compiler', clone)
+
+        package_rejections = {}
+        for label, source, message in [
+            ('missing-source', 'package { source "entry.lang" { needs "test/registry_index/private"\n'
+             'fun main() i64 { return visible(); } } entry { use "entry.lang" } }', 'missing package dependency'),
+            ('duplicate-source', 'package { source "x.lang" {} source "x.lang" {} entry {} }', 'duplicate package source'),
+            ('unused-unsupported', 'package { source "x.lang" { effect Hidden() i64 } entry {} }', 'unsupported Rill token'),
+            ('unclosed-source', 'package { source "x.lang" {', 'unclosed package source'),
+        ]:
+            fixture = scratch / (label + '.rill')
+            fixture.write_text(source + '\n')
+            # The missing source exists in this cwd; fallback must still fail.
+            result = replay.run([str(minted), str(fixture), '-o', str(scratch / (label + '.ll'))],
+                                'package-reject-' + label, clone, expected=1)
+            require(message.encode() in result.stderr, 'wrong package rejection: ' + label)
+            files['rejected-packages/' + fixture.name] = fixture
+            package_rejections[label] = result.stderr.decode().strip()
+
+        # Differential module-boundary probes, including the private-call failure.
+        visibility = {}
+        for label, visibility_entry, status in [
+            ('private-call', 'test/registry_index/cross_module.lang', 1),
+            ('public-call', 'test/reader_author/fixtures/rill/visibility-public.lang', 0),
+            ('textual-include', 'test/reader_author/fixtures/rill/visibility-include.lang', 0),
+        ]:
+            pack = scratch / label
+            replay.run([sys.executable, '-B', exporter, '--entry', visibility_entry, '--output', str(pack)], label + '-export', clone)
+            validate(pack, clone)
+            files['visibility/' + label + '.rill'] = pack / 'program.rill'
+            for language, tool, input_path in [('lang', compiler, visibility_entry), ('rill', str(minted), str(pack / 'program.rill'))]:
+                ir = scratch / (label + '-' + language + '.ll')
+                # Compile Rill from an empty directory: original dependency files
+                # cannot satisfy a missing source input or conceal a broken package.
+                isolated = scratch / 'isolated'
+                isolated.mkdir(exist_ok=True)
+                cwd = clone if language == 'lang' else isolated
+                result = replay.run([tool, input_path, '-o', str(ir)], label + '-' + language, cwd, expected=status)
+                if status:
+                    require(b"function 'hidden' is not public" in result.stderr, 'lost require visibility diagnostic')
+                else:
+                    binary = scratch / (label + '-' + language)
+                    replay.run(['clang', str(ir), '-o', str(binary)], label + '-' + language + '-link', clone)
+                    expect_output(replay.run([str(binary)], label + '-' + language + '-run', isolated), b'')
+            visibility[label] = {'lang_exit': status, 'rill_exit': status}
+
+        # Exercise the complete compiler source package through registration and
+        # lowering, without running a compiler fixed point or unchanged suite.
+        replay.run([str(minted), str(first / 'compiler.rill'), '-o', str(scratch / 'compiler-package.ll')],
+                   'compile-compiler-package', isolated)
 
         def execute(pack, name, expected):
             ir, binary = scratch / (name + '.ll'), scratch / name
@@ -278,6 +332,9 @@ def main():
         dump(evidence / 'checks.json', {'modules': len(manifest['modules']), 'keyword_identifier_edits': changes,
              'memory_peaks': memory,
              'unchanged_exports_identical': True, 'core_comparisons': comparisons, 'rejections': rejected,
+             'visibility_comparisons': visibility,
+             'package_rejections': package_rejections,
+             'compiler_package_llvm_sha256': sha(scratch / 'compiler-package.ll'),
              'changed_modules': different, 'runtime_stdout_before': '16\n', 'runtime_stdout_after': '17\n',
              'llvm_before_sha256': before_ir, 'llvm_after_sha256': after_ir,
              'remaining_closure_source_blockers': [],
@@ -288,7 +345,7 @@ def main():
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'observations': len(replay.rows)})
         print(f'PASS compiler closure: {len(manifest["modules"])} genuine Rill modules, '
               'hashes/spans, preserved literals/comments, parsed core, deterministic exports, '
-              '16→17 source edit and runtime output, rejection and failing expectations')
+              'module visibility, 16→17 source edit and runtime output, rejection and failing expectations')
         return 0
     except Exception as error:
         dump(evidence / 'result.json', {'pass': False, 'error': str(error)})

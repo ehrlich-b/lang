@@ -2,12 +2,33 @@
 // successful parses enter this cache; expansion results and backend state do not.
 // Consumers must treat the program as immutable and allocate generated nodes
 // separately (as reader parsing and expand_quote already do).
+// Frontends can supply immutable source inputs without creating host files.
+// Dependency traversal, deduplication and visibility stay with the compiler.
+struct PhaseSourceInput {
+    text *u8;
+    parse_source fn(*u8, *u8) *u8;
+}
+var phase_source_inputs *u8 = nil;
+
+pub func phase_source_input(name *u8) *PhaseSourceInput {
+    if phase_source_inputs == nil { return nil; }
+    return map_get(phase_source_inputs, name);
+}
+
+pub func phase_source_provide(name *u8, text *u8, parse_source fn(*u8, *u8) *u8) void {
+    if phase_source_inputs == nil { phase_source_inputs = map_new(); }
+    var input *PhaseSourceInput = alloc(16);
+    input.text = text; input.parse_source = parse_source;
+    map_set(phase_source_inputs, name, input);
+}
+
 struct PhaseIncludeParse {
     source i64;
     included i64;
     expanded i64;
     program *u8;
     next *PhaseIncludeParse;
+    parse_source fn(*u8, *u8) *u8;
 }
 var phase_include_parses *u8 = nil;
 
@@ -17,10 +38,13 @@ func phase_parse_include(text *u8, name *u8, invocation *u8) *u8 {
     // An origin belongs to an invocation, so a path alone is not a cache key.
     var included i64 = node_origin_id(invocation);
     var expanded i64 = phase_expansion_origin;
+    var parse_source fn(*u8, *u8) *u8 = nil;
+    var input *PhaseSourceInput = phase_source_input(name);
+    if input != nil { parse_source = input.parse_source; }
     if phase_include_parses == nil { phase_include_parses = map_new(); }
     var entry *PhaseIncludeParse = map_get(phase_include_parses, name);
     while entry != nil {
-        if entry.included == included && entry.expanded == expanded {
+        if entry.included == included && entry.expanded == expanded && entry.parse_source == parse_source {
             var cached *PhaseSource = phase_source_get(entry.source);
             if cached.text == text { return entry.program; }
             if streq(cached.text, text) { return entry.program; }
@@ -31,13 +55,16 @@ func phase_parse_include(text *u8, name *u8, invocation *u8) *u8 {
     var source i64 = phase_source_register(name, text);
     var saved i64 = phase_include_origin;
     phase_include_origin = included;
-    var result *u8 = parse_program_from_named_string(text, name);
+    var result *u8 = nil;
+    if parse_source == nil { result = parse_program_from_named_string(text, name); }
+    else { result = parse_source(text, name); }
     phase_include_origin = saved;
     if result != nil {
-        phase_charge(40);
-        entry = alloc(40);
+        phase_charge(48);
+        entry = alloc(48);
         entry.source = source; entry.included = included; entry.expanded = expanded;
         entry.program = result; entry.next = map_get(phase_include_parses, name);
+        entry.parse_source = parse_source;
         map_set(phase_include_parses, name, entry);
     }
     return result;

@@ -7720,19 +7720,13 @@ func llvm_register_decl(decl *u8) void {
         var req_prog *u8 = nil;
 
         if local_exists != 0 {
-            var buf *u8 = alloc(1024 * 1024);
-            var fd i64 = resource_open_read(str_dup_n(full_path, full_len));
-            if fd < 0 {
+            var buf *u8 = phase_read_resource(full_path, full_len);
+            if buf == nil {
                 eprint("error: cannot open require file: ");
                 eprint_buf(path, path_len);
                 eprintln("");
                 return;
             }
-            var n i64 = file_read(fd, buf, 1024 * 1024);
-            file_close(fd);
-            if n < 0 { return; }
-            *(buf + n) = 0;
-
             req_prog = phase_parse_include(buf, full_path, decl);
             if req_prog == nil {
                 eprint("error: failed to parse require file: ");
