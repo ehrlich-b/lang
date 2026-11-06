@@ -1,0 +1,198 @@
+// Declaration reachability at the embedded-runtime boundary. Imported module
+// visibility is separate from the explicit external export set of an artifact.
+// Keep every non-function declaration and inspect every initializer. Function
+// references retain all overloads, rather than guessing a signature. Indirect
+// calls, unresolved calls, opaque syntax and pointer casts disable pruning.
+var runtime_reach_functions *u8 = nil;
+var runtime_reach_marks *u8 = nil;
+var runtime_reach_locals *u8 = nil;
+var runtime_reach_unknown i64 = 0;
+
+func runtime_reach_name(name *u8, len i64) i64 {
+    var found i64 = 0;
+    var i i64 = 0;
+    while i < vec_len(runtime_reach_functions) {
+        var decl *u8 = vec_get(runtime_reach_functions, i);
+        if str_eq_n(name, len, func_decl_name(decl), func_decl_name_len(decl)) {
+            if *(runtime_reach_marks + i) == 0 { *(runtime_reach_marks + i) = 1; }
+            found = 1;
+        }
+        i = i + 1;
+    }
+    return found;
+}
+
+func runtime_reach_walk(node *u8) void {
+    if node == nil { return; }
+    var kind i64 = node_kind(node);
+    if kind == NODE_IDENT_EXPR {
+        runtime_reach_name(ident_expr_name(node), ident_expr_name_len(node));
+    } else if kind == NODE_CALL_EXPR {
+        var callee *u8 = call_expr_func(node);
+        if callee == nil || node_kind(callee) != NODE_IDENT_EXPR {
+            runtime_reach_unknown = 1;
+        } else {
+            var name *u8 = str_dup_n(ident_expr_name(callee), ident_expr_name_len(callee));
+            if map_has(runtime_reach_locals, name) || runtime_reach_name(name, strlen(name)) == 0 {
+                runtime_reach_unknown = 1;
+            }
+        }
+        runtime_reach_walk(callee);
+        var args *u8 = call_expr_args(node);
+        var i i64 = 0;
+        while i < call_expr_arg_count(node) {
+            var slot **u8 = args + i * 8;
+            runtime_reach_walk(*slot); i = i + 1;
+        }
+    } else if kind == NODE_BLOCK_STMT || kind == NODE_BLOCK_EXPR {
+        var stmts *u8 = nil;
+        var count i64 = 0;
+        if kind == NODE_BLOCK_STMT { stmts = block_stmt_stmts(node); count = block_stmt_count(node); }
+        else { stmts = block_expr_stmts(node); count = block_expr_count(node); }
+        var i i64 = 0;
+        while i < count {
+            var slot **u8 = stmts + i * 8;
+            runtime_reach_walk(*slot); i = i + 1;
+        }
+        if kind == NODE_BLOCK_EXPR { runtime_reach_walk(block_expr_tail(node)); }
+    } else if kind == NODE_VAR_DECL {
+        // A flat superset of local bindings is intentionally conservative:
+        // shadowed or expired bindings may prevent pruning, never enable it.
+        map_set_n(runtime_reach_locals, var_decl_name(node), var_decl_name_len(node), 1);
+        runtime_reach_walk(var_decl_init(node));
+    } else if kind == NODE_BINARY_EXPR {
+        runtime_reach_walk(binary_expr_left(node)); runtime_reach_walk(binary_expr_right(node));
+    } else if kind == NODE_UNARY_EXPR {
+        runtime_reach_walk(unary_expr_expr(node));
+    } else if kind == NODE_GROUP_EXPR {
+        runtime_reach_walk(group_expr_expr(node));
+    } else if kind == NODE_INDEX_EXPR {
+        runtime_reach_walk(index_expr_base(node)); runtime_reach_walk(index_expr_index(node));
+    } else if kind == NODE_FIELD_EXPR {
+        runtime_reach_walk(field_expr_expr(node));
+    } else if kind == NODE_ASSIGN_STMT {
+        runtime_reach_walk(assign_stmt_target(node)); runtime_reach_walk(assign_stmt_value(node));
+    } else if kind == NODE_EXPR_STMT {
+        runtime_reach_walk(expr_stmt_expr(node));
+    } else if kind == NODE_RETURN_STMT {
+        runtime_reach_walk(return_stmt_value(node));
+    } else if kind == NODE_IF_STMT {
+        runtime_reach_walk(if_stmt_cond(node)); runtime_reach_walk(if_stmt_then(node)); runtime_reach_walk(if_stmt_else(node));
+    } else if kind == NODE_WHILE_STMT {
+        runtime_reach_walk(while_stmt_cond(node)); runtime_reach_walk(while_stmt_body(node));
+    } else if kind == NODE_INT_COMPARE || kind == NODE_INT_CONVERT {
+        runtime_reach_walk(integer_expr_left(node)); runtime_reach_walk(integer_expr_right(node));
+    } else if kind == NODE_LET_EXPR {
+        map_set_n(runtime_reach_locals, let_expr_name(node), let_expr_name_len(node), 1);
+        runtime_reach_walk(let_expr_init(node)); runtime_reach_walk(let_expr_body(node));
+    } else if kind != NODE_NUMBER_EXPR && kind != NODE_STRING_EXPR && kind != NODE_BOOL_EXPR &&
+              kind != NODE_NIL_EXPR && kind != NODE_BREAK_STMT && kind != NODE_CONTINUE_STMT {
+        runtime_reach_unknown = 1;
+    }
+}
+
+func runtime_reach_function(decl *u8) void {
+    runtime_reach_locals = map_new();
+    var i i64 = 0;
+    while i < func_decl_param_count(decl) {
+        var param *u8 = func_decl_params(decl) + i * 24;
+        map_set_n(runtime_reach_locals, param_name(param), param_name_len(param), 1);
+        i = i + 1;
+    }
+    // Only the audited libc I/O and allocation leaves have no hidden runtime
+    // dependencies. Every other foreign import may perform dynamic lookup.
+    if func_decl_is_extern(decl) {
+        var name *u8 = str_dup_n(func_decl_name(decl), func_decl_name_len(decl));
+        if streq(name, "write") == 0 && streq(name, "read") == 0 && streq(name, "exit") == 0 &&
+           streq(name, "malloc") == 0 && streq(name, "free") == 0 {
+            runtime_reach_unknown = 1;
+        }
+    } else { runtime_reach_walk(func_decl_body(decl)); }
+}
+
+// Returns a fresh runtime program, preserving declaration order and AST nodes.
+// Guest declarations are never removed. On uncertainty return the original.
+func runtime_reachable(runtime *u8, guests *u8) *u8 {
+    runtime_reach_functions = vec_new(128);
+    runtime_reach_unknown = 0;
+    var programs *u8 = vec_new(2);
+    vec_push(programs, runtime); vec_push(programs, guests);
+    var p i64 = 0;
+    while p < 2 {
+        var prog *u8 = vec_get(programs, p);
+        var i i64 = 0;
+        while i < program_decl_count(prog) {
+            var decl *u8 = get_decl(program_decls(prog), i);
+            if node_kind(decl) == NODE_FUNC_DECL { vec_push(runtime_reach_functions, decl); }
+            i = i + 1;
+        }
+        p = p + 1;
+    }
+    runtime_reach_marks = alloc(vec_len(runtime_reach_functions));
+    var zero_i i64 = 0;
+    while zero_i < vec_len(runtime_reach_functions) { *(runtime_reach_marks + zero_i) = 0; zero_i = zero_i + 1; }
+    // All guest functions and explicit runtime exports are roots.
+    var i i64 = 0;
+    while i < vec_len(runtime_reach_functions) {
+        var decl *u8 = vec_get(runtime_reach_functions, i);
+        if func_decl_is_pub(decl) { *(runtime_reach_marks + i) = 1; }
+        i = i + 1;
+    }
+    // Guest indexes in the function vector need not equal declaration indexes.
+    i = 0;
+    while i < program_decl_count(guests) {
+        var decl *u8 = get_decl(program_decls(guests), i);
+        if node_kind(decl) == NODE_FUNC_DECL { runtime_reach_name(func_decl_name(decl), func_decl_name_len(decl)); }
+        i = i + 1;
+    }
+    p = 0;
+    while p < 2 {
+        var prog *u8 = vec_get(programs, p);
+        i = 0;
+        while i < program_decl_count(prog) {
+            var decl *u8 = get_decl(program_decls(prog), i);
+            var kind i64 = node_kind(decl);
+            if kind == NODE_VAR_DECL { runtime_reach_locals = map_new(); runtime_reach_walk(var_decl_init(decl)); }
+            else if kind != NODE_FUNC_DECL && kind != NODE_STRUCT_DECL && kind != NODE_ENUM_DECL && kind != NODE_MODULES_DECL {
+                runtime_reach_unknown = 1;
+            }
+            i = i + 1;
+        }
+        p = p + 1;
+    }
+    var changed i64 = 1;
+    while changed != 0 && runtime_reach_unknown == 0 {
+        changed = 0; i = 0;
+        while i < vec_len(runtime_reach_functions) {
+            if *(runtime_reach_marks + i) == 1 {
+                *(runtime_reach_marks + i) = 2; changed = 1;
+                runtime_reach_function(vec_get(runtime_reach_functions, i));
+            }
+            i = i + 1;
+        }
+    }
+    if runtime_reach_unknown != 0 { return runtime; }
+    var kept *u8 = vec_new(program_decl_count(runtime));
+    var function_index i64 = 0;
+    i = 0;
+    while i < program_decl_count(runtime) {
+        var decl *u8 = get_decl(program_decls(runtime), i);
+        if node_kind(decl) != NODE_FUNC_DECL { vec_push(kept, decl); }
+        else {
+            if *(runtime_reach_marks + function_index) != 0 { vec_push(kept, decl); }
+            function_index = function_index + 1;
+        }
+        i = i + 1;
+    }
+    var result *u8 = alloc(16);
+    var decl_slot **u8 = result;
+    var decls *u8 = alloc(vec_len(kept) * 8);
+    *decl_slot = decls;
+    var count_slot *i64 = result + 8;
+    *count_slot = vec_len(kept);
+    i = 0;
+    while i < vec_len(kept) {
+        var slot **u8 = decls + i * 8; *slot = vec_get(kept, i); i = i + 1;
+    }
+    return result;
+}

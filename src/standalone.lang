@@ -13,6 +13,7 @@ include "src/codegen.lang"
 include "src/codegen_llvm.lang"
 include "src/sexpr_reader.lang"
 include "src/native_host.lang"
+include "src/runtime_reachability.lang"
 
 // codegen's require handling consults this composition-mode flag. The full
 // compiler owns it in main.lang; a generated standalone compiler never runs
@@ -97,16 +98,17 @@ func standalone_help() void {
 func standalone_emit(input_files *u8, output_file *u8, use_llvm i64) i64 {
     var i i64 = 0;
     var programs *u8 = vec_new(vec_len(input_files) + 2);
+    var runtime_prog *u8 = nil;
 
     // Runtime declarations are Lang AST embedded when this compiler is minted;
     // they bypass the custom source reader.
     if reader_runtime_ast != nil && *reader_runtime_ast != 0 {
-        var runtime_prog *u8 = parse_ast_from_string(reader_runtime_ast);
+        runtime_prog = parse_ast_from_string(reader_runtime_ast);
         if runtime_prog == nil {
             eprintln("Error: failed to parse embedded runtime AST");
             return 1;
         }
-        vec_push(programs, runtime_prog);
+
     }
 
     // Normal mode: compile input files
@@ -149,6 +151,13 @@ func standalone_emit(input_files *u8, output_file *u8, use_llvm i64) i64 {
         vec_push(programs, wrapper_prog);
     }
 
+    var guests *u8 = standalone_combine_programs(programs);
+    if runtime_prog != nil {
+        var combined *u8 = vec_new(2);
+        vec_push(combined, runtime_reachable(runtime_prog, guests));
+        vec_push(combined, guests);
+        programs = combined;
+    }
     var prog *u8 = standalone_combine_programs(programs);
 
     if use_llvm != 0 { generate_llvm(prog, output_file); }

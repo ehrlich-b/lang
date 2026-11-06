@@ -5,6 +5,7 @@ include "src/project_scaffold.lang"
 include "src/native_build.lang"
 include "src/project_tests.lang"
 include "src/project_watch.lang"
+include "src/runtime_reachability.lang"
 
 include "src/package.lang"
 include "src/inspect.lang"
@@ -545,6 +546,23 @@ func build_embedded_runtime_ast(runtime_files *u8) *u8 {
         i = i + 1;
     }
     var expanded *u8 = build_expanded_program();
+    // pub on an explicitly supplied runtime file is an artifact export. pub
+    // in an included module is module visibility, not an external entry point.
+    var export_i i64 = 0;
+    while export_i < program_decl_count(expanded) {
+        var export_decl *u8 = get_decl(program_decls(expanded), export_i);
+        if node_kind(export_decl) == NODE_FUNC_DECL {
+            var own_file i64 = 0;
+            var file_i i64 = 0;
+            while file_i < vec_len(runtime_files) {
+                var origin *u8 = node_origin_source(export_decl);
+                if origin != nil && streq(origin, vec_get(runtime_files, file_i)) { own_file = 1; }
+                file_i = file_i + 1;
+            }
+            if own_file == 0 { func_decl_set_is_pub(export_decl, 0); }
+        }
+        export_i = export_i + 1;
+    }
     var result *u8 = ast_emit_program(expanded);
     emit_exe_ast_mode = saved_exe_mode;
     return result;
@@ -2085,7 +2103,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
                 eprintln("Error: failed to parse AST runtime");
                 return 1;
             }
-            prog = main_combine_programs(runtime_prog, prog);
+            prog = main_combine_programs(runtime_reachable(runtime_prog, prog), prog);
         }
 
         if emit_ast_mode != 0 {
