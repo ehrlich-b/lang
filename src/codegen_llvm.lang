@@ -4045,7 +4045,7 @@ func llvm_emit_expr_inner(expr *u8) void {
         var reader_func *u8 = find_embedded_reader_func(name, name_len);
         if reader_func != nil {
             // Call embedded reader function directly
-            var output *u8 = reader_func(content, content_len);
+            var output *u8 = reader_host_embedded(reader_func, str_dup_n(content, content_len), str_dup_n(name, name_len), node_origin_source(expr), expr);
             if output != nil {
                 var expanded *u8 = parse_ast_expression_from_reader_string(
                     output, node_origin_source(expr), content
@@ -4076,7 +4076,7 @@ func llvm_emit_expr_inner(expr *u8) void {
         if output != nil { n = strlen(output); }
 
         if n < 0 {
-                if reader_host_errors != 0 { return; }
+            if reader_host_errors != 0 { return; }
             cg_error_prefix();
             eprint("reader '");
             eprint_buf(name, name_len);

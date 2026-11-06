@@ -915,6 +915,8 @@ func cmd_read(argc i64, argv **u8, arg_offset i64) i64 {
             }
             i = i + 1;
             output_file = get_arg(argv, arg_offset + i);
+        } else if streq(arg, "--diagnostics=json") {
+            ___compiler_diagnostic_enable();
         } else if streq(arg, "--compact") {
             compact = 1;
         } else if *arg == '-' {
