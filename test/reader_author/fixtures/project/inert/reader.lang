@@ -1,0 +1,2 @@
+include "std/ast.lang"
+reader same(text *u8) *u8 { exit(93); return ast_main_i64(ast_int(93)); }

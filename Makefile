@@ -458,6 +458,9 @@ bootstrap-verify: generate-os-layer generate-version-info
 ifeq ($(VERIFY_CASE),shipping-diagnostics)
 verify:
 	python3 -B test/reader_author/diagnostics.py --case shipping
+else ifeq ($(VERIFY_CASE),manifest)
+verify:
+	python3 -B test/reader_author/project.py --case manifest
 else ifeq ($(VERIFY_CASE),shipping)
 verify:
 	python3 -B test/reader_author/route.py --case shipping
