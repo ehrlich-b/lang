@@ -1,0 +1,26 @@
+include "example/rill/rill.lang"
+
+// Direct shared parser oracle: no CLI-generated include wrapper or expansion.
+func main(argc i64, argv **u8) i64 {
+    if argc != 4 { return 64; }
+    var text *u8 = phase_read_file(*(argv + 2));
+    if text == nil { return 65; }
+    var ast *u8 = nil;
+    if streq(*(argv + 1), "rill") { ast = rill(text); }
+    else {
+        var program *u8 = parse_program_from_named_string(text, "oracle");
+        if program != nil { ast = ast_emit_program_with_origins(program); }
+    }
+    if ast == nil { return 66; }
+    var fd i64 = open(*(argv + 3), O_WRONLY_CREAT_TRUNC, 420);
+    if fd < 0 { return 67; }
+    var size i64 = strlen(ast);
+    var offset i64 = 0;
+    while offset < size {
+        var count i64 = write(fd, ast + offset, size - offset);
+        if count <= 0 { close(fd); return 68; }
+        offset = offset + count;
+    }
+    close(fd);
+    return 0;
+}

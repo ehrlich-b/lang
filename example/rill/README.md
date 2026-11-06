@@ -1,4 +1,4 @@
-# Rill v1: a modest keyword dialect of Lang
+# Rill v2: a keyword dialect of Lang
 
 Rill reuses Lang's lexer, parser, AST and native semantics. It is a second
 surface syntax for small compiler modules, not a novel semantic language or a
@@ -8,7 +8,7 @@ offsets and a reader declaration that uses it. The executable exercises that
 reader and accepts one decimal argument, printing its value (exit 0) or the
 first invalid byte offset (exit 65).
 
-The five changed reserved words are:
+The changed reserved words are:
 
 | Rill | Lang |
 | --- | --- |
@@ -17,26 +17,32 @@ The five changed reserved words are:
 | `record` | `struct` |
 | `use` | `include` |
 | `syntax` | `reader` |
+| `needs` | `require` |
 
-Those five Lang spellings are rejected as syntax. All five Rill words are
+Those six Lang spellings are rejected as syntax. All six Rill words are
 reserved everywhere outside comments and literals, including parameter/field
-names. Longer identifiers such as `funny` stay identifiers. No raw source
+names unless escaped with `rill__` (for example, `rill__local` names `local`).
+The escape prefix itself is doubled when it occurs in an original identifier.
+Longer identifiers such as `funny` stay identifiers. No raw source
 replacement or arbitrary embedded Lang blocks are accepted.
 
-The exact v1 subset is the shared parser's complete-program grammar restricted
+The exact v2 subset is the shared parser's complete-program grammar restricted
 to these tokens: identifiers, decimal integers and character/string literals;
-`fun`, `local`, `record`, `use`, `syntax`; `if`, `else`, `while`, `return`,
+`fun`, `local`, `record`, `use`, `syntax`, `needs`; `if`, `else`, `while`, `return`,
 `true`, `false`, `nil`, `break`, `continue`, `pub`, `fn`, `cast`, `bitcast`;
-`i8/i16/i32/i64`, `u8/u16/u32/u64`, `bool`, `void`; and
+`i8/i16/i32/i64`, `u8/u16/u32/u64`, `bool`, `void`, `extern`, `f32`, `f64`,
+decimal floating-point literals; and
 `+ - * / % & ! = == != < > <= >= && || ( ) { } [ ] , ; . : | ^ << >>`
 and `+= -= *= /= %=`. This includes typed functions, records, raw pointers,
 function pointer types/lambdas, calls, field/index access, assignments, loops,
 branches and reader declarations with Lang's semantics and constraints.
 There is no top-level expression mode. Enums/match, effects, macros/quotes,
-reader invocations (`#name{...}`), require/import, extern, let/in, closures,
-floating point and `:=` are outside this subset and rejected before parsing.
+reader invocations (`#name{...}`), import, let/in, closures and `:=` are outside
+this subset and rejected before parsing.
 `rill_supported` is the executable token allowlist; grammar-invalid sequences
-still fail the shared parser and the entire input must be consumed.
+still fail the shared parser and the entire input must be consumed. The
+[source exporter](EXPORT.md) transforms the compiler and reader source closure,
+including dependencies, into individual Rill modules and source-only bundles.
 
 `use "path.lang"` lowers to a normal include node. Included support files use
 Lang syntax and the existing host's path resolution, deduplication and include

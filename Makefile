@@ -455,7 +455,10 @@ bootstrap-verify: generate-os-layer generate-version-info
 	python3 scripts/build_receipt.py finish --input out/verify-input.json --compiler $(BOOTSTRAP_VERIFY_DIR)/kernel2 --output out/verify-receipt.json --artifact $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll --artifact $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll --artifact $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast --artifact $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
 
 # Non-promoting verification alias; never archives, installs or updates the seed.
-ifeq ($(VERIFY_CASE),rill)
+ifeq ($(VERIFY_CASE),rill-export)
+verify:
+	python3 -B test/reader_author/rill_export.py --case compiler-closure
+else ifeq ($(VERIFY_CASE),rill)
 verify:
 	python3 -B test/reader_author/rill.py --case compiler-module
 else ifeq ($(VERIFY_CASE),inspect)

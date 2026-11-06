@@ -15,10 +15,11 @@ func rill_keyword(tok *u8) i64 {
     if rill_word(tok, "record") { return TOKEN_STRUCT; }
     if rill_word(tok, "use") { return TOKEN_INCLUDE; }
     if rill_word(tok, "syntax") { return TOKEN_READER; }
+    if rill_word(tok, "needs") { return TOKEN_REQUIRE; }
     return TOKEN_IDENT;
 }
 
-// The exact v1 token subset. Check original kinds before remapping, so Lang
+// The v2 source-export subset. Check original kinds before remapping, so Lang
 // declaration keywords and embedded reader blocks cannot bypass the dialect.
 func rill_supported(kind i64) bool {
     if kind >= TOKEN_EOF && kind <= TOKEN_COLON {
@@ -26,7 +27,19 @@ func rill_supported(kind i64) bool {
     }
     return kind >= TOKEN_PIPE && kind <= TOKEN_CONTINUE ||
            kind == TOKEN_FN || kind == TOKEN_PUB ||
+           kind == TOKEN_EXTERN || kind == TOKEN_F32 || kind == TOKEN_F64 ||
+           kind == TOKEN_FLOAT ||
            kind == TOKEN_CAST || kind == TOKEN_BITCAST;
+}
+
+// Escape dialect words used as Lang identifiers, and escape the prefix itself.
+// Keep the original token position while selecting a slice of its spelling.
+func rill_unescape(tok *u8) bool {
+    if tok_lexeme_len(tok) <= 6 { return false; }
+    if !str_eq_n(tok_lexeme(tok), 6, "rill__", 6) { return false; }
+    tok_set_lexeme(tok, tok_lexeme(tok) + 6);
+    tok_set_lexeme_len(tok, tok_lexeme_len(tok) - 6);
+    return true;
 }
 
 func rill_error(tok *u8, message *u8) void {
@@ -49,10 +62,12 @@ reader rill(text *u8) *u8 {
         var kind i64 = tok_type(tok);
         if kind == TOKEN_ERROR { rill_error(tok, tok_lexeme(tok)); return nil; }
         if !rill_supported(kind) {
-            rill_error(tok, "unsupported Rill token (use fun/local/record/use/syntax)");
+            rill_error(tok, "unsupported Rill token (use fun/local/record/use/syntax/needs)");
             return nil;
         }
-        if kind == TOKEN_IDENT { tok_set_type(tok, rill_keyword(tok)); }
+        if kind == TOKEN_IDENT {
+            if !rill_unescape(tok) { tok_set_type(tok, rill_keyword(tok)); }
+        }
         i = i + 1;
     }
     // No text is rewritten: token slices, literal spellings, comments, byte

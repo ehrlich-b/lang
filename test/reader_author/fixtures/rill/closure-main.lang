@@ -1,0 +1,11 @@
+// café: func var struct include reader require local syntax rill__prefix
+/* Preserve "quoted" words and // comment markers byte for byte. */
+include "std/core.lang"
+func main() i64 {
+    var local i64 = LIMIT_CALL_ARGS;
+    var syntax *u8 = "func var struct include reader require // /* \\\" café";
+    var rill__prefix i64 = 0;
+    if !streq(syntax, "func var struct include reader require // /* \\\" café") { return 90; }
+    print_int(local + rill__prefix); println("");
+    return 0;
+}

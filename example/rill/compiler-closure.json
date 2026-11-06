@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "profile": "llvm-linux-x86_64-libc",
+  "generated_inputs": ["std/os.lang", "out/version_info.lang"],
+  "closures": {
+    "compiler": [
+      "std/core.lang", "out/version_info.lang", "src/lexer.lang",
+      "src/parser.lang", "src/codegen.lang", "src/codegen_llvm.lang",
+      "src/codegen_wasm.lang", "src/ast_emit.lang", "src/sexpr_reader.lang",
+      "src/compiler_readers_none.lang", "src/main.lang"
+    ],
+    "rill-reader": ["example/rill/rill.lang", "src/standalone.lang"],
+    "lang-reader": ["src/lang_reader.lang"]
+  }
+}
