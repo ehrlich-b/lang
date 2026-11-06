@@ -2,8 +2,25 @@
   "schema": 1,
   "runtime_contract": "Shipping policy, whole decimal order totals 0..1000000. The embedded Lang runtime supplies shipping_total and shipping_print. Run with one total argument: 99 prints 10 and exits 0; 100 prints 0 and exits 0. Missing/invalid totals report a shipping diagnostic on stderr and exit 64. Target: LLVM Linux x86-64 with system libc; no managed collector or VM. Arguments and emitted fees are whole units. Native mode is -O0.",
   "licenses": [
-    {"component": "compiler", "file": "../../LICENSE"},
-    {"component": "reader", "file": "../../LICENSE"},
-    {"component": "runtime", "file": "../../LICENSE"}
+    {
+      "component": "compiler",
+      "file": "../../LICENSE"
+    },
+    {
+      "component": "reader",
+      "file": "../../LICENSE"
+    },
+    {
+      "component": "runtime",
+      "file": "../../LICENSE"
+    }
+  ],
+  "example_runs": [
+    [
+      "99"
+    ],
+    [
+      "100"
+    ]
   ]
 }

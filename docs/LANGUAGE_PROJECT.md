@@ -177,7 +177,8 @@ Only the existing Linux x86-64 LLVM profile is supported. Python 3, Clang, the
 system linker, `ldd` and `getconf` are required on the packaging host.
 
 The metadata JSON has `schema: 1`, a nonempty `runtime_contract` string, and a
-`licenses` list. Each notice has `component` and `file`; compiler, reader and
+`licenses` list, plus `example_runs` (a nonempty list of argument lists used to
+print exact example run commands). Each notice has `component` and `file`; compiler, reader and
 runtime must each be covered. Notice paths resolve beside the metadata file.
 For a language with no runtime, use an explicit contract stating that choice
 and a runtime notice explaining it. Missing metadata, empty notices or missing

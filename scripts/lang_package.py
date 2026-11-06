@@ -7,6 +7,7 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import shlex
 import subprocess
 import sys
 import tarfile
@@ -35,6 +36,11 @@ def main():
     metadata = json.loads(args.metadata.read_text())
     require(metadata['schema'] == 1 and isinstance(metadata['runtime_contract'], str)
             and metadata['runtime_contract'].strip(), 'missing runtime metadata')
+    example_runs = metadata['example_runs']
+    require(isinstance(example_runs, list) and example_runs and
+            all(isinstance(args, list) and all(isinstance(arg, str) and '\x00' not in arg
+                                               for arg in args) for args in example_runs),
+            'missing example run arguments')
     notices = metadata['licenses']
     require(isinstance(notices, list) and notices, 'missing license metadata')
     require({n['component'] for n in notices} >= {'compiler', 'reader', 'runtime'},
@@ -119,7 +125,8 @@ def main():
         (kit / 'README.md').write_text(
             '# Local compiler kit\n\nLinux x86-64, ' + libc + '; dynamically linked, not runtime-free.\n'
             'Keep the system ELF loader and the shared libraries recorded in receipt.json available.\n'
-            'IR needs this host ABI and Python 3 for verification; it needs no Clang or source tree.\n'
+            'The bundled example needs this host ABI and Python 3 for verification;\n'
+            'its IR step needs no Clang or compiler source tree.\n'
             'Native mode additionally needs an explicitly selected Clang and its system linker,\n'
             'libc development objects and headers for the same host profile; ld must be on PATH.\n'
             'Native uses -O0.\n'
@@ -129,8 +136,9 @@ def main():
             'python3 kit.py verify\n'
             'mkdir ../kit-output\n'
             'PATH=/nonexistent /usr/bin/python3 kit.py llvm --output ../kit-output/example.ll\n'
-            'python3 kit.py native --clang ' + tools['clang']['path'] + ' --output ../kit-output/example\n'
-            '../kit-output/example 99\n../kit-output/example 100\n```\n\n'
+            'python3 kit.py native --clang ' + shlex.quote(tools['clang']['path']) + ' --output ../kit-output/example\n'
+            + ''.join(shlex.join(['../kit-output/example', *args]) + '\n' for args in example_runs)
+            + '```\n\n'
             'The example arguments and output belong to the selected language; consult its runtime contract.\n'
             'For a different installation, replace --clang with that host\'s absolute Clang path.\n'
             'The metadata, notices, example and compiler must match their SHA-256 inventory before use.\n'
@@ -143,7 +151,7 @@ def main():
                                          observations=dependency_observations, native_optimization='-O0',
                                          needs=['Python 3 for kit verifier', 'ELF loader and system libc',
                                                 'native only: explicitly selected Clang, linker and libc development files']),
-                       project_identity=args.identity, inputs_sha256=inputs,
+                       project_identity=args.identity, example_runs=example_runs, inputs_sha256=inputs,
                        compiler_build=build, tools=tools, clang_version=clang_version,
                        commands=stages)
         write(kit / 'receipt.json', receipt)
