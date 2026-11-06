@@ -3315,6 +3315,9 @@ func parse_primary() *u8 {
         var node *u8 = ident_expr_alloc();
         ident_expr_set_name(node, tok_lexeme(tok));
         ident_expr_set_name_len(node, tok_lexeme_len(tok));
+        // Keep bare-name diagnostics at the token, including across reader AST
+        // interchange, instead of falling back to the invocation's first byte.
+        node_set_origin(node, parse_source_name, tok_line(tok), tok_col(tok));
         return node;
     }
 

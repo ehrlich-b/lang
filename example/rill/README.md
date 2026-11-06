@@ -52,8 +52,9 @@ literals undergo the shared lexer's ordinary numeric normalization. A general,
 opt-in `ast_emit_program_with_origins` service serializes existing parser
 origins as relative `(span start end node)` wrappers. The host binds them to the
 actual guest file. Parser point locations remain zero-width spans; this does
-not invent full ranges for every node. Nodes without their own parser origin
-inherit the containing source location through the existing interchange host.
+not invent full ranges for every node. Bare identifiers carry their original
+point locations, so undefined names diagnose at the guest token. Nodes without
+their own parser origin retain the existing invocation-level fallback.
 
 From the repository root on Linux x86-64 with Python 3, Make, Clang and a linker:
 
