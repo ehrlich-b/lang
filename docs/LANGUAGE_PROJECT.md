@@ -110,3 +110,54 @@ committed checkout. It builds current sources in a fresh clone and records
 commands, source/tool hashes, stdout, stderr and exits outside the checkout.
 For the narrow make gate, use `env JOBS=2 VERIFY_CASE=manifest make verify`.
 Plain `make verify` retains the full integration and fixed-point checks.
+
+## Build a guest directly
+
+Use the shared compiler-host driver to produce a named native executable:
+
+```bash
+./out/lang_next build --project example/shipping/project.lang-project example/shipping/policy.shipping -o out/shipping
+PATH=/nonexistent ./out/shipping 100
+./out/lang_next build --project example/shipping/project.lang-project example/shipping/policy.shipping --emit=ast -o out/policy.ast
+./out/lang_next build --project example/shipping/project.lang-project example/shipping/policy.shipping --emit=llvm -o out/policy.ll
+```
+
+`SOURCE` is relative to the caller's working directory and may differ from the
+manifest's entry; its suffix must match the project reader. Manifest inputs keep
+the resolution rules above. The driver resolves the manifest, runs the trusted
+reader, validates the shared AST, emits LLVM with the manifest's target runtime,
+compiles an object, then links it. `--emit=ast` stops after validation and writes
+the formatted reader AST (without the separate target runtime). `--emit=llvm`
+includes the runtime and stops before object compilation. Neither alternative
+needs the final native toolchain; compiling an uncached reader still needs Clang.
+
+The native default is **`-O0`**, explicitly passed to Clang and recorded on stderr
+as `optimization=-O0` along with the profile and selected tool. This follows the
+current native effects contract; the driver makes no optimized-effects promise.
+Object compilation and linking are separate subprocesses. The manifest selects
+the `clang` family; the driver resolves `clang` from `PATH`, or uses the exact
+executable path in `LANG_CLANG`. That override can contain spaces. Arguments are
+passed directly, without a shell. There is no fallback after a configured tool
+fails. Reader compilation retains its existing independent tool lookup.
+
+Reader, shared-AST validation, LLVM emission, optimizer/object compilation and
+linker failures retain their original stderr and add the failing stage. Child
+exits propagate (signals become `128 + signal`); missing final Clang exits 127.
+The final artifact stays private in an exclusively reserved directory beside
+`OUTPUT` until every requested stage succeeds, then a same-filesystem rename
+publishes it. Temporary artifacts are removed after success or a reported stage
+failure. An attempted rebuild invalidates a previous native ELF output before
+manifest resolution, so a failure cannot leave that executable looking current.
+For safety, an occupied destination must be a regular native ELF file; other
+files, symlinks and directories are refused and preserved. Use a fresh path for
+AST/LLVM inspection. The source and manifest themselves cannot be output paths.
+
+Replay this fragment with `python3 -B test/reader_author/native_build.py --case shipping`.
+It builds the committed compiler in an isolated clone and preserves commands,
+source/tool SHA-256 hashes, stdout, stderr and exits under `../evidence/`.
+It checks real shipping execution with no compiler or VM on `PATH`, syntax and
+shared-AST errors, absent Clang, real Clang rejection of invalid IR, real native
+linker rejection of an unresolved symbol, stale-output removal and quoted paths.
+Every expectation uses an explicit check, including under optimized Python.
+Use `env JOBS=2 VERIFY_CASE=native-shipping make verify` for this fragment's gate.
+Plain verification continues to select integration suites and fixed points.

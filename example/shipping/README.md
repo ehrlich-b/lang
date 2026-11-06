@@ -8,7 +8,20 @@ conversion. Duplicate, unknown, missing and out-of-range settings are errors.
 Whitespace and Lang-style comments are allowed. The order total arrives at
 runtime as one decimal command-line argument in the same range.
 
-From a fresh clone, start in its root. Prerequisites: Linux x86-64, Python 3,
+To build the policy directly with the current compiler, run `make init` and
+`make build`, then:
+
+```bash
+./out/lang_next build --project example/shipping/project.lang-project example/shipping/policy.shipping -o out/shipping
+PATH=/nonexistent ./out/shipping 100
+```
+
+This prints `0`. The [project driver](../../docs/LANGUAGE_PROJECT.md#build-a-guest-directly)
+uses `-O0` by default and provides `--emit=ast` and `--emit=llvm` for inspection.
+Replay it with `python3 -B test/reader_author/native_build.py --case shipping`.
+
+The longer walkthrough below exposes each boundary for editing and minting a
+standalone compiler. From a fresh clone, start in its root. Prerequisites: Linux x86-64, Python 3,
 Make, Clang and its native linker. No services or elevated permissions are
 needed. Copy and run this entire block. The copied reader is your editable
 language implementation: replace the generated scaffold, then change the
