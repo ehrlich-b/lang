@@ -718,7 +718,10 @@ func read_run_reader(name *u8, source_path *u8, content *u8) *u8 {
         }
 
         var exe_path *u8 = build_reader_cache_path(name, name_len);
+        var saved **u8 = ___envp;
+        ___envp = inspect_reader_environment(nil);
         output = phase_worker_call(exe_path, content, strlen(content));
+        ___envp = saved;
         var n i64 = phase_worker_status;
         if output != nil { n = strlen(output); }
         if n < 0 {

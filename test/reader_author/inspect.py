@@ -108,6 +108,23 @@ def main():
                 and b'define i64 @shipping_print(' in snapshots['llvm'], 'LLVM lost policy or linked runtime')
         legacy = replay.run([compiler, 'read', str(shipping), str(policy)], 'reader-core-oracle', clone)
         exact(legacy, core)
+        # An inherited syntax request must neither replace an AST request nor
+        # override the explicit CLI stage, including on a cold reader cache.
+        normal_cache = replay.env['LANG_CACHE']
+        try:
+            for inherited in ('tree', 'tokens'):
+                replay.env['LANG_INSPECT_STAGE'] = inherited
+                replay.env['LANG_CACHE'] = str(scratch / ('ambient-' + inherited))
+                exact(replay.run([compiler, 'read', str(shipping), str(policy)],
+                                 'ambient-' + inherited + '-read-cold', clone), core)
+                exact(replay.run([compiler, 'read', str(shipping), str(policy)],
+                                 'ambient-' + inherited + '-read-warm', clone), core)
+                for stage in ('tokens', 'tree', 'core', 'llvm'):
+                    exact(inspect(project, stage, 'ambient-' + inherited + '-' + stage),
+                          snapshots[stage])
+        finally:
+            replay.env.pop('LANG_INSPECT_STAGE', None)
+            replay.env['LANG_CACHE'] = normal_cache
         # Independently dump the real reader's tree after its existing end check.
         oracle = scratch / 'oracle.lang'
         original = shipping.read_text()

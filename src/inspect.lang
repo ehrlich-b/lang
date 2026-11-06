@@ -1,7 +1,9 @@
 // Project-stage orchestration. Syntax artifacts cross the same worker boundary
 // as normal reader output, with a distinct envelope that cannot be mistaken
 // for an AST from a reader which does not publish syntax stages.
-func inspect_syntax(name *u8, content *u8, stage *u8) *u8 {
+// The stage setting is private to one syntax worker invocation. Ordinary
+// readers must receive an AST request even if the caller inherited this setting.
+func inspect_reader_environment(stage *u8) **u8 {
     var saved **u8 = ___envp;
     var entries *u8 = vec_new(32);
     var i i64 = 0;
@@ -9,8 +11,13 @@ func inspect_syntax(name *u8, content *u8, stage *u8) *u8 {
         if strlen(saved[i]) < 19 || memcmp(saved[i], "LANG_INSPECT_STAGE=", 19) == 0 { vec_push(entries, saved[i]); }
         i = i + 1;
     }
-    vec_push(entries, str_concat("LANG_INSPECT_STAGE=", stage));
-    ___envp = project_argv(entries);
+    if stage != nil { vec_push(entries, str_concat("LANG_INSPECT_STAGE=", stage)); }
+    return project_argv(entries);
+}
+
+func inspect_syntax(name *u8, content *u8, stage *u8) *u8 {
+    var saved **u8 = ___envp;
+    ___envp = inspect_reader_environment(stage);
     var artifact *u8 = phase_worker_call(build_reader_cache_path(name, strlen(name)), content, strlen(content));
     ___envp = saved;
     if artifact == nil { return nil; }
