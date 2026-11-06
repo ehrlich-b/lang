@@ -46,7 +46,7 @@ fun main(argc i64, argv **u8) i64 {
     if !streq(banner, "fun local record use syntax // /* \\\" café") { return 90; }
     if decimal("42") == nil || decimal("4x") != nil { return 91; }
     if argc != 2 { return 64; }
-    local input *u8 = *(argv + 8);
+    local input *u8 = *(argv + 1);
     if !parse_decimal(input, strlen(input), 9223372036854775807, out) {
         print_int(out.error); println("");
         return 65;
