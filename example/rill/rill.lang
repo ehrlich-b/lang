@@ -38,7 +38,7 @@ reader rill(text *u8) *u8 {
     // The configurable scanner also diagnoses an unterminated block comment;
     // the shared compiler lexer historically skips that comment through EOF.
     var comments *Tokenizer = tok_new(text);
-    while !tok_eof(comments) { tok_next(comments); }
+    while !tok_eof(comments) && comments.comment_error < 0 { tok_next(comments); }
     if !tok_expect_end(comments) { tok_print_error(comments, "rill"); return nil; }
 
     parser_set_source_name("rill");
