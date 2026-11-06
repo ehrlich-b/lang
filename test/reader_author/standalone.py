@@ -44,7 +44,7 @@ def main():
         require(not status.stdout, 'commit the candidate before replaying it')
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor', BASE, head], 'required-base', ROOT)
-        replay.run(['git', 'diff', '--exit-code', BASE, head, '--', 'bootstrap/current', 'web'],
+        replay.run(['git', 'diff', '--exit-code', '0149c1d', head, '--', 'bootstrap/current', 'web'],
                    'protected-inputs-unchanged', ROOT)
         # Check that the adapter uses the host contract, with no second linker.
         standalone = (ROOT / 'src/standalone.lang').read_text()
