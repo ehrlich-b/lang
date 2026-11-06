@@ -9,6 +9,8 @@ var reader_diagnostic_reports *u8 = nil;
 var reader_diagnostic_invalid i64 = 0;
 var reader_diagnostic_wire i64 = 0;
 var reader_diagnostic_count i64 = 0;
+// A native embedded host grants one immutable snapshot before invoking a reader.
+var reader_diagnostic_snapshot *u8 = nil;
 
 pub func reader_diagnostic_put32(p *u8, value i64) void {
     var i i64 = 0;
@@ -59,7 +61,8 @@ pub func reader_diagnostic_text(d *ReaderDiagnostic, text *u8) void {
 }
 pub func reader_diagnostic_emit(d *ReaderDiagnostic, text *u8) void {
     reader_diagnostic_count = reader_diagnostic_count + 1;
-    if reader_diagnostic_valid(d, text) == 0 {
+    if reader_diagnostic_valid(d, text) == 0 ||
+       (reader_diagnostic_snapshot != nil && streq(text, reader_diagnostic_snapshot) == 0) {
         reader_diagnostic_invalid = 1;
         if reader_diagnostic_collect == 0 { eprintln("reader: invalid diagnostic"); }
         return;

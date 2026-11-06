@@ -179,6 +179,26 @@ def main():
             require(record['span'] is None, 'missing/bad span gained a position')
             require(record['category'] == ('guest' if value in ['missing', 'bom'] else 'reader'), 'reader implementation misclassified')
             broken_cases.append((path, saved))
+        native_cases = list(broken_cases)
+        for value in ['exit-invalid-0', 'exit-invalid-1', 'exit-error-0', 'exit-error-1']:
+            path = scratch / (value + '.broken')
+            path.write_text(value)
+            retain_input(path)
+            code = 'early-error' if value.startswith('exit-error') else 'reader-diagnostic-invalid'
+            record, saved = diagnostic(path, broken, value, code)
+            require(record['span'] is None, 'early exit invented a position')
+            native_cases.append((path, saved))
+        # Exiting successfully without returning and reporting against another
+        # snapshot must fail at the embedded boundary even with valid AST bytes.
+        for value in ['exit-empty-0', 'exit-empty-1', 'snapshot']:
+            path = scratch / (value + '.broken')
+            path.write_text(value)
+            retain_input(path)
+            expected = json.loads((evidence / 'reverse.record.json').read_text())
+            expected['path'] = str(path)
+            saved = evidence / (value + '.expected.json')
+            dump(saved, expected)
+            native_cases.append((path, saved))
         # Exercise the real read caller with an embedded function table. Copy
         # the caller verbatim so this cannot accidentally test a substitute path.
         main_source = (clone / 'src/main.lang').read_text()
@@ -213,7 +233,7 @@ func main(argc i64, argv **u8) i64 {
         embedded = scratch / 'embedded'
         replay.run([str(compiler), str(embedded_source), '-o', str(embedded_ir)], 'embedded-build', clone)
         replay.run(['clang', str(embedded_ir), '-o', str(embedded)], 'embedded-link', clone)
-        for index, (path, saved) in enumerate(broken_cases):
+        for index, (path, saved) in enumerate(native_cases):
             expected = json.loads(saved.read_text())
             for format in ['text', 'json']:
                 command = [str(embedded), str(path)]
@@ -260,7 +280,7 @@ func main(argc i64, argv **u8) i64 {
         require(not (scratch / 'rejected.ll').exists(), 'minted compiler accepted diagnostic as AST')
         broken_compiler = scratch / 'brokenc'
         replay.run([str(compiler), 'compiler', 'broken', broken, '-o', str(broken_compiler)], 'mint-broken', clone)
-        for index, (path, saved) in enumerate(broken_cases):
+        for index, (path, saved) in enumerate(native_cases):
             expected = json.loads(saved.read_text())
             for format in ['text', 'json']:
                 rejected = scratch / f'broken-{index}-{format}.ll'

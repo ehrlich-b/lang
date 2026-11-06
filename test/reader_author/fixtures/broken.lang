@@ -1,6 +1,22 @@
 include "std/core.lang"
 reader broken(text *u8) *u8 {
-    if streq(text, "raw") {
+    if streq(text, "exit-invalid-0") || streq(text, "exit-invalid-1") {
+        reader_error("bad-range", "bad range", "broken", text, 3, 1);
+        print("(program)");
+        if streq(text, "exit-invalid-1") { os__exit(1); }
+        os__exit(0);
+    } else if streq(text, "exit-error-0") || streq(text, "exit-error-1") {
+        reader_error("early-error", "error before exit", "broken", text, -1, -1);
+        print("(program)");
+        if streq(text, "exit-error-1") { os__exit(1); }
+        os__exit(0);
+    } else if streq(text, "exit-empty-0") || streq(text, "exit-empty-1") {
+        print("(program)");
+        if streq(text, "exit-empty-1") { os__exit(1); }
+        os__exit(0);
+    } else if streq(text, "snapshot") {
+        reader_error("snapshot", "wrong snapshot", "broken", "other input", -1, -1);
+    } else if streq(text, "raw") {
         file_write(2, "RDI1", 4);
     } else if streq(text, "bom") {
         reader_error("﻿code", "﻿message", "broken", text, -1, -1);
