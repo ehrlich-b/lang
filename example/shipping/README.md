@@ -134,14 +134,20 @@ out/lang_next watch --project example/shipping/project.lang-project
 The default output is `example/shipping/build/policy`; use `-o PATH` to choose
 another destination. `--once` builds one generation and exits. Stop continuous
 watching with Ctrl-C. Python 3 and the native Linux x86-64 Clang toolchain are
-required, as for project fixtures.
+required, as for project fixtures. Publication also requires Linux inotify;
+watch fails closed if input changes cannot be monitored.
 
 The watch uses the compiler's content identities, including transitive reader
 and runtime dependencies. An unchanged project does no build work. Guest edits
 reuse the reader; grammar edits rebuild it; runtime edits rebuild the program.
 Changed or failed generations invalidate the prior managed output. Only a
 successful current generation publishes an executable. Each output has one
-watch owner; a second watcher for that destination fails.
+watch owner; a second watcher for that destination fails. A change guard covers
+validation through atomic output replacement, including same-timestamp writes
+and editor replacements. The executable stays private during identity probes.
+Edits observed at replacement retract that generation and retry; a successful
+publication describes the inputs at that boundary, and later edits belong to
+the next generation.
 
 Events, identity probes, original diagnostics and phase timings live under the
 printed evidence directory. Events name private build directories beside the

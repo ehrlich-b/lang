@@ -219,22 +219,34 @@ def main():
         require(watch.events[-1]['event'] == 'superseded' and not output.exists(), 'ABA build published stale bytes')
         phase('capture-race-recovery')
         require(sum(e['event'] == 'published' for e in watch.events[before_race:]) == 1, 'ABA output was published')
-        # Force edits in both gaps: after the last pre-publication probe and
-        # inside the rename itself. Neither may report a successful generation.
-        for boundary in ('probe', 'rename'):
+        # Exercise both probes, including edits after the final probe's read,
+        # same-byte ABA writes and atomic editor replacement. No identity probe
+        # may expose a provisional executable at the destination.
+        for boundary in ('probe', 'final-probe', 'final-probe-aba', 'final-probe-replace', 'rename'):
             watch.key = None
             watch.tick()
             wait_for(lambda: watch.active['process'].poll() is not None, 'publication control build did not finish')
             rejected_program = watch.active['directory'] / 'program'
             original_replace = module.os.replace
             injected = False
+            probe_count = 0
 
             def edit_after_probe():
-                nonlocal injected
+                nonlocal injected, probe_count
+                require(not output.exists(), 'provisional executable visible during identity probe')
                 value = original_inputs()
-                if not injected:
+                probe_count += 1
+                target_probe = 1 if boundary == 'probe' else 2
+                if probe_count == target_probe:
                     injected = True
-                    same_time(guest, valid_guest.replace('base 11', 'base 19'))
+                    if boundary == 'final-probe-replace':
+                        replacement = scratch / 'replacement.shipping'
+                        replacement.write_text(valid_guest.replace('base 11', 'base 19'))
+                        original_replace(replacement, guest)
+                    else:
+                        same_time(guest, valid_guest.replace('base 11', 'base 19'))
+                    if boundary == 'final-probe-aba':
+                        same_time(guest, valid_guest)
                 return value
 
             def edit_at_rename(source, destination):
@@ -244,7 +256,7 @@ def main():
                     same_time(guest, valid_guest.replace('base 11', 'base 19'))
                 return original_replace(source, destination)
 
-            if boundary == 'probe':
+            if boundary != 'rename':
                 watch.inputs = edit_after_probe
             else:
                 module.os.replace = edit_at_rename
@@ -262,7 +274,8 @@ def main():
             archive('publication-' + boundary + '-superseded')
             phase('publication-' + boundary + '-latest')
             result = replay.run([str(output), '99'], 'publication-' + boundary + '-runtime', scratch)
-            require(result.stdout == b'20\n', boundary + ': latest generation was not rebuilt')
+            expected = b'12\n' if boundary == 'final-probe-aba' else b'20\n'
+            require(result.stdout == expected, boundary + ': latest generation was not rebuilt')
             same_time(guest, valid_guest)
             phase('publication-' + boundary + '-recovery')
         same_time(guest, 'shipping { base 11 free_over 100; }\n')
@@ -338,16 +351,24 @@ def main():
                     '--evidence', str(evidence / 'cli-once'), '--once'], 'cli-once', clone)
         result = replay.run([str(cli_output), '99'], 'cli-runtime', scratch)
         require(result.stdout == b'15\n', 'public CLI did not recover')
-        replay.run([sys.executable, str(clone / 'test/reader_author/fixtures/edit_cycle/publication_race.py'),
-                    str(clone / 'std/project_watch.py'), str(guest), 'base 14', 'base 19',
-                    '--compiler', compiler, '--project', str(manifest), '-o', str(cli_output),
-                    '--evidence', str(evidence / 'cli-once-race'), '--once'], 'cli-once-race', clone)
-        events = [json.loads(line) for line in (evidence / 'cli-once-race/events.jsonl').read_text().splitlines()]
-        require([e['event'] for e in events].count('superseded') == 1 and
-                [e['event'] for e in events].count('published') == 1 and
-                events[-1]['build_generation'] == 2, '--once exited on a superseded generation')
-        result = replay.run([str(cli_output), '99'], 'cli-once-race-runtime', scratch)
-        require(result.stdout == b'20\n', '--once published obsolete output')
+        for boundary in ('probe', 'final-probe', 'cancel-final-probe'):
+            same_time(guest, valid_guest.replace('base 11', 'base 14'))
+            race_evidence = evidence / ('cli-once-race-' + boundary)
+            replay.run([sys.executable, str(clone / 'test/reader_author/fixtures/edit_cycle/publication_race.py'),
+                        str(clone / 'std/project_watch.py'), str(guest), 'base 14', 'base 19', boundary,
+                        '--compiler', compiler, '--project', str(manifest), '-o', str(cli_output),
+                        '--evidence', str(race_evidence), '--once'], 'cli-once-race-' + boundary, clone,
+                       expected=130 if boundary == 'cancel-final-probe' else 0)
+            events = [json.loads(line) for line in (race_evidence / 'events.jsonl').read_text().splitlines()]
+            if boundary == 'cancel-final-probe':
+                require(not cli_output.exists() and not any(e['event'] == 'published' for e in events),
+                        'cancellation during final probe published output')
+            else:
+                require([e['event'] for e in events].count('superseded') == 1 and
+                        [e['event'] for e in events].count('published') == 1 and
+                        events[-1]['build_generation'] == 2, '--once exited on a superseded generation')
+                result = replay.run([str(cli_output), '99'], 'cli-once-race-runtime-' + boundary, scratch)
+                require(result.stdout == b'20\n', '--once published obsolete output')
         sentinel = scratch / 'sentinel'
         sentinel.write_text('keep this input\n')
         replay.run([compiler, 'watch', '--project', str(manifest), '-o', str(sentinel), '--once',
@@ -359,7 +380,8 @@ def main():
         dump(evidence / 'result.json', dict({'pass': True}, head=head, compiler_sha256=sha(compiler),
              controls=['same-mtime-guest', 'same-mtime-grammar', 'runtime', 'reader-failure', 'link-failure',
                        'failed-mint', 'capture-race', 'publication-probe-race', 'publication-rename-race',
-                       'once-publication-race', 'missing-dependency', 'rapid-edits', 'process-tree-cancellation', 'CLI', 'output-protection']))
+                       'final-probe-race', 'final-probe-aba', 'final-probe-replacement',
+                       'once-final-probe-race', 'final-probe-cancellation', 'once-publication-race', 'missing-dependency', 'rapid-edits', 'process-tree-cancellation', 'CLI', 'output-protection']))
         print('PASS content-changes: cold/unchanged/guest/grammar phase timings and process counts, runtime invalidation, errors, rapid edits and cancellation')
         return 0
     except Exception as error:

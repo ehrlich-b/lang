@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Content-based project edit loop; compilation and caching belong to Lang."""
 import argparse
+import ctypes
 import fcntl
 import hashlib
 import json
@@ -10,6 +11,7 @@ import re
 import shutil
 import signal
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -20,6 +22,71 @@ PHASES = ['reader', 'validation', 'llvm', 'object', 'link']
 
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+class InputChanges:
+    """Fence a content probe with Linux filesystem change notifications.
+
+    The compiler supplies the dependency closure. File watches catch writes via
+    aliases; directory watches catch replacement, symlink and ancestor changes.
+    This is a short-lived publication fence, never a dependency/cache identity.
+    """
+    MASK = 0x00000fce  # modify, attrib, close-write, moves, create/delete, self
+
+    def __init__(self, paths):
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.inotify_init1.argtypes = [ctypes.c_int]
+        libc.inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+        self.fd = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+        if self.fd < 0:
+            raise OSError(ctypes.get_errno(), 'cannot guard project inputs')
+        self.watches = {}
+        try:
+            def add(path, names):
+                wd = libc.inotify_add_watch(self.fd, os.fsencode(path), self.MASK)
+                if wd < 0:
+                    raise OSError(ctypes.get_errno(), 'cannot guard input: ' + str(path))
+                if wd not in self.watches:
+                    self.watches[wd] = names
+                elif self.watches[wd] is not None:
+                    if names is None:
+                        self.watches[wd] = None
+                    else:
+                        self.watches[wd].update(names)
+
+            for name in paths:
+                # Watch both the lexical route and symlink target. A dependency
+                # may not exist here when resource lookup uses its fallback.
+                lexical = Path(os.path.abspath(name))
+                for path in {lexical, lexical.resolve()}:
+                    if path.is_file():
+                        add(path, None)
+                    while path.parent != path:
+                        if path.parent.is_dir():
+                            add(path.parent, {os.fsencode(path.name)})
+                        path = path.parent
+        except BaseException:
+            self.close()
+            raise
+
+    def changed(self):
+        changed = False
+        while True:
+            try:
+                data = os.read(self.fd, 65536)
+            except BlockingIOError:
+                return changed
+            offset = 0
+            while offset < len(data):
+                wd, mask, _, size = struct.unpack_from('iIII', data, offset)
+                name = data[offset + 16:offset + 16 + size].rstrip(b'\0')
+                offset += 16 + size
+                names = self.watches.get(wd)
+                if mask & 0xe000 or not name or names is None or name in names:
+                    changed = True
+
+    def close(self):
+        os.close(self.fd)
 
 
 class Watch:
@@ -65,8 +132,9 @@ class Watch:
         key = (result.returncode, result.stdout, result.stderr, tuple(tools))
         entry = None
         if result.returncode == 0:
-            _, entry = result.stdout.decode().splitlines()
-            entry = Path(entry)
+            _, entry, paths = result.stdout.split(b'\n', 2)
+            entry = Path(os.fsdecode(entry))
+            self.input_paths = [os.fsdecode(p) for p in paths.split(b'\0') if p]
         return key, entry, result
 
     def reserve_output(self, entry):
@@ -171,21 +239,28 @@ class Watch:
                     self.finish_record(build, 'superseded', reason='pipeline captured different inputs')
                     self.key = None
                     return
-                self.check_output()
-                os.replace(build['directory'] / 'program', self.output)
-                # The earlier probe can become stale before the rename. Treat
-                # replacement as provisional until a probe AFTER it confirms
-                # the captured inputs; --once must keep going on a mismatch.
+                # Install notifications BEFORE the final identity probe. An edit
+                # after that probe reads a file must invalidate its returned ID,
+                # including same-mtime and ABA edits. No compiler probe runs with
+                # a provisional executable exposed at the destination.
+                guard = InputChanges(self.input_paths + [p for p, _ in self.key[3] if p])
                 accepted = False
+                installed = False
                 try:
-                    output_digest = digest(self.output)
+                    output_digest = digest(build['directory'] / 'program')
                     current, _, _ = self.inputs()
-                    accepted = current == self.key and not self.stopped
+                    self.check_output()
+                    if current == self.key and not self.stopped and not guard.changed():
+                        os.replace(build['directory'] / 'program', self.output)
+                        installed = True
+                        # Drain synchronous write/rename events at the publication
+                        # boundary too; no expensive probe follows replacement.
+                        accepted = not guard.changed() and not self.stopped
                 finally:
+                    guard.close()
                     if not accepted:
-                        # Preserve the rejected executable alongside its build
-                        # diagnostics, and retract it before reporting the result.
-                        os.replace(self.output, build['directory'] / 'program')
+                        if installed:
+                            os.replace(self.output, build['directory'] / 'program')
                         self.key = None
                         self.finish_record(build, 'superseded', reason='inputs changed during publication')
                 if accepted:
