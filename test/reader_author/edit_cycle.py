@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Replay the content-based shipping edit cycle from a committed candidate."""
 import argparse
+import errno
 import importlib.util
 import json
 import os
@@ -222,7 +223,8 @@ def main():
         # Exercise both probes, including edits after the final probe's read,
         # same-byte ABA writes and atomic editor replacement. No identity probe
         # may expose a provisional executable at the destination.
-        for boundary in ('probe', 'final-probe', 'final-probe-aba', 'final-probe-replace', 'rename'):
+        for boundary in ('probe', 'final-probe', 'final-probe-aba', 'final-probe-replace',
+                         'rename', 'rename-aba', 'rename-cancel', 'rename-current'):
             watch.key = None
             watch.tick()
             wait_for(lambda: watch.active['process'].poll() is not None, 'publication control build did not finish')
@@ -230,6 +232,7 @@ def main():
             original_replace = module.os.replace
             injected = False
             probe_count = 0
+            execution_attempts = []
 
             def edit_after_probe():
                 nonlocal injected, probe_count
@@ -251,12 +254,32 @@ def main():
 
             def edit_at_rename(source, destination):
                 nonlocal injected
-                if not injected and Path(destination) == output:
-                    injected = True
-                    same_time(guest, valid_guest.replace('base 11', 'base 19'))
-                return original_replace(source, destination)
+                if injected or Path(destination) != output:
+                    return original_replace(source, destination)
+                injected = True
+                # Open the inode before rename too: a consumer can retain a
+                # descriptor rather than execute via the public pathname.
+                with Path(source).open('rb') as consumer:
+                    if boundary == 'rename-cancel':
+                        watch.stopped = True
+                    elif boundary != 'rename-current':
+                        same_time(guest, valid_guest.replace('base 11', 'base 19'))
+                        if boundary == 'rename-aba':
+                            same_time(guest, valid_guest)
+                    original_replace(source, destination)
+                    # Attempt execution BEFORE the watcher resumes validation,
+                    # reproducing the externally observable replacement race.
+                    for command in ([str(output), '99'], [f'/proc/self/fd/{consumer.fileno()}', '99']):
+                        try:
+                            result = subprocess.run(command, capture_output=True, pass_fds=(consumer.fileno(),))
+                        except OSError as error:
+                            require(error.errno == errno.ETXTBSY, 'unexpected execution exclusion: ' + str(error))
+                            execution_attempts.append(dict(command=command, errno=error.errno))
+                        else:
+                            raise RuntimeError('unvalidated executable ran during replacement: ' + repr(result.stdout))
+                return None
 
-            if boundary != 'rename':
+            if not boundary.startswith('rename'):
                 watch.inputs = edit_after_probe
             else:
                 module.os.replace = edit_at_rename
@@ -266,6 +289,17 @@ def main():
             finally:
                 watch.inputs = original_inputs
                 module.os.replace = original_replace
+                watch.stopped = False
+            if boundary.startswith('rename'):
+                require(len(execution_attempts) == 2, 'replacement consumers were not exercised')
+                dump(evidence / (boundary + '-execution.json'), execution_attempts)
+            if boundary == 'rename-current':
+                require(injected and watch.events[-1]['event'] == 'published' and output.exists(),
+                        'current candidate did not publish after execution exclusion')
+                result = replay.run([str(output), '99'], boundary + '-runtime', scratch)
+                require(result.stdout == b'12\n', 'accepted output stayed excluded or ran wrong code')
+                archive('publication-' + boundary)
+                continue
             require(injected and watch.events[-1]['event'] == 'superseded' and
                     not output.exists() and rejected_program.exists() and watch.key is None,
                     boundary + ': publication race accepted obsolete output or lost retry/artifact')
@@ -274,10 +308,10 @@ def main():
             archive('publication-' + boundary + '-superseded')
             phase('publication-' + boundary + '-latest')
             result = replay.run([str(output), '99'], 'publication-' + boundary + '-runtime', scratch)
-            expected = b'12\n' if boundary == 'final-probe-aba' else b'20\n'
+            expected = b'12\n' if boundary in ('final-probe-aba', 'rename-aba', 'rename-cancel') else b'20\n'
             require(result.stdout == expected, boundary + ': latest generation was not rebuilt')
             same_time(guest, valid_guest)
-            if boundary != 'final-probe-aba':
+            if boundary not in ('final-probe-aba', 'rename-aba', 'rename-cancel'):
                 phase('publication-' + boundary + '-recovery')
         same_time(guest, 'shipping { base 11 free_over 100; }\n')
         failure = phase('reader-failure', 'failed')
@@ -352,16 +386,16 @@ def main():
                     '--evidence', str(evidence / 'cli-once'), '--once'], 'cli-once', clone)
         result = replay.run([str(cli_output), '99'], 'cli-runtime', scratch)
         require(result.stdout == b'15\n', 'public CLI did not recover')
-        for boundary in ('probe', 'final-probe', 'cancel-final-probe'):
+        for boundary in ('probe', 'final-probe', 'cancel-final-probe', 'rename', 'cancel-rename'):
             same_time(guest, valid_guest.replace('base 11', 'base 14'))
             race_evidence = evidence / ('cli-once-race-' + boundary)
             replay.run([sys.executable, str(clone / 'test/reader_author/fixtures/edit_cycle/publication_race.py'),
                         str(clone / 'std/project_watch.py'), str(guest), 'base 14', 'base 19', boundary,
                         '--compiler', compiler, '--project', str(manifest), '-o', str(cli_output),
                         '--evidence', str(race_evidence), '--once'], 'cli-once-race-' + boundary, clone,
-                       expected=130 if boundary == 'cancel-final-probe' else 0)
+                       expected=130 if boundary.startswith('cancel-') else 0)
             events = [json.loads(line) for line in (race_evidence / 'events.jsonl').read_text().splitlines()]
-            if boundary == 'cancel-final-probe':
+            if boundary.startswith('cancel-'):
                 require(not cli_output.exists() and not any(e['event'] == 'published' for e in events),
                         'cancellation during final probe published output')
             else:
@@ -382,6 +416,7 @@ def main():
              controls=['same-mtime-guest', 'same-mtime-grammar', 'runtime', 'reader-failure', 'link-failure',
                        'failed-mint', 'capture-race', 'publication-probe-race', 'publication-rename-race',
                        'final-probe-race', 'final-probe-aba', 'final-probe-replacement',
+                       'rename-exec-exclusion', 'rename-fd-exec-exclusion', 'rename-aba', 'rename-cancellation', 'rename-current',
                        'once-final-probe-race', 'final-probe-cancellation', 'once-publication-race', 'missing-dependency', 'rapid-edits', 'process-tree-cancellation', 'CLI', 'output-protection']))
         print('PASS content-changes: cold/unchanged/guest/grammar phase timings and process counts, runtime invalidation, errors, rapid edits and cancellation')
         return 0

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Inject one same-timestamp edit after a completed build's identity probe."""
+"""Inject a publication edit or cancellation before a consumer can execute."""
+import errno
 import os
 from pathlib import Path
 import runpy
 import signal
+import subprocess
 import sys
 
 
@@ -26,7 +28,7 @@ def edit_after_probe(self):
         raise RuntimeError('provisional output visible during publication probe')
     value = original_inputs(self)
     target = 1 if boundary == 'probe' else 2
-    if not injected and completed_probes == target:
+    if not injected and 'rename' not in boundary and completed_probes == target:
         if boundary == 'cancel-final-probe':
             injected = True
             os.kill(os.getpid(), signal.SIGINT)
@@ -42,7 +44,39 @@ def edit_after_probe(self):
     return value
 
 
+
+original_replace = os.replace
+output = Path(sys.argv[sys.argv.index('-o') + 1])
+
+
+def edit_at_rename(source, destination):
+    global injected
+    if injected or Path(destination) != output:
+        return original_replace(source, destination)
+    injected = True
+    if boundary == 'cancel-rename':
+        os.kill(os.getpid(), signal.SIGINT)
+    else:
+        guest = Path(guest_name)
+        stamp = guest.stat()
+        contents = guest.read_text()
+        if before not in contents:
+            raise RuntimeError('replacement race control did not match guest source')
+        guest.write_text(contents.replace(before, after))
+        os.utime(guest, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+    original_replace(source, destination)
+    try:
+        result = subprocess.run([str(destination), '99'], capture_output=True)
+    except OSError as error:
+        if error.errno != errno.ETXTBSY:
+            raise
+    else:
+        raise RuntimeError('provisional executable ran during replacement: ' + repr(result.stdout))
+
+
 Watch.inputs = edit_after_probe
+if 'rename' in boundary:
+    os.replace = edit_at_rename
 code = host['main']()
 if not injected:
     raise RuntimeError('publication race control was not exercised')

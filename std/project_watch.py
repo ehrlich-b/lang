@@ -247,24 +247,32 @@ class Watch:
                 accepted = False
                 installed = False
                 try:
-                    output_digest = digest(build['directory'] / 'program')
-                    current, _, _ = self.inputs()
-                    self.check_output()
-                    if current == self.key and not self.stopped and not guard.changed():
-                        os.replace(build['directory'] / 'program', self.output)
-                        installed = True
-                        # Drain synchronous write/rename events at the publication
-                        # boundary too; no expensive probe follows replacement.
-                        accepted = not guard.changed() and not self.stopped
+                    # Linux excludes exec while this inode is open for writing,
+                    # including exec through a descriptor opened before rename.
+                    # Keep the exclusion through validation AND rollback: a
+                    # rejected candidate must never become runnable in public.
+                    with (build['directory'] / 'program').open('r+b'):
+                        try:
+                            output_digest = digest(build['directory'] / 'program')
+                            current, _, _ = self.inputs()
+                            self.check_output()
+                            if current == self.key and not self.stopped and not guard.changed():
+                                os.replace(build['directory'] / 'program', self.output)
+                                installed = True
+                                # This is the acceptance boundary. Edits already
+                                # queued here supersede the candidate while exec
+                                # is still excluded; later edits are a new cycle.
+                                accepted = not guard.changed() and not self.stopped
+                            if accepted:
+                                self.finish_record(build, 'published', output=str(self.output), sha256=output_digest)
+                        finally:
+                            if not accepted:
+                                if installed:
+                                    os.replace(self.output, build['directory'] / 'program')
+                                self.key = None
+                                self.finish_record(build, 'superseded', reason='inputs changed during publication')
                 finally:
                     guard.close()
-                    if not accepted:
-                        if installed:
-                            os.replace(self.output, build['directory'] / 'program')
-                        self.key = None
-                        self.finish_record(build, 'superseded', reason='inputs changed during publication')
-                if accepted:
-                    self.finish_record(build, 'published', output=str(self.output), sha256=output_digest)
             else:
                 self.finish_record(build, 'failed')
                 sys.stderr.buffer.write((build['directory'] / 'stderr').read_bytes())
