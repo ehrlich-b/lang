@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lang — write a reader, get a compiler</title>
+<title>lang — build your own language, reuse the compiler</title>
+<meta name="description" content="Write a reader for your syntax. Reuse lang’s type system and code generation, combine languages in one program, and try it in your browser.">
 <style>
   :root {
     --bg: #0d1117;
@@ -20,16 +21,12 @@
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     line-height: 1.5;
   }
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
   h1 { font-size: 2rem; margin: 0; color: var(--accent); }
-  h1 .cursor { animation: blink 1.2s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-  h2 { color: var(--accent2); font-size: 1.1rem; margin: 3rem 0 .5rem; }
-  h2::before { content: "## "; color: var(--dim); }
-  .tagline { color: var(--dim); margin: .25rem 0 1.5rem; }
+  h2 { color: #f0f6fc; font-size: 1.6rem; letter-spacing: -.025em; margin: 2.5rem 0 .5rem; }
   p { max-width: 78ch; }
   p em { color: var(--accent2); font-style: normal; }
   code { color: var(--accent); }
@@ -108,28 +105,176 @@
     .example pre { max-height: 180px; }
     .out { min-height: 180px; }
   }
+  code, pre, .brand, .eyebrow, .stage-label, .reader-name { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .topbar, .demo-heading, .module-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+  .brand { color: var(--accent); font-size: 1.4rem; font-weight: 800; text-decoration: none; }
+  .topbar nav { display: flex; gap: 1.5rem; font-size: .9rem; }
+  .topbar nav a { text-decoration: none; color: var(--text); }
+  .eyebrow { color: var(--accent); font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; }
+  .hero { padding: 3.5rem 0 1.5rem; }
+  .hero h1 { font-size: clamp(2.3rem, 5vw, 4rem); line-height: 1.05; letter-spacing: -.045em; color: #f0f6fc; }
+  .hero h1 span { color: var(--accent); }
+  .hero > p:not(.eyebrow) { max-width: 60ch; font-size: 1.1rem; color: #abb8c5; }
+  .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 1.4rem; margin-top: 1.5rem; }
+  .actions .cta { background: var(--accent); color: #082914; font-weight: 650; }
+  .actions a { font-size: .95rem; }
+  .foundation, .limits { color: #a9b5c1; font-size: .9rem; margin-top: 1.4rem; max-width: 88ch; }
+  button, summary, a { touch-action: manipulation; }
+  :focus-visible { outline: 3px solid var(--accent2); outline-offset: 5px; }
+  .architecture { padding: 1.3rem; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
+  .architecture > p { margin: 0 0 1rem; color: #a9b5c1; font-size: .85rem; }
+  .compiler-map { display: grid; grid-template-columns: 1.5fr 30px 1fr 30px 1fr 30px .85fr; align-items: center; }
+  .stage-label { display: block; font-size: .65rem; text-transform: uppercase; letter-spacing: .08em; color: #a9b5c1; margin-bottom: .7rem; }
+  .syntax-picks { display: grid; gap: .5rem; }
+  .syntax-choice { display: grid; grid-template-columns: 3.5rem 1fr; text-align: left; gap: .5rem; align-items: center; border: 1px solid var(--border); background: var(--bg); border-radius: 6px; color: var(--text); padding: .65rem; cursor: pointer; }
+  .syntax-choice[aria-pressed="true"] { border-color: var(--accent); background: #152b20; }
+  .syntax-choice b { font-size: .75rem; }
+  .syntax-choice code { color: #f0f6fc; white-space: nowrap; font-size: .9rem; }
+  .map-arrow { color: var(--accent); font-size: 1.5rem; text-align: center; }
+  .ast-stage, .kernel-stage, .target-stage { text-align: center; }
+  .ast-tree { width: 110px; margin: auto; }
+  .ast-tree .root { display: block; width: 34px; margin: auto; color: var(--accent2); border: 1px solid var(--accent2); border-radius: 6px; font-size: 1.3rem; }
+  .ast-branches { width: 60px; height: 20px; border: 1px solid var(--accent2); border-bottom: 0; margin: 0 auto; transform: translateY(7px); }
+  .ast-leaves { position: relative; display: flex; justify-content: space-around; }
+  .ast-leaves span { width: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+  .ast-caption { font-size: .75rem; color: #a9b5c1; margin-top: .75rem; }
+  .kernel-box { border: 1px solid #426349; border-radius: 8px; padding: 1.15rem .5rem; background: #17251e; }
+  .kernel-box b { display: block; color: var(--accent); font-size: 1.1rem; }
+  .kernel-box span { display: block; font-size: .8rem; margin-top: .35rem; color: #b2c2b6; }
+  .target-stage strong { display: block; border: 1px solid var(--border); border-radius: 6px; padding: .6rem .25rem; font-size: .8rem; margin: .5rem 0; background: var(--bg); }
+  #reader-note { min-height: 1.5em; margin: 1.2rem 0 0; font-size: .85rem; color: #a9b5c1; }
+  .demo { margin-top: 2.5rem; }
+  .demo h2 { margin: 0; }
+  .demo-intro { color: #a9b5c1; font-size: .95rem; margin: .65rem 0 1.2rem; }
+  .demo-heading button { white-space: nowrap; font-size: .85rem; padding: .6rem 1rem; }
+  .module { border: 1px solid #426349; border-radius: 14px; overflow: hidden; background: var(--panel); }
+  .module-heading { padding: .85rem 1.2rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .module-heading b { font-size: .8rem; color: var(--accent); }
+  #visual-status { font-size: .8rem; color: #b7c2cd; }
+  .roles { display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid var(--border); }
+  .role { padding: .8rem 1rem; border-right: 1px solid var(--border); }
+  .role:last-child { border-right: 0; }
+  .reader-name { display: block; font-size: .75rem; color: var(--accent2); font-weight: 700; }
+  .role span:last-child { font-size: .8rem; color: #b7c2cd; }
+  .results { display: grid; grid-template-columns: 1.7fr repeat(2, 1fr); gap: 1rem; padding: 1.2rem; }
+  .result { min-width: 0; }
+  .result + .result { border-left: 1px solid var(--border); padding-left: 1rem; }
+  .result strong { font-size: 2.25rem; line-height: 1.1; color: #f0f6fc; font-variant-numeric: tabular-nums; }
+  .result h3 { font-size: .85rem; font-weight: 500; margin: .35rem 0; color: #b7c2cd; }
+  .result small { color: #a9b5c1; font-size: .75rem; }
+  #prime-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .7rem; }
+  #prime-chips span { min-width: 1.8rem; padding: .15rem .25rem; text-align: center; color: var(--accent); background: #1a3325; border: 1px solid #355a3d; border-radius: 4px; font-size: .75rem; }
+  details { border: 1px solid var(--border); border-radius: 8px; margin: 1.2rem 0; }
+  summary { padding: .9rem 1rem; cursor: pointer; font-weight: 600; color: var(--accent2); }
+  .details-content { padding: 0 1rem 1rem; }
+  .details-content > h2:first-child { margin-top: 1rem; }
+  .details-content .tabs { margin-top: .3rem; }
+  .details-content .desc { font-size: .85rem; }
+  .details-content .tab { font-size: .8rem; }
+  footer { font-size: .9rem; }
+  @media (max-width: 650px) {
+    .wrap { padding: 1rem 1rem 2rem; }
+    .topbar nav { gap: 1rem; font-size: .8rem; }
+    .hero { padding-top: 2rem; }
+    .hero > p:not(.eyebrow) { font-size: 1rem; }
+    .architecture { padding: 1rem; }
+    .compiler-map { grid-template-columns: 1fr; gap: .65rem; }
+    .map-arrow { line-height: 1; transform: rotate(90deg); }
+    .stage-label { margin-bottom: .5rem; }
+    .syntax-choice { grid-template-columns: 4rem 1fr; }
+    .ast-stage { display: grid; grid-template-columns: 1fr 1fr; align-items: center; }
+    .ast-stage .stage-label { grid-column: 1 / -1; }
+    .ast-caption { text-align: left; }
+    .kernel-box { padding: .65rem; }
+    .kernel-box span { margin-top: .1rem; }
+    .target-stage { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .target-stage .stage-label { flex-basis: 100%; margin: 0; }
+    .target-stage strong { flex: 1; margin: 0; }
+    .demo-heading { align-items: start; }
+    .demo h2 { font-size: 1.4rem; }
+    .demo-heading button { padding: .5rem .7rem; }
+    .roles { grid-template-columns: repeat(2, 1fr); }
+    .role { border-bottom: 1px solid var(--border); }
+    .role:last-child { grid-column: 1 / -1; border-bottom: 0; }
+    .results { grid-template-columns: 1fr 1fr; }
+    .result:first-child { grid-column: 1 / -1; }
+    .result:nth-child(2) { border-left: 0; padding-left: 0; }
+    .result strong { font-size: 2rem; }
+    .langs { grid-template-columns: 1fr; }
+    .tab { padding: .4rem .5rem; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>lang<span class="cursor">▌</span></h1>
-  <p class="tagline">a compiler-compiler for syntax you write</p>
+<main class="wrap">
+  <header class="topbar">
+    <a class="brand" href="index.html">lang<span aria-hidden="true">▌</span></a>
+    <nav aria-label="Main"><a href="readers.html">Reader guide</a><a href="lab.html">Open the lab &rarr;</a></nav>
+  </header>
+  <section class="hero" aria-labelledby="hero-title">
+    <p class="eyebrow">A toolkit for building languages</p>
+    <h1 id="hero-title">Build your own language.<br><span>Reuse the compiler.</span></h1>
+    <p>Write a reader for your syntax. It produces a shared syntax tree;
+      lang supplies the type system and code generation for native and WebAssembly targets.</p>
+  <div class="actions"><a class="cta" href="lab.html">Write a reader &rarr;</a><a href="readers.html">Build your first reader</a></div>
+  </section>
 
-  <p>
-    <em>Compiler-compiler</em> is literal: write a reader &mdash; one function
-    from source text to AST &mdash; and lang wraps it around a shared compiler
-    kernel. You provide syntax and lowering. lang provides the type system and
-    native/wasm backends. The result is a compiler for your language.
-  </p>
-  <p>
-    C, Lisp, Lox, Lua, flow, Forth, and minipy ship as source you can steal, not a closed
-    language list. The polyglot demo shows reader boundaries disappear in one
-    wasm module &mdash; no VM, FFI, or glue.
-  </p>
-  <p><a class="cta" href="lab.html">write a reader in your browser &rarr;</a></p>
+  <section class="architecture" aria-label="How a reader becomes a compiler">
+    <p>Three spellings of multiplication. Each reader produces the same expression tree.</p>
+    <div class="compiler-map">
+      <div>
+        <span class="stage-label">1 &middot; Pick a syntax</span>
+        <div class="syntax-picks" role="group" aria-label="Expression sketches">
+          <button class="syntax-choice" type="button" data-reader="C" aria-pressed="true"><b>C</b><code>6 * 7</code></button>
+          <button class="syntax-choice" type="button" data-reader="Lisp" aria-pressed="false"><b>Lisp</b><code>(* 6 7)</code></button>
+          <button class="syntax-choice" type="button" data-reader="Forth" aria-pressed="false"><b>Forth</b><code>6 7 *</code></button>
+        </div>
+      </div>
+      <span class="map-arrow" aria-hidden="true">&rarr;</span>
+      <div class="ast-stage">
+        <span class="stage-label">2 &middot; Reader &rarr; AST</span>
+        <div class="ast-tree" role="img" aria-label="Multiply expression with children 6 and 7">
+          <span class="root">&times;</span><div class="ast-branches"></div><div class="ast-leaves"><span>6</span><span>7</span></div>
+        </div>
+        <div class="ast-caption" id="ast-caption">C reader<br>shared tree format</div>
+      </div>
+      <span class="map-arrow" aria-hidden="true">&rarr;</span>
+      <div class="kernel-stage">
+        <span class="stage-label">3 &middot; Shared compiler</span>
+        <div class="kernel-box"><b>lang</b><span>typecheck<br>lower &middot; emit</span></div>
+      </div>
+      <span class="map-arrow" aria-hidden="true">&rarr;</span>
+      <div class="target-stage"><span class="stage-label">4 &middot; Compiled code</span><strong>Native</strong><strong>WebAssembly</strong></div>
+    </div>
+    <p id="reader-note" aria-live="polite">The C reader translates the expression at compile time. This diagram is a sketch; run the real program below.</p>
+  </section>
 
-  <div class="tabs" id="tabs"></div>
-  <div id="examples"></div>
+  <p class="foundation">The same architecture builds lang itself: its own syntax is a reader,
+    and its compiler rebuilds to a checked fixed point.</p>
+
+  <section class="demo" aria-labelledby="demo-title">
+    <div class="demo-heading"><h2 id="demo-title">Five syntaxes. One running program.</h2><button class="run" id="run-visual" type="button">Run again &rarr;</button></div>
+    <p class="demo-intro">This prime-number program combines five readers at build time.
+      Your browser runs the resulting WebAssembly. Here is what each language contributes.</p>
+    <div class="module">
+      <div class="module-heading"><b>ONE .WASM MODULE</b><span id="visual-status" role="status">Waiting to run&hellip;</span></div>
+      <div class="roles" aria-label="Roles in the source program, not an execution trace">
+        <div class="role"><span class="reader-name">minipy</span><span>drives the report</span></div>
+        <div class="role"><span class="reader-name">lang</span><span>collects primes</span></div>
+        <div class="role"><span class="reader-name">C</span><span>tests primality</span></div>
+        <div class="role"><span class="reader-name">Forth</span><span>does arithmetic</span></div>
+        <div class="role"><span class="reader-name">Lisp</span><span>folds the list</span></div>
+      </div>
+      <div class="results" aria-label="Values from the program output">
+        <div class="result"><strong id="prime-count">&mdash;</strong><h3>primes up to 30</h3><small>lang + C + Forth find them; Lisp counts.</small><div id="prime-chips"></div></div>
+        <div class="result"><strong id="prime-sum">&mdash;</strong><h3>sum of the primes</h3><small>Lisp &middot; ml_sum</small></div>
+        <div class="result"><strong id="digit-sum">&mdash;</strong><h3>digits of the sum, added</h3><small>Forth &middot; digit_sum</small></div>
+      </div>
+    </div>
+    <details id="demo-details"><summary>Inspect source and full output &middot; more demos</summary><div class="details-content"><div class="tabs" id="tabs"></div><div id="examples"></div></div></details>
+  </section>
+
+  <details id="reader-details"><summary>How to build your own reader</summary><div class="details-content">
 
   <h2>the whole interface</h2>
   <p>
@@ -150,49 +295,49 @@
 
   <p>
     The <a href="readers.html">reader guide</a>
-    starts with 20 lines. The small calculator adds a real expression grammar.
+    starts with a complete tiny reader. The small calculator adds a real expression grammar.
     Then steal the closest shipped example.
   </p>
 
   <div class="langs">
     <div class="lang-card">
-      <h3>#tiny{} <span class="meta">&mdash; starter &middot; 20 lines</span></h3>
+      <h3>#tiny{} <span class="meta">&mdash; starter</span></h3>
       <p><code>answer 42</code> becomes a native program. Copy this first.</p>
     </div>
     <div class="lang-card">
-      <h3>#calc{} <span class="meta">&mdash; precedence &middot; 80 lines</span></h3>
+      <h3>#calc{} <span class="meta">&mdash; precedence</span></h3>
       <p>A tiny recursive-descent parser for arithmetic. Grow into this second.</p>
     </div>
     <div class="lang-card">
-      <h3>#c{} <span class="meta">&mdash; imperative &middot; 840 lines</span></h3>
+      <h3>#c{} <span class="meta">&mdash; imperative</span></h3>
       <p>
         A substantial C subset. Start here for a conventional grammar and
         desugaring pass.
       </p>
     </div>
     <div class="lang-card">
-      <h3>#minilisp{} <span class="meta">&mdash; functional &middot; 350 lines + a 200-line runtime</span></h3>
+      <h3>#minilisp{} <span class="meta">&mdash; functional</span></h3>
       <p>
         Closures, lists, quote, and a boxed runtime. Start here when your
         language needs its own value model.
       </p>
     </div>
     <div class="lang-card">
-      <h3>#flow{} <span class="meta">&mdash; coroutines &middot; 380 lines</span></h3>
+      <h3>#flow{} <span class="meta">&mdash; coroutines</span></h3>
       <p>
         Generators lower to algebraic effects. Start here for a focused DSL.
         Native-only: core wasm has no stack switching.
       </p>
     </div>
     <div class="lang-card">
-      <h3>#forth{} <span class="meta">&mdash; stack &middot; 680 lines</span></h3>
+      <h3>#forth{} <span class="meta">&mdash; stack</span></h3>
       <p>
         The reader turns a compile-time data stack into expression trees. Start
         here when your syntax looks nothing like the AST.
       </p>
     </div>
     <div class="lang-card">
-      <h3>#minipy{} <span class="meta">&mdash; layout &middot; 950 lines</span></h3>
+      <h3>#minipy{} <span class="meta">&mdash; layout</span></h3>
       <p>
         Its reader reconstructs INDENT/DEDENT from token offsets. Start here for
         layout or custom lexing.
@@ -212,10 +357,15 @@
     a fixed point.
   </p>
 
+  </div></details>
+
+  <p class="limits">An experimental language toolkit. Reader coverage varies by target.
+    The <a href="#capability-details">tested feature map</a> includes rejected and incorrect cases.</p>
+  <details id="capability-details"><summary>Explore tested features and target limits</summary><div class="details-content">
   <!-- borders:start -->
   <section id="borders" aria-labelledby="borders-title">
     <h2 id="borders-title">where the borders are</h2>
-    <p>30 tested combinations · 16 rejected · 12 supported · 2 wrong</p>
+    <p>30 tested combinations · 10 rejected · 16 supported · 4 wrong</p>
     <div class="border-grid">
       <div class="border-cell"><b>lang / integers</b><span>llvm · supported</span></div>
       <div class="border-cell"><b>lang / integers</b><span>wasm · supported</span></div>
@@ -228,38 +378,39 @@
       <div class="border-cell"><b>lang / structs</b><span>llvm · supported</span></div>
       <div class="border-cell"><b>lang / structs</b><span>wasm · rejected</span></div>
       <div class="border-cell"><b>minipy / integers</b><span>llvm · supported</span></div>
-      <div class="border-cell"><b>minipy / integers</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minipy / integers</b><span>wasm · supported</span></div>
       <div class="border-cell"><b>minipy / floats</b><span>llvm · rejected</span></div>
       <div class="border-cell"><b>minipy / floats</b><span>wasm · rejected</span></div>
       <div class="border-cell"><b>minipy / strings</b><span>llvm · rejected</span></div>
       <div class="border-cell"><b>minipy / strings</b><span>wasm · rejected</span></div>
       <div class="border-cell"><b>minipy / functions</b><span>llvm · supported</span></div>
-      <div class="border-cell"><b>minipy / functions</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minipy / functions</b><span>wasm · supported</span></div>
       <div class="border-cell"><b>minipy / structs</b><span>llvm · rejected</span></div>
       <div class="border-cell"><b>minipy / structs</b><span>wasm · rejected</span></div>
       <div class="border-cell"><b>minilisp / integers</b><span>llvm · supported</span></div>
-      <div class="border-cell"><b>minilisp / integers</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minilisp / integers</b><span>wasm · supported</span></div>
       <div class="border-cell"><b>minilisp / floats</b><span>llvm · wrong</span></div>
-      <div class="border-cell"><b>minilisp / floats</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minilisp / floats</b><span>wasm · wrong</span></div>
       <div class="border-cell"><b>minilisp / strings</b><span>llvm · wrong</span></div>
-      <div class="border-cell"><b>minilisp / strings</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minilisp / strings</b><span>wasm · wrong</span></div>
       <div class="border-cell"><b>minilisp / functions</b><span>llvm · supported</span></div>
-      <div class="border-cell"><b>minilisp / functions</b><span>wasm · rejected</span></div>
+      <div class="border-cell"><b>minilisp / functions</b><span>wasm · supported</span></div>
       <div class="border-cell"><b>minilisp / structs</b><span>llvm · rejected</span></div>
       <div class="border-cell"><b>minilisp / structs</b><span>wasm · rejected</span></div>
     </div>
   </section>
   <!-- borders:end -->
+  </div></details>
 
   <footer>
     <p>
-      Read the <a href="readers.html">20-line guide</a>,
+      Read the <a href="readers.html">reader guide</a>,
       <a href="lab.html">write one in the browser</a>,
       open the <a href="https://gitlab.com/ehrlich-b/lang/-/blob/main/docs/AST_BUILDERS.md">AST builder reference</a>,
       and teach lang a new syntax.
     </p>
   </footer>
-</div>
+</main>
 
 <script src="host.js"></script>
 <script>
@@ -283,6 +434,58 @@ const EXAMPLES = [
 
 const tabsEl = document.getElementById('tabs');
 const exEl = document.getElementById('examples');
+const visualStatus = document.getElementById('visual-status');
+const visualButton = document.getElementById('run-visual');
+
+for (const button of document.querySelectorAll('[data-reader]')) {
+  button.addEventListener('click', () => {
+    const reader = button.dataset.reader;
+    for (const choice of document.querySelectorAll('[data-reader]')) {
+      choice.setAttribute('aria-pressed', String(choice === button));
+    }
+    document.getElementById('ast-caption').textContent = `${reader} reader → shared tree`;
+    document.getElementById('reader-note').textContent =
+      `The ${reader} reader translates the expression at compile time. This diagram is a sketch; run the real program below.`;
+  });
+}
+visualButton.addEventListener('click', () => {
+  select('polyglot_wasm');
+  run('polyglot_wasm');
+});
+
+function clearVisual(message) {
+  for (const id of ['prime-count', 'prime-sum', 'digit-sum']) {
+    document.getElementById(id).textContent = '—';
+  }
+  document.getElementById('prime-chips').replaceChildren();
+  visualStatus.textContent = message;
+}
+
+function showVisual(stdout, result, ms) {
+  if (result.exit !== 0 || result.trapped) {
+    clearVisual(`Program failed (exit ${result.exit}). Inspect the full output below.`);
+    return;
+  }
+  // These cards summarize real stdout, not a replay or runtime trace.
+  const primes = stdout.match(/^primes <= 30 \(Lisp list\) = \(([\d ]+)\)$/m);
+  const count = stdout.match(/^count \(Lisp ml_len\)\s*= (\d+)$/m);
+  const sum = stdout.match(/^sum   \(Lisp ml_sum\)\s*= (\d+)$/m);
+  const digits = stdout.match(/^digits\(sum\) \(forth\)\s*= (\d+)$/m);
+  if (!primes || !count || !sum || !digits || !/^POLYGLOT PASS \(wasm\)$/m.test(stdout)) {
+    clearVisual('Program ran; summary unavailable. Inspect the full output below.');
+    return;
+  }
+  document.getElementById('prime-count').textContent = count[1];
+  document.getElementById('prime-sum').textContent = sum[1];
+  document.getElementById('digit-sum').textContent = digits[1];
+  const chips = primes[1].trim().split(/\s+/).map(Number).sort((a, b) => a - b).map(prime => {
+    const chip = document.createElement('span');
+    chip.textContent = String(prime);
+    return chip;
+  });
+  document.getElementById('prime-chips').replaceChildren(...chips);
+  visualStatus.textContent = `Ran successfully · ${ms} ms · values from program output`;
+}
 
 for (const ex of EXAMPLES) {
   const tab = document.createElement('button');
@@ -316,8 +519,9 @@ for (const ex of EXAMPLES) {
   exEl.appendChild(box);
 
   fetch('examples/' + ex.id + '.lang')
-    .then(r => r.text())
-    .then(t => { document.getElementById('src-' + ex.id).textContent = t; });
+    .then(r => { if (!r.ok) throw new Error(`Source request failed: ${r.status}`); return r.text(); })
+    .then(t => { document.getElementById('src-' + ex.id).textContent = t; })
+    .catch(e => { document.getElementById('src-' + ex.id).textContent = String(e); });
 
   document.getElementById('run-' + ex.id).onclick = () => run(ex.id);
 }
@@ -331,15 +535,26 @@ function select(id) {
 
 async function run(id) {
   const btn = document.getElementById('run-' + id);
+  if (btn.disabled) return;
   const out = document.getElementById('out-' + id);
   const st = document.getElementById('st-' + id);
   btn.disabled = true;
+  const isPolyglot = id === 'polyglot_wasm';
+  if (isPolyglot) {
+    visualButton.disabled = true;
+    clearVisual('Running WebAssembly…');
+  }
   out.textContent = '';
   st.textContent = 'running…';
+  let stdout = '';
   try {
-    const bytes = await fetch('examples/' + id + '.wasm').then(r => r.arrayBuffer());
+    const bytes = await fetch('examples/' + id + '.wasm').then(r => {
+      if (!r.ok) throw new Error(`Wasm request failed: ${r.status}`);
+      return r.arrayBuffer();
+    });
     const t0 = performance.now();
     const res = await runLangWasm(bytes, (text, isErr) => {
+      if (!isErr) stdout += text;
       const span = document.createElement('span');
       if (isErr) span.className = 'err';
       span.textContent = text;
@@ -349,11 +564,14 @@ async function run(id) {
     st.innerHTML = res.exit === 0
       ? `<span class="ok">exit 0</span> · ${ms}ms`
       : `<span class="bad">exit ${res.exit}${res.trapped ? ' (trap)' : ''}</span> · ${ms}ms`;
+    if (isPolyglot) showVisual(stdout, res, ms);
   } catch (e) {
     st.innerHTML = '<span class="bad">host error</span>';
     out.textContent = String(e);
+    if (isPolyglot) clearVisual('Could not run WebAssembly. Inspect the full output below.');
   }
   btn.disabled = false;
+  if (isPolyglot) visualButton.disabled = false;
 }
 
 select('polyglot_wasm');

@@ -16,4 +16,7 @@ while IFS= read -r path; do
     scp "$tmp/$path" "$SERVER:$REMOTE_DIR/$path"
 done < "$tmp/.files"
 ssh "$SERVER" "ln -sfn $REMOTE_DIR /var/www/bryan/lang"
+# Upload success alone does not prove the public site serves this release.
+python3 "$(dirname "$0")/verify_live.py" "$archive" https://lang.ehrlich.dev/
+python3 "$(dirname "$0")/verify_live.py" "$archive" https://ehrlich.dev/lang/
 echo "Deployed: https://ehrlich.dev/lang/ and https://lang.ehrlich.dev/"
