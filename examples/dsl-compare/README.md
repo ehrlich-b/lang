@@ -4,8 +4,8 @@ Tariff is a small batch pricing language with functions, local integer variables
 assignment, conditionals, loops, and return statements. See
 [the comparison](../../docs/compare-yacc-antlr.md) for the design and limitations.
 
-From the repository root on Debian-compatible Linux x86-64, with Clang 19.1.7,
-Python 3.13, make, git, curl and dpkg-deb already installed:
+From the repository root on Debian-compatible Linux x86-64, with
+Python 3.13, make, git, dpkg-deb, zstd and a C system toolchain already installed:
 
 ```sh
 nice -n 10 python3 examples/dsl-compare/install.py --tools ../tools
@@ -14,7 +14,9 @@ nice -n 10 python3 examples/dsl-compare/run.py --tools ../tools --report ../evid
 
 Commit changes before running. The script clones the committed source into a new,
 empty build directory outside this checkout and creates the report and complete
-command transcript outside the checkout. Tool downloads are hash-pinned and
+command transcript outside the checkout. Clang 23.1.5 and the parser tools are downloaded from pinned release artifacts.
+LLVM's compressed archive is about 1.2 GB and requires a 1 GiB decoder window;
+only Clang and its support files are extracted. Tool downloads are hash-pinned and
 installed only in the explicit tools directory. Existing downloads must match
 their hashes; a failed download is preserved for investigation. The experiment
 never installs system packages. `--smoke` runs small native examples, both

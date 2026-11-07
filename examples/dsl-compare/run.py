@@ -18,9 +18,9 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 ARMS = ('lang', 'yacc', 'antlr')
 DEPENDENCIES = {
-    'lang': ['Clang 19.1.7', 'Lang source and LLVM bootstrap at measured HEAD'],
-    'yacc': ['Clang 19.1.7', 'flex 2.6.4', 'Bison 3.8.2', 'GNU m4 1.4.19'],
-    'antlr': ['Clang 19.1.7', 'ANTLR 4.13.2 complete jar', 'Java 21.0.13+9',
+    'lang': ['Clang 23.1.5', 'Lang source and LLVM bootstrap at measured HEAD'],
+    'yacc': ['Clang 23.1.5', 'flex 2.6.4', 'Bison 3.8.2', 'GNU m4 1.4.19'],
+    'antlr': ['Clang 23.1.5', 'ANTLR 4.13.2 complete jar', 'Java 21.0.13+9',
               'Python 3.13', 'antlr4-python3-runtime 4.13.2'],
 }
 
@@ -42,7 +42,8 @@ class Experiment:
                         PYTHONDONTWRITEBYTECODE='1',
                         BISON_PKGDATADIR=str(self.tools / 'prefix/usr/share/bison'),
                         M4=str(self.tools / 'prefix/usr/bin/m4'),
-                        PYTHONPATH=str(self.tools / 'python'))
+                        PYTHONPATH=str(self.tools / 'python'),
+                        PATH=str(self.tools / 'llvm/bin') + os.pathsep + os.environ['PATH'])
         self.root = self.work / 'source'
         self.call(['git', 'clone', '--quiet', '--no-local', str(REPO), str(self.root)], cwd=self.work)
         self.base = self.root / 'examples/dsl-compare'
@@ -142,6 +143,8 @@ class Experiment:
         report = dict(version=1, head=head, host=platform.node(), platform=platform.platform(),
                       mode='smoke' if smoke else 'full', flags=['-O2'], work=str(self.work),
                       command_log=str(self.log), arms={}, input_hashes={}, dependencies=DEPENDENCIES,
+                      shared_build_dependencies=['git', 'Python 3.13', 'make', 'dpkg-deb', 'zstd',
+                                                 'system C headers and linker'],
                       method=dict(clean='git clone --no-local; empty build directories',
                                   timing='wall seconds; tool provisioning excluded; serial arms; no LTO',
                                   compile='exactly 100000 lines; full frontend + native link; 180s per phase',
@@ -160,7 +163,7 @@ class Experiment:
         }.items():
             run = self.call(cmd)
             report.setdefault('installed_tools', {})[name] = (Path(run['stdout']).read_text() + Path(run['stderr']).read_text())
-        assert '19.1.7' in report['host_tools']['clang'], 'This measurement pins Clang 19.1.7'
+        assert '23.1.5' in report['host_tools']['clang'], 'This measurement pins Clang 23.1.5'
         fixtures = self.base / 'fixtures'
         large = self.work / 'large.tariff'
         # Exactly 100000 physical lines, all inside one function, no huge expression stack.
@@ -173,6 +176,9 @@ class Experiment:
         report['large_input'] = dict(lines=100000, increments=99996, sha256=sha(large), path=str(large))
         for f in sorted(fixtures.rglob('*.tariff')):
             report['input_hashes'][str(f.relative_to(self.base))] = sha(f)
+        report['source_hashes'] = {str(f.relative_to(self.base)): sha(f)
+                                   for f in sorted(self.base.rglob('*')) if f.is_file()}
+        report['tool_manifest'] = json.loads((self.tools / 'manifest.json').read_text())
         for arm in ARMS:
             print(f'Building and measuring {arm}', flush=True)
             armroot = self.work / arm
@@ -200,7 +206,8 @@ class Experiment:
                 row['diagnostics'][f.stem] = dict(exit_code=run['exit_code'], stdout=stdout,
                                                   stderr=stderr, log=run['stderr'])
             probes = {}
-            for name, n, expected in [('precedence', 0, 7), ('operators', 1, 7), ('baseline', 4, 14)]:
+            for name, n, expected in [('precedence', 0, 7), ('operators', 1, 7),
+                                      ('baseline', 4, 14), ('functions', 4, 5)]:
                 probes[name] = self.compile(arm, build, fixtures / (name + '.tariff'), armroot / name)
                 self.expect(probes[name], n, expected)
             # The actual earlier grammar is built, exercised, and required to reject %.

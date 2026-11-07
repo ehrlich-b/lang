@@ -33,9 +33,11 @@ The released parser tools are [flex 2.6.4](https://github.com/westes/flex/releas
 [Bison 3.8.2](https://ftp.gnu.org/gnu/bison/), and
 [ANTLR 4.13.2](https://www.antlr.org/download.html). Download hashes and the
 Temurin Java 21.0.13+9 maintenance release are pinned in `install.py`.
-The Python target uses the matching ANTLR 4.13.2 runtime. Clang 19.1.7 and Python
-3.13 are existing host prerequisites, not claimed to be the latest LLVM or
-Python releases; no system tool is installed or upgraded. Lang has no comparable
+The Python target uses the matching ANTLR 4.13.2 runtime. [Clang 23.1.5](https://github.com/llvm/llvm-project/releases/tag/llvmorg-23.1.5)
+is installed from the current official release archive under the same tools
+directory. Existing host prerequisites are Python 3.13, git, make, dpkg-deb,
+zstd and the system C headers/linker; no system tool is installed or upgraded.
+Extracting LLVM requires the archive's 1 GiB zstd window (`--long=30`). Lang has no comparable
 released tool distribution here, so its source/seed revision is pinned by Git.
 
 Every arm receives exactly the same fixtures and Clang `-O2` native link flags.
@@ -75,8 +77,9 @@ to stderr, and emit no partial code. Exact unedited diagnostic text is retained.
 The executable report is generated outside the checkout at `evidence/compare.json`
 (relative to the experiment directory). It contains machine-generated measurements,
 all command exit codes and timings, input hashes, native outputs, and errors.
-An initial run measured the following (wall times are host-load sensitive; JSON
-from a later run supersedes these timings). Parser tool provisioning is excluded.
+A preliminary run with the older host Clang 19.1.7 measured the following.
+It is retained only as a qualified pilot; the authoritative report uses the current
+released Clang 23.1.5 for every arm. Tool provisioning is excluded.
 
 | Measure | Lang | flex/Bison | ANTLR Python target |
 |---|---:|---:|---:|
@@ -103,8 +106,8 @@ practical tie, not evidence of a better optimizer. Lang requires the fewest
 separately installed build dependencies, but pays for a compiler bootstrap from
 source. It has no distribution convenience win until that SDK is packaged.
 
-The initial measurements overlapped a registered gate run; use the later serial
-readiness run's JSON for the authoritative timing. No arm received special flags
+The preliminary measurements overlapped a registered gate run; use the later serial
+readiness run's JSON with Clang 23.1.5 for the authoritative timing. No arm received special flags
 or optimizations. This limitation is why small runtime differences are not ranked
 as meaningful wins.
 

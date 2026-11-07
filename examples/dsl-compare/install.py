@@ -27,6 +27,9 @@ PACKAGES = [
     ('antlr4_python3_runtime-4.13.2-py3-none-any.whl',
      'https://files.pythonhosted.org/packages/89/03/a851e84fcbb85214dc637b6378121ef9a0dd61b4c65264675d8a5c9b1ae7/antlr4_python3_runtime-4.13.2-py3-none-any.whl',
      'fe3835eb8d33daece0e799090eda89719dbccee7aa39ef94eed3818cafa5a7e8'),
+    ('LLVM-23.1.5-Linux-X64.tar.zst',
+     'https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/LLVM-23.1.5-Linux-X64.tar.zst',
+     'c3107384835f788768f614db610e87fba7077f125ca950eb02a78bab0a308065'),
 ]
 
 
@@ -43,7 +46,8 @@ def main():
             with urllib.request.urlopen(url, timeout=120) as response, path.open('wb') as out:
                 while chunk := response.read(1024 * 1024):
                     out.write(chunk)
-        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        with path.open('rb') as stream:
+            actual = hashlib.file_digest(stream, 'sha256').hexdigest()
         if actual != checksum:
             raise ValueError(f'{path}: expected {checksum}, got {actual}; refusing to use it')
         if name.endswith('.deb'):
@@ -60,6 +64,21 @@ def main():
                         continue
                     member.name = str(Path(*parts))
                     archive.extract(member, root / 'jre', filter='data')
+        elif name.endswith('.tar.zst') and not (root / 'llvm/bin/clang').exists():
+            # The official archive uses a 1 GiB zstd window. Extract only Clang,
+            # its shared libraries and builtin C headers, not unrelated tools.
+            proc = subprocess.Popen(['zstd', '--long=30', '-dc', path], stdout=subprocess.PIPE)
+            with tarfile.open(fileobj=proc.stdout, mode='r|') as archive:
+                for member in archive:
+                    parts = Path(member.name).parts[1:]
+                    if not parts:
+                        continue
+                    rel = str(Path(*parts))
+                    if rel in ('bin/clang', 'bin/clang-23', 'bin/clang++', 'bin/clang-cpp') or rel.startswith(('lib/libLLVM', 'lib/libclang-cpp', 'lib/clang/23/include/')):
+                        member.name = rel
+                        archive.extract(member, root / 'llvm', filter='data')
+            if proc.wait():
+                raise RuntimeError('LLVM archive extraction failed')
     (root / 'manifest.json').write_text(json.dumps(dict(packages=PACKAGES), indent=2) + '\n')
     print('Pinned tools ready:', root)
 

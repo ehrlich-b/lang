@@ -2,6 +2,16 @@ include "std/parser_reader.lang"
 include "std/prec.lang"
 include "std/buffer.lang"
 
+var tariff_source *u8 = nil;
+func tariff_name(n *PNode) *u8 {
+    var name *u8 = n.text;
+    if streq(name, "fn") || streq(name, "let") || streq(name, "if") || streq(name, "else") || streq(name, "while") || streq(name, "return") {
+        pnode_print_error(n, tariff_source, "tariff", "keyword cannot be an identifier");
+        exit(1);
+    }
+    return name;
+}
+
 // Twenty-two named rules; expressions use the toolkit's precedence service.
 #parser{
     tariff = functions:tariff_function+
@@ -41,7 +51,7 @@ func tariff_table() *PrecTable {
 func tariff_expr(n *PNode) *u8 {
     var result *u8 = nil;
     if pnode_is(n, "num") { result = ast_number(n.text); }
-    else if pnode_is(n, "ident") { result = ast_ident(n.text); }
+    else if pnode_is(n, "ident") { result = ast_ident(tariff_name(n)); }
     else if pnode_is(n, "neg") { result = ast_neg(tariff_expr(pnode_require(n, "value"))); }
     else if pnode_is(n, "paren") { result = tariff_expr(pnode_require(n, "value")); }
     else if pnode_is(n, "call") {
@@ -57,7 +67,7 @@ func tariff_expr(n *PNode) *u8 {
                 i = i + 1;
             }
         }
-        result = ast_call_named(pnode_require(n, "name").text, args);
+        result = ast_call_named(tariff_name(pnode_require(n, "name")), args);
     } else {
         var e *PrecExpr = prec_expr(tariff_table());
         prec_operand(e, tariff_expr(pnode_require(n, "first")));
@@ -76,10 +86,10 @@ func tariff_expr(n *PNode) *u8 {
 
 func tariff_stmt(n *PNode) *u8 {
     if pnode_is(n, "bind") {
-        return ast_var(pnode_require(n, "name").text, ast_type_i64(), tariff_expr(pnode_require(n, "value")));
+        return ast_var(tariff_name(pnode_require(n, "name")), ast_type_i64(), tariff_expr(pnode_require(n, "value")));
     }
     if pnode_is(n, "assign") {
-        return ast_assign(ast_ident(pnode_require(n, "name").text), tariff_expr(pnode_require(n, "value")));
+        return ast_assign(ast_ident(tariff_name(pnode_require(n, "name"))), tariff_expr(pnode_require(n, "value")));
     }
     if pnode_is(n, "ret") { return ast_return(tariff_expr(pnode_require(n, "value"))); }
     if pnode_is(n, "loop") {
@@ -104,6 +114,7 @@ func tariff_block(n *PNode) *u8 {
 }
 
 func tariff_read(text *u8) *u8 {
+    tariff_source = text;
     // The standard scanner folds -123; split it so x-1 is subtraction too.
     var raw *Tokenizer = tok_new_comments(text, "//", nil, nil);
     var stream *u8 = tok_stream_new();
@@ -133,16 +144,16 @@ func tariff_read(text *u8) *u8 {
         var params *u8 = ast_vec();
         var names *PNode = pnode_get(f, "params");
         if names != nil {
-            ast_push(params, ast_param(pnode_require(names, "first").text, ast_type_i64()));
+            ast_push(params, ast_param(tariff_name(pnode_require(names, "first")), ast_type_i64()));
             var rest *PNode = pnode_require(names, "rest");
             var j i64 = 0;
             while j < vec_len(rest.children) {
                 var tail *PNode = vec_get(rest.children, j);
-                ast_push(params, ast_param(pnode_require(tail, "name").text, ast_type_i64()));
+                ast_push(params, ast_param(tariff_name(pnode_require(tail, "name")), ast_type_i64()));
                 j = j + 1;
             }
         }
-        ast_push(decls, ast_span(ast_func(pnode_require(f, "name").text, params, ast_type_i64(), tariff_block(pnode_require(f, "body"))), f.start, f.end));
+        ast_push(decls, ast_span(ast_func(tariff_name(pnode_require(f, "name")), params, ast_type_i64(), tariff_block(pnode_require(f, "body"))), f.start, f.end));
         i = i + 1;
     }
     return ast_program(decls);
