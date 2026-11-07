@@ -35,7 +35,8 @@ built and run too. The final `%` tier binds tighter than `+` and looser than `*`
 `2 + 17 % 3 * 2` is **7**. The benchmark uses bounded signed 64-bit arithmetic;
 arguments, identifiers, declarations and returns must obey the portable integer
 subset described in the comparison. This is a compiler comparison, not a
-production language implementation.
+production language implementation. The comment fixtures keep their literal bytes
+through Git attributes; CR at end of a fixture line is intentional.
 
 All generated inputs and build products are reproducible from these sources.
 No generated parser or downloaded tool is checked in. The default report path in

@@ -1,0 +1,2 @@
+# Preserve the literal line endings these fixtures exercise.
+*.tariff -text whitespace=cr-at-eol
