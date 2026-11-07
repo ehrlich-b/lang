@@ -84,10 +84,6 @@ class Experiment:
             self.call([compiler, 'std/core.lang', source / 'tariff.lang', '-o', ir])
             self.call(['clang', '-O2', ir, '-o', target / 'frontend'])
             generated = [ir]
-            # Include the generated grammar source retained by Lang's expansion.
-            expanded = target / 'reader.ast'
-            self.call([compiler, 'std/core.lang', source / 'tariff.lang', '--emit-expanded-ast', '-o', expanded])
-            generated.append(expanded)
             frontend = [target / 'frontend']
         elif arm == 'yacc':
             self.call([self.tools / 'prefix/usr/bin/bison', '--warnings=all', '--defines=tariff.tab.h',
@@ -142,11 +138,11 @@ class Experiment:
         head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=self.root, text=True).strip()
         report = dict(version=1, head=head, host=platform.node(), platform=platform.platform(),
                       mode='smoke' if smoke else 'full', flags=['-O2'], work=str(self.work),
-                      command_log=str(self.log), arms={}, input_hashes={}, dependencies=DEPENDENCIES,
+                      command_log=self.log.name, arms={}, input_hashes={}, dependencies=DEPENDENCIES,
                       shared_build_dependencies=['git', 'Python 3.13', 'make', 'dpkg-deb', 'zstd',
                                                  'system C headers and linker'],
                       method=dict(clean='git clone --no-local; empty build directories',
-                                  timing='wall seconds; tool provisioning excluded; serial arms; no LTO',
+                                  timing='wall seconds; tool provisioning and LOC-only expansion excluded; serial arms; no LTO',
                                   compile='exactly 100000 lines; full frontend + native link; 180s per phase',
                                   runtime='5 fresh processes; n=2000000; median includes process startup',
                                   loc='all physical lines including blanks/comments; frontend source only; shared harness separate',
@@ -188,6 +184,13 @@ class Experiment:
             build = self.build(arm, source, armroot / 'build', build_compiler=arm == 'lang')
             sample = self.compile(arm, build, fixtures / 'benchmark.tariff', armroot / 'benchmark')
             self.expect(sample, 2000000, 6000002995045)
+            # This expansion exists only for LOC accounting, after the working binary.
+            # build['seconds'] and sample['seconds'] have already stopped timing.
+            if arm == 'lang':
+                expanded = armroot / 'build/reader.ast'
+                row['loc_expansion'] = self.call([self.root / 'out/lang_next', 'std/core.lang',
+                                                 source / 'tariff.lang', '--emit-expanded-ast', '-o', expanded])
+                build['generated'].append(expanded)
             row.update(status='PASS', clean_to_binary_seconds=build['seconds'] + sample['seconds'],
                        build_seconds=build['seconds'], sample=sample,
                        handwritten_lines=sum(len(f.read_text().splitlines()) for f in source.iterdir() if f.is_file()),
@@ -207,7 +210,7 @@ class Experiment:
                                                   stderr=stderr, log=run['stderr'])
             probes = {}
             for name, n, expected in [('precedence', 0, 7), ('operators', 1, 7),
-                                      ('baseline', 4, 14), ('functions', 4, 5)]:
+                                      ('baseline', 4, 14), ('functions', 4, 5), ('decimal', 0, -23)]:
                 probes[name] = self.compile(arm, build, fixtures / (name + '.tariff'), armroot / name)
                 self.expect(probes[name], n, expected)
             # The actual earlier grammar is built, exercised, and required to reject %.
@@ -215,6 +218,8 @@ class Experiment:
             old = self.build(arm, before, armroot / 'before')
             previous = self.compile(arm, old, fixtures / 'baseline.tariff', armroot / 'before-native')
             self.expect(previous, 4, 14)
+            old_decimal = self.compile(arm, old, fixtures / 'decimal.tariff', armroot / 'before-decimal')
+            self.expect(old_decimal, 0, -23)
             rejected = self.call(old['frontend'] + [fixtures / 'precedence.tariff'], required=False)
             assert rejected['exit_code'] == 1 and Path(rejected['stderr']).read_text(), rejected
             patches, added, removed = [], 0, 0
@@ -231,6 +236,7 @@ class Experiment:
             patch.write_text(''.join(patches))
             row['operator_change'] = dict(added=added, removed=removed, lines_touched=added + removed,
                                           patch=str(patch), diff=''.join(patches), baseline=previous, probes=probes,
+                                          baseline_decimal=old_decimal,
                                           baseline_rejects_remainder=rejected)
             if not smoke:
                 row['large_compile'] = self.compile(arm, build, large, armroot / 'large')

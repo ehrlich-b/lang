@@ -1,0 +1,7 @@
+fn compute(n) {
+    if (010 != 10) { return 1; }
+    if (08 != 8) { return 2; }
+    if (000 != 0) { return 3; }
+    if (-00042 != -42) { return 4; }
+    return 010 + 08 + 000 - 00042 + 0001;
+}

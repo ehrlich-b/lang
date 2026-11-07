@@ -18,7 +18,9 @@ reserved by the C backend are outside the supported subset. Parameters and local
 must have unique names and calls must match their declared signatures. These
 restrictions matter: parser generators alone do not supply semantic analysis.
 Only decimal integer literals, ASCII identifiers, whitespace, and `//` comments
-are part of the language. Functions may call functions declared later.
+are part of the language. Leading zeros remain decimal: `010` is 10 and `08`
+is 8. Both C emitters strip redundant leading zeros, including in the baseline
+versions; a shared native fixture also covers zero and negative literals. Functions may call functions declared later.
 
 ## Reproduction and measurement
 
@@ -28,6 +30,8 @@ It builds Lang's current compiler from its preserved LLVM bootstrap before
 building the generated Tariff frontend. The other arms generate and build their
 frontends from their grammar sources. Tool provisioning time is excluded from
 clean-to-binary time; source building and parser generation are included.
+Lang's extra expanded-AST pass is only for generated LOC accounting and runs
+after the sample binary is linked, outside both build and sample compile timers.
 
 The released parser tools are [flex 2.6.4](https://github.com/westes/flex/releases/tag/v2.6.4),
 [Bison 3.8.2](https://ftp.gnu.org/gnu/bison/), and
@@ -77,9 +81,13 @@ to stderr, and emit no partial code. Exact unedited diagnostic text is retained.
 The executable report is generated outside the checkout at `evidence/compare.json`
 (relative to the experiment directory). It contains machine-generated measurements,
 all command exit codes and timings, input hashes, native outputs, and errors.
+Its command transcript is named relative to the report directory. Keeping the
+two files together permits validation after moving the evidence and reclaiming
+the original build directory; `check.py report --relocate` exercises this.
 The following measured run uses released Clang 23.1.5 for all three arms
-(source commit `90481dd`). Later JSON replays supersede these host-sensitive
-timings. Tool provisioning is excluded.
+(source commit `90481dd`). This historical run included a LOC-only Lang expansion in clean-build time;
+that timing is superseded by the corrected runner. Later JSON replays supersede
+all host-sensitive timings. Tool provisioning is excluded.
 
 | Measure | Lang | flex/Bison | ANTLR Python target |
 |---|---:|---:|---:|

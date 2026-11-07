@@ -6,7 +6,9 @@ import json
 from pathlib import Path
 import platform
 import re
+import shutil
 import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / 'examples/dsl-compare'
@@ -22,7 +24,9 @@ def check_report(path):
     assert report['mode'] == 'full' and report['status'] == 'PASS'
     assert set(report['arms']) == {'lang', 'yacc', 'antlr'}
     assert report['large_input']['lines'] == 100000
-    rows = [json.loads(s) for s in Path(report['command_log']).read_text().splitlines()]
+    transcript = Path(report['command_log'])
+    assert transcript.name == str(transcript), 'Transcript must be beside the report'
+    rows = [json.loads(s) for s in (path.parent / transcript).read_text().splitlines()]
     for arm, row in report['arms'].items():
         assert row['sample']['status'] == 'PASS'
         assert row['binary_bytes'] > 0 and row['clean_to_binary_seconds'] > 0
@@ -33,6 +37,16 @@ def check_report(path):
             assert diagnostic['exit_code'] == 1 and diagnostic['stderr'] and not diagnostic['stdout']
         change = row['operator_change']
         assert change['baseline']['status'] == 'PASS' and change['lines_touched'] > 0
+        for probe in (change['probes']['decimal'], change['baseline_decimal']):
+            assert probe['status'] == 'PASS'
+            assert any(r['command'] == [probe['binary'], '0'] and r['exit_code'] == 0
+                       and r['stdout_text'] == '-23\n' for r in rows)
+        if arm == 'lang':
+            expansion = row['loc_expansion']
+            assert expansion['exit_code'] == 0
+            # The LOC-only pass must follow the sample's native link in the transcript.
+            commands = [r['command'] for r in rows]
+            assert commands.index(expansion['command']) > commands.index(row['sample']['native']['command'])
         assert change['baseline_rejects_remainder']['exit_code'] == 1
         assert change['lines_touched'] == change['added'] + change['removed']
         if row['large_compile']['status'] != 'PASS':
@@ -51,6 +65,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case', choices=('host', 'report', 'policy'))
     parser.add_argument('--report', type=Path)
+    parser.add_argument('--relocate', action='store_true', help='Validate only a relocated report and transcript')
     args = parser.parse_args()
     if args.case == 'host':
         host = platform.node()
@@ -59,7 +74,17 @@ def main():
         print('Ordinary compiler checks allowed; no privileged device or module checks used')
     elif args.case == 'report':
         assert args.report is not None
-        check_report(args.report)
+        if args.relocate:
+            with tempfile.TemporaryDirectory(prefix='retained-report-', dir=args.report.resolve().parent) as folder:
+                copied = Path(folder) / args.report.name
+                transcript = Path(json.loads(args.report.read_text())['command_log'])
+                assert transcript.name == str(transcript)
+                shutil.copy2(args.report, copied)
+                shutil.copy2(args.report.parent / transcript, Path(folder) / transcript)
+                check_report(copied)
+                print('Validated relocated report and sibling transcript without build artifacts')
+        else:
+            check_report(args.report)
         doc = (ROOT / 'docs/compare-yacc-antlr.md').read_text()
         for phrase in ('would not pick Lang', 'documentation', 'IDE', 'ecosystem',
                        'grammar diagnostics', 'top three', 'ast-nodes'):

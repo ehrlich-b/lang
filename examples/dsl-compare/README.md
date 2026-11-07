@@ -19,7 +19,7 @@ LLVM's compressed archive is about 1.2 GB and requires a 1 GiB decoder window;
 only Clang and its support files are extracted. Tool downloads are hash-pinned and
 installed only in the explicit tools directory. Existing downloads must match
 their hashes; a failed download is preserved for investigation. The experiment
-never installs system packages. `--smoke` runs small native examples, both
+never installs system packages. `--smoke` runs small native examples (including leading-zero decimal literals), both
 versions of the grammar, and all five diagnostic fixtures without the large input.
 
 `lang/` generates a parser with `#parser{}`, lowers to shared AST, and uses Lang's
@@ -39,3 +39,10 @@ production language implementation.
 All generated inputs and build products are reproducible from these sources.
 No generated parser or downloaded tool is checked in. The default report path in
 the command above is `../evidence/compare.json`.
+
+The report names its command transcript relative to the report directory. Retain
+those two files together; validation does not need the original build directory:
+
+```sh
+nice -n 10 python3 examples/dsl-compare/check.py report --relocate --report ../evidence/compare.json
+```

@@ -76,6 +76,8 @@ class Emit(TariffVisitor):
             return self.visit(ctx.call())
         if ctx.expression():
             return '(' + self.visit(ctx.expression()) + ')'
+        if ctx.INT():
+            return ctx.getText().lstrip('0') or '0'
         return ctx.getText()
 
     def visitCall(self, ctx):
