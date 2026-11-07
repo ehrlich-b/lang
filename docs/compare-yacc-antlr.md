@@ -85,21 +85,22 @@ Its command transcript is named relative to the report directory. Keeping the
 two files together permits validation after moving the evidence and reclaiming
 the original build directory; `check.py report --relocate` exercises this.
 The following measured run uses released Clang 23.1.5 for all three arms
-(source commit `90481dd`). This historical run included a LOC-only Lang expansion in clean-build time;
-that timing is superseded by the corrected runner. Later JSON replays supersede
-all host-sensitive timings. Tool provisioning is excluded.
+(source commit `41f1127`). The LOC-only Lang expansion is excluded from
+clean-build time. This replaces the earlier measurement that included it.
+Later JSON replays supersede these host-sensitive timings. Tool provisioning
+is excluded.
 
 | Measure | Lang | flex/Bison | ANTLR Python target |
 |---|---:|---:|---:|
-| Hand-written frontend lines | 170 | 138 | 124 |
-| Generated frontend lines, all recorded representations | 60,890 | 3,780 | 1,628 |
-| Clean source to sample native binary | 10.369 s | 0.300 s | 0.449 s |
-| Complete 100,000-line compilation | **rejected** | 0.682 s | 10.325 s |
-| Scale lines/second | unavailable | 146,594 | 9,685 |
-| Native benchmark median, including startup | 4.50 ms | 3.85 ms | 4.50 ms |
+| Hand-written frontend lines | 170 | 143 | 126 |
+| Generated frontend lines, all recorded representations | 60,890 | 3,785 | 1,628 |
+| Clean source to sample native binary | 9.544 s | 0.350 s | 0.498 s |
+| Complete 100,000-line compilation | **rejected** | 0.631 s | 10.871 s |
+| Scale lines/second | unavailable | 158,455 | 9,199 |
+| Native benchmark median, including startup | 3.97 ms | 3.80 ms | 3.83 ms |
 | Native binary bytes | 16,160 | 16,120 | 16,120 |
 
-Lang parsed the large input in 0.72 seconds but rejected its emitted AST at the
+Lang parsed the large input in 0.82 seconds but rejected its emitted AST at the
 backend boundary with `(code ast-nodes)`. Its fixed AST-node quota prevents a
 working native scale binary at the default settings. This is a loss, not a
 100,000-line successful compile time. No limit was raised and no input lines were
