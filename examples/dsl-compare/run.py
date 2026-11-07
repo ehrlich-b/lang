@@ -134,6 +134,16 @@ class Experiment:
         assert actual == str(answer) + '\n', (actual, answer)
         return run
 
+    def comments(self, arm, build, fixtures, target):
+        target.mkdir()
+        probes = {}
+        for fixture in sorted((fixtures / 'comments').glob('*.tariff')):
+            result = self.compile(arm, build, fixture, target / fixture.stem)
+            result['run'] = self.expect(result, 0, 10)
+            probes[fixture.stem] = result
+        assert set(probes) == {'lf', 'crlf', 'cr', 'mixed'}
+        return probes
+
     def run(self, smoke):
         head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=self.root, text=True).strip()
         report = dict(version=1, head=head, host=platform.node(), platform=platform.platform(),
@@ -213,6 +223,7 @@ class Experiment:
                                       ('baseline', 4, 14), ('functions', 4, 5), ('decimal', 0, -23)]:
                 probes[name] = self.compile(arm, build, fixtures / (name + '.tariff'), armroot / name)
                 self.expect(probes[name], n, expected)
+            row['comments'] = self.comments(arm, build, fixtures, armroot / 'comments')
             # The actual earlier grammar is built, exercised, and required to reject %.
             before = self.base / 'baseline' / arm
             old = self.build(arm, before, armroot / 'before')
@@ -222,6 +233,7 @@ class Experiment:
             self.expect(old_decimal, 0, -23)
             rejected = self.call(old['frontend'] + [fixtures / 'precedence.tariff'], required=False)
             assert rejected['exit_code'] == 1 and Path(rejected['stderr']).read_text(), rejected
+            row['baseline_comments'] = self.comments(arm, old, fixtures, armroot / 'before-comments')
             patches, added, removed = [], 0, 0
             for f in sorted(source.iterdir()):
                 if not f.is_file():

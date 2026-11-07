@@ -4,7 +4,7 @@
 %}
 %%
 [ \t\r\n]+       ;
-"//"[^\n]*       ;
+"//"[^\r\n]*       ;
 "fn"             return FN;
 "let"            return LET;
 "if"             return IF;

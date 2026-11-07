@@ -35,6 +35,13 @@ def check_report(path):
         assert len(row['diagnostics']) == 5
         for diagnostic in row['diagnostics'].values():
             assert diagnostic['exit_code'] == 1 and diagnostic['stderr'] and not diagnostic['stdout']
+        for version in ('comments', 'baseline_comments'):
+            probes = row[version]
+            assert set(probes) == {'lf', 'crlf', 'cr', 'mixed'}
+            for probe in probes.values():
+                assert probe['status'] == 'PASS' and probe['run']['exit_code'] == 0
+                assert any(r['command'] == [probe['binary'], '0'] and r['exit_code'] == 0
+                           and r['stdout_text'] == '10\n' for r in rows)
         change = row['operator_change']
         assert change['baseline']['status'] == 'PASS' and change['lines_touched'] > 0
         for probe in (change['probes']['decimal'], change['baseline_decimal']):

@@ -115,7 +115,15 @@ func tariff_block(n *PNode) *u8 {
 func tariff_read(text *u8) *u8 {
     tariff_source = text;
     // The standard scanner folds -123; split it so x-1 is subtraction too.
-    var raw *Tokenizer = tok_new_comments(text, "//", nil, nil);
+    // Tariff ends line comments at CR or LF. Scan a byte-preserving copy:
+    // the shared scanner ends comments at LF; original source spans stay valid.
+    var scanned *u8 = str_dup(text);
+    var offset i64 = 0;
+    while *(scanned + offset) != 0 {
+        if *(scanned + offset) == 13 { *(scanned + offset) = 10; }
+        offset = offset + 1;
+    }
+    var raw *Tokenizer = tok_new_comments(scanned, "//", nil, nil);
     var stream *u8 = tok_stream_new();
     while !tok_eof(raw) {
         var word *u8 = tok_text(raw);

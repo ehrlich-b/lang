@@ -19,7 +19,12 @@ must have unique names and calls must match their declared signatures. These
 restrictions matter: parser generators alone do not supply semantic analysis.
 Only decimal integer literals, ASCII identifiers, whitespace, and `//` comments
 are part of the language. Leading zeros remain decimal: `010` is 10 and `08`
-is 8. Both C emitters strip redundant leading zeros, including in the baseline
+is 8. Line comments end at either CR or LF; LF, CRLF, bare CR, mixed
+endings, and a final comment without a newline share native fixtures in both
+grammar versions. The Lang frontend scans a copy with CR bytes replaced by LF;
+its token stream and AST spans still refer to the unchanged original byte offsets.
+The flex comment class excludes both bytes, as ANTLR's already does.
+Both C emitters strip redundant leading zeros, including in the baseline
 versions; a shared native fixture also covers zero and negative literals. Functions may call functions declared later.
 
 ## Reproduction and measurement

@@ -1,0 +1,2 @@
+fn compute(n) { // comment
+ return 10; }

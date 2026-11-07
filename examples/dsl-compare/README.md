@@ -20,7 +20,8 @@ only Clang and its support files are extracted. Tool downloads are hash-pinned a
 installed only in the explicit tools directory. Existing downloads must match
 their hashes; a failed download is preserved for investigation. The experiment
 never installs system packages. `--smoke` runs small native examples (including leading-zero decimal literals), both
-versions of the grammar, and all five diagnostic fixtures without the large input.
+versions of the grammar, line comments with LF/CRLF/CR/mixed endings and no final
+newline, and all five diagnostic fixtures without the large input.
 
 `lang/` generates a parser with `#parser{}`, lowers to shared AST, and uses Lang's
 LLVM backend. `yacc/` generates C with flex and Bison and emits C through a small

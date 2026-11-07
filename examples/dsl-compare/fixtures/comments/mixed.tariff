@@ -1,0 +1,4 @@
+// headingfn compute(n) {
+// return 999;
+let x = 10; // }return x;
+} // EOF comment
