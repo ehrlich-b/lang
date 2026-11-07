@@ -44,6 +44,13 @@ Lang files. The generic source-provider interface has no dialect rules. Individu
 module files remain suitable for inspection and independent parsing; packages
 supply the complete source closure for compilation.
 
+Source paths have compilation-wide identity. Multiple input packages may share
+a source only when its bytes and parser are identical. A conflicting definition,
+even in an unused module, fails with `rill: conflicting package source: <path>`
+before that package publishes any sources or the compiler writes output. This
+also applies with the input order reversed; packages with distinct paths and
+identical shared sources continue to compose.
+
 `manifest.json` records source and exported SHA-256 hashes, dependency edges,
 closure roots/order and complete half-open UTF-8 byte mappings. Copy spans
 coalesce adjacent unchanged tokens and trivia. Keyword, escaped-identifier and
@@ -73,7 +80,9 @@ builds the current host once, compares parsed core for six compiler/reader
 modules, and parses all three complete source packages. It lowers the complete
 compiler package to LLVM and compares Lang/Rill private-call rejection, public
 access and textual includes on small fixtures, with Rill compilation isolated
-from original dependency files. It verifies every source-map
+from original dependency files. A two-package native probe returns `11` both
+alone and with identical shared or unrelated sources; conflicting `22` sources
+are rejected in either input order without writing LLVM. It verifies every source-map
 span and literal/comment byte, deterministic exports, unsupported-form rejection,
 and failed expectations. A change to `src/limits.lang` changes only its exported
 module, the affected bundles and generated LLVM, and changes an executable's

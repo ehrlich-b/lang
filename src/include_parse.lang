@@ -15,11 +15,23 @@ pub func phase_source_input(name *u8) *PhaseSourceInput {
     return map_get(phase_source_inputs, name);
 }
 
-pub func phase_source_provide(name *u8, text *u8, parse_source fn(*u8, *u8) *u8) void {
+// A path denotes one immutable source for the whole compilation. Reusing an
+// identical input is safe; changing its bytes or parser would invalidate both
+// dependency traversal and any already parsed declarations.
+pub func phase_source_accepts(name *u8, text *u8, parse_source fn(*u8, *u8) *u8) bool {
+    var existing *PhaseSourceInput = phase_source_input(name);
+    if existing == nil { return true; }
+    return existing.parse_source == parse_source && streq(existing.text, text);
+}
+
+pub func phase_source_provide(name *u8, text *u8, parse_source fn(*u8, *u8) *u8) bool {
+    if !phase_source_accepts(name, text, parse_source) { return false; }
+    if phase_source_input(name) != nil { return true; }
     if phase_source_inputs == nil { phase_source_inputs = map_new(); }
     var input *PhaseSourceInput = alloc(16);
     input.text = text; input.parse_source = parse_source;
     map_set(phase_source_inputs, name, input);
+    return true;
 }
 
 struct PhaseIncludeParse {

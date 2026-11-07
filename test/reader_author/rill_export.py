@@ -183,6 +183,9 @@ def main():
         oracle_ir, oracle = scratch / 'oracle.ll', scratch / 'oracle'
         replay.run([compiler, 'test/reader_author/fixtures/rill/export-oracle.lang', '-o', str(oracle_ir)], 'compile-oracle', clone)
         replay.run(['clang', str(oracle_ir), '-o', str(oracle)], 'link-oracle', clone)
+        result = replay.run([str(oracle), 'source-inputs'], 'immutable-source-inputs', clone)
+        require(not result.stdout and result.stderr == b'rill: conflicting package source: shared.lang\n',
+                'source registry immutability/atomic publication probe failed')
         selected = ['src/lexer.lang', 'src/parser.lang', 'src/numeric_llvm.lang',
                     'src/sexpr_reader.lang', 'std/os/libc.lang', 'example/rill/rill.lang']
         files = {('export/' + name): first / name for name in tree(first)}
@@ -207,6 +210,39 @@ def main():
         validate(probe, clone)
         minted = scratch / 'rillc'
         replay.run([compiler, 'compiler', 'rill', 'example/rill/rill.lang', '-o', str(minted)], 'mint-rill-compiler', clone)
+
+        # All packages are read before compilation: even an unused definition
+        # in a later package must never replace an earlier dependency.
+        isolated = scratch / 'isolated'
+        isolated.mkdir()
+        package_inputs = clone / 'test/reader_author/fixtures/rill'
+        first_package = package_inputs / 'package-first.rill'
+        package_conflicts = {}
+        for label, extra in [('first-only', None), ('identical', 'package-identical.rill'),
+                             ('distinct', 'package-distinct.rill')]:
+            inputs = [str(first_package)]
+            if extra:
+                inputs.append(str(package_inputs / extra))
+            ir, binary = scratch / (label + '.ll'), scratch / label
+            replay.run([str(minted), *inputs, '-o', str(ir)], 'package-' + label, isolated)
+            replay.run(['clang', str(ir), '-o', str(binary)], 'package-' + label + '-link', isolated)
+            result = replay.run([str(binary)], 'package-' + label + '-run', isolated, expected=11)
+            expect_output(result, b'')
+            package_conflicts[label] = {'runtime_exit': result.returncode, 'llvm_sha256': sha(ir)}
+        for label, inputs in [
+            ('later-conflict', [first_package, package_inputs / 'package-conflict.rill']),
+            ('earlier-conflict', [package_inputs / 'package-conflict.rill', first_package]),
+        ]:
+            ir = scratch / (label + '.ll')
+            result = replay.run([str(minted), *map(str, inputs), '-o', str(ir)],
+                                'package-' + label, isolated, expected=1)
+            require(b'rill: conflicting package source: shared.lang' in result.stderr,
+                    'missing source conflict diagnostic: ' + label)
+            require(not ir.exists(), 'source conflict produced partial output: ' + label)
+            package_conflicts[label] = {'compile_exit': result.returncode, 'no_output': True,
+                                        'diagnostic': result.stderr.decode().strip()}
+        for name in ('package-first.rill', 'package-conflict.rill', 'package-identical.rill', 'package-distinct.rill'):
+            files['package-conflicts/' + name] = package_inputs / name
 
         package_rejections = {}
         for label, source, message in [
@@ -334,6 +370,8 @@ def main():
              'unchanged_exports_identical': True, 'core_comparisons': comparisons, 'rejections': rejected,
              'visibility_comparisons': visibility,
              'package_rejections': package_rejections,
+             'package_conflicts': package_conflicts,
+             'immutable_source_inputs': True, 'atomic_package_publication': True,
              'compiler_package_llvm_sha256': sha(scratch / 'compiler-package.ll'),
              'changed_modules': different, 'runtime_stdout_before': '16\n', 'runtime_stdout_after': '17\n',
              'llvm_before_sha256': before_ir, 'llvm_after_sha256': after_ir,
@@ -345,7 +383,7 @@ def main():
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'observations': len(replay.rows)})
         print(f'PASS compiler closure: {len(manifest["modules"])} genuine Rill modules, '
               'hashes/spans, preserved literals/comments, parsed core, deterministic exports, '
-              'module visibility, 16→17 source edit and runtime output, rejection and failing expectations')
+              'module visibility, package conflicts, 16→17 source edit and runtime output, rejection and failing expectations')
         return 0
     except Exception as error:
         dump(evidence / 'result.json', {'pass': False, 'error': str(error)})

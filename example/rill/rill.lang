@@ -168,8 +168,17 @@ func rill_parse_package(text *u8) *u8 {
     var prog *u8 = rill_parse_source(entry, "rill-entry");
     if !rill_package_dependencies(prog, seen) { return nil; }
     i = 0;
+    // Validate all paths before publishing any of this package's inputs.
+    // Standalone compilers read every package before traversing dependencies.
     while i < vec_len(names) {
-        phase_source_provide(vec_get(names, i), vec_get(texts, i), &rill_parse_source);
+        if !phase_source_accepts(vec_get(names, i), vec_get(texts, i), &rill_parse_source) {
+            eprint("rill: conflicting package source: "); eprintln(vec_get(names, i)); return nil;
+        }
+        i = i + 1;
+    }
+    i = 0;
+    while i < vec_len(names) {
+        if !phase_source_provide(vec_get(names, i), vec_get(texts, i), &rill_parse_source) { return nil; }
         i = i + 1;
     }
     return prog;
