@@ -74,8 +74,8 @@ def main():
             print('Verified compiler kit')
             return 0
         require(args.output is not None, '--output is required')
-        output = args.output.resolve()
-        require(root != output and root not in output.parents, 'output must be outside the kit')
+        resolved_output = args.output.resolve()
+        require(root != resolved_output and root not in resolved_output.parents, 'output must be outside the kit')
         env = dict(os.environ, LANGBE='llvm', LANGOS='linux')
         env.pop('LANG_ROOT', None)
         env.pop('LANG_CLANG', None)
@@ -84,7 +84,7 @@ def main():
                     'native requires --clang with an explicit absolute executable path')
             env['LANG_CLANG'] = str(args.clang)
         command = [str(root / 'bin/compiler'), str(root / receipt['example']),
-                   '--emit=' + ('llvm' if args.action == 'llvm' else 'native'), '-o', str(output)]
+                   '--emit=' + ('llvm' if args.action == 'llvm' else 'native'), '-o', str(args.output)]
         return subprocess.run(command, env=env, check=False).returncode
     except (ValueError, OSError, KeyError, TypeError) as error:
         print('kit: ' + str(error), file=sys.stderr)

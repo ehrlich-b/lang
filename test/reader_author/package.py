@@ -161,6 +161,19 @@ def main():
                     'aliased output changed the kit')
         replay.run(['/usr/bin/python3', '-B', str(kit / 'kit.py'), 'verify'],
                    'verify-after-aliased-outputs', scratch)
+        # The compiler must see the original path so its symlink guard runs
+        # before either a successful or a failing tool can touch the target.
+        target = scratch / 'existing-elf'
+        shutil.copyfile(kit / 'bin/compiler', target)
+        prior = sha(target)
+        link = scratch / 'output-link'
+        link.symlink_to(target)
+        for label, clang in (('working', tools['clang']['path']), ('failing', '/bin/false')):
+            replay.run(['/usr/bin/python3', '-B', str(kit / 'kit.py'), 'native',
+                        '--clang', clang, '--output', str(link)],
+                       'reject-output-symlink-' + label, scratch, 1)
+            require(link.is_symlink() and sha(target) == prior,
+                    label + ': output symlink or its target changed')
         output = scratch / 'relocated output'
         output.mkdir()
         # Only the kit, output and system libraries/tools are mounted. Both
