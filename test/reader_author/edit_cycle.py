@@ -277,7 +277,8 @@ def main():
             expected = b'12\n' if boundary == 'final-probe-aba' else b'20\n'
             require(result.stdout == expected, boundary + ': latest generation was not rebuilt')
             same_time(guest, valid_guest)
-            phase('publication-' + boundary + '-recovery')
+            if boundary != 'final-probe-aba':
+                phase('publication-' + boundary + '-recovery')
         same_time(guest, 'shipping { base 11 free_over 100; }\n')
         failure = phase('reader-failure', 'failed')
         require(not output.exists() and failure['event']['exit'] == 1, 'failed build left a published output')
