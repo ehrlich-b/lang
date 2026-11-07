@@ -90,22 +90,22 @@ Its command transcript is named relative to the report directory. Keeping the
 two files together permits validation after moving the evidence and reclaiming
 the original build directory; `check.py report --relocate` exercises this.
 The following measured run uses released Clang 23.1.5 for all three arms
-(source commit `41f1127`). The LOC-only Lang expansion is excluded from
+(source commit `ecd3d34`; comment-ending fix included). The LOC-only Lang expansion is excluded from
 clean-build time. This replaces the earlier measurement that included it.
 Later JSON replays supersede these host-sensitive timings. Tool provisioning
 is excluded.
 
 | Measure | Lang | flex/Bison | ANTLR Python target |
 |---|---:|---:|---:|
-| Hand-written frontend lines | 170 | 143 | 126 |
-| Generated frontend lines, all recorded representations | 60,890 | 3,785 | 1,628 |
-| Clean source to sample native binary | 9.544 s | 0.350 s | 0.498 s |
-| Complete 100,000-line compilation | **rejected** | 0.631 s | 10.871 s |
-| Scale lines/second | unavailable | 158,455 | 9,199 |
-| Native benchmark median, including startup | 3.97 ms | 3.80 ms | 3.83 ms |
+| Hand-written frontend lines | 178 | 143 | 126 |
+| Generated frontend lines, all recorded representations | 60,942 | 3,787 | 1,628 |
+| Clean source to sample native binary | 9.596 s | 0.350 s | 0.551 s |
+| Complete 100,000-line compilation | **rejected** | 0.635 s | 10.465 s |
+| Scale lines/second | unavailable | 157,513 | 9,556 |
+| Native benchmark median, including startup | 3.71 ms | 3.71 ms | 4.69 ms |
 | Native binary bytes | 16,160 | 16,120 | 16,120 |
 
-Lang parsed the large input in 0.82 seconds but rejected its emitted AST at the
+Lang parsed the large input in under one second but rejected its emitted AST at the
 backend boundary with `(code ast-nodes)`. Its fixed AST-node quota prevents a
 working native scale binary at the default settings. This is a loss, not a
 100,000-line successful compile time. No limit was raised and no input lines were
@@ -123,7 +123,7 @@ source. It has no distribution convenience win until that SDK is packaged.
 The authoritative released-toolchain run was serial. The earlier Clang 19 pilot
 also overlapped a gate run and is retained separately with that qualification;
 its timings are excluded from the table. No arm received special flags or
-optimizations. The raw fastest runtime is Bison in this run, but the scheduling
+optimizations. The raw fastest runtime is Lang in this run, but the scheduling
 spread and tiny native programs do not support a practical runtime winner.
 
 On diagnostics, ANTLR's concise missing-token and lexer messages are my qualitative
