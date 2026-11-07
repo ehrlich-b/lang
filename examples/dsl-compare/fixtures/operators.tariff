@@ -1,0 +1,13 @@
+fn compute(n) {
+    let x = 20 - 5 - 3;
+    if (x == 12) {
+        if (n != 0) {
+            if (-n <= 0) {
+                if (n >= 1) {
+                    if (n > 0) { return 30 / 3 / 2 + -(-2); }
+                }
+            }
+        }
+    }
+    return 0;
+}

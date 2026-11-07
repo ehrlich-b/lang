@@ -1,0 +1,14 @@
+// A batch rating policy: discounted small accounts, then standard rate.
+fn fee(x) {
+    if (x < 100) { return x * 2 + x % 7; }
+    else { return x * 3 + x % 7; }
+}
+fn compute(n) {
+    let i = 0;
+    let total = 0;
+    while (i < n) {
+        total = total + fee(i);
+        i = i + 1;
+    }
+    return total;
+}

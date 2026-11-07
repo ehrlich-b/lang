@@ -1,0 +1,159 @@
+include "std/parser_reader.lang"
+include "std/prec.lang"
+include "std/buffer.lang"
+
+// Twenty-two named rules; expressions use the toolkit's precedence service.
+#parser{
+    tariff = functions:tariff_function+
+    tariff_function = 'fn' name:symbol '(' params:tariff_parameters? ')' body:tariff_block
+    tariff_parameters = first:symbol rest:tariff_parameter_tail*
+    tariff_parameter_tail = ',' name:symbol
+    tariff_block = '{' items:tariff_statement* '}'
+    tariff_statement = bind:tariff_binding | assign:tariff_assignment | cond:tariff_conditional | loop:tariff_loop | ret:tariff_return
+    tariff_binding = 'let' name:symbol '=' value:tariff_expression ';'
+    tariff_assignment = name:symbol '=' value:tariff_expression ';'
+    tariff_conditional = 'if' '(' condition:tariff_expression ')' yes:tariff_block otherwise:tariff_else?
+    tariff_else = 'else' body:tariff_block
+    tariff_loop = 'while' '(' condition:tariff_expression ')' body:tariff_block
+    tariff_return = 'return' value:tariff_expression ';'
+    tariff_expression = first:tariff_unary rest:tariff_tail*
+    tariff_tail = op:tariff_operator right:tariff_unary
+    tariff_operator = '==' | '!=' | '<' | '>' | '<=' | '>=' | '+' | '-' | '%' | '*' | '/'
+    tariff_unary = neg:tariff_negative | tariff_primary
+    tariff_negative = '-' value:tariff_unary
+    tariff_primary = num:number | call:tariff_call | ident:symbol | paren:tariff_paren
+    tariff_paren = '(' value:tariff_expression ')'
+    tariff_call = name:symbol '(' args:tariff_arguments? ')'
+    tariff_arguments = first:tariff_expression rest:tariff_argument_tail*
+    tariff_argument_tail = ',' value:tariff_expression
+}
+
+func tariff_table() *PrecTable {
+    var t *PrecTable = prec_new();
+    prec_left(t, "== !=");
+    prec_left(t, "< > <= >=");
+    prec_left(t, "+ -");
+    prec_left(t, "%");
+    prec_left(t, "* /");
+    return t;
+}
+
+func tariff_expr(n *PNode) *u8 {
+    var result *u8 = nil;
+    if pnode_is(n, "num") { result = ast_number(n.text); }
+    else if pnode_is(n, "ident") { result = ast_ident(n.text); }
+    else if pnode_is(n, "neg") { result = ast_neg(tariff_expr(pnode_require(n, "value"))); }
+    else if pnode_is(n, "paren") { result = tariff_expr(pnode_require(n, "value")); }
+    else if pnode_is(n, "call") {
+        var args *u8 = ast_vec();
+        var values *PNode = pnode_get(n, "args");
+        if values != nil {
+            ast_push(args, tariff_expr(pnode_require(values, "first")));
+            var rest *PNode = pnode_require(values, "rest");
+            var i i64 = 0;
+            while i < vec_len(rest.children) {
+                var tail *PNode = vec_get(rest.children, i);
+                ast_push(args, tariff_expr(pnode_require(tail, "value")));
+                i = i + 1;
+            }
+        }
+        result = ast_call_named(pnode_require(n, "name").text, args);
+    } else {
+        var e *PrecExpr = prec_expr(tariff_table());
+        prec_operand(e, tariff_expr(pnode_require(n, "first")));
+        var rest *PNode = pnode_require(n, "rest");
+        var i i64 = 0;
+        while i < vec_len(rest.children) {
+            var tail *PNode = vec_get(rest.children, i);
+            prec_op(e, pnode_require(tail, "op").text);
+            prec_operand(e, tariff_expr(pnode_require(tail, "right")));
+            i = i + 1;
+        }
+        result = prec_build(e);
+    }
+    return ast_span(result, n.start, n.end);
+}
+
+func tariff_stmt(n *PNode) *u8 {
+    if pnode_is(n, "bind") {
+        return ast_var(pnode_require(n, "name").text, ast_type_i64(), tariff_expr(pnode_require(n, "value")));
+    }
+    if pnode_is(n, "assign") {
+        return ast_assign(ast_ident(pnode_require(n, "name").text), tariff_expr(pnode_require(n, "value")));
+    }
+    if pnode_is(n, "ret") { return ast_return(tariff_expr(pnode_require(n, "value"))); }
+    if pnode_is(n, "loop") {
+        return ast_while(tariff_expr(pnode_require(n, "condition")), tariff_block(pnode_require(n, "body")));
+    }
+    var other *PNode = pnode_get(n, "otherwise");
+    var no *u8 = ast_block(ast_vec());
+    if other != nil { no = tariff_block(pnode_require(other, "body")); }
+    return ast_if(tariff_expr(pnode_require(n, "condition")), tariff_block(pnode_require(n, "yes")), no);
+}
+
+func tariff_block(n *PNode) *u8 {
+    var items *PNode = pnode_require(n, "items");
+    var stmts *u8 = ast_vec();
+    var i i64 = 0;
+    while i < vec_len(items.children) {
+        var item *PNode = vec_get(items.children, i);
+        ast_push(stmts, ast_span(tariff_stmt(item), item.start, item.end));
+        i = i + 1;
+    }
+    return ast_block(stmts);
+}
+
+func tariff_read(text *u8) *u8 {
+    // The standard scanner folds -123; split it so x-1 is subtraction too.
+    var raw *Tokenizer = tok_new_comments(text, "//", nil, nil);
+    var stream *u8 = tok_stream_new();
+    while !tok_eof(raw) {
+        var word *u8 = tok_text(raw);
+        if tok_kind(raw) == TOK_NUMBER && *word == '-' {
+            tok_stream_push(stream, TOK_MINUS, raw.tok_start, 1, "-");
+            tok_stream_push(stream, TOK_NUMBER, raw.tok_start + 1, raw.tok_len - 1, word + 1);
+        } else if streq(word, "--") {
+            tok_stream_push(stream, TOK_MINUS, raw.tok_start, 1, "-");
+            tok_stream_push(stream, TOK_MINUS, raw.tok_start + 1, 1, "-");
+        } else {
+            tok_stream_push(stream, tok_kind(raw), raw.tok_start, raw.tok_len, word);
+        }
+        tok_next(raw);
+    }
+    var t *Tokenizer = tok_new_stream(text, stream);
+    var tree *PNode = parse_tariff(t);
+    var complete bool = false;
+    if tree != nil { complete = tok_expect_end(t); }
+    if !complete { tok_print_error(t, "tariff"); return nil; }
+    var decls *u8 = ast_vec();
+    var functions *PNode = pnode_require(tree, "functions");
+    var i i64 = 0;
+    while i < vec_len(functions.children) {
+        var f *PNode = vec_get(functions.children, i);
+        var params *u8 = ast_vec();
+        var names *PNode = pnode_get(f, "params");
+        if names != nil {
+            ast_push(params, ast_param(pnode_require(names, "first").text, ast_type_i64()));
+            var rest *PNode = pnode_require(names, "rest");
+            var j i64 = 0;
+            while j < vec_len(rest.children) {
+                var tail *PNode = vec_get(rest.children, j);
+                ast_push(params, ast_param(pnode_require(tail, "name").text, ast_type_i64()));
+                j = j + 1;
+            }
+        }
+        ast_push(decls, ast_span(ast_func(pnode_require(f, "name").text, params, ast_type_i64(), tariff_block(pnode_require(f, "body"))), f.start, f.end));
+        i = i + 1;
+    }
+    return ast_program(decls);
+}
+
+func main(argc i64, argv **u8) i64 {
+    if argc != 2 { return 2; }
+    var text *u8 = phase_read_file(*(argv + 1));
+    if text == nil { return 2; }
+    var result *u8 = tariff_read(text);
+    if result == nil { return 1; }
+    print(result);
+    return 0;
+}
