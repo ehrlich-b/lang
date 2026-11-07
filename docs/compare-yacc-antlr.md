@@ -10,7 +10,7 @@ implementation; the executable grammar and fixtures live in
 [`examples/dsl-compare`](../examples/dsl-compare/README.md).
 
 The final grammar has 21 ANTLR parser rules (plus four lexer rules), 22 named Lang
-rules with a shared precedence table, and 26 Bison nonterminals where optional
+rules with a shared precedence table, and 24 Bison nonterminals where optional
 lists and statement repetitions are explicit. These express the same syntax.
 All values are bounded signed 64-bit integers; overflow, division by zero,
 shadowing, undeclared names, duplicate definitions, missing returns, and names
@@ -63,6 +63,9 @@ Both earlier and final grammars are built. Both must compile the baseline fixtur
 and return 14; the earlier grammar must reject `%`. The final grammar must return
 7 for the unusual precedence probe and pass the associativity/unary probe.
 Actual unified diffs and added+removed physical line counts are included in JSON.
+The change touched 3 Lang lines (2 added, 1 removed), 9 flex/Bison lines
+(5 added, 4 removed), and 4 ANTLR lines (3 added, 1 removed). Lang wins this
+small extension because its precedence table already supports remainder.
 Five malformed files check a missing semicolon, closing parenthesis, operand,
 invalid character, and closing brace. Every frontend must exit 1, emit a diagnostic
 to stderr, and emit no partial code. Exact unedited diagnostic text is retained.
@@ -72,7 +75,52 @@ to stderr, and emit no partial code. Exact unedited diagnostic text is retained.
 The executable report is generated outside the checkout at `evidence/compare.json`
 (relative to the experiment directory). It contains machine-generated measurements,
 all command exit codes and timings, input hashes, native outputs, and errors.
-Results and the final choice are documented after the measured run.
+An initial run measured the following (wall times are host-load sensitive; JSON
+from a later run supersedes these timings). Parser tool provisioning is excluded.
+
+| Measure | Lang | flex/Bison | ANTLR Python target |
+|---|---:|---:|---:|
+| Hand-written frontend lines | 159 | 138 | 124 |
+| Generated frontend lines, all recorded representations | 60,784 | 3,780 | 1,628 |
+| Clean source to sample native binary | 13.18 s | 0.423 s | 0.596 s |
+| Complete 100,000-line compilation | **rejected** | 0.933 s | 11.067 s |
+| Scale lines/second | unavailable | 107,177 | 9,036 |
+| Native benchmark median, including startup | 4.21 ms | 3.77 ms | 3.87 ms |
+| Native binary bytes | 16,176 | 16,144 | 16,144 |
+
+Lang parsed the large input in 1.71 seconds but rejected its emitted AST at the
+backend boundary with `(code ast-nodes)`. Its fixed AST-node quota prevents a
+working native scale binary at the default settings. This is a loss, not a
+100,000-line successful compile time. No limit was raised and no input lines were
+removed. A completed experiment can pass while recording this expected limit;
+the failed subprocess exit code, exact error, and missing throughput remain in
+the report. Unexpected build failures still fail the experiment.
+
+ANTLR required the least hand-written code and generated footprint. Bison won
+clean build and scale compilation. Bison and ANTLR tied binary size; the small
+runtime differences are within startup/scheduling noise, so runtime is a
+practical tie, not evidence of a better optimizer. Lang requires the fewest
+separately installed build dependencies, but pays for a compiler bootstrap from
+source. It has no distribution convenience win until that SDK is packaged.
+
+The initial measurements overlapped a registered gate run; use the later serial
+readiness run's JSON for the authoritative timing. No arm received special flags
+or optimizations. This limitation is why small runtime differences are not ranked
+as meaningful wins.
+
+On diagnostics, ANTLR's concise missing-token and lexer messages are my qualitative
+choice for these five inputs. Lang supplies columns and byte spans but often
+lists a noisy set of speculative expectations. Bison supplies useful token
+names and expected tokens, but this frontend does not add column tracking.
+These are implementation-level diagnostics, not a ranking of every generator's
+potential error recovery.
+
+**I would pick flex/Bison for a new native integer DSL today.** ANTLR is attractive
+when parse-tree APIs and its wider tooling ecosystem matter more than this
+Python target's compilation speed. I would not pick Lang today for this DSL:
+it needs more frontend code, much more generated output, a slower cold build,
+and fails this scale case. Its direct shared-AST/native pipeline is useful,
+but does not yet outweigh those costs.
 
 Lang already has useful [reader documentation](READERS.md), grammar validation,
 a precedence service, and an editor/LSP. The comparison must not claim those are
