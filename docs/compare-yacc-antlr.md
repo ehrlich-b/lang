@@ -77,21 +77,21 @@ to stderr, and emit no partial code. Exact unedited diagnostic text is retained.
 The executable report is generated outside the checkout at `evidence/compare.json`
 (relative to the experiment directory). It contains machine-generated measurements,
 all command exit codes and timings, input hashes, native outputs, and errors.
-A preliminary run with the older host Clang 19.1.7 measured the following.
-It is retained only as a qualified pilot; the authoritative report uses the current
-released Clang 23.1.5 for every arm. Tool provisioning is excluded.
+The following measured run uses released Clang 23.1.5 for all three arms
+(source commit `90481dd`). Later JSON replays supersede these host-sensitive
+timings. Tool provisioning is excluded.
 
 | Measure | Lang | flex/Bison | ANTLR Python target |
 |---|---:|---:|---:|
-| Hand-written frontend lines | 159 | 138 | 124 |
-| Generated frontend lines, all recorded representations | 60,784 | 3,780 | 1,628 |
-| Clean source to sample native binary | 13.18 s | 0.423 s | 0.596 s |
-| Complete 100,000-line compilation | **rejected** | 0.933 s | 11.067 s |
-| Scale lines/second | unavailable | 107,177 | 9,036 |
-| Native benchmark median, including startup | 4.21 ms | 3.77 ms | 3.87 ms |
-| Native binary bytes | 16,176 | 16,144 | 16,144 |
+| Hand-written frontend lines | 170 | 138 | 124 |
+| Generated frontend lines, all recorded representations | 60,890 | 3,780 | 1,628 |
+| Clean source to sample native binary | 10.369 s | 0.300 s | 0.449 s |
+| Complete 100,000-line compilation | **rejected** | 0.682 s | 10.325 s |
+| Scale lines/second | unavailable | 146,594 | 9,685 |
+| Native benchmark median, including startup | 4.50 ms | 3.85 ms | 4.50 ms |
+| Native binary bytes | 16,160 | 16,120 | 16,120 |
 
-Lang parsed the large input in 1.71 seconds but rejected its emitted AST at the
+Lang parsed the large input in 0.72 seconds but rejected its emitted AST at the
 backend boundary with `(code ast-nodes)`. Its fixed AST-node quota prevents a
 working native scale binary at the default settings. This is a loss, not a
 100,000-line successful compile time. No limit was raised and no input lines were
@@ -106,10 +106,11 @@ practical tie, not evidence of a better optimizer. Lang requires the fewest
 separately installed build dependencies, but pays for a compiler bootstrap from
 source. It has no distribution convenience win until that SDK is packaged.
 
-The preliminary measurements overlapped a registered gate run; use the later serial
-readiness run's JSON with Clang 23.1.5 for the authoritative timing. No arm received special flags
-or optimizations. This limitation is why small runtime differences are not ranked
-as meaningful wins.
+The authoritative released-toolchain run was serial. The earlier Clang 19 pilot
+also overlapped a gate run and is retained separately with that qualification;
+its timings are excluded from the table. No arm received special flags or
+optimizations. The raw fastest runtime is Bison in this run, but the scheduling
+spread and tiny native programs do not support a practical runtime winner.
 
 On diagnostics, ANTLR's concise missing-token and lexer messages are my qualitative
 choice for these five inputs. Lang supplies columns and byte spans but often
