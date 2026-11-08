@@ -22,7 +22,9 @@ def check_report(path):
     report = json.loads(path.read_text())
     assert report['head'] == git('rev-parse', 'HEAD')
     assert report['mode'] == 'full' and report['status'] == 'PASS'
-    assert set(report['arms']) == {'lang', 'yacc', 'antlr'}
+    assert set(report['arms']) == {'lang', 'yacc', 'antlr', *(('lang-sdk',) if 'sdk' in report else ())}
+    if 'sdk' in report:
+        assert report['sdk']['commit'] == report['head']
     assert report['large_input']['lines'] == 100000
     transcript = Path(report['command_log'])
     assert transcript.name == str(transcript), 'Transcript must be beside the report'
@@ -48,7 +50,7 @@ def check_report(path):
             assert probe['status'] == 'PASS'
             assert any(r['command'] == [probe['binary'], '0'] and r['exit_code'] == 0
                        and r['stdout_text'] == '-23\n' for r in rows)
-        if arm == 'lang':
+        if arm in ('lang', 'lang-sdk'):
             expansion = row['loc_expansion']
             assert expansion['exit_code'] == 0
             # The LOC-only pass must follow the sample's native link in the transcript.
@@ -65,6 +67,7 @@ def check_report(path):
                    and r['stdout_text'] == '100000\n' for r in rows)
         for phase in ('frontend', 'native') + (('lowering',) if arm == 'lang' else ()):
             assert large[phase]['exit_code'] == 0 and large[phase]['peak_rss_bytes'] > 0
+
         print(arm, row['status'], 'scale:', row['large_compile']['status'],
               'change:', change['lines_touched'], 'lines')
     for name, expected in report['input_hashes'].items():

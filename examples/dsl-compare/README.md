@@ -54,3 +54,17 @@ Validate all three successful scale pipelines and the relocated evidence:
 ```sh
 nice -n 10 python3 examples/dsl-compare/check.py report --relocate --report ../evidence/compare.json
 ```
+
+## Versioned SDK arm
+
+After packaging and extracting an SDK from the same committed HEAD, add
+`--sdk /absolute/path/lang-<version>-x86_64-linux` to the runner. The report keeps
+`lang` (source plus bootstrap) and adds `lang-sdk` (prebuilt compiler). Archive
+creation and extraction are tool provisioning, outside all arm timers. Both
+Lang arms generate the same Tariff frontend and link with the same `-O2` flags;
+LOC-only expansion stays outside the timers. The SDK commit must match the
+comparison source commit. No compiler limit is changed by this arm.
+
+Both Lang arms use the frontend's transitive standard-library includes. The
+redundant explicit `std/core.lang` CLI input is omitted from both: using an
+absolute SDK copy as well as relative includes would duplicate declarations.

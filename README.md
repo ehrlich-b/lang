@@ -41,18 +41,42 @@ func main() void {
 
 Functions, structs, pointers, algebraic effects. See [LANG.md](./LANG.md).
 
-## First run
+## First run: local SDK archive
+
+Start with the versioned archive produced by
+`python3 scripts/package_sdk.py --output ../release`. There is no public download
+yet; use the local `../release/lang-<version>-x86_64-linux.tar.xz` path.
+You need Linux x86-64 with compatible glibc, `/bin/sh`, XZ-capable tar, Clang and
+the system C development toolchain, including `ld` on PATH (Debian/Ubuntu:
+`clang build-essential binutils xz-utils`).
+See [SDK prerequisites and receipts](docs/SDK.md) for versions and host requirements.
+
+```bash
+tar -xJf ../release/lang-<version>-x86_64-linux.tar.xz
+export SDK="$PWD/lang-<version>-x86_64-linux"
+export PATH="$SDK/bin:$PATH"
+mkdir my-language
+cd my-language
+lang new reader tiny
+lang compiler tiny tiny.lang -o tinyc
+./tinyc answer.tiny -o answer.ll
+clang -O2 answer.ll -o answer
+./answer
+echo $?  # 42
+```
+
+### Second path: build from source
+
+For compiler development, install Git, make, Python 3 and Clang, then:
 
 ```bash
 git clone https://gitlab.com/ehrlich-b/lang
 cd lang
-make init
-./out/lang new reader tiny
-./out/lang run tiny.lang answer.tiny
-echo $?
+make build
+./out/lang_next new reader tiny
+./out/lang_next run tiny.lang answer.tiny
+echo $?  # 42
 ```
-
-The run returns exit status 42, which `echo` prints.
 
 ## It outputs compilers
 

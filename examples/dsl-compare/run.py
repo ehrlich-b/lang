@@ -32,7 +32,7 @@ def sha(path):
 
 
 class Experiment:
-    def __init__(self, tools, report):
+    def __init__(self, tools, report, sdk=None):
         self.tools = tools.resolve()
         self.report = report.resolve()
         if self.report.is_relative_to(REPO):
@@ -46,6 +46,9 @@ class Experiment:
                         M4=str(self.tools / 'prefix/usr/bin/m4'),
                         PYTHONPATH=str(self.tools / 'python'),
                         PATH=str(self.tools / 'llvm/bin') + os.pathsep + os.environ['PATH'])
+        self.sdk = sdk.resolve() if sdk else None
+        if self.sdk:
+            assert (self.sdk / 'sdk.json').is_file() and (self.sdk / 'bin/lang').is_file()
         self.root = self.work / 'source'
         self.call(['git', 'clone', '--quiet', '--no-local', str(REPO), str(self.root)], cwd=self.work)
         self.base = self.root / 'examples/dsl-compare'
@@ -94,12 +97,13 @@ class Experiment:
         target.mkdir()
         start = time.perf_counter()
         generated = []
-        if arm == 'lang':
+        if arm in ('lang', 'lang-sdk'):
             if build_compiler:
                 self.call(['make', 'build'], timeout=180)
-            compiler = self.root / 'out/lang_next'
+            compiler = self.sdk / 'bin/lang' if arm == 'lang-sdk' else self.root / 'out/lang_next'
             ir = target / 'reader.ll'
-            self.call([compiler, 'std/core.lang', source / 'tariff.lang', '-o', ir])
+            self.call([compiler, source / 'tariff.lang', '-o', ir],
+                      cwd=target if arm == 'lang-sdk' else None)
             self.call(['clang', '-O2', ir, '-o', target / 'frontend'])
             generated = [ir]
             frontend = [target / 'frontend']
@@ -124,16 +128,18 @@ class Experiment:
     def compile(self, arm, build, fixture, target):
         target.mkdir()
         start = time.perf_counter()
-        emitted = target / ('program.ast' if arm == 'lang' else 'program.c')
+        emitted = target / ('program.ast' if arm in ('lang', 'lang-sdk') else 'program.c')
         front = self.call(build['frontend'] + [fixture], output=emitted, required=False)
         if front['exit_code']:
             return dict(status='TIMEOUT' if front['timeout'] else 'FAILED', frontend=front,
                         seconds=time.perf_counter() - start)
         backend = emitted
-        if arm == 'lang':
+        if arm in ('lang', 'lang-sdk'):
             backend = target / 'program.ll'
-            lower = self.call([self.root / 'out/lang_next', '--from-ast', emitted,
+            compiler = self.sdk / 'bin/lang' if arm == 'lang-sdk' else self.root / 'out/lang_next'
+            lower = self.call([compiler, '--from-ast', emitted,
                                '--ast-source', fixture, '-o', backend], required=False,
+                              cwd=target if arm == 'lang-sdk' else None,
                               timeout=180 - (time.perf_counter() - start))
             if lower['exit_code']:
                 return dict(status='TIMEOUT' if lower['timeout'] else 'FAILED', frontend=front,
@@ -194,6 +200,10 @@ class Experiment:
             run = self.call(cmd)
             report.setdefault('installed_tools', {})[name] = (Path(run['stdout']).read_text() + Path(run['stderr']).read_text())
         assert '23.1.5' in report['host_tools']['clang'], 'This measurement pins Clang 23.1.5'
+        if self.sdk:
+            report['sdk'] = json.loads((self.sdk / 'sdk.json').read_text())
+            assert report['sdk']['commit'] == head, 'SDK must be built from measured HEAD'
+            report['dependencies']['lang-sdk'] = ['versioned Lang SDK at measured HEAD', 'Clang 23.1.5']
         fixtures = self.base / 'fixtures'
         large = self.work / 'large.tariff'
         # Exactly 100000 physical lines, all inside one function, no huge expression stack.
@@ -209,21 +219,23 @@ class Experiment:
         report['source_hashes'] = {str(f.relative_to(self.base)): sha(f)
                                    for f in sorted(self.base.rglob('*')) if f.is_file()}
         report['tool_manifest'] = json.loads((self.tools / 'manifest.json').read_text())
-        for arm in ARMS:
+        for arm in (*ARMS, *(('lang-sdk',) if self.sdk else ())):
             print(f'Building and measuring {arm}', flush=True)
             armroot = self.work / arm
             armroot.mkdir()
-            source = self.base / arm
+            source = self.base / ('lang' if arm == 'lang-sdk' else arm)
             row = report['arms'][arm] = dict(status='RUNNING')
             build = self.build(arm, source, armroot / 'build', build_compiler=arm == 'lang')
             sample = self.compile(arm, build, fixtures / 'benchmark.tariff', armroot / 'benchmark')
             self.expect(sample, 2000000, 6000002995045)
             # This expansion exists only for LOC accounting, after the working binary.
             # build['seconds'] and sample['seconds'] have already stopped timing.
-            if arm == 'lang':
+            if arm in ('lang', 'lang-sdk'):
                 expanded = armroot / 'build/reader.ast'
-                row['loc_expansion'] = self.call([self.root / 'out/lang_next', 'std/core.lang',
-                                                 source / 'tariff.lang', '--emit-expanded-ast', '-o', expanded])
+                compiler = self.sdk / 'bin/lang' if arm == 'lang-sdk' else self.root / 'out/lang_next'
+                row['loc_expansion'] = self.call([compiler,
+                                                 source / 'tariff.lang', '--emit-expanded-ast', '-o', expanded],
+                                                 cwd=armroot if arm == 'lang-sdk' else None)
                 build['generated'].append(expanded)
             row.update(status='PASS', clean_to_binary_seconds=build['seconds'] + sample['seconds'],
                        build_seconds=build['seconds'], sample=sample,
@@ -249,7 +261,7 @@ class Experiment:
                 self.expect(probes[name], n, expected)
             row['comments'] = self.comments(arm, build, fixtures, armroot / 'comments')
             # The actual earlier grammar is built, exercised, and required to reject %.
-            before = self.base / 'baseline' / arm
+            before = self.base / 'baseline' / ('lang' if arm == 'lang-sdk' else arm)
             old = self.build(arm, before, armroot / 'before')
             previous = self.compile(arm, old, fixtures / 'baseline.tariff', armroot / 'before-native')
             self.expect(previous, 4, 14)
@@ -284,7 +296,7 @@ class Experiment:
                     # successful compilation. Preserve the failed command.
                     failure = row['large_compile'].get('lowering', {})
                     detail = Path(failure['stderr']).read_text() if failure else ''
-                    if arm == 'lang' and failure.get('exit_code') == 1 and '(code ast-nodes)' in detail:
+                    if arm in ('lang', 'lang-sdk') and failure.get('exit_code') == 1 and '(code ast-nodes)' in detail:
                         row['status'] = 'MEASURED_LIMIT'
                         row['large_failure'] = detail
                     else:
@@ -300,7 +312,7 @@ class Experiment:
             values = {arm: row[metric] for arm, row in report['arms'].items() if metric in row}
             best = (max if higher else min)(values.values())
             report['winners'][metric] = [arm for arm, value in values.items() if value == best]
-        report['winners']['dependencies'] = ['lang']  # fewest separately installed tools
+        report['winners']['dependencies'] = ['lang-sdk'] if self.sdk else ['lang']
         # Diagnostics are qualitative: retain exact outputs; don't invent a numeric score.
         report['diagnostics_assessment'] = 'Lang and ANTLR provide columns; Bison detailed expected-token diagnostics, line only in this frontend.'
         report['status'] = 'PASS' if all(r['status'] in ('PASS', 'MEASURED_LIMIT') for r in report['arms'].values()) else 'FAIL'
@@ -328,11 +340,12 @@ def main():
     parser.add_argument('--tools', type=Path, required=True)
     parser.add_argument('--report', type=Path, required=True)
     parser.add_argument('--smoke', action='store_true')
+    parser.add_argument('--sdk', type=Path, help='extracted SDK; provision before timing')
     args = parser.parse_args()
     assert not subprocess.check_output(['git', 'status', '--porcelain'], cwd=REPO).strip(), 'Commit the candidate first'
     assert not any(k.startswith('LANG_HOST_MAX_') for k in os.environ), 'Measure default host limits'
     (args.report.resolve().parent.parent / 'scratch').mkdir(exist_ok=True)
-    return Experiment(args.tools, args.report).run(args.smoke)
+    return Experiment(args.tools, args.report, args.sdk).run(args.smoke)
 
 
 if __name__ == '__main__':
