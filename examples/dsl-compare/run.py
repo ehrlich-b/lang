@@ -288,7 +288,7 @@ class Experiment:
             values = {arm: row[metric] for arm, row in report['arms'].items() if metric in row}
             best = (max if higher else min)(values.values())
             report['winners'][metric] = [arm for arm, value in values.items() if value == best]
-        report['winners']['dependencies'] = ['lang']  # fewest separately installed tools
+        report['winners']['dependencies'] = ['lang-sdk'] if self.sdk else ['lang']
         # Diagnostics are qualitative: retain exact outputs; don't invent a numeric score.
         report['diagnostics_assessment'] = 'Lang and ANTLR provide columns; Bison detailed expected-token diagnostics, line only in this frontend.'
         report['status'] = 'PASS' if all(r['status'] in ('PASS', 'MEASURED_LIMIT') for r in report['arms'].values()) else 'FAIL'

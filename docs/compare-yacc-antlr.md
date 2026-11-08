@@ -32,7 +32,11 @@ versions; a shared native fixture also covers zero and negative literals. Functi
 Use the commands in the example README. The runner starts with a fresh Git clone
 of committed HEAD and empty build directories, and records that commit in JSON.
 It builds Lang's current compiler from its preserved LLVM bootstrap before
-building the generated Tariff frontend. The other arms generate and build their
+building the generated Tariff frontend. The optional Lang SDK arm starts with
+a separately provisioned archive and builds only the Tariff frontend, using the
+SDK's resources from an empty working directory. Both Lang arms rely on the
+frontend's transitive library includes; neither adds a redundant core-library CLI
+input. This avoids absolute/relative include duplication with SDK resources. The other arms generate and build their
 frontends from their grammar sources. Tool provisioning time is excluded from
 clean-to-binary time; source building and parser generation are included.
 Lang's extra expanded-AST pass is only for generated LOC accounting and runs
@@ -46,8 +50,8 @@ The Python target uses the matching ANTLR 4.13.2 runtime. [Clang 23.1.5](https:/
 is installed from the current official release archive under the same tools
 directory. Existing host prerequisites are Python 3.13, git, make, dpkg-deb,
 zstd and the system C headers/linker; no system tool is installed or upgraded.
-Extracting LLVM requires the archive's 1 GiB zstd window (`--long=30`). Lang has no comparable
-released tool distribution here, so its source/seed revision is pinned by Git.
+Extracting LLVM requires the archive's 1 GiB zstd window (`--long=30`). The source arm pins Lang's source/seed revision by Git. The SDK arm uses a local
+versioned archive from that same commit; it is not a published download.
 
 Every arm receives exactly the same fixtures and Clang `-O2` native link flags.
 There is no per-arm performance tuning. The final benchmark calls `compute` with
@@ -89,21 +93,29 @@ all command exit codes and timings, input hashes, native outputs, and errors.
 Its command transcript is named relative to the report directory. Keeping the
 two files together permits validation after moving the evidence and reclaiming
 the original build directory; `check.py report --relocate` exercises this.
-The following measured run uses released Clang 23.1.5 for all three arms
-(source commit `ecd3d34`; comment-ending fix included). The LOC-only Lang expansion is excluded from
-clean-build time. This replaces the earlier measurement that included it.
-Later JSON replays supersede these host-sensitive timings. Tool provisioning
-is excluded.
+The original source-build run measured **9.596 s** for Lang, **0.350 s** for
+Bison and **0.551 s** for ANTLR. Keep those source-build numbers as historical
+context. The following serial SDK replay uses released Clang 23.1.5 for every
+arm (source/SDK commit `aa3cbaaa65f0`). The LOC-only expansion is excluded from
+clean-build time. Later machine-readable replays supersede these host-sensitive
+timings. Tool provisioning, SDK creation and archive extraction are excluded.
+No arm receives different optimization flags.
 
-| Measure | Lang | flex/Bison | ANTLR Python target |
-|---|---:|---:|---:|
-| Hand-written frontend lines | 178 | 143 | 126 |
-| Generated frontend lines, all recorded representations | 60,942 | 3,787 | 1,628 |
-| Clean source to sample native binary | 9.596 s | 0.350 s | 0.551 s |
-| Complete 100,000-line compilation | **rejected** | 0.635 s | 10.465 s |
-| Scale lines/second | unavailable | 157,513 | 9,556 |
-| Native benchmark median, including startup | 3.71 ms | 3.71 ms | 4.69 ms |
-| Native binary bytes | 16,160 | 16,120 | 16,120 |
+| Measure | Lang source | Lang SDK | flex/Bison | ANTLR Python target |
+|---|---:|---:|---:|---:|
+| Hand-written frontend lines | 178 | 178 | 143 | 126 |
+| Generated frontend lines, all recorded representations | 59,862 | 59,862 | 3,787 | 1,628 |
+| Clean source to sample native binary | 8.690 s | **1.810 s** | 0.305 s | 0.444 s |
+| Complete 100,000-line compilation | **rejected** | **rejected** | 0.584 s | 9.762 s |
+| Scale lines/second | unavailable | unavailable | 171,168 | 10,244 |
+| Native benchmark median, including startup | 3.58 ms | 4.03 ms | 4.49 ms | 3.63 ms |
+| Native binary bytes | 16,160 | 16,160 | 16,120 | 16,120 |
+
+The SDK met the **under 2 s** clean-to-sample target in this run. It removes the
+compiler bootstrap from language creation, but building the Tariff frontend
+still takes longer than Bison or ANTLR. The generated Lang count changed because
+both Lang arms now omit the same redundant core input; this is not a reduction
+to the shared compiler's size limits. Both produce the same native result.
 
 Lang parsed the large input in under one second but rejected its emitted AST at the
 backend boundary with `(code ast-nodes)`. Its fixed AST-node quota prevents a
@@ -118,7 +130,10 @@ clean build and scale compilation. Bison and ANTLR tied binary size; the small
 runtime differences are within startup/scheduling noise, so runtime is a
 practical tie, not evidence of a better optimizer. Lang requires the fewest
 separately installed build dependencies, but pays for a compiler bootstrap from
-source. It has no distribution convenience win until that SDK is packaged.
+source. The local SDK now provides that convenience: a language author needs no Lang
+checkout or bootstrap seed. Its consumer prerequisites are Clang and the system
+C toolchain on compatible Linux x86-64; see [the SDK contract](SDK.md). A local
+archive does not establish a public release or cross-platform distribution.
 
 The authoritative released-toolchain run was serial. The earlier Clang 19 pilot
 also overlapped a gate run and is retained separately with that qualification;
@@ -149,8 +164,8 @@ and IDE plugins listed on its download page. Lang lacks comparable depth of
 third-party grammars, IDE grammar tooling, ecosystem, and grammar diagnostics;
 its existing checks are a start, not feature parity.
 
-The top three things Lang needs to win are: (1) a versioned, packaged native
-compiler/reader SDK so creating a language does not rebuild the compiler;
+The top three things Lang needs to win are: (1) distribution and maintenance of
+the versioned compiler/reader SDK beyond this local Linux x86-64 archive;
 (2) a faster, bounded parser/lowering pipeline with reusable semantic analysis and
 less generated AST/LLVM overhead; (3) documentation, grammar inspection and IDE
 support with a larger set of maintained real-world readers. This small experiment
