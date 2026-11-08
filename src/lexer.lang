@@ -641,6 +641,15 @@ func scan_char() *u8 {
 // Returns token with:
 //   - lexeme = reader name
 //   - content = text between balanced braces
+func reader_character_width() i64 {
+    // Only complete character literals: a lone quote belongs to the reader.
+    if lex_current + 2 < lex_source_len &&
+       *(lex_source + lex_current + 2) == 39 && lex_peek_next() != 92 { return 3; }
+    if lex_peek_next() == 92 && lex_current + 3 < lex_source_len &&
+       *(lex_source + lex_current + 3) == 39 { return 4; }
+    return 1;
+}
+
 func scan_reader_macro() *u8 {
     // We've already consumed '#', now read the name
     var name_start i64 = lex_current;
@@ -667,23 +676,26 @@ func scan_reader_macro() *u8 {
     // Keep loop storage in the entry block for large source packages, including
     // compilers linked without aggressive alloca promotion.
     var c u8 = 0;
+    var width i64 = 0;
 
-    while !lex_is_at_end() && brace_depth > 0 {
+    // Short-circuit expressions can also allocate temporaries at their use
+    // site. Keep them out of this byte loop so unoptimized scans stay bounded.
+    while !lex_is_at_end() {
+        if brace_depth == 0 { break; }
         c = lex_peek();
 
-        if c == 47 && lex_peek_next() == 47 {
-            // Preserve raw bytes while excluding comment delimiters/quotes.
-            while !lex_is_at_end() && lex_peek() != 10 { lex_advance(); }
-        } else if c == 47 && lex_peek_next() == 42 {
-            skip_block_comment();
-        } else if c == 39 && lex_current + 2 < lex_source_len &&
-                  *(lex_source + lex_current + 2) == 39 && lex_peek_next() != 92 {
-            // Only complete character literals: a reader may use a lone quote
-            // for other syntax, so it must not start an unbounded quoted scan.
-            lex_advance(); lex_advance(); lex_advance();
-        } else if c == 39 && lex_peek_next() == 92 && lex_current + 3 < lex_source_len &&
-                  *(lex_source + lex_current + 3) == 39 {
-            lex_advance(); lex_advance(); lex_advance(); lex_advance();
+        if c == 47 {
+            if lex_peek_next() == 47 {
+                // Preserve raw bytes while excluding comment delimiters/quotes.
+                while !lex_is_at_end() {
+                    if lex_peek() == 10 { break; }
+                    lex_advance();
+                }
+            } else if lex_peek_next() == 42 { skip_block_comment(); }
+            else { lex_advance(); }
+        } else if c == 39 {
+            width = reader_character_width();
+            while width > 0 { lex_advance(); width = width - 1; }
         } else if c == 123 {  // '{'
             brace_depth = brace_depth + 1;
             lex_advance();
