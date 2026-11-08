@@ -216,6 +216,13 @@ def main():
         isolated = scratch / 'isolated'
         isolated.mkdir()
         package_inputs = clone / 'test/reader_author/fixtures/rill'
+        # This package is parsed by the forked embedded reader; the parent must
+        # resolve its registered source while compiling the returned entry AST.
+        fork_ir, fork_binary = scratch / 'fork-registration.ll', scratch / 'fork-registration'
+        replay.run([str(minted), str(package_inputs / 'fork-registration.rill'), '-o', str(fork_ir)],
+                   'fork-registration', isolated)
+        replay.run(['clang', str(fork_ir), '-o', str(fork_binary)], 'fork-registration-link', isolated)
+        expect_output(replay.run([str(fork_binary)], 'fork-registration-run', isolated, expected=37), b'')
         first_package = package_inputs / 'package-first.rill'
         package_conflicts = {}
         for label, extra in [('first-only', None), ('identical', 'package-identical.rill'),

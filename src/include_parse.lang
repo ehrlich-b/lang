@@ -9,6 +9,9 @@ struct PhaseSourceInput {
     parse_source fn(*u8, *u8) *u8;
 }
 var phase_source_inputs *u8 = nil;
+// Embedded readers publish registrations over the diagnostic channel. The
+// parent applies them only after the reader returns successfully.
+var phase_source_wire i64 = 0;
 
 pub func phase_source_input(name *u8) *PhaseSourceInput {
     if phase_source_inputs == nil { return nil; }
@@ -31,6 +34,13 @@ pub func phase_source_provide(name *u8, text *u8, parse_source fn(*u8, *u8) *u8)
     var input *PhaseSourceInput = alloc(16);
     input.text = text; input.parse_source = parse_source;
     map_set(phase_source_inputs, name, input);
+    if phase_source_wire != 0 {
+        var header *i64 = alloc(24);
+        *header = strlen(name); *(header + 1) = strlen(text);
+        *(header + 2) = parse_source;
+        file_write(2, "\0RSI1", 5); file_write(2, header, 24);
+        file_write(2, name, *header); file_write(2, text, *(header + 1));
+    }
     return true;
 }
 

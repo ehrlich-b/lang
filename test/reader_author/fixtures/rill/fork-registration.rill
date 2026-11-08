@@ -1,0 +1,5 @@
+package {
+source "registered.lang" { pub fun registered_value() i64 { return 37; } }
+entry { needs "registered"
+fun main() i64 { return registered_value(); } }
+}

@@ -187,9 +187,10 @@ pub func phase_process_status(status i64) i64 {
 
 // pollfd has an i32 descriptor followed by two i16 event masks. Both streams
 // retain exact bytes and independent quotas; neither can fill while unattended.
+var phase_capture_stderr_limit i64 = 1048576;
 func phase_capture_channels(out i64, err i64) *PhaseBuffer {
     var result *PhaseBuffer = phase_buffer_new(phase_limit(), phase_diagnostic_source);
-    phase_worker_stderr = phase_buffer_new(1048576, phase_diagnostic_source);
+    phase_worker_stderr = phase_buffer_new(phase_capture_stderr_limit, phase_diagnostic_source);
     var fds *u8 = alloc(16); var fd *i32 = fds; *fd = out;
     fd = fds + 8; *fd = err; *(fds + 4) = 1; *(fds + 12) = 1;
     var chunk *u8 = alloc(4096); var open i64 = 2;
