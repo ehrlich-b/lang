@@ -14,5 +14,12 @@ func main() i64 {
     if tok_type(scan_token()) != TOKEN_ERROR { return 5; }
     lexer_init("#probe{'symbol}");
     if tok_type(scan_token()) != TOKEN_READER_MACRO { return 6; }
+    var large *u8 = alloc(1048577);
+    var i i64 = 0;
+    while i < 1048576 { *(large + i) = 32; i = i + 1; }
+    *(large + i) = 0;
+    lexer_init(str_concat(str_concat("#probe{", large), "}"));
+    token = scan_token();
+    if tok_type(token) != TOKEN_READER_MACRO || tok_content_len(token) != 1048576 { return 7; }
     return 0;
 }

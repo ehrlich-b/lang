@@ -664,9 +664,12 @@ func scan_reader_macro() *u8 {
     // Read balanced content
     var content_start i64 = lex_current;
     var brace_depth i64 = 1;
+    // Keep loop storage in the entry block for large source packages, including
+    // compilers linked without aggressive alloca promotion.
+    var c u8 = 0;
 
     while !lex_is_at_end() && brace_depth > 0 {
-        var c u8 = lex_peek();
+        c = lex_peek();
 
         if c == 47 && lex_peek_next() == 47 {
             // Preserve raw bytes while excluding comment delimiters/quotes.
