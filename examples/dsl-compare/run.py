@@ -8,11 +8,13 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import signal
 import statistics
 import subprocess
 import sys
 import tempfile
 import time
+import threading
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
@@ -56,14 +58,30 @@ class Experiment:
         timed_out = False
         with outpath.open('wb') as out, errpath.open('wb') as err:
             try:
-                process = subprocess.run(args, cwd=cwd or self.root, env=env or self.env,
-                                         stdout=out, stderr=err, timeout=timeout)
-                code = process.returncode
-            except subprocess.TimeoutExpired:
-                code, timed_out = 124, True
+                process = subprocess.Popen(args, cwd=cwd or self.root, env=env or self.env,
+                                           stdout=out, stderr=err, start_new_session=True)
+                def expire():
+                    nonlocal timed_out
+                    timed_out = True
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                timer = threading.Timer(max(0.001, timeout), expire)
+                timer.start()
+                try:
+                    _, status, usage = os.wait4(process.pid, 0)
+                    process.returncode = os.waitstatus_to_exitcode(status)
+                finally:
+                    timer.cancel()
+                    timer.join()
+                code = 124 if timed_out else process.returncode
+            except OSError:
+                raise
         result = dict(command=args, cwd=str(cwd or self.root), exit_code=code,
                       seconds=time.perf_counter() - start, stdout=str(outpath),
-                      stderr=str(errpath), timeout=timed_out)
+                      stderr=str(errpath), timeout=timed_out,
+                      peak_rss_bytes=int(usage.ru_maxrss * (1 if sys.platform == 'darwin' else 1024)))
         with self.log.open('a') as log:
             log.write(json.dumps(dict(result, stderr_text=errpath.read_text(errors='replace'),
                                       stdout_text=outpath.read_text(errors='replace') if output is None else None,
@@ -115,13 +133,18 @@ class Experiment:
         if arm == 'lang':
             backend = target / 'program.ll'
             lower = self.call([self.root / 'out/lang_next', '--from-ast', emitted,
-                               '--ast-source', fixture, '-o', backend], required=False)
+                               '--ast-source', fixture, '-o', backend], required=False,
+                              timeout=180 - (time.perf_counter() - start))
             if lower['exit_code']:
                 return dict(status='TIMEOUT' if lower['timeout'] else 'FAILED', frontend=front,
                             lowering=lower, seconds=time.perf_counter() - start)
-        native = self.call(['clang', '-O2', backend, self.base / 'harness.c', '-o', target / 'program'], required=False)
+        native = self.call(['clang', '-O2', backend, self.base / 'harness.c', '-o', target / 'program'], required=False,
+                           timeout=180 - (time.perf_counter() - start))
         return dict(status='PASS' if not native['exit_code'] else 'TIMEOUT' if native['timeout'] else 'FAILED',
                     frontend=front, native=native, seconds=time.perf_counter() - start,
+                    lowering=lower if arm == 'lang' else None,
+                    peak_rss_bytes=max(r['peak_rss_bytes'] for r in
+                                       ([front, lower, native] if arm == 'lang' else [front, native])),
                     binary=str(target / 'program'), binary_bytes=(target / 'program').stat().st_size
                     if not native['exit_code'] else None,
                     emitted_lines=len(emitted.read_text().splitlines()),
@@ -153,7 +176,8 @@ class Experiment:
                                                  'system C headers and linker'],
                       method=dict(clean='git clone --no-local; empty build directories',
                                   timing='wall seconds; tool provisioning and LOC-only expansion excluded; serial arms; no LTO',
-                                  compile='exactly 100000 lines; full frontend + native link; 180s per phase',
+                                  compile='exactly 100000 lines; full frontend + backend + native link; 180s total',
+                                  memory='wait4 per command; peak resident bytes, maximum across pipeline phases',
                                   runtime='5 fresh processes; n=2000000; median includes process startup',
                                   loc='all physical lines including blanks/comments; frontend source only; shared harness separate',
                                   change='baseline without remainder -> final % between addition and multiplication',
@@ -253,7 +277,7 @@ class Experiment:
             if not smoke:
                 row['large_compile'] = self.compile(arm, build, large, armroot / 'large')
                 if row['large_compile']['status'] == 'PASS':
-                    self.expect(row['large_compile'], 4, 100000)
+                    row['large_run'] = self.expect(row['large_compile'], 4, 100000)
                     row['large_lines_per_second'] = 100000 / row['large_compile']['seconds']
                 else:
                     # A reproducible product limit is a measured loss, not a
@@ -282,6 +306,19 @@ class Experiment:
         report['status'] = 'PASS' if all(r['status'] in ('PASS', 'MEASURED_LIMIT') for r in report['arms'].values()) else 'FAIL'
         report['status_meaning'] = 'PASS means all measurements executed and small native programs agreed; inspect large_compile.status for scale success.'
         self.report.write_text(json.dumps(report, indent=2) + '\n')
+        if not smoke:
+            scale = dict(version=1, head=head, lines=100000, input=report['large_input'],
+                         historical_seconds=dict(bison=0.635, antlr=10.465), arms={})
+            for arm, row in report['arms'].items():
+                result = row['large_compile']
+                phases = {'frontend': result['frontend'], 'native_link': result.get('native')}
+                if arm == 'lang':
+                    phases['backend'] = result.get('lowering')
+                scale['arms'][arm] = dict(status=result['status'], total_seconds=result['seconds'],
+                    lines_per_second=row.get('large_lines_per_second'), peak_rss_bytes=result.get('peak_rss_bytes'),
+                    phases={k: dict(seconds=v['seconds'], peak_rss_bytes=v['peak_rss_bytes'])
+                            for k, v in phases.items() if v}, verified_run=row.get('large_run'))
+            (self.report.parent / 'scale.json').write_text(json.dumps(scale, indent=2) + '\n')
         print(json.dumps(dict(report=str(self.report), status=report['status'], winners=report['winners'])))
         return 0 if report['status'] == 'PASS' else 1
 
@@ -293,6 +330,7 @@ def main():
     parser.add_argument('--smoke', action='store_true')
     args = parser.parse_args()
     assert not subprocess.check_output(['git', 'status', '--porcelain'], cwd=REPO).strip(), 'Commit the candidate first'
+    assert not any(k.startswith('LANG_HOST_MAX_') for k in os.environ), 'Measure default host limits'
     (args.report.resolve().parent.parent / 'scratch').mkdir(exist_ok=True)
     return Experiment(args.tools, args.report).run(args.smoke)
 

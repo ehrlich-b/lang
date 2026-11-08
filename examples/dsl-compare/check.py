@@ -56,15 +56,29 @@ def check_report(path):
             assert commands.index(expansion['command']) > commands.index(row['sample']['native']['command'])
         assert change['baseline_rejects_remainder']['exit_code'] == 1
         assert change['lines_touched'] == change['added'] + change['removed']
-        if row['large_compile']['status'] != 'PASS':
-            assert arm == 'lang' and row['status'] == 'MEASURED_LIMIT'
-            assert '(code ast-nodes)' in row['large_failure']
+        large = row['large_compile']
+        assert large['status'] == 'PASS' and large['seconds'] < 180
+        assert row['large_lines_per_second'] == 100000 / large['seconds']
+        assert large['peak_rss_bytes'] > 0
+        assert row['large_run']['exit_code'] == 0
+        assert any(r['command'] == [large['binary'], '4'] and r['exit_code'] == 0
+                   and r['stdout_text'] == '100000\n' for r in rows)
+        for phase in ('frontend', 'native') + (('lowering',) if arm == 'lang' else ()):
+            assert large[phase]['exit_code'] == 0 and large[phase]['peak_rss_bytes'] > 0
         print(arm, row['status'], 'scale:', row['large_compile']['status'],
               'change:', change['lines_touched'], 'lines')
     for name, expected in report['input_hashes'].items():
         assert hashlib.sha256((BASE / name).read_bytes()).hexdigest() == expected
     # The self-contained transcript retains errors and hashes even if builds are reclaimed.
     assert all('stderr_text' in r and 'artifact_sha256' in r for r in rows)
+    scale = json.loads((path.parent / 'scale.json').read_text())
+    assert scale['head'] == report['head'] and scale['lines'] == 100000
+    assert scale['historical_seconds'] == dict(bison=0.635, antlr=10.465)
+    for arm, row in report['arms'].items():
+        measured = scale['arms'][arm]
+        assert measured['status'] == 'PASS'
+        assert measured['total_seconds'] == row['large_compile']['seconds']
+        assert measured['peak_rss_bytes'] == row['large_compile']['peak_rss_bytes']
     print('Validated', len(rows), 'recorded commands and', len(report['input_hashes']), 'input hashes')
 
 
@@ -88,6 +102,7 @@ def main():
                 assert transcript.name == str(transcript)
                 shutil.copy2(args.report, copied)
                 shutil.copy2(args.report.parent / transcript, Path(folder) / transcript)
+                shutil.copy2(args.report.parent / 'scale.json', Path(folder) / 'scale.json')
                 check_report(copied)
                 print('Validated relocated report and sibling transcript without build artifacts')
         else:

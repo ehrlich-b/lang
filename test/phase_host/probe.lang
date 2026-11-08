@@ -4,6 +4,8 @@ include "src/lexer.lang"
 include "src/parser.lang"
 include "src/ast_emit.lang"
 include "src/sexpr_reader.lang"
+// This standalone host probe has no enclosing reader invocation.
+var reader_host_origin i64 = 0;
 
 func probe_arg(argv **u8, i i64) *u8 { var raw *u8 = argv; var p **u8 = raw + i * 8; return *p; }
 func main(argc i64, argv **u8) i64 {
@@ -19,6 +21,40 @@ func main(argc i64, argv **u8) i64 {
         var prog *u8 = parse_ast_from_string(input.data);
         if prog == nil { return 2; }
         print(ast_emit_program(prog)); return 0;
+    }
+    if streq(mode, "emit-nodes") {
+        var block *u8 = block_stmt_alloc();
+        var statements **u8 = alloc(16);
+        var number *u8 = number_expr_alloc();
+        number_expr_set_value(number, "0"); number_expr_set_value_len(number, 1);
+        *statements = number;
+        var next **u8 = statements + 8; *next = number;
+        block_stmt_set_stmts(block, statements); block_stmt_set_count(block, 2);
+        phase_diagnostic_source = "probe-input";
+        print(ast_emit_expression(block)); return 0;
+    }
+    if streq(mode, "span-index") {
+        var id i64 = phase_source_new("span-index-input", input.data);
+        var record *PhaseSource = phase_source_get(id);
+        // Reverse order, including EOF and empty lines, rules out a cursor
+        // that only works when reader spans arrive in source order.
+        var offset i64 = input.len;
+        while offset >= 0 {
+            if phase_utf8_boundary(record, offset) != 0 {
+                var node *u8 = number_expr_alloc();
+                node_set_span(node, "span-index-input", input.data, offset, offset);
+                var line i64 = 1; var column i64 = 1; var pos i64 = 0;
+                while pos < offset {
+                    if *(input.data + pos) == 10 { line = line + 1; column = 1; }
+                    else { column = column + 1; }
+                    pos = pos + 1;
+                }
+                if node_origin_line(node) != line || node_origin_column(node) != column { return 8; }
+                if node_origin_start(node) != offset || node_origin_end(node) != offset { return 8; }
+            }
+            offset = offset - 1;
+        }
+        return 0;
     }
     if streq(mode, "worker") {
         var output *u8 = phase_worker_call(probe_arg(argv, 2), input.data, input.len);

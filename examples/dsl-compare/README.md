@@ -43,7 +43,13 @@ No generated parser or downloaded tool is checked in. The default report path in
 the command above is `../evidence/compare.json`.
 
 The report names its command transcript relative to the report directory. Retain
-those two files together; validation does not need the original build directory:
+it with that transcript and `scale.json`; validation does not need the original build directory.
+`scale.json` records frontend, backend and native-link seconds, throughput,
+verified native execution and peak resident bytes (the maximum of per-command
+`wait4` peaks). Every arm has the same 180-second source-to-native deadline and
+Clang flags; the runner refuses host-limit overrides when measuring defaults.
+
+Validate all three successful scale pipelines and the relocated evidence:
 
 ```sh
 nice -n 10 python3 examples/dsl-compare/check.py report --relocate --report ../evidence/compare.json
