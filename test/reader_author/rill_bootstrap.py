@@ -72,7 +72,8 @@ def integration(boot, stage1, compiler_source, reader_source, clone, scratch, fi
     for n in (2, 3):
         ast = isolated / f'reader-stage{n}.ast'
         boot.compile(stages[n], reader_source, ast, f'reader-AST-stage{n}', ('--emit-expanded-ast',))
-        require(ast.stat().st_size > 10000, 'reader AST was not fully expanded')
+        require(ast.stat().st_size > 10000 and b'(reader_expr rill ' not in ast.read_bytes()
+                and b'(func rill_parse_source ' in ast.read_bytes(), 'reader AST was not fully expanded')
         files[ast.name] = ast
     same(isolated / 'reader-stage2.ast', isolated / 'reader-stage3.ast', 'reader AST fixed point')
 
@@ -221,6 +222,11 @@ def main():
             module_irs.append(ir)
             files[ir.name] = ir
         same(*module_irs, 'limits module LLVM')
+        module_ast = isolated / 'module-expanded.ast'
+        boot.compile(stage1, packages['module'], module_ast, 'module-expanded-AST', ('--emit-expanded-ast',))
+        require(b'LIMIT_CALL_ARGS' in module_ast.read_bytes() and b'(func main ' in module_ast.read_bytes()
+                and b'(reader_expr ' not in module_ast.read_bytes(), 'module AST did not expand source packages')
+        files[module_ast.name] = module_ast
         # A semantic edit changes both IR and execution, and the equality oracle fails.
         changed = isolated / 'changed-module.rill'
         original = packages['module'].read_bytes()

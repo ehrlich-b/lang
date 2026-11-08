@@ -37,6 +37,16 @@ and exported Rill packages, with `PATH=/nonexistent`, no `LANG_ROOT`, and a new
 cache. Original source files are never copied there. Rill packages validate all
 dependency edges before publication; missing package sources cannot fall back
 to Lang files. Clang is an explicit separate backend at every native link.
+
+The shared host now preserves raw-body boundaries across comments and character
+literals, terminates reader input strings, and registers generated declarations
+through the active backend. Logical expressions join values with LLVM phi nodes
+instead of allocating a fresh stack slot on each loop iteration. The small
+unoptimized probe checks nested short-circuit side effects, bounded scanning
+and snapshot comparisons, and parser input boundaries. The module fragment
+also verifies that expanded AST output contains actual declarations rather
+than an unexpanded source-reader invocation. Missing variable names are rejected
+without dereferencing a missing parser token.
 All processes are sequential and inherit two-CPU affinity, JOBS=2 and a 2 GiB
 address-space ceiling. No root access, OS kernel operations, bootstrap promotion,
 web generation or full unchanged suites are involved.
@@ -58,7 +68,7 @@ then the following additional obligations, failing on any mismatch:
    `compiler-stage3.ll` byte for byte, without normalization or omitted functions.
 2. Stage 2 and stage 3 each expand the complete exported Rill reader package
    using `--emit-expanded-ast`. Compare the entire `reader-stage2.ast` and
-   `reader-stage3.ast`, including origins. An entry-only AST is insufficient.
+   `reader-stage3.ast`, using the standard AST serialization. An entry-only AST or raw reader invocation is insufficient.
 3. Each full compiler stage explicitly builds the actual shipping reader with
    its runtime from `example/shipping/`. This application step uses the recorded
    authored Lang reader, runtime and toolkit sources in the cloned checkout;

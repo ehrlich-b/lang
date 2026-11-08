@@ -93,3 +93,8 @@ comment bytes, token positions, backend source origins, syntax rejection and
 its own failed-expectation exit. For the fragment gate select
 `env JOBS=2 VERIFY_CASE=rill make verify`. Plain `make verify` retains integration
 fixed points and suites, which are separate from this fragment.
+
+The [bootstrap fragment and integration recipe](BOOTSTRAP.md) build a composed
+Rill compiler from exported compiler/reader sources and check two generations
+on the smallest compiler module. Complete compiler and reader fixed points
+remain pending until the explicit integration recipe passes.

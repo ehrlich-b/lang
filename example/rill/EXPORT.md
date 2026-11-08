@@ -98,3 +98,7 @@ module visibility; this fragment does not certify execution of a whole compiled
 compiler. Whole-compiler execution, LLVM and reader-AST
 fixed points, other OS profiles and full suites remain integration work.
 The fragment selector on `make verify` leaves the default integration gate intact.
+
+For native execution of an exported compiler composition, the two-generation
+module fragment, and the complete integration obligations, see
+[Rebuilding a composed Rill compiler](BOOTSTRAP.md).

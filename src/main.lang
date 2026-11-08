@@ -249,6 +249,25 @@ var expand_input_files *u8 = nil;      // Vec of input file paths (for modules t
 func expand_collect_decl(decl *u8) void {
     var k i64 = node_kind(decl);
 
+    // Embedded source frontends can publish include inputs while returning an
+    // entry AST. Expand that entry before collecting dependency declarations.
+    // External reader nodes retain their existing deferred composition form.
+    if k == NODE_READER_EXPR {
+        var embedded *u8 = find_embedded_reader_func(reader_expr_name(decl), reader_expr_name_len(decl));
+        if embedded != nil {
+            var generated *u8 = expand_reader_decl(decl);
+            if generated == nil { eprintln("error: cannot expand embedded reader"); exit(1); }
+            var gi i64 = 0;
+            while gi < program_decl_count(generated) {
+                var child *u8 = get_decl(program_decls(generated), gi);
+                node_copy_origin(child, decl);
+                expand_collect_decl(child);
+                gi = gi + 1;
+            }
+            return;
+        }
+    }
+
     if k == NODE_INCLUDE_DECL {
         var path *u8 = include_decl_path(decl);
         var path_len i64 = include_decl_path_len(decl);
