@@ -6,7 +6,9 @@ var bootstrap_calls i64 = 0;
 func bootstrap_touch(value i64) i64 { bootstrap_calls = bootstrap_calls + 1; return value; }
 
 func bootstrap_counted(content *u8) *u8 {
-    return str_concat(str_concat(str_concat("#probe[", i64_to_str(strlen(content))), "]{"), str_concat(content, "}"));
+    var count *u8 = alloc(32);
+    *(count + itoa(strlen(content), count)) = 0;
+    return str_concat(str_concat(str_concat("#probe[", count), "]{"), str_concat(content, "}"));
 }
 
 func bootstrap_reader_body(source *u8, content *u8) bool {
