@@ -1,5 +1,6 @@
 include "std/core.lang"
 include "src/lexer.lang"
+include "src/parser.lang"
 
 func main() i64 {
     var content *u8 = "// } { \"\n/* } { \" */ '{' '}' '\\'' '\\\\' \"} { \\\"\" { nested } 'symbol\n";
@@ -21,5 +22,15 @@ func main() i64 {
     lexer_init(str_concat(str_concat("#probe{", large), "}"));
     token = scan_token();
     if tok_type(token) != TOKEN_READER_MACRO || tok_content_len(token) != 1048576 { return 7; }
+    lexer_init(str_concat(str_concat("#probe{\"", large), "\"}"));
+    token = scan_token();
+    if tok_type(token) != TOKEN_READER_MACRO || tok_content_len(token) != 1048578 { return 8; }
+    lexer_init(str_concat(str_concat("#probe{/*", large), "*/}"));
+    token = scan_token();
+    if tok_type(token) != TOKEN_READER_MACRO || tok_content_len(token) != 1048580 { return 9; }
+    var program *u8 = parse_program_from_string("#probe{raw}\nfunc after() i64 { return 0; }");
+    if program == nil || program_decl_count(program) != 2 { return 10; }
+    var expr *u8 = get_decl(program_decls(program), 0);
+    if reader_expr_content_len(expr) != 3 || !streq(reader_expr_content(expr), "raw") { return 11; }
     return 0;
 }

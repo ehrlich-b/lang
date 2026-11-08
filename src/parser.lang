@@ -3364,7 +3364,9 @@ func parse_primary() *u8 {
         var node *u8 = reader_expr_alloc();
         reader_expr_set_name(node, tok_lexeme(tok));
         reader_expr_set_name_len(node, tok_lexeme_len(tok));
-        reader_expr_set_content(node, tok_content(tok));
+        // Embedded readers take a NUL-terminated string, not the token's slice
+        // followed by the enclosing brace and the rest of the host program.
+        reader_expr_set_content(node, str_dup_n(tok_content(tok), tok_content_len(tok)));
         reader_expr_set_content_len(node, tok_content_len(tok));
         return node;
     }
@@ -4358,7 +4360,7 @@ func parse_declaration() *u8 {
         var node *u8 = reader_expr_alloc();
         reader_expr_set_name(node, tok_lexeme(tok));
         reader_expr_set_name_len(node, tok_lexeme_len(tok));
-        reader_expr_set_content(node, tok_content(tok));
+        reader_expr_set_content(node, str_dup_n(tok_content(tok), tok_content_len(tok)));
         reader_expr_set_content_len(node, tok_content_len(tok));
         return node;
     }
