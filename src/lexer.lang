@@ -637,7 +637,7 @@ func scan_char() *u8 {
 // Scan reader macro: #name{content}
 // Returns token with:
 //   - lexeme = reader name
-//   - content = text between balanced braces
+//   - content = text between balanced braces, or exactly N bytes in #name[N]{...}
 func reader_character_width() i64 {
     // Only complete character literals: a lone quote belongs to the reader.
     if lex_current + 2 < lex_source_len &&
@@ -661,6 +661,26 @@ func scan_reader_macro() *u8 {
     var name_end i64 = lex_current;
     var name_len i64 = name_end - name_start;
 
+    // A byte-counted body transports foreign source without interpreting its
+    // comments, quotes or delimiters. Bound decimal accumulation by input size.
+    var content_size i64 = -1;
+    var digit i64 = 0;
+    if lex_peek() == 91 {  // '['
+        lex_advance();
+        if !is_digit(lex_peek()) { return error_token("expected reader byte count"); }
+        content_size = 0;
+        while is_digit(lex_peek()) {
+            digit = lex_peek() - 48;
+            if content_size > (lex_source_len - digit) / 10 {
+                return error_token("reader byte count exceeds input");
+            }
+            content_size = content_size * 10 + digit;
+            lex_advance();
+        }
+        if lex_peek() != 93 { return error_token("expected ']' after reader byte count"); }
+        lex_advance();
+    }
+
     // Expect '{'
     if lex_peek() != 123 {  // '{'
         return error_token("expected '{' after reader macro name");
@@ -675,22 +695,27 @@ func scan_reader_macro() *u8 {
     var c u8 = 0;
     var width i64 = 0;
 
+    if content_size >= 0 {
+        if content_size >= lex_source_len - lex_current {
+            return error_token("reader byte count exceeds input");
+        }
+        while lex_current - content_start < content_size {
+            if lex_peek() == 10 { lex_line = lex_line + 1; lex_col = 0; }
+            lex_advance();
+        }
+        if lex_peek() != 125 { return error_token("expected '}' after counted reader body"); }
+        brace_depth = 0;
+    }
+
     // Short-circuit expressions can also allocate temporaries at their use
     // site. Keep them out of this byte loop so unoptimized scans stay bounded.
     while !lex_is_at_end() {
         if brace_depth == 0 { break; }
         c = lex_peek();
 
-        if c == 47 {
-            if lex_peek_next() == 47 {
-                // Preserve raw bytes while excluding comment delimiters/quotes.
-                while !lex_is_at_end() {
-                    if lex_peek() == 10 { break; }
-                    lex_advance();
-                }
-            } else if lex_peek_next() == 42 { skip_block_comment(); }
-            else { lex_advance(); }
-        } else if c == 39 {
+        // Slash bytes belong to the reader, including URLs and comment-like
+        // text. Only the explicit counted form bypasses brace balancing.
+        if c == 39 {
             width = reader_character_width();
             while width > 0 { lex_advance(); width = width - 1; }
         } else if c == 123 {  // '{'

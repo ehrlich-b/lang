@@ -1846,12 +1846,15 @@ func main_dispatch(argc i64, argv **u8) i64 {
             phase_source_capture(arg, input_text);
 
             if ext != nil && is_lang_extension(ext) == 0 {
-                // Non-.lang file: read content and wrap in #ext{ content }
+                // File boundaries are known: transport exact bytes without applying
+                // Lang delimiter or comment conventions to a foreign language.
                 var content *u8 = input_text;
 
                 append_str(&source_buf, &source_len, &source_cap, "#");
                 append_str(&source_buf, &source_len, &source_cap, ext);
-                append_str(&source_buf, &source_len, &source_cap, "{");
+                append_str(&source_buf, &source_len, &source_cap, "[");
+                append_str(&source_buf, &source_len, &source_cap, i64_to_str(strlen(content)));
+                append_str(&source_buf, &source_len, &source_cap, "]{");
                 append_str(&source_buf, &source_len, &source_cap, content);
                 append_str(&source_buf, &source_len, &source_cap, "}\n");
             } else {

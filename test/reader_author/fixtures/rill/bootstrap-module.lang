@@ -1,3 +1,5 @@
 // The smallest compiler module, observed through a native exit code.
+// Foreign file transport must leave this unmatched delimiter and quote alone: } "
+/* And this unmatched opening delimiter: { */
 include "src/limits.lang"
 func main() i64 { return LIMIT_CALL_ARGS; }

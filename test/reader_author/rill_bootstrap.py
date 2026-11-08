@@ -192,7 +192,8 @@ def main():
         expected = [FIXTURES + 'bootstrap-readers.lang' if p == 'src/compiler_readers_none.lang' else p
                     for p in spec['closures']['compiler']]
         require(roots == expected, 'bootstrap compiler roots differ from declared compiler closure')
-        files = {seed_ir.name: seed_ir}
+        files = {seed_ir.name: seed_ir, delimiter_ir.name: delimiter_ir,
+                 'probes/bootstrap-delimiters.lang': clone / (FIXTURES + 'bootstrap-delimiters.lang')}
         packages = {}
         entries = {'compiler': FIXTURES + 'bootstrap-compiler.lang',
                    'module': FIXTURES + 'bootstrap-module.lang'}
@@ -269,7 +270,7 @@ def main():
         require(all(sha(clone / p) == h for p, h in hashes.items()), 'tracked source changed')
         archive(evidence / 'sources-and-stages.tar.xz', files)
         dump(evidence / 'result.json', {'pass': True, 'head': head, 'case': args.case,
-            'observations': len(replay.rows), 'module_IR_equal': True,
+            'observations': len(replay.rows), 'module_IR_equal': True, 'reader_boundary_probe': 'passed',
             'module_exits': [16, 16], 'changed_module_exit': 17,
             'obligations': obligations, 'archive_sha256': sha(evidence / 'sources-and-stages.tar.xz')})
         print('PASS Rill bootstrap ' + args.case + ': compiler stage 2, two module generations, semantic edit, failure attribution; '

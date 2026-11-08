@@ -119,6 +119,16 @@ reader is used inside an expression; return `(program ...)` for a whole file.
 Use the [AST builder quick reference](./AST_BUILDERS.md) to build the result
 instead of assembling S-expressions by hand.
 
+The balanced form `#name{...}` counts nested braces outside quoted strings and
+complete character literals. Slash bytes have no comment meaning at this
+boundary: `#name{https://example.test}` passes the URL unchanged. A reader that
+needs arbitrary delimiters or unmatched quotes can use `#name[N]{...}`, where
+`N` is the decimal UTF-8 byte count of the body, excluding its closing brace.
+For example, `#name[4]{a}b{}` passes the four bytes `a}b{`. The closing brace must
+follow exactly those bytes; missing, overflowing or mismatched counts are lexer
+errors. The CLI uses this counted form for non-Lang input files, so the complete
+file reaches its reader without applying Lang comment or delimiter conventions.
+
 Consume the whole input before returning an AST. After the last expected token,
 advance once and require `tok_eof(tokens)`; return `nil` on extra tokens or
 incomplete input. Whitespace and comments may follow the program, but

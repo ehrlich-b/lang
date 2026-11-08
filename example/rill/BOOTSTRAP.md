@@ -39,9 +39,13 @@ cache. Original source files are never copied there. Rill packages validate all
 dependency edges before publication; missing package sources cannot fall back
 to Lang files. Clang is an explicit separate backend at every native link.
 
-The shared host now preserves raw-body boundaries across comments and character
-literals, terminates reader input strings, and registers generated declarations
-through the active backend. Logical expressions join values with LLVM phi nodes
+The shared host transports complete foreign files with byte-counted reader
+bodies, preserving comments, unmatched delimiters and quotes without interpreting
+them. Balanced inline reader bodies preserve slash bytes, including URLs; comments
+are interpreted only by the selected reader. The boundary probe checks both forms,
+malformed counts, UTF-8 byte lengths and following-token positions. The host also
+terminates reader input strings and registers generated declarations through the
+active backend. Logical expressions join values with LLVM phi nodes
 instead of allocating a fresh stack slot on each loop iteration. The small
 unoptimized probe checks nested short-circuit side effects, bounded scanning
 and snapshot comparisons, and parser input boundaries. The module fragment

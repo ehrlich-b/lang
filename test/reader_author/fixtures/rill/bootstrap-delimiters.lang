@@ -5,16 +5,29 @@ include "src/parser.lang"
 var bootstrap_calls i64 = 0;
 func bootstrap_touch(value i64) i64 { bootstrap_calls = bootstrap_calls + 1; return value; }
 
+func bootstrap_counted(content *u8) *u8 {
+    return str_concat(str_concat(str_concat("#probe[", i64_to_str(strlen(content))), "]{"), str_concat(content, "}"));
+}
+
+func bootstrap_reader_body(source *u8, content *u8) bool {
+    lexer_init(source);
+    var tok *u8 = scan_token();
+    if tok_type(tok) != TOKEN_READER_MACRO { return false; }
+    if !str_eq_n(tok_lexeme(tok), tok_lexeme_len(tok), "probe", 5) { return false; }
+    if !str_eq_n(tok_content(tok), tok_content_len(tok), content, strlen(content)) { return false; }
+    return tok_type(scan_token()) == TOKEN_EOF;
+}
+
 func main() i64 {
     var content *u8 = "// } { \"\n/* } { \" */ '{' '}' '\\'' '\\\\' \"} { \\\"\" { nested } 'symbol\n";
-    lexer_init(str_concat(str_concat("#probe{", content), "}\nafter"));
+    lexer_init(str_concat(bootstrap_counted(content), "\nafter"));
     var token *u8 = scan_token();
     if tok_type(token) != TOKEN_READER_MACRO { return 1; }
     if !str_eq_n(tok_content(token), tok_content_len(token), content, strlen(content)) { return 2; }
     token = scan_token();
     if tok_type(token) != TOKEN_IDENT || tok_line(token) != 4 || tok_col(token) != 1 { return 3; }
     if !str_eq_n(tok_lexeme(token), tok_lexeme_len(token), "after", 5) { return 4; }
-    lexer_init("#probe{/* unclosed }");
+    lexer_init("#probe[12]{short}");
     if tok_type(scan_token()) != TOKEN_ERROR { return 5; }
     lexer_init("#probe{'symbol}");
     if tok_type(scan_token()) != TOKEN_READER_MACRO { return 6; }
@@ -51,5 +64,30 @@ func main() i64 {
     i = 0;
     while i < 1048576 && (bootstrap_calls == 4 || bootstrap_touch(0)) { i = i + 1; }
     if i != 1048576 || bootstrap_calls != 4 { return 22; }
+    // Balanced form never assigns comment semantics to slash bytes.
+    if !bootstrap_reader_body("#probe{https://example.test}", "https://example.test") { return 23; }
+    if !bootstrap_reader_body("#probe{//raw}", "//raw") { return 24; }
+    if !bootstrap_reader_body("#probe{/*raw}", "/*raw") { return 25; }
+    if !bootstrap_reader_body("#probe{//{nested}}", "//{nested}") { return 26; }
+    if !bootstrap_reader_body("#probe[0]{}", "") { return 27; }
+    if !bootstrap_reader_body(bootstrap_counted("} // { /* \"\n"), "} // { /* \"\n") { return 28; }
+    // Counts are UTF-8 bytes, independent of the reader's own text grammar.
+    if !bootstrap_reader_body("#probe[2]{é}", "é") { return 29; }
+    lexer_init("#probe[1]{é}");
+    if tok_type(scan_token()) != TOKEN_ERROR { return 30; }
+    lexer_init("#probe[999999999999999999999999999999999999]{x}");
+    if tok_type(scan_token()) != TOKEN_ERROR { return 31; }
+    lexer_init("#probe[]{x}");
+    if tok_type(scan_token()) != TOKEN_ERROR { return 32; }
+    lexer_init("#probe[1{x}");
+    if tok_type(scan_token()) != TOKEN_ERROR { return 33; }
+    lexer_init("#probe[1]x}");
+    if tok_type(scan_token()) != TOKEN_ERROR { return 34; }
+    lexer_init("#probe[1]{xy}");
+    if tok_type(scan_token()) != TOKEN_ERROR { return 35; }
+    program = parse_program_from_string("#probe{https://example.test}\nfunc after() i64 { return 0; }");
+    if program == nil || program_decl_count(program) != 2 { return 36; }
+    expr = get_decl(program_decls(program), 0);
+    if !streq(reader_expr_content(expr), "https://example.test") { return 37; }
     return 0;
 }
