@@ -91,5 +91,6 @@ func main() i64 {
     if program == nil || program_decl_count(program) != 2 { return 36; }
     expr = get_decl(program_decls(program), 0);
     if !streq(reader_expr_content(expr), "https://example.test") { return 37; }
+    if !bootstrap_reader_body("#probe{'shipping' '{' '}' }", "'shipping' '{' '}' ") { return 38; }
     return 0;
 }

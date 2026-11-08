@@ -639,7 +639,14 @@ func scan_char() *u8 {
 //   - lexeme = reader name
 //   - content = text between balanced braces, or exactly N bytes in #name[N]{...}
 func reader_character_width() i64 {
-    // Only complete character literals: a lone quote belongs to the reader.
+    // A quoted identifier is a complete single-quoted token as well. Keep its
+    // closing quote from being mistaken for the start of a character literal.
+    var end i64 = lex_current + 1;
+    while end < lex_source_len && is_alphanumeric(*(lex_source + end)) { end = end + 1; }
+    if end > lex_current + 1 && end < lex_source_len && *(lex_source + end) == 39 {
+        return end - lex_current + 1;
+    }
+    // A lone quote belongs to the reader.
     if lex_current + 2 < lex_source_len &&
        *(lex_source + lex_current + 2) == 39 && lex_peek_next() != 92 { return 3; }
     if lex_peek_next() == 92 && lex_current + 3 < lex_source_len &&
