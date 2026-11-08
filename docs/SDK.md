@@ -34,7 +34,9 @@ on the extracted SDK and use an equal or newer glibc (the recorded build uses
 Debian glibc 2.41). On Debian/Ubuntu, provision `clang build-essential xz-utils`
 with your administrator before starting. Clang 19.1.7 and 23.1.5 are exercised;
 other versions are unverified. Clang must be executable on PATH, or select its
-absolute executable with `LANG_CLANG`. Keep the extracted directory intact;
+absolute executable with `LANG_CLANG`. The system linker `ld` must also be
+executable on PATH (Debian/Ubuntu: `binutils`, included by `build-essential`).
+Keep the extracted directory intact;
 `bin/lang` locates resources relative to itself. Work in a separate empty directory.
 
 ```sh
@@ -55,8 +57,8 @@ echo $?  # 42
 The starter accepts `answer NUMBER`; edit `tiny.lang` to evolve it. The minted
 compiler embeds the reader and native backend. It can emit LLVM without Clang;
 linking LLVM into an executable requires Clang and the system C toolchain.
-SDK build commands check for Clang before expanding readers, and report one
-plain prerequisite message with installation advice if it is missing. `new`,
+SDK build commands check for Clang and `ld` before expanding readers, and report
+one plain prerequisite message with installation advice if either is missing. `new`,
 `help`, `version` and `doctor` need no Clang. `LANG_ROOT` is an optional resource
 override; leave it unset for the archive journey.
 

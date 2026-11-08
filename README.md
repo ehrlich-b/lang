@@ -47,7 +47,8 @@ Start with the versioned archive produced by
 `python3 scripts/package_sdk.py --output ../release`. There is no public download
 yet; use the local `../release/lang-<version>-x86_64-linux.tar.xz` path.
 You need Linux x86-64 with compatible glibc, `/bin/sh`, XZ-capable tar, Clang and
-the system C development toolchain (Debian/Ubuntu: `clang build-essential xz-utils`).
+the system C development toolchain, including `ld` on PATH (Debian/Ubuntu:
+`clang build-essential binutils xz-utils`).
 See [SDK prerequisites and receipts](docs/SDK.md) for versions and host requirements.
 
 ```bash

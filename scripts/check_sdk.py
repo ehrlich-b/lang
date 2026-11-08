@@ -129,13 +129,21 @@ class Check:
             assert 'PermissionError' in self.rows[-1]['stderr']
         self.call(['lang', 'new', 'reader', 'tiny'], cwd=consumer, isolated=True)
         if missing:
-            no_tools = dict(self.env, PATH=str(sdk / 'bin'))
-            for command in (['lang', 'compiler', 'tiny', 'tiny.lang', '-o', 'tinyc'],
-                            ['lang', 'run', 'tiny.lang', 'answer.tiny']):
-                result = self.call(command, cwd=consumer, isolated=True, env=no_tools, expected=127)
-                message = result.stderr.decode()
-                assert len(message.splitlines()) == 1 and 'clang' in message and 'apt install' in message
-                assert not result.stdout
+            clang_only = self.work / 'clang-only'
+            clang_only.mkdir()
+            (clang_only / 'clang').symlink_to(shutil.which('clang', path=self.env['PATH']))
+            for tool, path in (('clang', str(sdk / 'bin')),
+                               ('ld', str(sdk / 'bin') + ':' + str(clang_only))):
+                no_tool = dict(self.env, PATH=path)
+                assert shutil.which(tool, path=path) is None
+                if tool == 'ld':
+                    assert shutil.which('clang', path=path)
+                for command in (['lang', 'compiler', 'tiny', 'tiny.lang', '-o', 'tinyc'],
+                                ['lang', 'run', 'tiny.lang', 'answer.tiny']):
+                    result = self.call(command, cwd=consumer, isolated=True, env=no_tool, expected=127)
+                    message = result.stderr.decode()
+                    assert len(message.splitlines()) == 1 and message.startswith(f'Error: {tool} is required;')
+                    assert 'apt install' in message and not result.stdout
             assert not (consumer / 'tinyc').exists()
             self.write('sdk-missing-tools.json', status='PASS')
             return

@@ -7,6 +7,10 @@ case "${1-}" in
             echo 'Error: clang is required; install Clang and the system C development toolchain (Debian/Ubuntu: apt install clang build-essential), then add clang to PATH or set LANG_CLANG.' >&2
             exit 127
         fi
+        if ! command -v ld >/dev/null 2>&1; then
+            echo 'Error: ld is required; install the system linker (Debian/Ubuntu: apt install binutils build-essential), then add ld to PATH.' >&2
+            exit 127
+        fi
         ;;
 esac
 sdk_bin=$(CDPATH= cd -- "${0%/*}" && pwd) || exit 1
