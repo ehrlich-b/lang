@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Two-generation module fragment; complete Rill fixed points are opt-in integration."""
+"""Rebuild Rill stage 2 and check a module; full fixed points are opt-in integration."""
 import argparse
 import json
 import os
@@ -57,11 +57,11 @@ class Bootstrap:
         dump(self.replay.evidence / 'stage-manifest.json', self.rows)
 
 
-def integration(boot, stage1, compiler_source, reader_source, clone, scratch, files):
+def integration(boot, stage2, compiler_source, reader_source, clone, scratch, files):
     """This branch is intentionally not executed by the local module fragment."""
     replay, isolated = boot.replay, boot.isolated
-    stages = {1: stage1}
-    for n in (2, 3):
+    stages = {2: stage2}
+    for n in (3,):
         ir, binary = isolated / f'compiler-stage{n}.ll', isolated / f'rill-stage{n}'
         boot.compile(stages[n - 1], compiler_source, ir, f'compiler-stage{n}')
         boot.link(ir, binary, f'link-compiler-stage{n}')
@@ -211,10 +211,16 @@ def main():
         boot.compile(seed, packages['compiler'], stage1_ir, 'compiler-stage1')
         boot.link(stage1_ir, stage1, 'link-compiler-stage1')
         files[stage1_ir.name] = stage1_ir
-        # Two compiler generations process the same smallest real compiler module.
-        # Stage 2 of the complete compiler is an integration obligation below.
+        # Rebuild the complete compiler, including its reader, from the exact
+        # same Rill package. Linking and exercising stage 2 are local obligations;
+        # comparing complete compiler generations remains an integration check.
+        stage2_ir, stage2 = isolated / 'compiler-stage2.ll', isolated / 'rill-stage2'
+        boot.compile(stage1, packages['compiler'], stage2_ir, 'compiler-stage2')
+        boot.link(stage2_ir, stage2, 'link-compiler-stage2')
+        files[stage2_ir.name] = stage2_ir
+        # Both rebuilt compilers process the smallest real compiler module.
         module_irs = []
-        for n, compiler in enumerate((seed, stage1), 1):
+        for n, compiler in enumerate((stage1, stage2), 1):
             ir, binary = isolated / f'module-generation{n}.ll', isolated / f'module-generation{n}'
             boot.compile(compiler, packages['module'], ir, f'module-generation{n}')
             boot.link(ir, binary, f'link-module-generation{n}')
@@ -223,7 +229,7 @@ def main():
             files[ir.name] = ir
         same(*module_irs, 'limits module LLVM')
         module_ast = isolated / 'module-expanded.ast'
-        boot.compile(stage1, packages['module'], module_ast, 'module-expanded-AST', ('--emit-expanded-ast',))
+        boot.compile(stage2, packages['module'], module_ast, 'module-expanded-AST', ('--emit-expanded-ast',))
         require(b'LIMIT_CALL_ARGS' in module_ast.read_bytes() and b'(func main ' in module_ast.read_bytes()
                 and b'(reader_expr ' not in module_ast.read_bytes(), 'module AST did not expand source packages')
         files[module_ast.name] = module_ast
@@ -233,7 +239,7 @@ def main():
         require(original.count(b'LIMIT_CALL_ARGS i64 = 16;') == 1, 'limits input drifted')
         changed.write_bytes(original.replace(b'LIMIT_CALL_ARGS i64 = 16;', b'LIMIT_CALL_ARGS i64 = 17;'))
         changed_ir, changed_binary = isolated / 'changed-module.ll', isolated / 'changed-module'
-        boot.compile(stage1, changed, changed_ir, 'semantic-edit')
+        boot.compile(stage2, changed, changed_ir, 'semantic-edit')
         boot.link(changed_ir, changed_binary, 'link-semantic-edit')
         exact(replay.run([str(changed_binary)], 'run-semantic-edit', isolated, expected=17))
         reject_comparison(replay, module_irs[1], changed_ir, 'expectation-must-fail', isolated)
@@ -245,12 +251,12 @@ def main():
         ):
             path, output = isolated / (label + '.rill'), isolated / (label + '.ll')
             path.write_text(source)
-            result = replay.run([str(stage1), str(path), '-o', str(output)], label + '-attribution', isolated, expected=1)
+            result = replay.run([str(stage2), str(path), '-o', str(output)], label + '-attribution', isolated, expected=1)
             require(not result.stdout and diagnostic in result.stderr and not output.exists(),
                     label + ': wrong attribution or partial output')
             files[path.name] = path
         files.update({p.name: p for p in (changed, changed_ir)})
-        obligations = {'compiler_stage2': 'pending integration', 'compiler_stage3': 'pending integration',
+        obligations = {'compiler_stage2': 'passed', 'compiler_stage3': 'pending integration',
                        'compiler_LLVM': 'pending integration', 'reader_AST': 'pending integration',
                        'shipping': 'pending integration', 'diverse_double_compilation': 'not performed'}
         if args.case == 'integration':
@@ -258,7 +264,7 @@ def main():
             replay.run([sys.executable, '-B', str(exporter), '--entry', 'example/rill/rill.lang',
                         '--output', str(reader_pack)], 'export-reader', clone)
             files.update({'reader/export/' + p: reader_pack / p for p in tree(reader_pack)})
-            obligations = integration(boot, stage1, packages['compiler'], reader_pack / 'program.rill',
+            obligations = integration(boot, stage2, packages['compiler'], reader_pack / 'program.rill',
                                       clone, scratch, files)
         require(all(sha(clone / p) == h for p, h in hashes.items()), 'tracked source changed')
         archive(evidence / 'sources-and-stages.tar.xz', files)
@@ -266,7 +272,7 @@ def main():
             'observations': len(replay.rows), 'module_IR_equal': True,
             'module_exits': [16, 16], 'changed_module_exit': 17,
             'obligations': obligations, 'archive_sha256': sha(evidence / 'sources-and-stages.tar.xz')})
-        print('PASS Rill bootstrap ' + args.case + ': two module generations, semantic edit, failure attribution; '
+        print('PASS Rill bootstrap ' + args.case + ': compiler stage 2, two module generations, semantic edit, failure attribution; '
               + json.dumps(obligations, sort_keys=True))
         return 0
     except Exception as error:

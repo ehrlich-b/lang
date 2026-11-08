@@ -18,7 +18,8 @@ The runner clones the committed candidate, builds the initial Lang host and
 builds the seed composition from its explicitly recorded Lang sources. The source exporter packages the compiler and
 Rill reader as ordinary Rill modules with dependency boundaries. The seed
 compiles that package to `compiler-stage1.ll`; Clang links `rill-stage1`.
-Then the seed and stage 1 each compile the same package containing
+Stage 1 compiles that exact same package to `compiler-stage2.ll`; Clang links
+`rill-stage2`. Then stage 1 and stage 2 each compile the same package containing
 `src/limits.lang` and a tiny observation harness. Their complete module IR must
 be byte identical and each native executable must exit 16. A semantic edit
 changes `LIMIT_CALL_ARGS` to 17, must change the IR, and must exit 17. A child
@@ -26,11 +27,11 @@ process exercises the actual byte-comparison assertion and must fail on that
 edit. Frontend, backend and incomplete-package failures must have the expected
 attribution, exit 1, and produce no LLVM output.
 
-This is a two-generation **module** check. The module executables are not
-compiler stages. A successful local run leaves complete compiler stage 2,
-compiler LLVM fixed point, reader AST fixed point and shipping-through-both
-obligations pending. It does not claim that the generated shipping compiler
-accepts its own implementation.
+The local check builds and exercises complete compiler stage 2, then compares
+two generations of the smallest compiler module. The module executables are
+observation harnesses. A successful local run leaves compiler stage 3, the
+complete compiler LLVM fixed point, reader AST fixed point and
+shipping-through-both obligations pending.
 
 Compiler rebuilds run from a separate directory containing compiler binaries
 and exported Rill packages, with `PATH=/nonexistent`, no `LANG_ROOT`, and a new
@@ -62,9 +63,8 @@ JOBS=2 python3 -B test/reader_author/rill_bootstrap.py --case integration --evid
 The evidence directory must be new. This executes the module fragment first,
 then the following additional obligations, failing on any mismatch:
 
-1. Stage 1 compiles the exact same exported compiler/reader package to compiler
-   stage 2. Clang links it. Stage 2 compiles that same package to compiler stage
-   3, and Clang links it. Compare complete `compiler-stage2.ll` and
+1. Using compiler stage 2 from the local check, compile the same exported
+   compiler/reader package to compiler stage 3, and link it with Clang. Compare complete `compiler-stage2.ll` and
    `compiler-stage3.ll` byte for byte, without normalization or omitted functions.
 2. Stage 2 and stage 3 each expand the complete exported Rill reader package
    using `--emit-expanded-ast`. Compare the entire `reader-stage2.ast` and
@@ -86,8 +86,8 @@ isolation assumptions and machine-readable obligation status outside the
 checkout. `sources-and-stages.tar.xz` retains complete source snapshots, exported
 packages, manifests and LLVM/AST outputs with stable archive metadata. Native
 binaries are reproducible from the recorded Clang commands and hashed inputs.
-`result.json` reports full obligations pending in module mode and only marks
-them passed after integration executes successfully.
+`result.json` records compiler stage 2 as passed in module mode; full fixed
+points and shipping are marked passed only after integration executes successfully.
 
 Byte equality demonstrates repeatability under this seed and Clang backend.
 Both paths share compiler algorithms, parser, semantics and native backend.
