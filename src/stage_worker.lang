@@ -23,7 +23,7 @@ pub func phase_reader_call(program *u8, input *u8, len i64, stage *u8) *u8 {
     var i i64 = 0;
     var used i64 = 0;
     while i < count {
-        if strlen(saved[i]) < 19 || !memcmp(saved[i], "LANG_INSPECT_STAGE=", 19) {
+        if strlen(saved[i]) < 19 || !str_eq_n(saved[i], 19, "LANG_INSPECT_STAGE=", 19) {
             env[used] = saved[i]; used = used + 1;
         }
         i = i + 1;

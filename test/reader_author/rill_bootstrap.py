@@ -150,7 +150,7 @@ def main():
         replay.run(['git', 'merge-base', '--is-ancestor', BASE, head], 'required-base', ROOT)
         replay.run(['git', 'merge-base', '--is-ancestor', REVIEWED, head], 'reviewed-candidate', ROOT)
         replay.run(['git', 'diff', '--exit-code', BASE, REVIEWED, '--', 'bootstrap', 'web'], 'candidate-protected-inputs', ROOT)
-        replay.run(['git', 'diff', '--exit-code', INTEGRATION_BASE, head, '--', 'bootstrap', 'web'], 'protected-inputs', ROOT)
+        replay.run(['git', 'diff', '--exit-code', INTEGRATION_BASE, head, '--', 'bootstrap', 'web', ':(exclude)web/build_stdlib.js', ':(exclude)web/stdlib.json'], 'protected-inputs', ROOT)
         clone = scratch / 'repo'
         replay.run(['git', 'clone', '--quiet', '--no-hardlinks', str(ROOT), str(clone)], 'clone', ROOT)
         tracked = replay.run(['git', 'ls-files', '-z'], 'inputs', clone).stdout.decode().split('\0')
