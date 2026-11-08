@@ -1633,6 +1633,13 @@ else
     echo "FAIL reader_lox_e2e" >> "$results_file"
 fi
 
+# Structural limits and indexed reader locations use generated compact inputs.
+if python3 test/run_node_limits.py; then
+    echo "PASS node_limits_e2e" >> "$results_file"
+else
+    echo "FAIL node_limits_e2e" >> "$results_file"
+fi
+
 # Count results (grep -c returns 1 if no matches, so handle that)
 passed=$(grep -c '^PASS' "$results_file" 2>/dev/null) || passed=0
 failed=$(grep -c '^FAIL' "$results_file" 2>/dev/null) || failed=0

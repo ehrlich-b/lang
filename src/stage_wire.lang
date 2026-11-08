@@ -18,7 +18,31 @@ pub func phase_depth_limit() i64 {
     phase_depth_configured = 1;
     return PHASE_AST_MAX_DEPTH;
 }
-var PHASE_AST_MAX_NODES i64 = 1048576;
+// Structural fuel, independent of byte/depth/allocation/work accounts. The
+// textual wire counts lists AND atoms; a source expression uses several units.
+var PHASE_AST_MAX_NODES i64 = 4194304;
+var phase_nodes_configured i64 = 0;
+pub func phase_node_limit() i64 {
+    if phase_nodes_configured != 0 { return PHASE_AST_MAX_NODES; }
+    var setting *u8 = getenv("LANG_HOST_MAX_NODES");
+    var value i64 = 0;
+    if setting != nil && *setting != 0 {
+        while *setting != 0 {
+            if *setting < 48 || *setting > 57 || value > 1677721 { phase_error("invalid-node-limit", phase_diagnostic_source); }
+            value = value * 10 + *setting - 48;
+            setting = setting + 1;
+        }
+        if value < 1 || value > 16777216 { phase_error("invalid-node-limit", phase_diagnostic_source); }
+        PHASE_AST_MAX_NODES = value;
+    }
+    phase_nodes_configured = 1;
+    return PHASE_AST_MAX_NODES;
+}
+pub func phase_node_error(code *u8, source *u8) void {
+    eprint("Structural node limit "); eprint_i64(phase_node_limit());
+    eprintln(" exceeded; set LANG_HOST_MAX_NODES (1..16777216) to change it.");
+    phase_error(code, source);
+}
 pub func phase_validate_ast(text *u8, len i64, source *u8) void {
     // Keep storage in the entry block, including unoptimized host workers.
     var depth i64 = 0;
@@ -31,6 +55,7 @@ pub func phase_validate_ast(text *u8, len i64, source *u8) void {
     var line_comment i64 = 0;
     var block_comment i64 = 0;
     var c i64 = 0;
+    var node_limit i64 = phase_node_limit();
 
     if len < 1 || len > phase_limit() { phase_error("ast-byte-limit", source); }
     depth = 0; nodes = 0; quoted = 0; escaped = 0;
@@ -72,7 +97,7 @@ pub func phase_validate_ast(text *u8, len i64, source *u8) void {
             if depth == 0 { phase_error("ast-root", source); }
             if atom == 0 { nodes = nodes + 1; atom = 1; }
         }
-        if nodes > PHASE_AST_MAX_NODES { phase_error("ast-nodes", source); }
+        if nodes > node_limit { phase_node_error("ast-nodes", source); }
         i = i + 1;
     }
     if quoted != 0 || block_comment != 0 || depth != 0 || roots != 1 { phase_error("ast-shape", source); }

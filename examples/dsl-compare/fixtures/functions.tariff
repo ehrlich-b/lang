@@ -1,0 +1,7 @@
+fn compute(n) {
+    let x = n-1;
+    if (n != 0) { return add(x, zero()); }
+    return 0;
+}
+fn add(a, b) { return a + b; }
+fn zero() { return --2; }

@@ -60,8 +60,10 @@ check("configured-depth", run("shape", b"(" * 129 + b")" * 129, {"LANG_HOST_MAX_
 check("raised-depth", run("shape", b"(" * 700 + b")" * 700, {"LANG_HOST_MAX_DEPTH": "1024"}))
 check("invalid-depth-limit", run("shape", b"(program)", {"LANG_HOST_MAX_DEPTH": "1025"}), error="invalid-depth-limit")
 check("source-register", run("register"))
-check("nodes", run("shape", b"(program " + b"a " * 1048577 + b")"), error="ast-nodes")
+check("nodes", run("shape", b"(program " + b"a " * 1048577 + b")", {"LANG_HOST_MAX_NODES": "1048576"}), error="ast-nodes")
 check("origins", run("origin", "éabc".encode()))
+for name, text in [("empty", ""), ("mixed", "é\n\nabc\r\nz\n"), ("no-newline", "hello é")]:
+    check("span-index-" + name, run("span-index", text.encode()))
 check("envelope", run("envelope", "éabc".encode()))
 check("identity-fields", run("identity"))
 check("invalid-utf8", run("origin", b"\xc0\x80"), error="invalid-utf8")

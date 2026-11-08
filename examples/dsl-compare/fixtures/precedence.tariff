@@ -1,0 +1,1 @@
+fn compute(n) { return 2 + 17 % 3 * 2; }

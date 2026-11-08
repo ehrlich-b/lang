@@ -1025,7 +1025,7 @@ func ast_emit_node(node *u8) void {
     phase_emit_depth = phase_emit_depth + 1;
     phase_emit_nodes = phase_emit_nodes + 1;
     if phase_emit_depth > phase_depth_limit() { phase_error("ast-depth", phase_diagnostic_source); }
-    if phase_emit_nodes > PHASE_AST_MAX_NODES { phase_error("ast-nodes", phase_diagnostic_source); }
+    if phase_emit_nodes > phase_node_limit() { phase_node_error("ast-nodes", phase_diagnostic_source); }
     ast_emit_node_inner(node);
     phase_emit_depth = phase_emit_depth - 1;
 }

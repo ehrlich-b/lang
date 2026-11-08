@@ -35,11 +35,23 @@ range 1 through 1 GiB). Sources and AST may grow past the former 4 MiB boundary.
 The default allocation account is 1 GiB, conservatively cumulative including
 replaced buffers; the work account is 16,777,216 structural operations. These
 are host-owned fields, not values trusted from a worker. AST publication allows
-at most 512 nested lists by default and 1,048,576 list/atom nodes.
+at most 512 nested lists by default and 4,194,304 list/atom nodes.
+`LANG_HOST_MAX_NODES` configures the structural limit (1 through 16,777,216).
+It also bounds source tokens, emitted AST nodes and indexed node origins;
+these representations count different units and whichever bound is reached
+first refuses. The former fixed 1,048,576 quota protected wire parsing and
+provenance storage from runaway expansion, but the Tariff scale program needs
+2,999,939 textual elements, including span metadata. The new default admits
+that program while preserving independent byte, depth, memory and work bounds.
+Structural refusals retain their error codes and name the source, effective
+limit and configuration variable. Invalid or overflowing settings refuse.
 `LANG_HOST_MAX_DEPTH` configures source/AST parsing and emission together
 (valid range 1 through 1024); the hard ceiling bounds recursive stack use.
 Structural validation runs before recursive wire parsing. Backend semantic verification remains a
-separate obligation. Backend instruction/output buffer limits are unchanged.
+separate obligation. LLVM output now grows within the same payload/allocation
+accounts instead of failing at a separate fixed 8 MiB buffer. Reader span
+line/column lookup uses the immutable line index rather than rescanning every
+source prefix; columns remain one-based UTF-8 byte columns.
 
 A failure emits a versioned `(host-error ...)` record on stderr with code,
 source and phase; it exits nonzero. AST stdout contains only AST. Existing
