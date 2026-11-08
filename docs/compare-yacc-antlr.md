@@ -58,7 +58,7 @@ the same harness and default linker metadata, without stripping or LTO.
 The generated scale fixture has exactly 100,000 physical lines, including
 99,996 live assignments to one local. The runner measures frontend time and the
 complete source-to-native pipeline separately, verifies the native result, and
-reports lines/second. A phase has a 180-second deadline; failure or timeout is
+reports lines/second. The complete pipeline has a 180-second deadline; failure or timeout is
 reported as such, never converted into a successful speed measurement.
 
 Hand-written counts include all physical lines (comments and blanks) in each
@@ -105,13 +105,63 @@ is excluded.
 | Native benchmark median, including startup | 3.71 ms | 3.71 ms | 4.69 ms |
 | Native binary bytes | 16,160 | 16,120 | 16,120 |
 
-Lang parsed the large input in under one second but rejected its emitted AST at the
-backend boundary with `(code ast-nodes)`. Its fixed AST-node quota prevents a
-working native scale binary at the default settings. This is a loss, not a
-100,000-line successful compile time. No limit was raised and no input lines were
-removed. A completed experiment can pass while recording this expected limit;
-the failed subprocess exit code, exact error, and missing throughput remain in
-the report. Unexpected build failures still fail the experiment.
+The table above is the historical comparison. At `dc228a8`, Lang parsed the
+large input but rejected its emitted AST at the backend boundary with
+`(code ast-nodes)`. The fixed 1,048,576-element quota was lower than this
+program's 2,999,939 textual elements, including reader source-span metadata.
+That report correctly recorded a scale loss, with the failed command retained.
+
+### Scale follow-up
+
+The implementation at `7eb872a` raises the default structural fuel to 4,194,304
+and makes it configurable through `LANG_HOST_MAX_NODES` (1..16,777,216).
+Independent byte, recursive-depth, cumulative-allocation and work accounts
+remain enforced. LLVM output grows within the host byte/account limits instead
+of failing at a separate 8 MiB buffer. This is an explicit limit change, not an
+optimization flag supplied only to Lang. No fixture lines are removed.
+
+The follow-up reruns every arm with the same pinned Clang 23.1.5, `-O2`, inputs,
+checks and empty build directories. The runner now records each command's peak
+resident bytes with `wait4`, retains successful backend timings and emits
+`evidence/scale.json` alongside the comparison and command transcript. Peak
+pipeline memory is the maximum phase peak, not a sum. All three native programs
+return **100000** for argument 4. The source-to-native deadline is 180 seconds
+total, including all phases.
+
+| Follow-up measure | Lang | flex/Bison | ANTLR Python target |
+|---|---:|---:|---:|
+| Complete 100,000-line compilation | **2.057 s** | 0.584 s | 10.111 s |
+| Frontend | 0.774 s | 0.084 s | 9.586 s |
+| Shared-AST backend | 0.636 s | included in native step | included in native step |
+| Native optimization and link | 0.639 s | 0.499 s | 0.524 s |
+| Scale lines/second | 48,616 | 171,238 | 9,890 |
+| Peak resident memory | 800.5 MiB | 156.0 MiB | 485.3 MiB |
+
+Lang now beats the historical ANTLR total of 10.465 s and its rerun, and finishes
+well inside the deadline. It still loses to the historical Bison 0.635 s and the
+Bison rerun. These timings describe an already built frontend compiling the
+large input; cold compiler/reader construction remains a separate measure.
+
+The largest avoidable cost after admitting the AST was reader-span location
+lookup: the backend spent **47.839 s** before failing at its former LLVM buffer
+limit. It rescanned the entire source prefix for every span. Binary search in
+the already existing immutable line-start index reduces the successful backend
+pilot to **0.567 s** (same Clang 19 development build and same AST/input), while
+retaining one-based UTF-8 byte columns. The released-toolchain rerun above
+measures the complete successful pipeline. These pilots are diagnostic evidence,
+not timings substituted into the comparison table.
+
+The largest remaining phase in the released-toolchain run is the frontend,
+0.774 s and 800.5 MiB peak. Its generated parse tree plus string AST, followed by
+the backend's second generic parse tree and shared AST, still allocate several
+representations per source node. Reaching Bison's order of magnitude needs a
+compact or streaming frontend-to-core handoff and less per-node allocation,
+plus direct lowering into the backend's validated representation. That crosses
+the reader transport/toolkit boundary and needs separate design and profiling;
+it is not a safe local change to this example's grammar. The backend emits
+10,178,211 LLVM bytes for this fixture, so less generated instruction/text
+overhead would also reduce downstream work. Further optimization is not hidden
+in per-arm flags.
 
 ANTLR required the least hand-written code and generated footprint. Bison won
 clean build and scale compilation. Bison and ANTLR tied binary size; the small
@@ -137,7 +187,8 @@ potential error recovery.
 when parse-tree APIs and its wider tooling ecosystem matter more than this
 Python target's compilation speed. I would not pick Lang today for this DSL:
 it needs more frontend code, much more generated output, a slower cold build,
-and fails this scale case. Its direct shared-AST/native pipeline is useful,
+and higher peak memory. It now passes this scale case and beats the ANTLR
+Python target. Its direct shared-AST/native pipeline is useful,
 but does not yet outweigh those costs.
 
 Lang already has useful [reader documentation](READERS.md), grammar validation,
