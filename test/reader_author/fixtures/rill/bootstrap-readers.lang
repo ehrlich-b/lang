@@ -1,6 +1,10 @@
 // Test composition uses the normal embedded-reader interface.
 include "example/rill/rill.lang"
 
+// Reader declarations are callable but their addresses use a different symbol
+// convention; register an ordinary typed function as the host callback.
+func bootstrap_rill(text *u8) *u8 { return rill(text); }
+
 func compiler_register_direct_reader(decl *u8) void { add_reader(decl); }
 func compiler_direct_reader_runtime_only() i64 { return 0; }
 func compiler_expand_direct_reader(name *u8, name_len i64, text *u8, text_len i64) *u8 {
@@ -11,5 +15,5 @@ func compiler_expand_direct_reader(name *u8, name_len i64, text *u8, text_len i6
 }
 func init_compiler_readers() void {
     embedded_reader_names[0] = "rill";
-    embedded_reader_funcs[0] = &rill;
+    embedded_reader_funcs[0] = &bootstrap_rill;
 }
