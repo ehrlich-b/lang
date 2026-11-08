@@ -84,7 +84,7 @@ class Experiment:
                 self.call(['make', 'build'], timeout=180)
             compiler = self.sdk / 'bin/lang' if arm == 'lang-sdk' else self.root / 'out/lang_next'
             ir = target / 'reader.ll'
-            self.call([compiler, self.sdk / 'std/core.lang' if arm == 'lang-sdk' else 'std/core.lang', source / 'tariff.lang', '-o', ir],
+            self.call([compiler, source / 'tariff.lang', '-o', ir],
                       cwd=target if arm == 'lang-sdk' else None)
             self.call(['clang', '-O2', ir, '-o', target / 'frontend'])
             generated = [ir]
@@ -209,7 +209,7 @@ class Experiment:
             if arm in ('lang', 'lang-sdk'):
                 expanded = armroot / 'build/reader.ast'
                 compiler = self.sdk / 'bin/lang' if arm == 'lang-sdk' else self.root / 'out/lang_next'
-                row['loc_expansion'] = self.call([compiler, self.sdk / 'std/core.lang' if arm == 'lang-sdk' else 'std/core.lang',
+                row['loc_expansion'] = self.call([compiler,
                                                  source / 'tariff.lang', '--emit-expanded-ast', '-o', expanded],
                                                  cwd=armroot if arm == 'lang-sdk' else None)
                 build['generated'].append(expanded)

@@ -61,8 +61,7 @@ plain prerequisite message with installation advice if it is missing. `new`,
 override; leave it unset for the archive journey.
 
 For the larger Tariff DSL, copy `examples/dsl-compare/lang/tariff.lang` and the
-fixtures from the SDK, compile the frontend with `lang "$SDK/std/core.lang" tariff.lang
--o tariff.ll`, then `clang -O2 tariff.ll -o tariff`. That frontend emits shared AST;
+fixtures from the SDK, compile the frontend with `lang tariff.lang -o tariff.ll`, then `clang -O2 tariff.ll -o tariff`. That frontend emits shared AST;
 `lang --from-ast program.ast --ast-source program.tariff -o program.ll` lowers it.
 Link `program.ll` with the supplied `harness.c` using `clang -O2`.
 The comparison runner's `--sdk` arm measures this same pipeline and excludes
