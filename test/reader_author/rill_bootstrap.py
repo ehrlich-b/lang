@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import resource
 import shutil
 import sys
@@ -42,7 +43,7 @@ class Bootstrap:
             self.replay.env['PATH'] = old_path
         require(not result.stderr and output.is_file(), name + ': missing output or diagnostic')
         row = {'name': name, 'compiler_sha256': sha(compiler),
-               'input': source.name, 'input_sha256': sha(source),
+               'input': source.relative_to(self.isolated).as_posix(), 'input_sha256': sha(source),
                'options': list(options), 'output': output.name, 'output_sha256': sha(output),
                'PATH': '/nonexistent', 'native_backend': 'Clang (separate link command)'}
         self.rows.append(row)
@@ -100,7 +101,8 @@ def integration(boot, stage1, compiler_source, reader_source, clone, scratch, fi
         reject_comparison(replay, ir, edited_ir, f'reject-changed-semantics-stage{n}', isolated)
         for p in (policy, changed, ir, edited_ir):
             files[p.name] = p
-    return {'compiler_LLVM': 'passed', 'reader_AST': 'passed', 'shipping': 'passed',
+    return {'compiler_stage2': 'passed', 'compiler_stage3': 'passed',
+            'compiler_LLVM': 'passed', 'reader_AST': 'passed', 'shipping': 'passed',
             'changed_semantic_input': 'rejected', 'diverse_double_compilation': 'not performed'}
 
 
@@ -180,7 +182,11 @@ def main():
         exporter = clone / 'scripts/rill_export.py'
         spec = json.loads((clone / 'example/rill/compiler-closure.json').read_text())
         driver = (clone / (FIXTURES + 'bootstrap-compiler.lang')).read_text()
-        import re
+        build = (clone / 'Makefile').read_text().split('\nbuild:\n', 1)[1].split('\n# ===', 1)[0]
+        command = next(line for line in build.splitlines() if '$(LANG) std/core.lang' in line)
+        build_roots = command.split('$(LANG) ', 1)[1].split(' -o ', 1)[0].replace(
+            '$(COMPILER_READERS)', 'src/compiler_readers_none.lang').split()
+        require(build_roots == spec['closures']['compiler'], 'compiler closure drifted from make build')
         roots = re.findall(r'^include "([^"]+)"', driver, re.M)
         expected = [FIXTURES + 'bootstrap-readers.lang' if p == 'src/compiler_readers_none.lang' else p
                     for p in spec['closures']['compiler']]
@@ -238,7 +244,8 @@ def main():
                     label + ': wrong attribution or partial output')
             files[path.name] = path
         files.update({p.name: p for p in (changed, changed_ir)})
-        obligations = {'compiler_LLVM': 'pending integration', 'reader_AST': 'pending integration',
+        obligations = {'compiler_stage2': 'pending integration', 'compiler_stage3': 'pending integration',
+                       'compiler_LLVM': 'pending integration', 'reader_AST': 'pending integration',
                        'shipping': 'pending integration', 'diverse_double_compilation': 'not performed'}
         if args.case == 'integration':
             reader_pack = isolated / 'reader-sources'

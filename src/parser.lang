@@ -3849,8 +3849,23 @@ func parse_statement() *u8 {
     return parse_expr_stmt();
 }
 
-func parse_var_decl() *u8 {
+// A missing binding name cannot become a token pointer in a recovery AST.
+// Consume the failed declaration so the enclosing block can keep making progress.
+func parse_variable_name() *u8 {
     var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected variable name");
+    if name_tok == nil {
+        while !parse_is_at_end() {
+            if parse_match(TOKEN_SEMICOLON) { break; }
+            if parse_check(TOKEN_RBRACE) { break; }
+            parse_advance();
+        }
+    }
+    return name_tok;
+}
+
+func parse_var_decl() *u8 {
+    var name_tok *u8 = parse_variable_name();
+    if name_tok == nil { return nil; }
     var typ *u8 = parse_type();
 
     var init *u8 = nil;
@@ -3870,7 +3885,8 @@ func parse_var_decl() *u8 {
 }
 
 func parse_extern_var_decl() *u8 {
-    var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected variable name");
+    var name_tok *u8 = parse_variable_name();
+    if name_tok == nil { return nil; }
     var typ *u8 = parse_type();
     parse_expect(TOKEN_SEMICOLON, "expected ';' after extern variable declaration");
 
