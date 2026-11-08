@@ -2,6 +2,8 @@
 """Content-based project edit loop; compilation and caching belong to Lang."""
 import argparse
 import ctypes
+from collections import deque
+import errno
 import fcntl
 import hashlib
 import json
@@ -55,16 +57,40 @@ class InputChanges:
                         self.watches[wd].update(names)
 
             for name in paths:
-                # Watch both the lexical route and symlink target. A dependency
-                # may not exist here when resource lookup uses its fallback.
-                lexical = Path(os.path.abspath(name))
-                for path in {lexical, lexical.resolve()}:
-                    if path.is_file():
-                        add(path, None)
-                    while path.parent != path:
-                        if path.parent.is_dir():
-                            add(path.parent, {os.fsencode(path.name)})
+                # Arm each directory entry BEFORE inspecting it. Resolving the
+                # whole path would discard intermediate links, whose replacement
+                # can redirect a dependency without touching either endpoint.
+                path = Path(name).absolute()
+                pending = deque(path.parts[1:])
+                path = Path(path.anchor)
+                links = 0
+                while pending:
+                    part = pending.popleft()
+                    if part == '..':
                         path = path.parent
+                        continue
+                    add(path, {os.fsencode(part)})
+                    child = path / part
+                    try:
+                        info = child.lstat()
+                    except (FileNotFoundError, NotADirectoryError):
+                        # A resource fallback may leave this route absent. Its
+                        # first missing entry is now guarded against creation.
+                        break
+                    if stat.S_ISLNK(info.st_mode):
+                        links += 1
+                        if links > 40:
+                            raise OSError(errno.ELOOP, 'cannot guard input: ' + str(name))
+                        target = Path(os.readlink(child))
+                        if target.is_absolute():
+                            path = Path(target.anchor)
+                            pending.extendleft(reversed(target.parts[1:]))
+                        else:
+                            pending.extendleft(reversed(target.parts))
+                    else:
+                        path = child
+                        if stat.S_ISREG(info.st_mode):
+                            add(path, None)
         except BaseException:
             self.close()
             raise

@@ -86,6 +86,8 @@ def main():
              '2 GiB address-space ceiling; project entry is the watched guest; runtime edits rebuild '
              'the native program; no Linux kernel operations, web generation, full suites or fixed points; '
              'failed and pending generations invalidate the prior managed output; phase times are host-specific'))
+        replay.run([sys.executable, str(clone / 'test/reader_author/fixtures/edit_cycle/symlink_guard.py'),
+                    str(clone / 'std/project_watch.py'), str(scratch)], 'symlink-guard', clone)
         replay.run(['make', 'init'], 'init', clone)
         replay.run(['make', 'build'], 'build-current-sources', clone)
         compiler = str(clone / 'out/lang_next')
@@ -386,9 +388,21 @@ def main():
                     '--evidence', str(evidence / 'cli-once'), '--once'], 'cli-once', clone)
         result = replay.run([str(cli_output), '99'], 'cli-runtime', scratch)
         require(result.stdout == b'15\n', 'public CLI did not recover')
-        for boundary in ('probe', 'final-probe', 'cancel-final-probe', 'rename', 'cancel-rename'):
+        for boundary in ('probe', 'final-probe', 'cancel-final-probe', 'rename', 'cancel-rename',
+                         'symlink-final-probe', 'symlink-rename'):
             same_time(guest, valid_guest.replace('base 11', 'base 14'))
             race_evidence = evidence / ('cli-once-race-' + boundary)
+            if boundary.startswith('symlink-'):
+                # Keep the middle link outside both endpoint directories. The
+                # manifest retains the lexical entry, as real project inputs do.
+                chain = scratch / boundary
+                for folder in ('links', 'targets'):
+                    (chain / folder).mkdir(parents=True)
+                (chain / 'targets/old').write_text(guest.read_text())
+                (chain / 'targets/new').write_text(guest.read_text().replace('base 14', 'base 19'))
+                (chain / 'links/middle').symlink_to('../targets/old')
+                guest.unlink()
+                guest.symlink_to(chain / 'links/middle')
             replay.run([sys.executable, str(clone / 'test/reader_author/fixtures/edit_cycle/publication_race.py'),
                         str(clone / 'std/project_watch.py'), str(guest), 'base 14', 'base 19', boundary,
                         '--compiler', compiler, '--project', str(manifest), '-o', str(cli_output),
@@ -404,6 +418,10 @@ def main():
                         events[-1]['build_generation'] == 2, '--once exited on a superseded generation')
                 result = replay.run([str(cli_output), '99'], 'cli-once-race-runtime-' + boundary, scratch)
                 require(result.stdout == b'20\n', '--once published obsolete output')
+            if boundary.startswith('symlink-'):
+                contents = guest.read_text()
+                guest.unlink()
+                guest.write_text(contents)
         sentinel = scratch / 'sentinel'
         sentinel.write_text('keep this input\n')
         replay.run([compiler, 'watch', '--project', str(manifest), '-o', str(sentinel), '--once',
@@ -417,6 +435,7 @@ def main():
                        'failed-mint', 'capture-race', 'publication-probe-race', 'publication-rename-race',
                        'final-probe-race', 'final-probe-aba', 'final-probe-replacement',
                        'rename-exec-exclusion', 'rename-fd-exec-exclusion', 'rename-aba', 'rename-cancellation', 'rename-current',
+                       'chained-symlink-guard', 'once-symlink-final-probe', 'once-symlink-rename',
                        'once-final-probe-race', 'final-probe-cancellation', 'once-publication-race', 'missing-dependency', 'rapid-edits', 'process-tree-cancellation', 'CLI', 'output-protection']))
         print('PASS content-changes: cold/unchanged/guest/grammar phase timings and process counts, runtime invalidation, errors, rapid edits and cancellation')
         return 0

@@ -18,6 +18,24 @@ injected = False
 completed_probes = 0
 
 
+def edit_guest():
+    guest = Path(guest_name)
+    if boundary.startswith('symlink-'):
+        middle = Path(os.readlink(guest))
+        replacement = middle.with_name('replacement')
+        replacement.symlink_to('../targets/new')
+        os.replace(replacement, middle)
+        if after not in guest.read_text():
+            raise RuntimeError('symlink replacement did not redirect input')
+        return
+    stamp = guest.stat()
+    source = guest.read_text()
+    if before not in source:
+        raise RuntimeError('publication race control did not match guest source')
+    guest.write_text(source.replace(before, after))
+    os.utime(guest, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+
+
 def edit_after_probe(self):
     global injected, completed_probes
     if self.active is not None and self.active['process'].poll() == 0:
@@ -33,13 +51,7 @@ def edit_after_probe(self):
             injected = True
             os.kill(os.getpid(), signal.SIGINT)
             return value
-        guest = Path(guest_name)
-        stamp = guest.stat()
-        source = guest.read_text()
-        if before not in source:
-            raise RuntimeError('publication race control did not match guest source')
-        guest.write_text(source.replace(before, after))
-        os.utime(guest, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+        edit_guest()
         injected = True
     return value
 
@@ -57,13 +69,7 @@ def edit_at_rename(source, destination):
     if boundary == 'cancel-rename':
         os.kill(os.getpid(), signal.SIGINT)
     else:
-        guest = Path(guest_name)
-        stamp = guest.stat()
-        contents = guest.read_text()
-        if before not in contents:
-            raise RuntimeError('replacement race control did not match guest source')
-        guest.write_text(contents.replace(before, after))
-        os.utime(guest, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+        edit_guest()
     original_replace(source, destination)
     try:
         result = subprocess.run([str(destination), '99'], capture_output=True)
