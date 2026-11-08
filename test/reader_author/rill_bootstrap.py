@@ -166,6 +166,11 @@ def main():
         host = clone / 'out/lang_next'
         isolated = scratch / 'isolated'
         isolated.mkdir()
+        delimiter_ir, delimiter_probe = isolated / 'delimiters.ll', isolated / 'delimiters'
+        replay.run([str(host), FIXTURES + 'bootstrap-delimiters.lang', '-o', str(delimiter_ir)],
+                   'compile-delimiter-probe', clone)
+        replay.run(['clang', str(delimiter_ir), '-o', str(delimiter_probe)], 'link-delimiter-probe', clone)
+        exact(replay.run([str(delimiter_probe)], 'raw-delimiter-regression', isolated))
         seed = isolated / 'rill-seed'
         seed_ir = isolated / 'rill-seed.ll'
         replay.run([str(host), FIXTURES + 'bootstrap-compiler.lang', '-o', str(seed_ir)],

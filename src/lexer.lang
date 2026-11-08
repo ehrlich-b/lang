@@ -668,7 +668,20 @@ func scan_reader_macro() *u8 {
     while !lex_is_at_end() && brace_depth > 0 {
         var c u8 = lex_peek();
 
-        if c == 123 {  // '{'
+        if c == 47 && lex_peek_next() == 47 {
+            // Preserve raw bytes while excluding comment delimiters/quotes.
+            while !lex_is_at_end() && lex_peek() != 10 { lex_advance(); }
+        } else if c == 47 && lex_peek_next() == 42 {
+            skip_block_comment();
+        } else if c == 39 && lex_current + 2 < lex_source_len &&
+                  *(lex_source + lex_current + 2) == 39 && lex_peek_next() != 92 {
+            // Only complete character literals: a reader may use a lone quote
+            // for other syntax, so it must not start an unbounded quoted scan.
+            lex_advance(); lex_advance(); lex_advance();
+        } else if c == 39 && lex_peek_next() == 92 && lex_current + 3 < lex_source_len &&
+                  *(lex_source + lex_current + 3) == 39 {
+            lex_advance(); lex_advance(); lex_advance(); lex_advance();
+        } else if c == 123 {  // '{'
             brace_depth = brace_depth + 1;
             lex_advance();
         } else if c == 125 {  // '}'

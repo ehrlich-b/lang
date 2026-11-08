@@ -1,0 +1,18 @@
+include "std/core.lang"
+include "src/lexer.lang"
+
+func main() i64 {
+    var content *u8 = "// } { \"\n/* } { \" */ '{' '}' '\\'' '\\\\' \"} { \\\"\" { nested } 'symbol\n";
+    lexer_init(str_concat(str_concat("#probe{", content), "}\nafter"));
+    var token *u8 = scan_token();
+    if tok_type(token) != TOKEN_READER_MACRO { return 1; }
+    if !str_eq_n(tok_content(token), tok_content_len(token), content, strlen(content)) { return 2; }
+    token = scan_token();
+    if tok_type(token) != TOKEN_IDENT || tok_line(token) != 4 || tok_col(token) != 1 { return 3; }
+    if !str_eq_n(tok_lexeme(token), tok_lexeme_len(token), "after", 5) { return 4; }
+    lexer_init("#probe{/* unclosed }");
+    if tok_type(scan_token()) != TOKEN_ERROR { return 5; }
+    lexer_init("#probe{'symbol}");
+    if tok_type(scan_token()) != TOKEN_READER_MACRO { return 6; }
+    return 0;
+}
