@@ -96,9 +96,11 @@ the original build directory; `check.py report --relocate` exercises this.
 The original source-build run measured **9.596 s** for Lang, **0.350 s** for
 Bison and **0.551 s** for ANTLR. Keep those source-build numbers as historical
 context. The following serial SDK replay uses released Clang 23.1.5 for every
-arm (source/SDK commit `aa3cbaaa65f0`). The LOC-only expansion is excluded from
+arm (source/SDK commit `af8667db6c659eb3947c9a4d599af78dc6c14cf1`). The LOC-only expansion is excluded from
 clean-build time. Later machine-readable replays supersede these host-sensitive
-timings. Tool provisioning, SDK creation and archive extraction are excluded.
+timings. The documented snapshot is retained as `evidence/documented-compare.json`;
+`evidence/compare.json` records the latest committed-head replay. Tool
+provisioning, SDK creation and archive extraction are excluded.
 No arm receives different optimization flags.
 
 Archive independence is checked separately from these host timings. The SDK
@@ -116,13 +118,13 @@ excluded from the serial comparison just like other tool provisioning.
 |---|---:|---:|---:|---:|
 | Hand-written frontend lines | 178 | 178 | 143 | 126 |
 | Generated frontend lines, all recorded representations | 59,862 | 59,862 | 3,787 | 1,628 |
-| Clean source to sample native binary | 8.690 s | **1.810 s** | 0.305 s | 0.444 s |
-| Complete 100,000-line compilation | **rejected** | **rejected** | 0.584 s | 9.762 s |
-| Scale lines/second | unavailable | unavailable | 171,168 | 10,244 |
-| Native benchmark median, including startup | 3.58 ms | 4.03 ms | 4.49 ms | 3.63 ms |
+| Clean source to sample native binary | 9.345 s | 2.057 s | 0.350 s | 0.445 s |
+| Complete 100,000-line compilation | **rejected** | **rejected** | 0.582 s | 10.362 s |
+| Scale lines/second | unavailable | unavailable | 171,699 | 9,651 |
+| Native benchmark median, including startup | 3.55 ms | 4.92 ms | 3.87 ms | 7.85 ms |
 | Native binary bytes | 16,160 | 16,160 | 16,120 | 16,120 |
 
-The SDK met the **under 2 s** clean-to-sample target in this run. It removes the
+The SDK missed the **under 2 s** clean-to-sample target in this run: **2.057 s**. This is a measured loss. It removes the
 compiler bootstrap from language creation, but building the Tariff frontend
 still takes longer than Bison or ANTLR. The generated Lang count changed because
 both Lang arms now omit the same redundant core input; this is not a reduction
