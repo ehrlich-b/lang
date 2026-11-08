@@ -145,7 +145,7 @@ class Check:
         self.call(['./answer'], cwd=consumer, isolated=True, expected=42)
         # Reproduce the comparison frontend unchanged, using only packaged inputs.
         source = sdk / 'examples/dsl-compare'
-        self.call(['lang', 'std/core.lang', source / 'lang/tariff.lang', '-o', 'tariff.ll'], cwd=consumer, isolated=True)
+        self.call(['lang', sdk / 'std/core.lang', source / 'lang/tariff.lang', '-o', 'tariff.ll'], cwd=consumer, isolated=True)
         self.call(['clang', '-O2', 'tariff.ll', '-o', 'tariff'], cwd=consumer, isolated=True)
         self.call(['./tariff', source / 'fixtures/benchmark.tariff'], cwd=consumer, isolated=True,
                   output=consumer / 'program.ast')
