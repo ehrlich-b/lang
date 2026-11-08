@@ -59,7 +59,7 @@ def main():
     def add(source, dest=None):
         source = Path(source)
         if source.is_file():
-            name = str(dest or source).lstrip('/')
+            name = os.path.normpath(str(dest or source)).lstrip('/')
             files[name] = (source, stat.S_IMODE(source.stat().st_mode))
 
     def tree(source, dest=None):
@@ -77,14 +77,16 @@ def main():
 
     # Exact tool allowlist, not a copy of the producer's root filesystem.
     for source, dest in (('/usr/bin/python3.13', '/usr/bin/python3'),
-                         ('/usr/lib/llvm-19/bin/clang', '/usr/bin/clang'),
+                         ('/usr/lib/llvm-19/bin/clang', None),
                          ('/usr/bin/ld', None), ('/usr/bin/x86_64-linux-gnu-ld', None),
                          ('/usr/bin/tar', None), ('/usr/bin/xz', None), ('/bin/sh', None)):
         elf(source, dest)
+    # Preserve Debian Clang's executable location and its $ORIGIN library search.
+    links = {'usr/bin/clang': '../lib/llvm-19/bin/clang'}
     tree('/usr/lib/python3.13')
     for extension in sorted(Path('/usr/lib/python3.13/lib-dynload').glob('*.so')):
         elf(extension)
-    tree('/usr/lib/llvm-19/lib/clang/19/include', '/usr/lib/clang/19/include')
+    tree('/usr/lib/llvm-19/lib/clang/19/include')
     for folder in ('/usr/include/x86_64-linux-gnu', '/usr/include/linux', '/usr/include/asm-generic'):
         tree(folder)
     for path in Path('/usr/include').glob('*.h'):
@@ -107,6 +109,7 @@ def main():
     add(archive, '/sdk.tar.xz')
     inventory = {p: dict(bytes=source.stat().st_size, sha256=sha(source), mode=oct(mode))
                  for p, (source, mode) in sorted(files.items())}
+    inventory.update({p: dict(symlink=target) for p, target in links.items()})
     assert not any('/.git/' in p or '/bootstrap/' in p for p in inventory)
     inventory_path = evidence / 'sdk-vm-inventory.json'
     inventory_path.write_text(json.dumps(inventory, indent=2) + '\n')
@@ -134,6 +137,8 @@ def main():
             entry(directory, stat.S_IFDIR | 0o755)
         for name, (source, mode) in sorted(files.items()):
             entry(name, stat.S_IFREG | mode, source.read_bytes())
+        for name, target in sorted(links.items()):
+            entry(name, stat.S_IFLNK | 0o777, target.encode())
         for name, major, minor in (('console', 5, 1), ('null', 1, 3), ('urandom', 1, 9), ('random', 1, 8)):
             entry('dev/' + name, stat.S_IFCHR | 0o666, major=major, minor=minor)
         entry('TRAILER!!!', 0)
@@ -144,7 +149,9 @@ def main():
     command = [str(qemu), '-no-user-config', '-nodefaults', '-machine', 'q35,accel=kvm',
                '-cpu', 'host', '-smp', '2', '-m', '4096', '-display', 'none',
                '-serial', 'stdio', '-monitor', 'none', '-nic', 'none', '-no-reboot',
-               '-L', str(args.bios.resolve()), '-kernel', str(args.kernel.resolve()),
+               '-L', str(args.bios.resolve().parent / 'qemu'),
+               '-bios', str(args.bios.resolve() / 'bios-256k.bin'),
+               '-kernel', str(args.kernel.resolve()),
                '-initrd', str(image), '-append', 'console=ttyS0 quiet panic=-1 rdinit=/init']
     start = time.perf_counter()
     transcript = evidence / 'sdk-vm-console.log'
@@ -170,6 +177,8 @@ def main():
                     line, pending = pending.split(b'\n', 1)
                     if line.startswith(b'SDK_JOURNEY_RESULT='):
                         result = json.loads(line.split(b'=', 1)[1])
+                    elif line.startswith(b'SDK_BOOT_ERROR='):
+                        result = dict(status='FAIL', error=line.decode(errors='replace'))
                 if result:
                     break
         finally:
@@ -179,6 +188,8 @@ def main():
     assert result is not None, f'no guest receipt; inspect {transcript}'
     result.update(version=2, host=os.uname().nodename, isolation='separate diskless Linux VM',
                   vm=dict(command=command, seconds=time.perf_counter() - start,
+                          exit_code=process.returncode,
+                          termination='host terminates VM after the guest receipt; guest PID 1 stays unprivileged',
                           kernel_sha256=sha(args.kernel), qemu_sha256=sha(qemu),
                           initramfs_sha256=sha(image), inventory=str(inventory_path),
                           console=str(transcript), setup_commands=setup,

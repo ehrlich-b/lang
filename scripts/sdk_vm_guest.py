@@ -40,6 +40,8 @@ def journey():
     assert not any(p.endswith('/.git') or p.endswith('/bootstrap') for p in actual)
     assert not any(p.startswith(('/work/', '/home/')) for p in actual)
     assert Path('/proc/self/uid_map').read_text().split() == ['1000', '1000', '1']
+    status = Path('/proc/self/status').read_text()
+    assert 'CapEff:\t0000000000000000' in status
     assert list(Path('/consumer').iterdir()) == []
     os.chdir('/consumer')
     archive = Path('/sdk.tar.xz')

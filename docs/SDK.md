@@ -83,11 +83,16 @@ The journey extracts into an empty directory, builds both tiny and Tariff reader
 compilers, runs their native results, and checks missing Clang and linker messages.
 
 The host runs QEMU/KVM as an ordinary user. The boot shim immediately drops to
-UID/GID 1000, then creates an unprivileged user/PID namespace and mounts proc there
-with only UID/GID 1000 mapped. No consumer command runs as root. Verification
-requires an accessible Linux kernel image, QEMU firmware and user access to KVM;
+UID/GID 1000, then creates an unprivileged user/PID namespace and mounts PID-only
+proc there with only UID/GID 1000 mapped. No consumer command runs as root, and
+the recording process checks that it has no effective capabilities. Verification
+requires a Linux kernel supporting unprivileged `subset=pid` proc mounts (the
+recorded VM uses Debian Linux 7.2.15), QEMU firmware and user access to KVM;
 these are proof infrastructure, not SDK consumer prerequisites. Pass their paths
 with `--kernel`, `--qemu`, and `--bios`, and keep `--evidence` and `--scratch`
 outside the checkout. SDK packaging and comparison use `--tools` for the pinned
 comparison toolchain. The lighter `check_sdk.py missing` check retains Landlock
 as a supplemental dependency probe; it does not establish checkout absence.
+Older kernels may reject this rootless boot setup before any SDK command runs;
+use a suitable guest kernel, without replacing or modifying the host kernel.
+See the Linux [proc mount restrictions](https://docs.kernel.org/filesystems/proc.html#mount-restrictions).

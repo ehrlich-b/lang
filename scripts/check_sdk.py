@@ -17,6 +17,7 @@ from sdk_isolation import isolate
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = 'dc228a8a74f9c1fa63cf82915afc5d2a0d4d3d5c'
+PREVIOUS = '40ee449957b87cc32054fd9fa9b07014c9eaf8d6'
 
 
 def sha(path):
@@ -160,6 +161,7 @@ class Check:
 
     def policy(self):
         self.call(['git', 'merge-base', '--is-ancestor', BASE, 'HEAD'], cwd=ROOT)
+        self.call(['git', 'merge-base', '--is-ancestor', PREVIOUS, 'HEAD'], cwd=ROOT)
         assert platform.node() != 'forge', 'compiler gate blocked on exactly forge'
         assert os.geteuid() != 0, 'run without root'
         commits = git('log', '--format=%an <%ae>|%cn <%ce>|%s', BASE + '..HEAD').splitlines()
@@ -169,7 +171,7 @@ class Check:
             author, committer, subject = line.split('|', 2)
             assert author == committer == identity and subject.endswith('.'), line
         assert not git('status', '--porcelain')
-        self.write('sdk-policy.json', status='PASS', base=BASE, commits=commits,
+        self.write('sdk-policy.json', status='PASS', base=BASE, previous=PREVIOUS, commits=commits,
                    decisions='Native Linux SDK; use existing resource discovery; no kernel or limits changes; no publication; archive journey runs in a separate diskless VM as uid 1000.')
 
     def docs(self):
