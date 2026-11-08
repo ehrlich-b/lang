@@ -65,7 +65,7 @@ def check_report(path):
         assert row['large_run']['exit_code'] == 0
         assert any(r['command'] == [large['binary'], '4'] and r['exit_code'] == 0
                    and r['stdout_text'] == '100000\n' for r in rows)
-        for phase in ('frontend', 'native') + (('lowering',) if arm == 'lang' else ()):
+        for phase in ('frontend', 'native') + (('lowering',) if arm in ('lang', 'lang-sdk') else ()):
             assert large[phase]['exit_code'] == 0 and large[phase]['peak_rss_bytes'] > 0
 
         print(arm, row['status'], 'scale:', row['large_compile']['status'],

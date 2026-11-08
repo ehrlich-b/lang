@@ -148,9 +148,9 @@ class Experiment:
                            timeout=180 - (time.perf_counter() - start))
         return dict(status='PASS' if not native['exit_code'] else 'TIMEOUT' if native['timeout'] else 'FAILED',
                     frontend=front, native=native, seconds=time.perf_counter() - start,
-                    lowering=lower if arm == 'lang' else None,
+                    lowering=lower if arm in ('lang', 'lang-sdk') else None,
                     peak_rss_bytes=max(r['peak_rss_bytes'] for r in
-                                       ([front, lower, native] if arm == 'lang' else [front, native])),
+                                       ([front, lower, native] if arm in ('lang', 'lang-sdk') else [front, native])),
                     binary=str(target / 'program'), binary_bytes=(target / 'program').stat().st_size
                     if not native['exit_code'] else None,
                     emitted_lines=len(emitted.read_text().splitlines()),
