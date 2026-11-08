@@ -422,7 +422,9 @@ pub func memcpy(dst *u8, src *u8, n i64) void {
 }
 
 pub func streq(a *u8, b *u8) i64 {
-    while *a != 0 && *b != 0 {
+    // Avoid per-iteration short-circuit storage when comparing source snapshots
+    // in a compiler linked without aggressive stack-allocation promotion.
+    while *a != 0 {
         if *a != *b {
             return 0;
         }

@@ -32,5 +32,11 @@ func main() i64 {
     if program == nil || program_decl_count(program) != 2 { return 10; }
     var expr *u8 = get_decl(program_decls(program), 0);
     if reader_expr_content_len(expr) != 3 || !streq(reader_expr_content(expr), "raw") { return 11; }
+    var copy *u8 = str_dup_n(large, 1048576);
+    if !streq(large, copy) { return 12; }
+    *(copy + 1048575) = 0;
+    if streq(large, copy) || streq(copy, large) { return 13; }
+    *(copy + 1048575) = 33;
+    if streq(large, copy) { return 14; }
     return 0;
 }
