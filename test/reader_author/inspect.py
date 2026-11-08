@@ -49,9 +49,14 @@ def main():
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor', BASE, head], 'required-base', ROOT)
         replay.run(['git', 'merge-base', '--is-ancestor', PREVIOUS, head], 'previous-attempt', ROOT)
-        replay.run(['git', 'diff', '--exit-code', BASE, head, '--',
-                    'bootstrap', 'web'],
+        integration_base = 'a12b2ec17344e4408e849a50be64d8f0831ccc6d'
+        replay.run(['git', 'diff', '--exit-code', integration_base, head, '--',
+                    'bootstrap', 'web', ':(exclude)web/build_stdlib.js'],
                    'protected-inputs', ROOT)
+        original_web = replay.run(['git', 'show', integration_base + ':web/build_stdlib.js'],
+                                  'original-web-builder', ROOT).stdout.decode()
+        expected_web = original_web.replace("  'std/parser_runtime.lang',", "  'std/capture_contract.lang',\n  'std/reader_request.lang',\n  'std/parser_inspect.lang',\n  'std/parser_runtime.lang',")
+        require((ROOT / 'web/build_stdlib.js').read_text() == expected_web, 'unexpected web builder changes')
         replay.run(['git', 'diff', '--exit-code', PREVIOUS, head, '--',
                     'std/capture_contract.lang', 'std/capture_gen.lang'],
                    'preserved-capture-contract', ROOT)
@@ -105,11 +110,11 @@ def main():
         require(b'capture "name"' in snapshots['tree'] and b'capture "value"' in snapshots['tree']
                 and b'capture "settings"' in snapshots['tree'], 'named keys lost')
         core = snapshots['core']
-        require(core.startswith(b'(program\n') and b'(func shipping_fee' in core
+        require(core.startswith(b'(program\n') and b'(func shipping_cost' in core
                 and b'(ident shipping_total)' in core and b'(ident shipping_print)' in core
                 and b'(binop >= (ident total) (number 100))' in core,
                 'core lost function, policy or runtime boundary')
-        require(b'define i64 @shipping_fee(' in snapshots['llvm']
+        require(b'define i64 @shipping_cost(' in snapshots['llvm']
                 and b'define i64 @shipping_print(' in snapshots['llvm'], 'LLVM lost policy or linked runtime')
         legacy = replay.run([compiler, 'read', str(shipping), str(policy)], 'reader-core-oracle', clone)
         exact(legacy, core)
@@ -139,7 +144,7 @@ def main():
                             'standalone-baseline', clone)
         exact(result, f'Wrote {baseline}\n'.encode())
         standalone_ir = baseline.read_bytes()
-        require(b'define i64 @shipping_fee(' in standalone_ir
+        require(b'define i64 @shipping_cost(' in standalone_ir
                 and b'define i64 @shipping_print(' in standalone_ir,
                 'standalone compiler lost policy or runtime')
         # An inherited syntax request must neither replace an AST request nor
