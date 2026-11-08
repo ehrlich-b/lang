@@ -14,6 +14,8 @@ from route import Replay, ROOT, dump, require, sha
 from rill_export import archive, tree, validate
 
 BASE = '2d80f9c271437e33f7637304caa315cfe74afdb0'
+REVIEWED = 'a6a79365f5e507f4a312cb652154c9bd22c8788a'
+INTEGRATION_BASE = 'a12b2ec17344e4408e849a50be64d8f0831ccc6d'
 FIXTURES = 'test/reader_author/fixtures/rill/'
 
 
@@ -146,7 +148,9 @@ def main():
         require(not clean.stdout, 'commit the candidate before replaying it')
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor', BASE, head], 'required-base', ROOT)
-        replay.run(['git', 'diff', '--exit-code', BASE, head, '--', 'bootstrap', 'web'], 'protected-inputs', ROOT)
+        replay.run(['git', 'merge-base', '--is-ancestor', REVIEWED, head], 'reviewed-candidate', ROOT)
+        replay.run(['git', 'diff', '--exit-code', BASE, REVIEWED, '--', 'bootstrap', 'web'], 'candidate-protected-inputs', ROOT)
+        replay.run(['git', 'diff', '--exit-code', INTEGRATION_BASE, head, '--', 'bootstrap', 'web'], 'protected-inputs', ROOT)
         clone = scratch / 'repo'
         replay.run(['git', 'clone', '--quiet', '--no-hardlinks', str(ROOT), str(clone)], 'clone', ROOT)
         tracked = replay.run(['git', 'ls-files', '-z'], 'inputs', clone).stdout.decode().split('\0')
