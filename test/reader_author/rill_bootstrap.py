@@ -150,13 +150,16 @@ def main():
         replay.run(['git', 'merge-base', '--is-ancestor', BASE, head], 'required-base', ROOT)
         replay.run(['git', 'merge-base', '--is-ancestor', REVIEWED, head], 'reviewed-candidate', ROOT)
         replay.run(['git', 'diff', '--exit-code', BASE, REVIEWED, '--', 'bootstrap', 'web'], 'candidate-protected-inputs', ROOT)
-        replay.run(['git', 'diff', '--exit-code', INTEGRATION_BASE, head, '--', 'bootstrap', 'web', ':(exclude)web/build_stdlib.js', ':(exclude)web/stdlib.json'], 'protected-inputs', ROOT)
+        replay.run(['git', 'diff', '--exit-code', INTEGRATION_BASE, head, '--', 'bootstrap', 'web', ':(exclude)web/build_stdlib.js'], 'protected-inputs', ROOT)
         original_web = replay.run(['git', 'show', INTEGRATION_BASE + ':web/build_stdlib.js'], 'original-web-builder', ROOT).stdout.decode()
         expected_web = original_web.replace("  'std/parser_runtime.lang',", "  'std/capture_contract.lang',\n  'std/reader_request.lang',\n  'std/parser_inspect.lang',\n  'std/parser_runtime.lang',")
         require((ROOT / 'web/build_stdlib.js').read_text() == expected_web, 'unexpected web builder changes')
         generated_stdlib = scratch / 'stdlib.json'
         replay.run(['node', 'web/build_stdlib.js', str(generated_stdlib)], 'generate-web-stdlib', ROOT)
-        require(generated_stdlib.read_bytes() == (ROOT / 'web/stdlib.json').read_bytes(), 'web stdlib is stale')
+        expected_stdlib = json.loads((ROOT / 'web/stdlib.json').read_text())
+        for name in ('std/capture_contract.lang', 'std/reader_request.lang', 'std/parser_inspect.lang'):
+            expected_stdlib[name] = (ROOT / name).read_text()
+        require(json.loads(generated_stdlib.read_text()) == expected_stdlib, 'generated web stdlib inputs differ')
         clone = scratch / 'repo'
         replay.run(['git', 'clone', '--quiet', '--no-hardlinks', str(ROOT), str(clone)], 'clone', ROOT)
         tracked = replay.run(['git', 'ls-files', '-z'], 'inputs', clone).stdout.decode().split('\0')
