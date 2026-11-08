@@ -1,0 +1,144 @@
+// Syntax-only capture contracts. PNode's six-field layout is unchanged. Internal
+// capture wrappers are transparent to the legacy positional/named APIs.
+require "std/pnode"
+
+struct CaptureSpec {
+    minimum i64;
+    maximum i64; // -1 means unbounded
+    mode i64;    // 1 required, 2 optional, 3 repeated
+}
+
+func capture_spec(minimum i64, maximum i64) *CaptureSpec {
+    var spec *CaptureSpec = alloc(24);
+    spec.minimum = minimum;
+    spec.maximum = maximum;
+    spec.mode = 1;
+    if minimum == 0 { spec.mode = 2; }
+    if maximum == -1 || maximum > 1 { spec.mode = 3; }
+    return spec;
+}
+
+// Private wrapper slots: parsed tree, rule name, alternative index. The first
+// child remains the transparent PNode view; metadata is never a guest token.
+func capture_tree(node *PNode, rule *u8, alternative i64) *PNode {
+    if node == nil { return nil; }
+    var tree *PNode = pnode_capture("@rule", node);
+    vec_push(tree.children, pnode_atom(0, rule));
+    vec_push(tree.children, pnode_new(alternative));
+    tree.branch = node.branch;
+    return tree;
+}
+
+func capture_many(node *PNode) *PNode {
+    if node == nil { return nil; }
+    return pnode_capture("@many", node);
+}
+
+func capture_branch(node *PNode, label *u8) void {
+    pnode_set_branch(node, label);
+    pnode_set_branch(pnode_unwrap(node), label);
+}
+
+func capture_fail(rule *u8, name *u8, message *u8) void {
+    eprint("reader-author capture contract: rule '");
+    eprint(rule);
+    eprint("', capture '");
+    eprint(name);
+    eprint("': ");
+    eprintln(message);
+    exit(1);
+}
+
+func capture_alternative(node *PNode, rule *u8, name *u8) i64 {
+    if node == nil || node.kind != PNODE_CAPTURE || node.text == nil ||
+       !streq(node.text, "@rule") || node.children == nil || vec_len(node.children) != 3 {
+        capture_fail(rule, name, "expected checked rule tree");
+    }
+    var declared *PNode = vec_get(node.children, 1);
+    if declared == nil || declared.text == nil || !streq(declared.text, rule) {
+        capture_fail(rule, name, "tree belongs to another rule");
+    }
+    var alternative *PNode = vec_get(node.children, 2);
+    if alternative == nil { capture_fail(rule, name, "missing alternative"); }
+    return alternative.kind;
+}
+
+// Search only this rule's lexical captures, including nested groups. Referenced
+// rules are opaque, even when they reuse the same capture names recursively.
+func capture_collect(node *PNode, rule *u8, name *u8, matches *u8) void {
+    if node == nil { return; }
+    if node.kind == PNODE_CAPTURE {
+        if node.text != nil && streq(node.text, "@rule") { return; }
+        if node.children == nil || vec_len(node.children) != 1 {
+            if node.text != nil && streq(node.text, name) {
+                capture_fail(rule, name, "invalid capture payload");
+            }
+            return;
+        }
+        var child *PNode = vec_get(node.children, 0);
+        if node.text != nil && streq(node.text, name) {
+            if child != nil && child.kind == PNODE_CAPTURE && child.text != nil &&
+               streq(child.text, "@many") {
+                var list *PNode = pnode_unwrap(child);
+                if list == nil || list.kind != PNODE_LIST || list.children == nil {
+                    capture_fail(rule, name, "invalid repeated capture payload");
+                }
+                var i i64 = 0;
+                while i < vec_len(list.children) {
+                    vec_push(matches, vec_get(list.children, i));
+                    i = i + 1;
+                }
+            } else { vec_push(matches, child); }
+        }
+        capture_collect(child, rule, name, matches);
+        return;
+    }
+    if node.children == nil { return; }
+    var i i64 = 0;
+    while i < vec_len(node.children) {
+        capture_collect(vec_get(node.children, i), rule, name, matches);
+        i = i + 1;
+    }
+}
+
+func capture_checked(node *PNode, rule *u8, name *u8,
+                     spec *CaptureSpec, mode i64) *u8 {
+    capture_alternative(node, rule, name);
+    if spec == nil { capture_fail(rule, name, "not declared in this alternative"); }
+    if spec.mode != mode { capture_fail(rule, name, "accessor cardinality differs from grammar"); }
+    var matches *u8 = vec_new(4);
+    capture_collect(vec_get(node.children, 0), rule, name, matches);
+    var count i64 = vec_len(matches);
+    if count < spec.minimum || (spec.maximum >= 0 && count > spec.maximum) {
+        capture_fail(rule, name, "tree cardinality differs from grammar");
+    }
+    var i i64 = 0;
+    while i < count {
+        vec_set(matches, i, capture_value(vec_get(matches, i), rule, name));
+        i = i + 1;
+    }
+    return matches;
+}
+
+func capture_value(node *PNode, rule *u8, name *u8) *PNode {
+    var checked *PNode = nil;
+    while node != nil && node.kind == PNODE_CAPTURE {
+        if node.text == nil || node.children == nil || vec_len(node.children) == 0 {
+            capture_fail(rule, name, "invalid capture payload");
+        }
+        // Validate through rule wrappers but preserve the first one for nested
+        // checked access. Even a present optional/repeated value must be nonnil.
+        if checked == nil && streq(node.text, "@rule") { checked = node; }
+        node = vec_get(node.children, 0);
+    }
+    if node == nil { capture_fail(rule, name, "nil capture payload"); }
+    if checked != nil { return checked; }
+    return node;
+}
+
+func capture_one(matches *u8) *PNode {
+    if vec_len(matches) == 0 { return nil; }
+    // Keep checked rule wrappers so nested rule access remains possible. Ordinary
+    // nested captures are transparent just as they are in pnode_require.
+    return vec_get(matches, 0);
+}

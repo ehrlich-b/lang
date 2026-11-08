@@ -48,7 +48,8 @@ class Replay:
         wall = time.perf_counter() - start
         after = resource.getrusage(resource.RUSAGE_CHILDREN)
         row = {'name': name, 'command': command, 'cwd': str(cwd),
-               'environment': {k: self.env[k] for k in ('JOBS', 'LANGBE', 'LANGOS', 'LANG_CACHE', 'TMPDIR')},
+               'environment': {k: self.env[k] for k in ('JOBS', 'LANGBE', 'LANGOS', 'LANG_CACHE', 'TMPDIR',
+                                                                      'LANG_INSPECT_STAGE') if k in self.env},
                'exit': result.returncode, 'wall_seconds': wall,
                'cpu_user_seconds': after.ru_utime - before.ru_utime,
                'cpu_system_seconds': after.ru_stime - before.ru_stime,

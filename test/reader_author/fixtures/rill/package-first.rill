@@ -1,0 +1,6 @@
+package {
+source "shared.lang" { pub fun shared_value() i64 { return 11; } }
+source "first.lang" { needs "shared"
+fun main() i64 { return shared_value(); } }
+entry { use "first.lang" }
+}

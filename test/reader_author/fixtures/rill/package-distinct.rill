@@ -1,0 +1,4 @@
+package {
+source "unrelated.lang" { fun unused_value() i64 { return 22; } }
+entry {}
+}

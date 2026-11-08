@@ -470,6 +470,21 @@ verify:
 else ifeq ($(VERIFY_CASE),native-shipping)
 verify:
 	python3 -B test/reader_author/native_build.py --case shipping
+else ifeq ($(VERIFY_CASE),rill-bootstrap)
+verify:
+	python3 -B test/reader_author/rill_bootstrap.py --case module
+else ifeq ($(VERIFY_CASE),rill-export)
+verify:
+	python3 -B test/reader_author/rill_export.py --case compiler-closure
+else ifeq ($(VERIFY_CASE),rill)
+verify:
+	python3 -B test/reader_author/rill.py --case compiler-module
+else ifeq ($(VERIFY_CASE),inspect)
+verify:
+	python3 -B test/reader_author/inspect.py --case shipping
+else ifeq ($(VERIFY_CASE),contracts)
+verify:
+	python3 -B test/reader_author/captures.py --case contracts
 else ifeq ($(VERIFY_CASE),project)
 verify:
 	python3 -B test/reader_author/scaffold.py --case project

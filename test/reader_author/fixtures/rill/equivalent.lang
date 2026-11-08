@@ -1,0 +1,6 @@
+/* café fun local record use syntax */
+func marker() *u8 {
+    // Longer and shorter keywords, escaped quotes and comment delimiters.
+    var funny *u8 = "fun local record use syntax \\\" // /* café";
+    return funny;
+}

@@ -3,6 +3,8 @@ include "std/ast.lang"
 include "example/shipping/exports.lang"
 
 #parser{
+    !captures;
+    !inspect shipping_policy;
     shipping_policy = 'shipping' '{' settings:shipping_setting* '}'
     shipping_setting = name:symbol value:shipping_value ';'
     shipping_value = number | '-' number
@@ -34,13 +36,13 @@ func shipping_read(text *u8, with_main bool) *u8 {
     var complete bool = false;
     if tree != nil { complete = tok_expect_end(tokens); }
     if !complete { tok_print_error(tokens, "shipping"); return nil; }
-    var settings *PNode = pnode_require(tree, "settings");
+    var settings *u8 = capture_shipping_policy_repeated(tree, "settings");
     var base i64 = -1;
     var free_over i64 = -1;
     var i i64 = 0;
-    while i < vec_len(settings.children) {
-        var setting *PNode = vec_get(settings.children, i);
-        var name *PNode = pnode_require(setting, "name");
+    while i < vec_len(settings) {
+        var setting *PNode = vec_get(settings, i);
+        var name *PNode = capture_shipping_setting_required(setting, "name");
         if !streq(name.text, "base") && !streq(name.text, "free_over") {
             reader_error("shipping-setting", "unknown setting; expected base or free_over", "shipping", text, name.start, name.end);
             return nil;
@@ -48,7 +50,7 @@ func shipping_read(text *u8, with_main bool) *u8 {
         if (streq(name.text, "base") && base >= 0) || (streq(name.text, "free_over") && free_over >= 0) {
             reader_error("shipping-duplicate", "duplicate setting", "shipping", text, name.start, name.end); return nil;
         }
-        var value i64 = shipping_number(pnode_require(setting, "value"), text);
+        var value i64 = shipping_number(capture_shipping_setting_required(setting, "value"), text);
         if value < 0 { return nil; }
         if streq(name.text, "base") { base = value; } else { free_over = value; }
         i = i + 1;
@@ -71,7 +73,7 @@ func shipping_read(text *u8, with_main bool) *u8 {
     ast_push(params, ast_param("argv", ast_type_ptr(ast_type_str())));
     body = ast_vec();
     ast_push(body, ast_var("total", ast_type_i64(), ast_call2("shipping_total", ast_ident("argc"), ast_ident("argv"))));
-    ast_push(body, ast_return(ast_call1("shipping_print", ast_call1("shipping_cost", ast_ident("total")))));
+    ast_push(body, ast_return(ast_call1("shipping_print", ast_call1("shipping_fee", ast_ident("total")))));
     ast_push(decls, ast_func("main", params, ast_type_i64(), ast_block(body)));
     return ast_program(decls);
 }

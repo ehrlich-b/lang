@@ -76,9 +76,11 @@ pub func vec_push(v *u8, value i64) {
 
         // Copy old data
         var i i64 = 0;
+        var old_ptr *i64 = nil;
+        var new_ptr *i64 = nil;
         while i < len {
-            var old_ptr *i64 = data + i * 8;
-            var new_ptr *i64 = new_data + i * 8;
+            old_ptr = data + i * 8;
+            new_ptr = new_data + i * 8;
             *new_ptr = *old_ptr;
             i = i + 1;
         }
@@ -420,7 +422,9 @@ pub func memcpy(dst *u8, src *u8, n i64) void {
 }
 
 pub func streq(a *u8, b *u8) i64 {
-    while *a != 0 && *b != 0 {
+    // Avoid per-iteration short-circuit storage when comparing source snapshots
+    // in a compiler linked without aggressive stack-allocation promotion.
+    while *a != 0 {
         if *a != *b {
             return 0;
         }

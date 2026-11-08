@@ -357,19 +357,16 @@ func error_token(msg *u8) *u8 {
 func skip_block_comment() void {
     lex_advance();  // consume /
     lex_advance();  // consume *
-    var done i64 = 0;
-    while !lex_is_at_end() && done == 0 {
-        if lex_peek() == 42 && lex_peek_next() == 47 {
-            lex_advance();  // consume *
-            lex_advance();  // consume /
-            done = 1;
-        } else {
-            if lex_peek() == 10 {
-                lex_line = lex_line + 1;
-                lex_col = 0;
+    while !lex_is_at_end() {
+        if lex_peek() == 42 {
+            if lex_peek_next() == 47 {
+                lex_advance();  // consume *
+                lex_advance();  // consume /
+                return;
             }
-            lex_advance();
         }
+        if lex_peek() == 10 { lex_line = lex_line + 1; lex_col = 0; }
+        lex_advance();
     }
 }
 
@@ -640,7 +637,16 @@ func scan_char() *u8 {
 // Scan reader macro: #name{content}
 // Returns token with:
 //   - lexeme = reader name
-//   - content = text between balanced braces
+//   - content = text between balanced braces, or exactly N bytes in #name[N]{...}
+func reader_character_width() i64 {
+    // Only complete character literals: a lone quote belongs to the reader.
+    if lex_current + 2 < lex_source_len &&
+       *(lex_source + lex_current + 2) == 39 && lex_peek_next() != 92 { return 3; }
+    if lex_peek_next() == 92 && lex_current + 3 < lex_source_len &&
+       *(lex_source + lex_current + 3) == 39 { return 4; }
+    return 1;
+}
+
 func scan_reader_macro() *u8 {
     // We've already consumed '#', now read the name
     var name_start i64 = lex_current;
@@ -655,6 +661,26 @@ func scan_reader_macro() *u8 {
     var name_end i64 = lex_current;
     var name_len i64 = name_end - name_start;
 
+    // A byte-counted body transports foreign source without interpreting its
+    // comments, quotes or delimiters. Bound decimal accumulation by input size.
+    var content_size i64 = -1;
+    var digit i64 = 0;
+    if lex_peek() == 91 {  // '['
+        lex_advance();
+        if !is_digit(lex_peek()) { return error_token("expected reader byte count"); }
+        content_size = 0;
+        while is_digit(lex_peek()) {
+            digit = lex_peek() - 48;
+            if content_size > (lex_source_len - digit) / 10 {
+                return error_token("reader byte count exceeds input");
+            }
+            content_size = content_size * 10 + digit;
+            lex_advance();
+        }
+        if lex_peek() != 93 { return error_token("expected ']' after reader byte count"); }
+        lex_advance();
+    }
+
     // Expect '{'
     if lex_peek() != 123 {  // '{'
         return error_token("expected '{' after reader macro name");
@@ -664,11 +690,35 @@ func scan_reader_macro() *u8 {
     // Read balanced content
     var content_start i64 = lex_current;
     var brace_depth i64 = 1;
+    // Keep loop storage in the entry block for large source packages, including
+    // compilers linked without aggressive alloca promotion.
+    var c u8 = 0;
+    var width i64 = 0;
 
-    while !lex_is_at_end() && brace_depth > 0 {
-        var c u8 = lex_peek();
+    if content_size >= 0 {
+        if content_size >= lex_source_len - lex_current {
+            return error_token("reader byte count exceeds input");
+        }
+        while lex_current - content_start < content_size {
+            if lex_peek() == 10 { lex_line = lex_line + 1; lex_col = 0; }
+            lex_advance();
+        }
+        if lex_peek() != 125 { return error_token("expected '}' after counted reader body"); }
+        brace_depth = 0;
+    }
 
-        if c == 123 {  // '{'
+    // Short-circuit expressions can also allocate temporaries at their use
+    // site. Keep them out of this byte loop so unoptimized scans stay bounded.
+    while !lex_is_at_end() {
+        if brace_depth == 0 { break; }
+        c = lex_peek();
+
+        // Slash bytes belong to the reader, including URLs and comment-like
+        // text. Only the explicit counted form bypasses brace balancing.
+        if c == 39 {
+            width = reader_character_width();
+            while width > 0 { lex_advance(); width = width - 1; }
+        } else if c == 123 {  // '{'
             brace_depth = brace_depth + 1;
             lex_advance();
         } else if c == 125 {  // '}'
@@ -678,9 +728,10 @@ func scan_reader_macro() *u8 {
             }
         } else if c == 34 {  // '"' - skip strings to not count braces inside
             lex_advance();  // consume opening quote
-            while !lex_is_at_end() && lex_peek() != 34 {
-                if lex_peek() == 92 && lex_peek_next() != 0 {  // escape
-                    lex_advance();
+            while !lex_is_at_end() {
+                if lex_peek() == 34 { break; }
+                if lex_peek() == 92 {  // escape
+                    if lex_peek_next() != 0 { lex_advance(); }
                 }
                 if lex_peek() == 10 {
                     lex_line = lex_line + 1;

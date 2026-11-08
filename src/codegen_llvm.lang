@@ -2779,155 +2779,52 @@ func llvm_emit_expr_inner(expr *u8) void {
             }
         }
 
-        // Handle short-circuit && with control flow
-        if op == 39 {  // TOKEN_AMPAMP (&&)
-            // a && b: if a is false, result is 0, don't evaluate b
+        // Logical results live in SSA, not a stack slot allocated every time
+        // a loop evaluates its condition. Explicit predecessor blocks keep the
+        // phi correct even when either operand contains nested control flow.
+        if op == 39 || op == 40 {
             var right_label i64 = llvm_next_label();
+            var short_label i64 = llvm_next_label();
+            var right_done i64 = llvm_next_label();
             var end_label i64 = llvm_next_label();
-
-            // Allocate result slot
-            var result_slot i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(result_slot);
-            llvm_emit_line(" = alloca i64");
-            llvm_emit_str("    store i64 0, i64* %t");
-            llvm_emit_int(result_slot);
-            llvm_emit_char(10);
-
-            // Evaluate left
             llvm_emit_expr(left);
             var left_val *u8 = str_dup(llvm_expr_result);
-
-            // Check left - if non-zero, evaluate right
             var l_bool i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(l_bool);
-            llvm_emit_str(" = icmp ne i64 ");
-            llvm_emit_str(left_val);
-            llvm_emit_line(", 0");
-            llvm_emit_str("    br i1 %t");
-            llvm_emit_int(l_bool);
-            llvm_emit_str(", label %L");
-            llvm_emit_int(right_label);
-            llvm_emit_str(", label %L");
-            llvm_emit_int(end_label);
-            llvm_emit_char(10);
+            llvm_emit_str("    %t"); llvm_emit_int(l_bool);
+            if op == 39 { llvm_emit_str(" = icmp ne i64 "); }
+            else { llvm_emit_str(" = icmp eq i64 "); }
+            llvm_emit_str(left_val); llvm_emit_line(", 0");
+            llvm_emit_str("    br i1 %t"); llvm_emit_int(l_bool);
+            llvm_emit_str(", label %L"); llvm_emit_int(right_label);
+            llvm_emit_str(", label %L"); llvm_emit_int(short_label); llvm_emit_char(10);
 
-            // Right label - evaluate right and store result
-            llvm_emit_str("L");
-            llvm_emit_int(right_label);
-            llvm_emit_line(":");
+            llvm_emit_str("L"); llvm_emit_int(short_label); llvm_emit_line(":");
+            llvm_emit_str("    br label %L"); llvm_emit_int(end_label); llvm_emit_char(10);
+
+            llvm_emit_str("L"); llvm_emit_int(right_label); llvm_emit_line(":");
             llvm_emit_expr(right);
             var right_val *u8 = str_dup(llvm_expr_result);
+            // The operand may end in its own merge block. Give this edge a
+            // known predecessor instead of guessing its last emitted label.
+            llvm_emit_str("    br label %L"); llvm_emit_int(right_done); llvm_emit_char(10);
+            llvm_emit_str("L"); llvm_emit_int(right_done); llvm_emit_line(":");
             var r_bool i64 = llvm_next_temp();
             var r_ext i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(r_bool);
-            llvm_emit_str(" = icmp ne i64 ");
-            llvm_emit_str(right_val);
-            llvm_emit_line(", 0");
-            llvm_emit_str("    %t");
-            llvm_emit_int(r_ext);
-            llvm_emit_str(" = zext i1 %t");
-            llvm_emit_int(r_bool);
-            llvm_emit_line(" to i64");
-            llvm_emit_str("    store i64 %t");
-            llvm_emit_int(r_ext);
-            llvm_emit_str(", i64* %t");
-            llvm_emit_int(result_slot);
-            llvm_emit_char(10);
-            llvm_emit_str("    br label %L");
-            llvm_emit_int(end_label);
-            llvm_emit_char(10);
+            llvm_emit_str("    %t"); llvm_emit_int(r_bool);
+            llvm_emit_str(" = icmp ne i64 "); llvm_emit_str(right_val); llvm_emit_line(", 0");
+            llvm_emit_str("    %t"); llvm_emit_int(r_ext);
+            llvm_emit_str(" = zext i1 %t"); llvm_emit_int(r_bool); llvm_emit_line(" to i64");
+            llvm_emit_str("    br label %L"); llvm_emit_int(end_label); llvm_emit_char(10);
 
-            // End label - load result
-            llvm_emit_str("L");
-            llvm_emit_int(end_label);
-            llvm_emit_line(":");
+            llvm_emit_str("L"); llvm_emit_int(end_label); llvm_emit_line(":");
             var result i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(result);
-            llvm_emit_str(" = load i64, i64* %t");
-            llvm_emit_int(result_slot);
-            llvm_emit_char(10);
-
+            llvm_emit_str("    %t"); llvm_emit_int(result); llvm_emit_str(" = phi i64 [ ");
+            if op == 39 { llvm_emit_str("0"); } else { llvm_emit_str("1"); }
+            llvm_emit_str(", %L"); llvm_emit_int(short_label);
+            llvm_emit_str(" ], [ %t"); llvm_emit_int(r_ext);
+            llvm_emit_str(", %L"); llvm_emit_int(right_done); llvm_emit_line(" ]");
             llvm_set_result_temp(result);
-            return;
-        }
-
-        // Handle short-circuit || with control flow
-        if op == 40 {  // TOKEN_PIPEPIPE (||)
-            // a || b: if a is true, result is 1, don't evaluate b
-            var right_label i64 = llvm_next_label();
-            var end_label i64 = llvm_next_label();
-
-            // Allocate result slot
-            var result_slot i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(result_slot);
-            llvm_emit_line(" = alloca i64");
-            llvm_emit_str("    store i64 1, i64* %t");  // Default to 1 (true)
-            llvm_emit_int(result_slot);
-            llvm_emit_char(10);
-
-            // Evaluate left
-            llvm_emit_expr(left);
-            var left_val *u8 = str_dup(llvm_expr_result);
-
-            // Check left - if zero, evaluate right
-            var l_bool i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(l_bool);
-            llvm_emit_str(" = icmp eq i64 ");  // eq 0 means false
-            llvm_emit_str(left_val);
-            llvm_emit_line(", 0");
-            llvm_emit_str("    br i1 %t");
-            llvm_emit_int(l_bool);
-            llvm_emit_str(", label %L");
-            llvm_emit_int(right_label);
-            llvm_emit_str(", label %L");
-            llvm_emit_int(end_label);
-            llvm_emit_char(10);
-
-            // Right label - evaluate right and store result
-            llvm_emit_str("L");
-            llvm_emit_int(right_label);
-            llvm_emit_line(":");
-            llvm_emit_expr(right);
-            var right_val *u8 = str_dup(llvm_expr_result);
-            var r_bool i64 = llvm_next_temp();
-            var r_ext i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(r_bool);
-            llvm_emit_str(" = icmp ne i64 ");
-            llvm_emit_str(right_val);
-            llvm_emit_line(", 0");
-            llvm_emit_str("    %t");
-            llvm_emit_int(r_ext);
-            llvm_emit_str(" = zext i1 %t");
-            llvm_emit_int(r_bool);
-            llvm_emit_line(" to i64");
-            llvm_emit_str("    store i64 %t");
-            llvm_emit_int(r_ext);
-            llvm_emit_str(", i64* %t");
-            llvm_emit_int(result_slot);
-            llvm_emit_char(10);
-            llvm_emit_str("    br label %L");
-            llvm_emit_int(end_label);
-            llvm_emit_char(10);
-
-            // End label - load result
-            llvm_emit_str("L");
-            llvm_emit_int(end_label);
-            llvm_emit_line(":");
-            var result i64 = llvm_next_temp();
-            llvm_emit_str("    %t");
-            llvm_emit_int(result);
-            llvm_emit_str(" = load i64, i64* %t");
-            llvm_emit_int(result_slot);
-            llvm_emit_char(10);
-
-            llvm_set_result_temp(result);
+            llvm_expr_is_float = 0;
             return;
         }
 
@@ -7629,26 +7526,15 @@ func llvm_register_decl(decl *u8) void {
         llvm_add_global(name, name_len);
         add_global(name, name_len, var_type, var_init, is_extern, is_pub);  // Register type for get_expr_type
     } else if k == NODE_READER_EXPR {
-        // Decl-level reader macro (e.g. #parser{}): expand now and register the
-        // structs/funcs it generates, so find_struct sees reader-defined structs
-        // (like #parser{}'s PNode) during codegen. Without this, field access on
-        // such a struct in the host program bails to (number 0). Reuses the
-        // shared first-pass expander, which recurses through the generated decls.
-        // Collect the functions it produces: their return types have to reach
-        // the call-site table before any of them is emitted, or a generated
-        // rule that references a later one is called as if it returned i64.
-        var saved_generated *u8 = cg_generated_funcs;
-        cg_generated_funcs = vec_new(16);
-        process_decl_first_pass(decl);
-        var generated *u8 = cg_generated_funcs;
-        cg_generated_funcs = saved_generated;
-
-        var gcount i64 = vec_len(generated);
+        // Generated includes and globals must use the LLVM registration path,
+        // not the native emitter's independently initialized include registry.
+        var generated *u8 = expand_reader_decl(decl);
+        if generated == nil { return; }
         var gi i64 = 0;
-        while gi < gcount {
-            var gfunc *u8 = vec_get(generated, gi);
-            llvm_register_func(func_decl_name(gfunc), func_decl_name_len(gfunc),
-                               func_decl_ret_type(gfunc));
+        while gi < program_decl_count(generated) {
+            var child *u8 = get_decl(program_decls(generated), gi);
+            node_copy_origin(child, decl);
+            llvm_register_decl(child);
             gi = gi + 1;
         }
     } else if k == NODE_INCLUDE_DECL {
@@ -7720,19 +7606,13 @@ func llvm_register_decl(decl *u8) void {
         var req_prog *u8 = nil;
 
         if local_exists != 0 {
-            var buf *u8 = alloc(1024 * 1024);
-            var fd i64 = resource_open_read(str_dup_n(full_path, full_len));
-            if fd < 0 {
+            var buf *u8 = phase_read_resource(full_path, full_len);
+            if buf == nil {
                 eprint("error: cannot open require file: ");
                 eprint_buf(path, path_len);
                 eprintln("");
                 return;
             }
-            var n i64 = file_read(fd, buf, 1024 * 1024);
-            file_close(fd);
-            if n < 0 { return; }
-            *(buf + n) = 0;
-
             req_prog = phase_parse_include(buf, full_path, decl);
             if req_prog == nil {
                 eprint("error: failed to parse require file: ");

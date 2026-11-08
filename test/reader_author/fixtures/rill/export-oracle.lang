@@ -1,0 +1,44 @@
+include "example/rill/rill.lang"
+
+func check_source_inputs() i64 {
+    var text *u8 = " fun shared_value() i64 { return 11; } ";
+    if !phase_source_provide("shared.lang", text, &rill_parse_source) { return 1; }
+    var original *PhaseSourceInput = phase_source_input("shared.lang");
+    if !phase_source_provide("shared.lang", str_dup_n(text, strlen(text)), &rill_parse_source) { return 2; }
+    if phase_source_input("shared.lang") != original { return 3; }
+    if phase_source_provide("shared.lang", "fun changed() i64 { return 22; }", &rill_parse_source) { return 4; }
+    if phase_source_provide("shared.lang", text, &parse_program_from_named_string) { return 5; }
+    if phase_source_input("shared.lang") != original || !streq(original.text, text) { return 6; }
+    // The new source precedes the conflict: rejection must publish neither.
+    var ast *u8 = rill("package { source \"fresh.lang\" {} source \"shared.lang\" { fun changed() i64 { return 22; } } entry {} }");
+    if ast != nil { return 7; }
+    if phase_source_input("fresh.lang") != nil { return 8; }
+    if phase_source_input("shared.lang") != original { return 9; }
+    return 0;
+}
+
+// Direct shared parser oracle: no CLI-generated include wrapper or expansion.
+func main(argc i64, argv **u8) i64 {
+    if argc == 2 && streq(*(argv + 1), "source-inputs") { return check_source_inputs(); }
+    if argc != 4 { return 64; }
+    var text *u8 = phase_read_file(*(argv + 2));
+    if text == nil { return 65; }
+    var ast *u8 = nil;
+    if streq(*(argv + 1), "rill") { ast = rill(text); }
+    else {
+        var program *u8 = parse_program_from_named_string(text, "oracle");
+        if program != nil { ast = ast_emit_program_with_origins(program); }
+    }
+    if ast == nil { return 66; }
+    var fd i64 = open(*(argv + 3), O_WRONLY_CREAT_TRUNC, 420);
+    if fd < 0 { return 67; }
+    var size i64 = strlen(ast);
+    var offset i64 = 0;
+    while offset < size {
+        var count i64 = write(fd, ast + offset, size - offset);
+        if count <= 0 { close(fd); return 68; }
+        offset = offset + count;
+    }
+    close(fd);
+    return 0;
+}

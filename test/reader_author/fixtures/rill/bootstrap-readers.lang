@@ -1,0 +1,29 @@
+// Test composition uses the normal embedded-reader interface.
+include "example/rill/rill.lang"
+
+// Native direct-Wasm compilation uses the same reader registry and worker as
+// the native backend; the worker itself always targets the host.
+func compiler_register_direct_reader(decl *u8) void { add_reader(decl); }
+func compiler_direct_reader_runtime_only() i64 { return 0; }
+func compiler_expand_direct_reader(name *u8, name_len i64, text *u8, text_len i64) *u8 {
+    var embedded *u8 = find_embedded_reader_func(name, name_len);
+    if embedded != nil {
+        var reader_fn fn(*u8) *u8 = embedded;
+        return reader_fn(text);
+    }
+    if find_reader(name, name_len) == nil {
+        cg_error_prefix(); eprint("reader macro '"); eprint_buf(name, name_len);
+        eprintln("' not found"); cg_had_error = 1; return nil;
+    }
+    var output *u8 = phase_reader_call(build_reader_cache_path(name, name_len), text, text_len, nil);
+    if output == nil || *output == 0 {
+        cg_error_prefix(); eprint("reader '"); eprint_buf(name, name_len);
+        eprintln("' failed or returned no AST"); cg_had_error = 1; return nil;
+    }
+    return output;
+}
+func bootstrap_rill(text *u8) *u8 { return rill(text); }
+func init_compiler_readers() void {
+    embedded_reader_names[0] = "rill";
+    embedded_reader_funcs[0] = &bootstrap_rill;
+}

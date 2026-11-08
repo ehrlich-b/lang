@@ -1,0 +1,2 @@
+require "test/registry_index/private"
+func main() i64 { return visible(); }

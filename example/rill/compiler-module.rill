@@ -1,0 +1,56 @@
+// café: fun local record use syntax; these bytes must remain untouched.
+use "std/core.lang"
+use "std/ast.lang"
+
+record Decimal {
+    value i64;
+    error i64;
+}
+
+// A compiler-reader helper: consume a complete bounded unsigned decimal token.
+// Reject before multiplying, including values too large for signed i64.
+fun parse_decimal(text *u8, len i64, limit i64, out *Decimal) bool {
+    out.value = 0;
+    out.error = 0;
+    if len == 0 { return false; }
+    local i i64 = 0;
+    while i < len {
+        local digit i64 = *(text + i) - 48;
+        if digit < 0 || digit > 9 {
+            out.error = i;
+            return false;
+        }
+        if out.value > limit / 10 ||
+           (out.value == limit / 10 && digit > limit % 10) {
+            out.error = i;
+            return false;
+        }
+        out.value = out.value * 10 + digit;
+        i = i + 1;
+    }
+    return true;
+}
+
+// This reader actually uses the helper, rather than carrying dead demo code.
+syntax decimal(text *u8) *u8 {
+    local out *Decimal = alloc(16);
+    if !parse_decimal(text, strlen(text), 9223372036854775807, out) {
+        return nil;
+    }
+    return ast_number(text);
+}
+
+fun main(argc i64, argv **u8) i64 {
+    local out *Decimal = alloc(16);
+    local banner *u8 = "fun local record use syntax // /* \\\" café";
+    if !streq(banner, "fun local record use syntax // /* \\\" café") { return 90; }
+    if decimal("42") == nil || decimal("4x") != nil { return 91; }
+    if argc != 2 { return 64; }
+    local input *u8 = *(argv + 1);
+    if !parse_decimal(input, strlen(input), 9223372036854775807, out) {
+        print_int(out.error); println("");
+        return 65;
+    }
+    print_int(out.value); println("");
+    return 0;
+}

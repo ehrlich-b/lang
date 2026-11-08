@@ -265,57 +265,74 @@ func pnode_kind_name(kind i64) *u8 {
     return "unknown";
 }
 
-func pnode_dump_text(text *u8) void {
-    eprint("\"");
+func pnode_dump_write(fd i64, text *u8) void {
+    if fd == 2 { eprint(text); return; }
+    var len i64 = strlen(text);
+    var written i64 = 0;
+    while written < len {
+        var count i64 = file_write(fd, text + written, len - written);
+        if count <= 0 { exit(1); }
+        written = written + count;
+    }
+}
+
+func pnode_dump_int(fd i64, value i64) void {
+    var buffer *u8 = alloc(32);
+    var len i64 = itoa(value, buffer); *(buffer + len) = 0;
+    pnode_dump_write(fd, buffer);
+}
+
+pub func pnode_dump_text_to(fd i64, text *u8) void {
+    pnode_dump_write(fd, "\"");
     var p *u8 = text;
     while p != nil && *p != 0 {
         var c i64 = *p;
-        if c == 34 { eprint("\\\""); }
-        else if c == 92 { eprint("\\\\"); }
-        else if c == 10 { eprint("\\n"); }
-        else if c == 13 { eprint("\\r"); }
-        else if c == 9 { eprint("\\t"); }
+        if c == 34 { pnode_dump_write(fd, "\\\""); }
+        else if c == 92 { pnode_dump_write(fd, "\\\\"); }
+        else if c == 10 { pnode_dump_write(fd, "\\n"); }
+        else if c == 13 { pnode_dump_write(fd, "\\r"); }
+        else if c == 9 { pnode_dump_write(fd, "\\t"); }
         else {
             var byte u8 = c;
-            eprint_buf(&byte, 1);
+            if fd == 2 { eprint_buf(&byte, 1); } else { file_write(fd, &byte, 1); }
         }
         p = p + 1;
     }
-    eprint("\"");
+    pnode_dump_write(fd, "\"");
 }
 
-func pnode_dump_at(node *PNode, depth i64) void {
+pub func pnode_dump_to(fd i64, node *PNode, depth i64) void {
     var i i64 = 0;
     while i < depth {
-        eprint("  ");
+        pnode_dump_write(fd, "  ");
         i = i + 1;
     }
     if node == nil {
-        eprintln("nil");
+        pnode_dump_write(fd, "nil\n");
         return;
     }
 
-    eprint(pnode_kind_name(node.kind));
+    pnode_dump_write(fd, pnode_kind_name(node.kind));
     if node.branch != nil {
-        eprint(" <");
-        eprint(node.branch);
-        eprint(">");
+        pnode_dump_write(fd, " <");
+        pnode_dump_write(fd, node.branch);
+        pnode_dump_write(fd, ">");
     }
     if node.text != nil {
-        eprint(" ");
-        pnode_dump_text(node.text);
+        pnode_dump_write(fd, " ");
+        pnode_dump_text_to(fd, node.text);
     }
-    eprint(" @");
-    eprint_i64(node.start);
-    eprint(":");
-    eprint_i64(node.end);
-    eprint("\n");
+    pnode_dump_write(fd, " @");
+    pnode_dump_int(fd, node.start);
+    pnode_dump_write(fd, ":");
+    pnode_dump_int(fd, node.end);
+    pnode_dump_write(fd, "\n");
 
     if node.children == nil { return; }
     var count i64 = vec_len(node.children);
     i = 0;
     while i < count {
-        pnode_dump_at(vec_get(node.children, i), depth + 1);
+        pnode_dump_to(fd, vec_get(node.children, i), depth + 1);
         i = i + 1;
     }
 }
@@ -324,5 +341,8 @@ func pnode_dump_at(node *PNode, depth i64) void {
 // output. Capture wrappers are deliberately visible: this is a lowering aid,
 // not the transparent positional view exposed by pnode_child.
 pub func pnode_dump(node *PNode) void {
-    pnode_dump_at(node, 0);
+    pnode_dump_to(2, node, 0);
 }
+
+func pnode_dump_text(text *u8) void { pnode_dump_text_to(2, text); }
+func pnode_dump_at(node *PNode, depth i64) void { pnode_dump_to(2, node, depth); }

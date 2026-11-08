@@ -1,0 +1,169 @@
+include "std/parser_reader.lang"
+
+#parser{
+    !captures;
+    message = send:('send' value:number) | halt:'halt'
+    packet = first:number note:symbol? ':' items:number*
+    rows = '(' (value:number ',')* ')'
+    nonempty = items:number+
+    chain = value:number tail:chain?
+    wrapped = value:(number | symbol)
+    nested = first:number outer:inner:symbol?
+    atom = number
+    dispatch = left:atom | right:symbol
+    holder = '[' content:dispatch ']'
+    nested_rows = '(' (item:body:number ',')* ')'
+    probe = value:number
+}
+
+func bad_packet(duplicate i64) *PNode {
+    var fields *u8 = vec_new(4);
+    if duplicate != 0 {
+        vec_push(fields, pnode_capture("first", pnode_atom(1, "1")));
+        vec_push(fields, pnode_capture("first", pnode_atom(1, "2")));
+    }
+    return capture_tree(pnode_list(fields), "packet", 0);
+}
+
+func main(argc i64, argv **u8) i64 {
+    var t *Tokenizer = tok_new("7 : 1 2 3");
+    var packet *PNode = parse_packet(t);
+    if packet == nil || !tok_eof(t) { return 10; }
+    if argc == 2 { capture_packet_required(packet, "note"); return 90; }
+    if argc == 3 { capture_packet_required(packet, "renamed"); return 91; }
+    if argc == 4 { capture_packet_required(bad_packet(0), "first"); return 92; }
+    if argc == 5 { capture_packet_required(bad_packet(1), "first"); return 93; }
+    if argc == 6 {
+        var fields *u8 = vec_new(1);
+        vec_push(fields, pnode_capture("items", capture_many(pnode_list(vec_new(1)))));
+        capture_nonempty_repeated(capture_tree(pnode_list(fields), "nonempty", 0), "items");
+        return 94;
+    }
+    if argc == 7 { capture_chain_required(packet, "value"); return 95; }
+    if argc == 8 {
+        var fields *u8 = vec_new(2);
+        vec_push(fields, pnode_capture("note", pnode_atom(2, "a")));
+        vec_push(fields, pnode_capture("note", pnode_atom(2, "b")));
+        capture_packet_optional(capture_tree(pnode_list(fields), "packet", 0), "note");
+        return 96;
+    }
+    if argc == 9 {
+        t = tok_new("halt");
+        capture_message_required(parse_message(t), "value");
+        return 97;
+    }
+    if argc == 10 {
+        capture_probe_required(capture_tree(pnode_capture("value", nil), "probe", 0), "value");
+        return 98;
+    }
+    if argc == 11 {
+        var payload *PNode = pnode_capture("inner", nil);
+        capture_probe_required(capture_tree(pnode_capture("value", payload), "probe", 0), "value");
+        return 99;
+    }
+    if argc == 12 {
+        capture_packet_optional(capture_tree(pnode_capture("note", nil), "packet", 0), "note");
+        return 100;
+    }
+    if argc == 13 {
+        capture_rows_repeated(capture_tree(pnode_capture("value", nil), "rows", 0), "value");
+        return 101;
+    }
+    if argc == 14 {
+        var members *u8 = vec_new(1);
+        vec_push(members, nil);
+        var payload *PNode = capture_many(pnode_list(members));
+        capture_nonempty_repeated(capture_tree(pnode_capture("items", payload), "nonempty", 0), "items");
+        return 102;
+    }
+    if argc == 15 {
+        var payload *PNode = pnode_new(PNODE_CAPTURE);
+        capture_probe_required(capture_tree(pnode_capture("value", payload), "probe", 0), "value");
+        return 103;
+    }
+    if argc == 16 {
+        var payload *PNode = pnode_capture("inner", nil);
+        payload.children = vec_new(1);
+        capture_probe_required(capture_tree(pnode_capture("value", payload), "probe", 0), "value");
+        return 104;
+    }
+    if argc == 17 {
+        var payload *PNode = pnode_capture("@rule", nil);
+        capture_holder_required(capture_tree(pnode_capture("content", payload), "holder", 0), "content");
+        return 105;
+    }
+    if argc == 18 {
+        var payload *PNode = pnode_capture("@many", nil);
+        capture_packet_repeated(capture_tree(pnode_capture("items", payload), "packet", 0), "items");
+        return 106;
+    }
+    if argc == 19 {
+        var field *PNode = pnode_capture("note", nil);
+        field.children = nil;
+        capture_packet_optional(capture_tree(field, "packet", 0), "note");
+        return 107;
+    }
+    if schema_message_alternatives() != 2 { return 11; }
+    if !streq(schema_message_alternative(0), "send") || !streq(schema_message_alternative(1), "halt") { return 12; }
+    if schema_message_alternative(2) != nil { return 13; }
+    if !streq(schema_packet_name(0), "first") || schema_packet_name(3) != nil { return 14; }
+    var spec *CaptureSpec = schema_packet_capture(0, "items");
+    if spec == nil || spec.minimum != 0 || spec.maximum != -1 || spec.mode != 3 { return 15; }
+    spec = schema_packet_capture(0, "note");
+    if spec == nil || spec.minimum != 0 || spec.maximum != 1 || spec.mode != 2 { return 16; }
+    spec = schema_nonempty_capture(0, "items");
+    if spec == nil || spec.minimum != 1 || spec.maximum != -1 { return 17; }
+    spec = schema_message_capture(0, "value");
+    if spec == nil || spec.minimum != 1 || spec.maximum != 1 { return 18; }
+    if schema_message_capture(1, "value") != nil { return 19; }
+    if !streq(capture_packet_required(packet, "first").text, "7") { return 20; }
+    if capture_packet_optional(packet, "note") != nil { return 21; }
+    if vec_len(capture_packet_repeated(packet, "items")) != 3 { return 22; }
+    // The old PNode positional and named views still unwrap internal wrappers.
+    if !streq(pnode_child(packet, 0).text, "7") || !streq(pnode_require(packet, "first").text, "7") { return 23; }
+    t = tok_new("8 hello :");
+    packet = parse_packet(t);
+    if packet == nil || !tok_eof(t) || !streq(capture_packet_optional(packet, "note").text, "hello") { return 24; }
+    if vec_len(capture_packet_repeated(packet, "items")) != 0 { return 25; }
+    t = tok_new("send 42");
+    var message *PNode = parse_message(t);
+    if message == nil || !tok_eof(t) || !pnode_is(message, "send") { return 26; }
+    if capture_alternative(message, "message", "value") != 0 || !streq(capture_message_required(message, "value").text, "42") { return 27; }
+    t = tok_new("halt");
+    message = parse_message(t);
+    if message == nil || !tok_eof(t) || !pnode_is(message, "halt") || capture_alternative(message, "message", "value") != 1 { return 28; }
+    t = tok_new("(4,5,6,)");
+    var rows *PNode = parse_rows(t);
+    if rows == nil || !tok_eof(t) { return 29; }
+    var values *u8 = capture_rows_repeated(rows, "value");
+    var middle *PNode = vec_get(values, 1);
+    if vec_len(values) != 3 || !streq(middle.text, "5") { return 30; }
+    t = tok_new("1 2 3");
+    var chain *PNode = parse_chain(t);
+    if chain == nil || !tok_eof(t) || !streq(capture_chain_required(chain, "value").text, "1") { return 31; }
+    chain = capture_chain_optional(chain, "tail");
+    if !streq(capture_chain_required(chain, "value").text, "2") { return 32; }
+    chain = capture_chain_optional(chain, "tail");
+    if capture_chain_optional(chain, "tail") != nil { return 33; }
+    t = tok_new("hello");
+    var wrapped *PNode = parse_wrapped(t);
+    if wrapped == nil || !tok_eof(t) || !streq(capture_wrapped_required(wrapped, "value").text, "hello") { return 34; }
+    t = tok_new("7");
+    var nested *PNode = parse_nested(t);
+    if nested == nil || !tok_eof(t) || capture_nested_optional(nested, "outer") != nil { return 35; }
+    t = tok_new("7 hi");
+    nested = parse_nested(t);
+    if nested == nil || !streq(capture_nested_optional(nested, "outer").text, "hi") ||
+       !streq(capture_nested_optional(nested, "inner").text, "hi") { return 36; }
+    t = tok_new("[42]");
+    var holder *PNode = parse_holder(t);
+    if holder == nil || !tok_eof(t) || !pnode_is(pnode_child(holder, 1), "left") { return 37; }
+    if !pnode_is(capture_holder_required(holder, "content"), "left") { return 38; }
+    t = tok_new("(4,5,)");
+    rows = parse_nested_rows(t);
+    values = capture_nested_rows_repeated(rows, "item");
+    middle = vec_get(values, 1);
+    if rows == nil || !tok_eof(t) || vec_len(values) != 2 || !streq(middle.text, "5") { return 39; }
+    println("PASS contracts");
+    return 0;
+}

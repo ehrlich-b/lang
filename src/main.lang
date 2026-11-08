@@ -5,6 +5,7 @@ include "src/native_build.lang"
 include "src/project_tests.lang"
 
 include "src/package.lang"
+include "src/inspect.lang"
 
 // ============================================================
 // CLI helpers
@@ -291,6 +292,25 @@ var expand_input_files *u8 = nil;      // Vec of input file paths (for modules t
 // Recursively expand includes and collect declarations
 func expand_collect_decl(decl *u8) void {
     var k i64 = node_kind(decl);
+
+    // Embedded source frontends can publish include inputs while returning an
+    // entry AST. Expand that entry before collecting dependency declarations.
+    // External reader nodes retain their existing deferred composition form.
+    if k == NODE_READER_EXPR {
+        var embedded *u8 = find_embedded_reader_func(reader_expr_name(decl), reader_expr_name_len(decl));
+        if embedded != nil {
+            var generated *u8 = expand_reader_decl(decl);
+            if generated == nil { eprintln("error: cannot expand embedded reader"); exit(1); }
+            var gi i64 = 0;
+            while gi < program_decl_count(generated) {
+                var child *u8 = get_decl(program_decls(generated), gi);
+                node_copy_origin(child, decl);
+                expand_collect_decl(child);
+                gi = gi + 1;
+            }
+            return;
+        }
+    }
 
     if k == NODE_INCLUDE_DECL {
         var path *u8 = include_decl_path(decl);
@@ -1209,6 +1229,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
         if streq(subcmd, "compile") { return cmd_help_compile(); }
         if streq(subcmd, "run") { return cmd_help_run(); }
         if streq(subcmd, "read") { return cmd_help_read(); }
+        if streq(subcmd, "inspect") { return cmd_help_inspect(); }
         if streq(subcmd, "compiler") { return cmd_help_compiler(); }
         if streq(subcmd, "new") { return cmd_help_new(); }
         if streq(subcmd, "reader") || streq(subcmd, "readers") { return cmd_help_reader(); }
@@ -1232,6 +1253,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("  compile    Compile source files (default)");
     println("  project    Check or build a language project manifest");
     println("  run        Compile, link, and run a program");
+    println("  inspect    Show project tokens, tree, core or LLVM");
     println("  read       Run a reader and inspect its AST");
     println("  compiler   Build a native compiler from a reader");
     println("  new reader Scaffold a reader and sample source");
@@ -1616,6 +1638,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
         }
         if streq(first, "build") { return cmd_native_build(argc, argv); }
         if streq(first, "test") { return cmd_project_tests(argc, argv); }
+        if streq(first, "inspect") { return cmd_inspect(argc, argv); }
         if streq(first, "project") { return cmd_project(argc, argv); }
         if streq(first, "package") { return cmd_package(argc, argv); }
         if streq(first, "read") {
@@ -1889,12 +1912,15 @@ func main_dispatch(argc i64, argv **u8) i64 {
             phase_source_capture(arg, input_text);
 
             if ext != nil && is_lang_extension(ext) == 0 {
-                // Non-.lang file: read content and wrap in #ext{ content }
+                // File boundaries are known: transport exact bytes without applying
+                // Lang delimiter or comment conventions to a foreign language.
                 var content *u8 = input_text;
 
                 append_str(&source_buf, &source_len, &source_cap, "#");
                 append_str(&source_buf, &source_len, &source_cap, ext);
-                append_str(&source_buf, &source_len, &source_cap, "{");
+                append_str(&source_buf, &source_len, &source_cap, "[");
+                append_str(&source_buf, &source_len, &source_cap, i64_to_str(strlen(content)));
+                append_str(&source_buf, &source_len, &source_cap, "]{");
                 append_str(&source_buf, &source_len, &source_cap, content);
                 append_str(&source_buf, &source_len, &source_cap, "}\n");
             } else {

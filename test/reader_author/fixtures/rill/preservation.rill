@@ -1,0 +1,6 @@
+/* café fun local record use syntax */
+fun marker() *u8 {
+    // Longer and shorter keywords, escaped quotes and comment delimiters.
+    local funny *u8 = "fun local record use syntax \\\" // /* café";
+    return funny;
+}

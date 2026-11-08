@@ -1,0 +1,22 @@
+include "std/core.lang"
+include "std/parser_reader.lang"
+include "std/ast.lang"
+
+#parser{
+    !inspect inspected_number;
+    inspected_number = number
+}
+
+reader inspected(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    var tree *PNode = parse_inspected_number(tokens);
+    if tree == nil { return nil; }
+    if !tok_expect_end(tokens) { return nil; }
+    return ast_number(tree.text);
+}
+
+func main() i64 {
+    print_int(#inspected{42});
+    print("\n");
+    return 0;
+}

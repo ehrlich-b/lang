@@ -1,0 +1,5 @@
+include "std/core.lang"
+include "example/shipping/runtime.lang"
+include "example/shipping/shipping.lang"
+
+#shipping{shipping { base 10; free_over 100; }}
