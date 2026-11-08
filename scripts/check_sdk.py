@@ -154,6 +154,17 @@ class Check:
         self.call(['clang', '-O2', 'program.ll', source / 'harness.c', '-o', 'program'], cwd=consumer, isolated=True)
         result = self.call(['./program', '2000000'], cwd=consumer, isolated=True)
         assert result.stdout == b'6000002995045\n'
+        # Mint Tariff as a reader compiler as well, without its example CLI.
+        self.call(['lang', 'new', 'reader', 'tariff'], cwd=consumer, isolated=True)
+        adapt = ("from pathlib import Path; import sys; "
+                 "s=Path(sys.argv[1]).read_text().split('\\nfunc main(',1)[0]; "
+                 "Path('tariff.lang').write_text(s+'\\nreader tariff(text *u8) *u8 { return tariff_read(text); }\\n')")
+        self.call([sys.executable, '-c', adapt, source / 'lang/tariff.lang'], cwd=consumer, isolated=True)
+        self.call(['lang', 'compiler', 'tariff', 'tariff.lang', '-o', 'tariffc'], cwd=consumer, isolated=True)
+        self.call(['./tariffc', source / 'fixtures/benchmark.tariff', '-o', 'minted.ll'], cwd=consumer, isolated=True)
+        self.call(['clang', '-O2', 'minted.ll', source / 'harness.c', '-o', 'minted'], cwd=consumer, isolated=True)
+        result = self.call(['./minted', '2000000'], cwd=consumer, isolated=True)
+        assert result.stdout == b'6000002995045\n'
         self.write('sdk-journey.json', status='PASS', archive_sha256=sha(Path(json.loads(
             (self.evidence / 'sdk-package.json').read_text())['archive'])),
                    isolation='Landlock: source checkout and seed inaccessible to consumer and all descendants; system tools, SDK and empty consumer directory allowed',

@@ -35,6 +35,7 @@ def main():
     if subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT).strip():
         parser.exit(1, 'Error: commit the source before packaging.\n')
     head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+    epoch = int(subprocess.check_output(['git', 'show', '-s', '--format=%ct', head], cwd=ROOT))
     version = args.version or '0.1.0+' + head[:12]
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.+_-]{0,79}', version):
         parser.error('version must be a safe filename component')
@@ -76,16 +77,17 @@ def main():
              for tool in ('clang', 'make', 'git')}
     tools['python'] = platform.python_version()
     manifest = dict(version=1, sdk_version=version, commit=head, target='x86_64-linux',
-                    tools=tools, flags=['-O2'],
+                    tools=tools, flags=['-O2'], archive_epoch=epoch,
                     files={p: dict(bytes=len(data), sha256=digest(data), mode=oct(mode))
                            for p, (data, mode) in sorted(files.items())})
     files['sdk.json'] = ((json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode(), 0o644)
-    # Canonical metadata, order and XZ stream: no host paths, clock, UID or GID.
+    # Canonical metadata, order and XZ stream: use the commit clock, no host paths.
+    # Module discovery treats mtime=0 as absent, so preserve a nonzero epoch.
     with lzma.open(archive, 'wb', preset=6) as compressed:
         with tarfile.open(fileobj=compressed, mode='w|', format=tarfile.USTAR_FORMAT) as tar:
             for relative, (data, mode) in sorted(files.items()):
                 info = tarfile.TarInfo(name + '/' + relative)
-                info.size, info.mode, info.mtime = len(data), mode, 0
+                info.size, info.mode, info.mtime = len(data), mode, epoch
                 info.uid = info.gid = 0
                 info.uname = info.gname = ''
                 tar.addfile(info, io.BytesIO(data))
