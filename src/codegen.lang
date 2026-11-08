@@ -1789,6 +1789,86 @@ func read_file_contents(path *u8, path_len i64, buf *u8, buf_cap i64) i64 {
 // that mismatch; wasm traps on it.
 var cg_generated_funcs *u8 = nil;
 
+// Expand the frontend once, then let each backend traverse the resulting AST
+// with its own registration and include state.
+func expand_reader_decl(decl *u8) *u8 {
+    var name *u8 = reader_expr_name(decl);
+    var name_len i64 = reader_expr_name_len(decl);
+    var content *u8 = reader_expr_content(decl);
+    var content_len i64 = reader_expr_content_len(decl);
+
+    // Check for embedded reader function first (for composed compilers)
+    var embedded_func *u8 = find_embedded_reader_func(name, name_len);
+    var output *u8 = nil;
+
+    if embedded_func != nil {
+        // Call embedded reader function directly
+        var reader_fn fn(*u8) *u8 = embedded_func;
+        output = reader_fn(content);
+        if output == nil {
+            cg_error_prefix();
+            eprint("embedded reader '");
+            eprint_buf(name, name_len);
+            eprintln("' returned nil");
+            cg_had_error = 1;
+            return nil;
+        }
+    } else {
+        // Look up the reader declaration
+        var reader_decl *u8 = find_reader(name, name_len);
+        if reader_decl == nil {
+            cg_error_prefix();
+            eprint("reader macro '");
+            eprint_buf(name, name_len);
+            eprintln("' not found");
+            cg_had_error = 1;
+            return nil;
+        }
+
+        // Build path to reader executable
+        var exe_path *u8 = build_reader_cache_path(name, name_len);
+
+        // Execute reader with content as input
+        output = phase_reader_call(exe_path, content, content_len, nil);
+        var n i64 = phase_worker_status;
+        if output != nil { n = strlen(output); }
+
+        if n < 0 {
+            cg_error_prefix();
+            eprint("reader '");
+            eprint_buf(name, name_len);
+            eprint("' exited with status ");
+            eprint_i64(0 - n);
+            eprintln("");
+            cg_had_error = 1;
+            return nil;
+        }
+        if n == 0 {
+            cg_error_prefix();
+            eprint("reader '");
+            eprint_buf(name, name_len);
+            eprintln("' returned no AST");
+            cg_had_error = 1;
+            return nil;
+        }
+    }
+
+    // Parse the output as S-expr AST (readers MUST output AST)
+    var prog *u8 = parse_ast_from_reader_string(
+        output, node_origin_source(decl), content
+    );
+    if prog == nil {
+        cg_error_prefix();
+        eprint("reader '");
+        eprint_buf(name, name_len);
+        eprintln("' did not return valid AST");
+        cg_had_error = 1;
+        return nil;
+    }
+
+    return prog;
+}
+
 func process_decl_first_pass(decl *u8) void {
     cg_diagnostic_node = decl;
     var k i64 = node_kind(decl);
@@ -1819,80 +1899,8 @@ func process_decl_first_pass(decl *u8) void {
     }
     // Reader macro at declaration level - expand to declarations
     if k == NODE_READER_EXPR {
-        var name *u8 = reader_expr_name(decl);
-        var name_len i64 = reader_expr_name_len(decl);
-        var content *u8 = reader_expr_content(decl);
-        var content_len i64 = reader_expr_content_len(decl);
-
-        // Check for embedded reader function first (for composed compilers)
-        var embedded_func *u8 = find_embedded_reader_func(name, name_len);
-        var output *u8 = nil;
-
-        if embedded_func != nil {
-            // Call embedded reader function directly
-            var reader_fn fn(*u8) *u8 = embedded_func;
-            output = reader_fn(content);
-            if output == nil {
-                cg_error_prefix();
-                eprint("embedded reader '");
-                eprint_buf(name, name_len);
-                eprintln("' returned nil");
-                cg_had_error = 1;
-                return;
-            }
-        } else {
-            // Look up the reader declaration
-            var reader_decl *u8 = find_reader(name, name_len);
-            if reader_decl == nil {
-                cg_error_prefix();
-                eprint("reader macro '");
-                eprint_buf(name, name_len);
-                eprintln("' not found");
-                cg_had_error = 1;
-                return;
-            }
-
-            // Build path to reader executable
-            var exe_path *u8 = build_reader_cache_path(name, name_len);
-
-            // Execute reader with content as input
-            output = phase_reader_call(exe_path, content, content_len, nil);
-            var n i64 = phase_worker_status;
-            if output != nil { n = strlen(output); }
-
-            if n < 0 {
-                cg_error_prefix();
-                eprint("reader '");
-                eprint_buf(name, name_len);
-                eprint("' exited with status ");
-                eprint_i64(0 - n);
-                eprintln("");
-                cg_had_error = 1;
-                return;
-            }
-            if n == 0 {
-                cg_error_prefix();
-                eprint("reader '");
-                eprint_buf(name, name_len);
-                eprintln("' returned no AST");
-                cg_had_error = 1;
-                return;
-            }
-        }
-
-        // Parse the output as S-expr AST (readers MUST output AST)
-        var prog *u8 = parse_ast_from_reader_string(
-            output, node_origin_source(decl), content
-        );
-        if prog == nil {
-            cg_error_prefix();
-            eprint("reader '");
-            eprint_buf(name, name_len);
-            eprintln("' did not return valid AST");
-            cg_had_error = 1;
-            return;
-        }
-
+        var prog *u8 = expand_reader_decl(decl);
+        if prog == nil { return; }
         // Process each generated declaration
         var gen_decls *u8 = program_decls(prog);
         var gen_count i64 = program_decl_count(prog);
