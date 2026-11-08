@@ -2,6 +2,9 @@ include "std/core.lang"
 include "src/lexer.lang"
 include "src/parser.lang"
 
+var bootstrap_calls i64 = 0;
+func bootstrap_touch(value i64) i64 { bootstrap_calls = bootstrap_calls + 1; return value; }
+
 func main() i64 {
     var content *u8 = "// } { \"\n/* } { \" */ '{' '}' '\\'' '\\\\' \"} { \\\"\" { nested } 'symbol\n";
     lexer_init(str_concat(str_concat("#probe{", content), "}\nafter"));
@@ -38,5 +41,15 @@ func main() i64 {
     if streq(large, copy) || streq(copy, large) { return 13; }
     *(copy + 1048575) = 33;
     if streq(large, copy) { return 14; }
+    if 0 && bootstrap_touch(1) { return 15; }
+    if !(1 || bootstrap_touch(0)) { return 16; }
+    if bootstrap_calls != 0 { return 17; }
+    if (1 && (0 || bootstrap_touch(7))) != 1 { return 18; }
+    if (0 || (1 && bootstrap_touch(0))) != 0 { return 19; }
+    if ((0 || bootstrap_touch(4)) && bootstrap_touch(0)) != 0 { return 20; }
+    if bootstrap_calls != 4 { return 21; }
+    i = 0;
+    while i < 1048576 && (bootstrap_calls == 4 || bootstrap_touch(0)) { i = i + 1; }
+    if i != 1048576 || bootstrap_calls != 4 { return 22; }
     return 0;
 }
