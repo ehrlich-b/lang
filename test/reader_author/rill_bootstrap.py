@@ -167,7 +167,10 @@ def main():
         isolated = scratch / 'isolated'
         isolated.mkdir()
         seed = isolated / 'rill-seed'
-        replay.run([str(host), 'compiler', 'rill', 'example/rill/rill.lang', '-o', str(seed)], 'mint-seed', clone)
+        seed_ir = isolated / 'rill-seed.ll'
+        replay.run([str(host), FIXTURES + 'bootstrap-compiler.lang', '-o', str(seed_ir)],
+                   'compile-seed-from-Lang', clone)
+        replay.run(['clang', '-O1', str(seed_ir), '-o', str(seed)], 'link-seed', clone)
         boot = Bootstrap(replay, isolated)
         exporter = clone / 'scripts/rill_export.py'
         spec = json.loads((clone / 'example/rill/compiler-closure.json').read_text())
@@ -177,7 +180,7 @@ def main():
         expected = [FIXTURES + 'bootstrap-readers.lang' if p == 'src/compiler_readers_none.lang' else p
                     for p in spec['closures']['compiler']]
         require(roots == expected, 'bootstrap compiler roots differ from declared compiler closure')
-        files = {}
+        files = {seed_ir.name: seed_ir}
         packages = {}
         entries = {'compiler': FIXTURES + 'bootstrap-compiler.lang',
                    'module': FIXTURES + 'bootstrap-module.lang'}

@@ -1,0 +1,88 @@
+# Rebuilding a composed Rill compiler
+
+The test composition in `test/reader_author/fixtures/rill/bootstrap-compiler.lang`
+uses the complete compiler root list from `compiler-closure.json`. It replaces
+`compiler_readers_none.lang` with a test composition that registers the Rill
+reader through the existing embedded-reader interface. No dialect rule is added
+to the compiler core. Rill remains a keyword dialect of Lang with shared
+semantics; this is not an independent compiler implementation.
+
+Run the local fragment from a committed repository root:
+
+```sh
+JOBS=2 python3 -B test/reader_author/rill_bootstrap.py --case module
+JOBS=2 VERIFY_CASE=rill-bootstrap make verify
+```
+
+The runner clones the committed candidate, builds the initial Lang host and
+builds the seed composition from its explicitly recorded Lang sources. The source exporter packages the compiler and
+Rill reader as ordinary Rill modules with dependency boundaries. The seed
+compiles that package to `compiler-stage1.ll`; Clang links `rill-stage1`.
+Then the seed and stage 1 each compile the same package containing
+`src/limits.lang` and a tiny observation harness. Their complete module IR must
+be byte identical and each native executable must exit 16. A semantic edit
+changes `LIMIT_CALL_ARGS` to 17, must change the IR, and must exit 17. A child
+process exercises the actual byte-comparison assertion and must fail on that
+edit. Frontend, backend and incomplete-package failures must have the expected
+attribution, exit 1, and produce no LLVM output.
+
+This is a two-generation **module** check. The module executables are not
+compiler stages. A successful local run leaves complete compiler stage 2,
+compiler LLVM fixed point, reader AST fixed point and shipping-through-both
+obligations pending. It does not claim that the generated shipping compiler
+accepts its own implementation.
+
+Compiler rebuilds run from a separate directory containing compiler binaries
+and exported Rill packages, with `PATH=/nonexistent`, no `LANG_ROOT`, and a new
+cache. Original source files are never copied there. Rill packages validate all
+dependency edges before publication; missing package sources cannot fall back
+to Lang files. Clang is an explicit separate backend at every native link.
+All processes are sequential and inherit two-CPU affinity, JOBS=2 and a 2 GiB
+address-space ceiling. No root access, OS kernel operations, bootstrap promotion,
+web generation or full unchanged suites are involved.
+
+## Complete integration recipe (pending until executed)
+
+On a suitable integration host, from the committed repository root:
+
+```sh
+JOBS=2 python3 -B test/reader_author/rill_bootstrap.py --case integration --evidence ../evidence/rill-integration
+```
+
+The evidence directory must be new. This executes the module fragment first,
+then the following additional obligations, failing on any mismatch:
+
+1. Stage 1 compiles the exact same exported compiler/reader package to compiler
+   stage 2. Clang links it. Stage 2 compiles that same package to compiler stage
+   3, and Clang links it. Compare complete `compiler-stage2.ll` and
+   `compiler-stage3.ll` byte for byte, without normalization or omitted functions.
+2. Stage 2 and stage 3 each expand the complete exported Rill reader package
+   using `--emit-expanded-ast`. Compare the entire `reader-stage2.ast` and
+   `reader-stage3.ast`, including origins. An entry-only AST is insufficient.
+3. Each full compiler stage explicitly builds the actual shipping reader with
+   its runtime from `example/shipping/`. This application step uses the recorded
+   authored Lang reader, runtime and toolkit sources in the cloned checkout;
+   it is separate from the source-free Rill compiler rebuild. Each generated
+   shipping compiler compiles `policy.shipping` in isolation. Link and execute
+   each program: totals 99, 100 and 120 must print 10, 0 and 0 respectively.
+4. Each shipping compiler also compiles a deliberate policy edit, changing
+   `free_over` from 100 to 101. The LLVM must change and total 100 must print 10.
+   The original-output comparison must reject this semantic input change with
+   a failing child process, rather than marking it as equivalent.
+
+The runner retains commands, stdout, stderr, exits, CPU/wall times,
+source/tool hashes, a stage manifest with compiler/input/output hashes,
+isolation assumptions and machine-readable obligation status outside the
+checkout. `sources-and-stages.tar.xz` retains complete source snapshots, exported
+packages, manifests and LLVM/AST outputs with stable archive metadata. Native
+binaries are reproducible from the recorded Clang commands and hashed inputs.
+`result.json` reports full obligations pending in module mode and only marks
+them passed after integration executes successfully.
+
+Byte equality demonstrates repeatability under this seed and Clang backend.
+Both paths share compiler algorithms, parser, semantics and native backend.
+This is not diverse double compilation, an independent correctness proof, or
+proof that compiler stages are free of a shared trusting-trust defect. Shipping
+execution and changed-input rejection add behavioral checks without changing
+that limitation. Other platforms and unchanged full suites remain separate
+integration work.
