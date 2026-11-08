@@ -116,7 +116,7 @@ class Check:
         self.env['PATH'] = str(sdk / 'bin') + ':' + self.env['PATH']
         return sdk
 
-    def journey(self, missing=False):
+    def missing(self):
         sdk = self.extract()
         consumer = self.work / 'stranger'
         consumer.mkdir()
@@ -128,55 +128,24 @@ class Check:
                       cwd=consumer, expected=1, isolated=True)
             assert 'PermissionError' in self.rows[-1]['stderr']
         self.call(['lang', 'new', 'reader', 'tiny'], cwd=consumer, isolated=True)
-        if missing:
-            clang_only = self.work / 'clang-only'
-            clang_only.mkdir()
-            (clang_only / 'clang').symlink_to(shutil.which('clang', path=self.env['PATH']))
-            for tool, path in (('clang', str(sdk / 'bin')),
-                               ('ld', str(sdk / 'bin') + ':' + str(clang_only))):
-                no_tool = dict(self.env, PATH=path)
-                assert shutil.which(tool, path=path) is None
-                if tool == 'ld':
-                    assert shutil.which('clang', path=path)
-                for command in (['lang', 'compiler', 'tiny', 'tiny.lang', '-o', 'tinyc'],
-                                ['lang', 'run', 'tiny.lang', 'answer.tiny']):
-                    result = self.call(command, cwd=consumer, isolated=True, env=no_tool, expected=127)
-                    message = result.stderr.decode()
-                    assert len(message.splitlines()) == 1 and message.startswith(f'Error: {tool} is required;')
-                    assert 'apt install' in message and not result.stdout
-            assert not (consumer / 'tinyc').exists()
-            self.write('sdk-missing-tools.json', status='PASS')
-            return
-        self.call(['lang', 'compiler', 'tiny', 'tiny.lang', '-o', 'tinyc'], cwd=consumer, isolated=True)
-        self.call(['./tinyc', 'answer.tiny', '-o', 'answer.ll'], cwd=consumer, isolated=True)
-        self.call(['clang', '-O2', 'answer.ll', '-o', 'answer'], cwd=consumer, isolated=True)
-        self.call(['./answer'], cwd=consumer, isolated=True, expected=42)
-        # Reproduce the comparison frontend unchanged, using only packaged inputs.
-        source = sdk / 'examples/dsl-compare'
-        self.call(['lang', source / 'lang/tariff.lang', '-o', 'tariff.ll'], cwd=consumer, isolated=True)
-        self.call(['clang', '-O2', 'tariff.ll', '-o', 'tariff'], cwd=consumer, isolated=True)
-        self.call(['./tariff', source / 'fixtures/benchmark.tariff'], cwd=consumer, isolated=True,
-                  output=consumer / 'program.ast')
-        self.call(['lang', '--from-ast', 'program.ast', '--ast-source', source / 'fixtures/benchmark.tariff',
-                   '-o', 'program.ll'], cwd=consumer, isolated=True)
-        self.call(['clang', '-O2', 'program.ll', source / 'harness.c', '-o', 'program'], cwd=consumer, isolated=True)
-        result = self.call(['./program', '2000000'], cwd=consumer, isolated=True)
-        assert result.stdout == b'6000002995045\n'
-        # Mint Tariff as a reader compiler as well, without its example CLI.
-        self.call(['lang', 'new', 'reader', 'tariff'], cwd=consumer, isolated=True)
-        adapt = ("from pathlib import Path; import sys; "
-                 "s=Path(sys.argv[1]).read_text().split('\\nfunc main(',1)[0]; "
-                 "Path('tariff.lang').write_text(s+'\\nreader tariff(text *u8) *u8 { return tariff_read(text); }\\n')")
-        self.call([sys.executable, '-c', adapt, source / 'lang/tariff.lang'], cwd=consumer, isolated=True)
-        self.call(['lang', 'compiler', 'tariff', 'tariff.lang', '-o', 'tariffc'], cwd=consumer, isolated=True)
-        self.call(['./tariffc', source / 'fixtures/benchmark.tariff', '-o', 'minted.ll'], cwd=consumer, isolated=True)
-        self.call(['clang', '-O2', 'minted.ll', source / 'harness.c', '-o', 'minted'], cwd=consumer, isolated=True)
-        result = self.call(['./minted', '2000000'], cwd=consumer, isolated=True)
-        assert result.stdout == b'6000002995045\n'
-        self.write('sdk-journey.json', status='PASS', archive_sha256=sha(Path(json.loads(
-            (self.evidence / 'sdk-package.json').read_text())['archive'])),
-                   isolation='Landlock: source checkout and seed inaccessible to consumer and all descendants; system tools, SDK and empty consumer directory allowed',
-                   qualification='The checkout remains on the host disk, outside the consumer filesystem access boundary; no privileged namespace or root used.')
+        clang_only = self.work / 'clang-only'
+        clang_only.mkdir()
+        (clang_only / 'clang').symlink_to(shutil.which('clang', path=self.env['PATH']))
+        for tool, path in (('clang', str(sdk / 'bin')),
+                           ('ld', str(sdk / 'bin') + ':' + str(clang_only))):
+            no_tool = dict(self.env, PATH=path)
+            assert shutil.which(tool, path=path) is None
+            if tool == 'ld':
+                assert shutil.which('clang', path=path)
+            for command in (['lang', 'compiler', 'tiny', 'tiny.lang', '-o', 'tinyc'],
+                            ['lang', 'run', 'tiny.lang', 'answer.tiny']):
+                result = self.call(command, cwd=consumer, isolated=True, env=no_tool, expected=127)
+                message = result.stderr.decode()
+                assert len(message.splitlines()) == 1 and message.startswith(f'Error: {tool} is required;')
+                assert 'apt install' in message and not result.stdout
+        assert not (consumer / 'tinyc').exists()
+        self.write('sdk-missing-tools.json', status='PASS')
+
 
     def compare(self):
         sdk = self.extract()
@@ -201,7 +170,7 @@ class Check:
             assert author == committer == identity and subject.endswith('.'), line
         assert not git('status', '--porcelain')
         self.write('sdk-policy.json', status='PASS', base=BASE, commits=commits,
-                   decisions='Native Linux SDK; use existing resource discovery; no kernel or limits changes; no publication; Landlock consumer isolation avoids namespace root.')
+                   decisions='Native Linux SDK; use existing resource discovery; no kernel or limits changes; no publication; archive journey runs in a separate diskless VM as uid 1000.')
 
     def docs(self):
         readme = (ROOT / 'README.md').read_text()
@@ -219,16 +188,13 @@ class Check:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('case', choices=('package', 'journey', 'missing', 'compare', 'policy', 'docs'))
+    parser.add_argument('case', choices=('package', 'missing', 'compare', 'policy', 'docs'))
     parser.add_argument('--evidence', type=Path, required=True)
     parser.add_argument('--scratch', type=Path, required=True)
     parser.add_argument('--tools', type=Path, required=True)
     args = parser.parse_args()
     check = Check(args)
-    if args.case == 'missing':
-        check.journey(missing=True)
-    else:
-        getattr(check, args.case)()
+    getattr(check, args.case)()
 
 
 if __name__ == '__main__':

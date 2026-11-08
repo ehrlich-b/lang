@@ -69,3 +69,25 @@ Link `program.ll` with the supplied `harness.c` using `clang -O2`.
 The comparison runner's `--sdk` arm measures this same pipeline and excludes
 archive building and extraction as tool provisioning, just like parser installs.
 The [comparison](compare-yacc-antlr.md) retains the source-build arm alongside it.
+
+## Archive-only verification
+
+`scripts/check_sdk.py package` checks two independent builds for identical bytes
+and records both receipts. `scripts/sdk_vm.py` runs the stranger journey on a
+separate diskless Linux VM. Its allowlisted initramfs contains the archive,
+Clang 19 and system C tools, Python for recording commands, and a small boot shim.
+It has no Lang checkout, bootstrap seed, attached disk, host filesystem share or
+network device. The complete input inventory and serial transcript accompany
+`sdk-journey.json`; each consumer command records its exit code and elapsed time.
+The journey extracts into an empty directory, builds both tiny and Tariff reader
+compilers, runs their native results, and checks missing Clang and linker messages.
+
+The host runs QEMU/KVM as an ordinary user. The boot shim immediately drops to
+UID/GID 1000, then creates an unprivileged user/PID namespace and mounts proc there
+with only UID/GID 1000 mapped. No consumer command runs as root. Verification
+requires an accessible Linux kernel image, QEMU firmware and user access to KVM;
+these are proof infrastructure, not SDK consumer prerequisites. Pass their paths
+with `--kernel`, `--qemu`, and `--bios`, and keep `--evidence` and `--scratch`
+outside the checkout. SDK packaging and comparison use `--tools` for the pinned
+comparison toolchain. The lighter `check_sdk.py missing` check retains Landlock
+as a supplemental dependency probe; it does not establish checkout absence.
