@@ -73,7 +73,7 @@ func shipping_read(text *u8, with_main bool) *u8 {
     ast_push(params, ast_param("argv", ast_type_ptr(ast_type_str())));
     body = ast_vec();
     ast_push(body, ast_var("total", ast_type_i64(), ast_call2("shipping_total", ast_ident("argc"), ast_ident("argv"))));
-    ast_push(body, ast_return(ast_call1("shipping_print", ast_call1("shipping_fee", ast_ident("total")))));
+    ast_push(body, ast_return(ast_call1("shipping_print", ast_call1("shipping_cost", ast_ident("total")))));
     ast_push(decls, ast_func("main", params, ast_type_i64(), ast_block(body)));
     return ast_program(decls);
 }

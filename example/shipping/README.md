@@ -111,7 +111,7 @@ run `out/lang_next inspect --project example/shipping/project.lang-project --sta
 from the checkout root. Select `tokens`, `tree`, `core` or `llvm`; add `-o path`
 to save the artifact. Stdout contains only that artifact; errors go to stderr.
 The tree keeps named captures, values and half-open UTF-8 byte spans. Core shows
-`shipping_fee` and calls across the separate `shipping_total` / `shipping_print`
+`shipping_cost` and calls across the separate `shipping_total` / `shipping_print`
 runtime boundary; LLVM includes the runtime implementations.
 
 The grammar's `!inspect shipping_policy;` metadata names its complete-input
