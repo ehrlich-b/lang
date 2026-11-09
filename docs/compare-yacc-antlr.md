@@ -104,15 +104,14 @@ provisioning, SDK creation and archive extraction are excluded.
 No arm receives different optimization flags.
 
 Archive independence is checked separately from these host timings. The SDK
-journey now boots a separate diskless machine with only the SDK archive and
-declared system tools, extracts into an empty directory, creates tiny and Tariff
-reader compilers, and runs their native results as UID 1000. No checkout, seed,
-host share or disk is present in that machine. Its input inventory, serial log,
-and every command's exit code and time accompany `evidence/sdk-journey.json`;
-see [archive-only verification](SDK.md#archive-only-verification). This replaces
-the earlier Landlock boundary, which denied access while retaining producer
-files on the same machine. VM provisioning and boot are proof infrastructure,
-excluded from the serial comparison just like other tool provisioning.
+journey copies only the archive into a fresh working directory outside the
+checkout, uses `env -i` with an empty HOME and the system and SDK bin paths,
+and builds Tariff and a 100,000-line native program. It scans produced files for
+the checkout path and records command exit codes and output hashes in
+`evidence/sdk-journey.json`; see [archive-only verification](SDK.md#archive-only-verification).
+This is a clean-environment and working-directory check, not filesystem or VM
+isolation. Archive extraction is excluded from the serial comparison as tool
+provisioning.
 
 | Measure | Lang source | Lang SDK | flex/Bison | ANTLR Python target |
 |---|---:|---:|---:|---:|

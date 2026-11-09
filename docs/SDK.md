@@ -73,26 +73,20 @@ The [comparison](compare-yacc-antlr.md) retains the source-build arm alongside i
 ## Archive-only verification
 
 `scripts/check_sdk.py package` checks two independent builds for identical bytes
-and records both receipts. `scripts/sdk_vm.py` runs the stranger journey on a
-separate diskless Linux VM. Its allowlisted initramfs contains the archive,
-Clang 19 and system C tools, Python for recording commands, and a small boot shim.
-It has no Lang checkout, bootstrap seed, attached disk, host filesystem share or
-network device. The complete input inventory and serial transcript accompany
-`sdk-journey.json`; each consumer command records its exit code and elapsed time.
-The journey extracts into an empty directory, builds both tiny and Tariff reader
-compilers, runs their native results, and checks missing Clang and linker messages.
+and records both receipts. For the archive journey, copy only the SDK archive
+into a fresh empty working directory outside the checkout, create an empty HOME,
+and extract it with `env -i HOME="$PWD/home" PATH=/usr/bin:/bin tar -xJf ARCHIVE`
+after creating `home` in that directory.
+Run the consumer commands from that directory with `env -i`, the empty HOME,
+and PATH set to `/usr/bin:/bin` plus the unpacked SDK's `bin`. System Clang and
+the C toolchain remain available through that PATH.
 
-The host runs QEMU/KVM as an ordinary user. The boot shim immediately drops to
-UID/GID 1000, then creates an unprivileged user/PID namespace and mounts PID-only
-proc there with only UID/GID 1000 mapped. No consumer command runs as root, and
-the recording process checks that it has no effective capabilities. Verification
-requires a Linux kernel supporting unprivileged `subset=pid` proc mounts (the
-recorded VM uses Debian Linux 7.2.15), QEMU firmware and user access to KVM;
-these are proof infrastructure, not SDK consumer prerequisites. Pass their paths
-with `--kernel`, `--qemu`, and `--bios`, and keep `--evidence` and `--scratch`
-outside the checkout. SDK packaging and comparison use `--tools` for the pinned
-comparison toolchain. The lighter `check_sdk.py missing` check retains Landlock
-as a supplemental dependency probe; it does not establish checkout absence.
-Older kernels may reject this rootless boot setup before any SDK command runs;
-use a suitable guest kernel, without replacing or modifying the host kernel.
-See the Linux [proc mount restrictions](https://docs.kernel.org/filesystems/proc.html#mount-restrictions).
+Use the SDK's Tariff sources to build the reader, generate a 100,000-line Tariff
+program, compile it to a native executable, and run it. Scan every produced file
+for the checkout path and fail if it appears. Record each command, its exit code,
+and output hashes in `evidence/sdk-journey.json`, alongside the archive hash and
+scan result. This checks an archive-only working directory and a clean environment;
+it does not isolate the process from the host filesystem or prove VM isolation.
+The separate `check_sdk.py missing` check uses Landlock as a supplemental
+dependency probe. SDK packaging and comparison accept `--tools` for the pinned
+comparison toolchain.
