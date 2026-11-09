@@ -70,7 +70,8 @@ def main():
                 'contracts; source-order alternative indexes; lexical rule boundaries; no OS kernel '
                 'tests, full suites, fixed points, bootstrap changes or web regeneration'})
         replay.run(['make', 'init'], 'init', clone)
-        compiler = str(clone / 'out/lang')
+        replay.run(['make', 'build'], 'build-current-sources', clone)
+        compiler = str(clone / 'out/lang_next')
         fixture = clone / 'test/reader_author/fixtures/captures/contracts.lang'
         ir = scratch / 'contracts.ll'
         binary = scratch / 'contracts'

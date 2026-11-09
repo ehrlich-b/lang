@@ -154,6 +154,7 @@ def main():
         original_web = replay.run(['git', 'show', INTEGRATION_BASE + ':web/build_stdlib.js'], 'original-web-builder', ROOT).stdout.decode()
         expected_web = original_web.replace("  'std/parser_runtime.lang',", "  'std/capture_contract.lang',\n  'std/reader_request.lang',\n  'std/parser_inspect.lang',\n  'std/parser_runtime.lang',")
         require((ROOT / 'web/build_stdlib.js').read_text() == expected_web, 'unexpected web builder changes')
+        replay.run(['make', 'generate-os-layer'], 'generate-os-layer', ROOT)
         generated_stdlib = scratch / 'stdlib.json'
         replay.run(['node', 'web/build_stdlib.js', str(generated_stdlib)], 'generate-web-stdlib', ROOT)
         stdlib_names = list(json.loads((ROOT / 'web/stdlib.json').read_text()))
