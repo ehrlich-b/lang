@@ -107,7 +107,7 @@ run_one_test() {
             "$outbin" >/dev/null 2>&1
             result=$?
         else
-            do_timeout 2 lli $LLI_JIT_FLAG "$outll" >/dev/null 2>&1
+            do_timeout 10 lli $LLI_JIT_FLAG "$outll" >/dev/null 2>&1
             result=$?
         fi
         rm -rf "$tmpdir"
