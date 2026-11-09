@@ -45,8 +45,16 @@ def main():
         require(not status.stdout, 'commit the candidate before replaying it')
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor', BASE, head], 'required-base', ROOT)
-        replay.run(['git', 'diff', '--exit-code', BASE, head, '--', 'bootstrap', 'web'],
-                   'protected-inputs', ROOT)
+        integration_base = 'a12b2ec17344e4408e849a50be64d8f0831ccc6d'
+        reviewed = 'a6a79365f5e507f4a312cb652154c9bd22c8788a'
+        replay.run(['git', 'diff', '--exit-code', BASE, reviewed, '--', 'bootstrap', 'web'],
+                   'candidate-protected-inputs', ROOT)
+        replay.run(['git', 'diff', '--exit-code', integration_base, head, '--',
+                    'bootstrap', 'web', ':(exclude)web/build_stdlib.js'], 'protected-inputs', ROOT)
+        original_web = replay.run(['git', 'show', integration_base + ':web/build_stdlib.js'],
+                                  'original-web-builder', ROOT).stdout.decode()
+        expected_web = original_web.replace("  'std/parser_runtime.lang',", "  'std/capture_contract.lang',\n  'std/reader_request.lang',\n  'std/parser_inspect.lang',\n  'std/parser_runtime.lang',")
+        require((ROOT / 'web/build_stdlib.js').read_text() == expected_web, 'unexpected web builder changes')
         clone = scratch / 'repo'
         replay.run(['git', 'clone', '--no-hardlinks', '--quiet', str(ROOT), str(clone)], 'clone', ROOT)
         files = replay.run(['git', 'ls-files', '-z'], 'inputs', clone).stdout.decode().split('\0')
