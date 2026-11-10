@@ -2,6 +2,8 @@
 """Compare every published asset with a verified site's MANIFEST."""
 import argparse
 import hashlib
+from html.parser import HTMLParser
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -9,6 +11,17 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+
+
+class DownloadLinks(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.links = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'a':
+            self.links.extend(value for key, value in attrs
+                              if key == 'href' and value and value.startswith('releases/'))
 
 
 def main():
@@ -26,6 +39,22 @@ def main():
                         args.archive, temporary], check=True)
         files = (Path(temporary) / '.files').read_text().splitlines()
         base_url = args.url.rstrip('/') + '/'
+        links = DownloadLinks()
+        links.feed((Path(temporary) / 'index.html').read_text(encoding='utf-8'))
+        if len(links.links) != 1 or not re.fullmatch(
+                r'releases/lang-[A-Za-z0-9_.+\-]+-x86_64-linux\.tar\.xz',
+                links.links[0]):
+            failures.append('index.html: expected one versioned Linux SDK link')
+        else:
+            url = base_url + links.links[0]
+            try:
+                request = urllib.request.Request(url, headers={
+                    'User-Agent': 'lang-site-verifier/1.0', 'Accept-Encoding': 'identity'})
+                with urllib.request.urlopen(request, timeout=15) as response:
+                    while response.read(1024 * 1024):
+                        pass
+            except (OSError, urllib.error.URLError) as error:
+                failures.append(links.links[0] + ': ' + str(error))
         # The directory homepage and ordinary asset URLs are what visitors use.
         # Cache-busted requests alone can hide stale or missing public responses.
         targets = [('', 'index.html')] + [(name, name) for name in files]
@@ -52,7 +81,7 @@ def main():
     if failures:
         print('Live site verification FAILED:\n' + '\n'.join(failures), file=sys.stderr)
         return 1
-    print(f'PASS: all {len(files)} live assets match the release at {args.url}')
+    print(f'PASS: all {len(files)} live assets match and the SDK download is reachable at {args.url}')
     return 0
 
 

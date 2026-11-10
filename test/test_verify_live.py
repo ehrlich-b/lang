@@ -14,6 +14,8 @@ import test_verify_archive as archive_fixture
 
 FILES = archive_fixture.FILES
 ROOT = archive_fixture.ROOT
+SDK = 'releases/lang-0.1.0+test-x86_64-linux.tar.xz'
+INDEX = f'<a href="{SDK}">Download SDK</a>'.encode()
 
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -41,13 +43,15 @@ class LiveTest(unittest.TestCase):
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
         self.directory = fixture.root
-        self.archive = fixture.archive(FILES)
+        self.archive = fixture.archive(FILES, {'index.html': INDEX})
         self.site = self.directory / 'site'
         self.site.mkdir()
         for name in FILES:
             file = self.site / name
             file.parent.mkdir(parents=True, exist_ok=True)
-            file.write_bytes(name.encode())
+            file.write_bytes(INDEX if name == 'index.html' else name.encode())
+        (self.site / SDK).parent.mkdir()
+        (self.site / SDK).write_bytes(b'sdk archive')
         server = http.server.ThreadingHTTPServer(
             ('127.0.0.1', 0), partial(QuietHandler, directory=str(self.site)))
         server.missing_assets = set()
@@ -70,7 +74,7 @@ class LiveTest(unittest.TestCase):
     def test_exact_site_passes(self):
         self.assertEqual(self.check().returncode, 0)
         canonical = {path for path, cache in self.server.requests if not cache}
-        self.assertEqual(canonical, {'/'} | {'/' + name for name in FILES})
+        self.assertEqual(canonical, {'/', '/' + SDK} | {'/' + name for name in FILES})
         cache_busted = {urllib.parse.urlsplit(path).path
                         for path, cache in self.server.requests if cache == 'no-cache'}
         self.assertEqual(cache_busted, {'/' + name for name in FILES})
@@ -87,6 +91,12 @@ class LiveTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('polyglot_wasm.wasm: HTTP Error 404', result.stderr)
 
+    def test_missing_sdk_fails(self):
+        self.server.missing_assets.add('/' + SDK)
+        result = self.check()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(SDK + ': HTTP Error 404', result.stderr)
+
     def test_path_prefix_passes(self):
         (self.directory / 'site-with-prefix').mkdir()
         # Serve this same site below a path, as on ehrlich.dev/lang/.
@@ -94,7 +104,10 @@ class LiveTest(unittest.TestCase):
         for name in FILES:
             dest = self.directory / 'site-with-prefix' / name
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(name.encode())
+            dest.write_bytes(INDEX if name == 'index.html' else name.encode())
+        sdk = self.directory / 'site-with-prefix' / SDK
+        sdk.parent.mkdir()
+        sdk.write_bytes(b'sdk archive')
         self.assertEqual(self.check(self.url + 'lang/').returncode, 0)
 
     def test_deploy_requires_public_bytes_to_match(self):
@@ -124,7 +137,10 @@ class LiveTest(unittest.TestCase):
         for name in FILES:
             dest = self.site / 'lang' / name
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(name.encode())
+            dest.write_bytes(INDEX if name == 'index.html' else name.encode())
+        sdk = self.site / 'lang' / SDK
+        sdk.parent.mkdir()
+        sdk.write_bytes(b'sdk archive')
         env = dict(os.environ, PATH=f'{tools}:{os.environ["PATH"]}',
                    REAL_PYTHON=sys.executable, TEST_SITE_URL=self.url.rstrip('/'),
                    TRANSPORT_LOG=str(transport_log))
@@ -134,6 +150,7 @@ class LiveTest(unittest.TestCase):
             failures = (
                 ('stale', 'index.html: published bytes differ'),
                 ('missing', 'polyglot_wasm.wasm: HTTP Error 404'),
+                ('missing SDK', SDK + ': HTTP Error 404'),
                 ('stale root', '/' + prefix + ': published bytes differ'),
                 ('missing root', '/' + prefix + ': HTTP Error 404'),
                 ('stale ordinary index', 'index.html: published bytes differ'),
@@ -147,6 +164,8 @@ class LiveTest(unittest.TestCase):
                         index.write_text('previous release')
                     elif failure == 'missing':
                         self.server.missing_assets.add('/' + prefix + 'examples/polyglot_wasm.wasm')
+                    elif failure == 'missing SDK':
+                        self.server.missing_assets.add('/' + prefix + SDK)
                     else:
                         path = '/' + prefix
                         if 'index' in failure:
@@ -160,7 +179,7 @@ class LiveTest(unittest.TestCase):
                                              str(self.archive)], env=env, capture_output=True, text=True)
                     attempts += 1
                     second_site_checks += int(bool(prefix))
-                    index.write_bytes(b'index.html')
+                    index.write_bytes(INDEX)
                     self.server.missing_assets.clear()
                     self.server.responses.clear()
                     self.assertNotEqual(result.returncode, 0)

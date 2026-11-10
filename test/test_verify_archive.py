@@ -24,12 +24,12 @@ class ArchiveTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
 
-    def archive(self, names):
+    def archive(self, names, contents=None):
         path = self.root / 'site.tar.gz'
         with tarfile.open(path, 'w:gz') as tar:
             manifest = []
             for name in names:
-                data = name.encode()
+                data = (contents or {}).get(name, name.encode())
                 item = tarfile.TarInfo(name)
                 item.size = len(data)
                 tar.addfile(item, io.BytesIO(data))
