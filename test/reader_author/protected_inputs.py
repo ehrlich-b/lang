@@ -6,7 +6,7 @@ base = '42531cc'
 reviewed = '658e865'
 paths = ('web/verify_live.py', 'web/test_verify_live.py')
 subprocess.run(['git', 'diff', '--exit-code', base, 'HEAD', '--',
-                'bootstrap/current', 'web', *(':(exclude)' + p for p in paths)], check=True)
+                'bootstrap', 'web', *(':(exclude)' + p for p in paths)], check=True)
 for path in paths:
     actual = subprocess.check_output(['git', 'show', 'HEAD:' + path])
     expected = subprocess.check_output(['git', 'show', reviewed + ':' + path])
