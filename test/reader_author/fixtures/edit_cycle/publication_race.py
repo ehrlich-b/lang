@@ -41,6 +41,9 @@ def edit_after_probe(self):
     global injected, completed_probes, seen_active
     if self.active is not None:
         seen_active = True
+        # Exercise the first completed-build probe deterministically.
+        if boundary == 'probe' and not injected:
+            self.active['process'].wait(timeout=60)
         if self.active['process'].poll() == 0:
             completed_probes = 1
     elif completed_probes:
