@@ -27,13 +27,29 @@
     lang&rsquo;s kernel and you get a native compiler for your syntax.
   </p>
 
-  <pre class="command"><code>$ git clone \
-  https://gitlab.com/ehrlich-b/lang
-$ cd lang
-$ make init
-$ make generate-os-layer</code></pre>
+  <h2>start with the SDK</h2>
+  <p>This release runs on Linux x86-64 with glibc 2.41 or newer, not macOS,
+    Windows, or ARM. You need <code>/bin/sh</code>, <code>curl</code>,
+    <code>sha256sum</code>, XZ-capable <code>tar</code>, Clang and the system C
+    development toolchain (headers, libc, startup objects and <code>ld</code>).
+    Clang 19.1.7 built this release; use that version for this walkthrough.
+    On Debian/Ubuntu, ask your administrator for <code>clang-19 build-essential
+    binutils xz-utils curl</code> and put Clang 19 on PATH as <code>clang</code>.</p>
+  <p>Start in an empty directory. Download this existing release, check its
+    SHA-256 before extracting, then keep the extracted SDK directory intact.
+    You do not need Git, make, Python or a Lang source checkout.</p>
+  <pre class="command" id="sdk-setup"><code>set -eu
+curl --fail --location --output lang-0.1.0+e5b90e2f0538-x86_64-linux.tar.xz \
+  'https://lang.ehrlich.dev/releases/lang-0.1.0+e5b90e2f0538-x86_64-linux.tar.xz'
+printf '%s  %s\n' '310c6467386ca7f5375b3136d807e3acf7b669bfcd9d740f048f5f6aa80a0424' \
+  'lang-0.1.0+e5b90e2f0538-x86_64-linux.tar.xz' | sha256sum --check -
+tar -xJf lang-0.1.0+e5b90e2f0538-x86_64-linux.tar.xz
+export SDK="$PWD/lang-0.1.0+e5b90e2f0538-x86_64-linux"
+mkdir 'my first reader'
+cd 'my first reader'</code></pre>
 
   <h2>the complete reader</h2>
+  <p>Save this as <code>tiny.lang</code> in <code>my first reader</code>:</p>
   <pre><code>// tiny.lang: `answer 42` becomes a native program.
 
 include "std/tok.lang"
@@ -67,19 +83,38 @@ reader tiny(text *u8) *u8 {
   <p>Accept the whole source before returning an AST. Whitespace and comments
     may follow the number; extra tokens must fail.</p>
 
-  <p>Compile and run the checked-in example:</p>
-  <pre class="command"><code>$ ./out/lang run example/tiny/tiny.lang example/tiny/answer.tiny
-$ echo $?
-42</code></pre>
+  <h2>mint and run your compiler</h2>
+  <p>The SDK compiles your reader into the native <code>tinyc</code> compiler.
+    That compiler turns <code>answer 42</code> into LLVM; Clang links the native
+    program. These commands build your reader and program using the released
+    compiler.</p>
+  <pre class="command" id="sdk-build"><code>printf 'answer 42\n' &gt; answer.tiny
+"$SDK/bin/lang" compiler tiny tiny.lang -o tinyc
+./tinyc answer.tiny -o answer.ll
+clang -O2 answer.ll -o answer
+status=0
+./answer || status=$?
+printf 'answer returned %s\n' "$status"
+test "$status" -eq 42</code></pre>
+  <p>After the compiler&rsquo;s <code>Wrote</code> messages, expect
+    <code>answer returned 42</code>. The program communicates
+    its answer through its exit status. Clang may also print a target-triple
+    override warning when linking.</p>
 
-  <h2>mint the compiler</h2>
-  <pre class="command"><code>$ ./out/lang compiler tiny example/tiny/tiny.lang -o tinyc
-$ ./tinyc example/tiny/answer.tiny -o answer.ll</code></pre>
-  <p>
-    <code>tinyc</code> is the compiler. Your reader supplies syntax and lowering;
-    the kernel supplies the type system, LLVM backend, native and wasm targets,
-    and the ABI shared with every other reader.
-  </p>
+  <h2>try an error</h2>
+  <pre class="command" id="sdk-malformed"><code>printf 'answer nope\n' &gt; malformed.tiny
+./tinyc malformed.tiny -o malformed.ll</code></pre>
+  <p>This command must fail with <code>malformed.tiny:1:8: expected number</code>
+    in its diagnostic.</p>
+
+  <h2>contributor path: build from source</h2>
+  <p>For compiler development, install Git, GNU make, Python 3 and Clang with
+    the system C toolchain. This separate path builds Lang from source:</p>
+  <pre class="command" id="source-build"><code>git clone https://gitlab.com/ehrlich-b/lang
+cd lang
+make build
+./out/lang_next new reader tiny
+./out/lang_next compiler tiny tiny.lang -o tinyc</code></pre>
 
   <h2>grow it</h2>
   <p>
