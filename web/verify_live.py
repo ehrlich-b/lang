@@ -81,24 +81,8 @@ def published_matches(name, expected, actual):
     if len(spans) != 1:
         return False
     start, end = spans[0]
-    # Cloudflare can put its tag on a new line even between adjacent closing
-    # tags. Permit the tag's trailing line ending, plus a leading line ending
-    # only when it separates otherwise adjacent content. Never collapse blank
-    # lines or rewrite any other whitespace.
-    if actual[:start] + actual[end:] == expected:
-        return True
-    for ending in (b'\r\n', b'\n'):
-        if actual[end:].startswith(ending):
-            suffix = actual[end + len(ending):]
-            if actual[:start] + suffix == expected:
-                return True
-            if actual[:start].endswith(ending):
-                prefix = actual[:start - len(ending)]
-                if (not prefix.endswith((b'\r', b'\n'))
-                        and not suffix.startswith((b'\r', b'\n'))
-                        and prefix + suffix == expected):
-                    return True
-    return False
+    # Only the tag itself may differ; surrounding bytes must stay exact.
+    return actual[:start] + actual[end:] == expected
 
 
 def main():

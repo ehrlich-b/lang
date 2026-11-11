@@ -34,10 +34,29 @@ class PublishedMatchesTests(unittest.TestCase):
             for tag in (BEACON, BEACON.replace(b'defer', b'type="module"'),
                         b"<SCRIPT src='https://static.cloudflareinsights.com/"
                         b"beacon.min.js'></SCRIPT>"):
-                for extra in (tag, tag + b'\n', tag + b'\r\n'):
-                    with self.subTest(name=name, extra=extra):
-                        actual = PAGE.replace(b'</body>', extra + b'</body>')
-                        self.assertTrue(verify_live.published_matches(name, PAGE, actual))
+                with self.subTest(name=name, tag=tag):
+                    actual = PAGE.replace(b'</body>', tag + b'</body>')
+                    self.assertTrue(verify_live.published_matches(name, PAGE, actual))
+
+    def test_only_beacon_bytes_may_be_inserted(self):
+        expected = b'<body>release</body>'
+        self.assertTrue(verify_live.published_matches(
+            'index.html', expected, b'<body>release' + BEACON + b'</body>'))
+        actual = b'<body>release\n' + BEACON + b'\n</body>'
+        self.assertFalse(verify_live.published_matches('index.html', expected, actual))
+
+    def test_added_line_endings_and_blank_lines_fail(self):
+        expected = b'<body>release</body>'
+        for ending in (b'\n', b'\r\n', b'\n\n', b'\r\n\r\n'):
+            for prefix, suffix in ((ending, b''), (b'', ending), (ending, ending)):
+                for actual in (
+                        prefix + expected + suffix,
+                        prefix + expected + BEACON + suffix,
+                        b'<body>release' + prefix + BEACON + suffix + b'</body>'):
+                    with self.subTest(ending=ending, prefix=prefix, suffix=suffix,
+                                      actual=actual):
+                        self.assertFalse(verify_live.published_matches(
+                            'index.html', expected, actual))
 
     def test_two_beacons_fail(self):
         for extra in (BEACON * 2, (BEACON + b'\n') * 2):
@@ -47,13 +66,22 @@ class PublishedMatchesTests(unittest.TestCase):
     def test_beacon_between_adjacent_closing_tags(self):
         for ending in (b'\n', b'\r\n'):
             expected = b'<html><body><main>release</main></body></html>' + ending
-            actual = expected.replace(b'</body>', ending + BEACON + ending + b'</body>')
+            actual = expected.replace(b'</body>', BEACON + b'</body>')
             self.assertTrue(verify_live.published_matches('readers.html', expected, actual))
             self.assertFalse(verify_live.published_matches(
                 'readers.html', expected, actual.replace(b'<main>', b'<main> ')))
 
+    def test_existing_whitespace_and_non_ascii_bytes_are_preserved(self):
+        for whitespace in (b'\n', b'\r\n', b'\n\n', b'\r\n\r\n', b' \t'):
+            expected = b'<body>caf\xc3\xa9\xff' + whitespace + b'</body>'
+            for offset in (0, expected.index(b'</body>'), len(expected)):
+                actual = expected[:offset] + BEACON + expected[offset:]
+                with self.subTest(whitespace=whitespace, offset=offset):
+                    self.assertTrue(verify_live.published_matches(
+                        'index.html', expected, actual))
+
     def test_any_other_page_change_fails(self):
-        injected = PAGE.replace(b'</body>', BEACON + b'\n</body>')
+        injected = PAGE.replace(b'</body>', BEACON + b'</body>')
         for actual in (injected.replace(b'SDK', b'changed'), injected + b' ',
                        injected.replace(b'caf\xc3\xa9', b'cafe'),
                        injected.replace(b'<a ', b'<a  '),
@@ -66,6 +94,8 @@ class PublishedMatchesTests(unittest.TestCase):
                     b'https://static.cloudflareinsights.com.evil/beacon.min.js',
                     b'https://static.cloudflareinsights.com@evil/beacon.min.js',
                     b'https://static.cloudflareinsights.com/other.js',
+                    b'https://static.cloudflareinsights.com/beacon.min.js?extra=1',
+                    b'https://static.cloudflareinsights.com/beacon.min.js#extra',
                     b'http://static.cloudflareinsights.com/beacon.min.js'):
             tag = b'<script src="' + src + b'"></script>'
             with self.subTest(src=src):
@@ -73,6 +103,8 @@ class PublishedMatchesTests(unittest.TestCase):
 
     def test_nonempty_or_malformed_beacon_fails(self):
         for tag in (BEACON.replace(b'></script>', b'>alert(1)</script>'),
+                    BEACON.replace(b'></script>', b'>\n</script>'),
+                    BEACON.replace(b'></script>', b'><!--comment--></script>'),
                     BEACON.replace(b'</script>', b''),
                     BEACON.replace(b'></script>', b'/>'),
                     BEACON.replace(b'defer', b'onload="alert(1)"'),
@@ -89,8 +121,9 @@ class PublishedMatchesTests(unittest.TestCase):
 
     def test_non_html_assets_remain_exact(self):
         for name in ('host.js', 'compiler.wasm', 'receipt.json', 'examples/fib.lang'):
-            with self.subTest(name=name):
-                self.assertFalse(verify_live.published_matches(name, PAGE, PAGE + BEACON))
+            for actual in (PAGE + BEACON, PAGE + b'\n', PAGE.replace(b'SDK', b'changed')):
+                with self.subTest(name=name, actual=actual):
+                    self.assertFalse(verify_live.published_matches(name, PAGE, actual))
 
 
 class LiveVerifierTests(unittest.TestCase):
@@ -113,7 +146,8 @@ class LiveVerifierTests(unittest.TestCase):
                     info = tarfile.TarInfo(name)
                     info.size = len(data)
                     tar.addfile(info, io.BytesIO(data))
-            for mode in ('unchanged', 'one', 'two', 'changed', 'binary', 'ordinary', 'cache-busted'):
+            for mode in ('unchanged', 'one', 'two', 'changed', 'binary', 'ordinary',
+                         'cache-busted', 'leading-lf', 'trailing-crlf', 'around-tag'):
                 requests = []
 
                 def fetch(request, timeout):
@@ -125,7 +159,14 @@ class LiveVerifierTests(unittest.TestCase):
                     data = files[path]
                     if path.endswith('.html') and mode != 'unchanged':
                         count = 2 if mode == 'two' else 1
-                        data = data.replace(b'</body>', (BEACON + b'\n') * count + b'</body>')
+                        tag = BEACON * count
+                        if mode == 'around-tag':
+                            tag = b'\n' + tag + b'\n'
+                        data = data.replace(b'</body>', tag + b'</body>')
+                        if mode == 'leading-lf':
+                            data = b'\n' + data
+                        if mode == 'trailing-crlf':
+                            data += b'\r\n'
                     if mode == 'changed' and path.endswith('.html'):
                         data += b'changed'
                     if mode == 'binary' and path == 'compiler.wasm':
