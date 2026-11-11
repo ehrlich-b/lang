@@ -244,7 +244,8 @@ mixing debug output into `lang read`'s AST stdout.
 
 Use `tok_print_error_snippet(tokens, "mylang")` to append the offending source
 line and a caret run to the same diagnostic line. New `lang new language`
-projects use this helper. It preserves tabs in the padding, counts UTF-8
+projects use this helper. It preserves tabs in the padding, underlines tabs
+inside the span through the next eight-column tab stop, counts other UTF-8
 scalars as one display cell, and strips the CR from CRLF line endings. An empty
 span, including EOF, gets one caret; a multiline token is underlined through
 the end of its first line. Line and column numbers remain byte based.

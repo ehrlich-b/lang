@@ -40,6 +40,8 @@ def main():
         ('eof', '', b"fixture:2:4: expected '=', found end of input @10:10\nkey\n   ^\n"),
         ('eof-newline', '', b"fixture:2:1: expected '=', found end of input @7:7\n\n^\n"),
         ('utf8-token', 'é', "fixture:2:1: expected '=', found é @7:9\né\n^\n".encode()),
+        ('tab-token', '"a\tb"', b"fixture:2:1: expected '=', found \"a\tb\" @7:12\n\"a\tb\"\n^^^^^^^^^^\n"),
+        ('tab-token-prefix', '"a\tb"', "fixture:2:5: expected '=', found \"a\tb\" @11:16\n\té \"a\tb\"\n\t  ^^^^^^^^\n".encode()),
     ]
     for name, token, expected in cases:
         command = [scratch / 'driver', FIXTURES / (name + '.source'), token]
