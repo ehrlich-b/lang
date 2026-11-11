@@ -1,0 +1,61 @@
+// expect: 0
+// A repeated rule can rewind past the mismatch that explains an invalid line.
+include "std/parser_reader.lang"
+
+#parser{
+    file = line*
+    line = symbol '=' number
+}
+
+func main() i64 {
+    var missing *Tokenizer = tok_new("a = 1\nworkers 4\n");
+    if parse_file(missing) == nil { return 1; }
+    if tok_expect_end(missing) { return 2; }
+    tok_print_error(missing, "missing-equals");
+    if tok_error_line(missing) != 2 || tok_error_column(missing) != 9 { return 3; }
+    if !streq(tok_error_expected(missing), "'='") { return 4; }
+    if !streq(tok_error_found(missing), "4") { return 5; }
+    if tok_error_offset(missing) != 14 || tok_error_end_offset(missing) != 15 { return 6; }
+
+    // At the remaining token itself, a speculative mismatch loses to EOF.
+    var trailing *Tokenizer = tok_new("a = 1\n!");
+    if parse_file(trailing) == nil { return 7; }
+    if tok_expect_end(trailing) { return 8; }
+    tok_print_error(trailing, "trailing-token");
+    if tok_error_line(trailing) != 2 || tok_error_column(trailing) != 1 { return 9; }
+    if !streq(tok_error_expected(trailing), "end of input") { return 10; }
+    if !streq(tok_error_found(trailing), "!") { return 11; }
+    if tok_error_offset(trailing) != 6 || tok_error_end_offset(trailing) != 7 { return 12; }
+
+    // A deeper mismatch at EOF also survives the repetition's rewind.
+    var unfinished *Tokenizer = tok_new("a = 1\nworkers =");
+    if parse_file(unfinished) == nil || tok_expect_end(unfinished) { return 13; }
+    if !streq(tok_error_expected(unfinished), "number") { return 14; }
+    if !streq(tok_error_found(unfinished), "end of input") { return 15; }
+    if tok_error_line(unfinished) != 2 || tok_error_column(unfinished) != 10 { return 16; }
+
+    // A complete root succeeds despite the mismatch that stopped line*.
+    var complete *Tokenizer = tok_new("a = 1\n");
+    if parse_file(complete) == nil || !tok_expect_end(complete) { return 17; }
+
+    // Supplied token streams use source byte offsets, not stream indices.
+    var stream *u8 = tok_stream_new();
+    tok_stream_push(stream, TOK_IDENT, 0, 1, nil);
+    tok_stream_push(stream, TOK_EQ, 2, 1, nil);
+    tok_stream_push(stream, TOK_NUMBER, 4, 1, nil);
+    tok_stream_push(stream, TOK_IDENT, 6, 7, nil);
+    tok_stream_push(stream, TOK_NUMBER, 14, 1, nil);
+    var supplied *Tokenizer = tok_new_stream("a = 1\nworkers 4\n", stream);
+    if parse_file(supplied) == nil || tok_expect_end(supplied) { return 18; }
+    if tok_error_offset(supplied) != 14 || tok_error_end_offset(supplied) != 15 { return 19; }
+    if !streq(tok_error_expected(supplied), "'='") { return 20; }
+
+    // With an older mismatch behind the remaining token, EOF wins too.
+    var earlier *Tokenizer = tok_new("a !");
+    tok_note_expected(earlier, "number");
+    tok_next(earlier);
+    if tok_expect_end(earlier) { return 21; }
+    if !streq(tok_error_expected(earlier), "end of input") { return 22; }
+    if tok_error_offset(earlier) != 2 || tok_error_end_offset(earlier) != 3 { return 23; }
+    return 0;
+}

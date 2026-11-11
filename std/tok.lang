@@ -652,11 +652,12 @@ pub func tok_note_expected(t *Tokenizer, expected *u8) void {
     *(t.error_expected + t.error_expected_len) = 0;
 }
 
-// Call only after a successful root parse: speculative failures inside it no
-// longer describe the error. The remaining token violates the input boundary.
+// Call only after a successful root parse. A mismatch beyond the remaining
+// token explains a rewound partial match; otherwise report the input boundary.
 pub func tok_expect_end(t *Tokenizer) bool {
     if t.comment_error >= 0 { return false; }
     if tok_eof(t) { return true; }
+    if t.error_pos > t.tok_start { return false; }
     t.error_pos = -1;
     t.error_expected_len = 0;
     *t.error_expected = 0;

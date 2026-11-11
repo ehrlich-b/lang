@@ -35,10 +35,14 @@ func main() i64 {
 Each rule creates `parse_<rule>(tokens)`. A parser returns `nil` when it does
 not match. After a successful root parse, call `tok_expect_end(tokens)` at the
 reader boundary; a successful prefix is not necessarily a complete program.
-The helper returns true at EOF; otherwise it replaces speculative failures with
-`expected end of input` at the remaining token, including its exact UTF-8 byte
-span. Call it only when the root is non-nil, so a failed parse keeps its furthest
-mismatch. Use an explicit guard as above on both native and browser hosts. Name the
+The helper returns true at EOF. With input remaining, it keeps the furthest
+recorded mismatch if that mismatch lies beyond the remaining token's start;
+otherwise it reports `expected end of input` at the remaining token. Both errors
+include the exact UTF-8 byte span. For example, with `file = line*` and
+`line = symbol '=' number`, `a = 1\nworkers 4\n` reports `expected '='` at 2:9,
+while `a = 1\n!` reports `expected end of input` at 2:1. Call it only when the
+root is non-nil, so a failed parse keeps its furthest mismatch. Use an explicit
+guard as above on both native and browser hosts. Name the
 children used by lowering and retrieve them with `pnode_get` or
 `pnode_require`; `pnode_child(node, index)` remains available for old grammars.
 

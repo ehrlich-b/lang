@@ -17,11 +17,11 @@ func main() i64 {
     tok_reset(tokens, 0);
     if tok_error_offset(tokens) != 22 || tok_error_end_offset(tokens) != 26 { return 6; }
     if !streq(tok_error_found(tokens), "🧭") { return 7; }
-    // A successful prefix instead reports the current full-input boundary.
+    // A deeper mismatch survives the successful prefix's input-boundary check.
     if tok_expect_end(tokens) { return 8; }
-    if !streq(tok_error_expected(tokens), "end of input") { return 9; }
-    if !streq(tok_error_found(tokens), "é") { return 10; }
-    if tok_error_offset(tokens) != 17 || tok_error_end_offset(tokens) != 19 { return 11; }
+    if !streq(tok_error_expected(tokens), "number") { return 9; }
+    if !streq(tok_error_found(tokens), "🧭") { return 10; }
+    if tok_error_offset(tokens) != 22 || tok_error_end_offset(tokens) != 26 { return 11; }
 
     var stream *u8 = tok_stream_new();
     tok_stream_push(stream, TOK_USER, 2, 0, "indent");
