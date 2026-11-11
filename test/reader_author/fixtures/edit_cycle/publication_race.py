@@ -16,6 +16,7 @@ Watch = host['Watch']
 original_inputs = Watch.inputs
 injected = False
 completed_probes = 0
+seen_active = False
 
 
 def edit_guest():
@@ -37,11 +38,16 @@ def edit_guest():
 
 
 def edit_after_probe(self):
-    global injected, completed_probes
-    if self.active is not None and self.active['process'].poll() == 0:
-        completed_probes = 1
+    global injected, completed_probes, seen_active
+    if self.active is not None:
+        seen_active = True
+        if self.active['process'].poll() == 0:
+            completed_probes = 1
     elif completed_probes:
         completed_probes += 1
+    elif seen_active:
+        # The build can finish after the tick probe but before its poll.
+        completed_probes = 2
     if completed_probes and self.output.exists():
         raise RuntimeError('provisional output visible during publication probe')
     value = original_inputs(self)
