@@ -79,7 +79,11 @@ def main():
             result = subprocess.run([str(output / 'harbor-config'), str(source)], capture_output=True, text=True)
             assert result.returncode == record['exit'], record['file']
             assert result.stdout == record['stdout'], record['file']
-            assert result.stderr == record['stderr'], record['file']
+            # Recorded diagnostics contain the trial's original absolute path.
+            # Require the same diagnostic at the relocated input path.
+            expected_stderr = re.sub(r'^.*?(?=:\d+:\d+:)', lambda _: str(source),
+                                     record['stderr'], count=1)
+            assert result.stderr == expected_stderr, record['file']
         assert (evidence / 'harbor-config').read_bytes().startswith(b'\x7fELF')
         print('PASS: pinned public SDK replay; native sample exit 0; ten config cases reproduced')
     elif args.case == 'A3':

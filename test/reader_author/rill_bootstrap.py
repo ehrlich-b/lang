@@ -15,7 +15,6 @@ from rill_export import archive, tree, validate
 
 BASE = '2d80f9c271437e33f7637304caa315cfe74afdb0'
 REVIEWED = 'a6a79365f5e507f4a312cb652154c9bd22c8788a'
-INTEGRATION_BASE = 'a12b2ec17344e4408e849a50be64d8f0831ccc6d'
 FIXTURES = 'test/reader_author/fixtures/rill/'
 
 
@@ -150,10 +149,8 @@ def main():
         replay.run(['git', 'merge-base', '--is-ancestor', BASE, head], 'required-base', ROOT)
         replay.run(['git', 'merge-base', '--is-ancestor', REVIEWED, head], 'reviewed-candidate', ROOT)
         replay.run(['git', 'diff', '--exit-code', BASE, REVIEWED, '--', 'bootstrap', 'web'], 'candidate-protected-inputs', ROOT)
-        replay.run(['git', 'diff', '--exit-code', INTEGRATION_BASE, head, '--', 'bootstrap', 'web', ':(exclude)web/build_stdlib.js'], 'protected-inputs', ROOT)
-        original_web = replay.run(['git', 'show', INTEGRATION_BASE + ':web/build_stdlib.js'], 'original-web-builder', ROOT).stdout.decode()
-        expected_web = original_web.replace("  'std/parser_runtime.lang',", "  'std/capture_contract.lang',\n  'std/reader_request.lang',\n  'std/parser_inspect.lang',\n  'std/parser_runtime.lang',")
-        require((ROOT / 'web/build_stdlib.js').read_text() == expected_web, 'unexpected web builder changes')
+        replay.run([sys.executable, '-B', 'test/reader_author/protected_inputs.py'],
+                   'protected-inputs', ROOT)
         replay.run(['make', 'init'], 'init-host', ROOT)
         generated_stdlib = scratch / 'stdlib.json'
         replay.run(['node', 'web/build_stdlib.js', str(generated_stdlib)], 'generate-web-stdlib', ROOT)
