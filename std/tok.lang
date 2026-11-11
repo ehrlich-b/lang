@@ -721,6 +721,19 @@ pub func tok_print_error(t *Tokenizer, label *u8) void {
                  tok_error_offset(t), tok_error_end_offset(t));
 }
 
+// Opt in to source context without changing the compact diagnostic above.
+// Carry the request through the diagnostic record so the host renders it only
+// after validating and mapping the source span; JSON stays structured.
+pub func tok_print_error_snippet(t *Tokenizer, label *u8) void {
+    if t.error_pos < 0 { tok_note_expected(t, "valid token"); }
+    var message *u8 = str_concat("expected ", tok_error_expected(t));
+    message = str_concat(message, ", found ");
+    message = str_concat(message, tok_error_found(t));
+    if label == nil || *label == 0 { label = "reader"; }
+    reader_error("reader-syntax-snippet", message, label, t.input,
+                 tok_error_offset(t), tok_error_end_offset(t));
+}
+
 // Parse the current number token as i64
 pub func tok_number(t *Tokenizer) i64 {
     var ptr *u8 = tok_text_ptr(t);

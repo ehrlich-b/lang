@@ -93,6 +93,23 @@ def main():
             result = replay.run([minted, name + '.parcel', '-o', name + '.ll'],
                                 'reject-' + name, project, expected=1)
             require(diagnostic in result.stderr, 'wrong negative fixture diagnostic: ' + name)
+            if name == 'syntax':
+                snippet = [b'parcel { base 10 free_over 100; }', b'                 ^^^^^^^^^']
+                require(len(result.stderr.splitlines()) == 3 and result.stderr.splitlines()[-2:] == snippet,
+                        'syntax rejection must show the source line and exact token caret run')
+                worker = replay.run([compiler, 'read', 'reader.lang', 'syntax.parcel'],
+                                    'reject-syntax-worker', project, expected=1)
+                require(not worker.stdout and worker.stderr.splitlines()[-2:] == snippet,
+                        'worker syntax rejection lost the snippet')
+                for tool, command in [('minted', [minted, 'syntax.parcel']),
+                                      ('worker', [compiler, 'read', 'reader.lang', 'syntax.parcel'])]:
+                    structured = replay.run(command + ['--diagnostics=json'],
+                                            'reject-syntax-json-' + tool, project, expected=1)
+                    records = [json.loads(line) for line in structured.stderr.splitlines()]
+                    require(not structured.stdout and len(records) == 1 and
+                            records[0]['code'] == 'reader-syntax-snippet' and
+                            records[0]['span'] == {'start': 17, 'end': 26} and
+                            '\n' not in records[0]['message'], 'snippet corrupted structured diagnostics')
             require(not (project / (name + '.ll')).exists(), 'rejected source emitted LLVM')
         # The minted compiler emits IR without compiler tools in PATH.
         saved_path = replay.env['PATH']

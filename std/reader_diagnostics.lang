@@ -42,6 +42,38 @@ pub func reader_diagnostic_valid(d *ReaderDiagnostic, text *u8) i64 {
     if b >= 128 && b < 192 { return 0; }
     return 1;
 }
+// Render the first source line intersecting the half-open byte span. Tabs in
+// the prefix are copied so terminal tab stops agree; each UTF-8 scalar takes
+// one padding/caret cell. CRLF is a single line ending. Empty spans (including
+// EOF) get one caret; multiline spans are clipped to the displayed line.
+func reader_diagnostic_snippet(text *u8, start i64, end i64) void {
+    var line_start i64 = start;
+    while line_start > 0 {
+        if *(text + line_start - 1) == 10 { break; }
+        line_start = line_start - 1;
+    }
+    var line_end i64 = start;
+    while *(text + line_end) != 0 && *(text + line_end) != 10 {
+        line_end = line_end + 1;
+    }
+    if line_end > line_start && *(text + line_end - 1) == 13 { line_end = line_end - 1; }
+    eprintln(str_dup_n(text + line_start, line_end - line_start));
+    var i i64 = line_start;
+    while i < start && i < line_end {
+        if *(text + i) == 9 { eprint("\t"); }
+        else if *(text + i) < 128 || *(text + i) >= 192 { eprint(" "); }
+        i = i + 1;
+    }
+    var carets i64 = 0;
+    while i < end && i < line_end {
+        if *(text + i) < 128 || *(text + i) >= 192 {
+            eprint("^"); carets = carets + 1;
+        }
+        i = i + 1;
+    }
+    if carets == 0 { eprint("^"); }
+    eprintln("");
+}
 pub func reader_diagnostic_text(d *ReaderDiagnostic, text *u8) void {
     eprint(d.source); eprint(":");
     if d.start >= 0 {
@@ -54,10 +86,13 @@ pub func reader_diagnostic_text(d *ReaderDiagnostic, text *u8) void {
         eprint_i64(line); eprint(":"); eprint_i64(column); eprint(":");
     }
     eprint(" "); eprint(d.message);
-    if streq(d.code, "reader-syntax") && d.start >= 0 {
+    if (streq(d.code, "reader-syntax") || streq(d.code, "reader-syntax-snippet")) && d.start >= 0 {
         eprint(" @"); eprint_i64(d.start); eprint(":"); eprint_i64(d.end);
     }
     eprintln("");
+    if streq(d.code, "reader-syntax-snippet") && d.start >= 0 {
+        reader_diagnostic_snippet(text, d.start, d.end);
+    }
 }
 pub func reader_diagnostic_emit(d *ReaderDiagnostic, text *u8) void {
     reader_diagnostic_count = reader_diagnostic_count + 1;

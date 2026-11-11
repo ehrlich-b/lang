@@ -1,0 +1,22 @@
+include "std/core.lang"
+include "std/parser_runtime.lang"
+
+func main(argc i64, argv **u8) i64 {
+    var fd i64 = file_open(*(argv + 1), O_RDONLY);
+    if fd < 0 { return 1; }
+    var text *u8 = alloc(4096);
+    var len i64 = file_read(fd, text, 4095);
+    os_close(fd);
+    if len < 0 { return 2; }
+    *(text + len) = 0;
+    var tokens *Tokenizer = tok_new(text);
+    while !tok_eof(tokens) && !streq(tok_text(tokens), *(argv + 2)) { tok_next(tokens); }
+    if !streq(*(argv + 3), "fallback") {
+        tok_note_expected(tokens, "'='");
+        // Speculative parsing may rewind after recording the furthest error.
+        tok_reset(tokens, 0);
+    }
+    if streq(*(argv + 3), "compact") { tok_print_error(tokens, "fixture"); }
+    else { tok_print_error_snippet(tokens, "fixture"); }
+    return 0;
+}

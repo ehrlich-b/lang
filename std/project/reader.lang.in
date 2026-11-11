@@ -67,7 +67,7 @@ reader @NAME@(text *u8) *u8 {
     var tree *PNode = parse_@NAME@_policy(tokens);
     var complete bool = false;
     if tree != nil { complete = tok_expect_end(tokens); }
-    if !complete { tok_print_error(tokens, "@NAME@"); return nil; }
+    if !complete { tok_print_error_snippet(tokens, "@NAME@"); return nil; }
     var policy *@NAME@Policy = @NAME@_check(tree, text);
     if policy == nil { return nil; }
     // Shared AST boundary: policy constants become data; total stays a variable.

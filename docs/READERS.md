@@ -242,6 +242,16 @@ locations. Call `pnode_dump(tree)` after a successful generated parse to print
 the complete tree—including named-capture wrappers and spans—to stderr without
 mixing debug output into `lang read`'s AST stdout.
 
+Use `tok_print_error_snippet(tokens, "mylang")` to append the offending source
+line and a caret run to the same diagnostic line. New `lang new language`
+projects use this helper. It preserves tabs in the padding, counts UTF-8
+scalars as one display cell, and strips the CR from CRLF line endings. An empty
+span, including EOF, gets one caret; a multiline token is underlined through
+the end of its first line. Line and column numbers remain byte based.
+The helper emits a `reader-syntax-snippet` record so native hosts can map and
+validate its span before displaying context. JSON diagnostics retain a single
+structured record without source or caret text in the message.
+
 For a reader-owned semantic failure, call
 `pnode_print_error(node, text, "mylang", "explanation")` and stop with `exit(1)`
 or return `nil`. Pass the original reader input as `text`, so skipped comments
