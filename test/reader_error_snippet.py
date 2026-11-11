@@ -42,6 +42,13 @@ def main():
         ('utf8-token', 'é', "fixture:2:1: expected '=', found é @7:9\né\n^\n".encode()),
         ('tab-token', '"a\tb"', b"fixture:2:1: expected '=', found \"a\tb\" @7:12\n\"a\tb\"\n^^^^^^^^^^\n"),
         ('tab-token-prefix', '"a\tb"', "fixture:2:5: expected '=', found \"a\tb\" @11:16\n\té \"a\tb\"\n\t  ^^^^^^^^\n".encode()),
+        ('wide-prefix', 'oops', "fixture:2:5: expected '=', found oops @11:15\n界 oops\n   ^^^^\n".encode()),
+        ('wide-token', '界', "fixture:2:1: expected '=', found 界 @7:10\n界\n^^\n".encode()),
+        ('wide-tab-prefix', 'oops', "fixture:2:5: expected '=', found oops @11:15\n界\toops\n  \t^^^^\n".encode()),
+        ('wide-tab-token', '"界\tb"', "fixture:2:5: expected '=', found \"界\tb\" @11:18\n界 \"界\tb\"\n   ^^^^^^^\n".encode()),
+        ('fullwidth-prefix', 'oops', "fixture:2:5: expected '=', found oops @11:15\nＡ oops\n   ^^^^\n".encode()),
+        ('emoji-prefix', 'oops', "fixture:2:6: expected '=', found oops @12:16\n😀 oops\n   ^^^^\n".encode()),
+        ('wide-supplement-token', '𠀀', "fixture:2:1: expected '=', found 𠀀 @7:11\n𠀀\n^^\n".encode()),
     ]
     for name, token, expected in cases:
         command = [scratch / 'driver', FIXTURES / (name + '.source'), token]
