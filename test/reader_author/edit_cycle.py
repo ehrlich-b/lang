@@ -17,7 +17,7 @@ import uuid
 from project import ProjectReplay
 from route import ROOT, dump, require, sha
 
-BASE = '2bcf0b35fe91c6cd3b81c53483e5c16574dd7570'
+BASE = '1d76914'  # Integration base includes later protected-input changes.
 
 
 def wait_for(predicate, message, timeout=30):
