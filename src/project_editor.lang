@@ -1,0 +1,147 @@
+// Editor generation belongs to the compiler host, without executing the reader.
+include "std/tok.lang"
+
+func editor_buffer() *PhaseBuffer {
+    return phase_buffer_new(phase_limit(), "<project-editor>");
+}
+
+func editor_word(text *u8) i64 {
+    if !is_alpha(*text) { return 0; }
+    while *text != 0 {
+        if !is_alphanumeric(*text) { return 0; }
+        text = text + 1;
+    }
+    return 1;
+}
+
+func editor_literals(source *u8, keywords *u8, operators *u8, seen *u8) void {
+    // First isolate actual reader tokens: comments and ordinary strings cannot
+    // introduce fake #parser blocks. The grammar tokenizer handles both quotes.
+    lexer_init(source);
+    var blocks *u8 = vec_new(4);
+    var token *u8 = scan_token();
+    while tok_type(token) != TOKEN_EOF {
+        if tok_type(token) == TOKEN_READER_MACRO {
+            if str_eq_n(tok_lexeme(token), tok_lexeme_len(token), "parser", 6) {
+                vec_push(blocks, str_dup_n(tok_content(token), tok_content_len(token)));
+            }
+        }
+        token = scan_token();
+    }
+    var i i64 = 0;
+    while i < vec_len(blocks) {
+        var t *Tokenizer = tok_new(vec_get(blocks, i));
+        while tok_kind(t) != TOK_EOF {
+            if tok_kind(t) == TOK_STRING {
+                // Match the grammar reader's literal bytes (quotes stripped).
+                var literal *u8 = str_dup_n(tok_text_ptr(t) + 1, tok_text_len(t) - 2);
+                if *literal != 0 && map_has(seen, literal) == 0 {
+                    map_set(seen, literal, 1);
+                    if editor_word(literal) { vec_push(keywords, literal); }
+                    else { vec_push(operators, literal); }
+                }
+            }
+            tok_next(t);
+        }
+        i = i + 1;
+    }
+}
+
+func editor_pattern(literals *u8, words i64) *u8 {
+    var b *PhaseBuffer = editor_buffer();
+    // Longest first prevents a short operator from swallowing its prefix.
+    var ordered *u8 = vec_new(vec_len(literals));
+    var used *u8 = map_new();
+    var i i64 = 0; var j i64 = 0; var best *u8 = nil;
+    while i < vec_len(literals) {
+        best = nil; j = 0;
+        while j < vec_len(literals) {
+            var text *u8 = vec_get(literals, j);
+            if map_has(used, text) == 0 {
+                if best == nil { best = text; }
+                else if strlen(text) > strlen(best) { best = text; }
+            }
+            j = j + 1;
+        }
+        map_set(used, best, 1); vec_push(ordered, best); i = i + 1;
+    }
+    if vec_len(ordered) == 0 { return "(?!)"; }
+    if words { phase_buffer_text(b, "\\b"); }
+    phase_buffer_text(b, "(?:");
+    i = 0;
+    while i < vec_len(ordered) {
+        if i > 0 { phase_buffer_text(b, "|"); }
+        var literal *u8 = vec_get(ordered, i);
+        j = 0;
+        while *(literal + j) != 0 {
+            var c i64 = *(literal + j);
+            if c == 92 || c == 46 || c == 94 || c == 36 || c == 124 || c == 63 || c == 42 || c == 43 || c == 40 || c == 41 || c == 91 || c == 93 || c == 123 || c == 125 {
+                phase_buffer_text(b, "\\");
+            }
+            phase_buffer_append(b, literal + j, 1); j = j + 1;
+        }
+        i = i + 1;
+    }
+    phase_buffer_text(b, ")");
+    if words { phase_buffer_text(b, "\\b"); }
+    return b.data;
+}
+
+func editor_match(b *PhaseBuffer, scope *u8, pattern *u8) void {
+    phase_buffer_text(b, "{\"name\":"); reader_host_json_string(b, scope);
+    phase_buffer_text(b, ",\"match\":"); reader_host_json_string(b, pattern);
+    phase_buffer_text(b, "}");
+}
+
+func project_editor(project *LanguageProject, destination *u8) i64 {
+    var name *u8 = project_field(project, "reader_name");
+    var keywords *u8 = vec_new(16); var operators *u8 = vec_new(16);
+    editor_literals(phase_source_snapshot(project_field(project, "reader_source")).text,
+                    keywords, operators, map_new());
+    var package *PhaseBuffer = editor_buffer();
+    phase_buffer_text(package, "{\"name\":\"language-"); phase_buffer_text(package, name);
+    phase_buffer_text(package, "\",\"displayName\":\""); phase_buffer_text(package, name);
+    phase_buffer_text(package, "\",\"version\":\"0.0.1\",\"engines\":{\"vscode\":\"^1.80.0\"},\"categories\":[\"Programming Languages\"],\"contributes\":{\"languages\":[{\"id\":\"");
+    phase_buffer_text(package, name); phase_buffer_text(package, "\",\"extensions\":[");
+    reader_host_json_string(package, project_field(project, "source_suffix"));
+    phase_buffer_text(package, "],\"configuration\":\"./language-configuration.json\"}],\"grammars\":[{\"language\":\"");
+    phase_buffer_text(package, name); phase_buffer_text(package, "\",\"scopeName\":\"source.");
+    phase_buffer_text(package, name); phase_buffer_text(package, "\",\"path\":\"./");
+    var grammar_path *u8 = str_concat(name, ".tmLanguage.json");
+    phase_buffer_text(package, grammar_path); phase_buffer_text(package, "\"}]}}\n");
+    var grammar *PhaseBuffer = editor_buffer();
+    phase_buffer_text(grammar, "{\"scopeName\":\"source."); phase_buffer_text(grammar, name);
+    phase_buffer_text(grammar, "\",\"patterns\":[\n");
+    editor_match(grammar, str_concat("comment.line.double-slash.", name), "//.*$");
+    phase_buffer_text(grammar, ",\n{\"name\":\"string.quoted.double."); phase_buffer_text(grammar, name);
+    phase_buffer_text(grammar, "\",\"begin\":\"\\\"\",\"end\":\"\\\"\",\"patterns\":[");
+    editor_match(grammar, "constant.character.escape", "\\\\.");
+    phase_buffer_text(grammar, "]},\n");
+    editor_match(grammar, str_concat("keyword.control.", name), editor_pattern(keywords, 1));
+    phase_buffer_text(grammar, ",\n");
+    editor_match(grammar, str_concat("constant.numeric.", name), "\\b(?:0[xX][0-9a-fA-F]+|[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)\\b");
+    phase_buffer_text(grammar, ",\n");
+    editor_match(grammar, str_concat("keyword.operator.", name), editor_pattern(operators, 0));
+    phase_buffer_text(grammar, "\n]}\n");
+    var paths *u8 = vec_new(3); var sources *u8 = vec_new(3);
+    vec_push(paths, "package.json"); vec_push(sources, package.data);
+    vec_push(paths, "language-configuration.json");
+    vec_push(sources, "{\"comments\":{\"lineComment\":\"//\"},\"brackets\":[[\"{\",\"}\"],[\"[\",\"]\"],[\"(\",\")\"]]}\n");
+    vec_push(paths, grammar_path); vec_push(sources, grammar.data);
+    // Reserve only after rendering all files; never merge or replace a path.
+    if os_mkdir(destination, 493) != 0 {
+        eprintln("Error: cannot create editor directory (destination may exist)"); return 1;
+    }
+    var i i64 = 0;
+    while i < vec_len(paths) {
+        var path *u8 = str_concat(str_concat(destination, "/"), vec_get(paths, i));
+        var fd i64 = file_open(path, O_WRONLY_CREAT_EXCL); var ok i64 = 0;
+        if fd >= 0 && fd < 2147483648 {
+            ok = file_write_all(fd, vec_get(sources, i));
+            if os_close(fd) != 0 { ok = 0; }
+        }
+        if ok == 0 { eprint("Error: cannot finish editor file: "); eprintln(path); return 1; }
+        i = i + 1;
+    }
+    print("Created editor extension "); println(destination); return 0;
+}

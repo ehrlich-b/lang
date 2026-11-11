@@ -97,6 +97,29 @@ claim. Reader artifact caching still includes compiler identity through the
 existing compiler-host path. Two projects can declare the same reader name;
 their source paths and bytes distinguish their inputs.
 
+Generate a VS Code extension for the project's source files with:
+
+```bash
+./out/lang_next project editor example/shipping/project.lang-project -o out/shipping-editor
+```
+
+The destination must be new. The command writes `package.json`,
+`language-configuration.json` and `shipping.tmLanguage.json`; it refuses any
+existing destination with exit 1 before writing files. A failed write leaves
+the incomplete new directory available for inspection. Open the generated
+directory as a VS Code extension development project to try it with `.shipping`
+files (or package it using your usual VS Code extension tools).
+
+The extension registers exactly the manifest's `source_suffix`. Highlighting
+uses quoted literals from every `#parser` block in `reader_source`: identifier
+literals become keywords and other literals become escaped operator patterns,
+with longer literals matched first. Ordinary Lang strings and comments outside
+those blocks do not contribute keywords. Double-quoted strings with escapes,
+decimal and hexadecimal numbers, and `//` comments have generic highlighting.
+This is lexical highlighting; semantic checks remain in the reader. Generation
+does not execute that reader and produces the same bytes on every run.
+Run the fragment test with `env JOBS=2 VERIFY_CASE=editor make verify`.
+
 For composing the shipping function with a second reader, see
 [project export signatures](READER_EXPORTS.md). The frontend-owned catalog
 describes representations and ownership; sharing native storage alone does not

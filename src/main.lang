@@ -1,5 +1,6 @@
 // src/main.lang - Main entry point for self-hosting compiler
 include "src/project.lang"
+include "src/project_editor.lang"
 include "src/project_scaffold.lang"
 include "src/native_build.lang"
 include "src/project_tests.lang"
@@ -1259,7 +1260,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("Commands:");
     println("  package     Export a local language compiler kit");
     println("  compile    Compile source files (default)");
-    println("  project    Check or build a language project manifest");
+    println("  project    Check, build or generate an editor for a language project");
     println("  run        Compile, link, and run a program");
     println("  inspect    Show project tokens, tree, core or LLVM");
     println("  read       Run a reader and inspect its AST");

@@ -190,18 +190,22 @@ func project_argv(arguments *u8) **u8 {
 
 func cmd_project(argc i64, argv **u8) i64 {
     if argc != 4 && argc != 6 {
-        eprintln("Usage: lang project check|read|compiler manifest [-o output]"); return 1;
+        eprintln("Usage: lang project check|read|compiler|editor manifest [-o output]"); return 1;
     }
     var action *u8 = get_arg(argv, 2);
-    if !streq(action, "check") && !streq(action, "watch-inputs") && !streq(action, "read") && !streq(action, "compiler") {
+    if !streq(action, "check") && !streq(action, "watch-inputs") && !streq(action, "read") && !streq(action, "compiler") && !streq(action, "editor") {
         eprintln("Error: unknown project action"); return 1;
     }
     if argc == 6 {
         if streq(action, "check") || !streq(get_arg(argv, 4), "-o") {
-            eprintln("Error: expected -o output for read or compiler"); return 1;
+            eprintln("Error: expected -o output for read, compiler or editor"); return 1;
         }
     }
+    if streq(action, "editor") && argc != 6 {
+        eprintln("Error: project editor requires -o directory"); return 1;
+    }
     var project *LanguageProject = project_load(get_arg(argv, 3));
+    if streq(action, "editor") { return project_editor(project, get_arg(argv, 5)); }
     if streq(action, "watch-inputs") {
         println(project.identity); println(project_field(project, "entry"));
         // Export the existing captured closure, including resource lookup routes,
