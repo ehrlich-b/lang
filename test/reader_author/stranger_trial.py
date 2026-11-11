@@ -48,6 +48,27 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def diagnostic_root(records):
+    """Recover the original input root from the hash-verified golden records."""
+    record = next(record for record in records if record['stderr'])
+    root, separator, _ = record['stderr'].partition('/fixtures/' + record['file'] + ':')
+    assert separator and Path(root).is_absolute(), 'missing original diagnostic input root'
+    return Path(root)
+
+
+def check_record(result, record, source, evidence, original_root):
+    assert result.returncode == record['exit'], record['file']
+    assert result.stdout == record['stdout'], record['file']
+    expected = record['stderr']
+    if expected:
+        # Replace only this fixture's anchored input-root prefix. Everything
+        # after the path (including multiline token text) stays byte-for-byte.
+        prefix = str(original_root / source.relative_to(evidence)) + ':'
+        assert expected.startswith(prefix), record['file']
+        expected = str(source) + ':' + expected[len(prefix):]
+    assert result.stderr == expected, record['file']
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--evidence', type=Path, required=True)
@@ -72,18 +93,14 @@ def main():
         scratch.mkdir(exist_ok=True)
         output = Path(tempfile.mkdtemp(prefix='sdk-replay-', dir=scratch)) / 'output'
         run(['sh', evidence / 'reproduce.sh', output])
-        for record in json.loads((evidence / 'trial-results.json').read_text()):
+        records = json.loads((evidence / 'trial-results.json').read_text())
+        original_root = diagnostic_root(records)
+        for record in records:
             source = evidence / record['file']
             if not source.is_file():
                 source = evidence / 'fixtures' / record['file']
             result = subprocess.run([str(output / 'harbor-config'), str(source)], capture_output=True, text=True)
-            assert result.returncode == record['exit'], record['file']
-            assert result.stdout == record['stdout'], record['file']
-            # Recorded diagnostics contain the trial's original absolute path.
-            # Require the same diagnostic at the relocated input path.
-            expected_stderr = re.sub(r'^.*?(?=:\d+:\d+:)', lambda _: str(source),
-                                     record['stderr'], count=1)
-            assert result.stderr == expected_stderr, record['file']
+            check_record(result, record, source, evidence, original_root)
         assert (evidence / 'harbor-config').read_bytes().startswith(b'\x7fELF')
         print('PASS: pinned public SDK replay; native sample exit 0; ten config cases reproduced')
     elif args.case == 'A3':
