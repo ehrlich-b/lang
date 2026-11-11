@@ -109,6 +109,9 @@ existing destination with exit 1 before writing files. A failed write leaves
 the incomplete new directory available for inspection. Open the generated
 directory as a VS Code extension development project to try it with `.shipping`
 files (or package it using your usual VS Code extension tools).
+The package name is `language-` followed by the reader name with underscores
+replaced by hyphens for VS Code packaging. The display name, language ID,
+source suffix, scope and grammar filename preserve the reader name.
 
 The extension registers exactly the manifest's `source_suffix`. Highlighting
 uses quoted literals from every `#parser` block in `reader_source`: identifier

@@ -93,14 +93,26 @@ func editor_match(b *PhaseBuffer, scope *u8, pattern *u8) void {
     phase_buffer_text(b, "}");
 }
 
+func editor_extension_name(name *u8) *u8 {
+    // VS Code package names allow hyphens, but reader identifiers use underscores.
+    var b *PhaseBuffer = editor_buffer();
+    phase_buffer_text(b, "language-");
+    while *name != 0 {
+        if *name == 95 { phase_buffer_text(b, "-"); }
+        else { phase_buffer_append(b, name, 1); }
+        name = name + 1;
+    }
+    return b.data;
+}
+
 func project_editor(project *LanguageProject, destination *u8) i64 {
     var name *u8 = project_field(project, "reader_name");
     var keywords *u8 = vec_new(16); var operators *u8 = vec_new(16);
     editor_literals(phase_source_snapshot(project_field(project, "reader_source")).text,
                     keywords, operators, map_new());
     var package *PhaseBuffer = editor_buffer();
-    phase_buffer_text(package, "{\"name\":\"language-"); phase_buffer_text(package, name);
-    phase_buffer_text(package, "\",\"displayName\":\""); phase_buffer_text(package, name);
+    phase_buffer_text(package, "{\"name\":"); reader_host_json_string(package, editor_extension_name(name));
+    phase_buffer_text(package, ",\"displayName\":\""); phase_buffer_text(package, name);
     phase_buffer_text(package, "\",\"version\":\"0.0.1\",\"engines\":{\"vscode\":\"^1.80.0\"},\"categories\":[\"Programming Languages\"],\"contributes\":{\"languages\":[{\"id\":\"");
     phase_buffer_text(package, name); phase_buffer_text(package, "\",\"extensions\":[");
     reader_host_json_string(package, project_field(project, "source_suffix"));

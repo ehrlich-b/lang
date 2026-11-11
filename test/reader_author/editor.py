@@ -48,6 +48,7 @@ def main():
     require(files == {p.name: p.read_bytes() for p in second.iterdir()}, 'output must be byte-identical')
     package, config, grammar = [json.loads(files[name]) for name in
                               ['package.json', 'language-configuration.json', 'shipping.tmLanguage.json']]
+    require(package['name'] == 'language-shipping', 'shipping extension package name')
     language, = package['contributes']['languages']
     registration, = package['contributes']['grammars']
     require(language['extensions'] == ['.shipping'], 'extension must come from the manifest')
@@ -115,7 +116,37 @@ reader shipping(text *u8) *u8 { return nil; }
     for literal in ['+', '++', '.', '[', '\\\\', 'a|b']:
         require(re.fullmatch(op, literal), 'escaped literal: ' + literal)
     require(re.match(op, '++').group() == '++', 'longest operator first')
-    print('PASS editor: three JSON files, shipping keywords, patterns, refusal without writes, byte determinism, lexical isolation')
+
+    # VS Code's packaging validator accepts alphanumerics and hyphens, while
+    # reader identifiers also allow underscores. Keep language identity intact.
+    for name in ['Foo_Bar', '_Foo__Bar2_']:
+        named = evidence / name
+        named.mkdir()
+        (named / 'reader.lang').write_text((fixture / 'reader.lang').read_text().replace('shipping', name))
+        (named / ('policy.' + name)).write_text('')
+        (named / 'project.lang-project').write_text(
+            (fixture / 'project.lang-project').read_text().replace('shipping', name))
+        target = named / 'extension'
+        run(named / 'project.lang-project', target)
+        pkg = json.loads((target / 'package.json').read_text())
+        require(re.fullmatch(r'[a-z0-9][a-z0-9-]*', pkg['name'], re.I),
+                'invalid VS Code extension package name: ' + pkg['name'])
+        if name == 'Foo_Bar':
+            require(pkg['name'] == 'language-Foo-Bar', 'underscore package spelling')
+        require(pkg['displayName'] == name, 'display name must preserve reader name')
+        lang, = pkg['contributes']['languages']
+        reg, = pkg['contributes']['grammars']
+        require(lang['id'] == reg['language'] == name, 'reader language identity')
+        require(lang['extensions'] == ['.' + name], 'reader source suffix')
+        require(reg['path'] == './' + name + '.tmLanguage.json', 'reader grammar path')
+        named_grammar = json.loads((target / (name + '.tmLanguage.json')).read_text())
+        require(reg['scopeName'] == named_grammar['scopeName'] == 'source.' + name, 'reader scope')
+        json.loads((target / 'language-configuration.json').read_text())
+        repeat = named / 'repeat'
+        run(named / 'project.lang-project', repeat)
+        require({p.name: p.read_bytes() for p in target.iterdir()} ==
+                {p.name: p.read_bytes() for p in repeat.iterdir()}, 'named output determinism')
+    print('PASS editor: three JSON files, shipping keywords, patterns, refusal without writes, byte determinism, lexical isolation, valid extension names')
     print('evidence:', evidence)
 
 
