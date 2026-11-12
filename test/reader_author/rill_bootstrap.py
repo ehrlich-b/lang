@@ -155,7 +155,8 @@ def main():
         generated_stdlib = scratch / 'stdlib.json'
         replay.run(['node', 'web/build_stdlib.js', str(generated_stdlib)], 'generate-web-stdlib', ROOT)
         stdlib_names = list(json.loads((ROOT / 'web/stdlib.json').read_text()))
-        stdlib_names += ['std/capture_contract.lang', 'std/reader_request.lang', 'std/parser_inspect.lang']
+        stdlib_names += ['std/capture_contract.lang', 'std/reader_request.lang', 'std/parser_inspect.lang',
+                         'std/reader_diagnostic_width.lang']
         expected_stdlib = {name: (ROOT / name).read_text() for name in stdlib_names}
         require(json.loads(generated_stdlib.read_text()) == expected_stdlib, 'generated web stdlib inputs differ')
         clone = scratch / 'repo'
