@@ -13,6 +13,7 @@ const paths = [
   'std/core.lang',
   'std/diagnostics.lang',
   'std/reader_diagnostics.lang',
+  'std/reader_diagnostic_width.lang',
   'std/reader_exports.lang',
   'src/reader_diagnostics.lang',
   'std/buffer.lang',
