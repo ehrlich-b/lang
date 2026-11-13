@@ -84,3 +84,34 @@ comparison source commit. No compiler limit is changed by this arm.
 Both Lang arms use the frontend's transitive standard-library includes. The
 redundant explicit `std/core.lang` CLI input is omitted from both: using an
 absolute SDK copy as well as relative includes would duplicate declarations.
+
+## Bounded Harbor evolution replay
+
+The [Harbor change fragment](../../test/reader_author/change_task.py) builds the
+frozen Lang, accepted Bison and C++ ANTLR frontends before and after adding an
+optional `; "comment"` assignment suffix. It checks literal native output,
+unchanged old behavior, malformed comments and three corrupted proof copies:
+
+```sh
+nice -n 10 python3 examples/dsl-compare/install.py --harbor --tools ../tools
+nice -n 10 python3 -B test/reader_author/change_task.py --replay \
+  --repo . --inputs ../sources/pm-inputs --evidence ../evidence/change-task
+```
+
+Supply the frozen input packet at commit `209e4ca1e12a643102e37b58b6e43fe7ce4c5eaf`,
+the preregistered grammar and four literal fixtures in the evidence directory,
+and the parser tools under `../tools`. The packet includes the exact Lang SDK;
+Bison 3.8.2, flex 2.6.4 and ANTLR 4.13.2 generate the other native frontends.
+The `--harbor` installer verifies pinned SHA-256 downloads, extracts Bison, flex,
+m4 and Java locally, and builds the ANTLR 4.13.2 C++ static runtime with two jobs.
+It requires host Clang, CMake and dpkg-deb; it downloads no LLVM bundle or Python
+runtime and runs no dependency test suite. No root access or system installation
+is needed. The fragment checks the complete bundle before any native build and
+retains tool hashes and the download manifest in `toolchain.json`.
+The transcript and exact patches stay outside the checkout. This scripted
+engineering replay measures neither fresh-author time nor human usability.
+Replays stage all proof files separately and atomically exchange directories only
+after validation and mutation checks pass. Failed or interrupted builds preserve
+the previous proof; partial runs and the previous generation remain beside it.
+Use `--selftest` to also check preservation after a missing tool, timeout and
+interrupt once the Lang arm has produced transcript records.

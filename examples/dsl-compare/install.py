@@ -32,14 +32,23 @@ PACKAGES = [
      'c3107384835f788768f614db610e87fba7077f125ca950eb02a78bab0a308065'),
 ]
 
+CPP_RUNTIME = (
+    'antlr4-cpp-runtime-4.13.2-source.zip',
+    'https://www.antlr.org/download/antlr4-cpp-runtime-4.13.2-source.zip',
+    '0ed13668906e86dbc0dcddf30fdee68c10203dea4e83852b4edb810821bee3c4',
+)
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--tools', type=Path, required=True)
+    parser.add_argument('--harbor', action='store_true',
+                        help='provision only the Harbor parser tools, including the C++ runtime')
     args = parser.parse_args()
     root = args.tools.resolve()
     root.mkdir(parents=True, exist_ok=True)
-    for name, url, checksum in PACKAGES:
+    packages = PACKAGES[:5] + [CPP_RUNTIME] if args.harbor else PACKAGES
+    for name, url, checksum in packages:
         path = root / name
         if not path.exists():
             print('Downloading', url, flush=True)
@@ -55,6 +64,17 @@ def main():
         elif name.endswith('.whl'):
             with zipfile.ZipFile(path) as archive:
                 archive.extractall(root / 'python')
+        elif name == CPP_RUNTIME[0]:
+            source, build = root / 'runtime-source', root / 'runtime-build'
+            with zipfile.ZipFile(path) as archive:
+                archive.extractall(source)
+            subprocess.run(['cmake', '-S', source, '-B', build,
+                            '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_CXX_COMPILER=clang++',
+                            '-DANTLR_BUILD_CPP_TESTS=OFF', '-DANTLR_BUILD_SHARED=OFF',
+                            '-DANTLR4_INSTALL=ON', '-DCMAKE_INSTALL_LIBDIR=lib',
+                            '-DCMAKE_INSTALL_PREFIX=' + str(root / 'runtime')], check=True)
+            subprocess.run(['cmake', '--build', build, '--parallel', '2'], check=True)
+            subprocess.run(['cmake', '--install', build], check=True)
         elif name == 'jre.tar.gz' and not (root / 'jre/bin/java').exists():
             # Strip the versioned top directory, keeping every extraction local.
             with tarfile.open(path) as archive:
@@ -79,7 +99,7 @@ def main():
                         archive.extract(member, root / 'llvm', filter='data')
             if proc.wait():
                 raise RuntimeError('LLVM archive extraction failed')
-    (root / 'manifest.json').write_text(json.dumps(dict(packages=PACKAGES), indent=2) + '\n')
+    (root / 'manifest.json').write_text(json.dumps(dict(packages=packages), indent=2) + '\n')
     print('Pinned tools ready:', root)
 
 
