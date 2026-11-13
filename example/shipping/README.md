@@ -106,6 +106,10 @@ Replay this path with `python3 -B test/reader_author/standalone.py --case native
 Use `env JOBS=2 make verify VERIFY_CASE=standalone-native` for this fragment gate.
 ### Inspect the project
 
+For a compact, reproducible source → grammar → shared AST → native explanation,
+see [the lowering walkthrough](../../docs/shipping-lowering.md). Its fragment
+retains six linked observations, exact native output and a located rejection.
+
 With the compiler built from current sources (`make init`, then `make build`),
 run `out/lang_next inspect --project example/shipping/project.lang-project --stage tree`
 from the checkout root. Select `tokens`, `tree`, `core` or `llvm`; add `-o path`
