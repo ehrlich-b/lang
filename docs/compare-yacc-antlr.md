@@ -85,6 +85,65 @@ Five malformed files check a missing semicolon, closing parenthesis, operand,
 invalid character, and closing brace. Every frontend must exit 1, emit a diagnostic
 to stderr, and emit no partial code. Exact unedited diagnostic text is retained.
 
+## Authoring evidence and replay boundaries
+
+The Tariff timings below are scripted compiler replays. They measure machine
+work on existing sources, not fresh-agent language authoring. Provisioning,
+authoring, frontend construction, source-to-native compilation and native
+execution need separate clocks; a missing clock is unmeasured, never zero.
+
+A separate audit of the frozen Harbor configuration trials gives this narrower
+view. Harbor's ANTLR arm targets C++, unlike the Tariff Python arm below.
+
+| Harbor measure | Lang trial 1 | Lang trial 2 | Accepted flex/Bison | ANTLR C++ |
+|---|---|---|---|---|
+| Package provisioning | unmeasured | unmeasured | 0.584583 s | unmeasured |
+| Author start to first working sample | unmeasured | unmeasured | 174.448954 s | 170.830682 s |
+| Observed failed commands before first sample | 0 | unmeasured | 2 | 0 |
+| Retained handwritten language lines | 122 | 122 | 230 | 134 |
+
+Trial 1 retains a first-sample command start but no completion or author-start
+clock. Its three cascading failed commands happened after that first success.
+Trial 2's final consumer run is a scripted replay: its 0.815359 s frontend and
+3.815668 s native-link durations are not authoring time. Its friction report
+also describes three earlier failures, whose raw failed runs are absent from
+the frozen packet. Zero failures in the final replay cannot establish zero
+failures during authoring.
+
+Bison's initial attempt violated its documentation boundary and remains
+excluded. The accepted attempt has two failed build commands, including a
+build with several C diagnostics; diagnostics do not count as separate attempts.
+Bison's setup receipt predates both attempts. ANTLR describes provisioning but
+the frozen inputs do not retain its setup receipt. Both measured author
+intervals include thinking and builds, under procedural agent isolation;
+they are not blinded human measurements. Expected rejection of the eight
+invalid fixtures counts as successful validation rather than a failed attempt.
+
+Handwritten language counts include physical blank and comment lines in the
+retained frontend sources. Generated parsers, libraries, compiler sources and
+supplied inputs are excluded. Build and replay scripts are counted separately:
+Bison's original support bytes can be recovered from logged write events,
+whereas some ANTLR helper files have only reported counts and remain qualified.
+Lang needs its versioned SDK, Clang and a system C toolchain to build; Bison
+adds flex, Bison and m4. ANTLR needs its jar, Java, C++ generator/runtime and a
+C++17 toolchain. The native Lang and Bison programs need the system C runtime;
+the ANTLR program statically links its ANTLR runtime and also uses the system
+C/C++ runtime and threading support.
+
+The bounded audit fragment reads the original hash-pinned input packet and
+never runs the commands it finds there:
+
+```sh
+nice -n 10 python3 -B test/reader_author/metric_audit.py --inputs /path/to/frozen-inputs --case first-working-sample --output /path/to/audit
+```
+
+It recomputes the six audit categories: setup boundary, first working sample,
+failed attempts, handwritten lines, dependencies and missing timestamps.
+The output ledger includes source event references, per-file counts and
+compiler/runtime phases. Removing a required first-pass timestamp fails
+explicitly; the validator never fills that gap with zero. No new author trial
+or scale run is needed to audit these retained observations.
+
 ## Results and judgment
 
 The executable report is generated outside the checkout at `evidence/compare.json`
