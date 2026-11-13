@@ -4,6 +4,8 @@
 This validates historical captures; it does not execute historical commands or
 attest to their original capture environment. The caller supplies the trusted
 archive revision, rather than trusting an identity asserted by the receipt.
+The expected compiler revision is explicit and must match the retained SDK
+receipt. The repository running this validator is not the historical compiler.
 """
 import argparse
 import hashlib
@@ -13,6 +15,7 @@ import subprocess
 import sys
 
 ARMS = ('lang', 'bison', 'antlr')
+SDK_RECEIPT = 'lang/lang-0.1.0+e148de1e1a3b-x86_64-linux.receipt.json'
 
 
 def require(condition, message):
@@ -113,24 +116,44 @@ def records(inputs):
                          'stdout': row['stdout'], 'stderr': row['stderr']}
                 if scope == 'case':
                     require(type(row['valid']) is bool, 'missing fixture expectation')
-                    value.update(fixture=row['file'], expected_valid=row['valid'])
+                    value.update(fixture=row['file'], expected_valid=row['valid'],
+                                 input_sha256=digest(inside(
+                                     inputs, arm + '/' + row['file']).read_bytes()))
                 result.append(value)
     return result
 
 
-def identity(repo, inputs, revision):
+def identity(repo, inputs, revision, source_head):
     hashes = archive(inputs, revision)
     brief = hashes['trial1/brief.md']
     require(all(hashes[arm + '/brief.md'] == brief for arm in ARMS),
             'comparison briefs differ')
-    return {'head': git(repo, 'rev-parse', 'HEAD').decode().strip(),
+    sdk = load(inputs / SDK_RECEIPT)
+    require(isinstance(source_head, str) and len(source_head) == 40 and
+            all(c in '0123456789abcdef' for c in source_head), 'expected full source revision')
+    require(sdk['commit'] == source_head,
+            'requested source head differs from retained compiler receipt')
+    git(repo, 'cat-file', '-e', source_head + ':scripts/build_receipt.py')
+    require(hashes['lang/' + sdk['archive']['file']] == sdk['archive']['sha256'],
+            'compiler archive differs from retained compiler receipt')
+    return {'head': source_head,
             'archive_revision': revision,
             'manifest_sha256': digest((inputs / 'MANIFEST.json').read_bytes()),
             'inputs': hashes, 'brief_sha256': brief}
 
 
-def create(repo, inputs, revision, output):
-    source = identity(repo, inputs, revision)
+def arm_identities(source):
+    # Competitors are authored files, not builds of the lang repository. Their
+    # identities are the manifest-bound files; do not invent Git heads for them.
+    arms = {arm: {'brief_sha256': source['brief_sha256'],
+                  'files': {name: sha for name, sha in source['inputs'].items()
+                            if name.startswith(arm + '/')}} for arm in ARMS}
+    arms['lang']['compiler_head'] = source['head']
+    return arms
+
+
+def create(repo, inputs, revision, source_head, output):
+    source = identity(repo, inputs, revision, source_head)
     rows = records(inputs)
     root = output.parent.resolve()
     for row in rows:
@@ -143,25 +166,21 @@ def create(repo, inputs, revision, output):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
             row[stream] = {'path': name, 'sha256': sha}
-    receipt = {'schema': 1, 'source': source,
-               'arms': {arm: {'head': source['head'],
-                              'brief_sha256': source['brief_sha256']} for arm in ARMS},
+    receipt = {'schema': 2, 'source': source, 'arms': arm_identities(source),
                'records': rows}
     output.write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
 
 
-def check(repo, inputs, revision, receipt, evidence):
+def check(repo, inputs, revision, source_head, receipt, evidence):
     value = load(receipt)
     require(isinstance(value, dict) and set(value) == {'schema', 'source', 'arms', 'records'},
             'malformed comparison receipt fields')
-    require(type(value.get('schema')) is int and value['schema'] == 1,
+    require(type(value.get('schema')) is int and value['schema'] == 2,
             'unsupported comparison receipt schema')
-    expected_source = identity(repo, inputs, revision)
+    expected_source = identity(repo, inputs, revision, source_head)
     require(value.get('source') == expected_source, 'stale comparison source or changed brief')
-    require(value.get('arms') == {
-        arm: {'head': expected_source['head'],
-              'brief_sha256': expected_source['brief_sha256']} for arm in ARMS},
-        'stale arm head or changed arm brief')
+    require(value.get('arms') == arm_identities(expected_source),
+            'stale arm source or changed arm brief')
     expected = records(inputs)
     actual = value.get('records')
     require(isinstance(actual, list) and len(actual) == len(expected),
@@ -180,7 +199,8 @@ def check(repo, inputs, revision, receipt, evidence):
         # Compare types as well as values (JSON true must not stand for exit 1).
         require(json.dumps(normalized, sort_keys=True) == json.dumps(want, sort_keys=True),
                 'forged result or missing command: ' + want['id'])
-    print(f'PASS: {len(expected)} comparison records bound to current HEAD and frozen inputs')
+    print(f'PASS: {len(expected)} comparison records bound to retained source '
+          f'{source_head} and frozen inputs')
 
 
 def main():
@@ -189,13 +209,15 @@ def main():
     p.add_argument('--repo', type=Path, required=True)
     p.add_argument('--inputs', type=Path, required=True)
     p.add_argument('--inputs-revision', required=True)
+    p.add_argument('--source-head', required=True,
+                   help='expected historical compiler revision, independent of validator HEAD')
     p.add_argument('--receipt', type=Path, required=True)
     p.add_argument('--evidence', type=Path)
     a = p.parse_args()
     if a.action == 'create':
-        create(a.repo, a.inputs, a.inputs_revision, a.receipt)
+        create(a.repo, a.inputs, a.inputs_revision, a.source_head, a.receipt)
     else:
-        check(a.repo, a.inputs, a.inputs_revision, a.receipt,
+        check(a.repo, a.inputs, a.inputs_revision, a.source_head, a.receipt,
               a.evidence or a.receipt.parent)
 
 

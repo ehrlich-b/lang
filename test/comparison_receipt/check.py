@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 REVISION = '209e4ca1e12a643102e37b58b6e43fe7ce4c5eaf'
+SOURCE_HEAD = 'e148de1e1a3bb1a229f3a8369e41e4b0241783e3'
 NAMES = ('valid-receipt', 'wrong-head', 'changed-brief', 'missing-stderr',
          'false-success', 'missing-command')
 
@@ -38,8 +39,12 @@ def main():
     validator = importlib.util.module_from_spec(module)
     module.loader.exec_module(validator)
     receipt = base / 'receipt.json'
-    validator.create(repo, inputs, REVISION, receipt)
+    validator.create(repo, inputs, REVISION, SOURCE_HEAD, receipt)
     original = json.loads(receipt.read_text())
+    validator_head = validator.git(repo, 'rev-parse', 'HEAD').decode().strip()
+    assert original['source']['head'] == SOURCE_HEAD
+    assert original['arms']['lang']['compiler_head'] == SOURCE_HEAD
+    assert all('head' not in arm for arm in original['arms'].values())
     # Explicitly distinguish native signal codes from shell 128+N statuses.
     assert validator.termination(-15) == {'kind': 'signal', 'value': 15}
     assert validator.termination(143) == {'kind': 'exit', 'value': 143}
@@ -51,7 +56,7 @@ def main():
         if name == 'wrong-head':
             mutant['source']['head'] = '0' * 40
             for arm in mutant['arms'].values():
-                arm['head'] = '0' * 40
+                arm['compiler_head'] = '0' * 40
         elif name == 'changed-brief':
             mutant['source']['brief_sha256'] = '0' * 64
             for arm in mutant['arms'].values():
@@ -70,6 +75,7 @@ def main():
         write(fixture, mutant)
         command = [sys.executable, '-B', str(script), 'check', '--repo', str(repo),
                    '--inputs', str(inputs), '--inputs-revision', REVISION,
+                   '--source-head', SOURCE_HEAD,
                    '--receipt', str(fixture), '--evidence', str(base)]
         process = subprocess.run(command, capture_output=True)
         expected = 0 if name == 'valid-receipt' else 1
@@ -103,6 +109,7 @@ def main():
         (changed / 'trial1/brief.md').write_bytes((inputs / 'trial1/brief.md').read_bytes() + b'\nchanged\n')
         command = [sys.executable, '-B', str(script), 'check', '--repo', str(repo),
                    '--inputs', str(changed), '--inputs-revision', REVISION,
+                   '--source-head', SOURCE_HEAD,
                    '--receipt', str(receipt)]
         process = subprocess.run(command, capture_output=True)
         assert process.returncode == 1 and b'changed trial input: trial1/brief.md' in process.stderr
@@ -114,8 +121,32 @@ def main():
                          'files': {str(f.relative_to(base)): sha(f) for f in
                                    [changed / 'trial1/brief.md', base / 'logs/changed-input.stdout',
                                     base / 'logs/changed-input.stderr']}})
+        # A newer validator commit cannot turn the historical trial into a test
+        # of that newer compiler. Exercise both CLI entry points, including
+        # regeneration (the old check-only mutant missed this laundering route).
+        assert validator_head != SOURCE_HEAD, 'run regression from the validator commit'
+        for action in ('create', 'check'):
+            target = base / 'rebinding' / 'receipt.json' if action == 'create' else receipt
+            target.parent.mkdir(exist_ok=True)
+            command = [sys.executable, '-B', str(script), action, '--repo', str(repo),
+                       '--inputs', str(inputs), '--inputs-revision', REVISION,
+                       '--source-head', validator_head, '--receipt', str(target)]
+            process = subprocess.run(command, capture_output=True)
+            assert process.returncode == 1 and b'requested source head differs' in process.stderr
+            if action == 'create':
+                assert not target.exists(), 'rejected creation must not emit a forged receipt'
+            stdout = base / 'logs' / ('rebinding-' + action + '.stdout')
+            stderr = base / 'logs' / ('rebinding-' + action + '.stderr')
+            stdout.write_bytes(process.stdout)
+            stderr.write_bytes(process.stderr)
+            commands.append({'case': 'rebinding-' + action, 'command': command,
+                             'exit_code': process.returncode,
+                             'stdout': str(stdout.relative_to(base)),
+                             'stderr': str(stderr.relative_to(base)),
+                             'files': {str(f.relative_to(base)): sha(f) for f in (stdout, stderr)}})
     (base / 'commands.jsonl').write_text(''.join(json.dumps(c, sort_keys=True) + '\n' for c in commands))
-    write(base / 'result.json', {'kind': 'receipt-integrity', 'head': original['source']['head'],
+    write(base / 'result.json', {'kind': 'receipt-integrity', 'head': validator_head,
+                               'trial_source_head': original['source']['head'],
                                'cases': results, 'mutation_checks': 5,
                                'selftest': a.selftest})
     print('PASS: six receipt cases, five forgeries rejected; signed exits preserved')
