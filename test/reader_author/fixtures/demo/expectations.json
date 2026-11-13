@@ -1,0 +1,47 @@
+{
+  "new": {
+    "exit": 0,
+    "stdout": "Created language project parcel\nRun these commands from this directory:\ncd 'parcel'\nexport LANGBE=llvm LANGOS=linux\n'lang' project check project.lang-project\n'lang' project read project.lang-project -o policy.ast\n'lang' project compiler project.lang-project -o parcelc\n'lang' test --project project.lang-project\npython3 check.py ./parcelc\n",
+    "stderr": ""
+  },
+  "grammar-edit": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "policy-edit": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "build": {
+    "exit": 0,
+    "stdout": "Wrote policy.lang-build-<temp>/guest.ll\nBuilt policy\n",
+    "stderr": "Native build: profile=llvm-linux-x86_64 optimization=-O0 toolchain=clang\nwarning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]\n1 warning generated.\n"
+  },
+  "native-99": {
+    "exit": 0,
+    "stdout": "10\n",
+    "stderr": ""
+  },
+  "native-100": {
+    "exit": 0,
+    "stdout": "0\n",
+    "stderr": ""
+  },
+  "malformed": {
+    "exit": 1,
+    "stdout": "",
+    "stderr": "syntax.parcel:1:18: expected ';', found free_over @17:26\nparcel { base 10 free_over 100; }\n                 ^^^^^^^^^\nError: native build reader failed (exit 1)\nError: native build manifest/pipeline failed (exit 1)\n"
+  },
+  "editor": {
+    "exit": 0,
+    "stdout": "Created editor extension editor\n",
+    "stderr": ""
+  },
+  "editor-files": {
+    "exit": 0,
+    "stdout": "editor/language-configuration.json\neditor/package.json\neditor/parcel.tmLanguage.json\n",
+    "stderr": ""
+  }
+}

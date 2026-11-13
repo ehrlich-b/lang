@@ -434,7 +434,10 @@ bootstrap-verify: generate-os-layer generate-version-info
 	python3 scripts/build_receipt.py finish --input out/verify-input.json --compiler $(BOOTSTRAP_VERIFY_DIR)/kernel2 --output out/verify-receipt.json --artifact $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll --artifact $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll --artifact $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast --artifact $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
 
 # Non-promoting verification alias; never archives, installs or updates the seed.
-ifeq ($(VERIFY_CASE),editor)
+ifeq ($(VERIFY_CASE),stranger)
+verify:
+	python3 -B test/reader_author/demo.py --case stranger
+else ifeq ($(VERIFY_CASE),editor)
 verify: build
 	python3 -B test/reader_author/editor.py --compiler out/lang_next
 else ifeq ($(VERIFY_CASE),edit-cycle)
@@ -485,6 +488,7 @@ verify:
 else
 verify: bootstrap-verify
 	python3 -B test/reader_author/editor.py --compiler $(BOOTSTRAP_VERIFY_DIR)/kernel2
+	python3 -B test/reader_author/demo.py --case stranger
 endif
 
 # Compatibility alias for the old Mac-only verifier. The historical recipe
