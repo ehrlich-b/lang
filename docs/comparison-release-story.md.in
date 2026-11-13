@@ -1,0 +1,46 @@
+# Making Harbor: a comparison draft
+
+Offline draft. Final claim validation is pending the matched authoring comparison.
+This packet makes no public-availability claim.
+
+The visitor question is: what did making this language require, including where
+Lang fell short? The frozen Harbor brief asks for a standalone native validator
+that preserves value types and explains malformed input. These are agent trials,
+not a blinded human study. Lang's agent had read the earlier trial's friction.
+The earlier trial is context, not another matched arm.
+
+{{metrics}}
+
+Physical language-source lines include blanks and comments; generated files,
+build helpers and replay helpers are excluded consistently. This measures these
+implementations, not general authoring effort. First-sample clocks have different
+boundaries: Lang has no comparable clock, and no speed ranking is justified.
+Recorded process seconds are not first-sample authoring times.
+
+{{losses}}
+
+Lang's absent caret is shared by the other supplied standalone frontends; no
+diagnostic advantage follows from the common field coverage. On invalid escapes,
+Lang and ANTLR point to the string start; Bison points to the escape. No coordinate
+is ranked without a declared scoring rule. Bison's excluded first attempt remains
+in its friction record and must not be pooled with its clean trial.
+
+Native means a host executable for this validator. It does not establish native
+output for every language, general optimization quality, or universal interop.
+ANTLR generated C++ and linked its supplied C++ runtime; Bison used flex, Bison,
+and Clang; Lang used the packaged compiler and Clang. Native output is shared.
+
+{{unmeasured}}
+
+{{identity}}
+
+The existing site's recorded compiler identity differs from the frozen SDK.
+Its existing SDK download target is absent from the site snapshot; this is a
+release blocker recorded in the plan's local-link audit.
+The archive here is an unchanged, hashed site snapshot for offline inspection;
+the story is a separate source awaiting integration after comparison validation.
+An upload would not establish served bytes. A future authorized release must
+rebuild and verify matching artifacts, integrate the story, and verify every
+served file against its manifest. This packet authorizes no publication.
+
+{{links}}
