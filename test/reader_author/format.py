@@ -163,6 +163,16 @@ def main():
                 'recipe bypassed capture contract')
         shipping.write_text(original)
 
+        # Budget diagnostics must identify the guest input being formatted.
+        budget_project = scratch / 'format-budget.lang-project'
+        budget_project.write_text(project.read_text().replace('parser_work 1000000', 'parser_work 1')
+            .replace('"shipping.lang"', '"' + str(shipping) + '"')
+            .replace('"policy.shipping"', '"' + str(policy) + '"')
+            .replace('"runtime.lang"', '"' + str(project.parent / 'runtime.lang') + '"'))
+        result = format_source('format-budget', expected=1, manifest=budget_project)
+        require(b'parser-work-budget' in result.stderr and str(policy).encode() in result.stderr
+                and b'<reader-input>' not in result.stderr, 'format budget lost guest source path')
+
         # No fallback from a reader AST to guest syntax.
         custom = scratch / 'custom'; custom.mkdir()
         (custom / 'project.lang-project').write_text(project.read_text().replace('shipping', 'same'))

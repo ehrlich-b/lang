@@ -1,0 +1,19 @@
+// expect: 0
+include "std/parser_reader.lang"
+#parser{
+    !captures;
+    choice = 'aa' | 'bb' | 'cc' | 'dd' | 'ee' | 'ff' | 'gg' | 'hh' | 'ii' | 'jj' | 'kk' | 'll'
+}
+func main() i64 {
+    var inputs *u8 = vec_new(4);
+    vec_push(inputs, "ii"); vec_push(inputs, "jj"); vec_push(inputs, "kk"); vec_push(inputs, "ll");
+    var i i64 = 0;
+    while i < vec_len(inputs) {
+        var tree *PNode = parse_choice(tok_new(vec_get(inputs, i)));
+        if tree == nil || pnode_has_error(tree) { return 1; }
+        i = i + 1;
+    }
+    var error *PNode = capture_tree(pnode_atom(PNODE_ERROR, "bad"), "choice", 8);
+    if !pnode_has_error(error) { return 2; }
+    return 0;
+}

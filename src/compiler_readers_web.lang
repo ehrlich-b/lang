@@ -6,7 +6,17 @@ func compiler_register_direct_reader(decl *u8) void {}
 func compiler_direct_reader_runtime_only() i64 { return 1; }
 
 func compiler_expand_direct_reader(node *u8, name *u8, name_len i64, text *u8, text_len i64) *u8 {
-    if name_len == 6 && memcmp(name, "parser", 6) { return compiler_invoke_reader(node, &parser, nil); }
+    if name_len == 6 && memcmp(name, "parser", 6) {
+        var previous_source *u8 = phase_recognition_source;
+        var previous_offset i64 = phase_recognition_offset;
+        var reader_node *ReaderExpr = node;
+        phase_recognition_source = node_origin_source(node);
+        phase_recognition_offset = reader_node.content_offset;
+        var output *u8 = parser(text);
+        phase_recognition_source = previous_source;
+        phase_recognition_offset = previous_offset;
+        return output;
+    }
     return nil;
 }
 

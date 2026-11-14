@@ -362,7 +362,10 @@ pub func pnode_has_error(node *PNode) bool {
     if node.kind >= PNODE_ERROR && node.kind <= PNODE_MISMATCH { return true; }
     if node.children != nil {
         var i i64 = 0;
-        while i < vec_len(node.children) {
+        var count i64 = vec_len(node.children);
+        // Checked rule wrappers carry private metadata after the parsed child.
+        if node.kind == PNODE_CAPTURE && node.text != nil && streq(node.text, "@rule") && count > 1 { count = 1; }
+        while i < count {
             if pnode_has_error(vec_get(node.children, i)) { return true; }
             i = i + 1;
         }
