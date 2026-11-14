@@ -161,7 +161,7 @@ if (process.argv.includes('--check-corpus')) {
       assert.equal((asts[host].match(/\(func main /g) || []).length, 1);
       const ast = asts[host].replace('(func main ', '(func transcript_value ');
       const call = c.reader === 'minilisp' ? 'lisp_to_int(transcript_value())' : 'transcript_value()';
-      const adapter = `include "std/core.lang"\nfunc main() i64 { var value i64 = ${call}; print_int(value); print("\\n"); return value; }\n`;
+      const adapter = `include "std/core.lang"\npub func main() i64 { var value i64 = ${call}; print_int(value); print("\\n"); return value; }\n`;
       out.adapter = sha(adapter);
       out.adaptedAst = sha(ast);
       const runtimes = c.reader === 'minilisp' ? ['example/minilisp/lisp_runtime.lang'] : [];
