@@ -1,13 +1,13 @@
 // Optional compiler instrumentation. Phases are exclusive: nested source work
 // is charged to reading/tokens/parsing, not again to its backend caller.
 var timings_enabled i64 = 0;
-var timings_us [6]i64 = [];
-var timings_counts [6]i64 = [];
-var timings_starts [64]i64 = [];
-var timings_children [64]i64 = [];
-var timings_phases [64]i64 = [];
+var timings_us *i64 = nil;
+var timings_counts *i64 = nil;
+var timings_starts *i64 = nil;
+var timings_children *i64 = nil;
+var timings_phases *i64 = nil;
 var timings_depth i64 = 0;
-var timings_usage [144]u8 = [];
+var timings_usage *u8 = nil;
 
 func timings_cpu_us() i64 {
     // getrusage(RUSAGE_SELF): process user + system CPU, excluding children.
@@ -36,6 +36,13 @@ func timings_begin(phase i64) void {
         ___compiler_diagnostic_context("unsupported-mode", nil, -1, -1);
         eprintln("Error: --timings cannot be combined with --diagnostics=json");
         exit(1);
+    }
+    if timings_us == nil {
+        timings_us = alloc(6 * 8); timings_counts = alloc(6 * 8);
+        timings_starts = alloc(64 * 8); timings_children = alloc(64 * 8);
+        timings_phases = alloc(64 * 8); timings_usage = alloc(144);
+        var i i64 = 0;
+        while i < 6 { timings_us[i] = 0; timings_counts[i] = 0; i = i + 1; }
     }
     if timings_depth >= 64 { eprintln("error: timing nesting limit"); exit(1); }
     timings_phases[timings_depth] = phase;
