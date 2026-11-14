@@ -1,0 +1,6 @@
+include "example/minipy/minipy.lang"
+#minipy{
+def g(n):
+    for i in range(0, n, n):
+        pass
+}

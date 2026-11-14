@@ -10,7 +10,7 @@ macOS arm64 was not executed on this host.
 | Reader | Feature | LLVM x86-64 | LLVM-to-Wasm | Direct Wasm | macOS arm64 |
 | --- | --- | --- | --- | --- | --- |
 | lang | integers | [supported](../test/borders/cases/lang_integers.lang) | [supported](../test/borders/cases/lang_integers.lang) | [supported](../test/borders/cases/lang_integers.lang) | not-run-here |
-| lang | floats | [supported](../test/borders/cases/lang_floats.lang) | [supported](../test/borders/cases/lang_floats.lang) | [rejected](../test/borders/cases/lang_floats.lang) | not-run-here |
+| lang | floats | [supported](../test/borders/cases/lang_floats.lang) | [supported](../test/borders/cases/lang_floats.lang) | [supported](../test/borders/cases/lang_floats.lang) | not-run-here |
 | lang | strings | [supported](../test/borders/cases/lang_strings.lang) | [supported](../test/borders/cases/lang_strings.lang) | [supported](../test/borders/cases/lang_strings.lang) | not-run-here |
 | lang | functions | [supported](../test/borders/cases/lang_functions.lang) | [supported](../test/borders/cases/lang_functions.lang) | [supported](../test/borders/cases/lang_functions.lang) | not-run-here |
 | lang | closures | [supported](../test/borders/cases/lang_closures.lang) | [supported](../test/borders/cases/lang_closures.lang) | [rejected](../test/borders/cases/lang_closures.lang) | not-run-here |
@@ -32,7 +32,7 @@ macOS arm64 was not executed on this host.
 | minipy | recursion | [supported](../test/borders/cases/minipy_recursion.lang) | [supported](../test/borders/cases/minipy_recursion.lang) | [supported](../test/borders/cases/minipy_recursion.lang) | not-run-here |
 | minipy | effects | [rejected](../test/borders/cases/minipy_effects.lang) | [rejected](../test/borders/cases/minipy_effects.lang) | [rejected](../test/borders/cases/minipy_effects.lang) | not-run-here |
 | minipy | cross_reader_call | [supported](../test/borders/cases/minipy_cross_reader_call.lang) | [supported](../test/borders/cases/minipy_cross_reader_call.lang) | [supported](../test/borders/cases/minipy_cross_reader_call.lang) | not-run-here |
-| minipy | error_location | [supported](../test/borders/cases/minipy_error_location.lang) | [supported](../test/borders/cases/minipy_error_location.lang) | [supported](../test/borders/cases/minipy_error_location.lang) | not-run-here |
+| minipy | error_location | [wrong](../test/borders/bugs/minipy_error_location_llvm.lang) | [wrong](../test/borders/bugs/minipy_error_location_llvm-wasm.lang) | [wrong](../test/borders/bugs/minipy_error_location_wasm.lang) | not-run-here |
 | minilisp | integers | [supported](../test/borders/cases/minilisp_integers.lang) | [supported](../test/borders/cases/minilisp_integers.lang) | [supported](../test/borders/cases/minilisp_integers.lang) | not-run-here |
 | minilisp | floats | [wrong](../test/borders/bugs/minilisp_floats_llvm.lang) | [wrong](../test/borders/bugs/minilisp_floats_llvm-wasm.lang) | [wrong](../test/borders/bugs/minilisp_floats_wasm.lang) | not-run-here |
 | minilisp | strings | [wrong](../test/borders/bugs/minilisp_strings_llvm.lang) | [wrong](../test/borders/bugs/minilisp_strings_llvm-wasm.lang) | [wrong](../test/borders/bugs/minilisp_strings_wasm.lang) | not-run-here |
@@ -44,7 +44,7 @@ macOS arm64 was not executed on this host.
 | minilisp | recursion | [supported](../test/borders/cases/minilisp_recursion.lang) | [supported](../test/borders/cases/minilisp_recursion.lang) | [supported](../test/borders/cases/minilisp_recursion.lang) | not-run-here |
 | minilisp | effects | [rejected](../test/borders/cases/minilisp_effects.lang) | [rejected](../test/borders/cases/minilisp_effects.lang) | [rejected](../test/borders/cases/minilisp_effects.lang) | not-run-here |
 | minilisp | cross_reader_call | [supported](../test/borders/cases/minilisp_cross_reader_call.lang) | [supported](../test/borders/cases/minilisp_cross_reader_call.lang) | [supported](../test/borders/cases/minilisp_cross_reader_call.lang) | not-run-here |
-| minilisp | error_location | [supported](../test/borders/cases/minilisp_error_location.lang) | [supported](../test/borders/cases/minilisp_error_location.lang) | [supported](../test/borders/cases/minilisp_error_location.lang) | not-run-here |
+| minilisp | error_location | [wrong](../test/borders/bugs/minilisp_error_location_llvm.lang) | [wrong](../test/borders/bugs/minilisp_error_location_llvm-wasm.lang) | [wrong](../test/borders/bugs/minilisp_error_location_wasm.lang) | not-run-here |
 | c | integers | [supported](../test/borders/cases/c_integers.lang) | [supported](../test/borders/cases/c_integers.lang) | [supported](../test/borders/cases/c_integers.lang) | not-run-here |
 | c | floats | [rejected](../test/borders/cases/c_floats.lang) | [rejected](../test/borders/cases/c_floats.lang) | [rejected](../test/borders/cases/c_floats.lang) | not-run-here |
 | c | strings | [supported](../test/borders/cases/c_strings.lang) | [supported](../test/borders/cases/c_strings.lang) | [supported](../test/borders/cases/c_strings.lang) | not-run-here |
@@ -56,7 +56,7 @@ macOS arm64 was not executed on this host.
 | c | recursion | [supported](../test/borders/cases/c_recursion.lang) | [supported](../test/borders/cases/c_recursion.lang) | [supported](../test/borders/cases/c_recursion.lang) | not-run-here |
 | c | effects | not-applicable | not-applicable | not-applicable | not-run-here |
 | c | cross_reader_call | [supported](../test/borders/cases/c_cross_reader_call.lang) | [supported](../test/borders/cases/c_cross_reader_call.lang) | [supported](../test/borders/cases/c_cross_reader_call.lang) | not-run-here |
-| c | error_location | [supported](../test/borders/cases/c_error_location.lang) | [supported](../test/borders/cases/c_error_location.lang) | [supported](../test/borders/cases/c_error_location.lang) | not-run-here |
+| c | error_location | [wrong](../test/borders/bugs/c_error_location_llvm.lang) | [wrong](../test/borders/bugs/c_error_location_llvm-wasm.lang) | [wrong](../test/borders/bugs/c_error_location_wasm.lang) | not-run-here |
 | forth | integers | [supported](../test/borders/cases/forth_integers.lang) | [supported](../test/borders/cases/forth_integers.lang) | [supported](../test/borders/cases/forth_integers.lang) | not-run-here |
 | forth | floats | [wrong](../test/borders/bugs/forth_floats_llvm.lang) | [wrong](../test/borders/bugs/forth_floats_llvm-wasm.lang) | [wrong](../test/borders/bugs/forth_floats_wasm.lang) | not-run-here |
 | forth | strings | [rejected](../test/borders/cases/forth_strings.lang) | [rejected](../test/borders/cases/forth_strings.lang) | [rejected](../test/borders/cases/forth_strings.lang) | not-run-here |
@@ -68,7 +68,7 @@ macOS arm64 was not executed on this host.
 | forth | recursion | [supported](../test/borders/cases/forth_recursion.lang) | [supported](../test/borders/cases/forth_recursion.lang) | [supported](../test/borders/cases/forth_recursion.lang) | not-run-here |
 | forth | effects | [rejected](../test/borders/cases/forth_effects.lang) | [rejected](../test/borders/cases/forth_effects.lang) | [rejected](../test/borders/cases/forth_effects.lang) | not-run-here |
 | forth | cross_reader_call | [supported](../test/borders/cases/forth_cross_reader_call.lang) | [supported](../test/borders/cases/forth_cross_reader_call.lang) | [supported](../test/borders/cases/forth_cross_reader_call.lang) | not-run-here |
-| forth | error_location | [supported](../test/borders/cases/forth_error_location.lang) | [supported](../test/borders/cases/forth_error_location.lang) | [supported](../test/borders/cases/forth_error_location.lang) | not-run-here |
+| forth | error_location | [wrong](../test/borders/bugs/forth_error_location_llvm.lang) | [wrong](../test/borders/bugs/forth_error_location_llvm-wasm.lang) | [wrong](../test/borders/bugs/forth_error_location_wasm.lang) | not-run-here |
 | flow | integers | [supported](../test/borders/cases/flow_integers.lang) | [supported](../test/borders/cases/flow_integers.lang) | [supported](../test/borders/cases/flow_integers.lang) | not-run-here |
 | flow | floats | [rejected](../test/borders/cases/flow_floats.lang) | [rejected](../test/borders/cases/flow_floats.lang) | [rejected](../test/borders/cases/flow_floats.lang) | not-run-here |
 | flow | strings | [rejected](../test/borders/cases/flow_strings.lang) | [rejected](../test/borders/cases/flow_strings.lang) | [rejected](../test/borders/cases/flow_strings.lang) | not-run-here |
@@ -81,17 +81,17 @@ macOS arm64 was not executed on this host.
 | flow | effects | [supported](../test/borders/cases/flow_effects.lang) | [rejected](../test/borders/cases/flow_effects.lang) | [rejected](../test/borders/cases/flow_effects.lang) | not-run-here |
 | flow | cross_reader_call | [supported](../test/borders/cases/flow_cross_reader_call.lang) | [supported](../test/borders/cases/flow_cross_reader_call.lang) | [supported](../test/borders/cases/flow_cross_reader_call.lang) | not-run-here |
 | flow | error_location | [wrong](../test/borders/bugs/flow_error_location_llvm.lang) | [wrong](../test/borders/bugs/flow_error_location_llvm-wasm.lang) | [wrong](../test/borders/bugs/flow_error_location_wasm.lang) | not-run-here |
-| lox | integers | [supported](../test/borders/cases/lox_integers.lang) | [wrong](../test/borders/bugs/lox_integers_llvm-wasm.lang) | [rejected](../test/borders/cases/lox_integers.lang) | not-run-here |
-| lox | floats | [supported](../test/borders/cases/lox_floats.lang) | [wrong](../test/borders/bugs/lox_floats_llvm-wasm.lang) | [rejected](../test/borders/cases/lox_floats.lang) | not-run-here |
-| lox | strings | [supported](../test/borders/cases/lox_strings.lang) | [wrong](../test/borders/bugs/lox_strings_llvm-wasm.lang) | [rejected](../test/borders/cases/lox_strings.lang) | not-run-here |
-| lox | functions | [supported](../test/borders/cases/lox_functions.lang) | [wrong](../test/borders/bugs/lox_functions_llvm-wasm.lang) | [rejected](../test/borders/cases/lox_functions.lang) | not-run-here |
-| lox | closures | [supported](../test/borders/cases/lox_closures.lang) | [wrong](../test/borders/bugs/lox_closures_llvm-wasm.lang) | [rejected](../test/borders/cases/lox_closures.lang) | not-run-here |
+| lox | integers | [supported](../test/borders/cases/lox_integers.lang) | [wrong](../test/borders/bugs/lox_integers_llvm-wasm.lang) | [wrong](../test/borders/bugs/lox_integers_wasm.lang) | not-run-here |
+| lox | floats | [supported](../test/borders/cases/lox_floats.lang) | [wrong](../test/borders/bugs/lox_floats_llvm-wasm.lang) | [wrong](../test/borders/bugs/lox_floats_wasm.lang) | not-run-here |
+| lox | strings | [supported](../test/borders/cases/lox_strings.lang) | [wrong](../test/borders/bugs/lox_strings_llvm-wasm.lang) | [wrong](../test/borders/bugs/lox_strings_wasm.lang) | not-run-here |
+| lox | functions | [supported](../test/borders/cases/lox_functions.lang) | [wrong](../test/borders/bugs/lox_functions_llvm-wasm.lang) | [wrong](../test/borders/bugs/lox_functions_wasm.lang) | not-run-here |
+| lox | closures | [supported](../test/borders/cases/lox_closures.lang) | [wrong](../test/borders/bugs/lox_closures_llvm-wasm.lang) | [wrong](../test/borders/bugs/lox_closures_wasm.lang) | not-run-here |
 | lox | structs | [rejected](../test/borders/cases/lox_structs.lang) | [rejected](../test/borders/cases/lox_structs.lang) | [rejected](../test/borders/cases/lox_structs.lang) | not-run-here |
 | lox | arrays | [rejected](../test/borders/cases/lox_arrays.lang) | [rejected](../test/borders/cases/lox_arrays.lang) | [rejected](../test/borders/cases/lox_arrays.lang) | not-run-here |
 | lox | control_flow | [rejected](../test/borders/cases/lox_control_flow.lang) | [rejected](../test/borders/cases/lox_control_flow.lang) | [rejected](../test/borders/cases/lox_control_flow.lang) | not-run-here |
 | lox | recursion | [rejected](../test/borders/cases/lox_recursion.lang) | [rejected](../test/borders/cases/lox_recursion.lang) | [rejected](../test/borders/cases/lox_recursion.lang) | not-run-here |
 | lox | effects | not-applicable | not-applicable | not-applicable | not-run-here |
-| lox | cross_reader_call | [wrong](../test/borders/bugs/lox_cross_reader_call_llvm.lang) | [wrong](../test/borders/bugs/lox_cross_reader_call_llvm-wasm.lang) | [rejected](../test/borders/cases/lox_cross_reader_call.lang) | not-run-here |
+| lox | cross_reader_call | [wrong](../test/borders/bugs/lox_cross_reader_call_llvm.lang) | [wrong](../test/borders/bugs/lox_cross_reader_call_llvm-wasm.lang) | [wrong](../test/borders/bugs/lox_cross_reader_call_wasm.lang) | not-run-here |
 | lox | error_location | [supported](../test/borders/cases/lox_error_location.lang) | [supported](../test/borders/cases/lox_error_location.lang) | [supported](../test/borders/cases/lox_error_location.lang) | not-run-here |
 | lua | integers | [supported](../test/borders/cases/lua_integers.lang) | [supported](../test/borders/cases/lua_integers.lang) | [supported](../test/borders/cases/lua_integers.lang) | not-run-here |
 | lua | floats | [rejected](../test/borders/cases/lua_floats.lang) | [rejected](../test/borders/cases/lua_floats.lang) | [rejected](../test/borders/cases/lua_floats.lang) | not-run-here |
@@ -116,7 +116,7 @@ macOS arm64 was not executed on this host.
 | tiny | recursion | [rejected](../test/borders/cases/tiny_recursion.lang) | [rejected](../test/borders/cases/tiny_recursion.lang) | [rejected](../test/borders/cases/tiny_recursion.lang) | not-run-here |
 | tiny | effects | [rejected](../test/borders/cases/tiny_effects.lang) | [rejected](../test/borders/cases/tiny_effects.lang) | [rejected](../test/borders/cases/tiny_effects.lang) | not-run-here |
 | tiny | cross_reader_call | [rejected](../test/borders/cases/tiny_cross_reader_call.lang) | [rejected](../test/borders/cases/tiny_cross_reader_call.lang) | [rejected](../test/borders/cases/tiny_cross_reader_call.lang) | not-run-here |
-| tiny | error_location | [supported](../test/borders/cases/tiny_error_location.lang) | [supported](../test/borders/cases/tiny_error_location.lang) | [supported](../test/borders/cases/tiny_error_location.lang) | not-run-here |
+| tiny | error_location | [wrong](../test/borders/bugs/tiny_error_location_llvm.lang) | [wrong](../test/borders/bugs/tiny_error_location_llvm-wasm.lang) | [wrong](../test/borders/bugs/tiny_error_location_wasm.lang) | not-run-here |
 | calc | integers | [supported](../test/borders/cases/calc_integers.lang) | [supported](../test/borders/cases/calc_integers.lang) | [supported](../test/borders/cases/calc_integers.lang) | not-run-here |
 | calc | floats | [rejected](../test/borders/cases/calc_floats.lang) | [rejected](../test/borders/cases/calc_floats.lang) | [rejected](../test/borders/cases/calc_floats.lang) | not-run-here |
 | calc | strings | [rejected](../test/borders/cases/calc_strings.lang) | [rejected](../test/borders/cases/calc_strings.lang) | [rejected](../test/borders/cases/calc_strings.lang) | not-run-here |
@@ -130,7 +130,7 @@ macOS arm64 was not executed on this host.
 | calc | cross_reader_call | [rejected](../test/borders/cases/calc_cross_reader_call.lang) | [rejected](../test/borders/cases/calc_cross_reader_call.lang) | [rejected](../test/borders/cases/calc_cross_reader_call.lang) | not-run-here |
 | calc | error_location | [wrong](../test/borders/bugs/calc_error_location_llvm.lang) | [wrong](../test/borders/bugs/calc_error_location_llvm-wasm.lang) | [wrong](../test/borders/bugs/calc_error_location_wasm.lang) | not-run-here |
 
-Totals: not-applicable: 12, rejected: 177, supported: 146, wrong: 25.
+Totals: not-applicable: 12, rejected: 170, supported: 132, wrong: 46.
 
 Ordinary probes compile, link, and run against explicit exit-code and stdout oracles in `test/borders/probes.json` (usually exit 42; Lox prints a value, Lua asserts). Rejected means compilation or linking failed; wrong means an oracle mismatch; crash includes target traps and timeouts.
 Error-location probes intentionally fail compilation: supported requires the expected guest line/column (Lox reports a line). A wrapper-file error alone is wrong. These cells do not claim successful target execution.

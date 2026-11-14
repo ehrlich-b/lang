@@ -1,0 +1,7 @@
+include "example/lox/runtime.lang"
+include "example/lox/lox.lang"
+include "example/c/c.lang"
+#c{ int c_answer(int n) { return n + 23; } }
+#lox{
+print c_answer(19);
+}

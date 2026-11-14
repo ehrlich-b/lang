@@ -1,0 +1,4 @@
+include "example/forth/forth.lang"
+#forth{
+: g ( -- n ) + ;
+}

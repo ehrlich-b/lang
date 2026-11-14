@@ -593,5 +593,441 @@
         "phase": "run"
       }
     ]
+  },
+  "test/borders/bugs/minipy_error_location_llvm.lang": {
+    "sha256": "7185f88dbd075e859dfc4ad96241535b659fb0011103da1b2e57a0c58f1732bd",
+    "protected_includes": [
+      "include \"example/minipy/minipy.lang\""
+    ],
+    "final_includes": [
+      "include \"example/minipy/minipy.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": []
+  },
+  "test/borders/bugs/minipy_error_location_llvm-wasm.lang": {
+    "sha256": "7185f88dbd075e859dfc4ad96241535b659fb0011103da1b2e57a0c58f1732bd",
+    "protected_includes": [
+      "include \"example/minipy/minipy.lang\""
+    ],
+    "final_includes": [
+      "include \"example/minipy/minipy.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": []
+  },
+  "test/borders/bugs/minipy_error_location_wasm.lang": {
+    "sha256": "7185f88dbd075e859dfc4ad96241535b659fb0011103da1b2e57a0c58f1732bd",
+    "protected_includes": [
+      "include \"example/minipy/minipy.lang\""
+    ],
+    "final_includes": [
+      "include \"example/minipy/minipy.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": []
+  },
+  "test/borders/bugs/minilisp_error_location_llvm.lang": {
+    "sha256": "0e2cf2f15678b87748e6dfad8c33ee278ca5423f71aa75624588dceff41edba7",
+    "protected_includes": [
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "final_includes": [
+      "include \"example/minilisp/lisp_runtime.lang\"",
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "final_declarations": [
+      "func main() i64 { return lisp_to_int(#minilisp{ (2 3) }); }"
+    ],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"example/minilisp/lisp_runtime.lang\"",
+        "reproduces": false,
+        "status": "wrong",
+        "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return lisp_to_int(#minilisp{ (2 3) }); }",
+        "reproduces": false,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/minilisp_error_location_llvm-wasm.lang": {
+    "sha256": "0e2cf2f15678b87748e6dfad8c33ee278ca5423f71aa75624588dceff41edba7",
+    "protected_includes": [
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "final_includes": [
+      "include \"example/minilisp/lisp_runtime.lang\"",
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "final_declarations": [
+      "func main() i64 { return lisp_to_int(#minilisp{ (2 3) }); }"
+    ],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"example/minilisp/lisp_runtime.lang\"",
+        "reproduces": false,
+        "status": "wrong",
+        "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return lisp_to_int(#minilisp{ (2 3) }); }",
+        "reproduces": false,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/minilisp_error_location_wasm.lang": {
+    "sha256": "4110c6d2f5e18b166135b266909561d0745d1d378e0bd54e7c5f1ce3f26d9c25",
+    "protected_includes": [
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "final_includes": [
+      "include \"example/minilisp/minilisp.lang\""
+    ],
+    "final_declarations": [
+      "func main() i64 { return lisp_to_int(#minilisp{ (2 3) }); }"
+    ],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"example/minilisp/lisp_runtime.lang\"",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return lisp_to_int(#minilisp{ (2 3) }); }",
+        "reproduces": false,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/c_error_location_llvm.lang": {
+    "sha256": "8447e2391786264182391de86767929aba967fc76e2544b3ee8746d8564f1b3e",
+    "protected_includes": [
+      "include \"example/c/c.lang\""
+    ],
+    "final_includes": [
+      "include \"example/c/c.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(); }",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/c_error_location_llvm-wasm.lang": {
+    "sha256": "8447e2391786264182391de86767929aba967fc76e2544b3ee8746d8564f1b3e",
+    "protected_includes": [
+      "include \"example/c/c.lang\""
+    ],
+    "final_includes": [
+      "include \"example/c/c.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(); }",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/c_error_location_wasm.lang": {
+    "sha256": "8447e2391786264182391de86767929aba967fc76e2544b3ee8746d8564f1b3e",
+    "protected_includes": [
+      "include \"example/c/c.lang\""
+    ],
+    "final_includes": [
+      "include \"example/c/c.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(); }",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/forth_error_location_llvm.lang": {
+    "sha256": "f7fdd84d3af13533ea35153059374ae5c906782f24988dc63adde7013820cd9d",
+    "protected_includes": [
+      "include \"example/forth/forth.lang\""
+    ],
+    "final_includes": [
+      "include \"example/forth/forth.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"example/forth/forth_runtime.lang\"",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(); }",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/forth_error_location_llvm-wasm.lang": {
+    "sha256": "f7fdd84d3af13533ea35153059374ae5c906782f24988dc63adde7013820cd9d",
+    "protected_includes": [
+      "include \"example/forth/forth.lang\""
+    ],
+    "final_includes": [
+      "include \"example/forth/forth.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"example/forth/forth_runtime.lang\"",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(); }",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/forth_error_location_wasm.lang": {
+    "sha256": "f7fdd84d3af13533ea35153059374ae5c906782f24988dc63adde7013820cd9d",
+    "protected_includes": [
+      "include \"example/forth/forth.lang\""
+    ],
+    "final_includes": [
+      "include \"example/forth/forth.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"example/forth/forth_runtime.lang\"",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      },
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(); }",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lox_integers_wasm.lang": {
+    "sha256": "016515b5959c4e3fc720121c2dfcf58e4f834a7ca68d71b59469b771371c0432",
+    "protected_includes": [
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lox_floats_wasm.lang": {
+    "sha256": "d44b78c2b0a1b8cb09353fceae5a424742b32254505db85632bc4b5f7f9c29c2",
+    "protected_includes": [
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lox_strings_wasm.lang": {
+    "sha256": "820bbb1fc951409fb84f5cfb1a2729cac7eed35cbf499daff88100b2a40874f8",
+    "protected_includes": [
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lox_functions_wasm.lang": {
+    "sha256": "6666269319640e5dd9bf2187f73af8a57a2c28efd1496f8f66015e8855f20deb",
+    "protected_includes": [
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lox_closures_wasm.lang": {
+    "sha256": "6f8c2c21e82acb2e542921db71470102a6e2519c05867fbfc213eb2def395d08",
+    "protected_includes": [
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/lox_cross_reader_call_wasm.lang": {
+    "sha256": "28798a1c35e82370e41c920280a06f4f96561f3adf00002c5eb6045fbcc715e6",
+    "protected_includes": [
+      "include \"example/c/c.lang\"",
+      "include \"example/lox/lox.lang\""
+    ],
+    "final_includes": [
+      "include \"example/lox/runtime.lang\"",
+      "include \"example/lox/lox.lang\"",
+      "include \"example/c/c.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"example/lox/runtime.lang\"",
+        "reproduces": false,
+        "status": "rejected",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/tiny_error_location_llvm.lang": {
+    "sha256": "0302dbac9aacc57815991e8344ca944166378ee132b9735be0fc390f42bd014a",
+    "protected_includes": [
+      "include \"example/tiny/tiny.lang\""
+    ],
+    "final_includes": [
+      "include \"std/core.lang\"",
+      "include \"example/tiny/tiny.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"std/core.lang\"",
+        "reproduces": false,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/tiny_error_location_llvm-wasm.lang": {
+    "sha256": "0302dbac9aacc57815991e8344ca944166378ee132b9735be0fc390f42bd014a",
+    "protected_includes": [
+      "include \"example/tiny/tiny.lang\""
+    ],
+    "final_includes": [
+      "include \"std/core.lang\"",
+      "include \"example/tiny/tiny.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"std/core.lang\"",
+        "reproduces": false,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
+  },
+  "test/borders/bugs/tiny_error_location_wasm.lang": {
+    "sha256": "0302dbac9aacc57815991e8344ca944166378ee132b9735be0fc390f42bd014a",
+    "protected_includes": [
+      "include \"example/tiny/tiny.lang\""
+    ],
+    "final_includes": [
+      "include \"std/core.lang\"",
+      "include \"example/tiny/tiny.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "include",
+        "removed": "include \"std/core.lang\"",
+        "reproduces": false,
+        "status": "wrong",
+        "phase": "compile"
+      }
+    ]
   }
 }
