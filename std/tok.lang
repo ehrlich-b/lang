@@ -92,7 +92,7 @@ struct Tokenizer {
 }
 
 func tok_new_state(input *u8) *Tokenizer {
-    var t *Tokenizer = alloc(216);  // 27 fields * 8 bytes
+    var t *Tokenizer = alloc(224);  // 28 fields * 8 bytes
     t.input = input;
     t.pos = 0;
     t.len = strlen(input);
