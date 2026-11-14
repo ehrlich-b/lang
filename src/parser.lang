@@ -2120,7 +2120,9 @@ pub func reader_expr_source_start(node *u8) i64 {
     var content *u8 = reader_expr_content(node);
     var len i64 = reader_expr_content_len(node);
     if start <= source.len && len <= source.len - start && origin.end == start + len {
-        if memcmp(source.text + start, content, len) { return start; }
+        var i i64 = 0;
+        while i < len && *(source.text + start + i) == *(content + i) { i = i + 1; }
+        if i == len { return start; }
     }
     if start >= source.len || *(source.text + start) != '#' { return 0 - 1; }
     while start < source.len && *(source.text + start) != '{' { start = start + 1; }
