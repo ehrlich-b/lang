@@ -807,7 +807,7 @@ func read_run_reader_raw(name *u8, source_path *u8, content *u8) *u8 {
     } else {
         var reader_decl *u8 = find_reader(name, name_len);
         if reader_decl == nil {
-            read_error_prefix(source_path);
+            eprint(source_path); eprint(":1:1: error: ");
             eprint("reader '");
             eprint(name);
             eprintln("' not found");
