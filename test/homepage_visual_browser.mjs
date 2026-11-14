@@ -107,7 +107,7 @@ try {
 
   await page.locator('#reader-details summary').click();
   assert(await page.locator('#reader-details a[href="readers.html"]').isVisible());
-  await page.locator('#capability-details summary').click();
+  await page.locator('#capability-details > summary').click();
   const borders = JSON.parse(await fs.readFile(path.join(root, 'borders.json')));
   assert.equal(await page.locator('.border-cell').count(), borders.cells.length);
   assert.deepEqual(errors, []);
