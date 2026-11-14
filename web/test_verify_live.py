@@ -45,6 +45,32 @@ class PublishedMatchesTests(unittest.TestCase):
         actual = b'<body>release\n' + BEACON + b'\n</body>'
         self.assertFalse(verify_live.published_matches('index.html', expected, actual))
 
+    def test_one_lf_envelope_only_immediately_before_body_close(self):
+        for name in ('index.html', 'lab.html', 'readers.html'):
+            with self.subTest(name=name):
+                actual = PAGE.replace(b'</body>', BEACON + b'\n</body>')
+                self.assertTrue(verify_live.published_matches(name, PAGE, actual))
+        expected = b'<html><body>release</body></html>'
+        for offset in (0, expected.index(b'release'), expected.index(b'</html>'),
+                       len(expected)):
+            actual = expected[:offset] + BEACON + b'\n' + expected[offset:]
+            with self.subTest(offset=offset):
+                self.assertFalse(verify_live.published_matches('index.html', expected, actual))
+
+    def test_one_lf_envelope_preserves_beacon_and_content_restrictions(self):
+        for tag in (BEACON * 2,
+                    BEACON.replace(b'.com/', b'.com.evil/'),
+                    BEACON.replace(b'></script>', b'>alert(1)</script>'),
+                    BEACON.replace(b'defer', b'onload="alert(1)"'),
+                    BEACON.replace(b'defer', b'src="https://example.com/evil.js"'),
+                    BEACON.replace(b'></script>', b'/>')):
+            with self.subTest(tag=tag):
+                actual = PAGE.replace(b'</body>', tag + b'\n</body>')
+                self.assertFalse(verify_live.published_matches('index.html', PAGE, actual))
+        actual = PAGE.replace(b'</body>', BEACON + b'\n</body>')
+        self.assertFalse(verify_live.published_matches(
+            'index.html', PAGE, actual.replace(b'SDK', b'changed')))
+
     def test_added_line_endings_and_blank_lines_fail(self):
         expected = b'<body>release</body>'
         for ending in (b'\n', b'\r\n', b'\n\n', b'\r\n\r\n'):
@@ -55,8 +81,9 @@ class PublishedMatchesTests(unittest.TestCase):
                         b'<body>release' + prefix + BEACON + suffix + b'</body>'):
                     with self.subTest(ending=ending, prefix=prefix, suffix=suffix,
                                       actual=actual):
-                        self.assertFalse(verify_live.published_matches(
-                            'index.html', expected, actual))
+                        allowed = b'<body>release' + BEACON + b'\n</body>'
+                        self.assertEqual(verify_live.published_matches(
+                            'index.html', expected, actual), actual == allowed)
 
     def test_two_beacons_fail(self):
         for extra in (BEACON * 2, (BEACON + b'\n') * 2):
@@ -85,7 +112,8 @@ class PublishedMatchesTests(unittest.TestCase):
         for actual in (injected.replace(b'SDK', b'changed'), injected + b' ',
                        injected.replace(b'caf\xc3\xa9', b'cafe'),
                        injected.replace(b'<a ', b'<a  '),
-                       injected.replace(BEACON, BEACON + b'\n')):
+                       injected.replace(BEACON, b'\n' + BEACON),
+                       injected.replace(BEACON, BEACON + b'\n\n')):
             with self.subTest(actual=actual):
                 self.assertFalse(verify_live.published_matches('index.html', PAGE, actual))
 
@@ -121,7 +149,8 @@ class PublishedMatchesTests(unittest.TestCase):
 
     def test_non_html_assets_remain_exact(self):
         for name in ('host.js', 'compiler.wasm', 'receipt.json', 'examples/fib.lang'):
-            for actual in (PAGE + BEACON, PAGE + b'\n', PAGE.replace(b'SDK', b'changed')):
+            for actual in (PAGE + BEACON, PAGE + b'\n', PAGE.replace(b'SDK', b'changed'),
+                           PAGE.replace(b'</body>', BEACON + b'\n</body>')):
                 with self.subTest(name=name, actual=actual):
                     self.assertFalse(verify_live.published_matches(name, PAGE, actual))
 
@@ -146,7 +175,7 @@ class LiveVerifierTests(unittest.TestCase):
                     info = tarfile.TarInfo(name)
                     info.size = len(data)
                     tar.addfile(info, io.BytesIO(data))
-            for mode in ('unchanged', 'one', 'two', 'changed', 'binary', 'ordinary',
+            for mode in ('unchanged', 'one', 'envelope', 'two', 'changed', 'binary', 'ordinary',
                          'cache-busted', 'leading-lf', 'trailing-crlf', 'around-tag'):
                 requests = []
 
@@ -160,6 +189,8 @@ class LiveVerifierTests(unittest.TestCase):
                     if path.endswith('.html') and mode != 'unchanged':
                         count = 2 if mode == 'two' else 1
                         tag = BEACON * count
+                        if mode == 'envelope':
+                            tag += b'\n'
                         if mode == 'around-tag':
                             tag = b'\n' + tag + b'\n'
                         data = data.replace(b'</body>', tag + b'</body>')
@@ -181,7 +212,8 @@ class LiveVerifierTests(unittest.TestCase):
                         'verify_live.py', str(archive), 'https://example.test/prefix/']), \
                         patch.object(verify_live.urllib.request, 'urlopen', side_effect=fetch), \
                         contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-                    self.assertEqual(verify_live.main(), 0 if mode in ('unchanged', 'one') else 1,
+                    self.assertEqual(verify_live.main(), 0 if mode in (
+                        'unchanged', 'one', 'envelope') else 1,
                                      output.getvalue())
                     self.assertEqual(len(requests), 2 + 2 * len(names))
                     self.assertTrue(all(r.get_method() == 'GET' for r in requests))

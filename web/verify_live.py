@@ -81,8 +81,12 @@ def published_matches(name, expected, actual):
     if len(spans) != 1:
         return False
     start, end = spans[0]
-    # Only the tag itself may differ; surrounding bytes must stay exact.
-    return actual[:start] + actual[end:] == expected
+    if actual[:start] + actual[end:] == expected:
+        return True
+    # The captured Cloudflare envelope adds exactly one LF before </body>.
+    # Only that tag-plus-LF envelope may differ; every other byte stays exact.
+    return (actual[end:end + 8] == b'\n</body>'
+            and actual[:start] + actual[end + 1:] == expected)
 
 
 def main():
