@@ -7,7 +7,7 @@ include "std/layout_recipe.lang"
 #parser{
     !captures;
     !inspect shipping_policy;
-    shipping_policy = 'shipping' '{' settings:shipping_setting* '}'
+    shipping_policy = 'shipping' '{' settings:@recover(shipping_setting, ';', "}")* '}'
     shipping_setting = name:symbol value:shipping_value ';'
     shipping_editor_policy = 'shipping' '{' settings:shipping_editor_setting* '}'
     shipping_editor_setting = @recover(shipping_setting, ';', "}")
@@ -113,5 +113,5 @@ reader shippinglib(text *u8) *u8 { return shipping_read(text, false); }
 pub func shipping_partial(text *u8) *PNode {
     var tokens *Tokenizer = tok_new(text);
     tokens.recovery = 1;
-    return parse_shipping_editor_policy(tokens);
+    return parse_shipping_policy(tokens);
 }
