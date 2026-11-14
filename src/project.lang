@@ -291,7 +291,7 @@ func project_format(project *LanguageProject, output *u8) i64 {
     var content *u8 = read_file(path);
     if content == nil || read_prepare_readers(readers) == 0 { return 1; }
     var name *u8 = project_field(project, "reader_name");
-    var artifact *u8 = phase_reader_call(build_reader_cache_path(name, strlen(name)), content, strlen(content), "format");
+    var artifact *u8 = reader_host_worker_mode(build_reader_cache_path(name, strlen(name)), content, strlen(content), name, path, nil, "format");
     if artifact == nil { eprint(path); eprintln(": error: reader source formatting failed"); return 1; }
     var header *u8 = "LANG-FORMAT/1\n";
     var len i64 = strlen(header);
