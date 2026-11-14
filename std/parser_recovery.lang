@@ -1,0 +1,59 @@
+// Snapshot speculative failure context without retaining the mutable buffer.
+pub func pnode_save_error(t *Tokenizer) *PNode {
+    var n *PNode = pnode_atom_span(PNODE_MISMATCH,
+        str_concat("", t.error_expected), t.error_pos, t.error_end);
+    n.branch = t.error_found;
+    return n;
+}
+
+pub func pnode_clear_error(t *Tokenizer) void {
+    if t.comment_error >= 0 { return; }
+    t.error_pos = -1;
+    t.error_end = -1;
+    t.error_expected_len = 0;
+    *t.error_expected = 0;
+    t.error_found = nil;
+}
+
+pub func pnode_restore_error(t *Tokenizer, saved *PNode) void {
+    if t.comment_error >= 0 { return; }
+    t.error_pos = saved.start;
+    t.error_end = saved.end;
+    t.error_expected_len = strlen(saved.text);
+    memcpy(t.error_expected, saved.text, t.error_expected_len + 1);
+    t.error_found = saved.branch;
+}
+
+func pnode_sync_at(t *Tokenizer, text *u8) bool {
+    return !tok_eof(t) && str_eq_n(tok_text_ptr(t), tok_text_len(t), text, strlen(text));
+}
+
+// Called only after a strict rule failed and rewound to its statement start.
+// Stops before the enclosing delimiter; consumes a statement terminator.
+pub func pnode_recover(t *Tokenizer, start i64, terminator *u8, stop *u8) *PNode {
+    if tok_eof(t) || pnode_sync_at(t, stop) { return nil; }
+    var mismatch *PNode = pnode_save_error(t);
+    var skipped_end i64 = start;
+    var moved i64 = 0;
+    var budget i64 = t.len + 1;
+    if t.stream != nil { budget = t.stream_count + 1; }
+    while budget > 0 && !tok_eof(t) && !pnode_sync_at(t, stop) {
+        var last i64 = tok_mark(t);
+        var finish bool = pnode_sync_at(t, terminator);
+        skipped_end = tok_end_offset(t);
+        tok_next(t);
+        moved = moved + 1;
+        budget = budget - 1;
+        if finish || tok_mark(t) == last { break; }
+    }
+    if moved == 0 { return nil; }
+    var message *u8 = str_concat("expected ", mismatch.text);
+    message = str_concat(message, ", found ");
+    if mismatch.branch != nil { message = str_concat(message, mismatch.branch); }
+    var error *PNode = pnode_atom_span(PNODE_ERROR, message, start, skipped_end);
+    error.children = vec_new(3);
+    vec_push(error.children, pnode_atom_span(PNODE_SKIPPED, nil, start, skipped_end));
+    vec_push(error.children, pnode_atom_span(PNODE_MISSING, mismatch.text, mismatch.start, mismatch.start));
+    vec_push(error.children, mismatch);
+    return error;
+}
