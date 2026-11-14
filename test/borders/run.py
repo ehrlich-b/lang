@@ -278,9 +278,17 @@ def main():
     if args.prepare_bugs:
         minimality_path.write_text(json.dumps(minimality, indent=2) + '\n')
     if not filtered and not args.verify:
-        Path('borders.json').write_text(json.dumps(data, indent=2) + '\n')
-        subprocess.run(['python3', '-B', 'test/borders/render.py', '--write'], check=True)
-        subprocess.run(['python3', '-B', 'web/generate_borders.py'], check=True)
+        evidence_dir = os.environ.get('BORDERS_EVIDENCE_DIR')
+        if evidence_dir:
+            from render import render
+            output = Path(evidence_dir).resolve()
+            (output / 'docs').mkdir(parents=True, exist_ok=True)
+            (output / 'borders.json').write_text(json.dumps(data, indent=2) + '\n')
+            (output / 'docs/BORDERS.md').write_text(render(data))
+        else:
+            Path('borders.json').write_text(json.dumps(data, indent=2) + '\n')
+            subprocess.run(['python3', '-B', 'test/borders/render.py', '--write'], check=True)
+            subprocess.run(['python3', '-B', 'web/generate_borders.py'], check=True)
     if args.verify:
         for cell in cells:
             old = published[(cell['reader'], cell['feature'], cell['target'])]
