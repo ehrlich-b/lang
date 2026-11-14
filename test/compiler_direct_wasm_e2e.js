@@ -143,7 +143,7 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
   const origins = await compileAndRun('test/suite/287_node_origins_index.lang', {
     'src/lexer.lang': fs.readFileSync('src/lexer.lang', 'utf8'),
     'src/parser.lang': fs.readFileSync('src/parser.lang', 'utf8'),
-    ...Object.fromEntries(['compiler_tables', 'stage_node_origin', 'stage_digest', 'stage_origin', 'stage_wire']
+    ...Object.fromEntries(['timings', 'compiler_tables', 'stage_node_origin', 'stage_digest', 'stage_origin', 'stage_wire']
       .map((name) => [`src/${name}.lang`, fs.readFileSync(`src/${name}.lang`, 'utf8')])),
   });
   if (Number(origins.value) !== 0) throw new Error(`origin index mismatch: ${origins.value}`);
