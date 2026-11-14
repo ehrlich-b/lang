@@ -53,6 +53,8 @@ const env = {
     (Number(fd) === 2 ? process.stderr : process.stdout).write(data);
     return BigInt(n);
   },
+  // Raw host syscalls are unavailable; callers receive a failure.
+  syscall: () => -1n,
   open: () => -1n,
   close: () => 0n,
   mmap: (addr, len) => bump(len),

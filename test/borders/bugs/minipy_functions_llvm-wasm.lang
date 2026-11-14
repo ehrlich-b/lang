@@ -1,0 +1,7 @@
+include "example/minipy/minipy.lang"
+#minipy{
+def add(n):
+    return n + 23
+def g():
+    return add(19)
+}

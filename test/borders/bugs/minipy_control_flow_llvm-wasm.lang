@@ -1,0 +1,10 @@
+include "example/minipy/minipy.lang"
+#minipy{
+def g():
+    n = 0
+    while n < 42:
+        n = n + 1
+    if n == 42:
+        return n
+    return 1
+}

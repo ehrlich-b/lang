@@ -1,0 +1,2 @@
+include "example/c/c.lang"
+#c{ int g(int n) { return n + 23; } }

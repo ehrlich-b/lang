@@ -1,0 +1,5 @@
+include "example/minipy/minipy.lang"
+#minipy{
+def g():
+    return 19 + 23
+}

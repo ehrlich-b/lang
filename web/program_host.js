@@ -383,6 +383,8 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContext) {
       else emit(decoder.decode(data), number(fdValue) === 2);
       return BigInt(data.length);
     },
+    // Raw host syscalls are unavailable; callers receive a failure.
+    syscall: () => -1n,
     open: () => -1n,
     close: () => 0n,
     stat: () => -1n,

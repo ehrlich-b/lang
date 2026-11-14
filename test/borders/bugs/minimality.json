@@ -574,5 +574,24 @@
         "phase": "compile"
       }
     ]
+  },
+  "test/borders/bugs/lang_cross_reader_call_llvm-wasm.lang": {
+    "sha256": "46550e3cc7c89ab766e39747b5d9da96755d699906e768909d513bccb5b4af20",
+    "protected_includes": [
+      "include \"example/c/c.lang\""
+    ],
+    "final_includes": [
+      "include \"example/c/c.lang\""
+    ],
+    "final_declarations": [],
+    "reductions": [
+      {
+        "kind": "declaration",
+        "removed": "func main() i64 { return g(19); }",
+        "reproduces": true,
+        "status": "wrong",
+        "phase": "run"
+      }
+    ]
   }
 }
