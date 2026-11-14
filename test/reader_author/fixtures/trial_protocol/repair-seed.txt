@@ -1,0 +1,16 @@
+Version 1; facilitator-only seed procedure, identical semantic defect per tool.
+Use a pinned, independently correct T3 starter, not the participant's T3 output.
+Replace only the duplicate-setting guard with unconditional assignment:
+
+  canonical_name = (name == "fee" ? "base" : name)
+  validate_name_and_decimal_value()
+  settings[canonical_name] = value
+
+The missing guard is:
+  if canonical_name in settings: error_at_name("duplicate setting")
+
+Freeze each tool's actual starter source and patch hashes before recruitment.
+Preflight: supplied starter passes T3 positive cases and fails the T4 duplicate
+oracle by accepting it. Give the participant the broken source and public
+reproducer. A repaired submission must pass the entire T3 and T4 oracle.
+No core edits, hidden unrelated defects, or tool-specific requirement waivers.

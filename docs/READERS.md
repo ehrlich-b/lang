@@ -3,6 +3,9 @@
 For executable create, evolve and repair exercises, use the
 [reader authoring pack](reader-pack/README.md). It includes current-source build
 identities and a deterministic native/browser smoke replay.
+For frozen unfamiliar-author tasks, timing/error recording and the planned
+five-tool comparison, see [author trials](AUTHOR_TRIALS.md). Human usability
+results remain not measured.
 
 Lang is a compiler compiler: give its kernel a function that turns source text
 into Lang AST, and you have taught it a new language. That function is a

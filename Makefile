@@ -441,7 +441,10 @@ _verify-complete: generate-os-layer generate-version-info
 	python3 scripts/build_receipt.py finish --input out/verify-input.json --compiler $(BOOTSTRAP_VERIFY_DIR)/kernel2 --output out/verify-receipt.json --artifact $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll --artifact $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll --artifact $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast --artifact $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
 
 # Non-promoting verification alias; never archives, installs or updates the seed.
-ifeq ($(VERIFY_CASE),stranger)
+ifeq ($(VERIFY_CASE),author-trials)
+verify:
+	python3 -B test/reader_author/trial_protocol.py --case replay
+else ifeq ($(VERIFY_CASE),stranger)
 verify:
 	python3 -B test/reader_author/demo.py --case stranger
 else ifeq ($(VERIFY_CASE),editor)

@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "sha256": {
+    "docs/AUTHOR_TRIALS.md": "2e19770935849dc9332e3827eba8199cc783f4d4af5dec39c9335d5420b2bb7d",
+    "test/reader_author/fixtures/trial_protocol/heldout/duplicate.shipping": "02bf3e379a75af38676fcc5f74322556f8242bf0297d7fabe121607f89b1c03e",
+    "test/reader_author/fixtures/trial_protocol/heldout/native.shipping": "7125698006cf791882ccc62aba5d9f4ea9f8f42dec5621ec970a160805ce3b92",
+    "test/reader_author/fixtures/trial_protocol/heldout/oracles.v2.json": "b9adf1b81279d364ed0e573fd741da8aba9de8cf3cd86af1635126d521bc4845",
+    "test/reader_author/fixtures/trial_protocol/recorder.v1.json": "69c580ad6811da4677ea366f850adec715b1a85d56f34f525fdd0f40f05b1a3b",
+    "test/reader_author/fixtures/trial_protocol/repair-seed.txt": "96111cf1e6836afd58b042e9760d5e9aecad7c46c41465583bf184fce3b42530",
+    "test/reader_author/fixtures/trial_protocol/tasks.v2.json": "8f5b73a25498acb5f52a9479c669edcad3b80c89b8a52563088bcfbbe1f10a56"
+  }
+}

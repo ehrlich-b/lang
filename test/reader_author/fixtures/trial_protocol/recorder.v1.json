@@ -1,0 +1,117 @@
+{
+  "synthetic": true,
+  "events": [
+    {
+      "seq": 0,
+      "t_ns": 0,
+      "type": "session",
+      "data": {
+        "version": 1,
+        "kind": "automated",
+        "participant": "synthetic-clock-fixture",
+        "tool": "lang",
+        "prior_experience": {
+          "tool_hours": null,
+          "language_author_hours": null,
+          "seen_task": true
+        },
+        "task_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "seq": 1,
+      "t_ns": 2000000000,
+      "type": "state",
+      "data": {
+        "mode": "waiting",
+        "activity": "build"
+      }
+    },
+    {
+      "seq": 2,
+      "t_ns": 2000000000,
+      "type": "doc",
+      "data": {
+        "uri": "synthetic-doc",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "seq": 3,
+      "t_ns": 7000000000,
+      "type": "state",
+      "data": {
+        "mode": "active",
+        "activity": "authoring"
+      }
+    },
+    {
+      "seq": 4,
+      "t_ns": 8000000000,
+      "type": "code",
+      "data": {
+        "path": "synthetic-reader",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "baseline_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "authored_lines": 4,
+        "generated_lines": 20,
+        "compiler_core_edits": 0
+      }
+    },
+    {
+      "seq": 5,
+      "t_ns": 10000000000,
+      "type": "state",
+      "data": {
+        "mode": "waiting",
+        "activity": "installation"
+      }
+    },
+    {
+      "seq": 6,
+      "t_ns": 10000000000,
+      "type": "installation",
+      "data": {
+        "tool": "synthetic-tool",
+        "status": "attempted"
+      }
+    },
+    {
+      "seq": 7,
+      "t_ns": 11000000000,
+      "type": "error",
+      "data": {
+        "category": "installation",
+        "message": "synthetic installer retry"
+      }
+    },
+    {
+      "seq": 8,
+      "t_ns": 12000000000,
+      "type": "state",
+      "data": {
+        "mode": "active",
+        "activity": "installation"
+      }
+    },
+    {
+      "seq": 9,
+      "t_ns": 13000000000,
+      "type": "finish",
+      "data": {}
+    }
+  ],
+  "expected": {
+    "timing_seconds": {
+      "active_seconds": 6.0,
+      "waiting_seconds": 7.0,
+      "installation_active_seconds": 1.0,
+      "installation_waiting_seconds": 2.0
+    },
+    "elapsed_seconds": 13.0,
+    "authored_lines": 4,
+    "generated_lines": 20,
+    "compiler_core_edits": 0,
+    "human_results": "not measured"
+  }
+}

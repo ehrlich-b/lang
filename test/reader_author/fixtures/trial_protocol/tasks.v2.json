@@ -1,0 +1,139 @@
+{
+  "version": 2,
+  "tools": [
+    "lang",
+    "Bison",
+    "ANTLR",
+    "Ohm",
+    "tree-sitter"
+  ],
+  "requirements_apply_to": "every tool without exemptions",
+  "contract": {
+    "source": "ASCII shipping { base N; free_over N; }, settings in either order, exactly once; ASCII space/tab/CR/LF between tokens; no comments required",
+    "numbers": "one or more ASCII decimal digits, leading zeros allowed, value 0..1000000; reject signs, fractions, hex, overflow and trailing text",
+    "runtime": "one decimal command-line total in 0..1000000; print decimal cost plus LF, exit 0, empty stderr; invalid runtime arguments exit 64, empty stdout, stderr contains shipping:",
+    "compile_errors": "exit 1, empty stdout, no output artifact; stderr contains shipping:LINE:COLUMN: and the substring in compile_diagnostics for that error; line and column are 1-based",
+    "native": "Linux x86-64 ELF executable compiler: COMPILER SOURCE --emit=native -o OUTPUT, then OUTPUT TOTAL; may use declared installed Clang/linker/libc; no source checkout, parser-generator, VM, Node, Java or Python needed at use time",
+    "permitted": "tool idiomatic grammar, handwritten glue, runtime, and ahead-of-time or embedded runtime packaging; all effort and installs counted; no edits to compiler/parser-generator core",
+    "compile_diagnostics": {
+      "missing required setting": "missing setting",
+      "unrecognized setting name": "unknown setting",
+      "repeated setting, including base/fee alias collisions from T2 onward": "duplicate setting",
+      "signed, out-of-range or overflowing setting number": "decimal integer",
+      "fractional or hex setting literal, trailing text or malformed syntax": "expected"
+    }
+  },
+  "tasks": [
+    {
+      "id": "T1",
+      "action": "create",
+      "time_limit_minutes": 15,
+      "prompt": "Create the shipping language from an empty project. Below free_over charge base; at or above free_over charge zero. Provide a build command and runnable policy program. Use the shared contract.",
+      "training": [
+        {
+          "source": "shipping { base 10; free_over 100; }",
+          "totals": [
+            99,
+            100
+          ],
+          "stdout": [
+            "10\n",
+            "0\n"
+          ]
+        }
+      ],
+      "oracle": "heldout/oracles.v2.json#T1"
+    },
+    {
+      "id": "T2",
+      "action": "add syntax",
+      "time_limit_minutes": 15,
+      "prompt": "Extend T1: fee is an alias for base, including duplicate detection when both spellings occur. Preserve all old syntax and behavior.",
+      "training": [
+        {
+          "source": "shipping { fee 10; free_over 100; }",
+          "totals": [
+            99,
+            100
+          ],
+          "stdout": [
+            "10\n",
+            "0\n"
+          ]
+        }
+      ],
+      "oracle": "heldout/oracles.v2.json#T2"
+    },
+    {
+      "id": "T3",
+      "action": "change semantics",
+      "time_limit_minutes": 15,
+      "prompt": "Extend T2: free_over is now exclusive. At the threshold charge base; only totals strictly greater ship free. Keep both spellings and all validation.",
+      "training": [
+        {
+          "source": "shipping { base 10; free_over 100; }",
+          "totals": [
+            99,
+            100,
+            101
+          ],
+          "stdout": [
+            "10\n",
+            "10\n",
+            "0\n"
+          ]
+        }
+      ],
+      "oracle": "heldout/oracles.v2.json#T3"
+    },
+    {
+      "id": "T4",
+      "action": "repair an error",
+      "time_limit_minutes": 15,
+      "prompt": "Repair a seeded duplicate-setting defect in a supplied T3 implementation. Its validator overwrites the previous value instead of rejecting a repeated setting. First retain the failing duplicate-policy receipt, then fix the frontend and pass all T3 behavior and duplicate checks, including base/fee alias collisions.",
+      "training": [
+        {
+          "source": "shipping { base 10; base 11; free_over 100; }",
+          "diagnostic": "duplicate setting"
+        }
+      ],
+      "seed": "repair-seed.txt",
+      "oracle": "heldout/oracles.v2.json#T4"
+    },
+    {
+      "id": "T5",
+      "action": "export a native compiler",
+      "time_limit_minutes": 15,
+      "prompt": "From an independently supplied correct T1 starter, export a native compiler satisfying the shared native contract. Move only the compiler and unseen guest policy to the evaluator workspace. Compile there, then run the native program on unseen totals. No compiler-core edits. At most 100 authored lines across grammar, frontend, runtime, config and scripts; count pasted code, exclude unchanged starter and verified tool-generated lines.",
+      "training": [
+        {
+          "source": "shipping { base 10; free_over 100; }",
+          "totals": [
+            99,
+            100
+          ],
+          "stdout": [
+            "10\n",
+            "0\n"
+          ]
+        }
+      ],
+      "oracle": "heldout/oracles.v2.json#T5"
+    }
+  ],
+  "future_bar": {
+    "participants": 5,
+    "unfamiliar_finishers_required": 4,
+    "task": "T5",
+    "max_elapsed_minutes": 15,
+    "max_authored_lines": 100,
+    "max_compiler_core_edits": 0,
+    "elapsed_includes": [
+      "active",
+      "waiting",
+      "in-task installation",
+      "in-task docs"
+    ],
+    "status": "not measured"
+  }
+}

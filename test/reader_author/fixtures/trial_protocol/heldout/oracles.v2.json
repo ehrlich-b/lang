@@ -1,0 +1,528 @@
+{
+  "version": 2,
+  "visibility": "facilitator only; never copy into participant workspace",
+  "common_rejections": [
+    {
+      "id": "missing",
+      "source": "shipping { base 7; }",
+      "compile_exit": 1,
+      "stdout": "",
+      "stderr_contains": "missing setting",
+      "located": true,
+      "output_absent": true
+    },
+    {
+      "id": "unknown",
+      "source": "shipping { base 7; free_over 80; tax 2; }",
+      "compile_exit": 1,
+      "stdout": "",
+      "stderr_contains": "unknown setting",
+      "located": true,
+      "output_absent": true
+    },
+    {
+      "id": "range",
+      "source": "shipping { base 1000001; free_over 80; }",
+      "compile_exit": 1,
+      "stdout": "",
+      "stderr_contains": "decimal integer",
+      "located": true,
+      "output_absent": true
+    },
+    {
+      "id": "negative",
+      "source": "shipping { base -1; free_over 80; }",
+      "compile_exit": 1,
+      "stdout": "",
+      "stderr_contains": "decimal integer",
+      "located": true,
+      "output_absent": true
+    },
+    {
+      "id": "fraction",
+      "source": "shipping { base 1.5; free_over 80; }",
+      "compile_exit": 1,
+      "stdout": "",
+      "stderr_contains": "expected",
+      "located": true,
+      "output_absent": true
+    },
+    {
+      "id": "hex",
+      "source": "shipping { base 0x10; free_over 80; }",
+      "compile_exit": 1,
+      "stdout": "",
+      "stderr_contains": "expected",
+      "located": true,
+      "output_absent": true
+    },
+    {
+      "id": "overflow",
+      "source": "shipping { base 9999999999999999999999; free_over 80; }",
+      "compile_exit": 1,
+      "stdout": "",
+      "stderr_contains": "decimal integer",
+      "located": true,
+      "output_absent": true
+    },
+    {
+      "id": "trailing",
+      "source": "shipping { base 7; free_over 80; } junk",
+      "compile_exit": 1,
+      "stdout": "",
+      "stderr_contains": "expected",
+      "located": true,
+      "output_absent": true
+    },
+    {
+      "id": "syntax",
+      "source": "shipping { base 7 free_over 80; }",
+      "compile_exit": 1,
+      "stdout": "",
+      "stderr_contains": "expected",
+      "located": true,
+      "output_absent": true
+    },
+    {
+      "id": "duplicate",
+      "source": "shipping { base 7; free_over 80; base 9; }",
+      "compile_exit": 1,
+      "stdout": "",
+      "stderr_contains": "duplicate setting",
+      "located": true,
+      "output_absent": true
+    }
+  ],
+  "invalid_runtime": [
+    {
+      "argv": [],
+      "exit": 64,
+      "stdout": "",
+      "stderr_contains": "shipping:"
+    },
+    {
+      "argv": [
+        "-1"
+      ],
+      "exit": 64,
+      "stdout": "",
+      "stderr_contains": "shipping:"
+    },
+    {
+      "argv": [
+        "abc"
+      ],
+      "exit": 64,
+      "stdout": "",
+      "stderr_contains": "shipping:"
+    },
+    {
+      "argv": [
+        "1.5"
+      ],
+      "exit": 64,
+      "stdout": "",
+      "stderr_contains": "shipping:"
+    },
+    {
+      "argv": [
+        "1000001"
+      ],
+      "exit": 64,
+      "stdout": "",
+      "stderr_contains": "shipping:"
+    },
+    {
+      "argv": [
+        "0",
+        "1"
+      ],
+      "exit": 64,
+      "stdout": "",
+      "stderr_contains": "shipping:"
+    }
+  ],
+  "tasks": {
+    "T1": {
+      "inherits": [],
+      "cases": [
+        {
+          "id": "reordered-leading-zero",
+          "source": "shipping { free_over 00080; base 00007; }",
+          "compile_exit": 0,
+          "runtime": [
+            {
+              "argv": [
+                "0"
+              ],
+              "exit": 0,
+              "stdout": "7\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "79"
+              ],
+              "exit": 0,
+              "stdout": "7\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "80"
+              ],
+              "exit": 0,
+              "stdout": "0\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "81"
+              ],
+              "exit": 0,
+              "stdout": "0\n",
+              "stderr": ""
+            }
+          ]
+        },
+        {
+          "id": "zero",
+          "source": "shipping { base 1000000; free_over 0; }",
+          "compile_exit": 0,
+          "runtime": [
+            {
+              "argv": [
+                "0"
+              ],
+              "exit": 0,
+              "stdout": "0\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "1"
+              ],
+              "exit": 0,
+              "stdout": "0\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "1000000"
+              ],
+              "exit": 0,
+              "stdout": "0\n",
+              "stderr": ""
+            }
+          ]
+        },
+        {
+          "id": "max",
+          "source": "shipping { base 13; free_over 1000000; }",
+          "compile_exit": 0,
+          "runtime": [
+            {
+              "argv": [
+                "999999"
+              ],
+              "exit": 0,
+              "stdout": "13\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "1000000"
+              ],
+              "exit": 0,
+              "stdout": "0\n",
+              "stderr": ""
+            }
+          ]
+        }
+      ],
+      "common_rejections": true
+    },
+    "T2": {
+      "inherits": [
+        "T1"
+      ],
+      "cases": [
+        {
+          "id": "alias",
+          "source": "shipping { free_over 41; fee 9; }",
+          "compile_exit": 0,
+          "runtime": [
+            {
+              "argv": [
+                "40"
+              ],
+              "exit": 0,
+              "stdout": "9\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "41"
+              ],
+              "exit": 0,
+              "stdout": "0\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "42"
+              ],
+              "exit": 0,
+              "stdout": "0\n",
+              "stderr": ""
+            }
+          ]
+        },
+        {
+          "id": "alias-collision",
+          "source": "shipping { base 7; fee 9; free_over 80; }",
+          "compile_exit": 1,
+          "stdout": "",
+          "stderr_contains": "duplicate setting",
+          "located": true,
+          "output_absent": true
+        },
+        {
+          "id": "alias-reverse",
+          "source": "shipping { fee 9; base 7; free_over 80; }",
+          "compile_exit": 1,
+          "stdout": "",
+          "stderr_contains": "duplicate setting",
+          "located": true,
+          "output_absent": true
+        }
+      ],
+      "common_rejections": true
+    },
+    "T3": {
+      "inherits": [],
+      "cases": [
+        {
+          "id": "exclusive-base",
+          "source": "shipping { free_over 00080; base 00007; }",
+          "compile_exit": 0,
+          "runtime": [
+            {
+              "argv": [
+                "0"
+              ],
+              "exit": 0,
+              "stdout": "7\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "79"
+              ],
+              "exit": 0,
+              "stdout": "7\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "80"
+              ],
+              "exit": 0,
+              "stdout": "7\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "81"
+              ],
+              "exit": 0,
+              "stdout": "0\n",
+              "stderr": ""
+            }
+          ]
+        },
+        {
+          "id": "exclusive-alias",
+          "source": "shipping { fee 9; free_over 41; }",
+          "compile_exit": 0,
+          "runtime": [
+            {
+              "argv": [
+                "40"
+              ],
+              "exit": 0,
+              "stdout": "9\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "41"
+              ],
+              "exit": 0,
+              "stdout": "9\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "42"
+              ],
+              "exit": 0,
+              "stdout": "0\n",
+              "stderr": ""
+            }
+          ]
+        },
+        {
+          "id": "exclusive-zero",
+          "source": "shipping { base 1000000; free_over 0; }",
+          "compile_exit": 0,
+          "runtime": [
+            {
+              "argv": [
+                "0"
+              ],
+              "exit": 0,
+              "stdout": "1000000\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "1"
+              ],
+              "exit": 0,
+              "stdout": "0\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "1000000"
+              ],
+              "exit": 0,
+              "stdout": "0\n",
+              "stderr": ""
+            }
+          ]
+        },
+        {
+          "id": "exclusive-max",
+          "source": "shipping { base 13; free_over 1000000; }",
+          "compile_exit": 0,
+          "runtime": [
+            {
+              "argv": [
+                "999999"
+              ],
+              "exit": 0,
+              "stdout": "13\n",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "1000000"
+              ],
+              "exit": 0,
+              "stdout": "13\n",
+              "stderr": ""
+            }
+          ]
+        },
+        {
+          "id": "alias-collision",
+          "source": "shipping { base 7; fee 9; free_over 80; }",
+          "compile_exit": 1,
+          "stdout": "",
+          "stderr_contains": "duplicate setting",
+          "located": true,
+          "output_absent": true
+        },
+        {
+          "id": "alias-reverse",
+          "source": "shipping { fee 9; base 7; free_over 80; }",
+          "compile_exit": 1,
+          "stdout": "",
+          "stderr_contains": "duplicate setting",
+          "located": true,
+          "output_absent": true
+        }
+      ],
+      "common_rejections": true
+    },
+    "T4": {
+      "inherits": [
+        "T3"
+      ],
+      "cases": [
+        {
+          "id": "duplicate-threshold",
+          "source": "shipping { fee 9; free_over 41; free_over 42; }",
+          "compile_exit": 1,
+          "stdout": "",
+          "stderr_contains": "duplicate setting",
+          "located": true,
+          "output_absent": true
+        }
+      ],
+      "common_rejections": true,
+      "requires_before_failure_receipt": true
+    },
+    "T5": {
+      "inherits": [
+        "T1"
+      ],
+      "cases": [],
+      "common_rejections": true,
+      "requires_native_export": true
+    }
+  },
+  "replay": {
+    "below": {
+      "exit": 0,
+      "stdout": "7\n",
+      "stderr": "",
+      "command": [
+        "{exported}/policy",
+        "79"
+      ]
+    },
+    "boundary": {
+      "exit": 0,
+      "stdout": "0\n",
+      "stderr": "",
+      "command": [
+        "{exported}/policy",
+        "80"
+      ]
+    },
+    "above": {
+      "exit": 0,
+      "stdout": "0\n",
+      "stderr": "",
+      "command": [
+        "{exported}/policy",
+        "81"
+      ]
+    },
+    "duplicate": {
+      "exit": 1,
+      "stdout": "",
+      "stderr_contains": "duplicate setting",
+      "located": true,
+      "command": [
+        "{exported}/shippingc",
+        "{fixtures}/heldout/duplicate.shipping",
+        "--emit=native",
+        "-o",
+        "{exported}/rejected"
+      ]
+    },
+    "bad-total": {
+      "exit": 64,
+      "stdout": "",
+      "stderr_contains": "shipping:",
+      "command": [
+        "{exported}/policy",
+        "-1"
+      ]
+    }
+  }
+}
