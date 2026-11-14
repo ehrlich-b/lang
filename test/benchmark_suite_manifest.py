@@ -38,7 +38,7 @@ def main():
                           input_sha256={p: digest(p) for p in paths},
                           tool_sha256={p: digest(shutil.which(p)) for p in ('python3', 'bash', 'head', 'grep', 'sed')},
                           source_sha256={p: digest(p) for p in ('test/suite_manifest.py', 'test/suite_metadata_reference.sh')}), indent=2))
-    assert len(paths) == 232
+    assert len(paths) == 239
     assert all(r['exit'] == 0 for r in rows)
     assert len({r['output_sha256'] for r in rows}) == 1
     assert medians['candidate'] < 0.1, medians

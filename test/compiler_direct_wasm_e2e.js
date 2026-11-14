@@ -107,6 +107,16 @@ async function compileReaderSource(sourceText, readerName, source, runtimePaths 
 }
 
 (async () => {
+  const timings = await runLangCompiler(
+    fs.readFileSync(compilerPath),
+    ['input.lang', '--timings', '-o', 'output.wasm'],
+    { ...stdlibFiles, 'input.lang': 'func main() i64 { return 42; }' },
+    undefined,
+    { LANGBE: 'wasm' },
+  );
+  if (timings.exit === 0 || timings.trapped || !timings.stderr.includes('cannot measure compiler CPU time')) {
+    throw new Error(`unexpected browser timings result: ${JSON.stringify(timings)}`);
+  }
   for (const [terms, environment] of [[200, {}], [700, { LANG_HOST_MAX_DEPTH: '1024' }]]) {
     let expression = '(number 1)';
     for (let i = 1; i < terms; i++) expression = `(binop + ${expression} (number 1))`;
