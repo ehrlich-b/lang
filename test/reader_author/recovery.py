@@ -12,7 +12,7 @@ import uuid
 from diagnostics import DiagnosticReplay
 from route import ROOT, dump, require, sha
 
-BASE = '79d0cae5c5ba84d30c8348c0d4a053b7dc5b1f0d'
+BASE = '1b9c9751cb23c5ca0fd4fefc290833e5b7e47a6d'
 
 
 def main():

@@ -14,7 +14,7 @@ import uuid
 from project import ProjectReplay
 from route import ROOT, dump, require, sha
 
-BASE = 'dea0065aaba6729afdc97097d4998216d6baa1f6'
+BASE = '1b9c9751cb23c5ca0fd4fefc290833e5b7e47a6d'
 FIXTURES = Path('test/reader_author/fixtures/runtime_reachability')
 # Valid only for these tests' ordinary system-libc linkage, without interposition.
 SHIPPING_LEAVES = ['--runtime-leaf', 'write', '--runtime-leaf', 'exit', '--runtime-leaf', 'calloc']
