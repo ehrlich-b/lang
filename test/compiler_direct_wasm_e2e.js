@@ -412,7 +412,7 @@ func main() i64 {
     'id="save-workspace"', 'id="open-workspace"',
     'lang-reader-workspace', 'lang.lab.active', 'const readerSource = reader.value', 'readerName(readerSource)',
     'focusDiagnostic(message, sourceLabel)', "target.closest('details').open = true", "phase = 'AST compile'",
-    'cachedReaderSource !== readerSource', 'startReader(readerProgram, customSource.value, window.readerDeadlineMs)',
+    'cachedReaderSource !== readerSource', 'startReader(readerProgram, customSource.value, window.readerDeadlineMs, structuredDiagnostics',
     'editor.js?v=workbench10', 'formatLangAst(ast)', 'value:number',
     "'program.ast': formattedAst", 'installCodeEditor(reader, queueSave)',
   ]) {
