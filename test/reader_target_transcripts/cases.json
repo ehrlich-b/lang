@@ -218,7 +218,7 @@
       "wasm": {
         "stage": "compile",
         "stdout": "",
-        "stderr": "source.flow:1:1: error: expression is not supported by the direct wasm backend yet\nerror: direct wasm compilation failed\n",
+        "stderr": "source.flow:2:1: error: expression is not supported by the direct wasm backend yet\nerror: direct wasm compilation failed\n",
         "status": 1
       }
     },
