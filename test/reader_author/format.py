@@ -145,9 +145,9 @@ def main():
         shipping.write_text(original); policy.write_bytes(source)
 
         # No lowering inversion: a recipe still works when lowering cannot run.
-        require(original.count('return ast_program(decls);') == 1, 'ambiguous lowering mutation')
-        shipping.write_text(original.replace('return ast_program(decls);',
-            'pnode_print_error(tree, text, "shipping", "deliberate lowering error"); return nil;'))
+        require(original.count('    return ast_program(decls);\n') == 1, 'ambiguous lowering mutation')
+        shipping.write_text(original.replace('    return ast_program(decls);\n',
+            '    reader_error("shipping-test", "deliberate lowering error", "shipping", text, tree.start, tree.end); return nil;\n'))
         retain_reader('lowering-error-reader')
         exact(format_source('independent-of-lowering'), source)
         result = replay.run([compiler, 'project', 'read', str(project)],
