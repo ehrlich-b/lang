@@ -1,0 +1,5 @@
+// expect: 0
+func main() i64 {
+    if syscall(-1) != -1 { return 1; }
+    return 0;
+}

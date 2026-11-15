@@ -35,6 +35,7 @@ globals, arrays, structs, enums, matches, labeled loops, let/block expressions, 
 and scalar float operations are supported. Expression lowering emits ordered
 temporaries and preserves short-circuit evaluation. Effects are refused at
 their source location until CPS lowering is available.
+The `syscall` intrinsic calls the host libc wrapper, as on the LLVM host.
 128-bit integers, numeric intrinsic families, inline assembly, raw syscalls,
 external aggregate parameters/returns and external globals are outside this
 profile and fail closed. Invalid memory accesses retain the core's unsafe

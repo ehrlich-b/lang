@@ -245,6 +245,18 @@ func c_call(e *u8) *u8 {
     var callee *u8 = call_expr_func(e);
     while node_kind(callee) == NODE_GROUP_EXPR { callee = group_expr_expr(callee); }
     var count i64 = call_expr_arg_count(e); var args *u8 = call_expr_args(e);
+    // Match the LLVM host's libc syscall intrinsic, including its return convention.
+    if node_kind(callee) == NODE_IDENT_EXPR && ident_expr_name_len(callee) == 7 && memcmp(ident_expr_name(callee), "syscall", 7) {
+        if count < 1 || count > 7 { c_error(e, "syscall expects one to seven arguments"); return "0"; }
+        var syscall_values *u8 = vec_new(count); var si i64 = 0;
+        while si < count { vec_push(syscall_values, c_value(cg_ast_ptr_at(args, si), nil)); si = si + 1; }
+        var invocation *u8 = "syscall("; si = 0;
+        while si < count {
+            if si > 0 { invocation = str_concat(invocation, ", "); }
+            invocation = c_join(invocation, "c_signed(", str_concat(vec_get(syscall_values, si), ")")); si = si + 1;
+        }
+        return c_temp(nil, str_concat(invocation, ")"));
+    }
     // Enum construction uses the core tag + payload storage layout.
     if node_kind(callee) == NODE_FIELD_EXPR && node_kind(field_expr_expr(callee)) == NODE_IDENT_EXPR {
         var base *u8 = field_expr_expr(callee);
@@ -637,6 +649,8 @@ func generate_c(prog *u8, output_file *u8) void {
     emit_line("#include <stdint.h>\n#include <stddef.h>\n#include <limits.h>\n#include <float.h>\n#include <math.h>");
     emit_line("_Static_assert(CHAR_BIT == 8 && sizeof(uintptr_t) == 8, \"C target requires 8-bit bytes and 64-bit addresses\");");
     emit_line("_Static_assert(sizeof(float)==4 && sizeof(double)==8 && FLT_RADIX==2 && FLT_MANT_DIG==24 && DBL_MANT_DIG==53, \"C target requires IEEE floats\");");
+    emit_line("_Static_assert(sizeof(long)==8, \"C target requires 64-bit long for syscall\");");
+    emit_line("extern long syscall(long, ...);");
     emit_line("extern void abort(void);");
     emit_line("extern void *memcpy(void *, const void *, size_t);");
     emit_line("static uint64_t c_read(uint64_t p, unsigned n) { uint64_t v=0; const unsigned char *b=(const unsigned char *)(uintptr_t)p; for(unsigned i=0;i<n;i++) v |= (uint64_t)b[i] << (i*8); return v; }");
