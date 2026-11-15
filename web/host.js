@@ -42,6 +42,7 @@ async function runLangWasm(wasmBytes, onWrite) {
   class ExitTrap { constructor(code) { this.code = Number(BigInt(code) & 255n); } }
 
   const env = {
+    syscall: () => -1n,
     read: () => 0n,
     write: (fd, buf, count) => {
       const n = Number(count), p = Number(buf);
