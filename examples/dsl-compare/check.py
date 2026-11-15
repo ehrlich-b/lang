@@ -12,6 +12,87 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / 'examples/dsl-compare'
+PROPERTIES = ('file', 'line', 'column', 'expected', 'caret')
+
+
+def score_diagnostic(stderr, filename, source):
+    """Score visible information, not correctness, recovery, or prose quality.
+
+    Recognize the frontends' label:line[:column]: headers. A generic label
+    does not name the input file. An explicit missing token counts as expected;
+    an unexpected token alone does not. A caret needs an adjacent source line.
+    """
+    headers = list(re.finditer(
+        r'^([^:\n]+):([1-9][0-9]*):(?:([1-9][0-9]*):)?[ \t]+([^\n]*)$',
+        stderr, re.MULTILINE))
+    messages = '\n'.join(h[4] for h in headers)
+    lines = stderr.splitlines()
+    source_lines = source.split('\n')  # Keep the empty line at EOF.
+    caret = any(lines[i] in source_lines and
+                re.fullmatch(r'[ \t]*\^+[ \t]*', lines[i + 1]) is not None
+                for i in range(1, len(lines) - 1))
+    return dict(file=any(Path(h[1]).name == Path(filename).name for h in headers),
+                line=bool(headers), column=any(h[3] is not None for h in headers),
+                expected=bool(re.search(r'\bexpect(?:ed|ing)\s+\S|\bmissing\s+\x27[^\x27]+\x27',
+                                        messages)),
+                caret=caret)
+
+
+def diagnostics(path):
+    """Validate retained smoke/full output without requiring build artifacts."""
+    report = json.loads(path.read_text())
+    assert report['head'] == git('rev-parse', 'HEAD'), 'Report must measure committed HEAD'
+    assert report['status'] == 'PASS' and report['mode'] in ('smoke', 'full')
+    assert set(report['arms']) == {'lang', 'yacc', 'antlr'}
+    transcript = Path(report['command_log'])
+    assert transcript.name == str(transcript), 'Transcript must be beside report'
+    calls = [json.loads(line) for line in (path.parent / transcript).read_text().splitlines()]
+    fixtures = sorted((BASE / 'fixtures/invalid').glob('*.tariff'))
+    assert len(fixtures) == 5
+    result = dict(head=report['head'], properties=PROPERTIES, arms={})
+    for arm, measured in report['arms'].items():
+        assert measured['status'] == 'PASS'
+        assert set(measured['diagnostics']) == {f.stem for f in fixtures}
+        rows = {}
+        for fixture in fixtures:
+            relative = str(fixture.relative_to(BASE))
+            assert report['input_hashes'][relative] == hashlib.sha256(fixture.read_bytes()).hexdigest()
+            diagnostic = measured['diagnostics'][fixture.stem]
+            assert diagnostic['exit_code'] == 1 and diagnostic['stderr'] and diagnostic['stdout'] == ''
+            assert any(c['stderr'] == diagnostic['log'] and c['exit_code'] == 1
+                       and c['stderr_text'] == diagnostic['stderr'] and c['stdout_text'] == ''
+                       and c['artifact_bytes'] == 0 and not c['timeout']
+                       and c['command'][-1] == str(Path(report['work']) / 'source' /
+                                                  'examples/dsl-compare' / relative)
+                       for c in calls), (arm, fixture.name, 'transcript mismatch')
+            properties = score_diagnostic(diagnostic['stderr'], fixture.name, fixture.read_text())
+            rows[fixture.name] = dict(properties=properties, score=sum(properties.values()),
+                                      stderr=diagnostic['stderr'], exit_code=1, stdout='')
+        result['arms'][arm] = dict(fixtures=rows, total=sum(r['score'] for r in rows.values()), maximum=25)
+    return result
+
+
+def diagnostics_markdown(result):
+    """Stable documentation block; exact stderr is never stripped or rewritten."""
+    lines = ['<!-- diagnostics:start -->\n',
+             '| Fixture | Arm | File | Line | Column | Expected tokens | Source + caret | Score |\n',
+             '|---|---|---:|---:|---:|---:|---:|---:|\n']
+    for fixture in next(iter(result['arms'].values()))['fixtures']:
+        for arm in ('lang', 'yacc', 'antlr'):
+            row = result['arms'][arm]['fixtures'][fixture]
+            values = ' | '.join('yes' if row['properties'][p] else 'no' for p in PROPERTIES)
+            lines.append(f"| {fixture} | {arm} | {values} | {row['score']}/5 |\n")
+    lines.append('\n| Arm | Total |\n|---|---:|\n')
+    for arm in ('lang', 'yacc', 'antlr'):
+        lines.append(f"| {arm} | {result['arms'][arm]['total']}/25 |\n")
+    lines.append('\nExact stderr follows; every invocation exits **1** with empty stdout.\n')
+    for fixture in next(iter(result['arms'].values()))['fixtures']:
+        for arm in ('lang', 'yacc', 'antlr'):
+            stderr = result['arms'][arm]['fixtures'][fixture]['stderr']
+            assert stderr.endswith('\n'), 'Markdown requires a final newline; JSON retains all bytes'
+            lines.append(f'\n**{fixture} — {arm}**\n\n```text\n{stderr}```\n')
+    lines.append('<!-- diagnostics:end -->\n')
+    return ''.join(lines)
 
 
 def git(*args):
@@ -87,14 +168,26 @@ def check_report(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('case', choices=('host', 'report', 'policy'))
+    parser.add_argument('case', choices=('host', 'report', 'policy', 'diagnostics'))
     parser.add_argument('--report', type=Path)
     parser.add_argument('--relocate', action='store_true', help='Validate only a relocated report and transcript')
+    parser.add_argument('--markdown', action='store_true', help='Render the diagnostics documentation block')
+    parser.add_argument('--check-doc', action='store_true', help='Require the scored block to match the documentation')
     args = parser.parse_args()
     if args.case == 'host':
         host = platform.node()
         print('hostname:', host)
         print('Ordinary compiler checks allowed; no privileged device or module checks used')
+    elif args.case == 'diagnostics':
+        assert args.report is not None
+        result = diagnostics(args.report)
+        block = diagnostics_markdown(result)
+        if args.check_doc:
+            doc = (ROOT / 'docs/compare-yacc-antlr.md').read_text()
+            assert doc.count('<!-- diagnostics:start -->') == 1
+            assert doc.count('<!-- diagnostics:end -->') == 1
+            assert block in doc, 'Regenerate the documentation from this report'
+        print(block if args.markdown else json.dumps(result, indent=2))
     elif args.case == 'report':
         assert args.report is not None
         if args.relocate:
