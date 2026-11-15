@@ -114,6 +114,8 @@ def main():
                        'src/parser.lang', 'src/codegen.lang', 'src/codegen_llvm.lang',
                        'src/codegen_wasm.lang', 'src/ast_emit.lang', 'src/sexpr_reader.lang',
                        'src/compiler_readers_none.lang', 'src/main.lang']
+            if (snapshot / 'src/codegen_c.lang').is_file():
+                sources.insert(sources.index('src/ast_emit.lang'), 'src/codegen_c.lang')
             baseline_ir = work / 'base-compiler.ll'
             run([seed, *sources, '-o', baseline_ir], 'base-build', cwd=snapshot)
             base = work / 'base-compiler'

@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCES = [
     "std/core.lang", "out/version_info.lang", "src/lexer.lang",
     "src/parser.lang", "src/codegen.lang", "src/codegen_llvm.lang",
-    "src/codegen_wasm.lang", "src/ast_emit.lang", "src/sexpr_reader.lang",
+    "src/codegen_wasm.lang", "src/codegen_c.lang", "src/ast_emit.lang", "src/sexpr_reader.lang",
     "src/compiler_readers_none.lang", "src/main.lang",
 ]
 TOKEN = re.compile(r'''//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[A-Za-z_][A-Za-z_0-9]*|\S''', re.S)
