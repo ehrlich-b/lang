@@ -1,0 +1,10 @@
+// expect: 0
+func literal() *u8 { return "a\0x"; }
+func main() i64 {
+    var a *u8 = "a\0x";
+    var b *u8 = "a\0y";
+    if a != literal() { return 1; }
+    if a == b { return 2; }
+    if *(a + 2) != 120 { return 3; }
+    return 0;
+}

@@ -3,6 +3,7 @@
 // The frontend registries and type queries are shared; no LLVM IR is emitted.
 var c_serial i64 = 0;
 var c_prototypes *u8 = nil;
+var c_strings *u8 = nil;
 var c_environments *u8 = nil;
 var c_expansions *u8 = nil;
 var c_last_lambda_captures i64 = 0;
@@ -331,9 +332,22 @@ func c_expr(e *u8) *u8 {
     if k == NODE_NIL_EXPR { return "0ULL"; }
     if k == NODE_GROUP_EXPR { return c_expr(group_expr_expr(e)); }
     if k == NODE_STRING_EXPR {
-        var name *u8 = c_fresh("cs"); emit_str("static unsigned char "); emit_str(name); emit_str("[] = {");
-        var i i64 = 0; while i < string_expr_value_len(e) { emit_int(*(string_expr_value(e) + i)); emit_str(","); i = i + 1; }
-        emit_line("0};"); return c_join("((uint64_t)(uintptr_t)", name, ")");
+        var value *u8 = string_expr_value(e); var len i64 = string_expr_value_len(e);
+        var entry *u8 = c_strings;
+        while entry != nil {
+            var ep **u8 = entry; var el *i64 = entry + 8; var en **u8 = entry + 16;
+            if *el == len && memcmp(*ep, value, len) { return c_join("((uint64_t)(uintptr_t)", *en, ")"); }
+            var next **u8 = entry + 24; entry = *next;
+        }
+        var name *u8 = c_fresh("cs"); entry = alloc(32);
+        var ep **u8 = entry; *ep = value; var el *i64 = entry + 8; *el = len;
+        var en **u8 = entry + 16; *en = name; var next **u8 = entry + 24; *next = c_strings; c_strings = entry;
+        var saved_len i64 = cg_code_len;
+        emit_str("static unsigned char "); emit_str(name); emit_str("[] = {");
+        var i i64 = 0; while i < len { emit_int(*(value + i)); emit_str(","); i = i + 1; }
+        emit_line("0};");
+        c_prototypes = str_concat(c_prototypes, str_dup_n(cg_code_buf + saved_len, cg_code_len - saved_len)); cg_code_len = saved_len;
+        return c_join("((uint64_t)(uintptr_t)", name, ")");
     }
     if k == NODE_IDENT_EXPR {
         var name *u8 = ident_expr_name(e); var len i64 = ident_expr_name_len(e);
@@ -610,7 +624,7 @@ func c_signature(d *u8) void {
 func generate_c(prog *u8, output_file *u8) void {
     codegen_init(); interp_init();
     cg_has_llvm_backend = 1; cg_generate_llvm_fn = &generate_llvm;
-    cg_emit_module = 0; c_environments = map_new(); c_expansions = map_new(); c_prototypes = ""; c_serial = 0; c_loop_count = 0; c_loop = alloc(8192);
+    cg_emit_module = 0; c_environments = map_new(); c_expansions = map_new(); c_prototypes = ""; c_strings = nil; c_serial = 0; c_loop_count = 0; c_loop = alloc(8192);
     cg_decls = program_decls(prog); cg_decl_count = program_decl_count(prog);
     cg_current_file_decls = cg_decls; cg_current_file_decl_count = cg_decl_count;
     var i i64 = 0; while i < cg_decl_count { process_decl_first_pass(get_decl(cg_decls, i)); i = i + 1; }
