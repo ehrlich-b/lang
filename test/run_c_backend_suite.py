@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 import signal
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,6 +52,14 @@ def main():
     fixtures = sorted((ROOT / args.fixtures).glob('*.lang'))
     if not fixtures:
         raise SystemExit('no fixtures')
+    if sys.platform != 'linux':
+        raise SystemExit('C suite requires a Linux host')
+    excluded = [f for f in fixtures if re.search(r'^//[ \t]*macos[ \t]*$', f.read_text(), re.M)]
+    fixtures = [f for f in fixtures if f not in excluded]
+    if not fixtures:
+        raise SystemExit('no Linux fixtures')
+    for fixture in excluded:
+        print(f'SKIP {fixture.relative_to(ROOT)} (macos only)')
 
     def check(fixture):
         case = output / fixture.stem
@@ -103,7 +112,7 @@ def main():
     versions = {cc: run([cc, '--version'])[1].splitlines()[0] for cc in ('gcc', 'clang')}
     receipt = {'compiler_sha256': hashlib.sha256(Path(compiler).read_bytes()).hexdigest(),
                'tools': versions, 'flags': ['-std=c11', '-pedantic-errors', '-O2', '-lm'],
-               'files': len(fixtures), 'totals': totals, 'bugs': bugs, 'results': results}
+               'files': len(fixtures), 'excluded': [str(f.relative_to(ROOT)) for f in excluded], 'totals': totals, 'bugs': bugs, 'results': results}
     (output / 'results.json').write_text(json.dumps(receipt, indent=2) + '\n')
     for cc, counts in totals.items():
         print(cc + ': ' + ', '.join(f'{status}={count}' for status, count in counts.items()))
