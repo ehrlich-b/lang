@@ -262,12 +262,162 @@ its timings are excluded from the table. No arm received special flags or
 optimizations. The raw fastest runtime is Lang in this run, but the scheduling
 spread and tiny native programs do not support a practical runtime winner.
 
-On diagnostics, ANTLR's concise missing-token and lexer messages are my qualitative
-choice for these five inputs. Lang supplies columns and byte spans but often
-lists a noisy set of speculative expectations. Bison supplies useful token
-names and expected tokens, but this frontend does not add column tracking.
-These are implementation-level diagnostics, not a ranking of every generator's
-potential error recovery.
+### Diagnostics: five fixtures, five visible properties
+
+On the compiler sources at `e148de1`, the unchanged Tariff frontends score
+**Lang 15/25, ANTLR 14/25, flex/Bison 9/25**. This replaces the earlier qualitative
+ANTLR verdict with a reproducible count. Each diagnostic earns one point for
+naming its input file, giving a line, giving a column, explicitly listing expected
+tokens, and showing a source line with a caret. All properties have equal weight;
+this measures information present, not whether expectations are minimal or the
+reported position is the most helpful one.
+
+The scorer recognizes `label:line[:column]:` headers. A basename or full path
+matching the input counts as a file name; the generic `tariff` label does not.
+Byte spans alone do not count as line or column. `expected`/`expecting` with a
+nonempty token description counts, as does an explicit `missing 'token'` message.
+An unexpected token or lexer recognition error alone does not. A caret must
+appear directly below an actual input source line (including the empty EOF
+line); a standalone caret does not count. These rules are tested with synthetic
+positive and negative examples before measuring real output.
+
+Lang's remaining diagnostic losses are plain: **0/5 input file names and 0/5
+source lines with carets**. All three frontends use a generic `tariff` label.
+The standard library's newer snippet API is opt-in, while this existing Tariff
+frontend still calls `tok_print_error`, which emits the compact form. No
+frontend was changed to improve its score. Lang also lists speculative operator
+alternatives where Bison and ANTLR give a focused missing token; the rubric does
+not score that quality difference. ANTLR loses one expected-token point for its
+invalid-character lexer error; Bison lacks columns and suppresses expectations
+for the closing-brace fixture. These are results for these implementations and
+five inputs, not limits on the generators' possible diagnostics or recovery.
+
+Run the smoke and `check.py diagnostics --check-doc` commands in the
+[example README](../examples/dsl-compare/README.md) to reproduce the table.
+`check.py diagnostics --markdown` generates the block below directly from the
+retained report. The validator checks its HEAD and input hashes and matches
+every diagnostic's text, exit code and empty stdout against the sibling command
+transcript. It also requires the documentation block to match exactly, so later
+changes cannot silently leave this scoreboard stale. The existing build and
+scale measurements above remain historical; this smoke run measures diagnostics.
+
+<!-- diagnostics:start -->
+| Fixture | Arm | File | Line | Column | Expected tokens | Source + caret | Score |
+|---|---|---:|---:|---:|---:|---:|---:|
+| brace.tariff | lang | no | yes | yes | yes | no | 3/5 |
+| brace.tariff | yacc | no | yes | no | no | no | 1/5 |
+| brace.tariff | antlr | no | yes | yes | yes | no | 3/5 |
+| character.tariff | lang | no | yes | yes | yes | no | 3/5 |
+| character.tariff | yacc | no | yes | no | yes | no | 2/5 |
+| character.tariff | antlr | no | yes | yes | no | no | 2/5 |
+| operand.tariff | lang | no | yes | yes | yes | no | 3/5 |
+| operand.tariff | yacc | no | yes | no | yes | no | 2/5 |
+| operand.tariff | antlr | no | yes | yes | yes | no | 3/5 |
+| parenthesis.tariff | lang | no | yes | yes | yes | no | 3/5 |
+| parenthesis.tariff | yacc | no | yes | no | yes | no | 2/5 |
+| parenthesis.tariff | antlr | no | yes | yes | yes | no | 3/5 |
+| semicolon.tariff | lang | no | yes | yes | yes | no | 3/5 |
+| semicolon.tariff | yacc | no | yes | no | yes | no | 2/5 |
+| semicolon.tariff | antlr | no | yes | yes | yes | no | 3/5 |
+
+| Arm | Total |
+|---|---:|
+| lang | 15/25 |
+| yacc | 9/25 |
+| antlr | 14/25 |
+
+Exact stderr follows; every invocation exits **1** with empty stdout.
+
+**brace.tariff — lang**
+
+```text
+tariff:2:1: expected 'let' or symbol or 'if' or 'while' or 'return' or '}', found end of input @55:55
+```
+
+**brace.tariff — yacc**
+
+```text
+tariff:2: syntax error, unexpected end of file
+```
+
+**brace.tariff — antlr**
+
+```text
+tariff:2:1: extraneous input '<EOF>' expecting {'}', 'let', 'if', 'while', 'return', ID}
+```
+
+**character.tariff — lang**
+
+```text
+tariff:1:26: expected '(' or '==' or '!=' or '<' or '>' or '<=' or '>=' or '+' or '-' or '%' or '*' or '/' or ';', found @ @25:26
+```
+
+**character.tariff — yacc**
+
+```text
+tariff:1: syntax error, unexpected INVALID, expecting ';'
+```
+
+**character.tariff — antlr**
+
+```text
+tariff:1:26: token recognition error at: '@'
+```
+
+**operand.tariff — lang**
+
+```text
+tariff:1:28: expected '-' or number or symbol or '(', found ; @27:28
+```
+
+**operand.tariff — yacc**
+
+```text
+tariff:1: syntax error, unexpected ';', expecting ID or INT or '(' or '-'
+```
+
+**operand.tariff — antlr**
+
+```text
+tariff:1:28: mismatched input ';' expecting {'(', '-', ID, INT}
+```
+
+**parenthesis.tariff — lang**
+
+```text
+tariff:1:30: expected '==' or '!=' or '<' or '>' or '<=' or '>=' or '+' or '-' or '%' or '*' or '/' or ')', found ; @29:30
+```
+
+**parenthesis.tariff — yacc**
+
+```text
+tariff:1: syntax error, unexpected ';', expecting ')'
+```
+
+**parenthesis.tariff — antlr**
+
+```text
+tariff:1:30: missing ')' at ';'
+```
+
+**semicolon.tariff — lang**
+
+```text
+tariff:1:27: expected '==' or '!=' or '<' or '>' or '<=' or '>=' or '+' or '-' or '%' or '*' or '/' or ';', found return @26:32
+```
+
+**semicolon.tariff — yacc**
+
+```text
+tariff:1: syntax error, unexpected RETURN, expecting ';'
+```
+
+**semicolon.tariff — antlr**
+
+```text
+tariff:1:27: missing ';' at 'return'
+```
+<!-- diagnostics:end -->
 
 **I would pick flex/Bison for a new native integer DSL today.** ANTLR is attractive
 when parse-tree APIs and its wider tooling ecosystem matter more than this

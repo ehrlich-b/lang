@@ -16,6 +16,8 @@ import tempfile
 import time
 import threading
 
+from check import score_diagnostic
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 ARMS = ('lang', 'yacc', 'antlr')
@@ -253,7 +255,8 @@ class Experiment:
                 stdout = Path(run['stdout']).read_text()
                 assert run['exit_code'] == 1 and stderr and not stdout, run
                 row['diagnostics'][f.stem] = dict(exit_code=run['exit_code'], stdout=stdout,
-                                                  stderr=stderr, log=run['stderr'])
+                                                  stderr=stderr, log=run['stderr'],
+                                                  properties=score_diagnostic(stderr, f.name, f.read_text()))
             probes = {}
             for name, n, expected in [('precedence', 0, 7), ('operators', 1, 7),
                                       ('baseline', 4, 14), ('functions', 4, 5), ('decimal', 0, -23)]:
@@ -313,8 +316,9 @@ class Experiment:
             best = (max if higher else min)(values.values())
             report['winners'][metric] = [arm for arm, value in values.items() if value == best]
         report['winners']['dependencies'] = ['lang-sdk'] if self.sdk else ['lang']
-        # Diagnostics are qualitative: retain exact outputs; don't invent a numeric score.
-        report['diagnostics_assessment'] = 'Lang and ANTLR provide columns; Bison detailed expected-token diagnostics, line only in this frontend.'
+        report['diagnostics_scores'] = {
+            arm: dict(total=sum(sum(d['properties'].values()) for d in row['diagnostics'].values()),
+                      maximum=25) for arm, row in report['arms'].items()}
         report['status'] = 'PASS' if all(r['status'] in ('PASS', 'MEASURED_LIMIT') for r in report['arms'].values()) else 'FAIL'
         report['status_meaning'] = 'PASS means all measurements executed and small native programs agreed; inspect large_compile.status for scale success.'
         self.report.write_text(json.dumps(report, indent=2) + '\n')

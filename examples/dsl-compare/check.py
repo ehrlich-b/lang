@@ -66,9 +66,14 @@ def diagnostics(path):
                                                   'examples/dsl-compare' / relative)
                        for c in calls), (arm, fixture.name, 'transcript mismatch')
             properties = score_diagnostic(diagnostic['stderr'], fixture.name, fixture.read_text())
+            if 'properties' in diagnostic:
+                assert diagnostic['properties'] == properties
             rows[fixture.name] = dict(properties=properties, score=sum(properties.values()),
                                       stderr=diagnostic['stderr'], exit_code=1, stdout='')
         result['arms'][arm] = dict(fixtures=rows, total=sum(r['score'] for r in rows.values()), maximum=25)
+    if 'diagnostics_scores' in report:
+        assert report['diagnostics_scores'] == {
+            arm: dict(total=row['total'], maximum=row['maximum']) for arm, row in result['arms'].items()}
     return result
 
 
@@ -173,6 +178,7 @@ def main():
     parser.add_argument('--relocate', action='store_true', help='Validate only a relocated report and transcript')
     parser.add_argument('--markdown', action='store_true', help='Render the diagnostics documentation block')
     parser.add_argument('--check-doc', action='store_true', help='Require the scored block to match the documentation')
+    parser.add_argument('--base', default='71ac98b', help='Base commit for the policy audit')
     args = parser.parse_args()
     if args.case == 'host':
         host = platform.node()
@@ -209,13 +215,13 @@ def main():
         print('Comparison includes losses, tooling gaps, and three priorities')
     else:
         identity = 'Bryan Ehrlich <ehrlich.bryan@gmail.com>'
-        rows = git('log', '--format=%an <%ae>|%cn <%ce>|%s', '71ac98b..HEAD').splitlines()
+        rows = git('log', '--format=%an <%ae>|%cn <%ce>|%s', args.base + '..HEAD').splitlines()
         assert rows
         for row in rows:
             author, committer, subject = row.split('|', 2)
             assert author == committer == identity, row
             assert subject.endswith('.') and '\n' not in subject
-        changed = git('diff', '--name-only', '71ac98b', 'HEAD').splitlines()
+        changed = git('diff', '--name-only', args.base, 'HEAD').splitlines()
         assert all(p.startswith('examples/dsl-compare/') or p == 'docs/compare-yacc-antlr.md' for p in changed)
         assert not git('status', '--porcelain')
         print('All', len(rows), 'commits authored and committed by', identity)

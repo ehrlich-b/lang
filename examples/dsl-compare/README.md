@@ -23,6 +23,22 @@ never installs system packages. `--smoke` runs small native examples (including 
 versions of the grammar, line comments with LF/CRLF/CR/mixed endings and no final
 newline, and all five diagnostic fixtures without the large input.
 
+To reproduce just the diagnostics comparison, commit the candidate and run:
+
+```sh
+nice -n 10 python3 -B -m unittest discover -s examples/dsl-compare -p test_check.py -v
+nice -n 10 python3 examples/dsl-compare/run.py --tools ../tools --report ../evidence/compare.json --smoke
+nice -n 10 python3 examples/dsl-compare/check.py diagnostics --report ../evidence/compare.json --check-doc
+```
+
+The scorer validates the committed HEAD, five input hashes, each exit code and
+empty stdout against the retained sibling command transcript, then scores file
+name, line, column, explicit expected tokens and source line with caret.
+`--markdown` renders the documentation's exact scored table and all 15 stderr
+messages. These checks work after the temporary build directory is reclaimed;
+retain the report and its sibling command transcript. The five equally weighted
+yes/no properties measure visible information, not wording quality or recovery.
+
 `lang/` generates a parser with `#parser{}`, lowers to shared AST, and uses Lang's
 LLVM backend. `yacc/` generates C with flex and Bison and emits C through a small
 rope builder. `antlr/` generates a Python lexer/parser/visitor with ANTLR 4 and
