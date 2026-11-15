@@ -51,7 +51,7 @@ def traces(compiler):
             source = ROOT / f'web/trace_inputs/answer.{language}'
             ast, ir = scratch / 'answer.ast', scratch / 'answer.ll'
             run(compiler, 'read', reader, source.relative_to(ROOT), '-o', ast)
-            args = ['--from-ast', ast]
+            args = ['--from-ast', ast, '--ast-source', source.relative_to(ROOT)]
             if runtime:
                 args += ['--runtime', runtime]
             run(compiler, *args, '-o', ir)
@@ -72,12 +72,7 @@ def traces(compiler):
 
 def tutorial():
     source = tutorial_source()
-    return '\n'.join([TUTORIAL_START, '  <h2>the first reader</h2>',
-                      '  <p>Copy the first reader from the reader guide. It accepts <code>answer 42</code> and returns a native program.</p>',
-                      '  <pre><code>' + html.escape(source.rstrip()) + '</code></pre>',
-                      '  <p>Save it as <code>tiny.lang</code>, then run:</p>',
-                      '  <pre class="command"><code>$ printf \'answer 42\\n\' &gt; answer.tiny\n$ ./out/lang run tiny.lang answer.tiny\n$ echo $?\n42</code></pre>',
-                      '  <p>The reader checks the whole input before emitting <code>main</code>. Extra tokens are errors.</p>', TUTORIAL_END])
+    return '\n'.join([TUTORIAL_START, '  <pre><code>' + html.escape(source.rstrip()) + '</code></pre>', TUTORIAL_END])
 
 
 def replace(path, start, end, generated, check):

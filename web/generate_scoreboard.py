@@ -29,14 +29,14 @@ def rows(root=ROOT):
             result.append((reader, 'Crafting Interpreters · clox', f"{score['passing']}/{score['total']}", 'LLVM'))
         elif reader == 'lua':
             metric = next(m for m in metrics if m['name'] == 'Lua tests passing')
-            scores = re.findall(r'(\d+)/(\d+) (LLVM|direct Wasm)', metric['detail'])
+            scores = re.findall(r'(\d+)/(\d+) (LLVM|direct Wasm|llvm|wasm)', metric['detail'])
             if not scores:
                 raise ValueError('Lua metric has no per-target suite scores')
             suite = metric['detail'].split(';', 1)[1].strip()
             for passing, total, target in scores:
                 if int(passing) != metric['value']:
                     raise ValueError('Lua detail and value disagree')
-                result.append((reader, suite, f'{passing}/{total}', target))
+                result.append((reader, suite, f'{passing}/{total}', {'llvm': 'LLVM', 'wasm': 'direct Wasm'}.get(target, target)))
         else:
             result.append((reader, '—', 'not measured', ', '.join(sorted(targets[reader]))))
     return result

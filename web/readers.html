@@ -48,13 +48,11 @@ export SDK="$PWD/lang-0.1.0+e5b90e2f0538-x86_64-linux"
 mkdir 'my first reader'
 cd 'my first reader'</code></pre>
 
-  <!-- tutorial:start -->
   <h2>the complete reader</h2>
   <p>Save this as <code>tiny.lang</code> in <code>my first reader</code>:</p>
-  <pre><code>// tiny.lang: `answer 42` becomes a native program.
-
-include "std/tok.lang"
-include "std/ast.lang"
+  <!-- tutorial:start -->
+  <pre><code>include &quot;std/tok.lang&quot;
+include &quot;std/ast.lang&quot;
 
 reader tiny(text *u8) *u8 {
     var tokens *Tokenizer = tok_new(text);
@@ -79,6 +77,7 @@ reader tiny(text *u8) *u8 {
 
     return ast_main_i64(ast_number(value));
 }</code></pre>
+  <!-- tutorial:end -->
 
   <p>Accept the whole source before returning an AST. Whitespace and comments
     may follow the number; extra tokens must fail.</p>
@@ -115,7 +114,6 @@ cd lang
 make build
 ./out/lang_next new reader tiny
 ./out/lang_next compiler tiny tiny.lang -o tinyc</code></pre>
-  <!-- tutorial:end -->
 
   <h2>grow it</h2>
   <p>

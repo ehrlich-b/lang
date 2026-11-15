@@ -512,6 +512,8 @@ else
 verify: bootstrap-verify
 	python3 -B test/reader_author/editor.py --compiler $(BOOTSTRAP_VERIFY_DIR)/kernel2
 	python3 -B test/reader_author/demo.py --case stranger
+	python3 test/site_scoreboard.py
+	COMPILER=$(BOOTSTRAP_VERIFY_DIR)/kernel2 python3 test/site_language_maker.py
 endif
 
 # Fast feedback with one compiler built beforehand; no implicit build or suite.
@@ -775,8 +777,3 @@ lox-score: init
 .PHONY: scoreboard
 scoreboard:
 	JOBS=2 python3 scripts/scoreboard.py
-
-# The published language-maker sections must be exact generated snapshots.
-verify:
-	python3 test/site_scoreboard.py
-	COMPILER=$(BOOTSTRAP_VERIFY_DIR)/kernel2 python3 test/site_language_maker.py
