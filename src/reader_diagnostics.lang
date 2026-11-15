@@ -267,7 +267,7 @@ func reader_host_worker_mode(program *u8, content *u8, len i64, key *u8, path *u
     var text *u8 = str_dup_n(content, len);
     reader_host_begin(key, text, path, node);
     phase_worker_capture_stderr = 1; phase_worker_stderr = nil;
-    var output *u8 = phase_reader_call(program, text, len, mode);
+    var output *u8 = phase_reader_call(program, text, len, mode, key);
     phase_worker_capture_stderr = 0; reader_diagnostic_collect = 0;
     reader_host_inputs = nil;
     if phase_worker_stderr != nil { reader_host_decode(phase_worker_stderr); }

@@ -49,17 +49,23 @@ def main():
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor', BASE, head], 'required-base', ROOT)
         replay.run(['git', 'merge-base', '--is-ancestor', PREVIOUS, head], 'previous-attempt', ROOT)
-        integration_base = 'a12b2ec17344e4408e849a50be64d8f0831ccc6d'
+        integration_base = '2d4e5b5528c124d3767d586c65449403b93fb0cf'
+        replay.run(['git', 'merge-base', '--is-ancestor', integration_base, head],
+                   'integration-base', ROOT)
         replay.run(['git', 'diff', '--exit-code', integration_base, head, '--',
-                    'bootstrap', 'web', ':(exclude)web/build_stdlib.js'],
-                   'protected-inputs', ROOT)
-        original_web = replay.run(['git', 'show', integration_base + ':web/build_stdlib.js'],
-                                  'original-web-builder', ROOT).stdout.decode()
-        expected_web = original_web.replace("  'std/parser_runtime.lang',", "  'std/capture_contract.lang',\n  'std/reader_request.lang',\n  'std/parser_inspect.lang',\n  'std/parser_runtime.lang',")
-        require((ROOT / 'web/build_stdlib.js').read_text() == expected_web, 'unexpected web builder changes')
+                    'bootstrap', 'web', ':(exclude)web/index.html'], 'protected-inputs', ROOT)
         replay.run(['git', 'diff', '--exit-code', PREVIOUS, head, '--',
                     'std/capture_contract.lang', 'std/capture_gen.lang'],
                    'preserved-capture-contract', ROOT)
+        original_index = replay.run(['git', 'show', integration_base + ':web/index.html'],
+                                    'original-web-index', ROOT).stdout.decode()
+        current_index = (ROOT / 'web/index.html').read_text()
+        start, end = '  <!-- borders:start -->', '  <!-- borders:end -->'
+        require(original_index.split(start)[0] == current_index.split(start)[0]
+                and original_index.split(end)[1] == current_index.split(end)[1],
+                'unexpected web changes outside the generated borders')
+        replay.run([sys.executable, '-B', 'web/generate_borders.py', '--check'],
+                   'generated-borders', ROOT)
         clone = scratch / 'repo'
         replay.run(['git', 'clone', '--no-hardlinks', '--quiet', str(ROOT), str(clone)], 'clone', ROOT)
         files = replay.run(['git', 'ls-files', '-z'], 'inputs', clone).stdout.decode().split('\0')
@@ -185,7 +191,7 @@ def main():
         # Independently dump the real reader's tree after its existing end check.
         oracle = scratch / 'oracle.lang'
         original = shipping.read_text()
-        anchor = '    var settings *u8 = capture_shipping_policy_repeated(tree, "settings");'
+        anchor = '    var settings *u8 = capture_shipping_policy_repeated(tree, "settings");\n    var base i64 = -1;'
         require(original.count(anchor) == 1, 'oracle insertion is ambiguous')
         oracle.write_text(original.replace(anchor, '    pnode_dump(tree);\n' + anchor))
         shutil.copyfile(oracle, evidence / oracle.name)
@@ -229,7 +235,7 @@ def main():
         result = inspect(edited, 'core', 'edited-core')
         require(b'(number 80)' in result.stdout and b'(number 7)' in result.stdout and not result.stderr,
                 'edited policy did not lower')
-        configured = variant('custom-comments', original.replace('tok_new(text)',
+        configured = variant('custom-comments', original.replace('tok_new_profile(text, shipping_profile())',
             'tok_new_comments(text, "#", nil, nil)'), '# configured by reader\nshipping { base 10; free_over 100; }')
         result = inspect(configured, 'tokens', 'actual-tokenizer')
         require(b'"#"' not in result.stdout and b'"shipping" @23:31' in result.stdout and not result.stderr,
@@ -259,6 +265,12 @@ def main():
             if name == 'comment':
                 result = inspect(invalid, 'tokens', 'unterminated-comment-tokens', expected=1)
                 require(not result.stdout and b'*/' in result.stderr, 'scanner error swallowed')
+        invalid_decimal = variant('invalid-decimal', guest='shipping { base 1.5; free_over 100; }')
+        for stage in ('tokens', 'tree'):
+            result = inspect(invalid_decimal, stage, 'invalid-decimal-' + stage, expected=1)
+            require(not result.stdout and b'expected decimal integer' in result.stderr
+                    and b'policy.shipping:1:' in result.stderr and b'\x00' not in result.stderr,
+                    'inspection failed to render the lexical diagnostic')
         missing = variant('missing-inspect-rule', original.replace('!inspect shipping_policy;', '!inspect absent;'))
         result = inspect(missing, 'tree', 'missing-inspect-rule', expected=1)
         require(not result.stdout and b'declared inspection rule' in result.stderr, 'bad inspection metadata accepted')

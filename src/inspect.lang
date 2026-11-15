@@ -1,8 +1,8 @@
 // Project-stage orchestration. Syntax artifacts cross the same worker boundary
 // as normal reader output, with a distinct envelope that cannot be mistaken
 // for an AST from a reader which does not publish syntax stages.
-func inspect_syntax(name *u8, content *u8, stage *u8) *u8 {
-    var artifact *u8 = phase_reader_call(build_reader_cache_path(name, strlen(name)), content, strlen(content), stage);
+func inspect_syntax(name *u8, path *u8, content *u8, stage *u8) *u8 {
+    var artifact *u8 = reader_host_worker_mode(build_reader_cache_path(name, strlen(name)), content, strlen(content), name, path, nil, stage);
     if artifact == nil { return nil; }
     var header *u8 = str_concat(str_concat("LANG-INSPECT/1 ", stage), "\n");
     var len i64 = strlen(header);
@@ -51,7 +51,7 @@ func cmd_inspect(argc i64, argv **u8) i64 {
     var name *u8 = project_field(project, "reader_name");
     var artifact *u8 = nil;
     if streq(stage, "tokens") || streq(stage, "tree") {
-        artifact = inspect_syntax(name, content, stage);
+        artifact = inspect_syntax(name, path, content, stage);
         if artifact == nil { eprint(path); eprintln(": error: reader syntax inspection failed"); return 1; }
     } else {
         artifact = read_run_reader(name, path, content);

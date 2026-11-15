@@ -14,8 +14,8 @@ macOS arm64 was not executed on this host.
 | lang | strings | [supported](../test/borders/cases/lang_strings.lang) | [supported](../test/borders/cases/lang_strings.lang) | [supported](../test/borders/cases/lang_strings.lang) | not-run-here |
 | lang | functions | [supported](../test/borders/cases/lang_functions.lang) | [supported](../test/borders/cases/lang_functions.lang) | [supported](../test/borders/cases/lang_functions.lang) | not-run-here |
 | lang | closures | [supported](../test/borders/cases/lang_closures.lang) | [supported](../test/borders/cases/lang_closures.lang) | [rejected](../test/borders/cases/lang_closures.lang) | not-run-here |
-| lang | structs | [supported](../test/borders/cases/lang_structs.lang) | [supported](../test/borders/cases/lang_structs.lang) | [rejected](../test/borders/cases/lang_structs.lang) | not-run-here |
-| lang | arrays | [supported](../test/borders/cases/lang_arrays.lang) | [supported](../test/borders/cases/lang_arrays.lang) | [rejected](../test/borders/cases/lang_arrays.lang) | not-run-here |
+| lang | structs | [supported](../test/borders/cases/lang_structs.lang) | [supported](../test/borders/cases/lang_structs.lang) | [supported](../test/borders/cases/lang_structs.lang) | not-run-here |
+| lang | arrays | [supported](../test/borders/cases/lang_arrays.lang) | [supported](../test/borders/cases/lang_arrays.lang) | [supported](../test/borders/cases/lang_arrays.lang) | not-run-here |
 | lang | control_flow | [supported](../test/borders/cases/lang_control_flow.lang) | [supported](../test/borders/cases/lang_control_flow.lang) | [supported](../test/borders/cases/lang_control_flow.lang) | not-run-here |
 | lang | recursion | [supported](../test/borders/cases/lang_recursion.lang) | [supported](../test/borders/cases/lang_recursion.lang) | [supported](../test/borders/cases/lang_recursion.lang) | not-run-here |
 | lang | effects | [supported](../test/borders/cases/lang_effects.lang) | [rejected](../test/borders/cases/lang_effects.lang) | [rejected](../test/borders/cases/lang_effects.lang) | not-run-here |
@@ -130,7 +130,7 @@ macOS arm64 was not executed on this host.
 | calc | cross_reader_call | [rejected](../test/borders/cases/calc_cross_reader_call.lang) | [rejected](../test/borders/cases/calc_cross_reader_call.lang) | [rejected](../test/borders/cases/calc_cross_reader_call.lang) | not-run-here |
 | calc | error_location | [wrong](../test/borders/bugs/calc_error_location_llvm.lang) | [wrong](../test/borders/bugs/calc_error_location_llvm-wasm.lang) | [wrong](../test/borders/bugs/calc_error_location_wasm.lang) | not-run-here |
 
-Totals: not-applicable: 12, rejected: 170, supported: 132, wrong: 46.
+Totals: not-applicable: 12, rejected: 168, supported: 134, wrong: 46.
 
 Ordinary probes compile, link, and run against explicit exit-code and stdout oracles in `test/borders/probes.json` (usually exit 42; Lox prints a value, Lua asserts). Rejected means compilation or linking failed; wrong means an oracle mismatch; crash includes target traps and timeouts.
 Error-location probes intentionally fail compilation: supported requires the expected guest line/column (Lox reports a line). A wrapper-file error alone is wrong. These cells do not claim successful target execution.

@@ -14,22 +14,23 @@ pub func phase_worker_call(program *u8, input *u8, len i64) *u8 {
 }
 // Syntax inspection belongs to one explicit reader request. All ordinary
 // reader clients use nil, regardless of the compiler's inherited environment.
-pub func phase_reader_call(program *u8, input *u8, len i64, stage *u8) *u8 {
+pub func phase_reader_call(program *u8, input *u8, len i64, stage *u8, key *u8) *u8 {
     var saved **u8 = ___envp;
     var count i64 = 0;
     while saved[count] != nil { count = count + 1; }
-    var data *u8 = alloc((count + 2) * 8);
+    var data *u8 = alloc((count + 3) * 8);
     var env **u8 = data;
     var i i64 = 0;
     var used i64 = 0;
     while i < count {
-        if strlen(saved[i]) < 19 || !str_eq_n(saved[i], 19, "LANG_INSPECT_STAGE=", 19) {
+        if (strlen(saved[i]) < 19 || !str_eq_n(saved[i], 19, "LANG_INSPECT_STAGE=", 19)) && (strlen(saved[i]) < 20 || !str_eq_n(saved[i], 20, "LANG_INSPECT_READER=", 20)) {
             env[used] = saved[i]; used = used + 1;
         }
         i = i + 1;
     }
     if stage != nil {
         env[used] = str_concat("LANG_INSPECT_STAGE=", stage); used = used + 1;
+        env[used] = str_concat("LANG_INSPECT_READER=", key); used = used + 1;
     }
     env[used] = nil;
     ___envp = env;

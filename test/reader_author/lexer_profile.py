@@ -45,8 +45,19 @@ def main():
         require(not status.stdout, 'commit the candidate before replaying it')
         head = replay.run(['git', 'rev-parse', 'HEAD'], 'head', ROOT).stdout.decode().strip()
         replay.run(['git', 'merge-base', '--is-ancestor', BASE, head], 'required-base', ROOT)
-        replay.run(['git', 'diff', '--exit-code', BASE, head, '--', 'bootstrap', 'web'],
-                   'protected-inputs', ROOT)
+        integration_base = '2d4e5b5528c124d3767d586c65449403b93fb0cf'
+        replay.run(['git', 'merge-base', '--is-ancestor', integration_base, head], 'integration-base', ROOT)
+        replay.run(['git', 'diff', '--exit-code', integration_base, head, '--',
+                    'bootstrap', 'web', ':(exclude)web/index.html'], 'protected-inputs', ROOT)
+        original_index = replay.run(['git', 'show', integration_base + ':web/index.html'],
+                                    'original-web-index', ROOT).stdout.decode()
+        current_index = (ROOT / 'web/index.html').read_text()
+        start, end = '  <!-- borders:start -->', '  <!-- borders:end -->'
+        require(original_index.split(start)[0] == current_index.split(start)[0]
+                and original_index.split(end)[1] == current_index.split(end)[1],
+                'unexpected web changes outside the generated borders')
+        replay.run([sys.executable, '-B', 'web/generate_borders.py', '--check'],
+                   'generated-borders', ROOT)
         clone = scratch / 'repo'
         replay.run(['git', 'clone', '--no-hardlinks', '--quiet', str(ROOT), str(clone)], 'clone', ROOT)
         files = replay.run(['git', 'ls-files', '-z'], 'inputs', clone).stdout.decode().split('\0')
@@ -63,7 +74,8 @@ def main():
                 'comments are not nested; domain bounds remain reader-local; no OS kernel '
                 'operations, full suites, fixed points, bootstrap edits or web regeneration'})
         replay.run(['make', 'init'], 'init', clone)
-        compiler = str(clone / 'out/lang')
+        replay.run(['make', 'build'], 'build-current-sources', clone)
+        compiler = str(clone / 'out/lang_next')
         fixtures = clone / 'test/reader_author/fixtures/lexer_profile'
         def build(source, name):
             ir = scratch / (name + '.ll')

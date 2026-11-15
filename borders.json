@@ -792,21 +792,31 @@
       "expected_exit": 42,
       "expected_stdout": "",
       "case_sha256": "b2430551e529ff77c90cac64d15a8d10fc8deb041dd68f70d7678ee7d8fdf2a2",
-      "status": "rejected",
-      "phase": "compile",
-      "exit_code": 1,
-      "detail": "test/borders/cases/lang_structs.lang:2:1: error: direct wasm currently supports only scalar and pointer locals\nerror: direct wasm compilation failed\n",
+      "status": "supported",
+      "phase": "run",
+      "exit_code": 42,
+      "detail": "",
       "steps": [
         {
           "command": [
-            "out/lang_dev_6f122d6",
+            "out/bootstrap_verify/kernel2",
             "test/borders/cases/lang_structs.lang",
             "-o",
             "<scratch>/program.wasm"
           ],
-          "exit_code": 1,
+          "exit_code": 0,
+          "stdout": "Wrote <scratch>/program.wasm\n",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "node",
+            "test/wasm_host.js",
+            "<scratch>/program.wasm"
+          ],
+          "exit_code": 42,
           "stdout": "",
-          "stderr": "test/borders/cases/lang_structs.lang:2:1: error: direct wasm currently supports only scalar and pointer locals\nerror: direct wasm compilation failed\n"
+          "stderr": ""
         }
       ]
     },
@@ -920,21 +930,31 @@
       "expected_exit": 42,
       "expected_stdout": "",
       "case_sha256": "7580fc3e8f4090926d09927674593728a0f07574c9c192da7f6e823a3e9b26a6",
-      "status": "rejected",
-      "phase": "compile",
-      "exit_code": 1,
-      "detail": "test/borders/cases/lang_arrays.lang:1:1: error: direct wasm currently supports only scalar and pointer locals\nerror: direct wasm compilation failed\n",
+      "status": "supported",
+      "phase": "run",
+      "exit_code": 42,
+      "detail": "",
       "steps": [
         {
           "command": [
-            "out/lang_dev_6f122d6",
+            "out/bootstrap_verify/kernel2",
             "test/borders/cases/lang_arrays.lang",
             "-o",
             "<scratch>/program.wasm"
           ],
-          "exit_code": 1,
+          "exit_code": 0,
+          "stdout": "Wrote <scratch>/program.wasm\n",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "node",
+            "test/wasm_host.js",
+            "<scratch>/program.wasm"
+          ],
+          "exit_code": 42,
           "stdout": "",
-          "stderr": "test/borders/cases/lang_arrays.lang:1:1: error: direct wasm currently supports only scalar and pointer locals\nerror: direct wasm compilation failed\n"
+          "stderr": ""
         }
       ]
     },
@@ -12452,8 +12472,8 @@
   ],
   "totals": {
     "not-applicable": 12,
-    "rejected": 170,
-    "supported": 132,
+    "rejected": 168,
+    "supported": 134,
     "wrong": 46
   },
   "missing_reader": [
