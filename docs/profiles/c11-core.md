@@ -64,3 +64,5 @@ The MiniLisp float/string border probes reproduce the existing LLVM reader/runti
 bugs; their C reproductions are retained under `test/borders/bugs/`. They do not
 expand the supported MiniLisp subset. Closure environments use `alloc` and
 retain its runtime-owned lifetime; no automatic collection is introduced.
+
+C11 border probes can be measured with `COMPILER=out/lang_next python3 test/borders/run.py --target c --reader lang` (or `minipy` or `minilisp`). Filtered measurements do not alter the published grid.

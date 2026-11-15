@@ -20,6 +20,7 @@ READERS = 'lang minipy minilisp c forth flow lox lua tiny calc'.split()
 FEATURES = ('integers floats strings functions closures structs arrays control_flow '
             'recursion effects cross_reader_call error_location').split()
 TARGETS = ['llvm', 'llvm-wasm', 'wasm']
+FILTER_TARGETS = TARGETS + ['c']
 
 
 def digest(path):
@@ -136,9 +137,9 @@ class Probe:
                     expected_stdout=spec['expected_stdout'], case_sha256=digest(spec['fixture']))
         if 'reason' in spec:
             return dict(cell, status='not-applicable', reason=spec['reason'])
-        output = self.scratch / ('program.wasm' if target == 'wasm' else 'program.ll')
-        backend = 'wasm' if target == 'wasm' else 'llvm'
-        env = dict(os.environ, LANGBE=backend, LANGOS='linux' if target == 'llvm' else 'wasm',
+        output = self.scratch / {'wasm': 'program.wasm', 'c': 'program.c'}.get(target, 'program.ll')
+        backend = target if target in ('wasm', 'c') else 'llvm'
+        env = dict(os.environ, LANGBE=backend, LANGOS='linux' if target in ('llvm', 'c') else 'wasm',
                    LANG_CACHE=str(self.scratch / 'cache'), LANG_BORDERS_TRAPS='1')
         code, stdout, stderr = self.run([self.compiler, fixture, '-o', str(output)], env)
         phase = 'compile'
@@ -151,9 +152,10 @@ class Probe:
         elif code:
             status = 'crash' if code < 0 or code == 124 else 'rejected'
         else:
-            if target == 'llvm':
+            if target in ('llvm', 'c'):
                 binary = str(self.scratch / 'program')
-                command = ['clang', '-O0', str(output), '-o', binary]
+                command = (['clang', '-std=c11', '-O2', str(output), '-o', binary, '-lm']
+                           if target == 'c' else ['clang', '-O0', str(output), '-o', binary])
             elif target == 'llvm-wasm':
                 binary = str(self.scratch / 'program.wasm')
                 command = ['clang', '--target=wasm32-unknown-unknown', '-nostdlib',
@@ -170,7 +172,7 @@ class Probe:
                 status = 'crash' if code < 0 or code == 124 else 'rejected'
             else:
                 phase = 'run'
-                command = [binary] if target == 'llvm' else ['node', 'test/wasm_host.js', binary]
+                command = [binary] if target in ('llvm', 'c') else ['node', 'test/wasm_host.js', binary]
                 code, stdout, stderr = self.run(command, env)
                 detail = stdout + stderr
                 if code == spec['expected_exit'] and stdout == spec['expected_stdout'] and not stderr:
@@ -198,7 +200,7 @@ def main():
     os.chdir(ROOT)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--reader', choices=READERS)
-    parser.add_argument('--target', choices=TARGETS)
+    parser.add_argument('--target', choices=FILTER_TARGETS)
     parser.add_argument('--feature', choices=FEATURES)
     parser.add_argument('--output', type=Path, help='write fragment measurements here')
     parser.add_argument('--verify', action='store_true', help='compare fragment outcomes with the published grid')
@@ -291,7 +293,10 @@ def main():
             subprocess.run(['python3', '-B', 'web/generate_borders.py'], check=True)
     if args.verify:
         for cell in cells:
-            old = published[(cell['reader'], cell['feature'], cell['target'])]
+            key = (cell['reader'], cell['feature'], cell['target'])
+            if key not in published:
+                raise SystemExit(f'no published result for {key}; run without --verify')
+            old = published[key]
             for key in ('status', 'exit_code', 'expected_exit', 'expected_stdout'):
                 if old.get(key) != cell.get(key):
                     raise SystemExit(f'changed {key}: {cell["reader"]}/{cell["feature"]}/{cell["target"]}: {old.get(key)} -> {cell.get(key)}')
