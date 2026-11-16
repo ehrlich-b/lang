@@ -444,6 +444,10 @@ _verify-complete: generate-os-layer generate-version-info
 ifeq ($(VERIFY_CASE),author-trials)
 verify:
 	python3 -B test/reader_author/trial_protocol.py --case replay
+else ifeq ($(VERIFY_CASE),path-receipt)
+verify:
+	python3 -B test/reader_author/path_receipt_tests.py
+	python3 -B test/reader_author/path_receipt.py --case shipping
 else ifeq ($(VERIFY_CASE),stranger)
 verify:
 	python3 -B test/reader_author/demo.py --case stranger
@@ -518,6 +522,11 @@ verify: bootstrap-verify
 	python3 test/site_scoreboard.py
 	COMPILER=$(BOOTSTRAP_VERIFY_DIR)/kernel2 python3 test/site_language_maker.py
 endif
+
+# Read local proof artifacts only; this target never promotes or publishes.
+.PHONY: release-check
+release-check:
+	python3 -B test/reader_author/path_receipt.py --case aggregate --require-release $(foreach receipt,$(PATH_RECEIPTS),--receipt "$(receipt)")
 
 # Fast feedback with one compiler built beforehand; no implicit build or suite.
 .PHONY: fragment

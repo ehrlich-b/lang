@@ -201,6 +201,16 @@ None of this extended the kernel; readers are syntax plugins, not compiler patch
 
 ## It compiles itself
 
+Check the language-author path with
+`env JOBS=2 VERIFY_CASE=path-receipt make verify`. It measures the shipping
+project once and writes a source-bound `matrix.json` and concise `README.md`
+under the printed evidence directory. The panel covers grammar, capture tree,
+semantics, diagnostics, native output, package relocation, formatting, editor
+facts and self-hosting. Missing proof stays **not measured**.
+`make release-check PATH_RECEIPTS="/path/to/focused.json ..."` reads focused
+receipts and fails until the whole path has current deliverables; a broad gate
+pass cannot fill an empty cell. See the [receipt contract](docs/PATH_RECEIPTS.md).
+
 The lang reader is written in lang. The kernel is written in lang. The compiler compiles itself from source, producing identical output. Fixed point.
 
 ```bash
