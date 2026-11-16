@@ -16,7 +16,7 @@ import uuid
 from project import ProjectReplay
 from route import ROOT, dump, require, sha
 
-BASE = '67528ae'
+BASE = '99807ed'
 CELLS = ('grammar', 'tree', 'semantics', 'diagnostics', 'native output',
          'package relocation', 'formatting', 'editor facts', 'self-hosting')
 # A gate receipt has none of these deliverables. The proof type fixes the roles;

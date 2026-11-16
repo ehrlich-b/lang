@@ -17,7 +17,7 @@ import uuid
 from route import Replay, ROOT, dump, require, sha
 from trial_recorder import Recorder, summarize
 
-BASE = 'b3a93cd'
+BASE = '99807ed'
 FIXTURES = ROOT / 'test/reader_author/fixtures/trial_protocol'
 
 
