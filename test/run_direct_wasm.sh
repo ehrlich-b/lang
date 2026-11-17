@@ -48,6 +48,7 @@ run_case test/suite/287_node_origins_index.lang 0
 # A declaration reader and an expression reader must expand before reachability.
 run_case test/borders/cases/minipy_functions.lang 42
 run_case test/borders/cases/minilisp_integers.lang 42
+run_case test/flow_wasm.lang 42
 
 # Unused native extern globals must not enter the module; used ones must fail.
 if LANGBE=wasm LANGOS=wasm "$COMPILER" test/direct_wasm_extern_global_reject.lang -o "$tmp/extern.wasm" >"$tmp/extern.out" 2>&1; then

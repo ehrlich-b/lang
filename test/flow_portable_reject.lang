@@ -1,0 +1,6 @@
+include "example/flow/flow.lang"
+#flow_portable{
+    gen feedback() { var received = yield 1; }
+    func answer() { for value in feedback() { send value; } return 0; }
+}
+func main() i64 { return answer(); }

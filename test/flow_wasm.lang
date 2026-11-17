@@ -1,0 +1,53 @@
+// A synchronous flow generator/driver pair with native answer 42.
+include "example/flow/flow.lang"
+
+var calls i64 = 0;
+func once() i64 { calls = calls + 1; return 10; }
+
+#flow_portable{
+    gen fib(n) {
+        var a = 0;
+        var b = 1;
+        var i = 0;
+        while i < n {
+            yield a;
+            var t = a + b;
+            a = b;
+            b = t;
+            i = i + 1;
+        }
+    }
+    gen early(n) {
+        yield n;
+        return 99;
+        yield 999;
+    }
+    func answer() {
+        var __flow_portable_1 = 123;
+        var total = 0;
+        // The driver deliberately shadows generator locals and its parameter.
+        var a = 7;
+        var n = 2;
+        for b in fib(once()) {
+            if b % 2 == 0 { total = total + b; }
+        }
+        if total != 44 { return 1; }
+        // A second specialization must have fresh bindings and fresh state.
+        for a in early(n) { total = total - a; }
+        if calls != 1 { return 2; }
+        if a != 7 { return 3; }
+        if __flow_portable_1 != 123 { return 4; }
+        var nested = 0;
+        for outer in early(3) {
+            for inner in early(outer) { nested = nested + inner; }
+        }
+        if nested != 3 { return 5; }
+        return total;
+    }
+}
+
+func main() i64 {
+    var result i64 = answer();
+    print("flow answer: "); print_int(result); print("\n");
+    return result;
+}

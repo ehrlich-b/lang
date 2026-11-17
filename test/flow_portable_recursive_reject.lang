@@ -1,0 +1,6 @@
+include "example/flow/flow.lang"
+#flow_portable{
+    gen forever() { for value in forever() { yield value; } }
+    func answer() { for value in forever() { send value; } return 0; }
+}
+func main() i64 { return answer(); }

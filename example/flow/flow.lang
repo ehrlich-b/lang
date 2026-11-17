@@ -38,7 +38,7 @@ include "std/prec.lang"
 
 #parser{
     flow_program  = flow_decl+
-    flow_decl     = flow_gendecl | flow_funcdecl
+    flow_decl     = gen:flow_gendecl | func:flow_funcdecl
     flow_gendecl  = 'gen' name:symbol '(' params:flow_params ')' body:flow_block
     flow_funcdecl = 'func' name:symbol '(' params:flow_params ')' body:flow_block
     flow_params   = flow_paramitem*
@@ -175,9 +175,10 @@ func fl_emit_postfix(pf *PNode) *u8 {
 
 func fl_emit_primary(p *PNode) *u8 {
     if pnode_is(p, "num") { return ast_number(p.text); }
-    if pnode_is(p, "sym") { return ast_ident(p.text); }
+    if pnode_is(p, "sym") { return ast_ident(fl_resolve(p.text)); }
     if pnode_is(p, "yieldexpr") {
         // yield as an expression: its value is what the driver resumed with.
+        if fl_portable { fl_portable_error(p, "yield expressions require the native effects reader; portable flow supports statement yields"); }
         return ast_perform1("Yield", fl_emit_expr(pnode_require(p, "value")));
     }
     if pnode_is(p, "paren") {
@@ -216,6 +217,7 @@ func fl_gensym(prefix *u8, node *PNode) *u8 {
 // send_target = the enclosing for-in's send-register name (nil if none), so a
 // `send` nested inside an if/while still targets the right driver's resume value.
 func fl_emit_block(block *PNode, send_target *u8) *u8 {
+    var saved *u8 = fl_bindings;
     var stmts *u8 = ast_vec();
     var sl *PNode = pnode_require(block, "stmts");
     var n i64 = vec_len(sl.children);
@@ -224,6 +226,7 @@ func fl_emit_block(block *PNode, send_target *u8) *u8 {
         ast_push(stmts, fl_emit_stmt(vec_get(sl.children, i), send_target));
         i = i + 1;
     }
+    fl_bindings = saved;
     return ast_block(stmts);
 }
 
@@ -234,9 +237,13 @@ func fl_emit_stmt(s *PNode, send_target *u8) *u8 {
 func fl_emit_stmt_inner(s *PNode, send_target *u8) *u8 {
     if pnode_is(s, "var") {
         var name *PNode = pnode_require(s, "name");
-        return ast_var(name.text, ast_type_i64(), fl_emit_expr(pnode_require(s, "value")));
+        var value *u8 = fl_emit_expr(pnode_require(s, "value"));
+        var target *u8 = name.text;
+        if fl_portable { target = fl_bind(name.text); }
+        return ast_var(target, ast_type_i64(), value);
     }
     if pnode_is(s, "yield") {        // perform Yield(expr)
+        if fl_portable { return fl_fused_yield(s); }
         return ast_expr_stmt(ast_perform1("Yield", fl_emit_expr(pnode_require(s, "value"))));
     }
     if pnode_is(s, "send") {         // set the resume value
@@ -246,7 +253,15 @@ func fl_emit_stmt_inner(s *PNode, send_target *u8) *u8 {
         }
         return ast_assign(ast_ident(send_target), sexpr);
     }
-    if pnode_is(s, "return") { return ast_return(fl_emit_expr(pnode_require(s, "value"))); }
+    if pnode_is(s, "return") {
+        if fl_portable && fl_driver != nil {
+            var stmts *u8 = ast_vec();
+            ast_push(stmts, ast_expr_stmt(fl_emit_expr(pnode_require(s, "value"))));
+            ast_push(stmts, ast_break(fl_end));
+            return ast_block(stmts);
+        }
+        return ast_return(fl_emit_expr(pnode_require(s, "value")));
+    }
     if pnode_is(s, "if") {
         var cond *u8 = fl_emit_expr(pnode_require(s, "cond"));
         var then_b *u8 = fl_emit_block(pnode_require(s, "then"), send_target);
@@ -286,6 +301,7 @@ func fl_emit_exprstmt(e *PNode) *u8 {
 // so it flows back as the result of the generator's `yield` expression - making
 // the channel bidirectional (a one-way generator simply never sends, resuming 0).
 func fl_emit_forin(s *PNode) *u8 {
+    if fl_portable { return fl_fused_forin(s); }
     var xvar *PNode = pnode_require(s, "name");
     var call *PNode = pnode_require(s, "call");
     var block *PNode = pnode_require(s, "body");
@@ -383,8 +399,183 @@ func fl_emit_program(prog *PNode) *u8 {
 }
 
 reader flow(text *u8) *u8 {
+    fl_portable = 0;
+    fl_bindings = nil;
     fl_src = text;
     var t *Tokenizer = tok_new(text);
     var prog *PNode = parse_flow_program(t);
     return fl_emit_program(prog);
+}
+
+// The portable reader specializes a generator at each synchronous for-in site.
+// Each yield runs the driver's body inline, then continues the generator's
+// structured loops with their locals intact. No continuation escapes and no
+// target-specific effect machinery is needed. The effects reader above remains
+// available for first-class native generator calls.
+struct FlBinding { name *u8; target *u8; parent *FlBinding; }
+struct FlExpansion { generator *PNode; parent *FlExpansion; }
+var fl_portable i64 = 0;
+var fl_bindings *u8 = nil;
+var fl_decls *PNode = nil;
+var fl_driver *PNode = nil;
+var fl_driver_bindings *u8 = nil;
+var fl_end *u8 = nil;
+var fl_active *FlExpansion = nil;
+var fl_driver_active *FlExpansion = nil;
+var fl_serial i64 = 0;
+
+func fl_fresh() *u8 {
+    fl_serial = fl_serial + 1;
+    var sb *StringBuilder = sb_new();
+    sb_str(sb, "__flow_portable_");
+    sb_int(sb, fl_serial);
+    var name *u8 = sb_finish(sb);
+    // Avoid capturing identifiers supplied by this block, including names
+    // that happen to use our generated prefix.
+    var i i64 = 0;
+    while *(fl_src + i) != 0 {
+        var j i64 = 0;
+        while *(name + j) != 0 && *(fl_src + i + j) == *(name + j) { j = j + 1; }
+        if *(name + j) == 0 { return fl_fresh(); }
+        i = i + 1;
+    }
+    return name;
+}
+
+func fl_resolve(name *u8) *u8 {
+    var b *FlBinding = fl_bindings;
+    while b != nil {
+        if streq(b.name, name) { return b.target; }
+        b = b.parent;
+    }
+    return name;
+}
+
+func fl_bind(name *u8) *u8 {
+    var b *FlBinding = alloc(24);
+    b.name = name;
+    b.target = fl_fresh();
+    b.parent = fl_bindings;
+    fl_bindings = b;
+    return b.target;
+}
+
+func fl_portable_error(node *PNode, message *u8) void {
+    pnode_print_error(node, fl_src, "flow_portable", message);
+    exit(1);
+}
+
+func fl_fused_yield(node *PNode) *u8 {
+    if fl_driver == nil { fl_portable_error(node, "yield requires a statically driven generator"); }
+    // Evaluate the value in the generator environment, then emit the driver
+    // in its original environment. Neither side can capture the other's locals.
+    var value *u8 = fl_emit_expr(pnode_require(node, "value"));
+    var generator_bindings *u8 = fl_bindings;
+    var driver *PNode = fl_driver;
+    var end *u8 = fl_end;
+    var active *FlExpansion = fl_active;
+    fl_active = fl_driver_active;
+    fl_bindings = fl_driver_bindings;
+    fl_driver = nil;
+    fl_end = nil;
+    var x *u8 = fl_bind(pnode_require(driver, "name").text);
+    var send *u8 = fl_fresh();
+    var stmts *u8 = ast_vec();
+    ast_push(stmts, ast_var(x, ast_type_i64(), value));
+    ast_push(stmts, ast_var(send, ast_type_i64(), ast_int(0)));
+    ast_push(stmts, fl_emit_block(pnode_require(driver, "body"), send));
+    fl_bindings = generator_bindings;
+    fl_driver = driver;
+    fl_end = end;
+    fl_active = active;
+    return ast_block(stmts);
+}
+
+func fl_fused_forin(node *PNode) *u8 {
+    var call *PNode = pnode_require(node, "call");
+    var name *PNode = pnode_require(call, "name");
+    var generator *PNode = nil;
+    var i i64 = 0;
+    while i < vec_len(fl_decls.children) {
+        var d *PNode = vec_get(fl_decls.children, i);
+        if pnode_is(d, "gen") && streq(pnode_require(d, "name").text, name.text) { generator = d; }
+        i = i + 1;
+    }
+    if generator == nil { fl_portable_error(call, "for-in requires a generator declared in this portable block"); }
+    var active *FlExpansion = fl_active;
+    while active != nil {
+        if active.generator == generator { fl_portable_error(call, "recursive generator specialization is unsupported"); }
+        active = active.parent;
+    }
+    // Arguments are evaluated once, left to right, before parameter binding.
+    var args *u8 = fl_emit_args(pnode_require(call, "args"));
+    var params *PNode = pnode_require(generator, "params");
+    var stmts *u8 = ast_vec();
+    var temps *u8 = ast_vec();
+    i = 0;
+    while i < vec_len(args) {
+        var temp *u8 = fl_fresh();
+        ast_push(stmts, ast_var(temp, ast_type_i64(), vec_get(args, i)));
+        ast_push(temps, temp);
+        i = i + 1;
+    }
+    var saved_bindings *u8 = fl_bindings;
+    var saved_driver *PNode = fl_driver;
+    var saved_driver_bindings *u8 = fl_driver_bindings;
+    var saved_end *u8 = fl_end;
+    var saved_active *FlExpansion = fl_active;
+    var saved_driver_active *FlExpansion = fl_driver_active;
+    fl_bindings = nil;
+    var count i64 = 0;
+    i = 0;
+    while i < vec_len(params.children) {
+        var p *PNode = vec_get(params.children, i);
+        if pnode_is(p, "name") {
+            if count >= vec_len(temps) { fl_portable_error(call, "generator argument count mismatch"); }
+            ast_push(stmts, ast_var(fl_bind(p.text), ast_type_i64(), ast_ident(vec_get(temps, count))));
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    if count != vec_len(temps) { fl_portable_error(call, "generator argument count mismatch"); }
+    fl_driver = node;
+    fl_driver_bindings = saved_bindings;
+    fl_end = fl_fresh();
+    fl_driver_active = saved_active;
+    var expansion *FlExpansion = alloc(16);
+    expansion.generator = generator;
+    expansion.parent = saved_active;
+    fl_active = expansion;
+    var body *u8 = ast_vec();
+    ast_push(body, fl_emit_block(pnode_require(generator, "body"), nil));
+    ast_push(body, ast_break(fl_end));
+    ast_push(stmts, ast_while_labeled(ast_int(1), ast_block(body), fl_end));
+    fl_active = saved_active;
+    fl_driver_active = saved_driver_active;
+    fl_bindings = saved_bindings;
+    fl_driver = saved_driver;
+    fl_driver_bindings = saved_driver_bindings;
+    fl_end = saved_end;
+    return ast_block(stmts);
+}
+
+reader flow_portable(text *u8) *u8 {
+    fl_src = text;
+    fl_portable = 1;
+    fl_serial = 0;
+    fl_bindings = nil;
+    fl_driver = nil;
+    fl_active = nil;
+    fl_decls = parse_flow_program(tok_new(text));
+    var decls *u8 = ast_vec();
+    var i i64 = 0;
+    while i < vec_len(fl_decls.children) {
+        var d *PNode = vec_get(fl_decls.children, i);
+        if pnode_is(d, "func") {
+            fl_bindings = nil;
+            ast_push(decls, fl_emit_func(d));
+        }
+        i = i + 1;
+    }
+    return ast_program(decls);
 }

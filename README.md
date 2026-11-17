@@ -289,6 +289,25 @@ handler clause.
 Run `./test/run_wasm_suite.sh` for the suite, or set `TESTS` to a space-separated
 list of fixture paths for a fragment.
 
+Flow's synchronous generators can also use `#flow_portable{...}` from
+`example/flow/flow.lang`. This reader specializes each `for x in gen(...)`
+pair into ordinary structured control flow: statement `yield` runs the driver
+body, then continues the generator with its locals intact. The stateful
+Fibonacci program in `test/flow_wasm.lang` prints `flow answer: 42` and returns
+42 natively, through LLVM-to-Wasm under node, and through direct Wasm under node.
+
+```bash
+make build
+COMPILER=out/lang_next python3 test/run_flow_wasm.py
+make test-direct-wasm COMPILER=out/lang_next
+```
+
+Portable generators must be declared in the same reader block and driven by
+`for-in`; recursive generator specialization and expression `yield` are refused
+with source locations. The existing `#flow` reader retains native effects and
+bidirectional `yield`/`send`; those effects still require native `clang -O0`.
+See [the Wasm profile](docs/profiles/llvm-wasm32.md) for the boundary.
+
 ### Bootstrap
 
 The compiler bootstraps from preserved LLVM IR:
