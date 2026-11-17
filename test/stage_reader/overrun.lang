@@ -1,0 +1,4 @@
+func stage_entry(args *PhaseBuffer) *PhaseBuffer {
+    var bytes *u8 = alloc(65536);
+    return phase_value_new(10, bytes, 65536);
+}

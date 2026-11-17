@@ -1,0 +1,7 @@
+include "std/core.lang"
+func main() i64 {
+    var found *u8 = find_in_path(getenv("LOOKUP_TOOL"));
+    if found == nil { return 1; }
+    println(found);
+    return 0;
+}

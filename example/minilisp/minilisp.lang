@@ -27,6 +27,7 @@ include "std/core.lang"
 include "std/tok.lang"
 include "std/parser_reader.lang"
 include "std/ast.lang"
+include "std/stage.lang"
 
 // #parser{} generates a recursive descent parser from this grammar
 #parser{
@@ -322,6 +323,22 @@ func lisp_expr(node *PNode) *u8 {
     var count i64 = list_len(node);
     if count == 0 { return ast_call_named0("lisp_nil"); }
     var first *PNode = list_get(node, 0);
+
+    // Explicit read-time evaluation; ordinary forms retain runtime semantics.
+    if is_sym(first, "stage") {
+        if count != 2 { return ml_fail("stage arity", node); }
+        var params *u8 = ast_vec();
+        ast_push(params, ast_param("args", ast_type_ptr(ast_type("PhaseBuffer"))));
+        var decls *u8 = ast_vec();
+        ast_push(decls, ast_include("example/minilisp/lisp_runtime.lang"));
+        ast_push(decls, ast_func("stage_entry", params, ast_type_ptr(ast_type("PhaseBuffer")),
+            ast_block1(ast_return(ast_call1("phase_value_i64",
+                ast_call1("lisp_to_int", lisp_expr(list_get(node, 1))))))));
+        var result *PhaseBuffer = stage_run(ast_program(decls), phase_value_i64(0));
+        var digits *u8 = alloc(24); var len i64 = itoa(phase_value_integer(result.data), digits);
+        *(digits + len) = 0;
+        return ast_call1("lisp_int", ast_number(digits));
+    }
 
     // Operator-headed: arithmetic (foldable) or comparison (binary).
     if pnode_is(first, "op") {

@@ -1,0 +1,16 @@
+// Runtime entry for a closed read-time AST fragment. Only copied bytes cross
+// the process boundary; the fragment exports stage_entry, never a pointer ABI.
+include "std/core.lang"
+include "src/stage_values.lang"
+func main() i64 {
+    var args *PhaseBuffer = phase_read_bytes_fd(0, phase_limit(), "stage arguments");
+    var result *PhaseBuffer = stage_entry(args);
+    if result == nil { return 1; }
+    var pos i64 = 0; var n i64 = 0;
+    while pos < result.len {
+        n = file_write(1, result.data + pos, result.len - pos);
+        if n <= 0 { return 1; }
+        pos = pos + n;
+    }
+    return 0;
+}

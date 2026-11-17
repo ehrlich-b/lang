@@ -1,0 +1,1 @@
+func stage_entry(args *PhaseBuffer) *PhaseBuffer { return args; }

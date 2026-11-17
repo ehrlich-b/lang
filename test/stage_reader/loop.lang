@@ -1,0 +1,5 @@
+func stage_entry(args *PhaseBuffer) *PhaseBuffer {
+    eprintln("fragment-entered");
+    while 1 == 1 { }
+    return args;
+}

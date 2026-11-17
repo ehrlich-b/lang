@@ -1,0 +1,2 @@
+include "example/tiny/stage.lang"
+#tiny{answer 42}

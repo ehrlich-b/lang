@@ -271,3 +271,106 @@ pub func stage_field_offset(types *u8, spelling *u8, name *u8) i64 {
     stage_fail("field");
     return -1;
 }
+
+// Read-time evaluation of a closed core AST module exporting
+// stage_entry(args *PhaseBuffer) *PhaseBuffer. This uses H's copied-values-v1
+// ABI (PhaseBuffer), independently of the legacy STG1 text reader protocol.
+include "src/stage_call.lang"
+var stage_run_origin i64 = 0;
+var stage_run_publication *u8 = nil;
+func stage_setting(name *u8, fallback i64) i64 {
+    var text *u8 = getenv(name); var n i64 = 0;
+    if text == nil { return fallback; }
+    while *text != 0 {
+        if *text < 48 || *text > 57 || n > 107374182 { stage_fail("invalid-budget"); }
+        n = n * 10 + *text - 48; text = text + 1;
+    }
+    return n;
+}
+// Execute tools directly: no shell, fresh compiler process, explicit host ABI.
+func stage_tool(program *u8, a *u8, b *u8, c *u8, d *u8, e *u8, f *u8, g *u8) i64 {
+    var argv **u8 = alloc(72); var raw *u8 = argv; var slot **u8 = argv;
+    *slot = program; slot = raw + 8; *slot = a; slot = raw + 16; *slot = b;
+    slot = raw + 24; *slot = c; slot = raw + 32; *slot = d;
+    slot = raw + 40; *slot = e; slot = raw + 48; *slot = f;
+    slot = raw + 56; *slot = g; slot = raw + 64; *slot = nil;
+    var count i64 = 0; var ep **u8 = ___envp;
+    while *ep != nil { count = count + 1; raw = ep; ep = raw + 8; }
+    var env **u8 = alloc((count + 3) * 8); var i i64 = 0; var n i64 = 0;
+    var setting *u8 = nil;
+    while i < count {
+        raw = ___envp; ep = raw + i * 8; setting = *ep;
+        if str_starts_with(setting, "LANGOS=") == 0 && str_starts_with(setting, "LANGBE=") == 0 {
+            raw = env; ep = raw + n * 8; *ep = setting; n = n + 1;
+        }
+        i = i + 1;
+    }
+    raw = env; ep = raw + n * 8; *ep = str_concat("LANGOS=", os_platform_name());
+    ep = raw + (n + 1) * 8; *ep = "LANGBE=llvm";
+    ep = raw + (n + 2) * 8; *ep = nil;
+    var pid i64 = os_fork();
+    if pid < 0 { return 125; }
+    if pid == 0 {
+        os_dup2(2, 1);
+        os_execve(program, argv, env); os__exit(127);
+    }
+    var status *i64 = alloc(8);
+    if os_waitpid(pid, status, 0) != pid { return 125; }
+    return phase_process_status(*status);
+}
+func stage_compile_ast(request *PhaseCompileRequest) i64 {
+    var path *u8 = str_concat(request.output, ".ast");
+    var ir *u8 = str_concat(request.output, ".ll");
+    var fd i64 = file_open(path, O_WRONLY_CREAT_TRUNC);
+    if fd < 0 { return 125; }
+    // One include expansion owns both the runtime and fragment dependencies.
+    // Expanding separate programs would duplicate shared runtime declarations.
+    var module *u8 = str_concat("(program (include \"std/stage_entry.lang\") ", request.source + 8);
+    stage_exact(fd, module, strlen(module), 1); file_close(fd);
+    var compiler *u8 = getenv("LANG_STAGE_COMPILER");
+    if compiler == nil { return 125; }
+    var code i64 = stage_tool(compiler, "--from-ast", path, "-o", ir, nil, nil, nil);
+    if code != 0 { return code; }
+    var linker *u8 = find_clang();
+    if linker == nil { return 125; }
+    return stage_tool(linker, "-Wno-override-module", ir, "-o", request.output, nil, nil, nil);
+}
+func stage_run(ast *u8, args *PhaseBuffer) *PhaseBuffer {
+    phase_validate_ast(ast, strlen(ast), "stage fragment");
+    if stage_equal(ast, "(program", 8) == 0 { stage_fail("fragment-program"); }
+    var source *u8 = getenv("LANG_STAGE_SOURCE");
+    if source == nil { stage_fail("missing-reader-context"); }
+    var start i64 = stage_setting("LANG_STAGE_START", 0);
+    var end i64 = stage_setting("LANG_STAGE_END", start);
+    // The compiler selects the physical input through its resource root while
+    // origins retain the logical name. Reopen that selected input, not a new
+    // lookup relative to the reader's working directory.
+    var source_path *u8 = getenv("LANG_STAGE_SOURCE_PATH");
+    if source_path == nil { source_path = source; }
+    var text *u8 = phase_read_file(source_path);
+    if text == nil { stage_fail("missing-reader-source"); }
+    var id i64 = phase_source_register(source, text);
+    stage_run_origin = phase_origin_new(id, start, end, 0, 0);
+    phase_call_time_ms = stage_setting("LANG_STAGE_MAX_MS", 10000);
+    phase_call_bytes = stage_setting("LANG_STAGE_MAX_BYTES", 16777216);
+    var workspace *u8 = getenv("LANG_STAGE_WORKSPACE");
+    if workspace == nil { workspace = getenv("LANG_CACHE"); }
+    if workspace == nil { stage_fail("missing-stage-workspace"); }
+    os_mkdir(workspace, 448);
+    var compilation *PhaseCompileRequest = alloc(56);
+    compilation.source = ast; compilation.name = source; compilation.output = "";
+    compilation.origin = stage_run_origin; compilation.phase = 1;
+    compilation.target = os_platform_name(); compilation.llvm = 1;
+    var request *PhaseCallRequest = alloc(64);
+    request.compile = compilation; request.arguments = args;
+    request.signature = "copied-values-v1"; request.profile = "trusted-native";
+    request.output_target = "host"; request.workspace = workspace;
+    // A unique destination prevents concurrent readers sharing a cache from
+    // observing or replacing one another's returned values.
+    stage_run_publication = str_concat(str_concat(workspace, "/stage-value-"), phase_call_decimal(getpid()));
+    request.publication = stage_run_publication; request.result_tag = 0;
+    phase_compile_hook = &stage_compile_ast;
+    var result *PhaseBuffer = phase_host_call(request);
+    if result == nil { phase_call_error("stage-call-failed", stage_run_origin); }
+    return result;
+}

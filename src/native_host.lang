@@ -1,11 +1,11 @@
 // Shared compiler-host driver for project builds and minted compilers.
 // No reader, manifest or language semantics belong in this module.
-extern func mkdtemp(template *u8) *u8;
+include "src/host_temp.lang"
 extern func realpath(path *u8, resolved *u8) *u8;
 extern func lstat(path *u8, buffer *u8) i64;
 extern func fcntl(fd i64, command i64, value i64) i64;
 
-extern func clock_gettime(clock i64, value *u8) i64;
+include "src/host_clock.lang"
 func native_build_nanoseconds() i64 {
     var stamp *u8 = alloc(16);
     if clock_gettime(1, stamp) != 0 { return 0; }

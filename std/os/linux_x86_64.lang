@@ -93,6 +93,10 @@ pub func exit(code i64) void {
 
 // Extended syscalls - used by std/os.lang utilities
 
+func os_access(path *u8, mode i64) i64 {
+    return syscall(21, path, mode);
+}
+
 func os_stat(path *u8, statbuf *u8) i64 {
     // syscall 4 = stat
     return syscall(4, path, statbuf);

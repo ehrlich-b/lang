@@ -1,0 +1,40 @@
+// Opt-in staged variant of the tiny reader; the shipped tutorial stays stable.
+
+include "std/tok.lang"
+include "std/ast.lang"
+include "std/stage.lang"
+
+reader tiny(text *u8) *u8 {
+    var tokens *Tokenizer = tok_new(text);
+    if tok_kind(tokens) != TOK_IDENT || !streq(tok_text(tokens), "answer") {
+        tok_note_expected(tokens, "answer");
+        tok_print_error(tokens, "tiny");
+        return nil;
+    }
+    tok_next(tokens);
+    if tok_kind(tokens) != TOK_NUMBER {
+        tok_note_expected(tokens, "number");
+        tok_print_error(tokens, "tiny");
+        return nil;
+    }
+
+    var value *u8 = tok_text(tokens);
+    tok_next(tokens);
+    if !tok_eof(tokens) {
+        tok_note_expected(tokens, "end of input");
+        tok_print_error(tokens, "tiny");
+        return nil;
+    }
+
+    {
+        var params *u8 = ast_vec();
+        ast_push(params, ast_param("args", ast_type_ptr(ast_type("PhaseBuffer"))));
+        var fragment *u8 = ast_program1(ast_func("stage_entry", params,
+            ast_type_ptr(ast_type("PhaseBuffer")),
+            ast_block1(ast_return(ast_call1("phase_value_i64", ast_number(value))))));
+        var result *PhaseBuffer = stage_run(fragment, phase_value_i64(0));
+        var digits *u8 = alloc(24); var len i64 = itoa(phase_value_integer(result.data), digits);
+        *(digits + len) = 0; value = digits;
+    }
+    return ast_main_i64(ast_number(value));
+}

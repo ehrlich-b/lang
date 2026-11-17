@@ -1,0 +1,2 @@
+// Shared native-host clock ABI for build orchestration and staging.
+extern func clock_gettime(clock i64, stamp *u8) i64;

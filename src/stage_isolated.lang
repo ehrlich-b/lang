@@ -2,6 +2,9 @@ include "std/stage.lang"
 // Opt-in H adapter for controlled fixtures. exec starts a fresh compiler;
 // forking a dirty compiler and parsing in its inherited context is insufficient.
 // Native confinement qualification is a separate engine admission requirement.
+// The controlled fixture hook may deliberately re-enter a logging launcher.
+// This launch request is separate from the running image used in identities.
+var phase_isolated_compiler_path *u8 = nil;
 func phase_isolated_compile(request *PhaseCompileRequest) i64 {
     if streq(request.target, os_platform_name()) == 0 { phase_error("execution-target", request.name); }
     if phase_compiler_path == nil { phase_error("compiler-path", request.name); }
@@ -16,8 +19,10 @@ func phase_isolated_compile(request *PhaseCompileRequest) i64 {
     file_close(fd);
     // The caller invokes this hook in its compilation child. Replace that
     // child, preserving stderr and removing only execution-target settings.
+    var launcher *u8 = phase_isolated_compiler_path;
+    if launcher == nil { launcher = phase_compiler_path; }
     var argv **u8 = alloc(40);
-    var ap **u8 = argv; *ap = phase_compiler_path;
+    var ap **u8 = argv; *ap = launcher;
     var raw *u8 = argv;
     ap = raw + 8; *ap = request.name;
     ap = raw + 16; *ap = "-o";
@@ -42,7 +47,7 @@ func phase_isolated_compile(request *PhaseCompileRequest) i64 {
     count = count + 1;
     raw = env; ep = raw + count * 8; *ep = "LANG_STAGE_FRESH_COMPILER=0"; count = count + 1;
     raw = env; ep = raw + count * 8; *ep = nil;
-    os_execve(phase_compiler_path, argv, env);
+    os_execve(launcher, argv, env);
     return 127;
 }
 func phase_install_isolated_fixture_hook() void {

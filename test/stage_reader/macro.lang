@@ -1,0 +1,46 @@
+include "std/ast.lang"
+include "std/stage.lang"
+reader staged(text *u8) *u8 {
+    // The input is the path of a closed AST module, supplied by the test.
+    var result *PhaseBuffer = stage_run(phase_read_file(text), phase_value_i64(42));
+    if phase_wire_u32(result.data, 0) == 7 {
+        var digits *u8 = alloc(24); var len i64 = itoa(phase_value_integer(result.data), digits);
+        *(digits + len) = 0; return ast_main_i64(ast_number(digits));
+    }
+    var decls *u8 = ast_vec(); var stmts *u8 = ast_vec();
+    var i i64 = 0; var n i64 = 0; var name *u8 = nil;
+    var digits *u8 = nil; var len i64 = 0;
+    while i < 256 {
+        digits = alloc(24); len = itoa(i, digits); *(digits + len) = 0;
+        name = str_concat("crc_", digits);
+        n = phase_wire_u32(result.data, 8 + i * 4);
+        digits = alloc(24); len = itoa(n, digits); *(digits + len) = 0;
+        ast_push(decls, ast_var(name, ast_type_i64(), ast_number(digits)));
+        ast_push(stmts, ast_expr_stmt(ast_call1("print_int", ast_ident(name))));
+        ast_push(stmts, ast_expr_stmt(ast_call1("println", ast_string(""))));
+        i = i + 1;
+    }
+    ast_push(stmts, ast_return(ast_number("0")));
+    ast_push(decls, ast_func("main", ast_vec(), ast_type_i64(), ast_block(stmts)));
+    return ast_program(decls);
+}
+reader owned(text *u8) *u8 {
+    var ast *u8 = phase_read_file(text);
+    var args *PhaseBuffer = phase_value_i64(42);
+    var first *PhaseBuffer = stage_run(ast, args);
+    if phase_value_integer(first.data) != 43 || phase_value_integer(args.data) != 42 { exit(1); }
+    *(first.data + 8) = 0;
+    var second *PhaseBuffer = stage_run(ast, args);
+    if phase_value_integer(second.data) != 43 || phase_value_integer(first.data) != 0 { exit(1); }
+    return ast_main_i64(ast_number("42"));
+}
+reader fail_after(text *u8) *u8 {
+    var params *u8 = ast_vec();
+    ast_push(params, ast_param("args", ast_type_ptr(ast_type("PhaseBuffer"))));
+    var echo *u8 = ast_program1(ast_func("stage_entry", params,
+        ast_type_ptr(ast_type("PhaseBuffer")), ast_block1(ast_return(ast_ident("args")))));
+    var args *PhaseBuffer = phase_value_i64(42);
+    stage_run(echo, args);
+    stage_run(phase_read_file(text), args);
+    return ast_main_i64(ast_number("0"));
+}

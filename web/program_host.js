@@ -485,6 +485,7 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContextOrOpti
     open: () => -1n,
     close: () => 0n,
     stat: () => -1n,
+    access: () => -1n,
     unlink: () => -1n,
     mkdir: () => -1n,
     rmdir: () => -1n,

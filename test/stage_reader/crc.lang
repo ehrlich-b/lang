@@ -1,0 +1,17 @@
+// A closed AST fragment; H supplies the copied-value runtime entry.
+func stage_entry(args *PhaseBuffer) *PhaseBuffer {
+    var bytes *u8 = alloc(1024);
+    var i i64 = 0; var bit i64 = 0; var c i64 = 0; var j i64 = 0;
+    while i < 256 {
+        c = i ^ 4294967295; bit = 0;
+        while bit < 8 {
+            if (c & 1) != 0 { c = (c >> 1) ^ 3988292384; }
+            else { c = c >> 1; }
+            bit = bit + 1;
+        }
+        c = c ^ 4294967295; j = 0;
+        while j < 4 { *(bytes + i * 4 + j) = (c >> (j * 8)) & 255; j = j + 1; }
+        i = i + 1;
+    }
+    return phase_value_new(10, bytes, 1024);
+}

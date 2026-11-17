@@ -95,6 +95,7 @@ extern func _exit(status i64) void;
 
 // File system
 extern func stat(path *u8, statbuf *u8) i64;
+extern func access(path *u8, mode i64) i64;
 extern func mkdir(path *u8, mode i64) i64;
 extern func unlink(path *u8) i64;
 extern func rmdir(path *u8) i64;
@@ -129,6 +130,10 @@ func os_exit(code i64) void {
 }
 
 // Extended syscalls
+
+func os_access(path *u8, mode i64) i64 {
+    return access(path, mode);
+}
 
 func os_stat(path *u8, statbuf *u8) i64 {
     return stat(path, statbuf);

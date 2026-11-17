@@ -2,79 +2,35 @@
 //
 // Provides functions to find build tools in PATH and common locations.
 
-// Find a tool in PATH, returns full path or nil
+// Match executable PATH lookup, including empty entries for the current
+// directory. Readability does not imply executability, and directories cannot
+// be launched even when access(X_OK) succeeds.
 pub func find_in_path(tool *u8) *u8 {
-    var path_env *u8 = getenv("PATH");
-    if path_env == nil { return nil; }
-
-    // Copy PATH so we can modify it
-    var path *u8 = str_dup(path_env);
+    var path *u8 = getenv("PATH");
+    if path == nil { return nil; }
     var start *u8 = path;
-    var p *u8 = path;
-
-    // Buffer for full path
-    var buf *u8 = alloc(1024);
-
-    while *p != 0 {
-        if *p == ':' {
-            *p = 0;  // null-terminate this segment
-
-            // Build full path: dir/tool
-            var i i64 = 0;
-            var s *u8 = start;
-            while *s != 0 {
-                *(buf + i) = *s;
-                i = i + 1;
-                s = s + 1;
+    var info *u8 = alloc(256);
+    while 1 {
+        if *path == ':' || *path == 0 {
+            var directory *u8 = ".";
+            if path != start { directory = str_dup_n(start, path - start); }
+            var candidate *u8 = str_concat(str_concat(directory, "/"), tool);
+            if os_access(candidate, 1) == 0 && os_stat(candidate, info) == 0 {
+                var mode i64 = 0;
+                if streq(os_platform_name(), "macos") {
+                    var mac_mode *i16 = info + 4;
+                    mode = *mac_mode;
+                } else {
+                    var linux_mode *i32 = info + 24;
+                    mode = *linux_mode;
+                }
+                if (mode & 61440) == 32768 { return candidate; }
             }
-            *(buf + i) = '/';
-            i = i + 1;
-            s = tool;
-            while *s != 0 {
-                *(buf + i) = *s;
-                i = i + 1;
-                s = s + 1;
-            }
-            *(buf + i) = 0;
-
-            // Try to open it
-            var fd i64 = file_open(buf, 0);
-            if fd >= 0 {
-                file_close(fd);
-                return str_dup(buf);
-            }
-
-            start = p + 1;
+            if *path == 0 { return nil; }
+            start = path + 1;
         }
-        p = p + 1;
+        path = path + 1;
     }
-
-    // Check last segment
-    if *start != 0 {
-        var i i64 = 0;
-        var s *u8 = start;
-        while *s != 0 {
-            *(buf + i) = *s;
-            i = i + 1;
-            s = s + 1;
-        }
-        *(buf + i) = '/';
-        i = i + 1;
-        s = tool;
-        while *s != 0 {
-            *(buf + i) = *s;
-            i = i + 1;
-            s = s + 1;
-        }
-        *(buf + i) = 0;
-
-        var fd i64 = file_open(buf, 0);
-        if fd >= 0 {
-            file_close(fd);
-            return str_dup(buf);
-        }
-    }
-
     return nil;
 }
 

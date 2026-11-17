@@ -1,0 +1,26 @@
+include "std/ast.lang"
+include "std/stage.lang"
+
+reader collision(text *u8) *u8 {
+    // Reproduce directories left by an earlier reader with this reused PID.
+    var workspace *u8 = getenv("LANG_CACHE");
+    os_mkdir(workspace, 448);
+    var prefix *u8 = str_concat(str_concat(workspace, "/call-"), phase_call_decimal(getpid()));
+    var i i64 = 1;
+    while i <= 2 {
+        var stale *u8 = str_concat(str_concat(prefix, "-"), phase_call_decimal(i));
+        if os_mkdir(stale, 448) != 0 { exit(1); }
+        var fd i64 = file_open(str_concat(stale, "/program"), O_WRONLY_CREAT_TRUNC);
+        if fd < 0 { exit(1); }
+        stage_exact(fd, "stale executable", 16, 1); file_close(fd);
+        fd = file_open(str_concat(stale, "/result.pending"), O_WRONLY_CREAT_TRUNC);
+        if fd < 0 { exit(1); }
+        stage_exact(fd, "stale result", 12, 1); file_close(fd);
+        i = i + 1;
+    }
+    var ast *u8 = phase_read_file(text);
+    var first *PhaseBuffer = stage_run(ast, phase_value_i64(42));
+    var second *PhaseBuffer = stage_run(ast, phase_value_i64(43));
+    if phase_value_integer(first.data) != 42 || phase_value_integer(second.data) != 43 { exit(1); }
+    return ast_main_i64(ast_number("42"));
+}

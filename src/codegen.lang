@@ -52,12 +52,29 @@ func resource_path(path *u8) *u8 {
     return str_concat(str_concat(cg_resource_root, "/"), path);
 }
 
+// Retain the path actually opened, independently of the logical source name
+// used by origins. A reader runs with the caller's working directory too.
+var resource_source_paths *u8 = nil;
+func resource_source_path(path *u8) *u8 {
+    if resource_source_paths != nil {
+        var resolved *u8 = map_get(resource_source_paths, path);
+        if resolved != nil { return resolved; }
+    }
+    return path;
+}
 func resource_open_read(path *u8) i64 {
-    var fd i64 = file_open(path, O_RDONLY);
-    if fd >= 0 { return fd; }
-    var fallback *u8 = resource_path(path);
-    if fallback == nil { return -1; }
-    return file_open(fallback, O_RDONLY);
+    var resolved *u8 = path;
+    var fd i64 = file_open(resolved, O_RDONLY);
+    if fd < 0 {
+        resolved = resource_path(path);
+        if resolved == nil { return -1; }
+        fd = file_open(resolved, O_RDONLY);
+    }
+    if fd >= 0 {
+        if resource_source_paths == nil { resource_source_paths = map_new(); }
+        map_set(resource_source_paths, path, resolved);
+    }
+    return fd;
 }
 
 func resource_file_mtime(path *u8) i64 {
@@ -7278,3 +7295,21 @@ include "src/include_parse.lang"
 include "src/numeric.lang"
 
 include "src/layout.lang"
+
+// Reader call context is host-minted and passed out of band from source text.
+func phase_reader_call_context(node *u8) void {
+    phase_worker_compiler = phase_compiler_path;
+    phase_worker_source = node_origin_source(node);
+    if phase_worker_source == nil { phase_worker_source = "<reader>"; }
+    phase_worker_source_path = resource_source_path(phase_worker_source);
+    // Keep content-relative diagnostic spans while staging identifies the
+    // entire invocation, including its delimiters.
+    var reader_node *ReaderExpr = node;
+    phase_worker_start = reader_node.content_offset;
+    phase_worker_end = reader_node.content_offset + reader_node.content_len;
+    // CLI inputs also use ReaderExpr, with offset zero and no macro delimiters.
+    if reader_node.content_offset >= reader_node.name_len + 2 {
+        phase_worker_start = phase_worker_start - reader_node.name_len - 2;
+        phase_worker_end = phase_worker_end + 1;
+    }
+}

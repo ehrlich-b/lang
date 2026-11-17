@@ -1,0 +1,7 @@
+var invocation_count i64 = 0;
+func stage_entry(args *PhaseBuffer) *PhaseBuffer {
+    invocation_count = invocation_count + 1;
+    var value *PhaseBuffer = phase_value_i64(phase_value_integer(args.data) + invocation_count);
+    memcpy(args.data, value.data, value.len);
+    return args;
+}

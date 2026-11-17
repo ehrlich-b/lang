@@ -86,6 +86,7 @@ const env = {
   pipe: () => -1n,
   dup2: () => -1n,
   stat: () => -1n,
+  access: () => -1n,
   mkdir: () => -1n,
   unlink: () => -1n,
   rmdir: () => -1n,

@@ -8,7 +8,31 @@ struct PhaseCallRequest {
     signature *u8; profile *u8; output_target *u8;
     workspace *u8; publication *u8; result_tag i64;
 }
-var phase_call_sequence i64 = 0;
+// Native calls supervise the entire compile/link/execute process group.
+// These are host settings, never worker-controlled wire fields.
+extern func setpgid(pid i32, group i32) i32;
+extern func kill(pid i32, signal i32) i32;
+extern func usleep(usec i32) i32;
+include "src/host_clock.lang"
+include "src/host_temp.lang"
+var phase_call_time_ms i64 = 10000;
+var phase_call_bytes i64 = 16777216;
+func phase_call_now() i64 {
+    var stamp *u8 = alloc(16);
+    // CLOCK_MONOTONIC differs between the supported native hosts.
+    var clock i64 = 1;
+    if streq(os_platform_name(), "macos") { clock = 6; }
+    if clock_gettime(clock, stamp) != 0 { phase_error("call-clock", "stage"); }
+    var seconds *i64 = stamp; var nanos *i64 = stamp + 8;
+    return *seconds * 1000 + *nanos / 1000000;
+}
+func phase_call_error(code *u8, origin i64) void {
+    var o *PhaseOrigin = phase_origin_get(origin);
+    var source *PhaseSource = phase_source_get(o.source);
+    eprint(source.name); eprint(":bytes "); eprint_i64(o.start);
+    eprint(".."); eprint_i64(o.end); eprint(": "); eprintln(code);
+    phase_error_at(code, source.name, o.start, o.end);
+}
 func phase_call_decimal(n i64) *u8 {
     var b *PhaseBuffer = phase_buffer_new(24, "call-id");
     phase_buffer_int(b, n); return b.data;
@@ -23,40 +47,83 @@ pub func phase_host_call(request *PhaseCallRequest) *PhaseBuffer {
     if streq(compilation.target, os_platform_name()) == 0 { phase_error("execution-target", compilation.name); }
     if request.output_target == nil { phase_error("output-target", compilation.name); }
     if *request.output_target == 0 { phase_error("output-target", compilation.name); }
-    if request.result_tag < 1 || request.result_tag > 13 { phase_error("unsupported-value", compilation.name); }
+    if request.result_tag < 0 || request.result_tag > 13 { phase_error("unsupported-value", compilation.name); }
+    if phase_call_time_ms < 1 || phase_call_time_ms > 3600000 || phase_call_bytes < 8 || phase_call_bytes > phase_limit() {
+        phase_call_error("call-budget", compilation.origin);
+    }
+    if request.arguments.len > phase_call_bytes || strlen(compilation.source) > phase_call_bytes {
+        phase_call_error("call-byte-limit", compilation.origin);
+    }
+    var deadline i64 = phase_call_now() + phase_call_time_ms;
     var input *PhaseBuffer = phase_value_copy(request.arguments.data, request.arguments.len, compilation.origin);
     phase_worker_status = 0;
-    phase_call_sequence = phase_call_sequence + 1;
-    var attempt *u8 = str_concat(str_concat(str_concat(request.workspace, "/call-"), phase_call_decimal(getpid())), "-");
-    attempt = str_concat(attempt, phase_call_decimal(phase_call_sequence));
-    if os_mkdir(attempt, 448) != 0 { phase_error("call-workspace", compilation.name); }
+    // Atomically reserve a fresh directory even in a persistent cache after
+    // PID reuse; mkdtemp retries collisions without touching earlier attempts.
+    var attempt *u8 = mkdtemp(str_concat(request.workspace, "/call-XXXXXX"));
+    if attempt == nil { phase_error("call-workspace", compilation.name); }
     // Snapshot host fields: the forked engine cannot mutate the caller context.
     var output *u8 = str_concat(attempt, "/program");
     var child_request *PhaseCompileRequest = alloc(56);
     memcpy(child_request, compilation, 56); child_request.output = output;
+    var pending *u8 = str_concat(attempt, "/result.pending");
     var pid i64 = os_fork();
     if pid < 0 { phase_worker_status = -1; return nil; }
-    if pid == 0 { os__exit(phase_host_compile(child_request)); }
-    var status *i64 = alloc(8);
-    if os_waitpid(pid, status, 0) != pid { phase_worker_status = -1; return nil; }
+    if pid == 0 {
+        if setpgid(0, 0) != 0 { os__exit(125); }
+        var compiler i64 = os_fork();
+        if compiler < 0 { os__exit(125); }
+        if compiler == 0 { os__exit(phase_host_compile(child_request)); }
+        var compiled *i64 = alloc(8);
+        if os_waitpid(compiler, compiled, 0) != compiler { os__exit(125); }
+        var code i64 = phase_process_status(*compiled);
+        if code != 0 { os__exit(code); }
+        phase_worker_capture_limit = phase_call_bytes;
+        var result *PhaseBuffer = phase_worker_buffer_call(output, input.data, input.len);
+        if result == nil {
+            if phase_worker_status == -126 { os__exit(126); }
+            os__exit(124);
+        }
+        if result.len > phase_call_bytes { os__exit(126); }
+        var owned *PhaseBuffer = phase_value_copy(result.data, result.len, compilation.origin);
+        if request.result_tag != 0 && phase_wire_u32(owned.data, 0) != request.result_tag {
+            phase_error("result-signature", compilation.name);
+        }
+        var fd i64 = file_open(pending, O_WRONLY_CREAT_TRUNC);
+        if fd < 0 { os__exit(125); }
+        var pos i64 = 0; var n i64 = 0;
+        while pos < owned.len {
+            n = file_write(fd, owned.data + pos, owned.len - pos);
+            if n <= 0 { os__exit(125); }
+            pos = pos + n;
+        }
+        if os_close(fd) != 0 { os__exit(125); }
+        os__exit(0);
+    }
+    // Both sides establish the group, closing the fork/scheduling race.
+    setpgid(pid, pid);
+    var status *i64 = alloc(8); var waited i64 = 0;
+    while waited == 0 {
+        waited = os_waitpid(pid, status, 1);
+        if phase_call_now() >= deadline {
+            kill(0 - pid, 9); os_waitpid(pid, status, 0);
+            phase_call_error("call-time-limit", compilation.origin);
+        }
+        if waited == 0 { usleep(1000); }
+    }
+    // Also retire descendants after a failed supervisor or a successful reply.
+    kill(0 - pid, 9);
+    if waited != pid { phase_worker_status = -1; return nil; }
     var code i64 = phase_process_status(*status);
+    if code == 126 { phase_call_error("call-byte-limit", compilation.origin); }
     if code != 0 { phase_worker_status = 0 - code; return nil; }
-    var result *PhaseBuffer = phase_worker_buffer_call(output, input.data, input.len);
-    if result == nil { return nil; }
+    var fd i64 = file_open(pending, O_RDONLY);
+    if fd < 0 { phase_call_error("publication-open", compilation.origin); }
+    var result *PhaseBuffer = phase_read_bytes_fd(fd, phase_call_bytes, compilation.name);
+    os_close(fd);
     var owned *PhaseBuffer = phase_value_copy(result.data, result.len, compilation.origin);
-    if phase_wire_u32(owned.data, 0) != request.result_tag { phase_error("result-signature", compilation.name); }
     // Stage beside the publication destination on the same filesystem. Only a
     // complete validated response can replace the single visible result file.
-    var pending *u8 = str_concat(attempt, "/result.pending");
-    var fd i64 = file_open(pending, O_WRONLY_CREAT_TRUNC);
-    if fd < 0 { phase_error("publication-open", compilation.name); }
-    var offset i64 = 0;
-    while offset < owned.len {
-        var count i64 = file_write(fd, owned.data + offset, owned.len - offset);
-        if count <= 0 { phase_error("publication-write", compilation.name); }
-        offset = offset + count;
-    }
-    if os_close(fd) != 0 { phase_error("publication-close", compilation.name); }
+    if phase_call_now() >= deadline { phase_call_error("call-time-limit", compilation.origin); }
     if rename(pending, request.publication) != 0 { phase_error("publication-rename", compilation.name); }
     return owned;
 }

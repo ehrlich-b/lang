@@ -1,0 +1,7 @@
+func stage_entry(args *PhaseBuffer) *PhaseBuffer {
+    var pid i64 = os_fork();
+    if pid < 0 { exit(1); }
+    if pid == 0 { while 1 == 1 { } }
+    eprint("descendant="); eprint_i64(pid); eprintln("");
+    return args;
+}

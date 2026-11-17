@@ -1,0 +1,2 @@
+// Shared libc declaration for exclusive native-host temporary directories.
+extern func mkdtemp(template *u8) *u8;

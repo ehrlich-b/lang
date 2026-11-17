@@ -75,3 +75,46 @@ Run `COMPILER=out/lang_next python3 test/run_worker_calls.py`. Use
 creates a fresh subdirectory, including failure artifacts and an atomic
 publication observer receipt. `--acceptance A1` through `A4` select focused
 checks; compiling the real H test host is always part of each selected check.
+
+## Reader evaluation
+
+`include "std/stage.lang"` exposes `stage_run(ast, args)`. `ast` is a closed,
+serialized `(program ...)` core AST exporting
+`stage_entry(args *PhaseBuffer) *PhaseBuffer`; `args` and the return use the
+copied-values-v1 ABI above, including integer, bytes, text and positional record
+constructors in `src/stage_values.lang`. This is separate from the legacy STG1
+reader text protocol. Includes are explicit dependencies, and there is no
+implicit capture of the reader's locals. The same compiler executable that
+launched the reader compiles the fragment in a fresh process, with LLVM and the
+native host OS selected even when the consuming program targets Wasm.
+`std/stage_entry.lang` supplies the process entry and copied-byte transport.
+
+The host passes the compiler identity and the reader invocation's source byte
+span out of band. The selected source path travels separately from its logical
+name, so an included file found through the resource root can be reopened by
+staging without changing diagnostic names or project-local input precedence.
+`LANG_STAGE_WORKSPACE` selects an existing private workspace
+(or `LANG_CACHE` supplies it). Each call gets a unique compilation directory;
+validated results are atomically published to a reader-process-specific file.
+The returned buffer owns a copy. A failed call leaves any prior publication
+intact, reports the reader's source span, and terminates that reader.
+
+`LANG_STAGE_MAX_MS` (default 10000, maximum 3600000) bounds the entire call,
+including compile, link and transport, using a monotonic clock.
+`LANG_STAGE_MAX_BYTES` (default 16777216, at most `LANG_HOST_MAX_BYTES`) bounds
+each AST input, copied argument and copied result. Oversized stdout is rejected
+while reading, before publication. The supervisor kills the call's process
+group on timeout, failure or completion, including ordinary descendants holding
+pipes open. The legacy text adapter retains its previous execution behavior.
+
+These limits apply to trusted native fragments. They do not confine ambient
+filesystem/network authority, memory allocation, stderr, compiler artifacts, or
+processes that deliberately escape the process group. They do not provide fuel,
+cancellation by the caller, caching or untrusted admission. The broader W/C
+obligations listed above still apply; reader evaluation supplies deadlines and
+copied-byte supervision for this trusted API only.
+
+`example/tiny/stage.lang` stages `answer 42`; `example/minilisp` accepts
+`(stage (+ 10 32))`. Both evaluate through the shared API and emit constants.
+Run `COMPILER=out/lang_next python3 -B test/stage_reader/run.py` for the three
+reader clients, the 256-entry zlib CRC proof and the timeout/overrun checks.
