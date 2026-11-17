@@ -451,12 +451,12 @@ print answer(40);</code></pre></div>
       (return (call (ident lox_nil))))))</code></pre></div>
       <div><h4>LLVM IR</h4><pre><code>define i64 @lox_guest_1() {
 L.entry:
-    %t0 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str73, i64 0, i64 0) to i64
+    %t0 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str76, i64 0, i64 0) to i64
     %t1 = call i64 @lox_argument(i64 0)
     %t2 = call i64 @lox_define(i64 %t0, i64 %t1)
-    %t3 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str73, i64 0, i64 0) to i64
+    %t3 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str76, i64 0, i64 0) to i64
     %t4 = call i64 @lox_get(i64 %t3, i64 1)
-    %t5 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str74, i64 0, i64 0) to i64
+    %t5 = ptrtoint i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str77, i64 0, i64 0) to i64
     %t6 = call i64 @lox_number(i64 %t5)
     %t7 = call i64 @lox_binary(i64 7, i64 %t4, i64 %t6)
     %t8 = call i64 @lox_return(i64 %t7)
@@ -468,17 +468,17 @@ L.entry:
     %___envp.cast = ptrtoint i8** %envp.hidden to i64
     store i64 %___envp.cast, i64* @___envp
     call void @lox_begin()
-    %t0 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str75, i64 0, i64 0) to i64
+    %t0 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str78, i64 0, i64 0) to i64
     %t1 = call i64 @lox_nil()
     %t2 = call i64 @lox_define(i64 %t0, i64 %t1)
-    %t3 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str75, i64 0, i64 0) to i64
-    %t4 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str75, i64 0, i64 0) to i64
+    %t3 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str78, i64 0, i64 0) to i64
+    %t4 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str78, i64 0, i64 0) to i64
     %t5 = call i64 @lox_function(i64 1, i64 1, i64 %t4)
     %t6 = call i64 @lox_assign(i64 %t3, i64 %t5, i64 1)
-    %t7 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str75, i64 0, i64 0) to i64
+    %t7 = ptrtoint i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str78, i64 0, i64 0) to i64
     %t8 = call i64 @lox_get(i64 %t7, i64 2)
     %t9 = call i64 @lox_args()
-    %t10 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str76, i64 0, i64 0) to i64
+    %t10 = ptrtoint i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str79, i64 0, i64 0) to i64
     %t11 = call i64 @lox_number(i64 %t10)
     %t12 = call i64 @lox_arg_add(i64 %t9, i64 %t11)
     %t13 = call i64 @lox_call(i64 %t8, i64 %t12)
