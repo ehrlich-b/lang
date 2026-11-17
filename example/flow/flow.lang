@@ -257,7 +257,7 @@ func fl_emit_stmt_inner(s *PNode, send_target *u8) *u8 {
         if fl_portable && fl_driver != nil {
             var stmts *u8 = ast_vec();
             ast_push(stmts, ast_expr_stmt(fl_emit_expr(pnode_require(s, "value"))));
-            ast_push(stmts, ast_break(fl_end));
+            ast_push(stmts, ast_break(fl_driver.end));
             return ast_block(stmts);
         }
         return ast_return(fl_emit_expr(pnode_require(s, "value")));
@@ -414,14 +414,12 @@ reader flow(text *u8) *u8 {
 // available for first-class native generator calls.
 struct FlBinding { name *u8; target *u8; parent *FlBinding; }
 struct FlExpansion { generator *PNode; parent *FlExpansion; }
+struct FlDriver { node *PNode; bindings *u8; active *FlExpansion; end *u8; parent *FlDriver; }
 var fl_portable i64 = 0;
 var fl_bindings *u8 = nil;
 var fl_decls *PNode = nil;
-var fl_driver *PNode = nil;
-var fl_driver_bindings *u8 = nil;
-var fl_end *u8 = nil;
+var fl_driver *FlDriver = nil;
 var fl_active *FlExpansion = nil;
-var fl_driver_active *FlExpansion = nil;
 var fl_serial i64 = 0;
 
 func fl_fresh() *u8 {
@@ -471,22 +469,21 @@ func fl_fused_yield(node *PNode) *u8 {
     // in its original environment. Neither side can capture the other's locals.
     var value *u8 = fl_emit_expr(pnode_require(node, "value"));
     var generator_bindings *u8 = fl_bindings;
-    var driver *PNode = fl_driver;
-    var end *u8 = fl_end;
+    var driver *FlDriver = fl_driver;
     var active *FlExpansion = fl_active;
-    fl_active = fl_driver_active;
-    fl_bindings = fl_driver_bindings;
-    fl_driver = nil;
-    fl_end = nil;
-    var x *u8 = fl_bind(pnode_require(driver, "name").text);
+    fl_active = driver.active;
+    fl_bindings = driver.bindings;
+    // A driver body belongs to its lexical generator, which may itself be
+    // driven. Keep that context for returns and yields in nested driver bodies.
+    fl_driver = driver.parent;
+    var x *u8 = fl_bind(pnode_require(driver.node, "name").text);
     var send *u8 = fl_fresh();
     var stmts *u8 = ast_vec();
     ast_push(stmts, ast_var(x, ast_type_i64(), value));
     ast_push(stmts, ast_var(send, ast_type_i64(), ast_int(0)));
-    ast_push(stmts, fl_emit_block(pnode_require(driver, "body"), send));
+    ast_push(stmts, fl_emit_block(pnode_require(driver.node, "body"), send));
     fl_bindings = generator_bindings;
     fl_driver = driver;
-    fl_end = end;
     fl_active = active;
     return ast_block(stmts);
 }
@@ -520,11 +517,8 @@ func fl_fused_forin(node *PNode) *u8 {
         i = i + 1;
     }
     var saved_bindings *u8 = fl_bindings;
-    var saved_driver *PNode = fl_driver;
-    var saved_driver_bindings *u8 = fl_driver_bindings;
-    var saved_end *u8 = fl_end;
+    var saved_driver *FlDriver = fl_driver;
     var saved_active *FlExpansion = fl_active;
-    var saved_driver_active *FlExpansion = fl_driver_active;
     fl_bindings = nil;
     var count i64 = 0;
     i = 0;
@@ -538,24 +532,24 @@ func fl_fused_forin(node *PNode) *u8 {
         i = i + 1;
     }
     if count != vec_len(temps) { fl_portable_error(call, "generator argument count mismatch"); }
-    fl_driver = node;
-    fl_driver_bindings = saved_bindings;
-    fl_end = fl_fresh();
-    fl_driver_active = saved_active;
+    var driver *FlDriver = alloc(40);
+    driver.node = node;
+    driver.bindings = saved_bindings;
+    driver.active = saved_active;
+    driver.end = fl_fresh();
+    driver.parent = saved_driver;
+    fl_driver = driver;
     var expansion *FlExpansion = alloc(16);
     expansion.generator = generator;
     expansion.parent = saved_active;
     fl_active = expansion;
     var body *u8 = ast_vec();
     ast_push(body, fl_emit_block(pnode_require(generator, "body"), nil));
-    ast_push(body, ast_break(fl_end));
-    ast_push(stmts, ast_while_labeled(ast_int(1), ast_block(body), fl_end));
+    ast_push(body, ast_break(driver.end));
+    ast_push(stmts, ast_while_labeled(ast_int(1), ast_block(body), driver.end));
     fl_active = saved_active;
-    fl_driver_active = saved_driver_active;
     fl_bindings = saved_bindings;
     fl_driver = saved_driver;
-    fl_driver_bindings = saved_driver_bindings;
-    fl_end = saved_end;
     return ast_block(stmts);
 }
 

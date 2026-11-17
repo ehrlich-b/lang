@@ -295,6 +295,7 @@ pair into ordinary structured control flow: statement `yield` runs the driver
 body, then continues the generator with its locals intact. The stateful
 Fibonacci program in `test/flow_wasm.lang` prints `flow answer: 42` and returns
 42 natively, through LLVM-to-Wasm under node, and through direct Wasm under node.
+Nested driver bodies can forward yields and return from their lexical generator.
 
 ```bash
 make build

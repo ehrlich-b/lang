@@ -22,6 +22,30 @@ func once() i64 { calls = calls + 1; return 10; }
         return 99;
         yield 999;
     }
+    gen nested_return() {
+        for x in early(1) {
+            if x == 1 { return 7; }
+        }
+        yield 999;
+    }
+    gen forwarding(n) {
+        var total = 0;
+        for x in fib(n) {
+            var n = x + 10;
+            yield n;
+            total = total + x;
+        }
+        yield total;
+    }
+    gen twice_forwarding(n) {
+        for x in forwarding(n) {
+            for y in early(x) { yield y; }
+        }
+    }
+    func return_after_generator() {
+        for x in nested_return() { return 6; }
+        return 42;
+    }
     func answer() {
         var __flow_portable_1 = 123;
         var total = 0;
@@ -42,6 +66,20 @@ func once() i64 { calls = calls + 1; return 10; }
             for inner in early(outer) { nested = nested + inner; }
         }
         if nested != 3 { return 5; }
+        // Returning inside an inner driver ends its lexical generator only.
+        if return_after_generator() != 42 { return 7; }
+        // Forward yields through two driver levels, retaining each environment.
+        var forwarded = 0;
+        var count = 0;
+        var x = 100;
+        for n in twice_forwarding(5) {
+            forwarded = forwarded + n;
+            count = count + 1;
+        }
+        if forwarded != 64 { return 8; }
+        if count != 6 { return 9; }
+        if x != 100 { return 10; }
+        if n != 2 { return 11; }
         return total;
     }
 }

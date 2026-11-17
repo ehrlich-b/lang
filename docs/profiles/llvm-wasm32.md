@@ -28,6 +28,9 @@ loops, branches and fresh local bindings. A statement yield runs the driver
 body before continuing the generator; its locals stay in that activation.
 Arguments are evaluated once, in order; separate driver sites have separate
 bindings. Generator return ends that driver site and discards the return value.
+Nested driver bodies retain their lexical generator: a return ends that
+generator, and a statement yield forwards to its driver. The comparison fixture
+checks both behaviors, including forwarding through two nested driver levels.
 No suspended frame escapes, and no effects lowering or stack switching is used.
 
 This is a synchronous, statement-yield profile: generators must be declared in
