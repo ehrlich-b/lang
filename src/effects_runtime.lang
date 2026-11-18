@@ -102,8 +102,8 @@ func ___cps_resume(f *i64, token i64, value i64) *i64 {
 }
 func ___cps_drive(f *i64, task *i64) i64 {
     while f != nil {
-        var ___cps_dispatch_entry fn(*i64) *i64 = cast(fn(*i64) *i64, f[0]);
-        f = ___cps_dispatch_entry(f);
+        var ___cps_dispatch_entry fn(*i64) i64 = cast(fn(*i64) i64, f[0]);
+        f = cast(*i64, ___cps_dispatch_entry(f));
     }
     var value i64 = task[1];
     var raw *i64 = cast(*i64, task[0]);

@@ -7527,6 +7527,12 @@ func llvm_gen_all_lambdas() void {
 func generate_llvm(prog *u8, output_file *u8) void {
     llvm_debug_init();
     if timings_enabled != 0 { timings_begin(3); }
+    // Reader builds can force the host target even during a cross-compile.
+    var langos *u8 = cg_langos_override;
+    if langos == nil { langos = getenv("LANGOS"); }
+    if langos == nil { langos = os_platform_name(); }
+    llvm_is_wasm = streq(langos, "wasm");
+    llvm_is_arm64 = streq(langos, "macos");
     cps_enabled = 0;
     cg_had_error = 0;
     cg_has_llvm_backend = 1;  // Mark LLVM backend available for reader compilation
@@ -7579,7 +7585,6 @@ func generate_llvm(prog *u8, output_file *u8) void {
         llvm_is_wasm = 1;
     } else if streq(target, "aarch64-apple-darwin") {
         llvm_emit_line("target triple = \"arm64-apple-macosx\"");
-        llvm_is_arm64 = 1;
     } else {
         llvm_emit_line("target triple = \"x86_64-unknown-linux-gnu\"");
     }

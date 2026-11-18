@@ -1311,7 +1311,7 @@ func cmd_help(argc i64, argv **u8, arg_offset i64) i64 {
     println("Environment:");
     println("  LANGBE=llvm         Use LLVM backend (default: this platform's backend)");
     println("  LANGOS=macos        Target macOS (default: this platform)");
-    println("  LANGOS=wasm         Target WebAssembly (LLVM backend only, no effects)");
+    println("  LANGOS=wasm         Target WebAssembly with LLVM");
     println("");
     println("Run 'lang help <command>' for command-specific help.");
     return 0;

@@ -622,7 +622,9 @@ func cps_parse_func(source *u8, name *u8) *u8 {
     var f *u8 = get_decl(program_decls(p), 0); func_decl_set_name(f, name); func_decl_set_name_len(f, strlen(name)); return f;
 }
 func cps_emit_machine_nodes(m *i64) void {
-    var step *u8 = cps_parse_func("func step(___frame *i64) *i64 {}", cps_step_name(m));
+    // Indirect LLVM calls use an i64 result. Return the frame address in that
+    // carrier so the Wasm table entry has the same signature as the driver.
+    var step *u8 = cps_parse_func("func step(___frame *i64) i64 {}", cps_step_name(m));
     var v *u8 = vec_new(16); var i i64 = 0; var states *u8 = cast(*u8, m[3]);
     while i < vec_len(states) {
         var body *u8 = vec_get(states, i);
@@ -680,11 +682,6 @@ func cps_prepare() void {
     }
     if !has_suspensions { return; }
     cps_enabled = 1;
-    var target *u8 = cg_langos_override; if target == nil { target = getenv("LANGOS"); }
-    if target != nil && str_eq_n(target, strlen(target), "wasm", 4) {
-        ___compiler_diagnostic_code = "unsupported-feature";
-        cps_fail(nil, "algebraic effects are not supported on the wasm target");
-    }
     var vi i64 = 0;
     while vi < cg_func_count { var vp **u8 = cg_funcs + vi * 24 + 16; cps_validate_function(*vp); vi = vi + 1; }
     var i i64 = 0;

@@ -280,8 +280,14 @@ node test/wasm_host.js hello.wasm
 ```
 
 `test/wasm_host.js` is a small node host providing the libc surface
-(write/alloc/exit). The LLVM-to-Wasm suite has a historical baseline of 177 passes
-(`./test/run_wasm_suite.sh`). Algebraic effects require the native LLVM target.
+(write/alloc/exit). LLVM-to-Wasm uses the scoped CPS lowering for effects.
+It stores single-use continuations in explicit frames and resumes them through
+a state-machine loop using ordinary Wasm calls. The profile supports `i64`
+effect results, zero or one `i64` payload, and tail resumption from the owning
+handler clause.
+
+Run `./test/run_wasm_suite.sh` for the suite, or set `TESTS` to a space-separated
+list of fixture paths for a fragment.
 
 ### Bootstrap
 
