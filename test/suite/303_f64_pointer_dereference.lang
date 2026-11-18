@@ -1,0 +1,17 @@
+// expect: 0
+func main() i64 {
+    var cell f64 = 0.0;
+    var p *f64 = &cell;
+    *p = 2.5;
+    var y f64 = *p;
+    if bitcast(i64, y) != 4612811918334230528 { return 1; }  // 2.5
+    if bitcast(i64, cell) != 4612811918334230528 { return 2; }
+
+    var bits i64 = 4607182418800017409;  // 1.0 plus one binary64 ULP
+    var x f64 = bitcast(f64, bits);
+    *p = x;
+    y = *p;
+    if bitcast(i64, y) != bits { return 3; }
+    if bitcast(i64, cell) != bits { return 4; }
+    return 0;
+}

@@ -1,0 +1,30 @@
+// expect: 0
+struct Slots {
+    before i64;
+    first f64;
+    second f64;
+    after i64;
+}
+
+func read_slot(p *f64) f64 { return *p; }
+
+func main() i64 {
+    var slots Slots;
+    slots.before = 123;
+    slots.after = 456;
+    var p *f64 = &slots.first;
+    var second *f64 = &slots.second;
+    var alias *f64 = &(*p);
+
+    var nan_bits i64 = 9221120237041090626;  // Quiet NaN with payload 0x42
+    var payload f64 = bitcast(f64, nan_bits);
+    (*alias) = payload;
+    if bitcast(i64, p[0]) != nan_bits { return 1; }
+
+    var sign_bit u64 = 9223372036854775808;
+    p[1] = bitcast(f64, sign_bit);  // Negative zero
+    if bitcast(u64, read_slot(second)) != sign_bit { return 2; }
+    if bitcast(i64, *p) != nan_bits { return 3; }
+    if slots.before != 123 || slots.after != 456 { return 4; }
+    return 0;
+}

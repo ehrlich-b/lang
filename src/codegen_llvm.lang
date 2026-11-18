@@ -3447,6 +3447,9 @@ func llvm_emit_expr_inner(expr *u8) void {
                         } else {
                             llvm_emit_str("%");
                         }
+                    } else if llvm_is_f64_type(inner_type) &&
+                              (let_entry != nil || find_local(name, len) >= 0) {
+                        llvm_emit_str(" = ptrtoint double* %");
                     } else if (llvm_is_i64_type(inner_type) || llvm_is_u8_type(inner_type)) &&
                               let_entry == nil && find_local(name, len) < 0 &&
                               find_global(name, len) >= 0 {
@@ -3561,8 +3564,8 @@ func llvm_emit_expr_inner(expr *u8) void {
                     }
                 }
             } else if node_kind(inner) == NODE_UNARY_EXPR && unary_expr_op(inner) == TOKEN_STAR &&
-                      llvm_is_f32_type(llvm_get_expr_type(inner)) {
-                // &*p preserves the address without loading the f32 value.
+                      llvm_is_float_type(llvm_get_expr_type(inner)) {
+                // &*p preserves the address without loading the floating-point value.
                 llvm_emit_expr(unary_expr_expr(inner));
             } else {
                 llvm_emit_expr(inner);
@@ -3610,16 +3613,22 @@ func llvm_emit_expr_inner(expr *u8) void {
 
             var ptr_temp i64 = llvm_next_temp();
 
-            if llvm_is_f32_type(elem_type) {
-                // Pointer values use integer carriers; the pointee stays float.
+            if llvm_is_float_type(elem_type) {
+                // The pointer uses an i64 carrier. Its pointee uses the LLVM float type.
                 llvm_emit_str("    %t");
                 llvm_emit_int(ptr_temp);
                 llvm_emit_str(" = inttoptr i64 ");
                 llvm_emit_str(inner_val);
-                llvm_emit_line(" to float*");
+                llvm_emit_str(" to ");
+                llvm_emit_type(elem_type);
+                llvm_emit_line("*");
                 llvm_emit_str("    %t");
                 llvm_emit_int(temp);
-                llvm_emit_str(" = load float, float* %t");
+                llvm_emit_str(" = load ");
+                llvm_emit_type(elem_type);
+                llvm_emit_str(", ");
+                llvm_emit_type(elem_type);
+                llvm_emit_str("* %t");
                 llvm_emit_int(ptr_temp);
                 llvm_emit_char(10);
                 llvm_expr_is_float = 1;
@@ -5431,6 +5440,8 @@ func llvm_emit_stmt_inner(stmt *u8) void {
                     numeric_fail(stmt, "f32 pointer assignment requires a numeric literal or an explicit f32 value");
                 }
                 cg_diagnostic_node = previous_diagnostic_node;
+            } else if llvm_is_f64_type(pointee) {
+                target = indirect_target;
             }
         }
         if val == nil {
@@ -5456,15 +5467,21 @@ func llvm_emit_stmt_inner(stmt *u8) void {
 
                 var ptr_temp i64 = llvm_next_temp();
 
-                if llvm_is_f32_type(elem_type) {
+                if llvm_is_float_type(elem_type) {
                     llvm_emit_str("    %t");
                     llvm_emit_int(ptr_temp);
                     llvm_emit_str(" = inttoptr i64 ");
                     llvm_emit_str(ptr_val);
-                    llvm_emit_line(" to float*");
-                    llvm_emit_str("    store float ");
+                    llvm_emit_str(" to ");
+                    llvm_emit_type(elem_type);
+                    llvm_emit_line("*");
+                    llvm_emit_str("    store ");
+                    llvm_emit_type(elem_type);
+                    llvm_emit_str(" ");
                     llvm_emit_str(val);
-                    llvm_emit_str(", float* %t");
+                    llvm_emit_str(", ");
+                    llvm_emit_type(elem_type);
+                    llvm_emit_str("* %t");
                     llvm_emit_int(ptr_temp);
                     llvm_emit_char(10);
                 } else if size == 1 {
