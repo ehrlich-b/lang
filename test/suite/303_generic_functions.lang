@@ -1,0 +1,14 @@
+// expect: 42
+func main() i64 {
+    var n i64 = id<i64>(42);
+    if id<i64>(n) != n || id<u8>(cast(u8, n)) != 42 { return 1; }
+    if !(n > 0 && n < 43 && n >> 1 == 21) { return 2; }
+    return repeat<i64, u8>(n, 2);
+}
+
+func id<T>(x T) T { return x; }
+
+func repeat<T, N>(x T, count N) T {
+    if count == 0 { return id<T>(x); }
+    return repeat<T, N>(x, count - 1);
+}

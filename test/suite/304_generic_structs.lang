@@ -1,0 +1,15 @@
+// expect: 42
+func main() i64 {
+    var small Box<u8>;
+    var wide Box<i64>;
+    small.value = 258;
+    wide.value = 296;
+    var nested Box<Box<i64>>;
+    nested.value.value = wide.value;
+    var pointer Box<*Box<i64>>;
+    pointer.value = &wide;
+    if pointer.value.value != nested.value.value { return 1; }
+    return nested.value.value - 256 + cast(i64, small.value);
+}
+
+struct Box<T> { value T; }

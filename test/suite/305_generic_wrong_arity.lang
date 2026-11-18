@@ -1,0 +1,6 @@
+// reject: test/suite/305_generic_wrong_arity.lang:5:14: error: wrong number of type arguments
+func id<T>(x T) T { return x; }
+
+func main() i64 {
+    return id<i64, u8>(42);
+}

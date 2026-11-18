@@ -45,3 +45,50 @@ func list_instantiate_with_types(element_type *u8, types *u8) *u8 {
                              ast_type_bool(), ast_block(body)));
     return ast_program(decls);
 }
+
+// A read-time specialization queue. Readers provide an opaque template,
+// concrete arguments and a canonical key. They emit ordinary declarations
+// from the queue in request order, including requests made during emission.
+include "std/core.lang"
+include "std/diagnostics.lang"
+include "std/buffer.lang"
+include "src/stage_digest.lang"
+
+struct GenericStage {
+    names *u8;
+    pending *u8;
+}
+
+struct GenericInstance {
+    name *u8;
+    template *u8;
+    args *u8;
+    origin i64;
+    depth i64;
+}
+
+func generic_stage_new() *GenericStage {
+    phase_charge(16);
+    var stage *GenericStage = alloc(16);
+    stage.names = map_new();
+    stage.pending = vec_new(8);
+    return stage;
+}
+
+func generic_stage_request(stage *GenericStage, key *PhaseBuffer, template *u8,
+                           args *u8, origin i64, depth i64, limit i64) *u8 {
+    var digest *u8 = phase_digest(key.data, key.len);
+    var existing *u8 = map_get(stage.names, digest);
+    if existing != nil { return existing; }
+    if depth > limit { phase_error("specialization-depth", key.source); }
+    phase_charge(40);
+    var instance *GenericInstance = alloc(40);
+    instance.name = str_concat("__lang_generic_", digest);
+    instance.template = template;
+    instance.args = args;
+    instance.origin = origin;
+    instance.depth = depth;
+    map_set(stage.names, digest, instance.name);
+    vec_push(stage.pending, instance);
+    return instance.name;
+}

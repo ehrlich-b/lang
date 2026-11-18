@@ -10,6 +10,8 @@ include "src/stage_wire.lang"
 
 include "src/limits.lang"
 include "src/compiler_tables.lang"
+include "std/generic.lang"
+include "src/lang_generics.lang"
 require "src/lexer"
 
 // ============================================================
@@ -2819,7 +2821,10 @@ func parse_match(t i64) bool {
 }
 
 func parse_error(msg *u8) void {
-    var tok *u8 = parse_peek();
+    parse_error_at(parse_peek(), msg);
+}
+
+func parse_error_at(tok *u8, msg *u8) void {
     ___compiler_diagnostic_token("syntax-error", parse_source_name, tok);
     if streq(msg, "expected declaration") { ___compiler_diagnostic_code = "trailing-input"; }
     if parse_source_name != nil && *parse_source_name != 0 {
@@ -2929,13 +2934,25 @@ func parse_type_bounded_inner() *u8 {
     var tok *u8 = parse_advance();
     var tt i64 = tok_type(tok);
 
-    if tt == TOKEN_I8 || tt == TOKEN_I16 || tt == TOKEN_I32 || tt == TOKEN_I64 ||
-       tt == TOKEN_U8 || tt == TOKEN_U16 || tt == TOKEN_U32 || tt == TOKEN_U64 ||
-       tt == TOKEN_F32 || tt == TOKEN_F64 ||
-       tt == TOKEN_BOOL || tt == TOKEN_VOID || tt == TOKEN_IDENT {
+    if parse_generic_base_token(tt) {
+        var name *u8 = tok_lexeme(tok);
+        var len i64 = tok_lexeme_len(tok);
+        if tt == TOKEN_IDENT {
+            var binding *u8 = parse_generic_binding(tok);
+            if parse_check(TOKEN_LT) {
+                var templ *LangGenericTemplate = parse_generic_lookup(tok);
+                if binding != nil || templ == nil || templ.kind != TOKEN_STRUCT {
+                    parse_generic_error(tok, "expected a generic struct name");
+                }
+                name = parse_generic_request(templ, tok);
+                len = strlen(name);
+            } else if binding != nil {
+                return binding;
+            }
+        }
         var t *u8 = base_type_alloc();
-        base_type_set_name(t, tok_lexeme(tok));
-        base_type_set_name_len(t, tok_lexeme_len(tok));
+        base_type_set_name(t, name);
+        base_type_set_name_len(t, len);
         return t;
     }
 
@@ -3350,9 +3367,18 @@ func parse_primary() *u8 {
 
     if parse_match(TOKEN_IDENT) {
         var tok *u8 = parse_previous();
+        var name *u8 = tok_lexeme(tok);
+        var len i64 = tok_lexeme_len(tok);
+        if parse_generics != nil && parse_check(TOKEN_LT) {
+            var templ *LangGenericTemplate = parse_generic_lookup(tok);
+            if templ != nil && templ.kind == TOKEN_FUNC && parse_generic_call_ahead() {
+                name = parse_generic_request(templ, tok);
+                len = strlen(name);
+            }
+        }
         var node *u8 = ident_expr_alloc();
-        ident_expr_set_name(node, tok_lexeme(tok));
-        ident_expr_set_name_len(node, tok_lexeme_len(tok));
+        ident_expr_set_name(node, name);
+        ident_expr_set_name_len(node, len);
         // Keep bare-name diagnostics at the token, including across reader AST
         // interchange, instead of falling back to the invocation's first byte.
         node_set_origin(node, parse_source_name, tok_line(tok), tok_col(tok));
@@ -4045,6 +4071,11 @@ func parse_expr_stmt() *u8 {
 
 func parse_func_decl_impl(is_extern i64) *u8 {
     var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected function name");
+    if name_tok == nil { return nil; }
+    return parse_func_after_name(name_tok, is_extern);
+}
+
+func parse_func_after_name(name_tok *u8, is_extern i64) *u8 {
     parse_expect(TOKEN_LPAREN, "expected '(' after function name");
 
     // Allocate params array (max 16 params, 24 bytes each)
@@ -4113,7 +4144,12 @@ func parse_extern_func_decl() *u8 {
 func parse_struct_decl() *u8 {
     // struct IDENT "{" { IDENT type ";" } "}"
     var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected struct name");
-    if name_tok == nil || parse_expect(TOKEN_LBRACE, "expected '{' after struct name") == nil { return nil; }
+    if name_tok == nil { return nil; }
+    return parse_struct_after_name(name_tok);
+}
+
+func parse_struct_after_name(name_tok *u8) *u8 {
+    if parse_expect(TOKEN_LBRACE, "expected '{' after struct name") == nil { return nil; }
 
     var capacity i64 = COMPILER_TABLE_INITIAL;
     var fields *u8 = compiler_table_new(capacity, 24);
@@ -4371,6 +4407,7 @@ func parse_declaration() *u8 {
         return nil;
     }
     if parse_match(TOKEN_FUNC) {
+        if parse_generic_at_declaration() { return nil; }
         var node *u8 = parse_func_decl();
         if node != nil { func_decl_set_is_pub(node, is_pub); }
         return node;
@@ -4381,6 +4418,7 @@ func parse_declaration() *u8 {
         return node;
     }
     if parse_match(TOKEN_STRUCT) {
+        if parse_generic_at_declaration() { return nil; }
         var node *u8 = parse_struct_decl();
         if node != nil { struct_decl_set_is_pub(node, is_pub); }
         return node;
@@ -4485,14 +4523,26 @@ pub func parse_program() *u8 {
 }
 
 func parse_program_impl() *u8 {
+    var saved_generics *LangGenerics = parse_generics;
+    parse_generics = parse_generic_index();
+    var next_instance i64 = 0;
     // Declaration storage grows independently of the source byte budget.
     var capacity i64 = COMPILER_TABLE_INITIAL;
     var decls *u8 = compiler_table_new(capacity, 8);
     var decl_count i64 = 0;
 
-    while !parse_is_at_end() {
+    while true {
         var start_tok *u8 = parse_peek();
-        var decl *u8 = parse_declaration();
+        var decl *u8 = nil;
+        if !parse_is_at_end() {
+            decl = parse_declaration();
+        } else if parse_generics != nil && parse_error_count == 0 &&
+                  next_instance < vec_len(parse_generics.stage.pending) {
+            decl = parse_generic_materialize(vec_get(parse_generics.stage.pending, next_instance));
+            next_instance = next_instance + 1;
+        } else {
+            break;
+        }
         if decl != nil {
             if node_origin_id(decl) == 0 {
                 node_set_origin(decl, parse_source_name, tok_line(start_tok), tok_col(start_tok));
@@ -4507,6 +4557,7 @@ func parse_program_impl() *u8 {
         }
     }
 
+    parse_generics = saved_generics;
     var prog *u8 = alloc(16);
     var pd **u8 = prog;
     *pd = decls;

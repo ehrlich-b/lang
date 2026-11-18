@@ -1,0 +1,313 @@
+// Lang's explicit generic syntax. Templates are indexed in the current
+// program so uses can precede declarations. Only concrete AST leaves here.
+struct LangGenericTemplate {
+    kind i64;
+    start i64;
+    signature i64;
+    end i64;
+    name *u8;
+    params *u8;
+    visible i64;
+}
+
+struct LangGenerics {
+    templates *u8;
+    stage *GenericStage;
+    scope *u8;
+    template *LangGenericTemplate;
+    args *u8;
+    validating bool;
+    closing bool;
+    angle_depth i64;
+    depth i64;
+}
+
+var parse_generics *LangGenerics = nil;
+
+func parse_generic_error(tok *u8, message *u8) void {
+    parse_error_at(tok, message);
+    exit(1);
+}
+
+func parse_generic_base_token(kind i64) bool {
+    return kind == TOKEN_IDENT || kind == TOKEN_VOID ||
+           (kind >= TOKEN_I8 && kind <= TOKEN_BOOL) ||
+           kind == TOKEN_F32 || kind == TOKEN_F64;
+}
+
+func parse_generic_index() *LangGenerics {
+    var state *LangGenerics = nil;
+    var nesting i64 = 0;
+    var saved_current i64 = parse_current;
+    var i i64 = saved_current;
+    var kind i64 = 0;
+    while i + 2 < parser_token_count() {
+        kind = tok_type(get_token(i));
+        if nesting == 0 && (kind == TOKEN_FUNC || kind == TOKEN_STRUCT) {
+            if tok_type(get_token(i + 1)) == TOKEN_IDENT && tok_type(get_token(i + 2)) == TOKEN_LT {
+                if state == nil {
+                    phase_charge(72);
+                    state = alloc(72);
+                    state.templates = map_new();
+                    state.stage = generic_stage_new();
+                    state.scope = phase_digest(lex_source, lex_source_len);
+                    state.template = nil;
+                    state.args = nil;
+                    state.validating = false;
+                    state.closing = false;
+                    state.angle_depth = 0;
+                    state.depth = 0;
+                }
+                i = parse_generic_index_template(state, i, kind);
+                continue;
+            }
+        }
+        nesting = nesting + phase_token_nesting(kind);
+        if kind == TOKEN_DOLLAR_LBRACE { nesting = nesting + 1; }
+        i = i + 1;
+    }
+    parse_current = saved_current;
+    return state;
+}
+
+func parse_generic_index_template(state *LangGenerics, start i64, kind i64) i64 {
+    var name_tok *u8 = get_token(start + 1);
+    var name *u8 = str_dup_n(tok_lexeme(name_tok), tok_lexeme_len(name_tok));
+    if map_get(state.templates, name) != 0 {
+        parse_generic_error(name_tok, "duplicate generic declaration");
+    }
+    if start > 0 && tok_type(get_token(start - 1)) == TOKEN_EXTERN {
+        parse_generic_error(name_tok, "extern functions cannot be generic");
+    }
+
+    parse_current = start + 3;
+    var params *u8 = vec_new(8);
+    while true {
+        var param_tok *u8 = parse_peek();
+        if !parse_match(TOKEN_IDENT) { parse_generic_error(param_tok, "expected type parameter name"); }
+        var param *u8 = str_dup_n(tok_lexeme(param_tok), tok_lexeme_len(param_tok));
+        var p i64 = 0;
+        while p < vec_len(params) {
+            if streq(vec_get(params, p), param) { parse_generic_error(param_tok, "duplicate type parameter"); }
+            p = p + 1;
+        }
+        vec_push(params, param);
+        if !parse_match(TOKEN_COMMA) { break; }
+    }
+    if !parse_match(TOKEN_GT) { parse_generic_error(parse_peek(), "expected '>' after type parameters"); }
+    var signature i64 = parse_current;
+    while !parse_check(TOKEN_LBRACE) {
+        var kind_at_cursor i64 = tok_type(parse_peek());
+        if kind_at_cursor == TOKEN_EOF || kind_at_cursor == TOKEN_ERROR ||
+           kind_at_cursor == TOKEN_SEMICOLON || kind_at_cursor == TOKEN_RBRACE {
+            parse_generic_error(parse_peek(), "expected generic declaration body");
+        }
+        parse_advance();
+    }
+    parse_advance();
+    var braces i64 = 1;
+    while braces > 0 {
+        var body_kind i64 = tok_type(parse_peek());
+        if body_kind == TOKEN_EOF || body_kind == TOKEN_ERROR {
+            parse_generic_error(parse_peek(), "expected '}' after generic declaration body");
+        }
+        if body_kind == TOKEN_LBRACE || body_kind == TOKEN_DOLLAR_LBRACE { braces = braces + 1; }
+        if body_kind == TOKEN_RBRACE { braces = braces - 1; }
+        parse_advance();
+    }
+
+    phase_charge(56);
+    var templ *LangGenericTemplate = alloc(56);
+    templ.kind = kind;
+    templ.start = start;
+    templ.signature = signature;
+    templ.end = parse_current;
+    templ.name = name;
+    templ.params = params;
+    templ.visible = start > 0 && tok_type(get_token(start - 1)) == TOKEN_PUB;
+    map_set(state.templates, name, templ);
+    return templ.end;
+}
+
+func parse_generic_lookup(tok *u8) *LangGenericTemplate {
+    if parse_generics == nil { return nil; }
+    return map_get_n(parse_generics.templates, tok_lexeme(tok), tok_lexeme_len(tok));
+}
+
+func parse_generic_binding(tok *u8) *u8 {
+    if parse_generics == nil || parse_generics.args == nil { return nil; }
+    var params *u8 = parse_generics.template.params;
+    var i i64 = 0;
+    while i < vec_len(params) {
+        if buf_eq_str(tok_lexeme(tok), tok_lexeme_len(tok), vec_get(params, i)) {
+            return vec_get(parse_generics.args, i);
+        }
+        i = i + 1;
+    }
+    return nil;
+}
+
+// A declared generic name followed by a type list and '(' denotes a call.
+// Leave comparison and shift tokens alone everywhere else.
+func parse_generic_call_ahead() bool {
+    var i i64 = parse_current + 1;
+    var depth i64 = 1;
+    var kind i64 = 0;
+    while i + 1 < parser_token_count() {
+        kind = tok_type(get_token(i));
+        if kind == TOKEN_LT { depth = depth + 1; }
+        else if kind == TOKEN_GT { depth = depth - 1; }
+        else if kind == TOKEN_GTGT { depth = depth - 2; }
+        else if !parse_generic_base_token(kind) &&
+                kind != TOKEN_STAR && kind != TOKEN_COMMA && kind != TOKEN_FN &&
+                kind != TOKEN_CLOSURE && kind != TOKEN_LPAREN && kind != TOKEN_RPAREN &&
+                kind != TOKEN_LBRACKET && kind != TOKEN_RBRACKET && kind != TOKEN_NUMBER {
+            return false;
+        }
+        if depth <= 0 {
+            return depth == 0 && tok_type(get_token(i + 1)) == TOKEN_LPAREN;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Encode the concrete type tree. Prefix tags and lengths make the key
+// unambiguous, independent of whitespace and the spelling of array lengths.
+func parse_generic_type_key(key *PhaseBuffer, t *u8) void {
+    var kind i64 = node_kind(t);
+    if kind == TYPE_BASE {
+        phase_buffer_text(key, "B");
+        phase_buffer_int(key, base_type_name_len(t));
+        phase_buffer_text(key, ":");
+        phase_buffer_append(key, base_type_name(t), base_type_name_len(t));
+    } else if kind == TYPE_PTR {
+        phase_buffer_text(key, "P");
+        parse_generic_type_key(key, ptr_type_elem(t));
+    } else if kind == TYPE_ARRAY {
+        phase_buffer_text(key, "A");
+        phase_buffer_int(key, array_type_size(t));
+        phase_buffer_text(key, ":");
+        parse_generic_type_key(key, array_type_elem(t));
+    } else {
+        var params *u8 = nil;
+        var ret *u8 = nil;
+        if kind == TYPE_FUNC {
+            phase_buffer_text(key, "F");
+            params = func_type_params(t);
+            ret = func_type_ret(t);
+        } else {
+            phase_buffer_text(key, "C");
+            params = closure_type_params(t);
+            ret = closure_type_ret(t);
+        }
+        var i i64 = 0;
+        phase_buffer_int(key, vec_len(params));
+        phase_buffer_text(key, ":");
+        while i < vec_len(params) {
+            parse_generic_type_key(key, vec_get(params, i));
+            i = i + 1;
+        }
+        parse_generic_type_key(key, ret);
+    }
+}
+
+func parse_generic_request(templ *LangGenericTemplate, name_tok *u8) *u8 {
+    var state *LangGenerics = parse_generics;
+    var angle *u8 = parse_advance();
+    state.angle_depth = state.angle_depth + 1;
+    var args *u8 = vec_new(8);
+    if !parse_check(TOKEN_GT) && !parse_check(TOKEN_GTGT) {
+        var errors i64 = parse_error_count;
+        while true {
+            if parse_is_at_end() { parse_generic_error(parse_peek(), "expected type argument"); }
+            vec_push(args, parse_type());
+            if parse_error_count != errors { exit(1); }
+            if state.closing || !parse_match(TOKEN_COMMA) { break; }
+        }
+    }
+
+    // Within type arguments only, >> can close two nested applications.
+    if state.closing {
+        state.closing = false;
+    } else if !parse_match(TOKEN_GT) {
+        if state.angle_depth == 1 || !parse_match(TOKEN_GTGT) {
+            parse_generic_error(parse_peek(), "expected '>' after type arguments");
+        }
+        state.closing = true;
+    }
+    state.angle_depth = state.angle_depth - 1;
+    if vec_len(args) != vec_len(templ.params) {
+        parse_generic_error(angle, "wrong number of type arguments");
+    }
+    if state.validating { return templ.name; }
+
+    var key *PhaseBuffer = phase_buffer_new(phase_limit(), parse_source_name);
+    phase_buffer_field(key, parse_source_name);
+    phase_buffer_field(key, state.scope);
+    phase_buffer_field(key, templ.name);
+    var i i64 = 0;
+    while i < vec_len(args) {
+        parse_generic_type_key(key, vec_get(args, i));
+        i = i + 1;
+    }
+    var source *PhaseSource = phase_source_get(phase_bound_source_id);
+    var start i64 = phase_line_byte(source, tok_line(name_tok), tok_col(name_tok));
+    var end i64 = start + tok_lexeme_len(name_tok);
+    var origin i64 = phase_origin_new(phase_bound_source_id, start, end, phase_include_origin, phase_expansion_origin);
+    return generic_stage_request(state.stage, key, templ, args, origin, state.depth + 1, phase_depth_limit());
+}
+
+func parse_generic_declaration(templ *LangGenericTemplate) *u8 {
+    parse_current = templ.signature;
+    var name_tok *u8 = get_token(templ.start + 1);
+    if templ.kind == TOKEN_FUNC { return parse_func_after_name(name_tok, 0); }
+    return parse_struct_after_name(name_tok);
+}
+
+func parse_generic_validate(templ *LangGenericTemplate) void {
+    parse_generics.validating = true;
+    parse_generic_declaration(templ);
+    parse_generics.validating = false;
+    parse_current = templ.end;
+}
+
+func parse_generic_materialize(instance *GenericInstance) *u8 {
+    var state *LangGenerics = parse_generics;
+    var templ *LangGenericTemplate = instance.template;
+    var saved_current i64 = parse_current;
+    var saved_origin i64 = phase_expansion_origin;
+    phase_expansion_origin = instance.origin;
+    state.template = templ;
+    state.args = instance.args;
+    state.depth = instance.depth;
+    var decl *u8 = parse_generic_declaration(templ);
+    if decl != nil {
+        var len i64 = strlen(instance.name);
+        if templ.kind == TOKEN_FUNC {
+            func_decl_set_name(decl, instance.name);
+            func_decl_set_name_len(decl, len);
+            func_decl_set_is_pub(decl, templ.visible);
+        } else {
+            struct_decl_set_name(decl, instance.name);
+            struct_decl_set_name_len(decl, len);
+            struct_decl_set_is_pub(decl, templ.visible);
+        }
+        var start *u8 = get_token(templ.start);
+        node_set_origin(decl, parse_source_name, tok_line(start), tok_col(start));
+    }
+    state.template = nil;
+    state.args = nil;
+    state.depth = 0;
+    parse_current = saved_current;
+    phase_expansion_origin = saved_origin;
+    return decl;
+}
+
+func parse_generic_at_declaration() bool {
+    if parse_generics == nil || !parse_check(TOKEN_IDENT) { return false; }
+    var templ *LangGenericTemplate = parse_generic_lookup(parse_peek());
+    if templ == nil || templ.start + 1 != parse_current { return false; }
+    parse_generic_validate(templ);
+    return true;
+}
