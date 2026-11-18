@@ -1,0 +1,5 @@
+func generic_box_value(box *Box<i64>) i64 {
+    return id<i64>(box.value);
+}
+
+include "test/suite/fixtures/generic_library.lang"

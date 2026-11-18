@@ -1628,7 +1628,7 @@ func wasm_collect_path(path *u8, path_len i64) void {
         wasm_error("cannot open dependency for direct wasm output");
         return;
     }
-    var included *u8 = parse_program_from_named_string(source, path_z);
+    var included *u8 = phase_parse_lang_include(source, path_z);
     if included == nil {
         wasm_error("cannot parse dependency for direct wasm output");
         return;

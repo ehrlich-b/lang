@@ -1,0 +1,5 @@
+func id<T>(value T) T { return generic_identity<T>(value); }
+
+func generic_identity<T>(value T) T { return value; }
+
+struct Box<T> { value T; }

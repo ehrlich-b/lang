@@ -60,7 +60,7 @@ func scaffold_project_reserved(name *u8) i64 {
     map_set(reserved, "reader_compiler_name", 1);
     map_set(reserved, "reader_build_arch", 1);
     map_set(reserved, "___main", 1);
-    expand_included_map = map_new();
+    expand_begin();
     expand_collected_decls = vec_new(256);
     emit_exe_ast_mode = 1;
     var source *u8 = "include \"std/parser_reader.lang\"\ninclude \"std/ast.lang\"\ninclude \"src/standalone.lang\"\n";

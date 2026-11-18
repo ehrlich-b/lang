@@ -293,6 +293,11 @@ var expand_included_map *u8 = nil;
 var expand_collected_decls *u8 = nil;  // Vec of declarations
 var expand_input_files *u8 = nil;      // Vec of input file paths (for modules tracking)
 
+func expand_begin() void {
+    phase_begin_include_parsing(&phase_read_lang_include);
+    expand_included_map = map_new();
+}
+
 // Recursively expand includes and collect declarations
 func expand_collect_decl(decl *u8) void {
     var k i64 = node_kind(decl);
@@ -505,7 +510,7 @@ func build_embedded_runtime_ast(runtime_files *u8) *u8 {
 
     var saved_exe_mode i64 = emit_exe_ast_mode;
     emit_exe_ast_mode = 1;  // expand require as well as include
-    expand_included_map = map_new();
+    expand_begin();
     expand_collected_decls = vec_new(1024);
     expand_input_files = runtime_files;
 
@@ -2613,7 +2618,7 @@ func main_dispatch(argc i64, argv **u8) i64 {
         // Emit FULLY EXPANDED AST (all includes resolved inline)
         // emit_expanded_ast: for composition (no ___main)
         // emit_exe_ast: for standalone compilation (has ___main)
-        expand_included_map = map_new();
+        expand_begin();
         expand_collected_decls = vec_new(1024);
         expand_input_files = input_files;  // Track input files for modules metadata
 

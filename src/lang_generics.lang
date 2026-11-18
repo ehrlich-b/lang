@@ -1,5 +1,5 @@
-// Lang's explicit generic syntax. Templates are indexed in the current
-// program so uses can precede declarations. Only concrete AST leaves here.
+// Lang's explicit generic syntax. Index local templates before parsing and
+// follow ordinary includes on demand. Only concrete AST leaves the reader.
 struct LangGenericTemplate {
     kind i64;
     start i64;
@@ -8,12 +8,23 @@ struct LangGenericTemplate {
     name *u8;
     params *u8;
     visible i64;
+    source *LangGenericSource;
+}
+
+struct LangGenericSource {
+    tokens *u8;
+    text *u8;
+    id i64;
+    included i64;
+    templates *u8;
+    includes *u8;
 }
 
 struct LangGenerics {
-    templates *u8;
+    source *LangGenericSource;
+    sources *u8;
+    load_include fn(*u8) *u8;
     stage *GenericStage;
-    scope *u8;
     template *LangGenericTemplate;
     args *u8;
     validating bool;
@@ -35,8 +46,34 @@ func parse_generic_base_token(kind i64) bool {
            kind == TOKEN_F32 || kind == TOKEN_F64;
 }
 
-func parse_generic_index() *LangGenerics {
-    var state *LangGenerics = nil;
+func parse_generic_begin(inherited *u8, load_include fn(*u8) *u8) *LangGenerics {
+    var source *LangGenericSource = parse_generic_index(load_include != nil);
+    if source.templates == nil && source.includes == nil { return nil; }
+
+    phase_charge(72);
+    var state *LangGenerics = alloc(72);
+    state.source = source;
+    state.sources = nil;
+    state.load_include = load_include;
+    state.stage = generic_stage_new(inherited);
+    state.template = nil;
+    state.args = nil;
+    state.validating = false;
+    state.closing = false;
+    state.angle_depth = 0;
+    state.depth = 0;
+    return state;
+}
+
+func parse_generic_index(index_includes bool) *LangGenericSource {
+    phase_charge(48);
+    var source *LangGenericSource = alloc(48);
+    source.tokens = parse_tokens;
+    source.text = lex_source;
+    source.id = phase_bound_source_id;
+    source.included = phase_include_origin;
+    source.templates = nil;
+    source.includes = nil;
     var nesting i64 = 0;
     var saved_current i64 = parse_current;
     var i i64 = saved_current;
@@ -45,35 +82,29 @@ func parse_generic_index() *LangGenerics {
         kind = tok_type(get_token(i));
         if nesting == 0 && (kind == TOKEN_FUNC || kind == TOKEN_STRUCT) {
             if tok_type(get_token(i + 1)) == TOKEN_IDENT && tok_type(get_token(i + 2)) == TOKEN_LT {
-                if state == nil {
-                    phase_charge(72);
-                    state = alloc(72);
-                    state.templates = map_new();
-                    state.stage = generic_stage_new();
-                    state.scope = phase_digest(lex_source, lex_source_len);
-                    state.template = nil;
-                    state.args = nil;
-                    state.validating = false;
-                    state.closing = false;
-                    state.angle_depth = 0;
-                    state.depth = 0;
-                }
-                i = parse_generic_index_template(state, i, kind);
+                if source.templates == nil { source.templates = map_new(); }
+                i = parse_generic_index_template(source, i, kind);
                 continue;
             }
+        }
+        if index_includes && nesting == 0 && kind == TOKEN_INCLUDE && tok_type(get_token(i + 1)) == TOKEN_STRING {
+            if source.includes == nil { source.includes = vec_new(8); }
+            vec_push(source.includes, i);
+            i = i + 2;
+            continue;
         }
         nesting = nesting + phase_token_nesting(kind);
         if kind == TOKEN_DOLLAR_LBRACE { nesting = nesting + 1; }
         i = i + 1;
     }
     parse_current = saved_current;
-    return state;
+    return source;
 }
 
-func parse_generic_index_template(state *LangGenerics, start i64, kind i64) i64 {
+func parse_generic_index_template(source *LangGenericSource, start i64, kind i64) i64 {
     var name_tok *u8 = get_token(start + 1);
     var name *u8 = str_dup_n(tok_lexeme(name_tok), tok_lexeme_len(name_tok));
-    if map_get(state.templates, name) != 0 {
+    if map_has(source.templates, name) {
         parse_generic_error(name_tok, "duplicate generic declaration");
     }
     if start > 0 && tok_type(get_token(start - 1)) == TOKEN_EXTERN {
@@ -116,8 +147,8 @@ func parse_generic_index_template(state *LangGenerics, start i64, kind i64) i64 
         parse_advance();
     }
 
-    phase_charge(56);
-    var templ *LangGenericTemplate = alloc(56);
+    phase_charge(64);
+    var templ *LangGenericTemplate = alloc(64);
     templ.kind = kind;
     templ.start = start;
     templ.signature = signature;
@@ -125,13 +156,89 @@ func parse_generic_index_template(state *LangGenerics, start i64, kind i64) i64 
     templ.name = name;
     templ.params = params;
     templ.visible = start > 0 && tok_type(get_token(start - 1)) == TOKEN_PUB;
-    map_set(state.templates, name, templ);
+    templ.source = source;
+    map_set(source.templates, name, templ);
     return templ.end;
+}
+
+func parse_generic_use_source(source *LangGenericSource) void {
+    var record *PhaseSource = phase_source_get(source.id);
+    parse_tokens = source.tokens;
+    lex_source = source.text;
+    lex_source_len = record.len;
+    parse_source_name = record.name;
+    phase_diagnostic_source = record.name;
+    phase_bound_source_id = source.id;
+    phase_include_origin = source.included;
+}
+
+func parse_generic_include(source *LangGenericSource, index i64, name *u8) *LangGenericSource {
+    var state *LangGenerics = parse_generics;
+    if state.sources == nil { state.sources = map_new(); }
+    if map_has(state.sources, name) { return map_get(state.sources, name); }
+
+    var imported *LangGenericSource = nil;
+    var text *u8 = state.load_include(name);
+    if text != nil {
+        var include_tok *u8 = vec_get(source.tokens, index);
+        var record *PhaseSource = phase_source_get(source.id);
+        var start i64 = phase_line_byte(record, tok_line(include_tok), tok_col(include_tok));
+        var current i64 = parse_current;
+        var errors i64 = parse_error_count;
+        // The static include chain belongs to the definition. The specialization
+        // separately records the expansion origin of its requesting use.
+        phase_include_origin = phase_origin_new(source.id, start, start + tok_lexeme_len(include_tok),
+                                                source.included, 0);
+        parser_set_source_name(name);
+        parser_tokenize(text);
+        imported = parse_generic_index(true);
+        parse_generic_use_source(state.source);
+        parse_current = current;
+        parse_error_count = errors;
+    }
+    map_set(state.sources, name, imported);
+    return imported;
+}
+
+func parse_generic_local(source *LangGenericSource, tok *u8) *LangGenericTemplate {
+    if source.templates == nil { return nil; }
+    return map_get_n(source.templates, tok_lexeme(tok), tok_lexeme_len(tok));
+}
+
+func parse_generic_search(source *LangGenericSource, tok *u8, seen *u8, depth i64) *LangGenericTemplate {
+    var found *LangGenericTemplate = parse_generic_local(source, tok);
+    if found != nil || source.includes == nil { return found; }
+    if depth >= LIMIT_INCLUDE_DEPTH { return nil; }
+
+    var i i64 = 0;
+    while i < vec_len(source.includes) {
+        var index i64 = vec_get(source.includes, i);
+        var path_tok *u8 = vec_get(source.tokens, index + 1);
+        var name *u8 = parse_string_literal(tok_lexeme(path_tok), tok_lexeme_len(path_tok));
+        if !map_has(seen, name) {
+            map_set(seen, name, 1);
+            var imported *LangGenericSource = parse_generic_include(source, index, name);
+            if imported != nil {
+                found = parse_generic_search(imported, tok, seen, depth + 1);
+                if found != nil { return found; }
+            }
+        }
+        i = i + 1;
+    }
+    return nil;
 }
 
 func parse_generic_lookup(tok *u8) *LangGenericTemplate {
     if parse_generics == nil { return nil; }
-    return map_get_n(parse_generics.templates, tok_lexeme(tok), tok_lexeme_len(tok));
+    var state *LangGenerics = parse_generics;
+    var source *LangGenericSource = state.source;
+    var found *LangGenericTemplate = parse_generic_local(source, tok);
+    if found != nil || source.includes == nil || state.load_include == nil { return found; }
+    var seen *u8 = map_new();
+    map_set(seen, parse_source_name, 1);
+    found = parse_generic_search(source, tok, seen, 0);
+    map_free(seen);
+    return found;
 }
 
 func parse_generic_binding(tok *u8) *u8 {
@@ -243,8 +350,9 @@ func parse_generic_request(templ *LangGenericTemplate, name_tok *u8) *u8 {
     if state.validating { return templ.name; }
 
     var key *PhaseBuffer = phase_buffer_new(phase_limit(), parse_source_name);
-    phase_buffer_field(key, parse_source_name);
-    phase_buffer_field(key, state.scope);
+    var definition *PhaseSource = phase_source_get(templ.source.id);
+    phase_buffer_field(key, definition.name);
+    phase_buffer_field(key, definition.digest);
     phase_buffer_field(key, templ.name);
     var i i64 = 0;
     while i < vec_len(args) {
@@ -275,9 +383,12 @@ func parse_generic_validate(templ *LangGenericTemplate) void {
 func parse_generic_materialize(instance *GenericInstance) *u8 {
     var state *LangGenerics = parse_generics;
     var templ *LangGenericTemplate = instance.template;
+    var saved_source *LangGenericSource = state.source;
     var saved_current i64 = parse_current;
     var saved_origin i64 = phase_expansion_origin;
     phase_expansion_origin = instance.origin;
+    state.source = templ.source;
+    parse_generic_use_source(templ.source);
     state.template = templ;
     state.args = instance.args;
     state.depth = instance.depth;
@@ -299,6 +410,8 @@ func parse_generic_materialize(instance *GenericInstance) *u8 {
     state.template = nil;
     state.args = nil;
     state.depth = 0;
+    state.source = saved_source;
+    parse_generic_use_source(saved_source);
     parse_current = saved_current;
     phase_expansion_origin = saved_origin;
     return decl;
@@ -306,7 +419,7 @@ func parse_generic_materialize(instance *GenericInstance) *u8 {
 
 func parse_generic_at_declaration() bool {
     if parse_generics == nil || !parse_check(TOKEN_IDENT) { return false; }
-    var templ *LangGenericTemplate = parse_generic_lookup(parse_peek());
+    var templ *LangGenericTemplate = parse_generic_local(parse_generics.source, parse_peek());
     if templ == nil || templ.start + 1 != parse_current { return false; }
     parse_generic_validate(templ);
     return true;

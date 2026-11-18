@@ -3369,9 +3369,9 @@ func parse_primary() *u8 {
         var tok *u8 = parse_previous();
         var name *u8 = tok_lexeme(tok);
         var len i64 = tok_lexeme_len(tok);
-        if parse_generics != nil && parse_check(TOKEN_LT) {
+        if parse_generics != nil && parse_check(TOKEN_LT) && parse_generic_call_ahead() {
             var templ *LangGenericTemplate = parse_generic_lookup(tok);
-            if templ != nil && templ.kind == TOKEN_FUNC && parse_generic_call_ahead() {
+            if templ != nil && templ.kind == TOKEN_FUNC {
                 name = parse_generic_request(templ, tok);
                 len = strlen(name);
             }
@@ -4515,16 +4515,20 @@ func parse_declaration() *u8 {
 // Program: [decls:8][decl_count:8] = 16 bytes
 
 pub func parse_program() *u8 {
-    if timings_enabled == 0 { return parse_program_impl(); }
+    return parse_program_with_includes(nil, nil);
+}
+
+func parse_program_with_includes(inherited *u8, load_include fn(*u8) *u8) *u8 {
+    if timings_enabled == 0 { return parse_program_impl(inherited, load_include); }
     timings_begin(2);
-    var result *u8 = parse_program_impl();
+    var result *u8 = parse_program_impl(inherited, load_include);
     timings_end(program_decl_count(result));
     return result;
 }
 
-func parse_program_impl() *u8 {
+func parse_program_impl(inherited *u8, load_include fn(*u8) *u8) *u8 {
     var saved_generics *LangGenerics = parse_generics;
-    parse_generics = parse_generic_index();
+    parse_generics = parse_generic_begin(inherited, load_include);
     var next_instance i64 = 0;
     // Declaration storage grows independently of the source byte budget.
     var capacity i64 = COMPILER_TABLE_INITIAL;
@@ -4557,6 +4561,7 @@ func parse_program_impl() *u8 {
         }
     }
 
+    if parse_generics != nil && parse_error_count == 0 { generic_stage_publish(parse_generics.stage); }
     parse_generics = saved_generics;
     var prog *u8 = alloc(16);
     var pd **u8 = prog;
@@ -4620,12 +4625,19 @@ func parse_expression_from_string(source *u8) *u8 {
 // Parse a named program from a source string (for include processing).
 // Nested parses are isolated, including their source name and error count.
 pub func parse_program_from_named_string(source *u8, source_name *u8) *u8 {
+    return parse_program_in_source(source, source_name, nil, nil);
+}
+
+func parse_program_in_source(source *u8, source_name *u8, inherited *u8, load_include fn(*u8) *u8) *u8 {
     // Save current parser state
     var saved_tokens *u8 = parse_tokens;
     var saved_current i64 = parse_current;
     var saved_errors i64 = parse_error_count;
     var saved_source_name *u8 = parse_source_name;
     var saved_bound_source i64 = phase_bound_source_id;
+    var saved_lex_source *u8 = lex_source;
+    var saved_lex_len i64 = lex_source_len;
+    var saved_diagnostic_source *u8 = phase_diagnostic_source;
 
     // Tokenize into a fresh state
     parse_source_name = source_name;
@@ -4634,7 +4646,7 @@ pub func parse_program_from_named_string(source *u8, source_name *u8) *u8 {
     // Parse as program
     var prog *u8 = nil;
     if parser_token_count() > 0 {
-        prog = parse_program();
+        prog = parse_program_with_includes(inherited, load_include);
     }
 
     // Included files use an isolated parser state. Preserve the fact that the
@@ -4651,6 +4663,9 @@ pub func parse_program_from_named_string(source *u8, source_name *u8) *u8 {
     parse_error_count = saved_errors;
     parse_source_name = saved_source_name;
     phase_bound_source_id = saved_bound_source;
+    lex_source = saved_lex_source;
+    lex_source_len = saved_lex_len;
+    phase_diagnostic_source = saved_diagnostic_source;
 
     if nested_errors > 0 {
         return nil;

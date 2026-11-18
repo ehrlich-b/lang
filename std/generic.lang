@@ -57,6 +57,7 @@ include "src/stage_digest.lang"
 struct GenericStage {
     names *u8;
     pending *u8;
+    inherited *u8;
 }
 
 struct GenericInstance {
@@ -67,11 +68,12 @@ struct GenericInstance {
     depth i64;
 }
 
-func generic_stage_new() *GenericStage {
-    phase_charge(16);
-    var stage *GenericStage = alloc(16);
+func generic_stage_new(inherited *u8) *GenericStage {
+    phase_charge(24);
+    var stage *GenericStage = alloc(24);
     stage.names = map_new();
     stage.pending = vec_new(8);
+    stage.inherited = inherited;
     return stage;
 }
 
@@ -79,6 +81,7 @@ func generic_stage_request(stage *GenericStage, key *PhaseBuffer, template *u8,
                            args *u8, origin i64, depth i64, limit i64) *u8 {
     var digest *u8 = phase_digest(key.data, key.len);
     var existing *u8 = map_get(stage.names, digest);
+    if existing == nil && stage.inherited != nil { existing = map_get(stage.inherited, digest); }
     if existing != nil { return existing; }
     if depth > limit { phase_error("specialization-depth", key.source); }
     phase_charge(40);
@@ -91,4 +94,17 @@ func generic_stage_request(stage *GenericStage, key *PhaseBuffer, template *u8,
     map_set(stage.names, digest, instance.name);
     vec_push(stage.pending, instance);
     return instance.name;
+}
+
+// Publish names only after the reader has emitted all declarations successfully.
+func generic_stage_publish(stage *GenericStage) void {
+    if stage.inherited == nil || vec_len(stage.pending) == 0 { return; }
+    var keys *u8 = map_keys(stage.names);
+    var i i64 = 0;
+    while i < vec_len(keys) {
+        var key *u8 = vec_get(keys, i);
+        map_set(stage.inherited, key, map_get(stage.names, key));
+        i = i + 1;
+    }
+    vec_free(keys);
 }

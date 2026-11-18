@@ -485,6 +485,7 @@ func cg_arity_key(name *u8, len i64, arity i64) *u8 {
     itoa(arity, key + len + 1); return key;
 }
 func cg_init_tables() void {
+    phase_begin_include_parsing(&phase_read_lang_include);
     cg_local_capacity = COMPILER_TABLE_INITIAL;
     cg_local_count = 0;
     cg_locals = compiler_table_new(cg_local_capacity, 32);
@@ -7291,6 +7292,12 @@ func phase_read_resource_impl(path *u8, len i64) *u8 {
 }
 
 include "src/include_parse.lang"
+
+func phase_read_lang_include(path *u8) *u8 {
+    var input *PhaseSourceInput = phase_source_input(path);
+    if input != nil && input.parse_source != nil { return nil; }
+    return phase_read_resource(path, strlen(path));
+}
 
 include "src/numeric.lang"
 

@@ -1,0 +1,10 @@
+// expect: 42
+include "test/suite/fixtures/generic_bridge.lang"
+
+func main() i64 {
+    var byte_box Box<u8>;
+    var wide_box Box<i64>;
+    byte_box.value = id<u8>(258);
+    wide_box.value = id<i64>(296);
+    return generic_box_value(&wide_box) - 256 + cast(i64, byte_box.value);
+}

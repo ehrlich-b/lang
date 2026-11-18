@@ -53,6 +53,21 @@ struct PhaseIncludeParse {
     parse_source fn(*u8, *u8) *u8;
 }
 var phase_include_parses *u8 = nil;
+var phase_include_specializations *u8 = nil;
+var phase_include_loader fn(*u8) *u8 = nil;
+
+func phase_begin_include_parsing(load_include fn(*u8) *u8) void {
+    phase_include_parses = nil;
+    phase_include_specializations = nil;
+    phase_include_loader = load_include;
+}
+
+func phase_parse_lang_include(text *u8, name *u8) *u8 {
+    // One include traversal owns these declarations. The cached AST brings
+    // the same definitions back for emission after registration.
+    if phase_include_specializations == nil { phase_include_specializations = map_new(); }
+    return parse_program_in_source(text, name, phase_include_specializations, phase_include_loader);
+}
 
 func phase_parse_include(text *u8, name *u8, invocation *u8) *u8 {
     // Reader slices can supersede the latest source ID for this name. Match
@@ -78,7 +93,7 @@ func phase_parse_include(text *u8, name *u8, invocation *u8) *u8 {
     var saved i64 = phase_include_origin;
     phase_include_origin = included;
     var result *u8 = nil;
-    if parse_source == nil { result = parse_program_from_named_string(text, name); }
+    if parse_source == nil { result = phase_parse_lang_include(text, name); }
     else { result = parse_source(text, name); }
     phase_include_origin = saved;
     if result != nil {
