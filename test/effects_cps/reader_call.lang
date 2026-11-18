@@ -1,0 +1,21 @@
+include "std/core.lang"
+
+effect Ask(i64) i64
+
+reader call_invoke(text *u8) *u8 {
+    return "(call (ident invoke))";
+}
+
+func worker() i64 { return perform Ask(41) + 1; }
+func invoke() i64 { return worker(); }
+
+func reader_worker() i64 {
+    return #call_invoke{};
+}
+
+func main() i64 {
+    var result i64 = handle { reader_worker() } with {
+        return(v) => v, Ask(x, k) => resume k(x)
+    };
+    print_int(result); println(""); return 0;
+}

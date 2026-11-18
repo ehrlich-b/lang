@@ -102,7 +102,8 @@ def legacy_controls():
                            ('aggregate_field_alias', b'42\n'),
                            ('struct_alias', b'42\n'),
                            ('struct_field_alias', b'42\n'),
-                           ('pointer_spill', b'22\n')]:
+                           ('pointer_spill', b'22\n'),
+                           ('reader_call', b'42\n')]:
         ir = OUT / (name + '-legacy.ll')
         result = run([LEGACY, f'test/effects_cps/{name}.lang', '-o', str(ir)], name + '-legacy-emit')
         assert result.returncode == 0, result.stderr.decode(errors='replace')
@@ -138,6 +139,7 @@ def reject(source, diagnostic, compiler=COMPILER, suffix=''):
 parser = argparse.ArgumentParser(description=__doc__)
 profile = parser.add_mutually_exclusive_group()
 profile.add_argument('--qualification', action='store_true', help='run the CPS safety and IR fixtures')
+profile.add_argument('--reader-only', action='store_true', help='check the expression reader boundary')
 profile.add_argument('--native-only', action='store_true', help='compare native IR with the legacy compiler')
 args = parser.parse_args()
 
@@ -145,6 +147,8 @@ try:
     if args.qualification:
         native_comparison()
         legacy_controls()
+        reject('test/effects_cps/reader_call.lang',
+               b"test/effects_cps/reader_call.lang:13:25: error: CPS: unresolved expression reader 'call_invoke'")
         for source, expected in [
             ('test/effects/two_performs.lang', b'500491\n'),
             ('test/effects/two_handlers.lang', b'2268\n'),
@@ -174,6 +178,17 @@ try:
             reject(f'test/effects_cps/{name}.lang',
                    f"function 'worker' takes 1 argument, called with {count}".encode())
         reject('test/effects_cps/callback.lang', b'native/foreign call boundary')
+    elif args.reader_only:
+        ir = OUT / 'reader_call-legacy.ll'
+        result = run([LEGACY, 'test/effects_cps/reader_call.lang', '-o', str(ir)], 'reader-legacy-emit')
+        assert result.returncode == 0, result.stderr
+        binary = OUT / 'reader-legacy'
+        result = run([os.environ.get('CLANG', 'clang'), '-O0', str(ir), '-o', str(binary)], 'reader-legacy-build')
+        assert result.returncode == 0, result.stderr
+        result = run([str(binary)], 'reader-legacy-run')
+        assert (result.returncode, result.stdout, result.stderr) == (0, b'42\n', b'')
+        reject('test/effects_cps/reader_call.lang',
+               b"test/effects_cps/reader_call.lang:13:25: error: CPS: unresolved expression reader 'call_invoke'")
     elif args.native_only:
         native_comparison()
     else:

@@ -136,6 +136,19 @@ func cps_children(n *u8) *u8 {
     else if k == NODE_ARRAY_LITERAL { a = array_literal_elems(n); count = array_literal_count(n); }
     var i i64 = 0; while i < count { var p **u8 = a + i * 8; vec_push(v, *p); i = i + 1; } return v;
 }
+// Expression readers expand after CPS analysis and may hide effectful calls.
+func cps_require_readers_expanded(n *u8) void {
+    if n == nil { return; }
+    if node_kind(n) == NODE_READER_EXPR {
+        cg_error_prefix_at(n);
+        eprint("CPS: unresolved expression reader '");
+        eprint_buf(reader_expr_name(n), reader_expr_name_len(n));
+        eprintln("' is unsupported in the scoped CPS profile");
+        exit(1);
+    }
+    var v *u8 = cps_children(n); var i i64 = 0;
+    while i < vec_len(v) { cps_require_readers_expanded(vec_get(v, i)); i = i + 1; }
+}
 // LLVM expands macros during emission, after CPS has validated the program.
 // In a module with visible suspensions, unexpanded calls can hide references
 // or aliases from validation. Otherwise inspect their expansions for effects.
@@ -640,6 +653,15 @@ func cps_prepare() void {
         }
     }
     var has_suspensions i64 = map_size(cps_functions) != 0;
+    if cg_effect_count != 0 || has_suspensions {
+        var reader_check i64 = 0;
+        while reader_check < cg_func_count {
+            var checked **u8 = cg_funcs + reader_check * 24 + 16;
+            cps_require_readers_expanded(func_decl_body(*checked)); reader_check = reader_check + 1;
+        }
+        reader_check = 0;
+        while reader_check < cg_global_count { cps_require_readers_expanded(global_get_init(reader_check)); reader_check = reader_check + 1; }
+    }
     if cg_macro_count != 0 && (cg_effect_count != 0 || has_suspensions) {
         var mi i64 = 0;
         while mi < cg_func_count {
