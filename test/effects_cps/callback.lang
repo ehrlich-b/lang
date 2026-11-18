@@ -1,7 +1,16 @@
 include "std/core.lang"
 effect Ask(i64) i64
-func worker() i64 { return perform Ask(3); }
+extern func qsort(base *u8, count i64, size i64, compare fn(*i64, *i64) i32) void;
+
+func worker(left *i64, right *i64) i32 { return cast(i32, perform Ask(*left - *right)); }
+
 func main() i64 {
-    var callback fn() i64 = &worker;
-    return handle { callback() } with { return(v) => v, Ask(x, k) => resume k(x) };
+    var values [2]i64;
+    values[0] = 2;
+    values[1] = 1;
+    var callback fn(*i64, *i64) i32 = &worker;
+    return handle {
+        qsort(cast(*u8, &values[0]), 2, 8, callback);
+        0;
+    } with { return(v) => v, Ask(x, k) => resume k(x) };
 }

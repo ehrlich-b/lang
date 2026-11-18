@@ -7,9 +7,9 @@ supports synchronous one-shot continuations scoped to their handler clauses.
 The pass runs after declaration registration and reader expansion, before LLVM
 output is opened. It closes a direct call graph over perform/handle/resume and
 rewrites only the affected functions and executable reader bodies. Effect-free
-functions keep their ordinary native ABI and emitter. Calling an effectful
-function through a function value is refused, including passing it through a
-foreign callback. Its native entry wrapper starts a synchronous dispatcher;
+functions keep their ordinary native ABI and emitter. Taking an effectful
+function as a value, including to pass it as a foreign callback, is refused
+with `E_FOREIGN_SUSPEND`. Its native entry wrapper starts a synchronous dispatcher;
 transformed callers enter its frame constructor directly instead. These calls
 validate the declared argument count before constructing the child activation.
 
@@ -27,7 +27,8 @@ by resolved declaration ID every time; a missing match fails with `E_UNHANDLED`.
 A tail resume checks active-clause authority and one-shot state, consumes the
 clause, and selects its captured activation and reply cell. Continuations may
 only occur as their own clause's tail resume operand; copying, storing or
-forwarding one is refused before publishing IR.
+forwarding one is refused before publishing IR. Two resumes of the same
+continuation along a clause path are refused with `E_USED`.
 
 Normal body completion runs the return clause once outside the prompt.
 Clause completion abandons the capture and bypasses the return clause. Source
@@ -69,6 +70,14 @@ Run the focused checks after `make build`:
 COMPILER=out/lang_next python3 -B test/run_effects_safety.py
 COMPILER=out/lang_next python3 -B test/effects_cps/run.py
 COMPILER=out/lang_next python3 -B test/effects_cps/run.py --qualification
+```
+
+The polyglot example also runs with optimization.
+
+```
+LANGBE=llvm LANG_EFFECTS=cps out/lang_next example/polyglot.lang -o /tmp/polyglot.ll
+clang -O2 /tmp/polyglot.ll -o /tmp/polyglot
+/tmp/polyglot
 ```
 
 The first runner exercises all existing safety inputs at O0/O1/O2/full LTO.

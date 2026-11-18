@@ -111,7 +111,7 @@ func cps_store_state(m *i64, dest *u8, value *u8, next i64) i64 {
 func cps_children(n *u8) *u8 {
     var v *u8 = vec_new(4); if n == nil { return v; } var k i64 = node_kind(n); var a *u8 = nil; var count i64 = 0;
     if k == NODE_BLOCK_STMT { a = block_stmt_stmts(n); count = block_stmt_count(n); }
-    else if k == NODE_BLOCK_EXPR { a = block_expr_stmts(n); count = block_expr_count(n); vec_push(v, block_expr_tail(n)); }
+    else if k == NODE_BLOCK_EXPR { a = block_expr_stmts(n); count = block_expr_count(n); }
     else if k == NODE_CALL_EXPR { vec_push(v, call_expr_func(n)); a = call_expr_args(n); count = call_expr_arg_count(n); }
     else if k == NODE_PERFORM_EXPR { a = perform_expr_args(n); count = perform_expr_arg_count(n); }
     else if k == NODE_VAR_DECL { vec_push(v, var_decl_init(n)); }
@@ -134,8 +134,72 @@ func cps_children(n *u8) *u8 {
     else if k == NODE_HANDLE_EXPR { vec_push(v, handle_expr_body(n)); vec_push(v, handle_expr_ret_body(n)); var i i64 = 0; while i < handle_expr_case_count(n) { vec_push(v, effect_case_body(handle_expr_cases(n) + i * 56)); i = i + 1; } }
     else if k == NODE_RESUME_EXPR { vec_push(v, resume_expr_k(n)); vec_push(v, resume_expr_value(n)); }
     else if k == NODE_ARRAY_LITERAL { a = array_literal_elems(n); count = array_literal_count(n); }
-    var i i64 = 0; while i < count { var p **u8 = a + i * 8; vec_push(v, *p); i = i + 1; } return v;
+    var i i64 = 0; while i < count { var p **u8 = a + i * 8; vec_push(v, *p); i = i + 1; }
+    if k == NODE_BLOCK_EXPR { vec_push(v, block_expr_tail(n)); }
+    return v;
 }
+
+func cps_is_clause_token(n *u8) i64 {
+    return cps_token_name != nil && n != nil && node_kind(n) == NODE_IDENT_EXPR &&
+        str_eq_n(ident_expr_name(n), ident_expr_name_len(n), cps_token_name, strlen(cps_token_name));
+}
+
+// Track whether any path reaching the next expression has used this clause's
+// token. -1 means every path exited. Analyze a resume's continuation as if it
+// fell through, to distinguish a repeated use from another non-tail use.
+func cps_check_resume_path(n *u8, used i64) i64 {
+    if n == nil || used < 0 { return used; }
+    var k i64 = node_kind(n);
+    if k == NODE_HANDLE_EXPR || k == NODE_LAMBDA_EXPR { return used; }
+    if k == NODE_RESUME_EXPR {
+        used = cps_check_resume_path(resume_expr_value(n), used);
+        if used >= 0 && cps_is_clause_token(resume_expr_k(n)) {
+            if used == 1 { cps_fail(n, "E_USED: continuation resumed twice"); }
+            return 1;
+        }
+        return used;
+    }
+    if k == NODE_IF_STMT {
+        used = cps_check_resume_path(if_stmt_cond(n), used);
+        var yes i64 = cps_check_resume_path(if_stmt_then(n), used);
+        var no i64 = cps_check_resume_path(if_stmt_else(n), used);
+        if yes > no { return yes; }
+        return no;
+    }
+    if k == NODE_MATCH_EXPR {
+        used = cps_check_resume_path(match_expr_scrutinee(n), used);
+        var merged i64 = -1;
+        var i i64 = 0;
+        while i < match_expr_arm_count(n) {
+            var arm *u8 = get_match_arm(match_expr_arms(n), i);
+            var reached i64 = cps_check_resume_path(match_arm_body(arm), used);
+            if reached > merged { merged = reached; }
+            i = i + 1;
+        }
+        return merged;
+    }
+    if k == NODE_WHILE_STMT {
+        used = cps_check_resume_path(while_stmt_cond(n), used);
+        var body i64 = cps_check_resume_path(while_stmt_body(n), used);
+        if body > used { return body; }
+        return used;
+    }
+    if k == NODE_BINARY_EXPR && (binary_expr_op(n) == TOKEN_AMPAMP || binary_expr_op(n) == TOKEN_PIPEPIPE) {
+        used = cps_check_resume_path(binary_expr_left(n), used);
+        var right i64 = cps_check_resume_path(binary_expr_right(n), used);
+        if right > used { return right; }
+        return used;
+    }
+    var children *u8 = cps_children(n);
+    var i i64 = 0;
+    while i < vec_len(children) {
+        used = cps_check_resume_path(vec_get(children, i), used);
+        i = i + 1;
+    }
+    if k == NODE_RETURN_STMT || k == NODE_BREAK_STMT || k == NODE_CONTINUE_STMT { return -1; }
+    return used;
+}
+
 // Expand reader expressions before computing the effect call graph. A group
 // node fits in the original reader allocation and retains the invocation origin.
 func cps_expand_readers(n *u8) void {
@@ -382,8 +446,7 @@ func cps_compile_expr_inner(m *i64, n *u8, dest *u8, next i64, tail i64) i64 {
     if k == NODE_HANDLE_EXPR { return cps_compile_handle(m, n, dest, next); }
     if k == NODE_RESUME_EXPR {
         if tail == 0 || cps_token_name == nil { cps_fail(n, "resume must be in tail position in its own effect clause"); }
-        var token *u8 = resume_expr_k(n);
-        if node_kind(token) != NODE_IDENT_EXPR || !str_eq_n(ident_expr_name(token), ident_expr_name_len(token), cps_token_name, strlen(cps_token_name)) { cps_fail(n, "resume requires the active clause's continuation"); }
+        if !cps_is_clause_token(resume_expr_k(n)) { cps_fail(n, "resume requires the active clause's continuation"); }
         var reply *u8 = cps_slot(m, cps_i64); var args *u8 = cps_args2(cps_frame(), cps_field(17)); vec_push(args, reply);
         var end i64 = cps_state(m, cps_args1(cps_return(cps_call("___cps_resume", args))));
         return cps_compile_expr(m, resume_expr_value(n), reply, end, 0);
@@ -604,6 +667,7 @@ func cps_compile_handle(m *i64, n *u8, dest *u8, next i64) i64 {
         if effect_decl_param_type_count(d) == 0 && token_len == 0 { token = name; token_len = len; name = nil; len = 0; }
         if len > 0 { cps_bind(clause, name, len, cps_i64); } else { clause[4] = clause[4] + 1; }
         if token_len > 0 { cps_bind(clause, token, token_len, cps_i64); cps_token_name = str_dup_n(token, token_len); } else { cps_token_name = nil; clause[4] = clause[4] + 1; }
+        if cps_token_name != nil { cps_check_resume_path(effect_case_body(c), 0); }
         cps_compile_synthetic(clause, effect_case_body(c), 1);
         vec_push(v, cps_assign(cps_index(h, 9 + i * 4), cps_num(id)));
         vec_push(v, cps_assign(cps_index(h, 10 + i * 4), cps_cast(cps_i64, cps_unary(TOKEN_AMP, cps_id(cps_step_name(clause))))));
@@ -778,7 +842,9 @@ func cps_validate_references(n *u8, direct_callee i64) void {
     if k == NODE_IDENT_EXPR {
         var name *u8 = str_dup_n(ident_expr_name(n), ident_expr_name_len(n));
         if str_starts_with(name, "___cps_") { cps_fail(n, "reserved CPS runtime symbol"); }
-        if direct_callee == 0 && !cps_validation_local(name) && map_has(cps_functions, name) { cps_fail(n, "effectful function values cannot cross a native/foreign call boundary"); }
+        if direct_callee == 0 && !cps_validation_local(name) && map_has(cps_functions, name) {
+            cps_fail(n, "E_FOREIGN_SUSPEND: effectful function values cannot cross a native/foreign call boundary");
+        }
         return;
     }
     if k == NODE_BLOCK_STMT || k == NODE_BLOCK_EXPR {

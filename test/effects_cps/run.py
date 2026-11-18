@@ -134,7 +134,7 @@ def reject(source, diagnostic, compiler=COMPILER, suffix=''):
     assert result.returncode != 0 and diagnostic in result.stderr, (source, result.stderr)
     assert not output.exists(), 'refused core published an output'
     rows.append({'source': source, 'verdict': 'PASS', 'diagnostic': diagnostic.decode()})
-    print(f'{name}: correctly refused')
+    print(f'{name}: correctly refused ({diagnostic.decode()})')
 
 parser = argparse.ArgumentParser(description=__doc__)
 profile = parser.add_mutually_exclusive_group()
@@ -157,6 +157,7 @@ try:
             ('test/effects_cps/struct_region.lang', b'42\n'),
             ('test/effects_cps/arity_valid.lang', b'42\n'),
             ('test/effects_cps/normal_return.lang', b'33\n'),
+            ('test/effects_cps/resume_branches.lang', b''),
             ('test/effects_cps/abandon.lang', b'77\n'),
             ('test/effects_cps/nested.lang', b'340\n'),
             ('test/effects_cps/mixed.lang', b''),
@@ -168,6 +169,7 @@ try:
             execute(source, expected)
         execute('test/effects_cps/unhandled.lang', b'', 1, b'E_UNHANDLED\n')
         reject('test/effects_cps/non_tail.lang', b'tail position')
+        reject('test/effects_cps/double_resume.lang', b'E_USED:')
         reject('test/effects_cps/escape.lang', b'continuation may only occur')
         reject('test/effects_cps/address_escape.lang', b'unproved escape lifetime')
         reject('test/effects_cps/reader_escape.lang', b'unproved escape lifetime')
@@ -177,7 +179,7 @@ try:
         for name, count in [('arity_missing', 0), ('arity_extra', 2)]:
             reject(f'test/effects_cps/{name}.lang',
                    f"function 'worker' takes 1 argument, called with {count}".encode())
-        reject('test/effects_cps/callback.lang', b'native/foreign call boundary')
+        reject('test/effects_cps/callback.lang', b'E_FOREIGN_SUSPEND:')
     elif args.reader_only:
         ir = OUT / 'reader_call-legacy.ll'
         result = run([LEGACY, 'test/effects_cps/reader_call.lang', '-o', str(ir)], 'reader-legacy-emit')

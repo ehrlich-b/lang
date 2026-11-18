@@ -1,0 +1,15 @@
+include "std/core.lang"
+effect Ask(i64) i64
+func choose(x i64) i64 {
+    return handle { perform Ask(x) } with {
+        return(v) => v,
+        Ask(n, k) => {
+            if n > 0 { resume k(n + 10); }
+            else { resume k(n + 20); }
+        }
+    };
+}
+func main() i64 {
+    if choose(1) != 11 || choose(0) != 20 { return 1; }
+    return 0;
+}
