@@ -1,0 +1,27 @@
+include "std/ast.lang"
+include "std/stage.lang"
+
+reader read_target_word(text *u8) *u8 {
+    // Read one unsigned word with the output target's pointer width.
+    var width i64 = stage_sizeof(stage_types(""), "*u8");
+    var word *u8 = nil;
+    if width == 4 { word = ast_type("u32"); }
+    else if width == 8 { word = ast_type("u64"); }
+    else { stage_fail("word-width"); }
+    var params *u8 = ast_vec();
+    ast_push(params, ast_param("words", ast_type_ptr(word)));
+    var value *u8 = ast_index(ast_ident("words"), ast_int(0));
+    var decls *u8 = ast_vec();
+    ast_push(decls, ast_func(text, params, ast_type_i64(), ast_block1(ast_return(value))));
+    return ast_program(decls);
+}
+
+#read_target_word{read_answer}
+
+func main() i64 {
+    // Zero-extended storage holds the same word on both little-endian targets.
+    var storage u64 = 42;
+    var answer i64 = read_answer(&storage);
+    if answer != 42 { return 1; }
+    return answer;
+}

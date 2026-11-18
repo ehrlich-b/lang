@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Compare native reader results with Clang's cross-target object layout."""
+"""Check staged layout against Clang and run target-specialized reader output."""
+import argparse
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 
 
@@ -76,8 +78,7 @@ def binary_identity(path):
     return stat.st_ino, stat.st_mtime_ns
 
 
-def main():
-    compiler = Path(os.environ.get("COMPILER", ROOT / "out/lang_next")).absolute()
+def check_layout(compiler):
     lang, c, labels, ntypes = fixtures()
     with tempfile.TemporaryDirectory(prefix="stage-reflection-") as temporary:
         root = Path(temporary)
@@ -138,6 +139,53 @@ def main():
         assert proc.returncode != 0 and "stage-error: field" in proc.stderr, proc.stderr
         assert not rejected.exists()
         print("PASS unknown fields fail before output is published")
+
+
+def check_native_wasm(compiler):
+    source = Path(__file__).with_name("native_wasm.lang").resolve()
+    native_target = TARGETS[1 if sys.platform == "darwin" else 0]
+    with tempfile.TemporaryDirectory(prefix="stage-reflection-e2e-") as temporary:
+        root = Path(temporary)
+        env = dict(os.environ, LANGBE="llvm", LANG_CACHE=str(root / "cache"),
+                   LANG_STAGE_FRESH_COMPILER="0")
+        for (os_name, target, llvm_triple), bits in ((native_target, 64), (TARGETS[2], 32)):
+            ir_path = root / f"{target}.ll"
+            run([str(compiler), str(source), "-o", str(ir_path)], dict(env, LANGOS=os_name))
+            ir = ir_path.read_text()
+            assert f'target triple = "{llvm_triple}"' in ir
+            reader_ir = re.search(r"^define [^\n@]*i64 @read_answer\([^\n]*\) [^{]*\{([^}]+)\}",
+                                  ir, re.MULTILINE)
+            assert reader_ir, f"{target}: missing reader-generated read_answer"
+            # Inspect the generated function so target header differences alone
+            # cannot satisfy the check. Follow the address to exclude spills.
+            body = reader_ir.group(1)
+            address = re.search(rf"^ *(%\w+) = getelementptr i{bits}, .* i64 0$", body, re.MULTILINE)
+            assert address, f"{target}: expected an i{bits} word address\n{body}"
+            load = re.search(rf"^ *%\w+ = load i{bits}, i{bits}\* {address[1]}(?:,.*)?$", body, re.MULTILINE)
+            assert load, f"{target}: expected an i{bits} word load\n{body}"
+
+            binary = root / ("answer.wasm" if os_name == "wasm" else "answer")
+            flags = []
+            command = [str(binary)]
+            if os_name == "wasm":
+                flags = [f"--target={target}", "-nostdlib", "-Wl,--no-entry", "-Wl,--export=main"]
+                command = ["node", "test/wasm_host.js", str(binary)]
+            run(["clang", *flags, str(ir_path), "-o", str(binary)], env)
+            result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, timeout=60)
+            assert result.returncode == 42, f"{target}: exit {result.returncode}\n{result.stdout}{result.stderr}"
+            runtime = "Node" if os_name == "wasm" else "native"
+            print(f"PASS {target}: {load[0].strip()} ({runtime} answer 42)")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--case", choices=("all", "layout", "native-wasm"), default="all")
+    args = parser.parse_args()
+    compiler = Path(os.environ.get("COMPILER", ROOT / "out/lang_next")).absolute()
+    if args.case in ("all", "layout"):
+        check_layout(compiler)
+    if args.case in ("all", "native-wasm"):
+        check_native_wasm(compiler)
 
 
 if __name__ == "__main__":
