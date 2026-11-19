@@ -346,7 +346,12 @@ func fl_emit_params(params *PNode) *u8 {
     var i i64 = 0;
     while i < n {
         var it *PNode = vec_get(items, i);
-        if pnode_is(it, "name") { ast_push(pv, ast_param(it.text, ast_type_i64())); }
+        if pnode_is(it, "name") {
+            var target *u8 = it.text;
+            // An inlined generator's free names must still resolve to globals.
+            if fl_portable { target = fl_bind(it.text); }
+            ast_push(pv, ast_param(target, ast_type_i64()));
+        }
         i = i + 1;
     }
     return pv;
@@ -371,7 +376,7 @@ func fl_ends_in_return(sl *PNode) i64 {
 // rules name their parts identically and flow_decl leaves them unlabeled.
 func fl_emit_func(d *PNode) *u8 {
     var name *PNode = pnode_require(d, "name");
-    var params *PNode = pnode_require(d, "params");
+    var params *u8 = fl_emit_params(pnode_require(d, "params"));
     var sl *PNode = pnode_require(pnode_require(d, "body"), "stmts");
     var stmts *u8 = ast_vec();
     var n i64 = vec_len(sl.children);
@@ -383,7 +388,7 @@ func fl_emit_func(d *PNode) *u8 {
     if fl_ends_in_return(sl) == 0 {
         ast_push(stmts, ast_return(ast_int(0)));
     }
-    return ast_span(ast_func(name.text, fl_emit_params(params), ast_type_i64(), ast_block(stmts)), d.start, d.end);
+    return ast_span(ast_func(name.text, params, ast_type_i64(), ast_block(stmts)), d.start, d.end);
 }
 
 func fl_emit_program(prog *PNode) *u8 {

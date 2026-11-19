@@ -33,6 +33,12 @@ generator, and a statement yield forwards to its driver. The comparison fixture
 checks both behaviors, including forwarding through two nested driver levels.
 No suspended frame escapes, and no effects lowering or stack switching is used.
 
+Driver parameters use fresh bindings, so a generator's reference to a global
+keeps its meaning inside a driver with a same-named parameter.
+`test/flow_wasm_globals.lang` yields the global `value = 40` from a generator
+driven by `answer(5)`. It prints and returns 42 on both Wasm paths and with the
+original native `#flow` reader.
+
 This is a synchronous, statement-yield profile: generators must be declared in
 the same portable block and consumed through `for-in`. Recursive specialization
 and expression yields (including bidirectional feedback) are refused at their

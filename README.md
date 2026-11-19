@@ -296,6 +296,8 @@ body, then continues the generator with its locals intact. The stateful
 Fibonacci program in `test/flow_wasm.lang` prints `flow answer: 42` and returns
 42 natively, through LLVM-to-Wasm under node, and through direct Wasm under node.
 Nested driver bodies can forward yields and return from their lexical generator.
+The global-shadowing example also returns 42 on both Wasm paths, matching
+native `#flow` when a driver parameter shares a name with a generator global.
 
 ```bash
 make build

@@ -22,6 +22,31 @@ def compile_to(compiler, source, output, backend, target):
     assert result.returncode == 0, result
 
 
+def run_answer(compiler, source, root, backend, target, opt='-O2'):
+    name = f'{Path(source).stem}-{backend}-{target}'
+    output = root / (name + ('.ll' if backend == 'llvm' else '.wasm'))
+    compile_to(compiler, source, output, backend, target)
+    if target != 'wasm':
+        executable = root / name
+        linked = run(['clang', opt, str(output), '-o', str(executable)])
+        command = [str(executable)]
+    elif backend == 'llvm':
+        executable = root / (name + '.wasm')
+        linked = run(['clang', opt, '--target=wasm32-unknown-unknown', '-nostdlib',
+                      '-Wl,--no-entry', '-Wl,--export-all', '-Wl,--allow-undefined',
+                      '-Wl,-z,stack-size=8388608', str(output), '-o', str(executable)])
+        command = ['node', 'test/wasm_host.js', str(executable)]
+    else:
+        linked = None
+        command = ['node', 'test/wasm_host.js', str(output)]
+    if linked is not None:
+        print(linked.stdout + linked.stderr, end='')
+        assert linked.returncode == 0, linked
+    result = run(command)
+    print(f'{name}: exit={result.returncode}, stdout={result.stdout!r}', flush=True)
+    return result.returncode, result.stdout
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--artifacts', type=Path, help='retain generated proof artifacts here')
@@ -29,42 +54,26 @@ def main():
     if options.artifacts:
         options.artifacts.mkdir(parents=True, exist_ok=True)
     compiler = os.environ.get('COMPILER', 'out/lang_next')
-    source = 'test/flow_wasm.lang'
-    # TMPDIR can retain all generated artifacts outside the checkout.
     context = (nullcontext(options.artifacts) if options.artifacts else
                tempfile.TemporaryDirectory(prefix='flow-wasm-'))
     with context as tmp:
         root = Path(tmp)
-        results = []
         native = 'macos' if sys.platform == 'darwin' else 'linux'
-        for backend, target in [('llvm', native), ('llvm', 'wasm'), ('wasm', 'wasm')]:
-            name = f'{backend}-{target}'
-            output = root / (name + ('.ll' if backend == 'llvm' else '.wasm'))
-            compile_to(compiler, source, output, backend, target)
-            if target == native:
-                executable = root / name
-                linked = run(['clang', '-O2', str(output), '-o', str(executable)])
-                command = [str(executable)]
-            elif backend == 'llvm':
-                executable = root / (name + '.wasm')
-                linked = run(['clang', '-O2', '--target=wasm32-unknown-unknown', '-nostdlib',
-                              '-Wl,--no-entry', '-Wl,--export-all', '-Wl,--allow-undefined',
-                              '-Wl,-z,stack-size=8388608', str(output), '-o', str(executable)])
-                command = ['node', 'test/wasm_host.js', str(executable)]
-            else:
-                linked = None
-                command = ['node', 'test/wasm_host.js', str(output)]
-            if linked is not None:
-                print(linked.stdout + linked.stderr, end='')
-                assert linked.returncode == 0, linked
-            result = run(command)
-            print(f'{name}: exit={result.returncode}, stdout={result.stdout!r}', flush=True)
-            assert result.returncode == 42 and result.stdout == 'flow answer: 42\n', result
-            results.append((result.returncode, result.stdout))
-        assert len(set(results)) == 1
+        targets = [('llvm', native), ('llvm', 'wasm'), ('wasm', 'wasm')]
+        expected = (42, 'flow answer: 42\n')
+        globals_fixture = Path('test/flow_wasm_globals.lang')
+        # Use the same source for the native effects oracle, selecting #flow
+        # and providing its Yield effect declaration.
+        native_globals = root / 'flow_native_globals.lang'
+        native_globals.write_text('include "example/flow/flow_runtime.lang"\n' +
+                                  globals_fixture.read_text().replace('#flow_portable{', '#flow{', 1))
+        assert run_answer(compiler, native_globals, root, 'llvm', native, '-O0') == expected
+        for source in ['test/flow_wasm.lang', globals_fixture]:
+            results = [run_answer(compiler, source, root, *target) for target in targets]
+            assert results == [expected] * len(targets), (source, results)
         # A portable profile must refuse the operation it cannot represent at
         # the user's yield, rather than silently weakening generator semantics.
-        for backend, target in [('llvm', native), ('llvm', 'wasm'), ('wasm', 'wasm')]:
+        for backend, target in targets:
             for fixture, diagnostic in [('flow_portable_reject', 'yield expressions'),
                                         ('flow_portable_recursive_reject', 'recursive generator specialization')]:
                 rejected = root / f'{fixture}-{backend}-{target}.wasm'

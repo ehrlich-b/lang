@@ -1,0 +1,20 @@
+// The generator and its driver use the same name for different bindings.
+include "example/flow/flow.lang"
+
+var value i64 = 40;
+
+#flow_portable{
+    gen from_global() { yield value; }
+
+    func answer(value) {
+        var total = 0;
+        for x in from_global() { total = total + x + value - 3; }
+        return total;
+    }
+}
+
+func main() i64 {
+    var result i64 = answer(5);
+    print("flow answer: "); print_int(result); print("\n");
+    return result;
+}
