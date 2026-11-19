@@ -52,6 +52,9 @@ fields; reading a scalar aggregate element within its native region remains
 supported. Split expressions retain their integer/pointer
 types, including nested arithmetic, dereferences, fields and indexing.
 Return clauses must be effect-free. Direct Wasm effects remain unsupported.
+Unexpanded macro calls are refused in modules with visible suspensions.
+When a module only declares effects, ordinary macro expansion is supported
+and expansions that hide suspensions are diagnosed before IR emission.
 Private generated runtime symbols are reserved and have no external token ABI.
 
 The pass constructs ordinary core AST nodes; its embedded runtime is parsed
@@ -75,7 +78,10 @@ normal return, abandonment, unhandled entry, nested dispatch, reentry, recursive
 calls, lexical exits and reader-generated flow. It compares native functions with
 preserved legacy IR and checks effect-free modules contain no generated CPS functions.
 Legacy controls use `out/lang` or an explicit `LEGACY_COMPILER`.
-`test/effects_cps/compare_legacy.py` compares historical compilers supplied as
-`BASE_COMPILER` and `LEGACY_COMPILER` on the same source graph. Each runner
-writes its IR, logs and results outside the checkout, configurable through its
+`test/effects_cps/compare_legacy.py` compares `COMPILER` with a pre-CPS compiler
+supplied as `BASE_COMPILER` on the same source graph. It checks matching behavior
+at candidate O2 and legacy O0 where legacy semantics apply, native IR parity after
+removing discarded effect globals, and CPS runtime and diagnostic oracles for the
+remaining fixtures. Each runner writes its IR, logs and results outside the checkout,
+configurable through its
 `EFFECTS_*_EVIDENCE_DIR` environment variable.

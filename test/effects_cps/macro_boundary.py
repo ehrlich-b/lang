@@ -85,4 +85,14 @@ for name, text in SOURCES.items():
         assert result.returncode != 0 and DIAGNOSTIC in result.stderr, result.stderr
         assert not output.exists(), 'unsafe macro core published IR'
         print(f'{name} {profile}: refused before IR publication; legacy O0 prints 42')
+
+source = OUT / 'unused.lang'
+source.write_text('''include "std/core.lang"
+effect Ask(i64) i64
+macro scalar() { return ${ 42 }; }
+func main() i64 { print_int(scalar()); println(""); return 0; }
+''')
+result = run([COMPILER, 'run', str(source)], 'unused-run', ENV)
+assert (result.returncode, result.stdout) == (0, b'42\n'), result
+print('unused declaration: macro prints 42 at default optimization')
 print('CPS macro boundary: PASS')
