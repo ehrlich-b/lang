@@ -4518,7 +4518,7 @@ pub func parse_program() *u8 {
     return parse_program_with_includes(nil, nil);
 }
 
-func parse_program_with_includes(inherited *u8, load_include fn(*u8) *u8) *u8 {
+pub func parse_program_with_includes(inherited *u8, load_include fn(*u8) *u8) *u8 {
     if timings_enabled == 0 { return parse_program_impl(inherited, load_include); }
     timings_begin(2);
     var result *u8 = parse_program_impl(inherited, load_include);

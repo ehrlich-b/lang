@@ -50,7 +50,7 @@ reader lang(text *u8) *u8 {
 
     if is_decl_token(first_type) {
         // Parse as program (declarations)
-        var prog *u8 = parse_program();
+        var prog *u8 = parse_program_with_includes(nil, &phase_read_file);
         if parse_error_count > 0 { return nil; }
         return ast_emit_program(prog);
     } else {

@@ -1,0 +1,14 @@
+// expect: 42
+include "src/lang_reader.lang"
+
+#lang{
+    include "test/suite/fixtures/generic_bridge.lang"
+
+    func main() i64 {
+        var small Box<u8>;
+        var wide Box<i64>;
+        small.value = id<u8>(2);
+        wide.value = id<i64>(40);
+        return wide.value + cast(i64, small.value);
+    }
+}
