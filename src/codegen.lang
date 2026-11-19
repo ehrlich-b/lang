@@ -2017,6 +2017,7 @@ func expand_reader_decl(decl *u8) *u8 {
 }
 
 func process_decl_first_pass(decl *u8) void {
+    if phase_duplicate_specialization(decl) { return; }
     cg_diagnostic_node = decl;
     var k i64 = node_kind(decl);
     if k == NODE_STRUCT_DECL {
@@ -5564,6 +5565,7 @@ func gen_decl(decl *u8) void {
     if decl == nil {
         return;
     }
+    if phase_duplicate_specialization(decl) { return; }
 
     cg_diagnostic_node = decl;
 
@@ -7148,6 +7150,7 @@ func generate(prog *u8, out_path *u8) void {
 
     // Reset included files map for second pass
     cg_included_files = map_new();
+    phase_seen_specializations = nil;
 
     // Second pass: generate code (into buffer)
     i = 0;

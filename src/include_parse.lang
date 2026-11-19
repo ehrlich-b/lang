@@ -55,11 +55,35 @@ struct PhaseIncludeParse {
 var phase_include_parses *u8 = nil;
 var phase_include_specializations *u8 = nil;
 var phase_include_loader fn(*u8) *u8 = nil;
+var phase_seen_specializations *u8 = nil;
 
 func phase_begin_include_parsing(load_include fn(*u8) *u8) void {
     phase_include_parses = nil;
     phase_include_specializations = nil;
     phase_include_loader = load_include;
+    phase_seen_specializations = nil;
+}
+
+// A reader worker and the include parser may each materialize the same
+// instance. Reconcile their concrete declarations once per traversal, using
+// the same canonical identity even when the reader is invoked again to emit.
+func phase_duplicate_specialization(decl *u8) bool {
+    if decl == nil { return false; }
+    var name *u8 = nil;
+    var len i64 = 0;
+    var kind i64 = node_kind(decl);
+    if kind == NODE_FUNC_DECL && !func_decl_is_extern(decl) {
+        name = func_decl_name(decl);
+        len = func_decl_name_len(decl);
+    } else if kind == NODE_STRUCT_DECL {
+        name = struct_decl_name(decl);
+        len = struct_decl_name_len(decl);
+    }
+    if !generic_stage_symbol(name, len) { return false; }
+    if phase_seen_specializations == nil { phase_seen_specializations = map_new(); }
+    if map_get_n(phase_seen_specializations, name, len) == kind { return true; }
+    map_set_n(phase_seen_specializations, name, len, kind);
+    return false;
 }
 
 func phase_parse_lang_include(text *u8, name *u8) *u8 {

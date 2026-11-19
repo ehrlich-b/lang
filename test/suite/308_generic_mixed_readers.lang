@@ -1,0 +1,29 @@
+// expect: 42
+include "src/lang_reader.lang"
+include "test/suite/fixtures/generic_bridge.lang"
+
+#lang{
+    include "test/suite/fixtures/generic_library.lang"
+
+    func reader_value(n i64) i64 {
+        var box Box<i64>;
+        box.value = id<i64>(n);
+        return generic_box_value(&box);
+    }
+}
+
+#lang{
+    include "test/suite/fixtures/generic_library.lang"
+
+    func reader_byte(n u8) i64 {
+        var box Box<u8>;
+        box.value = id<u8>(n);
+        return id<i64>(cast(i64, box.value));
+    }
+}
+
+func main() i64 {
+    var box Box<u8>;
+    box.value = id<u8>(2);
+    return reader_value(38) + reader_byte(box.value) + id<i64>(2);
+}

@@ -1648,6 +1648,7 @@ func wasm_collect_path(path *u8, path_len i64) void {
 }
 
 func wasm_collect_decl(decl *u8) void {
+    if phase_duplicate_specialization(decl) { return; }
     wasm_current_decl = decl;
     cg_diagnostic_node = decl;
     var kind i64 = node_kind(decl);

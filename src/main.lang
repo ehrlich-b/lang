@@ -300,6 +300,7 @@ func expand_begin() void {
 
 // Recursively expand includes and collect declarations
 func expand_collect_decl(decl *u8) void {
+    if phase_duplicate_specialization(decl) { return; }
     var k i64 = node_kind(decl);
 
     // Embedded source frontends can publish include inputs while returning an

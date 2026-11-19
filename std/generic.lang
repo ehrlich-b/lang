@@ -68,6 +68,25 @@ struct GenericInstance {
     depth i64;
 }
 
+var generic_stage_symbol_prefix *u8 = "__lang_generic_";
+
+// The canonical symbol carries the specialization identity across the AST
+// boundary, including when a reader runs in a separate process.
+func generic_stage_symbol(name *u8, len i64) bool {
+    var prefix_len i64 = strlen(generic_stage_symbol_prefix);
+    if len != prefix_len + 64 ||
+       !str_eq_n(name, prefix_len, generic_stage_symbol_prefix, prefix_len) {
+        return false;
+    }
+    var i i64 = prefix_len;
+    while i < len {
+        var c u8 = *(name + i);
+        if !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f') { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
 func generic_stage_new(inherited *u8) *GenericStage {
     phase_charge(24);
     var stage *GenericStage = alloc(24);
@@ -86,7 +105,7 @@ func generic_stage_request(stage *GenericStage, key *PhaseBuffer, template *u8,
     if depth > limit { phase_error("specialization-depth", key.source); }
     phase_charge(40);
     var instance *GenericInstance = alloc(40);
-    instance.name = str_concat("__lang_generic_", digest);
+    instance.name = str_concat(generic_stage_symbol_prefix, digest);
     instance.template = template;
     instance.args = args;
     instance.origin = origin;
