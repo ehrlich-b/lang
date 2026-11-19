@@ -1,0 +1,71 @@
+include "std/generic.lang"
+include "example/minilisp/lisp_runtime.lang"
+include "example/minilisp/minilisp.lang"
+
+struct Pair { tag u8; value i64; }
+
+reader instantiate_list(text *u8) *u8 {
+    var types *u8 = stage_types("struct Pair { tag u8; value i64; }");
+    return list_instantiate_with_types(text, types);
+}
+
+#instantiate_list{i64}
+#instantiate_list{u8}
+#instantiate_list{Pair}
+
+// Adapt typed List reads to minilisp's boxed calling convention.
+func wide_at(list *List_i64, index i64) i64 {
+    return lisp_int(list.items[lisp_to_int(index)]);
+}
+
+func byte_at(list *List_u8, index i64) i64 {
+    return lisp_int(cast(i64, list.items[lisp_to_int(index)]));
+}
+
+func pair_at(list *List_Pair, index i64) i64 {
+    var item *Pair = &list.items[lisp_to_int(index)];
+    return lisp_cons(lisp_int(cast(i64, item.tag)), lisp_int(item.value));
+}
+
+func main() i64 {
+    var wide_storage [2]i64;
+    var wide_list List_i64;
+    wide_list.items = &wide_storage[0];
+    wide_list.len = 0;
+    wide_list.capacity = 2;
+    var wide *List_i64 = &wide_list;
+    if !List_i64_push(wide, 4294967319) || !List_i64_push(wide, 4294967296) { return 1; }
+
+    var byte_storage [2]u8;
+    var byte_list List_u8;
+    byte_list.items = &byte_storage[0];
+    byte_list.len = 0;
+    byte_list.capacity = 2;
+    var bytes *List_u8 = &byte_list;
+    if !List_u8_push(bytes, 251) || !List_u8_push(bytes, 240) { return 2; }
+
+    var pair_storage [2]Pair;
+    var pair_list List_Pair;
+    pair_list.items = &pair_storage[0];
+    pair_list.len = 0;
+    pair_list.capacity = 2;
+    var pairs *List_Pair = &pair_list;
+    var first Pair;
+    first.tag = 9;
+    first.value = 3;
+    var second Pair;
+    second.tag = 201;
+    second.value = 193;
+    if !List_Pair_push(pairs, first) || !List_Pair_push(pairs, second) { return 3; }
+
+    return lisp_to_int(#minilisp{
+        (let ((wide_head (wide_at wide 0))
+              (byte_head (byte_at bytes 0))
+              (pair (pair_at pairs 1)))
+          (if (and (= wide_head 4294967319) (= byte_head 251))
+              (+ (- wide_head (wide_at wide 1))
+                 (- byte_head (byte_at bytes 1))
+                 (- (car pair) (cdr pair)))
+              4))
+    });
+}
