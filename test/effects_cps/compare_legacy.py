@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare unflagged LLVM bytes using two compilers on the same source graph."""
+"""Compare unflagged LLVM bytes using two legacy compilers on the same source graph."""
 import hashlib
 import json
 import os
@@ -10,7 +10,7 @@ import tempfile
 
 root = Path(__file__).resolve().parents[2]
 os.chdir(root)
-compiler = str(Path(os.environ.get('COMPILER', 'out/lang')).resolve())
+compiler = str(Path(os.environ['LEGACY_COMPILER']).resolve())
 base = str(Path(os.environ['BASE_COMPILER']).resolve())
 evidence = Path(os.environ.get('EFFECTS_LEGACY_EVIDENCE_DIR') or tempfile.mkdtemp(prefix='effects-legacy-')).resolve()
 evidence.mkdir(parents=True, exist_ok=True)
@@ -25,7 +25,6 @@ for source in programs:
         directory = evidence / source.stem / label
         directory.mkdir(parents=True, exist_ok=True)
         env = dict(os.environ, LANGBE='llvm', LANG_CACHE=str(directory / 'cache'))
-        env.pop('LANG_EFFECTS', None)
         ir = directory / 'program.ll'
         result = subprocess.run([executable, str(source), '-o', str(ir)], env=env, capture_output=True, timeout=60)
         (directory / 'compiler.stdout').write_bytes(result.stdout)

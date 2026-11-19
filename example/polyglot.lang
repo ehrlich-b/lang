@@ -31,8 +31,7 @@
 // parens, braces, `;`, `then`, and - in minipy - nothing but the column the line
 // starts in.
 //
-// Effects are used (flow), so compile with clang, not the lli JIT:
-//   LANGBE=llvm out/lang example/polyglot.lang -o p.ll && clang -O0 p.ll -o p && ./p
+// Run with ./out/lang_next run example/polyglot.lang after make build.
 include "std/core.lang"
 include "example/minilisp/lisp_runtime.lang"
 include "example/flow/flow_runtime.lang"

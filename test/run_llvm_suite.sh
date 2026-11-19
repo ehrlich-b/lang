@@ -104,7 +104,7 @@ run_one_test() {
 
     # Compile to LLVM IR (use per-test cache dir to avoid parallel races)
     if LANG_CACHE="$tmpdir/.lang-cache" LANGBE=llvm $COMPILER "$f" -o "$outll" >/dev/null 2>&1; then
-        # Use clang for tests marked //clang (inline asm), lli for rest
+        # Use clang for tests marked //clang, lli for the rest.
         if [[ "$markers" == *c* ]]; then
             clang -O0 "$outll" -o "$outbin" 2>/dev/null
             "$outbin" >/dev/null 2>&1
@@ -788,10 +788,7 @@ negative_compile_e2e negative_capturing_lambda_fn test/negative/capturing_lambda
 negative_compile_e2e negative_break_outside_loop  test/negative/break_outside_loop.lang
 negative_compile_e2e negative_continue_outside_loop test/negative/continue_outside_loop.lang
 
-# Like reader_e2e but compiles with clang and runs the native binary, for readers
-# whose output uses algebraic effects (perform/handle/resume) - the inline-asm
-# continuation mechanism does not work under the lli JIT, only clang (matching
-# the //clang suite tests). The flow DSL is built on effects.
+# Exercise native linking and execution for readers that generate effects.
 reader_e2e_clang() {
     local name=$1; local file=$2
     local tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")

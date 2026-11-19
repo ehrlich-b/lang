@@ -11,10 +11,11 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 os.chdir(ROOT)
-COMPILER = str(Path(os.environ.get('COMPILER', 'out/lang')).resolve())
+COMPILER = str(Path(os.environ.get('COMPILER', 'out/lang_next')).resolve())
+LEGACY = str(Path(os.environ.get('LEGACY_COMPILER', 'out/lang')).resolve())
 OUT = Path(os.environ.get('EFFECTS_CPS_EVIDENCE_DIR') or tempfile.mkdtemp(prefix='effects-cps-')).resolve()
 OUT.mkdir(parents=True, exist_ok=True)
-ENV = dict(os.environ, LANGBE='llvm', LANG_EFFECTS='cps', LANG_CACHE=str(OUT / 'cache'))
+ENV = dict(os.environ, LANGBE='llvm', LANG_CACHE=str(OUT / 'cache'))
 SUITE_MODES = [('O0', ['-O0']), ('O2', ['-O2'])]
 QUALIFICATION_MODES = [SUITE_MODES[0], ('O1', ['-O1']), SUITE_MODES[1],
                        ('O2-lto', ['-O2', '-flto'] + ([] if sys.platform == 'darwin' else ['-fuse-ld=lld']))]
@@ -77,27 +78,25 @@ def effect_suite():
 
 
 def native_comparison():
-    for source in ['test/effects_cps/native.lang', 'test/effects_cps/mixed.lang']:
+    for source, symbols in [('test/effects_cps/native.lang', ['native_square', 'main']),
+                            ('test/effects_cps/mixed.lang', ['native_square'])]:
         name = Path(source).stem
-        on = emit(source, name + '-on').read_text()
-        off_env = dict(ENV)
-        off_env.pop('LANG_EFFECTS', None)
-        off_file = OUT / (name + '-off.ll')
-        result = run([COMPILER, source, '-o', str(off_file)], name + '-off-emit', off_env)
+        current = emit(source, name + '-candidate').read_text()
+        path = OUT / (name + '-legacy.ll')
+        result = run([LEGACY, source, '-o', str(path)], name + '-legacy-emit')
         assert result.returncode == 0, result.stderr.decode(errors='replace')
-        off = off_file.read_text()
+        legacy = path.read_text()
         if name == 'native':
-            assert on == off, 'effect-free module changed with the flag'
-        else:
-            pattern = r'^define [^\n]* @native_square\([^\n]*\) \{\n.*?^\}'
-            assert re.search(pattern, on, re.M | re.S).group() == re.search(pattern, off, re.M | re.S).group(), 'native function changed in effectful module'
+            assert '___cps_' not in current, 'effect-free module contains CPS code'
+        for symbol in symbols:
+            pattern = rf'^define [^\n]* @{symbol}\([^\n]*\) \{{\n.*?^\}}'
+            assert re.search(pattern, current, re.M | re.S).group() == re.search(
+                pattern, legacy, re.M | re.S).group(), f'native function {symbol} changed'
         rows.append({'source': source, 'verdict': 'PASS', 'native_ir': 'identical'})
-        print(f'{name}: native IR identical with flag on/off')
+        print(f'{name}: native functions match legacy IR')
 
 
 def legacy_controls():
-    off_env = dict(ENV)
-    off_env.pop('LANG_EFFECTS', None)
     for name, expected in [('aggregate_alias', b'42\n'),
                            ('aggregate_cast_alias', None),
                            ('aggregate_field_alias', b'42\n'),
@@ -105,10 +104,10 @@ def legacy_controls():
                            ('struct_field_alias', b'42\n'),
                            ('pointer_spill', b'22\n')]:
         ir = OUT / (name + '-legacy.ll')
-        result = run([COMPILER, f'test/effects_cps/{name}.lang', '-o', str(ir)], name + '-legacy-emit', off_env)
+        result = run([LEGACY, f'test/effects_cps/{name}.lang', '-o', str(ir)], name + '-legacy-emit')
         assert result.returncode == 0, result.stderr.decode(errors='replace')
         binary = OUT / (name + '-legacy')
-        result = run([os.environ.get('CLANG', 'clang'), '-O0', str(ir), '-o', str(binary)], name + '-legacy-build', off_env)
+        result = run([os.environ.get('CLANG', 'clang'), '-O0', str(ir), '-o', str(binary)], name + '-legacy-build')
         if expected is None:
             # Bare array casts are already unsupported by the legacy emitter.
             # Keep this negative input: CPS must reject before publishing IR.
@@ -117,20 +116,20 @@ def legacy_controls():
             print(f'{name}: legacy array cast remains unsupported')
             continue
         assert result.returncode == 0, result.stderr.decode(errors='replace')
-        result = run([str(binary)], name + '-legacy-run', off_env)
+        result = run([str(binary)], name + '-legacy-run')
         assert (result.returncode, result.stdout, result.stderr) == (0, expected, b''), (name, result.stdout, result.stderr)
         rows.append({'source': name, 'verdict': 'PASS', 'legacy_O0': expected.decode()})
         print(f'{name}: legacy O0 control passed')
     for name, count in [('arity_missing', 0), ('arity_extra', 2)]:
         reject(f'test/effects_cps/{name}.lang',
                f"function 'worker' takes 1 argument, called with {count}".encode(),
-               env=off_env, suffix='-legacy')
+               compiler=LEGACY, suffix='-legacy')
 
 
-def reject(source, diagnostic, env=ENV, suffix=''):
+def reject(source, diagnostic, compiler=COMPILER, suffix=''):
     name = Path(source).stem + suffix
     output = OUT / (name + '.ll')
-    result = run([COMPILER, source, '-o', str(output)], name + '-emit', env)
+    result = run([compiler, source, '-o', str(output)], name + '-emit')
     assert result.returncode != 0 and diagnostic in result.stderr, (source, result.stderr)
     assert not output.exists(), 'refused core published an output'
     rows.append({'source': source, 'verdict': 'PASS', 'diagnostic': diagnostic.decode()})
@@ -139,7 +138,7 @@ def reject(source, diagnostic, env=ENV, suffix=''):
 parser = argparse.ArgumentParser(description=__doc__)
 profile = parser.add_mutually_exclusive_group()
 profile.add_argument('--qualification', action='store_true', help='run the CPS safety and IR fixtures')
-profile.add_argument('--native-only', action='store_true', help='compare native IR with CPS on and off')
+profile.add_argument('--native-only', action='store_true', help='compare native IR with the legacy compiler')
 args = parser.parse_args()
 
 try:

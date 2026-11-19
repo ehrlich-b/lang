@@ -298,7 +298,7 @@ func cps_new_call(m *i64, caller *u8, dest *u8, h *u8, env *u8, kind i64, prompt
     var v *u8 = cps_args1(cps_as_frame(cps_field(9))); vec_push(v, caller); vec_push(v, dest); vec_push(v, h); vec_push(v, env); vec_push(v, cps_num(kind)); vec_push(v, prompt); return cps_call(cps_ctor_name(m), v);
 }
 func cps_effect_id(n *u8, name *u8, len i64) i64 {
-    var d *u8 = llvm_find_effect(name, len); if d == nil { cps_fail(n, "unresolved effect declaration"); }
+    var d *u8 = find_effect(name, len); if d == nil { cps_fail(n, "unresolved effect declaration"); }
     if effect_decl_param_type_count(d) > 1 { cps_fail(n, "only scalar zero/one-argument effects are supported"); }
     var ret *u8 = effect_decl_return_type(d);
     if ret == nil || type_kind(ret) != TYPE_BASE || !str_eq_n(base_type_name(ret), base_type_name_len(ret), "i64", 3) { cps_fail(n, "CPS effects currently require an i64 result"); }
@@ -309,13 +309,25 @@ func cps_effect_id(n *u8, name *u8, len i64) i64 {
     // The resolved declaration object is unique in this compilation. Emit its
     // stable registry index, never its address or a string-length discriminator.
     var i i64 = 0;
-    while i < llvm_effect_count { var entry *u8 = llvm_effects + i * 24; var p **u8 = entry + 16; if *p == d { return i + 1; } i = i + 1; }
+    while i < cg_effect_count { var entry *u8 = cg_effects + i * 24; var p **u8 = entry + 16; if *p == d { return i + 1; } i = i + 1; }
     cps_fail(n, "effect identity is absent from the registry"); return 0;
 }
 func cps_void_expr(n *u8) i64 {
     if n != nil && node_kind(n) == NODE_CALL_EXPR { var f *u8 = call_expr_func(n); if node_kind(f) == NODE_IDENT_EXPR { var d *u8 = find_func(ident_expr_name(f), ident_expr_name_len(f)); if d != nil { return is_void_type(func_decl_ret_type(d)); } } } return 0;
 }
+// Some readers attach empty placeholder spans to generated nodes. Leave
+// those states available for a source span from the enclosing statement.
+func cps_state_origin(m *i64, state i64, source *u8) void {
+    if llvm_debug_enabled != 0 && source != nil && (node_origin_start(source) != 0 || node_origin_end(source) != 0) {
+        node_copy_origin(vec_get(cast(*u8, m[3]), state), source);
+    }
+}
 func cps_compile_expr(m *i64, n *u8, dest *u8, next i64, tail i64) i64 {
+    var entry i64 = cps_compile_expr_inner(m, n, dest, next, tail);
+    cps_state_origin(m, entry, n);
+    return entry;
+}
+func cps_compile_expr_inner(m *i64, n *u8, dest *u8, next i64, tail i64) i64 {
     if n == nil { return cps_store_state(m, dest, cps_num(0), next); }
     var k i64 = node_kind(n);
     if k == NODE_BLOCK_EXPR || k == NODE_BLOCK_STMT { return cps_compile_block(m, n, dest, next, tail); }
@@ -352,6 +364,7 @@ func cps_compile_expr(m *i64, n *u8, dest *u8, next i64, tail i64) i64 {
         var args *u8 = cps_args2(cps_frame(), cps_num(id)); vec_push(args, payload); vec_push(args, cps_address(dest));
         var v *u8 = cps_args1(cps_assign(cps_field(1), cps_num(next))); vec_push(v, cps_return(cps_call("___cps_perform", args)));
         var state i64 = cps_state(m, v);
+        cps_state_origin(m, state, n);
         var arg *u8 = nil; if perform_expr_arg_count(n) > 0 { var p **u8 = perform_expr_args(n); arg = *p; }
         return cps_compile_expr(m, arg, payload, state, 0);
     }
@@ -404,6 +417,7 @@ func cps_compile_expr(m *i64, n *u8, dest *u8, next i64, tail i64) i64 {
             if cps_void_expr(n) { var stmt *u8 = expr_stmt_alloc(); expr_stmt_set_expr(stmt, call); var v *u8 = cps_args1(stmt); vec_push(v, cps_assign(cps_field(1), cps_num(next))); vec_push(v, cps_return(cps_frame())); end = cps_state(m, v); }
             else { end = cps_store_state(m, dest, call, next); }
         }
+        cps_state_origin(m, end, n);
         i = call_expr_arg_count(n); while i > 0 { i = i - 1; var p **u8 = call_expr_args(n) + i * 8; end = cps_compile_expr(m, *p, vec_get(values, i), end, 0); } return end;
     }
     if k == NODE_UNARY_EXPR {
@@ -508,11 +522,20 @@ func cps_compile_block(m *i64, n *u8, result *u8, next i64, tail i64) i64 {
                 j = j + 1;
             }
             var v *u8 = vec_new(8); j = start;
-            while j < end { m[2] = vec_get(scopes, j); var q **u8 = a + j * 8; vec_push(v, cps_native_stmt(m, *q, result)); j = j + 1; }
+            while j < end {
+                m[2] = vec_get(scopes, j);
+                var q **u8 = a + j * 8;
+                var stmt *u8 = cps_native_stmt(m, *q, result);
+                if llvm_debug_enabled != 0 { node_copy_origin(stmt, *q); }
+                vec_push(v, stmt);
+                j = j + 1;
+            }
             vec_push(v, cps_assign(cps_field(1), cps_num(entry))); vec_push(v, cps_return(cps_frame())); entry = cps_state(m, v); i = start;
         } else {
             i = i - 1; var is_tail i64 = 0; if last == nil && i == count - 1 { is_tail = tail; }
-            m[2] = vec_get(scopes, i); entry = cps_compile_stmt(m, *p, result, entry, is_tail);
+            m[2] = vec_get(scopes, i);
+            entry = cps_compile_stmt(m, *p, result, entry, is_tail);
+            cps_state_origin(m, entry, *p);
         }
     }
     m[2] = env; while vec_len(env) > saved { vec_pop(env); } return entry;
@@ -546,7 +569,7 @@ func cps_compile_handle(m *i64, n *u8, dest *u8, next i64) i64 {
         var c *u8 = handle_expr_cases(n) + i * 56; var clause *i64 = cps_machine(m);
         var name *u8 = effect_case_binding(c); var len i64 = effect_case_binding_len(c);
         var token *u8 = effect_case_k(c); var token_len i64 = effect_case_k_len(c);
-        var d *u8 = llvm_find_effect(effect_case_name(c), effect_case_name_len(c));
+        var d *u8 = find_effect(effect_case_name(c), effect_case_name_len(c));
         var id i64 = cps_effect_id(n, effect_case_name(c), effect_case_name_len(c));
         if effect_decl_param_type_count(d) == 0 && token_len == 0 { token = name; token_len = len; name = nil; len = 0; }
         if len > 0 { cps_bind(clause, name, len, cps_i64); } else { clause[4] = clause[4] + 1; }
@@ -571,7 +594,13 @@ func cps_parse_func(source *u8, name *u8) *u8 {
 func cps_emit_machine_nodes(m *i64) void {
     var step *u8 = cps_parse_func("func step(___frame *i64) *i64 {}", cps_step_name(m));
     var v *u8 = vec_new(16); var i i64 = 0; var states *u8 = cast(*u8, m[3]);
-    while i < vec_len(states) { vec_push(v, cps_if(cps_binary(TOKEN_EQEQ, cps_field(1), cps_num(i)), vec_get(states, i), nil)); i = i + 1; }
+    while i < vec_len(states) {
+        var body *u8 = vec_get(states, i);
+        var dispatch *u8 = cps_if(cps_binary(TOKEN_EQEQ, cps_field(1), cps_num(i)), body, nil);
+        if llvm_debug_enabled != 0 { node_copy_origin(dispatch, body); }
+        vec_push(v, dispatch);
+        i = i + 1;
+    }
     var error_args *u8 = cps_args1(cps_frame()); vec_push(error_args, cps_num(-1));
     vec_push(v, cps_return(cps_call("___cps_bad_pc", error_args))); func_decl_set_body(step, cps_block(v)); vec_push(cps_generated, step);
     var ctor *u8 = cps_parse_func("func make(task *i64, caller *i64, dest *i64, h *i64, env *i64, kind i64, prompt *i64) *i64 {}", cps_ctor_name(m));
@@ -581,7 +610,6 @@ func cps_emit_machine_nodes(m *i64) void {
 }
 func cps_prepare() void {
     cps_enabled = 0; cps_generated = vec_new(16); cps_wrappers = map_new(); cps_functions = map_new(); cps_machines = vec_new(16);
-    var flag *u8 = getenv("LANG_EFFECTS"); if flag == nil || !str_eq_n(flag, strlen(flag), "cps", 3) { return; }
     cps_loops = vec_new(8);
     cps_i64 = cps_base("i64"); cps_frame_type = cps_ptr(cps_i64); cps_token_name = nil;
     // Readers also have executable core bodies. Their standalone callable ABI
@@ -594,12 +622,6 @@ func cps_prepare() void {
         func_decl_set_body(f, reader_decl_body(reader_node)); node_copy_origin(f, reader_node); add_func(f);
         ri = ri + 1;
     }
-    var mi i64 = 0;
-    while mi < cg_func_count {
-        var mp **u8 = cg_funcs + mi * 24 + 16; cps_check_macros(func_decl_body(*mp)); mi = mi + 1;
-    }
-    mi = 0;
-    while mi < cg_global_count { cps_check_macros(global_get_init(mi)); mi = mi + 1; }
     var changed i64 = 1;
     while changed {
         changed = 0; var i i64 = 0;
@@ -610,10 +632,25 @@ func cps_prepare() void {
             i = i + 1;
         }
     }
+    // Keep ordinary macro expansion for modules without effects. Even a
+    // macro in an apparently native function can hide a call that suspends.
+    if cg_macro_count != 0 && (cg_effect_count != 0 || map_size(cps_functions) != 0) {
+        var mi i64 = 0;
+        while mi < cg_func_count {
+            var mp **u8 = cg_funcs + mi * 24 + 16;
+            cps_check_macros(func_decl_body(*mp));
+            mi = mi + 1;
+        }
+        mi = 0;
+        while mi < cg_global_count { cps_check_macros(global_get_init(mi)); mi = mi + 1; }
+    }
     if map_size(cps_functions) == 0 { return; }
     cps_enabled = 1;
     var target *u8 = cg_langos_override; if target == nil { target = getenv("LANGOS"); }
-    if target != nil && str_eq_n(target, strlen(target), "wasm", 4) { cps_fail(nil, "the scoped CPS profile currently requires a native LLVM target"); }
+    if target != nil && str_eq_n(target, strlen(target), "wasm", 4) {
+        ___compiler_diagnostic_code = "unsupported-feature";
+        cps_fail(nil, "algebraic effects require a native LLVM target");
+    }
     var vi i64 = 0;
     while vi < cg_func_count { var vp **u8 = cg_funcs + vi * 24 + 16; cps_validate_function(*vp); vi = vi + 1; }
     var i i64 = 0;

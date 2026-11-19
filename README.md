@@ -255,15 +255,20 @@ No environment variables needed: the compiler defaults `LANGBE`/`LANGOS` to the
 platform it was built for. Set them only to cross-target (`LANGOS=macos`,
 `LANGOS=wasm`; `LANGBE=x86` for the frozen assembly backend on Linux).
 
-The LLVM backend is the primary native target. Its current contract covers the tested scalar, closure and reader paths, with the effects restriction below; general external layout and calling conventions remain unverified.
+The LLVM backend is the primary native target. Its current contract covers the
+tested scalar, closure, reader and [scoped effects](docs/EFFECTS_CPS.md) paths.
+General external layout and calling conventions remain unverified.
 
-Native algebraic effects currently require `clang -O0`. Optimizing a module
-that performs or handles effects fails with an explicit diagnostic until
-nonlocal transfers use LLVM control-flow terminators. The default `lang run`
-and compiler-linking commands use `-O2`, so they also reject such programs.
-To run an effects program, emit its LLVM IR and compile it with `clang -O0`.
-`python3 test/run_effects_safety.py` checks the suite's effects programs and
-multiple-perform probes at `-O0`, `-O1`, `-O2`, and `-O2 -flto`.
+Use the development compiler after `make build` to run native effects with the
+default `-O2`:
+
+```bash
+./out/lang_next run example/polyglot.lang
+```
+
+`COMPILER=out/lang_next python3 -B test/run_effects_safety.py` checks the
+suite's effects programs and multiple-perform probes at `-O0`, `-O1`, `-O2`,
+and `-O2 -flto`.
 
 ### WebAssembly
 
@@ -276,9 +281,7 @@ node test/wasm_host.js hello.wasm
 
 `test/wasm_host.js` is a small node host providing the libc surface
 (write/alloc/exit). The LLVM-to-Wasm suite has a historical baseline of 177 passes
-(`./test/run_wasm_suite.sh`); the exception is algebraic effects, which need
-stack switching that core wasm cannot express - the compiler rejects them
-cleanly for this target.
+(`./test/run_wasm_suite.sh`). Algebraic effects require the native LLVM target.
 
 ### Bootstrap
 

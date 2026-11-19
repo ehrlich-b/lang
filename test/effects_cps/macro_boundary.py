@@ -8,11 +8,11 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 os.chdir(ROOT)
 COMPILER = str(Path(os.environ.get('COMPILER', 'out/lang_next')).resolve())
+LEGACY = str(Path(os.environ.get('LEGACY_COMPILER', 'out/lang')).resolve())
 OUT = Path(os.environ.get('EFFECTS_MACRO_EVIDENCE_DIR') or
            tempfile.mkdtemp(prefix='effects-macro-')).resolve()
 OUT.mkdir(parents=True, exist_ok=True)
 ENV = dict(os.environ, LANGBE='llvm', LANG_CACHE=str(OUT / 'cache'))
-ENV.pop('LANG_EFFECTS', None)
 DIAGNOSTIC = b'CPS: unexpanded macro call is unsupported'
 SOURCES = {
     'address': '''include "std/core.lang"
@@ -68,7 +68,7 @@ for name, text in SOURCES.items():
     # Unique paths let readiness rerun without reusing an existing output.
     scratch = Path(tempfile.mkdtemp(dir=OUT, prefix=name + '-'))
     ir = scratch / 'legacy.ll'
-    result = run([COMPILER, str(source), '-o', str(ir)], name + '-legacy-emit', ENV)
+    result = run([LEGACY, str(source), '-o', str(ir)], name + '-legacy-emit', ENV)
     assert result.returncode == 0, result.stderr
     binary = scratch / 'legacy'
     result = run([os.environ.get('CLANG', 'clang'), '-O0', str(ir), '-o', str(binary)],
@@ -81,7 +81,7 @@ for name, text in SOURCES.items():
     for profile in ['O0', 'O1', 'O2', 'O2-lto']:
         output = scratch / (profile + '.ll')
         result = run([COMPILER, str(source), '-o', str(output)],
-                     name + '-' + profile, dict(ENV, LANG_EFFECTS='cps'))
+                     name + '-' + profile, ENV)
         assert result.returncode != 0 and DIAGNOSTIC in result.stderr, result.stderr
         assert not output.exists(), 'unsafe macro core published IR'
         print(f'{name} {profile}: refused before IR publication; legacy O0 prints 42')

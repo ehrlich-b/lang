@@ -1,9 +1,8 @@
 # Scoped CPS effects
 
-`LANG_EFFECTS=cps` selects the native LLVM state-machine lowering. The default
-continues to emit the legacy O0 implementation. This is an opt-in implementation
-of the initial tail-resuming profile in `designs/effects_lowering.md`; it does
-not enable escaping, non-tail, multi-shot or cross-thread continuations.
+The native LLVM backend lowers scoped effects to state machines by default.
+The initial tail-resuming profile described in `designs/effects_lowering.md`
+supports synchronous one-shot continuations scoped to their handler clauses.
 
 The pass runs after declaration registration and reader expansion, before LLVM
 output is opened. It closes a direct call graph over perform/handle/resume and
@@ -64,7 +63,7 @@ artifacts need updating to build the implementation.
 Run the focused checks after `make build`:
 
 ```
-COMPILER=out/lang_next LANG_EFFECTS=cps python3 -B test/run_effects_safety.py
+COMPILER=out/lang_next python3 -B test/run_effects_safety.py
 COMPILER=out/lang_next python3 -B test/effects_cps/run.py
 COMPILER=out/lang_next python3 -B test/effects_cps/run.py --qualification
 ```
@@ -73,9 +72,10 @@ The first runner exercises all existing safety inputs at O0/O1/O2/full LTO.
 The default CPS runner exercises the suite's effect programs and the flow demo
 at O0 and O2. The qualification profile has independent answers for state,
 normal return, abandonment, unhandled entry, nested dispatch, reentry, recursive
-calls, lexical exits and reader-generated flow. It also compares native IR with
-the flag on and off.
-`test/effects_cps/compare_legacy.py` accepts `BASE_COMPILER` and compares unflagged
-IR bytes from both compilers on the same complete source graph. Each runner
+calls, lexical exits and reader-generated flow. It compares native functions with
+preserved legacy IR and checks effect-free modules contain no generated CPS functions.
+Legacy controls use `out/lang` or an explicit `LEGACY_COMPILER`.
+`test/effects_cps/compare_legacy.py` compares historical compilers supplied as
+`BASE_COMPILER` and `LEGACY_COMPILER` on the same source graph. Each runner
 writes its IR, logs and results outside the checkout, configurable through its
 `EFFECTS_*_EVIDENCE_DIR` environment variable.

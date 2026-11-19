@@ -3,9 +3,7 @@
 // after each value. The stateful fib generator (carrying a, b across yields) is
 // the thing C and our Lisp structurally can't express.
 //
-// Uses effects, so it must be compiled with clang (not the lli JIT): the
-// continuation mechanism relies on inline-asm stack save/restore. See the
-// reader_flow_e2e guard in test/run_llvm_suite.sh.
+// Run with ./out/lang_next run example/flow/test_flow.lang after make build.
 include "std/core.lang"
 include "example/flow/flow_runtime.lang"
 include "example/flow/flow.lang"

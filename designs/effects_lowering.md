@@ -14,14 +14,12 @@ Heap allocation in the witness preserves transformed activations across ordinary
 native returns; it does not authorize escaping continuations. A later escaping
 profile requires a separate ownership and capture design.
 
-## Flagged compiler implementation
+## Compiler implementation
 
-`LANG_EFFECTS=cps` now selects a scoped production lowering over registered core
-AST. See [the capability profile](../docs/EFFECTS_CPS.md) for its supported values,
-refusals, ownership and focused tests. The default path retains the legacy
-emitter and optimization refusal. The witness qualifications and replacement
-map below record the imported design evidence; they are not an assertion that
-the opt-in pass implements every later capability gate.
+Native LLVM compilation uses scoped CPS lowering over registered core AST. See
+[the capability profile](../docs/EFFECTS_CPS.md) for its supported values,
+refusals, ownership and focused tests. The witness qualifications and replacement
+map below record the imported design evidence and later capability gates.
 
 ## Starting evidence and disposition
 

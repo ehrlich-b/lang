@@ -62,8 +62,15 @@ elif item == 'A3':
         run(['make', 'build'], cwd=baseline)
     assert git('rev-parse', 'HEAD', cwd=baseline) == git('rev-parse', BASE)
     assert not git('status', '--porcelain', cwd=baseline)
+    legacy = WORKSPACE / 'sources/pre-default'
+    if not legacy.exists():
+        run(['git', 'worktree', 'add', '--detach', str(legacy), 'd0139ff'])
+    assert git('rev-parse', 'HEAD', cwd=legacy) == git('rev-parse', 'd0139ff')
+    assert not git('status', '--porcelain', cwd=legacy)
+    if not (legacy / 'out/lang_next').exists():
+        run(['make', 'build'], cwd=legacy)
     scratch = Path(tempfile.mkdtemp(prefix='effects-', dir=WORKSPACE / 'scratch'))
-    env = dict(os.environ, COMPILER='out/lang_next', LANG_EFFECTS='cps',
+    env = dict(os.environ, COMPILER='out/lang_next', LEGACY_COMPILER=str(legacy / 'out/lang_next'),
                BASE_COMPILER=str(baseline / 'out/lang_next'),
                EFFECTS_EVIDENCE_DIR=str(scratch / 'safety'),
                EFFECTS_CPS_EVIDENCE_DIR=str(scratch / 'cps'),
