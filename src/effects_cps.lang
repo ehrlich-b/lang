@@ -655,7 +655,7 @@ func cps_prepare() void {
     var target *u8 = cg_langos_override; if target == nil { target = getenv("LANGOS"); }
     if target != nil && str_eq_n(target, strlen(target), "wasm", 4) {
         ___compiler_diagnostic_code = "unsupported-feature";
-        cps_fail(nil, "algebraic effects require a native LLVM target");
+        cps_fail(nil, "algebraic effects are not supported on the wasm target");
     }
     var vi i64 = 0;
     while vi < cg_func_count { var vp **u8 = cg_funcs + vi * 24 + 16; cps_validate_function(*vp); vi = vi + 1; }
