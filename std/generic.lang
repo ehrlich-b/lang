@@ -1,0 +1,36 @@
+include "std/ast.lang"
+
+// Emit a concrete List declaration and its typed push operation for a reader.
+// The caller supplies storage for capacity elements and initializes len to zero.
+// Only i64 is supported; an unsupported element type returns nil.
+func list_instantiate(element_type *u8) *u8 {
+    if element_type == nil || !streq(element_type, "i64") { return nil; }
+
+    var name *u8 = str_concat("List_", element_type);
+    var item_type *u8 = ast_type(element_type);
+    var fields *u8 = ast_vec();
+    ast_push(fields, ast_field_decl("items", ast_type_ptr(item_type)));
+    ast_push(fields, ast_field_decl("len", ast_type_i64()));
+    ast_push(fields, ast_field_decl("capacity", ast_type_i64()));
+
+    var params *u8 = ast_vec();
+    ast_push(params, ast_param("list", ast_type_ptr(ast_type(name))));
+    ast_push(params, ast_param("item", item_type));
+
+    var list *u8 = ast_ident("list");
+    var len *u8 = ast_field(list, "len");
+    var capacity *u8 = ast_field(list, "capacity");
+    var slot *u8 = ast_index(ast_field(list, "items"), len);
+    var body *u8 = ast_vec();
+    ast_push(body, ast_if_then(ast_binop(">=", len, capacity),
+                               ast_block1(ast_return(ast_bool(false)))));
+    ast_push(body, ast_assign(slot, ast_ident("item")));
+    ast_push(body, ast_assign(len, ast_binop("+", len, ast_number("1"))));
+    ast_push(body, ast_return(ast_bool(true)));
+
+    var decls *u8 = ast_vec();
+    ast_push(decls, ast_struct(name, fields));
+    ast_push(decls, ast_func(str_concat(name, "_push"), params,
+                             ast_type_bool(), ast_block(body)));
+    return ast_program(decls);
+}
