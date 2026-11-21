@@ -73,7 +73,8 @@ elif item == 'A3':
     try:
         for runner in ['test/run_effects_safety.py', 'test/effects_cps/run.py',
                        'test/effects_cps/compare_legacy.py', 'test/effects_cps/macro_boundary.py']:
-            run(['python3', '-B', runner], env=env)
+            flags = ['--qualification'] if runner == 'test/effects_cps/run.py' else []
+            run(['python3', '-B', runner, *flags], env=env)
     finally:
         archive = WORKSPACE / 'evidence' / (scratch.name + '.tar.gz')
         with tarfile.open(archive, 'w:gz') as output:

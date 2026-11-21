@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Compile independent effect oracles and compare native IR under selective CPS."""
+"""Run the effect suite and flow demo under selective CPS."""
+import argparse
 import json
 import os
 from pathlib import Path
@@ -14,8 +15,15 @@ COMPILER = str(Path(os.environ.get('COMPILER', 'out/lang')).resolve())
 OUT = Path(os.environ.get('EFFECTS_CPS_EVIDENCE_DIR') or tempfile.mkdtemp(prefix='effects-cps-')).resolve()
 OUT.mkdir(parents=True, exist_ok=True)
 ENV = dict(os.environ, LANGBE='llvm', LANG_EFFECTS='cps', LANG_CACHE=str(OUT / 'cache'))
-MODES = [('O0', ['-O0']), ('O1', ['-O1']), ('O2', ['-O2']),
-         ('O2-lto', ['-O2', '-flto'] + ([] if sys.platform == 'darwin' else ['-fuse-ld=lld']))]
+SUITE_MODES = [('O0', ['-O0']), ('O2', ['-O2'])]
+QUALIFICATION_MODES = [SUITE_MODES[0], ('O1', ['-O1']), SUITE_MODES[1],
+                       ('O2-lto', ['-O2', '-flto'] + ([] if sys.platform == 'darwin' else ['-fuse-ld=lld']))]
+FLOW_OUTPUT = (b'sum_count(5)   = 10\n'
+               b'sum_fib(10)    = 88\n'
+               b'count_evens(10)= 5\n'
+               b'drive_sum(4)   = 6\n'
+               b'drive_sum(5)   = 10\n'
+               b'FLOW PASS\n')
 rows = []
 
 def run(args, label, env=ENV):
@@ -37,10 +45,10 @@ def emit(source, label, env=ENV):
     return ir
 
 
-def execute(source, expected, status=0, error=b''):
+def execute(source, expected, status=0, error=b'', *, modes=QUALIFICATION_MODES):
     name = Path(source).stem
     ir = emit(source, name)
-    for mode, flags in MODES:
+    for mode, flags in modes:
         binary = OUT / f'{name}-{mode}'
         built = run([os.environ.get('CLANG', 'clang'), *flags, str(ir), '-o', str(binary)], f'{name}-{mode}-build')
         assert built.returncode == 0, built.stderr.decode(errors='replace')
@@ -49,7 +57,23 @@ def execute(source, expected, status=0, error=b''):
         assert result.stdout == expected, (name, mode, result.stdout, expected)
         assert result.stderr == error, (name, mode, result.stderr, error)
         rows.append({'source': source, 'mode': mode, 'exit': status, 'stdout': expected.decode(), 'verdict': 'PASS'})
-        print(f'{name} {mode}: PASS ({expected.decode().strip() or error.decode().strip() or "exit 0"})')
+        detail = expected.decode().strip() or error.decode().strip() or f'exit {status}'
+        print(f'{source} {mode}: PASS ({detail})')
+
+
+def effect_suite():
+    suite = Path('test/suite')
+    effect_syntax = re.compile(r'^\s*effect\s+\w+\s*\(|\bperform\s+\w+\s*\(|\bhandle\s*\{', re.M)
+    for source in sorted(suite.glob('*.lang')):
+        lines = source.read_text().splitlines()
+        code = '\n'.join(line for line in lines if not line.lstrip().startswith('//'))
+        if effect_syntax.search(code):
+            marker = re.match(r'// expect:\s*(\d+)', lines[0])
+            status = int(marker[1]) if marker else 0
+            execute(str(source), b'', status, modes=SUITE_MODES)
+    for source in sorted((suite / 'effects_cps').glob('*.lang')):
+        execute(str(source), b'', modes=SUITE_MODES)
+    execute('example/flow/test_flow.lang', FLOW_OUTPUT, modes=SUITE_MODES)
 
 
 def native_comparison():
@@ -112,9 +136,15 @@ def reject(source, diagnostic, env=ENV, suffix=''):
     rows.append({'source': source, 'verdict': 'PASS', 'diagnostic': diagnostic.decode()})
     print(f'{name}: correctly refused')
 
+parser = argparse.ArgumentParser(description=__doc__)
+profile = parser.add_mutually_exclusive_group()
+profile.add_argument('--qualification', action='store_true', help='run the CPS safety and IR fixtures')
+profile.add_argument('--native-only', action='store_true', help='compare native IR with CPS on and off')
+args = parser.parse_args()
+
 try:
-    native_comparison()
-    if '--native-only' not in sys.argv:
+    if args.qualification:
+        native_comparison()
         legacy_controls()
         for source, expected in [
             ('test/effects/two_performs.lang', b'500491\n'),
@@ -145,6 +175,10 @@ try:
             reject(f'test/effects_cps/{name}.lang',
                    f"function 'worker' takes 1 argument, called with {count}".encode())
         reject('test/effects_cps/callback.lang', b'native/foreign call boundary')
+    elif args.native_only:
+        native_comparison()
+    else:
+        effect_suite()
 except (AssertionError, subprocess.TimeoutExpired) as exc:
     rows.append({'verdict': 'FAIL', 'error': str(exc)})
     (OUT / 'results.json').write_text(json.dumps(rows, indent=2) + '\n')

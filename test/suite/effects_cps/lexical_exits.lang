@@ -1,0 +1,2 @@
+// CPS profile: source return, break and continue from bodies and clauses.
+include "test/effects_cps/control.lang"

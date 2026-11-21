@@ -66,12 +66,15 @@ Run the focused checks after `make build`:
 ```
 COMPILER=out/lang_next LANG_EFFECTS=cps python3 -B test/run_effects_safety.py
 COMPILER=out/lang_next python3 -B test/effects_cps/run.py
+COMPILER=out/lang_next python3 -B test/effects_cps/run.py --qualification
 ```
 
 The first runner exercises all existing safety inputs at O0/O1/O2/full LTO.
-The second has independent answers for state, normal return, abandonment,
-unhandled entry, nested dispatch, reentry, recursive calls, lexical exits and
-reader-generated flow. It also compares native IR with the flag on and off.
+The default CPS runner exercises the suite's effect programs and the flow demo
+at O0 and O2. The qualification profile has independent answers for state,
+normal return, abandonment, unhandled entry, nested dispatch, reentry, recursive
+calls, lexical exits and reader-generated flow. It also compares native IR with
+the flag on and off.
 `test/effects_cps/compare_legacy.py` accepts `BASE_COMPILER` and compares unflagged
 IR bytes from both compilers on the same complete source graph. Each runner
 writes its IR, logs and results outside the checkout, configurable through its

@@ -1,0 +1,2 @@
+// CPS profile: a clause handles a recursive call and forwards an outer effect.
+include "test/effects_cps/reentry.lang"
