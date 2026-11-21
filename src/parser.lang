@@ -2278,7 +2278,7 @@ func module_entry_set(entry *u8, name *u8, len i64) void {
 // Type accessors
 // ============================================================
 
-func type_kind(t *u8) i64 {
+pub func type_kind(t *u8) i64 {
     var p *i64 = t;
     return *p;
 }
@@ -2288,7 +2288,7 @@ func type_set_kind(t *u8, k i64) void {
     *p = k;
 }
 
-func base_type_alloc() *u8 {
+pub func base_type_alloc() *u8 {
     var t *u8 = alloc(24);
     type_set_kind(t, TYPE_BASE);
     return t;
@@ -2299,7 +2299,7 @@ pub func base_type_name(t *u8) *u8 {
     return *p;
 }
 
-func base_type_set_name(t *u8, ptr *u8) void {
+pub func base_type_set_name(t *u8, ptr *u8) void {
     var p **u8 = t + 8;
     *p = ptr;
 }
@@ -2309,7 +2309,7 @@ pub func base_type_name_len(t *u8) i64 {
     return *p;
 }
 
-func base_type_set_name_len(t *u8, len i64) void {
+pub func base_type_set_name_len(t *u8, len i64) void {
     var p *i64 = t + 16;
     *p = len;
 }
@@ -4568,7 +4568,7 @@ func parse_expression_from_string(source *u8) *u8 {
 
 // Parse a named program from a source string (for include processing).
 // Nested parses are isolated, including their source name and error count.
-func parse_program_from_named_string(source *u8, source_name *u8) *u8 {
+pub func parse_program_from_named_string(source *u8, source_name *u8) *u8 {
     // Save current parser state
     var saved_tokens *u8 = parse_tokens;
     var saved_current i64 = parse_current;
@@ -4627,7 +4627,7 @@ func parse_type() *u8 {
 }
 
 // Parse a single core type for compiler clients that already have declarations.
-func parse_type_from_string(source *u8, source_name *u8) *u8 {
+pub func parse_type_from_string(source *u8, source_name *u8) *u8 {
     var saved_tokens *u8 = parse_tokens;
     var saved_current i64 = parse_current;
     var saved_errors i64 = parse_error_count;
