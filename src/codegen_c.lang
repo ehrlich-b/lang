@@ -231,8 +231,9 @@ func c_expand(e *u8) *u8 {
         var name *u8 = reader_expr_name(e); var len i64 = reader_expr_name_len(e);
         var content *u8 = reader_expr_content(e); var output *u8 = nil;
         var embedded *u8 = find_embedded_reader_func(name, len);
-        if embedded != nil { var reader_fn fn(*u8) *u8 = embedded; output = reader_fn(content); }
-        else if find_reader(name, len) != nil { output = phase_worker_call(build_reader_cache_path(name, len), content, reader_expr_content_len(e)); }
+        if embedded != nil || find_reader(name, len) != nil {
+            output = compiler_invoke_reader(e, embedded, build_reader_cache_path(name, len));
+        }
         if output == nil || *output == 0 { c_error(e, "reader returned no AST"); return nil; }
         var expanded *u8 = parse_ast_expression_from_reader_string(output, node_origin_source(e), content);
         if expanded == nil { c_error(e, "reader returned invalid expression AST"); }

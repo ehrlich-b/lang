@@ -1,6 +1,9 @@
 // STG1 copied values. Storage is worker-owned; wire bytes never contain
 // process addresses. Integer-only slots use the audited baseline layout.
 include "std/core.lang"
+include "std/reader_request.lang"
+include "src/parser.lang"
+include "src/layout.lang"
 struct StageValue { wire *u8; len i64; }
 var stage_nodes i64 = 0;
 func stage_equal(a *u8, b *u8, len i64) i64 {
@@ -162,4 +165,92 @@ func stage_reader_text(value *StageValue) *u8 {
     var i i64 = 5;
     while i < value.len { if *(value.wire + i) == 0 { stage_fail("embedded-nul-source"); } i = i + 1; }
     return value.wire + 5;
+}
+
+// Canonical triple of the output program for this reader invocation.
+pub func stage_target_triple() *u8 {
+    if layout_target_profile(reader_request_output_target) == nil { stage_fail("output-target"); }
+    return reader_request_output_target;
+}
+
+pub func stage_target_arch() *u8 {
+    var target *u8 = stage_target_triple();
+    if streq(target, "x86_64-linux-gnu") { return "x86_64"; }
+    if streq(target, "aarch64-apple-darwin") { return "aarch64"; }
+    return "wasm32";
+}
+
+pub func stage_target_os() *u8 {
+    var target *u8 = stage_target_triple();
+    if streq(target, "x86_64-linux-gnu") { return "linux"; }
+    if streq(target, "aarch64-apple-darwin") { return "darwin"; }
+    return "unknown";
+}
+
+// Parse the reader's core struct declarations once and reuse the handle across
+// queries. An empty string is sufficient for scalars, pointers and arrays.
+pub func stage_types(declarations *u8) *u8 {
+    if declarations == nil { stage_fail("type-declarations"); }
+    var saved_source *u8 = phase_diagnostic_source;
+    var types *u8 = parse_program_from_named_string(declarations, "<stage-types>");
+    phase_diagnostic_source = saved_source;
+    if types == nil { stage_fail("type-declarations"); }
+    var i i64 = 0;
+    while i < program_decl_count(types) {
+        var d *u8 = get_decl(program_decls(types), i);
+        if node_kind(d) != NODE_STRUCT_DECL { stage_fail("type-declarations"); }
+        i = i + 1;
+    }
+    return types;
+}
+
+func stage_parse_type(spelling *u8) *u8 {
+    if spelling == nil { stage_fail("type"); }
+    var t *u8 = parse_type_from_string(spelling, "<stage-type>");
+    if t == nil { stage_fail("type"); }
+    return t;
+}
+
+func stage_layout(types *u8, spelling *u8, profile *u8, out *StorageLayout) *u8 {
+    if types == nil { stage_fail("type-declarations"); }
+    var t *u8 = stage_parse_type(spelling);
+    var status i64 = layout_target_query(t, profile,
+        program_decls(types), program_decl_count(types), 0, out);
+    if status != LAYOUT_OK { stage_fail(layout_error(status)); }
+    return t;
+}
+
+pub func stage_sizeof(types *u8, spelling *u8) i64 {
+    var result StorageLayout;
+    stage_layout(types, spelling, layout_target_profile(stage_target_triple()), &result);
+    return result.size;
+}
+
+pub func stage_alignof(types *u8, spelling *u8) i64 {
+    var result StorageLayout;
+    stage_layout(types, spelling, layout_target_profile(stage_target_triple()), &result);
+    return result.alignment;
+}
+
+pub func stage_field_offset(types *u8, spelling *u8, name *u8) i64 {
+    var result StorageLayout;
+    var profile *u8 = layout_target_profile(stage_target_triple());
+    var t *u8 = stage_layout(types, spelling, profile, &result);
+    var decls *u8 = program_decls(types);
+    var count i64 = program_decl_count(types);
+    var d *u8 = layout_struct(t, decls, count);
+    if d == nil || name == nil { stage_fail("field"); }
+    var i i64 = 0;
+    var len i64 = strlen(name);
+    while i < struct_decl_field_count(d) {
+        var field *u8 = get_struct_field(struct_decl_fields(d), i);
+        if str_eq_n(struct_field_name(field), struct_field_name_len(field), name, len) {
+            var offset i64 = layout_target_field_offset(d, i, profile, decls, count);
+            if offset < 0 { stage_fail("field-offset"); }
+            return offset;
+        }
+        i = i + 1;
+    }
+    stage_fail("field");
+    return -1;
 }

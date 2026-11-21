@@ -210,6 +210,7 @@ func reader_host_embedded(fnptr *u8, content *u8, key *u8, path *u8, node *u8) *
         // The parent validates keys/ranges and every direct stderr byte.
         reader_diagnostic_collect = 0; reader_diagnostic_wire = 1; phase_source_wire = 1;
         reader_diagnostic_snapshot = str_dup(content);
+        reader_request_output_target = cg_reader_output_target();
         var reader_fn fn(*u8) *u8 = fnptr;
         var output *u8 = reader_fn(content);
         file_write(*done_write, "1", 1); os_close(*done_write);
@@ -267,7 +268,7 @@ func reader_host_worker_mode(program *u8, content *u8, len i64, key *u8, path *u
     var text *u8 = str_dup_n(content, len);
     reader_host_begin(key, text, path, node);
     phase_worker_capture_stderr = 1; phase_worker_stderr = nil;
-    var output *u8 = phase_reader_call(program, text, len, mode, key);
+    var output *u8 = phase_reader_call(program, text, len, mode, key, cg_reader_output_target());
     phase_worker_capture_stderr = 0; reader_diagnostic_collect = 0;
     reader_host_inputs = nil;
     if phase_worker_stderr != nil { reader_host_decode(phase_worker_stderr); }

@@ -64,6 +64,26 @@ returning copied text. Generated wrappers use `std/stage.lang`, and link outputs
 publish atomically. The default legacy reader engine is unchanged. `test/staging/reader.lang`
 exercises this path with Wasm output and a native helper.
 
+## Reader target reflection
+
+Include `std/stage.lang` in a reader to query the output target. The compiler
+supplies the target for each invocation, including when it reuses a native
+reader executable. `stage_target_triple()`, `stage_target_arch()` and
+`stage_target_os()` report the selected target.
+
+`stage_types(declarations)` parses core struct declarations into a handle.
+Pass an empty string for scalar, pointer or array types with no declarations.
+Use that handle with `stage_sizeof(types, type)`, `stage_alignof(types, type)`
+and `stage_field_offset(types, struct_type, field)`. The type arguments use core
+spellings such as `i32`, `*Node` or `[4]Node`. Invalid queries stop the reader
+with a stage diagnostic.
+
+The queries use the shared target object layout for Linux x86-64, Darwin
+AArch64 and WebAssembly 32-bit. Results cover core scalars, pointers, fixed
+arrays and structs, including nested structs and arrays. This API describes
+object storage. The legacy bootstrap slot profile and function calling
+conventions are separate contracts.
+
 `test/run_bootstrap_gate.py --output /path/to/evidence` runs the full promoting
 bootstrap on a retained exact-HEAD checkout, preserving candidate cleanliness
 and all bootstrap evidence without restoring generated files afterward.

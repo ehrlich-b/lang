@@ -14,10 +14,14 @@ func has_kernel_module(name *u8, len i64) i64 { return 0; }
 func audit(source *u8) void {
     var prog *u8 = parse_program_from_string(source);
     var decl *u8 = get_decl(program_decls(prog), 0);
+    wasm_structs = program_decls(prog);
+    wasm_struct_count = program_decl_count(prog);
+    var name *u8 = str_dup_n(struct_decl_name(decl), struct_decl_name_len(decl));
+    var type_node *u8 = parse_type_from_string(name, "<layout-audit>");
     print_int(get_struct_size(decl)); print(" ");
     print_int(get_field_offset(decl, "a", 1)); print(" ");
     print_int(get_field_offset(decl, "b", 1)); print(" ");
-    print_int(wasm_struct_size(decl)); print(" ");
+    print_int(wasm_type_size(type_node)); print(" ");
     print_int(wasm_field_offset(decl, "a", 1)); print(" ");
     print_int(wasm_field_offset(decl, "b", 1)); print("\n");
 }

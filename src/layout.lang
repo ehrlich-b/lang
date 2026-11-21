@@ -1,5 +1,7 @@
 // Scalar storage admission and target object layout. No enum or call ABI.
 // A failed query always clears every output field; callers must check status.
+include "src/numeric_types.lang"
+
 struct StorageLayout { size i64; alignment i64; stride i64; }
 var LAYOUT_OK i64 = 0;
 var LAYOUT_PROFILE i64 = 1;
@@ -10,9 +12,17 @@ var LAYOUT_OVERFLOW i64 = 5;
 
 func layout_limit(profile *u8) i64 {
     if profile == nil { return 0; }
-    if streq(profile, "llvm-linux-x86_64") { return 9223372036854775807; }
+    if streq(profile, "llvm-linux-x86_64") || streq(profile, "llvm-darwin-aarch64") { return 9223372036854775807; }
     if streq(profile, "llvm-wasm32") { return 4294967295; }
     return 0;
+}
+
+func layout_target_profile(triple *u8) *u8 {
+    if triple == nil { return nil; }
+    if streq(triple, "x86_64-linux-gnu") { return "llvm-linux-x86_64"; }
+    if streq(triple, "aarch64-apple-darwin") { return "llvm-darwin-aarch64"; }
+    if streq(triple, "wasm32-unknown-unknown") { return "llvm-wasm32"; }
+    return nil;
 }
 
 func layout_scalar_bytes(t *u8) i64 {
@@ -87,7 +97,7 @@ func layout_struct(t *u8, decls *u8, count i64) *u8 {
 }
 
 func layout_align(size i64, alignment i64) i64 {
-    return ((size + alignment - 1) / alignment) * alignment;
+    return ((size + (alignment - 1)) / alignment) * alignment;
 }
 
 func layout_target_query(t *u8, profile *u8, decls *u8, count i64,
@@ -137,14 +147,18 @@ func layout_target_query(t *u8, profile *u8, decls *u8, count i64,
 
 func layout_target_field_offset(d *u8, index i64, profile *u8,
                                 decls *u8, count i64) i64 {
+    var limit i64 = layout_limit(profile);
+    if limit == 0 || d == nil || index < 0 || index >= struct_decl_field_count(d) { return -1; }
     var offset i64 = 0;
     var i i64 = 0;
     while i <= index {
         var field *u8 = get_struct_field(struct_decl_fields(d), i);
         var element StorageLayout;
         if layout_target_query(struct_field_type(field), profile, decls, count, 0, &element) != LAYOUT_OK { return -1; }
+        if offset > limit - (element.alignment - 1) { return -1; }
         offset = layout_align(offset, element.alignment);
         if i == index { return offset; }
+        if offset > limit - element.size { return -1; }
         offset = offset + element.size;
         i = i + 1;
     }

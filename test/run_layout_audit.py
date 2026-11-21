@@ -18,7 +18,7 @@ def check(name,command,env=None,expected=0,stdout=None,diagnostic=None):
 base=dict(os.environ,LANGBE='llvm',LANGOS='macos' if os.uname().sysname=='Darwin' else 'linux',LANG_LAYOUT_PROFILE='bootstrap-internal-v1')
 check('emit',[compiler,'test/layout_audit.lang','-o',str(out/'audit.ll')],base)
 check('link',['clang','-O0',str(out/'audit.ll'),'-o',str(out/'audit')])
-check('calculators',[str(out/'audit')],base,stdout=b'16 0 8 16 0 8\n8 0 8 16 0 8\n')
+check('calculators',[str(out/'audit')],base,stdout=b'16 0 8 16 0 8\n8 0 8 2 0 1\n')
 ref=out/'reference.c';ref.write_text('#include <stddef.h>\n#include <stdio.h>\nstruct Pair { long long a,b; }; struct Bytes { unsigned char a,b; };\nint main(void) { printf("%zu %zu %zu\\n%zu %zu %zu\\n",sizeof(struct Pair),offsetof(struct Pair,a),offsetof(struct Pair,b),sizeof(struct Bytes),offsetof(struct Bytes,a),offsetof(struct Bytes,b)); }\n')
 check('reference-link',['clang','-std=c11',str(ref),'-o',str(out/'reference')]);check('reference',[str(out/'reference')],stdout=b'16 0 8\n2 0 1\n')
 for backend,target in [('llvm',base['LANGOS']),('llvm','wasm'),('wasm','wasm'),('x86','linux')]:

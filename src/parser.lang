@@ -2863,6 +2863,7 @@ func parse_type_bounded_inner() *u8 {
     // Array type: [N]T
     if parse_match(TOKEN_LBRACKET) {
         var size_tok *u8 = parse_expect(TOKEN_NUMBER, "expected array size");
+        if size_tok == nil { return nil; }
         var size i64 = parse_array_count(size_tok);
         parse_expect(TOKEN_RBRACKET, "expected ']' after array size");
         var elem *u8 = parse_type();
@@ -4112,18 +4113,22 @@ func parse_extern_func_decl() *u8 {
 func parse_struct_decl() *u8 {
     // struct IDENT "{" { IDENT type ";" } "}"
     var name_tok *u8 = parse_expect(TOKEN_IDENT, "expected struct name");
-    parse_expect(TOKEN_LBRACE, "expected '{' after struct name");
+    if name_tok == nil || parse_expect(TOKEN_LBRACE, "expected '{' after struct name") == nil { return nil; }
 
-    // Allocate fields array (max 64 fields)
-    var fields *u8 = alloc(64 * 24);
+    var capacity i64 = COMPILER_TABLE_INITIAL;
+    var fields *u8 = compiler_table_new(capacity, 24);
     var field_count i64 = 0;
 
     while !parse_check(TOKEN_RBRACE) && !parse_is_at_end() {
         var field_name *u8 = parse_expect(TOKEN_IDENT, "expected field name");
+        if field_name == nil { return nil; }
         var field_type *u8 = parse_type();
-        parse_expect(TOKEN_SEMICOLON, "expected ';' after field");
+        if field_type == nil || parse_expect(TOKEN_SEMICOLON, "expected ';' after field") == nil { return nil; }
 
-        // Store field
+        if field_count >= capacity {
+            fields = compiler_table_grow(fields, capacity, 24);
+            capacity = capacity * 2;
+        }
         var f *u8 = get_struct_field(fields, field_count);
         struct_field_set_name(f, tok_lexeme(field_name));
         struct_field_set_name_len(f, tok_lexeme_len(field_name));
@@ -4618,6 +4623,31 @@ func parse_type() *u8 {
     if phase_parse_depth > phase_depth_limit() { phase_error("source-depth", phase_diagnostic_source); }
     var result *u8 = parse_type_bounded_inner();
     phase_parse_depth = phase_parse_depth - 1;
+    return result;
+}
+
+// Parse a single core type for compiler clients that already have declarations.
+func parse_type_from_string(source *u8, source_name *u8) *u8 {
+    var saved_tokens *u8 = parse_tokens;
+    var saved_current i64 = parse_current;
+    var saved_errors i64 = parse_error_count;
+    var saved_source_name *u8 = parse_source_name;
+    var saved_bound_source i64 = phase_bound_source_id;
+    var saved_diagnostic_source *u8 = phase_diagnostic_source;
+
+    parse_source_name = source_name;
+    parser_tokenize(source);
+    var result *u8 = nil;
+    if !parse_is_at_end() { result = parse_type(); }
+    if !parse_is_at_end() || parse_error_count != 0 { result = nil; }
+    vec_free(parse_tokens);
+
+    parse_tokens = saved_tokens;
+    parse_current = saved_current;
+    parse_error_count = saved_errors;
+    parse_source_name = saved_source_name;
+    phase_bound_source_id = saved_bound_source;
+    phase_diagnostic_source = saved_diagnostic_source;
     return result;
 }
 

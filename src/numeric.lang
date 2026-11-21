@@ -1,5 +1,7 @@
 // Reader-independent exact numeric profile, transported by an intrinsic call.
 // Metadata are literal strings: operation, result type, operand type.
+include "src/numeric_types.lang"
+
 func numeric_is_call(expr *u8) i64 {
     if expr == nil || node_kind(expr) != NODE_CALL_EXPR { return 0; }
     var callee *u8 = call_expr_func(expr);
@@ -22,13 +24,6 @@ func numeric_meta(expr *u8, index i64) *u8 {
     var text *u8 = string_expr_value(arg); var len i64 = string_expr_value_len(arg);
     if strlen(text) != len { numeric_fail(expr, "invalid metadata string"); }
     return str_dup_n(text, len);
-}
-func numeric_bits(name *u8) i64 {
-    if streq(name, "i8") || streq(name, "u8") { return 8; }
-    if streq(name, "i16") || streq(name, "u16") { return 16; }
-    if streq(name, "i32") || streq(name, "u32") || streq(name, "f32") { return 32; }
-    if streq(name, "i64") || streq(name, "u64") || streq(name, "f64") { return 64; }
-    return 0;
 }
 func numeric_float(name *u8) i64 { return streq(name, "f32") || streq(name, "f64"); }
 func numeric_compare(op *u8) i64 {

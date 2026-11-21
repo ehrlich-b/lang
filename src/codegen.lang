@@ -99,6 +99,30 @@ func cg_error_prefix_at(node *u8) void {
 // even when the main compile cross-targets (e.g. LANGOS=wasm).
 var cg_langos_override *u8 = nil;
 
+func cg_effective_target_os() *u8 {
+    if cg_langos_override != nil { return cg_langos_override; }
+    var target *u8 = getenv("LANGOS");
+    if target != nil { return target; }
+    return os_platform_name();
+}
+
+func cg_llvm_output_target() *u8 {
+    var target *u8 = cg_effective_target_os();
+    if streq(target, "wasm") { return "wasm32-unknown-unknown"; }
+    if streq(target, "macos") { return "aarch64-apple-darwin"; }
+    return "x86_64-linux-gnu";
+}
+
+// The reader's execution ABI is chosen separately when compiling its wrapper.
+func cg_reader_output_target() *u8 {
+    if cg_langos_override != nil { return cg_llvm_output_target(); }
+    if cg_backend_is_wasm() != 0 { return "wasm32-unknown-unknown"; }
+    if cg_backend_is_llvm() != 0 { return cg_llvm_output_target(); }
+    var be *u8 = getenv("LANGBE");
+    if be != nil && streq(be, "c") && streq(cg_effective_target_os(), "macos") { return "aarch64-apple-darwin"; }
+    return "x86_64-linux-gnu";
+}
+
 // Effective backend: LANGBE if set, else the default baked into the OS layer
 // this binary was compiled with (macOS defaults to llvm - there is no native
 // x86 path there; Linux keeps its historical x86 default).

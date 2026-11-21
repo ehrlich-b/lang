@@ -1,0 +1,8 @@
+// Widths of the exact core numeric types.
+func numeric_bits(name *u8) i64 {
+    if streq(name, "i8") || streq(name, "u8") { return 8; }
+    if streq(name, "i16") || streq(name, "u16") { return 16; }
+    if streq(name, "i32") || streq(name, "u32") || streq(name, "f32") { return 32; }
+    if streq(name, "i64") || streq(name, "u64") || streq(name, "f64") { return 64; }
+    return 0;
+}

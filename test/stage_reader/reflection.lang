@@ -1,0 +1,20 @@
+include "std/ast.lang"
+include "std/stage.lang"
+
+func reflection_constant(decls *u8, name *u8, value i64) void {
+    var decimal *u8 = alloc(32);
+    itoa(value, decimal);
+    var body *u8 = ast_block1(ast_return(ast_number(decimal)));
+    ast_push(decls, ast_func(name, ast_vec(), ast_type_i64(), body));
+}
+
+func reflection_target_id() i64 {
+    var triple *u8 = stage_target_triple();
+    var arch *u8 = stage_target_arch();
+    var os *u8 = stage_target_os();
+    if streq(triple, "x86_64-linux-gnu") && streq(arch, "x86_64") && streq(os, "linux") { return 1; }
+    if streq(triple, "aarch64-apple-darwin") && streq(arch, "aarch64") && streq(os, "darwin") { return 2; }
+    if streq(triple, "wasm32-unknown-unknown") && streq(arch, "wasm32") && streq(os, "unknown") { return 3; }
+    stage_fail("inconsistent-target");
+    return 0;
+}
