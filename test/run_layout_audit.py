@@ -1,10 +1,23 @@
 #!/usr/bin/env python3
 """Audit real storage calculators and fail-closed profile admission."""
-import argparse,json,os,subprocess
+import argparse
+import json
+import os
 from pathlib import Path
+import subprocess
+import tempfile
+
 ROOT=Path(__file__).resolve().parent.parent
-p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
-out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);os.chdir(ROOT)
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--output', type=Path, help='new artifact directory (default: a fresh temporary directory)')
+args = parser.parse_args()
+if args.output is None:
+    out = Path(tempfile.mkdtemp(prefix='lang-layout-audit-')).resolve()
+else:
+    out = args.output.resolve()
+    out.mkdir(parents=True, exist_ok=False)
+print(f'Layout audit artifacts: {out}', flush=True)
+os.chdir(ROOT)
 compiler=str(Path(os.environ.get('COMPILER','out/bootstrap_verify/kernel2')).resolve());rows=[]
 def check(name,command,env=None,expected=0,stdout=None,diagnostic=None):
     r=subprocess.run(command,env=env,capture_output=True,timeout=180)
