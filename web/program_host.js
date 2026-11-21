@@ -498,6 +498,8 @@ async function runLangProgram(wasmBytes, onWrite, inputText, readerContextOrOpti
     getenv: () => 0n,
     getpid: () => 1n,
     getppid: () => 0n,
+    clock_gettime: () => -1n,
+    mkdtemp: () => 0n,
     fork: () => -1n,
     execve: () => -1n,
     waitpid: () => -1n,

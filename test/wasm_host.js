@@ -80,6 +80,8 @@ const env = {
     process.stdout.write(s);
     return BigInt(s.length);
   },
+  clock_gettime: () => -1n,
+  mkdtemp: () => 0,
   fork: () => -1n,
   execve: () => -1n,
   waitpid: () => -1n,
@@ -105,6 +107,7 @@ const lang = {
   malloc: (size) => BigInt(bump(size)),
   calloc: (n, size) => BigInt(bump(Number(n) * Number(size))),
   getenv: () => 0n,
+  mkdtemp: () => 0n,
   memcpy: (d, s, n) => {
     const dst = Number(d), src = Number(s), count = Number(n);
     mem().copyWithin(dst, src, src + count);
