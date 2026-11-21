@@ -211,11 +211,14 @@ func stage_parse_type(spelling *u8) *u8 {
     return t;
 }
 
+func stage_query_layout(types *u8, t *u8, profile *u8, out *StorageLayout) i64 {
+    return layout_target_query(t, profile, program_decls(types), program_decl_count(types), 0, out);
+}
+
 func stage_layout(types *u8, spelling *u8, profile *u8, out *StorageLayout) *u8 {
     if types == nil { stage_fail("type-declarations"); }
     var t *u8 = stage_parse_type(spelling);
-    var status i64 = layout_target_query(t, profile,
-        program_decls(types), program_decl_count(types), 0, out);
+    var status i64 = stage_query_layout(types, t, profile, out);
     if status != LAYOUT_OK { stage_fail(layout_error(status)); }
     return t;
 }
@@ -223,6 +226,20 @@ func stage_layout(types *u8, spelling *u8, profile *u8, out *StorageLayout) *u8 
 pub func stage_sizeof(types *u8, spelling *u8) i64 {
     var result StorageLayout;
     stage_layout(types, spelling, layout_target_profile(stage_target_triple()), &result);
+    return result.size;
+}
+
+// Return -1 when a named scalar or struct has no target layout so callers can
+// report the failure at their own input span.
+pub func stage_try_named_type_size(types *u8, name *u8) i64 {
+    if types == nil || name == nil { return -1; }
+    var t *u8 = base_type_alloc();
+    base_type_set_name(t, name);
+    base_type_set_name_len(t, strlen(name));
+
+    var result StorageLayout;
+    var profile *u8 = layout_target_profile(reader_request_output_target);
+    if stage_query_layout(types, t, profile, &result) != LAYOUT_OK { return -1; }
     return result.size;
 }
 

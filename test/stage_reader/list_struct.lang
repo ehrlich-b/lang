@@ -1,0 +1,34 @@
+include "std/generic.lang"
+
+// A byte before an i64 makes the reflected stride include alignment padding.
+struct Pair { tag u8; value i64; }
+
+reader instantiate_list(text *u8) *u8 {
+    var types *u8 = stage_types("struct Pair { tag u8; value i64; }");
+    return list_instantiate_with_types(text, types);
+}
+
+#instantiate_list{Pair}
+
+func main() i64 {
+    var storage [3]Pair;
+    storage[2].tag = 211;
+    storage[2].value = 997;
+    var list List_Pair;
+    list.items = &storage[0];
+    list.len = 0;
+    list.capacity = 2;
+
+    var first Pair;
+    first.tag = 201;
+    first.value = 4294967319;
+    var second Pair;
+    second.tag = 17;
+    second.value = -4294967495;
+    if !List_Pair_push(&list, first) || !List_Pair_push(&list, second) { return 1; }
+    if List_Pair_push(&list, first) || list.len != 2 { return 2; }
+    if storage[0].tag != first.tag || storage[0].value != first.value { return 3; }
+    if storage[1].tag != second.tag || storage[1].value != second.value { return 4; }
+    if storage[2].tag != 211 || storage[2].value != 997 { return 5; }
+    return cast(i64, storage[0].tag) + storage[0].value + cast(i64, storage[1].tag) + storage[1].value;
+}

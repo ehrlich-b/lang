@@ -1,15 +1,24 @@
 include "std/ast.lang"
+include "std/stage.lang"
 
-// Emit a concrete List declaration and its typed push operation for a reader.
-// The caller supplies storage for capacity elements and initializes len to zero.
-// Only i64 is supported; an unsupported element type returns nil.
+// Instantiate a named scalar without a user type environment.
 func list_instantiate(element_type *u8) *u8 {
-    if element_type == nil || !streq(element_type, "i64") { return nil; }
+    return list_instantiate_with_types(element_type, stage_types(""));
+}
+
+// Emit a concrete List and its typed push operation. The caller supplies
+// aligned storage for capacity elements and initializes len to zero. Pass
+// stage_types(...) for named structs. A failed layout returns nil so the reader
+// can report the request using its own source span.
+func list_instantiate_with_types(element_type *u8, types *u8) *u8 {
+    var size i64 = stage_try_named_type_size(types, element_type);
+    if size <= 0 { return nil; }
 
     var name *u8 = str_concat("List_", element_type);
     var item_type *u8 = ast_type(element_type);
+    var item_ptr *u8 = ast_type_ptr(item_type);
     var fields *u8 = ast_vec();
-    ast_push(fields, ast_field_decl("items", ast_type_ptr(item_type)));
+    ast_push(fields, ast_field_decl("items", item_ptr));
     ast_push(fields, ast_field_decl("len", ast_type_i64()));
     ast_push(fields, ast_field_decl("capacity", ast_type_i64()));
 
@@ -20,11 +29,13 @@ func list_instantiate(element_type *u8) *u8 {
     var list *u8 = ast_ident("list");
     var len *u8 = ast_field(list, "len");
     var capacity *u8 = ast_field(list, "capacity");
-    var slot *u8 = ast_index(ast_field(list, "items"), len);
     var body *u8 = ast_vec();
     ast_push(body, ast_if_then(ast_binop(">=", len, capacity),
                                ast_block1(ast_return(ast_bool(false)))));
-    ast_push(body, ast_assign(slot, ast_ident("item")));
+    ast_push(body, ast_var("bytes", ast_type_str(), ast_field(list, "items")));
+    var offset *u8 = ast_binop("*", len, ast_int(size));
+    ast_push(body, ast_var("slot", item_ptr, ast_binop("+", ast_ident("bytes"), offset)));
+    ast_push(body, ast_assign(ast_index(ast_ident("slot"), ast_int(0)), ast_ident("item")));
     ast_push(body, ast_assign(len, ast_binop("+", len, ast_number("1"))));
     ast_push(body, ast_return(ast_bool(true)));
 

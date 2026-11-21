@@ -1,0 +1,21 @@
+include "std/generic.lang"
+
+reader instantiate_list(text *u8) *u8 {
+    return list_instantiate(text);
+}
+
+#instantiate_list{u8}
+
+func main() i64 {
+    var storage [16]u8;
+    storage[2] = 211;
+    var list List_u8;
+    list.items = &storage[0];
+    list.len = 0;
+    list.capacity = 2;
+
+    if !List_u8_push(&list, 19) || !List_u8_push(&list, 23) { return 1; }
+    if List_u8_push(&list, 99) || list.len != 2 { return 2; }
+    if storage[0] != 19 || storage[1] != 23 || storage[2] != 211 { return 3; }
+    return cast(i64, storage[0]) + cast(i64, storage[1]);
+}

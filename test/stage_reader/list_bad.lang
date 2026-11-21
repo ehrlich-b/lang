@@ -1,0 +1,16 @@
+include "std/generic.lang"
+include "std/reader_diagnostics.lang"
+
+reader instantiate_list(text *u8) *u8 {
+    var program *u8 = list_instantiate(text);
+    if program == nil {
+        var message *u8 = str_concat("cannot instantiate List for ", text);
+        reader_error("list-instantiation", message, "instantiate_list", text, 0, strlen(text));
+    }
+    return program;
+}
+
+// The type request is deliberately separated from the reader declaration.
+#instantiate_list{MissingElement}
+
+func main() i64 { return 0; }
