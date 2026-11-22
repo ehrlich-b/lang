@@ -49,6 +49,16 @@ run_case test/suite/287_node_origins_index.lang 0
 run_case test/borders/cases/minipy_functions.lang 42
 run_case test/borders/cases/minilisp_integers.lang 42
 
+# Unused native extern globals must not enter the module; used ones must fail.
+if LANGBE=wasm LANGOS=wasm "$COMPILER" test/direct_wasm_extern_global_reject.lang -o "$tmp/extern.wasm" >"$tmp/extern.out" 2>&1; then
+    echo "direct wasm unexpectedly accepted a native extern global" >&2
+    exit 1
+fi
+if [ -e "$tmp/extern.wasm" ]; then
+    echo "direct wasm left output for a native extern global" >&2
+    exit 1
+fi
+
 unsupported="$tmp/unsupported.wasm"
 if LANGBE=wasm LANGOS=wasm "$COMPILER" test/direct_wasm_aggregate_return_reject.lang -o "$unsupported" \
    >"$tmp/unsupported.out" 2>"$tmp/unsupported.err"; then

@@ -147,8 +147,7 @@ try:
     if args.qualification:
         native_comparison()
         legacy_controls()
-        reject('test/effects_cps/reader_call.lang',
-               b"test/effects_cps/reader_call.lang:13:25: error: CPS: unresolved expression reader 'call_invoke'")
+        execute('test/effects_cps/reader_call.lang', b'42\n')
         for source, expected in [
             ('test/effects/two_performs.lang', b'500491\n'),
             ('test/effects/two_handlers.lang', b'2268\n'),
@@ -171,6 +170,7 @@ try:
         reject('test/effects_cps/non_tail.lang', b'tail position')
         reject('test/effects_cps/escape.lang', b'continuation may only occur')
         reject('test/effects_cps/address_escape.lang', b'unproved escape lifetime')
+        reject('test/effects_cps/reader_escape.lang', b'unproved escape lifetime')
         for source in ['aggregate_alias', 'aggregate_cast_alias', 'aggregate_field_alias',
                        'struct_alias', 'struct_field_alias']:
             reject(f'test/effects_cps/{source}.lang', b'unproved escape lifetime')
@@ -187,8 +187,7 @@ try:
         assert result.returncode == 0, result.stderr
         result = run([str(binary)], 'reader-legacy-run')
         assert (result.returncode, result.stdout, result.stderr) == (0, b'42\n', b'')
-        reject('test/effects_cps/reader_call.lang',
-               b"test/effects_cps/reader_call.lang:13:25: error: CPS: unresolved expression reader 'call_invoke'")
+        execute('test/effects_cps/reader_call.lang', b'42\n', modes=SUITE_MODES)
     elif args.native_only:
         native_comparison()
     else:

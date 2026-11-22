@@ -23,6 +23,7 @@ var wasm_func_marks *u8 = nil;
 var wasm_import_marks *u8 = nil;
 var wasm_globals *u8 = nil;     // global variable declaration pointers
 var wasm_global_count i64 = 0;
+var wasm_global_marks *u8 = nil;
 var wasm_structs *u8 = nil;     // struct declaration pointers
 var wasm_struct_count i64 = 0;
 var wasm_strings *u8 = nil;     // [data:8][len:8][offset:8]
@@ -1681,9 +1682,7 @@ func wasm_collect_decl(decl *u8) void {
         return;
     }
     if kind == NODE_VAR_DECL {
-        if var_decl_is_extern(decl) != 0 {
-            wasm_unsupported("extern globals are not supported by the direct wasm backend yet");
-        } else if wasm_global_count >= LIMIT_GLOBALS {
+        if wasm_global_count >= LIMIT_GLOBALS {
             wasm_error("too many globals for direct wasm output");
         } else {
             var global_slot **u8 = wasm_globals + wasm_global_count * 8;
@@ -1780,6 +1779,19 @@ func wasm_mark_expr(expr *u8) void {
     if expr == nil { return; }
     if node_kind(expr) == NODE_READER_EXPR { wasm_mark_expr(wasm_expand_reader_expr(expr)); return; }
     var kind i64 = node_kind(expr);
+    if kind == NODE_IDENT_EXPR {
+        var global i64 = wasm_find_global(ident_expr_name(expr), ident_expr_name_len(expr));
+        if global >= 0 && *(wasm_global_marks + global) == 0 {
+            var decl *u8 = wasm_global_get(global);
+            // Leave native externs out of the module; a reachable use fails
+            // name resolution during emission, after local shadowing is known.
+            if var_decl_is_extern(decl) == 0 {
+                *(wasm_global_marks + global) = 1;
+                wasm_mark_expr(var_decl_init(decl));
+            }
+        }
+        return;
+    }
     if kind == NODE_CALL_EXPR {
         var callee *u8 = call_expr_func(expr);
         if callee != nil && node_kind(callee) == NODE_IDENT_EXPR {
@@ -1890,6 +1902,7 @@ func wasm_mark_function(index i64) void {
 func wasm_prune_unreachable() void {
     wasm_func_marks = alloc(wasm_func_count);
     wasm_import_marks = alloc(wasm_import_count);
+    wasm_global_marks = alloc(wasm_global_count);
     var main_index i64 = wasm_find_defined_func("main", 4);
     if main_index < 0 { wasm_error("direct wasm output requires a main function"); return; }
     wasm_mark_function(main_index);
@@ -1917,6 +1930,18 @@ func wasm_prune_unreachable() void {
         }
         i = i + 1;
     }
+    var new_globals *u8 = alloc(LIMIT_GLOBALS * 8);
+    var new_global_count i64 = 0;
+    i = 0;
+    while i < wasm_global_count {
+        if *(wasm_global_marks + i) != 0 {
+            var global_dst **u8 = new_globals + new_global_count * 8;
+            *global_dst = wasm_global_get(i); new_global_count = new_global_count + 1;
+        }
+        i = i + 1;
+    }
+    wasm_globals = new_globals;
+    wasm_global_count = new_global_count;
     wasm_imports = new_imports;
     wasm_import_count = new_import_count;
     wasm_funcs = new_funcs;

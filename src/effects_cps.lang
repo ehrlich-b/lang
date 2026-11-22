@@ -136,18 +136,28 @@ func cps_children(n *u8) *u8 {
     else if k == NODE_ARRAY_LITERAL { a = array_literal_elems(n); count = array_literal_count(n); }
     var i i64 = 0; while i < count { var p **u8 = a + i * 8; vec_push(v, *p); i = i + 1; } return v;
 }
-// Expression readers expand after CPS analysis and may hide effectful calls.
-func cps_require_readers_expanded(n *u8) void {
+// Expand reader expressions before computing the effect call graph. A group
+// node fits in the original reader allocation and retains the invocation origin.
+func cps_expand_readers(n *u8) void {
     if n == nil { return; }
     if node_kind(n) == NODE_READER_EXPR {
-        cg_error_prefix_at(n);
-        eprint("CPS: unresolved expression reader '");
-        eprint_buf(reader_expr_name(n), reader_expr_name_len(n));
-        eprintln("' is unsupported in the scoped CPS profile");
-        exit(1);
+        var name *u8 = reader_expr_name(n); var len i64 = reader_expr_name_len(n);
+        var content *u8 = reader_expr_content(n);
+        var embedded *u8 = find_embedded_reader_func(name, len);
+        var path *u8 = nil;
+        if embedded == nil {
+            if find_reader(name, len) == nil { cps_fail(n, "expression reader not found"); }
+            path = build_reader_cache_path(name, len);
+        }
+        var output *u8 = compiler_invoke_reader(n, embedded, path);
+        if output == nil || strlen(output) == 0 { cps_fail(n, "expression reader failed"); }
+        var expanded *u8 = parse_ast_expression_from_reader_string(output, node_origin_source(n), content);
+        if expanded == nil { cps_fail(n, "expression reader returned invalid AST"); }
+        llvm_debug_bind_reader(n, content);
+        node_set_kind(n, NODE_GROUP_EXPR); group_expr_set_expr(n, expanded);
     }
     var v *u8 = cps_children(n); var i i64 = 0;
-    while i < vec_len(v) { cps_require_readers_expanded(vec_get(v, i)); i = i + 1; }
+    while i < vec_len(v) { cps_expand_readers(vec_get(v, i)); i = i + 1; }
 }
 // LLVM expands macros during emission, after CPS has validated the program.
 // In a module with visible suspensions, unexpanded calls can hide references
@@ -642,6 +652,11 @@ func cps_prepare() void {
         func_decl_set_body(f, reader_decl_body(reader_node)); node_copy_origin(f, reader_node); add_func(f);
         ri = ri + 1;
     }
+    // Reader output can introduce calls or effects, so expand before closure.
+    var ei i64 = 0;
+    while ei < cg_func_count { var ep **u8 = cg_funcs + ei * 24 + 16; cps_expand_readers(func_decl_body(*ep)); ei = ei + 1; }
+    ei = 0;
+    while ei < cg_global_count { cps_expand_readers(global_get_init(ei)); ei = ei + 1; }
     var changed i64 = 1;
     while changed {
         changed = 0; var i i64 = 0;
@@ -653,15 +668,6 @@ func cps_prepare() void {
         }
     }
     var has_suspensions i64 = map_size(cps_functions) != 0;
-    if cg_effect_count != 0 || has_suspensions {
-        var reader_check i64 = 0;
-        while reader_check < cg_func_count {
-            var checked **u8 = cg_funcs + reader_check * 24 + 16;
-            cps_require_readers_expanded(func_decl_body(*checked)); reader_check = reader_check + 1;
-        }
-        reader_check = 0;
-        while reader_check < cg_global_count { cps_require_readers_expanded(global_get_init(reader_check)); reader_check = reader_check + 1; }
-    }
     if cg_macro_count != 0 && (cg_effect_count != 0 || has_suspensions) {
         var mi i64 = 0;
         while mi < cg_func_count {
