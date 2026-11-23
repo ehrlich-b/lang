@@ -284,19 +284,19 @@ func cx_comparison(op *u8) bool {
     return *op == 61 || *op == 33 || (( *op == 60 || *op == 62) && *(op + 1) != *op);
 }
 
+func cx_integer_value(t *CxType, value i64) i64 {
+    if t.size == 8 { return value; }
+    var limit i64 = 1 << (t.size * 8);
+    var bits i64 = value & (limit - 1);
+    if t.unsigned == 0 && bits >= limit / 2 { return bits - limit; }
+    return bits;
+}
+
 func cx_fold(op *u8, t *CxType, x i64, y i64, at *PNode) i64 {
+    x = cx_integer_value(t, x);
+    y = cx_integer_value(t, y);
     var ux u64 = x;
     var uy u64 = y;
-    if t.size < 8 {
-        var bits i64 = t.size * 8;
-        var limit u64 = 1 << bits;
-        ux = ux % limit; uy = uy % limit;
-        x = ux; y = uy;
-        if t.unsigned == 0 {
-            if ux >= limit / 2 { x = ux - limit; }
-            if uy >= limit / 2 { y = uy - limit; }
-        }
-    }
     if streq(op, "+") { return x + y; }
     if streq(op, "-") { return x - y; }
     if streq(op, "*") { return x * y; }
@@ -375,7 +375,7 @@ func cx_binary(op *u8, l *CxExpr, r *CxExpr, at *PNode) *CxExpr {
     var e *CxExpr = cx_expr(result, cx_numeric(cx_op_name(op), code, typ.code, left, right));
     if l.constant != 0 && r.constant != 0 {
         e.constant = 1;
-        e.value = cx_fold(op, typ, l.value, r.value, at);
+        e.value = cx_integer_value(result, cx_fold(op, typ, l.value, r.value, at));
     }
     return e;
 }
@@ -429,8 +429,8 @@ func cx_conditional(n *PNode) *CxExpr {
     var result *CxExpr = cx_expr(typ, ast_block_expr(body, target));
     if left.constant != 0 && yes.constant != 0 && no.constant != 0 {
         result.constant = 1;
-        result.value = no.value;
-        if left.value != 0 { result.value = yes.value; }
+        result.value = cx_integer_value(typ, no.value);
+        if left.value != 0 { result.value = cx_integer_value(typ, yes.value); }
     }
     return result;
 }
@@ -495,7 +495,10 @@ func cx_unary(n *PNode) *CxExpr {
         if t.kind == CX_VOID { return cx_expr(t, cx_value(operand, n)); }
         if !cx_scalar_type(t) { cx_error(n, "cast requires a scalar type"); }
         var value *CxExpr = cx_expr(t, cx_convert(t, cx_scalar(operand, n)));
-        value.constant = operand.constant; value.value = operand.value;
+        if t.kind == CX_INT && operand.typ.kind == CX_INT && operand.constant != 0 {
+            value.constant = 1;
+            value.value = cx_integer_value(t, operand.value);
+        }
         return value;
     }
     var op *u8 = pnode_require(n, "op").text;
@@ -523,6 +526,7 @@ func cx_unary(n *PNode) *CxExpr {
     var typ *CxType = cx_promotion(operand.typ);
     if streq(op, "-") { return cx_binary("-", cx_number(typ, 0), operand, n); }
     if streq(op, "~") { return cx_binary("^", cx_number(typ, -1), operand, n); }
+    if operand.constant != 0 { return cx_number(typ, cx_integer_value(typ, operand.value)); }
     return cx_expr(typ, code);
 }
 

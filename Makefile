@@ -462,8 +462,14 @@ out/c-runtime.o: example/c/native.S
 
 c-reader: out/c-reader out/c-runtime.o
 
+ifeq ($(UNAME)/$(ARCH),Linux/x86_64)
 c-reader-test: c-reader
 	python3 -B example/c/driver.py --clang "$(CLANG)" fixtures --jobs "$(C_JOBS)"
+	CLANG="$(CLANG)" python3 -B example/c/test_driver.py
+else
+c-reader-test:
+	@echo 'SKIP C reader fixtures (requires Linux x86-64)'
+endif
 
 c-score: c-reader
 	@test -n "$(C_TESTSUITE)" || { echo 'Set C_TESTSUITE to a c-testsuite checkout' >&2; exit 1; }

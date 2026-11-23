@@ -145,19 +145,17 @@ func cx_initialize(items *u8, t *CxType, addr *u8, n *PNode) void {
     }
 }
 
-func cx_object_decl(items *u8, b *CxBinding, static_storage bool) void {
+func cx_object_decl(storage *u8, initializers *u8, b *CxBinding, static_storage bool) void {
     var t *CxType = b.typ;
     if t.size == 0 {
         if static_storage && t.kind == CX_ARRAY && t.elem.size > 0 { b.typ = cx_array(t.elem, 1); t = b.typ; }
         else { cx_error(b.at, "object requires a complete type"); }
     }
     var address *u8 = cx_object_address(t, b.native);
-    ast_push(items, ast_var(b.native, cx_carrier_type(t), nil));
+    ast_push(storage, ast_var(b.native, cx_carrier_type(t), nil));
     if b.init != nil {
-        var target *u8 = items;
-        if static_storage { target = cx_initializers; }
-        else if !cx_scalar_type(t) { cx_zero(target, address, t.size); }
-        cx_initialize(target, t, address, b.init);
+        if !static_storage && !cx_scalar_type(t) { cx_zero(initializers, address, t.size); }
+        cx_initialize(initializers, t, address, b.init);
     }
 }
 
@@ -172,7 +170,7 @@ func cx_leave_scope(old i64) void {
     cx_scope_start = old;
 }
 
-func cx_locals_decl(out *u8, base *CxType, n *PNode, spec *PNode) void {
+func cx_locals_decl(out *u8, storage *u8, base *CxType, n *PNode, spec *PNode) void {
     var items *u8 = cx_objects(n);
     var i i64 = 0;
     while i < vec_len(items) {
@@ -187,8 +185,8 @@ func cx_locals_decl(out *u8, base *CxType, n *PNode, spec *PNode) void {
         if spec != nil && cx_has(spec, "extern") { cx_error(b.at, "block-scope extern is unsupported"); }
         if spec != nil && cx_has(spec, "typedef") { cx_error(b.at, "block-scope typedef is unsupported"); }
         vec_push(cx_locals, b);
-        if spec != nil && cx_has(spec, "static") { cx_object_decl(cx_declarations, b, true); }
-        else { cx_object_decl(out, b, false); }
+        if spec != nil && cx_has(spec, "static") { cx_object_decl(cx_declarations, cx_initializers, b, true); }
+        else { cx_object_decl(storage, out, b, false); }
         i = i + 1;
     }
 }
@@ -197,7 +195,7 @@ func cx_block_items(n *PNode, out *u8) void {
     var items *PNode = pnode_require(n, "items");
     var i i64 = 0;
     while i < vec_len(items.children) {
-        cx_statement(pnode_child(items, i), out);
+        cx_statement(pnode_child(items, i), out, out);
         i = i + 1;
     }
 }
@@ -209,7 +207,7 @@ func cx_body(n *PNode) *u8 {
     cx_tag_scope = tags;
     var statements *u8 = ast_vec();
     if pnode_is(n, "block") { cx_block_items(n, statements); }
-    else { cx_statement(n, statements); }
+    else { cx_statement(n, statements, statements); }
     while vec_len(cx_tags) > tags { vec_pop(cx_tags); }
     cx_tag_scope = prior;
     cx_leave_scope(old);
@@ -242,7 +240,7 @@ func cx_loop_statement(n *PNode) *u8 {
     var cond *u8 = nil;
     var condition *PNode = pnode_get(n, "cond");
     if pnode_is(n, "for") {
-        cx_statement(pnode_require(n, "init"), statements);
+        cx_statement(pnode_require(n, "init"), statements, statements);
         var step *u8 = ast_vec();
         cx_expression_statement(pnode_get(n, "step"), step);
         if ast_vec_len(step) > 0 {
@@ -270,16 +268,20 @@ func cx_loop_statement(n *PNode) *u8 {
 func cx_switch_statement(n *PNode) *u8 {
     var loop *CxLoop = cx_enter_loop(1);
     var old i64 = cx_enter_scope();
+    var tags i64 = vec_len(cx_tags);
+    var prior i64 = cx_tag_scope;
+    cx_tag_scope = tags;
     var out *u8 = ast_vec();
     var body *u8 = ast_vec();
     var source *PNode = pnode_require(n, "cond");
     var selector *CxExpr = cx_comma(source);
     if selector.typ.kind != CX_INT { cx_error(source, "switch requires an integer"); }
+    var promoted *CxType = cx_promotion(selector.typ);
     var value_name *u8 = cx_temp();
     var label_name *u8 = cx_temp();
     var current *u8 = ast_ident(value_name);
     var label *u8 = ast_ident(label_name);
-    ast_push(out, ast_var(value_name, ast_type_i64(), cx_scalar(selector, source)));
+    ast_push(out, ast_var(value_name, ast_type_i64(), cx_as(promoted, selector, source)));
     ast_push(out, ast_var(label_name, ast_type_i64(), ast_int(0)));
     var fallback i64 = 0;
     var labels *u8 = vec_new(8);
@@ -292,7 +294,7 @@ func cx_switch_statement(n *PNode) *u8 {
             active = i + 1;
             if pnode_is(item, "case") {
                 var points *PNode = pnode_require(item, "value");
-                var number i64 = cx_const(points, "case value must be an integer constant");
+                var number i64 = cx_integer_value(promoted, cx_const(points, "case value must be an integer constant"));
                 var j i64 = 0;
                 while j < vec_len(labels) {
                     if vec_get(labels, j) == number { cx_error(item, "duplicate case label"); }
@@ -308,25 +310,30 @@ func cx_switch_statement(n *PNode) *u8 {
         } else {
             if active == 0 { cx_error(item, "statements before the first switch label are unsupported"); }
             var block *u8 = ast_vec();
-            cx_statement(item, block);
-            ast_push(body, ast_if(ast_le(label, ast_int(active)), ast_block(block), nil));
+            // All labels share a lexical scope. Only the initializer follows dispatch.
+            cx_statement(item, block, out);
+            if ast_vec_len(block) > 0 {
+                ast_push(body, ast_if(ast_le(label, ast_int(active)), ast_block(block), nil));
+            }
         }
         i = i + 1;
     }
     if fallback != 0 { ast_push(out, ast_if(ast_eq(label, ast_int(0)), ast_block1(ast_assign(label, ast_int(fallback))), nil)); }
     ast_push(body, ast_break(loop.label));
     ast_push(out, ast_while_labeled(ast_ne(label, ast_int(0)), ast_block(body), loop.label));
+    while vec_len(cx_tags) > tags { vec_pop(cx_tags); }
+    cx_tag_scope = prior;
     cx_leave_scope(old);
     cx_loop = loop.parent;
     return ast_block(out);
 }
 
-func cx_statement(n *PNode, out *u8) void {
+func cx_statement(n *PNode, out *u8, storage *u8) void {
     var code *u8 = nil;
     if pnode_is(n, "expr") { cx_expression_statement(pnode_get(n, "value"), out); return; }
     if pnode_is(n, "decl") {
         var spec *PNode = pnode_require(n, "spec");
-        cx_locals_decl(out, cx_base_type(spec), n, spec);
+        cx_locals_decl(out, storage, cx_base_type(spec), n, spec);
         return;
     }
     if pnode_is(n, "aggregate") || pnode_is(n, "enumeration") {
@@ -334,7 +341,7 @@ func cx_statement(n *PNode, out *u8) void {
         if pnode_is(n, "aggregate") { typ = cx_struct(n); }
         else { cx_enum_members(n, cx_locals); }
         var decls *PNode = pnode_get(n, "decls");
-        if decls != nil { cx_locals_decl(out, typ, decls, n); }
+        if decls != nil { cx_locals_decl(out, storage, typ, decls, n); }
         return;
     }
     if pnode_is(n, "block") { code = cx_body(n); }

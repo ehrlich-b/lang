@@ -128,7 +128,7 @@ reader c(text *u8) *u8 {
     var i i64 = 0;
     while i < vec_len(cx_globals) {
         var b *CxBinding = vec_get(cx_globals, i);
-        if b.typ.kind != CX_FUNC && b.defined != 0 { cx_object_decl(cx_declarations, b, true); }
+        if b.typ.kind != CX_FUNC && b.defined != 0 { cx_object_decl(cx_declarations, cx_initializers, b, true); }
         i = i + 1;
     }
     i = 0;

@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import resource
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -201,16 +202,28 @@ def main():
     os.environ.setdefault("LANG_CACHE", str(args.work / "cache"))
     os.environ.setdefault("TMPDIR", str(args.work))
     if args.mode == "build":
-        with tempfile.TemporaryDirectory(dir=args.work) as temporary:
-            directory = Path(temporary)
-            try:
+        try:
+            source = args.source.resolve()
+            output = args.output.parent.resolve() / args.output.name
+            source_entry = args.source.parent.resolve() / args.source.name
+            if output in (source, source_entry):
+                raise Rejection("output", error(source, 1, 1, "output path is the input file"))
+            with tempfile.TemporaryDirectory(dir=args.work) as temporary:
+                directory = Path(temporary)
                 staged = directory / "program"
-                compile_c(args, args.source.resolve(), directory, staged)
-                args.output.write_bytes(staged.read_bytes())
-                args.output.chmod(0o755)
-            except Rejection as rejection:
-                print(rejection.diagnostic, file=sys.stderr)
-                return 1
+                compile_c(args, source, directory, staged)
+                # Stage on the destination filesystem and replace the directory entry.
+                with tempfile.TemporaryDirectory(dir=output.parent) as destination:
+                    executable = Path(destination) / "program"
+                    shutil.copyfile(staged, executable)
+                    executable.chmod(0o755)
+                    executable.replace(output)
+        except Rejection as rejection:
+            print(rejection.diagnostic, file=sys.stderr)
+            return 1
+        except (OSError, RuntimeError) as exc:
+            print(f"{args.output}: {exc}", file=sys.stderr)
+            return 1
         return 0
     if args.mode == "score":
         inputs = sorted((args.suite.resolve() / "tests/single-exec").glob("*.c"))

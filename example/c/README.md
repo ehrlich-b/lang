@@ -37,7 +37,7 @@ env JOBS=2 make verify VERIFY_CASE=c-reader
 Each score row requires native linking, zero exit status and byte-for-byte
 stdout equality against the corresponding `.c.expected` file. Both the score
 and fixture runners isolate execution in temporary directories and enforce time
-limits. The fixture target also runs in the default `make verify`.
+limits. The default `make verify` runs the C fixtures on Linux x86-64.
 
 ## Language borders
 
