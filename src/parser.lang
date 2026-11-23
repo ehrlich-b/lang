@@ -10,7 +10,7 @@ include "src/stage_wire.lang"
 
 include "src/limits.lang"
 include "src/compiler_tables.lang"
-include "std/generic.lang"
+include "std/generic_stage.lang"
 include "src/lang_generics.lang"
 require "src/lexer"
 
