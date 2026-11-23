@@ -478,6 +478,8 @@ c-score: c-reader
 # Non-promoting verification alias; never archives, installs or updates the seed.
 ifeq ($(VERIFY_CASE),c-reader)
 verify: c-reader-test
+else ifeq ($(VERIFY_CASE),kaleidoscope)
+verify: kaleidoscope-verify
 else ifeq ($(VERIFY_CASE),author-trials)
 verify:
 	python3 -B test/reader_author/trial_protocol.py --case replay
@@ -562,7 +564,34 @@ verify: bootstrap-verify
 	python3 -B test/reader_author/demo.py --case stranger
 	python3 test/site_scoreboard.py
 	COMPILER=$(BOOTSTRAP_VERIFY_DIR)/kernel2 python3 test/site_language_maker.py
+	$(MAKE) kaleidoscope-verify KALEIDOSCOPE_COMPILER="$(BOOTSTRAP_VERIFY_DIR)/kernel2"
 endif
+
+.PHONY: kaleidoscope-compiler kaleidoscope-verify kaleidoscope-score
+KALEIDOSCOPE_REF ?=
+KALEIDOSCOPE_BUILD ?= out/kaleidoscope
+KALEIDOSCOPE_COMPILER ?= $(LANG_NEXT)
+KALEIDOSCOPE_READER := example/kaleidoscope/kaleidoscope.lang
+CLANGXX ?= clang++
+LLVM_CONFIG ?= llvm-config
+LLVM_DWARFDUMP ?= llvm-dwarfdump
+
+ifeq ($(KALEIDOSCOPE_COMPILER),$(LANG_NEXT))
+kaleidoscope-compiler: build
+endif
+kaleidoscope-compiler:
+	mkdir -p "$(KALEIDOSCOPE_BUILD)/tmp"
+	env LANG_CACHE="$(abspath $(KALEIDOSCOPE_BUILD))/cache" TMPDIR="$(abspath $(KALEIDOSCOPE_BUILD))/tmp" \
+		LANGBE=llvm "$(KALEIDOSCOPE_COMPILER)" compiler kal "$(KALEIDOSCOPE_READER)" -o "$(KALEIDOSCOPE_BUILD)/kalc"
+
+kaleidoscope-verify: kaleidoscope-compiler
+	env CLANG="$(CLANG)" LLVM_DWARFDUMP="$(LLVM_DWARFDUMP)" python3 -B test/kaleidoscope/check.py verify \
+		--compiler "$(KALEIDOSCOPE_BUILD)/kalc" --work "$(KALEIDOSCOPE_BUILD)"
+
+kaleidoscope-score: kaleidoscope-compiler
+	@test -n "$(KALEIDOSCOPE_REF)" || { echo "Set KALEIDOSCOPE_REF to the LLVM Kaleidoscope tutorial directory"; exit 1; }
+	env CLANG="$(CLANG)" CXX="$(CLANGXX)" LLVM_CONFIG="$(LLVM_CONFIG)" python3 -B test/kaleidoscope/check.py score \
+		--compiler "$(KALEIDOSCOPE_BUILD)/kalc" --work "$(KALEIDOSCOPE_BUILD)" --reference "$(KALEIDOSCOPE_REF)" $(if $(filter regressions,$(KALEIDOSCOPE_CASE)),--regressions)
 
 # Read local proof artifacts only; this target never promotes or publishes.
 .PHONY: release-check

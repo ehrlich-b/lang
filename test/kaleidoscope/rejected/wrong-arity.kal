@@ -1,0 +1,2 @@
+def pair(a b) a+b;
+pair(1);

@@ -1,0 +1,68 @@
+include "std/tok.lang"
+include "std/ast.lang"
+
+include "example/kaleidoscope/libc.lang"
+
+func kal_alpha(c i64) bool { return c != '_' && tok_is_alpha(c); }
+func kal_digit(c i64) bool { return tok_is_digit(c) || c == '.'; }
+
+// Kaleidoscope has single-byte operators, even when adjacent.
+func kal_next(t *Tokenizer) void {
+    while true {
+        var c i64 = tok_peek_char(t);
+        if tok_is_space(c) || c == 11 || c == 12 { tok_advance_char(t); }
+        else if c == '#' {
+            while c != 0 && c != 10 && c != 13 { tok_advance_char(t); c = tok_peek_char(t); }
+        } else { break; }
+    }
+    t.tok_start = t.pos;
+    var c i64 = tok_peek_char(t);
+    t.tok_kind = TOK_UNKNOWN;
+    if c == 0 { t.tok_kind = TOK_EOF; }
+    else if kal_alpha(c) {
+        t.tok_kind = TOK_IDENT;
+        while kal_alpha(c) || tok_is_digit(c) { tok_advance_char(t); c = tok_peek_char(t); }
+    } else if kal_digit(c) {
+        t.tok_kind = TOK_NUMBER;
+        while kal_digit(tok_peek_char(t)) { tok_advance_char(t); }
+    } else {
+        tok_advance_char(t);
+        while (tok_peek_char(t) & 192) == 128 { tok_advance_char(t); }
+    }
+    t.tok_len = t.pos - t.tok_start;
+}
+func kal_error(t *Tokenizer, at i64, message *u8) void {
+    reader_error("reader-syntax-snippet", message, "kal", t.input, at, at);
+    exit(1);
+}
+func kal_fail(t *Tokenizer, message *u8) void { kal_error(t, tok_start_offset(t), message); }
+func kal_take(t *Tokenizer, spelling *u8) bool {
+    if !streq(tok_text(t), spelling) { return false; }
+    kal_next(t);
+    return true;
+}
+func kal_expect(t *Tokenizer, spelling *u8) void {
+    if !kal_take(t, spelling) { kal_fail(t, str_concat("expected ", spelling)); }
+}
+func kal_name(t *Tokenizer) *u8 {
+    var word *u8 = tok_text(t);
+    if tok_kind(t) != TOK_IDENT || strstr(" def extern if then else for in var unary binary ",
+        str_concat(str_concat(" ", word), " ")) != nil { kal_fail(t, "expected an identifier"); }
+    kal_next(t);
+    return word;
+}
+func kal_op(t *Tokenizer) bool {
+    var word *u8 = tok_text(t);
+    return tok_kind(t) == TOK_UNKNOWN && t.tok_len == 1 && *word > 0 && *word < 128;
+}
+func kal_pop(t *Tokenizer) *u8 {
+    var word *u8 = tok_text(t);
+    kal_next(t);
+    return word;
+}
+func kal_tokens(text *u8) *Tokenizer {
+    var t *Tokenizer = tok_new_state(text);
+    kal_next(t);
+    return t;
+}
+func kal_literal(text *u8) f64 { return strtod(text, nil); }

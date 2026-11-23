@@ -1,0 +1,2 @@
+extern sqrt(x); def truth(x) if x then 5 else 2;
+truth(sqrt(0-1)); sqrt(0-1) < 1; 1 < sqrt(0-1);

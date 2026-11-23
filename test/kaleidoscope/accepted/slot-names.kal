@@ -1,0 +1,1 @@
+def collide(v0 v1) var x=v0 in x+v1; collide(20,22);

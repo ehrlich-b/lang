@@ -1,0 +1,1 @@
+extern twice(x); def twice(x) x*2; twice(3.5);

@@ -1,0 +1,2 @@
+def unary33(x) x+10; def unary!(x) x+1; unary33(7) + !3;
+def binary64(x y) x-y; def binary @(x y) x+y; binary64(6,4) + (1@9);

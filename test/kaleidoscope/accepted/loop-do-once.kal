@@ -1,0 +1,1 @@
+extern printd(x); for i = 8, 0 in printd(i);

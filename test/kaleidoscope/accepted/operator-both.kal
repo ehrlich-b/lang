@@ -1,0 +1,1 @@
+def unary~(x) x+1; def binary~ 50 (x y) x*y; ~2~4;

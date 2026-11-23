@@ -1,0 +1,260 @@
+include "example/kaleidoscope/lex.lang"
+include "std/emit.lang"
+
+struct Kal {
+    tokens *Tokenizer;
+    prototypes *u8; current *u8; defined *u8; native *u8;
+    precedence *u8; locals *u8; slots *u8;
+    depth i64;
+}
+struct KalExpr { kind i64; word *u8; args *u8; start i64; end i64; }
+
+// Lowering
+func kal_form(head *u8, value *u8) *u8 { return str_concat(str_concat(head, value), ")"); }
+func kal_number(text *u8) *u8 { return kal_form("(bitcast (type_base f64) ", ast_int(bitcast(i64, kal_literal(text)))); }
+func kal_operator(prefix *u8, op *u8) *u8 { return str_concat(prefix, emit_number(*op)); }
+func kal_symbol(name *u8, arity i64) *u8 { return str_concat(str_concat(str_concat("kal_", name), "_"), emit_number(arity)); }
+func kal_slot(p *Kal, typ *u8) *u8 {
+    var name *u8 = str_concat("v_", emit_number(ast_vec_len(p.slots)));
+    ast_push(p.slots, ast_var(name, typ, nil));
+    return ast_ident(name);
+}
+func kal_after(stmt *u8, result *u8) *u8 { return kal_form(str_concat("(block_expr ", stmt), str_concat(" ", result)); }
+func kal_store(place *u8, value *u8) *u8 { return ast_block1(ast_assign(place, value)); }
+func kal_truth(code *u8) *u8 { return ast_ne(code, kal_number("0")); }
+func kal_resolve(p *Kal, name *u8, arity i64, at i64) *u8 {
+    var params *u8 = map_get(p.current, name);
+    if params == nil { params = map_get(p.prototypes, name); }
+    if params == nil { kal_error(p.tokens, at, str_concat("unknown function: ", name)); }
+    if arity != ast_vec_len(params) { kal_error(p.tokens, at, "wrong number of arguments"); }
+    return kal_symbol(name, arity);
+}
+func kal_local(p *Kal, node *KalExpr) *u8 {
+    var place *u8 = map_get(p.locals, node.word);
+    if place == nil { kal_error(p.tokens, node.start, str_concat("unknown variable: ", node.word)); }
+    return place;
+}
+func kal_binary(p *Kal, node *KalExpr) *u8 {
+    var lhs *KalExpr = vec_get(node.args, 0);
+    var rhs *KalExpr = vec_get(node.args, 1);
+    var op *u8 = node.word;
+    if streq(op, "=") {
+        if lhs.kind != 'v' { kal_error(p.tokens, node.start, "assignment requires a variable"); }
+        var value *u8 = kal_lower(p, rhs);
+        var place *u8 = kal_local(p, lhs);
+        return kal_after(ast_span(ast_assign(place, value), lhs.start, lhs.end), place);
+    }
+    var left *u8 = kal_lower(p, lhs);
+    var right *u8 = kal_lower(p, rhs);
+    if streq(op, "<") { return kal_form("(cast (type_base f64) ", ast_not(ast_ge(left, right))); }
+    if streq(op, "+") || streq(op, "-") || streq(op, "*") { return ast_binop(op, left, right); }
+    return ast_call2(kal_resolve(p, kal_operator("binary_", op), 2, node.start), left, right);
+}
+// The step and test use the bindings left by lowering the loop body.
+func kal_repeat(p *Kal, args *u8, place *u8) *u8 {
+    var loop *u8 = ast_vec();
+    ast_push(loop, ast_expr_stmt(kal_lower(p, vec_get(args, 3))));
+    var delta *u8 = kal_slot(p, ast_type("f64"));
+    ast_push(loop, ast_assign(delta, kal_lower(p, vec_get(args, 2))));
+    var again *u8 = kal_slot(p, ast_type_i64());
+    ast_push(loop, ast_assign(again, kal_truth(kal_lower(p, vec_get(args, 1)))));
+    ast_push(loop, ast_assign(place, ast_add(place, delta)));
+    return kal_after(ast_while(ast_block_expr(loop, again), "(block)"), kal_number("0"));
+}
+func kal_scope(p *Kal, node *KalExpr, restored *u8) *u8 {
+    var init *u8 = kal_lower(p, vec_get(node.args, 0));
+    var prior *u8 = map_get(p.locals, node.word);
+    var place *u8 = kal_slot(p, ast_type("f64")); map_set(p.locals, node.word, place);
+    var next *KalExpr = vec_get(node.args, 1);
+    var tail *u8 = nil;
+    if node.kind == 'f' { tail = kal_repeat(p, node.args, place); }
+    else if next.kind == 'r' { tail = kal_scope(p, next, restored); }
+    else { tail = kal_lower(p, next); }
+    // Unwind to the binding seen before the last declaration of each name.
+    if !map_has(restored, node.word) { map_set(restored, node.word, 1); map_set(p.locals, node.word, prior); }
+    return kal_after(ast_span(ast_assign(place, init), node.start, node.end), tail);
+}
+func kal_lower(p *Kal, node *KalExpr) *u8 { return ast_span(kal_code(p, node), node.start, node.end); }
+func kal_code(p *Kal, node *KalExpr) *u8 {
+    var args *u8 = node.args;
+    if node.kind == 'n' { return ast_call1("kal_value", kal_number(node.word)); }
+    if node.kind == 'v' { return ast_call1("kal_value", kal_local(p, node)); }
+    if node.kind == 'b' { return kal_binary(p, node); }
+    if node.kind == 'f' || node.kind == 'l' { return kal_scope(p, node, map_new()); }
+    if node.kind == 'i' {
+        var cond *u8 = kal_truth(kal_lower(p, vec_get(args, 0)));
+        var yes *u8 = kal_lower(p, vec_get(args, 1));
+        var no *u8 = kal_lower(p, vec_get(args, 2));
+        var out *u8 = kal_slot(p, ast_type("f64"));
+        return kal_after(ast_if(cond, kal_store(out, yes), kal_store(out, no)), out);
+    }
+    var target *u8 = kal_resolve(p, node.word, vec_len(args), node.start);
+    var values *u8 = ast_vec();
+    var i i64 = 0;
+    while i < vec_len(args) { ast_push(values, kal_lower(p, vec_get(args, i))); i = i + 1; }
+    return ast_call_named(target, values);
+}
+func kal_body(p *Kal, name *u8, names *u8, body *KalExpr) *u8 {
+    p.slots = ast_vec();
+    var arity i64 = vec_len(names);
+    var params *u8 = ast_vec();
+    var argv *u8 = ast_ident("argv");
+    if body == nil { ast_push(p.slots, ast_var("argv", ast_type_array(emit_number(arity + 1), ast_type_i64()), nil)); }
+    var suffix i64 = 0;
+    var i i64 = 0;
+    while i < arity {
+        var arg *u8 = str_concat("a_", emit_number(i));
+        ast_push(params, ast_param(arg, ast_type("f64")));
+        if body == nil { ast_push(p.slots, ast_assign(ast_index(argv, ast_int(i)), ast_addr(ast_ident(arg)))); }
+        else {
+            var guest *u8 = ast_vec_get(names, i);
+            while map_has(p.locals, guest) { suffix = suffix + 1; guest = str_concat(ast_vec_get(names, i), emit_number(suffix)); }
+            map_set(p.locals, guest, ast_ident(arg));
+        }
+        i = i + 1;
+    }
+    if body != nil { ast_push(p.slots, ast_return(kal_lower(p, body))); }
+    else { ast_push(p.slots, ast_return(ast_call3("kal_apply", ast_string(name), ast_int(arity), ast_addr(ast_index(argv, ast_int(0)))))); }
+    return ast_func(kal_symbol(name, arity), params, ast_type("f64"), ast_block(p.slots));
+}
+
+// Grammar
+func kal_node(t *Tokenizer, kind i64, word *u8) *KalExpr {
+    var node *KalExpr = alloc(40);
+    node.kind = kind; node.word = word; node.args = vec_new(4);
+    node.start = tok_start_offset(t); node.end = t.pos;
+    return node;
+}
+func kal_part(p *Kal, node *KalExpr, delimiter *u8) void {
+    vec_push(node.args, kal_expr(p, 1));
+    if delimiter != nil { kal_expect(p.tokens, delimiter); }
+}
+func kal_binding(p *Kal, kind i64) *KalExpr {
+    var t *Tokenizer = p.tokens;
+    var node *KalExpr = kal_node(t, kind, tok_text(t)); kal_name(t);
+    if kal_take(t, "=") { kal_part(p, node, nil); }
+    else { vec_push(node.args, kal_node(t, 'n', "0")); }
+    if kal_take(t, ",") { vec_push(node.args, kal_binding(p, 'r')); }
+    else { kal_expect(t, "in"); kal_part(p, node, nil); }
+    return node;
+}
+func kal_primary(p *Kal) *KalExpr {
+    var t *Tokenizer = p.tokens;
+    if kal_take(t, "(") {
+        var value *KalExpr = kal_expr(p, 1);
+        kal_expect(t, ")"); return value;
+    }
+    if kal_take(t, "var") { return kal_binding(p, 'l'); }
+    var node *KalExpr = kal_node(t, 'v', tok_text(t));
+    if tok_kind(t) == TOK_NUMBER {
+        node.kind = 'n'; kal_next(t);
+    } else if kal_take(t, "if") {
+        node.kind = 'i'; kal_part(p, node, "then");
+        kal_part(p, node, "else"); kal_part(p, node, nil);
+    } else if kal_take(t, "for") {
+        node.kind = 'f'; node.word = kal_name(t); kal_expect(t, "=");
+        kal_part(p, node, ","); kal_part(p, node, nil);
+        if kal_take(t, ",") { kal_part(p, node, nil); }
+        else { vec_push(node.args, kal_node(t, 'n', "1")); }
+        kal_expect(t, "in"); kal_part(p, node, nil);
+    } else if kal_op(t) && !streq(node.word, ",") {
+        node.kind = 'c'; node.word = kal_operator("unary_", kal_pop(t));
+        vec_push(node.args, kal_expr(p, 101));
+    } else {
+        kal_name(t);
+        if !kal_take(t, "(") { return node; }
+        node.kind = 'c';
+        if kal_take(t, ")") { return node; }
+        kal_part(p, node, nil);
+        while kal_take(t, ",") { kal_part(p, node, nil); }
+        kal_expect(t, ")");
+    }
+    return node;
+}
+func kal_expr(p *Kal, minimum i64) *KalExpr {
+    var t *Tokenizer = p.tokens;
+    p.depth = p.depth + 1;
+    if p.depth > 256 { kal_fail(t, "expression nesting exceeds 256"); }
+    var left *KalExpr = kal_primary(p);
+    while true {
+        var op *u8 = tok_text(t);
+        var precedence i64 = map_get(p.precedence, op);
+        if precedence < minimum { break; }
+        var node *KalExpr = kal_node(t, 'b', op); kal_next(t);
+        vec_push(node.args, left); vec_push(node.args, kal_expr(p, precedence + 1));
+        left = node;
+    }
+    p.depth = p.depth - 1;
+    return left;
+}
+func kal_precedence(t *Tokenizer) i64 {
+    if tok_kind(t) != TOK_NUMBER { return 30; }
+    var n f64 = kal_literal(tok_text(t));
+    if n < 1.0 || n > 100.0 { kal_fail(t, "precedence must be in 1..100"); }
+    kal_next(t); return cast(i64, n);
+}
+func kal_definition(p *Kal, defining bool, at i64) void {
+    var t *Tokenizer = p.tokens;
+    var kind *u8 = tok_text(t);
+    var op *u8 = nil; var precedence i64 = 0;
+    var name *u8 = nil;
+    if kal_take(t, "unary") || kal_take(t, "binary") {
+        if !kal_op(t) { kal_fail(t, "expected an operator"); }
+        op = kal_pop(t); name = kal_operator(str_concat(kind, "_"), op);
+        if streq(kind, "binary") { precedence = kal_precedence(t); }
+    } else { name = kal_name(t); }
+    kal_expect(t, "(");
+    var params *u8 = ast_vec();
+    while !kal_take(t, ")") { ast_push(params, kal_name(t)); }
+    var arity i64 = vec_len(params);
+    if (streq(kind, "unary") && arity != 1) || (precedence > 0 && arity != 2) { kal_error(t, at, "wrong number of operator operands"); }
+    map_set(p.prototypes, name, params);
+    if !defining {
+        if !map_has(p.current, name) { map_set(p.current, name, params); }
+        var external *u8 = kal_symbol(name, arity);
+        if !map_has(p.native, external) { map_set(p.native, external, kal_body(p, name, params, nil)); }
+        return;
+    }
+    if map_has(p.defined, name) { kal_error(t, at, str_concat("redefinition: ", name)); }
+    var current *u8 = map_get(p.current, name);
+    if current != nil { params = current; }
+    var function *u8 = kal_body(p, name, params, kal_expr(p, 1));
+    map_set(p.defined, name, 1);
+    map_set(p.native, kal_symbol(name, vec_len(params)), ast_span(function, at, tok_start_offset(t)));
+    if precedence > 0 { map_set(p.precedence, op, precedence); }
+}
+reader kal(text *u8) *u8 {
+    var p Kal;
+    p.tokens = kal_tokens(text); p.depth = 0;
+    p.precedence = map_new(); p.prototypes = map_new(); p.current = map_new();
+    p.defined = map_new(); p.native = map_new();
+    map_set(p.precedence, "=", 2); map_set(p.precedence, "<", 10);
+    map_set(p.precedence, "+", 20); map_set(p.precedence, "-", 20); map_set(p.precedence, "*", 40);
+    var decls *u8 = ast_vec();
+    ast_push(decls, "(extern_func kal_result ((param result (type_base i64))) (type_base void) (block))");
+    ast_push(decls, "(extern_func kal_apply ((param name (type_base i64)) (param n (type_base i64)) (param argv (type_base i64))) (type_base f64) (block))");
+    // Calls retain atom locations when instruction selection folds ordinary loads.
+    ast_push(decls, "(func kal_value ((param x (type_base f64))) (type_base f64) (block (return (ident x))))");
+    var main_slots *u8 = ast_vec();
+    var result *u8 = ast_ident("result");
+    ast_push(main_slots, ast_var("result", ast_type("f64"), nil));
+    while !tok_eof(p.tokens) {
+        var at i64 = tok_start_offset(p.tokens);
+        if kal_take(p.tokens, ";") { continue; }
+        if kal_take(p.tokens, "extern") { kal_definition(&p, false, at); continue; }
+        p.locals = map_new();
+        if kal_take(p.tokens, "def") { kal_definition(&p, true, at); }
+        else {
+            p.slots = main_slots;
+            var value *u8 = kal_lower(&p, kal_expr(&p, 1));
+            ast_push(main_slots, ast_assign(result, value));
+            ast_push(main_slots, ast_expr_stmt(ast_call1("kal_result", ast_addr(result))));
+        }
+        p.current = map_new();
+    }
+    var symbols *u8 = map_keys(p.native);
+    while vec_len(symbols) > 0 { ast_push(decls, map_get(p.native, vec_pop(symbols))); }
+    ast_push(main_slots, ast_return(ast_int(0)));
+    ast_push(decls, ast_func("main", ast_vec(), ast_type_i64(), ast_block(main_slots)));
+    return ast_program(decls);
+}

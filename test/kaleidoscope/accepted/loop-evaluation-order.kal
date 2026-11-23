@@ -1,0 +1,1 @@
+extern printd(x); for k=1, printd(k+20), printd(k+10) in printd(k);

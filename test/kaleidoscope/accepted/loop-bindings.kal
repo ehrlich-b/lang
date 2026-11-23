@@ -1,0 +1,2 @@
+extern printd(y);
+var x=7 in for i=0, 0, printd(x) in (var x=1,x=2 in x);

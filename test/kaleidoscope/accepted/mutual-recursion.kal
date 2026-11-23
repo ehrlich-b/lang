@@ -1,0 +1,1 @@
+extern even(x); def odd(x) if x then even(x-1) else 0; def even(x) if x then odd(x-1) else 1; odd(7); even(12);

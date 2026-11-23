@@ -1,0 +1,4 @@
+extern twice(a);
+0;
+def twice(b) b*2;
+twice(3);

@@ -1,0 +1,1 @@
+extern printd(x); def binary | 5 (x y) if x then 1 else y; 1 | printd(202);

@@ -10,10 +10,17 @@
     },
     {
       "name": "Readers in lang",
-      "value": 6,
+      "value": 7,
       "unit": "readers",
       "direction": "higher",
-      "detail": "Five established polyglot examples (C, flow, forth, minilisp, minipy) plus the experimental Lua subset"
+      "detail": "Six established examples (C, flow, forth, Kaleidoscope, minilisp, minipy) plus the experimental Lua subset"
+    },
+    {
+      "name": "Kaleidoscope Chapter 7 native agreement",
+      "value": 76,
+      "unit": "programs",
+      "direction": "higher",
+      "detail": "76/76 at -O0 and -O2 against LLVM 19.1.7, including the Chapter 6 Mandelbrot views, and 4/4 tutorial rejections"
     },
     {
       "name": "C single-exec tests passing, of 220",

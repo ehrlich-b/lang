@@ -1,0 +1,1 @@
+def digits(x y z) x*100+y*10+z; digits(7,2,3);

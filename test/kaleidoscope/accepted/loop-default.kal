@@ -1,0 +1,1 @@
+extern printd(x); for i = 0, i < 2 in printd(i);

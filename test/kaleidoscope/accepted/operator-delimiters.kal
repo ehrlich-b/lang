@@ -1,0 +1,2 @@
+def unary ;(x) x+1; def unary )(x) x+2;
+def inc(x) ;x; def addtwo(x) )x; inc(10); addtwo(10);
