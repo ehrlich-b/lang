@@ -14,6 +14,7 @@ include "src/codegen_llvm.lang"
 include "src/sexpr_reader.lang"
 include "src/native_host.lang"
 include "src/runtime_reachability.lang"
+include "src/native_ast.lang"
 
 // codegen's require handling consults this composition-mode flag. The full
 // compiler owns it in main.lang; a generated standalone compiler never runs
@@ -74,7 +75,10 @@ func standalone_combine_programs(programs *u8) *u8 {
 // reader_transform is defined by the generated glue code
 // It calls the reader function directly (e.g., lisp(content))
 
-// Minted and embedded readers share the complete native diagnostic boundary.
+var standalone_trusted_reader i64 = 0;
+var standalone_check_reader i64 = 0;
+
+// The default route retains the separate reader process and its diagnostics.
 func standalone_transform(content *u8, path *u8) *u8 {
     return reader_host_embedded(&reader_transform, content, reader_compiler_name, path, nil);
 }
@@ -92,6 +96,8 @@ func standalone_help() void {
     println("  --emit=native  Build Linux x86-64 at -O0 using LANG_CLANG or clang in PATH");
     println("  -o <file>      Output path (default: a.ll/a.s, or a.out for native)");
     println("  -g             Emit LLVM source line debug information");
+    println("  --trusted-reader  Allow this compiler's reader to build AST in-process");
+    println("  --check-reader    Build reader AST without emitting code");
     println("  -h, --help Show this help");
 }
 
@@ -111,6 +117,7 @@ func standalone_emit(input_files *u8, output_file *u8, use_llvm i64) i64 {
 
     }
 
+    var frontend_start i64 = native_build_nanoseconds();
     // Normal mode: compile input files
     i = 0;
     while i < vec_len(input_files) {
@@ -121,17 +128,21 @@ func standalone_emit(input_files *u8, output_file *u8, use_llvm i64) i64 {
             return 1;
         }
 
-        // Transform through reader → S-expression AST
         phase_recognition_source = arg;
         phase_recognition_offset = 0;
-        var ast *u8 = standalone_transform(content, arg);
-        if reader_host_errors != 0 { return 1; }
-        if ast == nil {
-            eprint(arg); eprintln(": error: reader phase failed");
-            return 1;
+        var reader_prog *u8 = nil;
+        if standalone_trusted_reader != 0 {
+            reader_prog = native_ast_reader(content, arg, reader_compiler_name, &reader_transform);
+        } else {
+            var ast *u8 = standalone_transform(content, arg);
+            if reader_host_errors != 0 { return 1; }
+            if ast == nil {
+                eprint(arg); eprintln(": error: reader phase failed");
+                return 1;
+            }
+            reader_prog = parse_ast_from_reader_string(ast, arg, content);
         }
-
-        var reader_prog *u8 = parse_ast_from_reader_string(ast, arg, content);
+        if reader_host_errors != 0 { return 1; }
         if reader_prog == nil {
             eprint("Error: failed to parse reader output for ");
             eprintln(arg);
@@ -140,6 +151,10 @@ func standalone_emit(input_files *u8, output_file *u8, use_llvm i64) i64 {
         vec_push(programs, reader_prog);
         i = i + 1;
     }
+
+    native_build_record_timing(3, frontend_start, 0);
+    if standalone_check_reader != 0 { return 0; }
+    var backend_start i64 = native_build_nanoseconds();
 
     // Add ___main wrapper as AST (must match main.lang's version for fixed point)
     // Skip for LLVM backend - clang provides entry point
@@ -160,8 +175,12 @@ func standalone_emit(input_files *u8, output_file *u8, use_llvm i64) i64 {
     }
     var prog *u8 = standalone_combine_programs(programs);
 
-    if use_llvm != 0 { generate_llvm(prog, output_file); }
+    if use_llvm != 0 {
+        if node_origin_missing != nil { llvm_native_ast_output = 1; }
+        generate_llvm(prog, output_file);
+    }
     else { generate(prog, output_file); }
+    native_build_record_timing(4, backend_start, 0);
     return 0;
 }
 
@@ -178,6 +197,8 @@ func main(argc i64, argv **u8) i64 {
     while i < argc {
         var arg *u8 = standalone_get_arg(argv, i);
         if streq(arg, "--diagnostics=json") { ___compiler_diagnostic_enable(); }
+        else if streq(arg, "--trusted-reader") { standalone_trusted_reader = 1; }
+        else if streq(arg, "--check-reader") { standalone_check_reader = 1; }
         else if streq(arg, "--help") || streq(arg, "-h") { standalone_help(); return 0; }
         else if streq(arg, "-o") {
             var duplicate i64 = seen_output;
@@ -217,12 +238,13 @@ func main(argc i64, argv **u8) i64 {
     if native == 0 {
         if invalid != 0 { return 1; }
         var result i64 = standalone_emit(input_files, output_file, use_llvm);
-        if result == 0 { print("Wrote "); println(output_file); }
+        if result == 0 && standalone_check_reader == 0 { print("Wrote "); println(output_file); }
         return result;
     }
     // Share output protection, tool selection, -O0, object/link phases and
     // atomic publication with `lang build`. Parent cleanup also covers fatal
     // reader/validator/codegen exits in the child.
+    if standalone_check_reader != 0 { eprintln("Error: --check-reader cannot emit native code"); return 1; }
     if native_build_prepare_output(output_file, input_files) != 0 { return 1; }
     if invalid != 0 { return 1; }
     var source *u8 = vec_get(input_files, 0);

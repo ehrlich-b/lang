@@ -115,3 +115,33 @@ after validation and mutation checks pass. Failed or interrupted builds preserve
 the previous proof; partial runs and the previous generation remain beside it.
 Use `--selftest` to also check preservation after a missing tool, timeout and
 interrupt once the Lang arm has produced transcript records.
+
+## Minted-compiler scale
+
+Run `make scale-tariff` from the repository root. It generates 100,000 and
+1,000,000 physical lines, mints Tariff, and checks that the linked program prints
+the line count for argument 4. The runner records wall time and peak RSS using
+`wait4`. The backend peak includes the frontend AST that is still resident.
+Compiler construction and execution of the resulting program are outside the
+source-to-native sample. Both pipelines link the same harness at Clang `-O2`.
+
+For a side-by-side run, pass `SCALE_BASE=/path/to/base-checkout`. Set
+`SCALE_ASSERT=1` to enforce the 100,000-line time and memory thresholds.
+The base gets a 10,000,000-step parser work allowance because its default
+refuses the historical fixture. The candidate runs with its default limits.
+
+Observed on 2026-11-23 with Debian Clang 19.1.7. Each cell reports seconds
+and peak MiB. The 100,000-line figures are medians of five runs. The
+1,000,000-line figures are one run.
+
+| Input and compiler | Frontend | Backend | Native link | Source to native |
+|---|---:|---:|---:|---:|
+| 100,000 base | 2.537 / 791.7 | 2.140 / 726.0 | 2.302 / 212.0 | 8.058 / 794.3 |
+| 100,000 direct | 0.374 / 50.9 | 0.333 / 146.4 | 2.095 / 212.4 | 3.128 / 212.4 |
+| 1,000,000 base | 1.773 / 714.5 (refused) | — | — | — |
+| 1,000,000 direct | 4.294 / 488.6 | 5.057 / 1,435.7 | 23.131 / 1,300.0 | 32.902 / 1,435.7 |
+
+The base phase probes use the standalone text reader and `--from-ast`.
+The base total independently times the minted compiler and link. On the direct
+path, the frontend peak is measured with `--check-reader` and the backend
+peak covers the entire compiler process, including its resident AST.

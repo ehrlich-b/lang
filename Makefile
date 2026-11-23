@@ -789,3 +789,9 @@ lox-score: init
 .PHONY: scoreboard
 scoreboard:
 	JOBS=2 python3 scripts/scoreboard.py
+
+.PHONY: scale-tariff
+SCALE_DIR ?= out/scale-tariff
+SCALE_LINES ?= 100000 1000000
+scale-tariff: build
+	python3 examples/dsl-compare/scale.py --work "$(SCALE_DIR)" --lines $(SCALE_LINES) --clang "$(CLANG)" $(if $(SCALE_BASE),--base "$(SCALE_BASE)") $(if $(SCALE_RUNS),--runs "$(SCALE_RUNS)") $(if $(filter 1,$(SCALE_ASSERT)),--assert-scale)

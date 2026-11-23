@@ -1,0 +1,48 @@
+include "std/core.lang"
+
+// Optional in-process adapter installed by a trusted compiler host.
+// The ordinary builder still returns NUL-terminated S-expressions.
+var ast_native_active i64 = 0;
+var ast_native_build fn(i64, *u8, *u8, *u8, *u8, i64, i64) *u8 = nil;
+
+// Request native handles for the current reader invocation, if offered by
+// the host. Call before constructing any AST, and treat results as opaque.
+func ast_use_native() i64 {
+    if ast_native_build == nil { return 0; }
+    ast_native_active = 1;
+    return 1;
+}
+
+func ast_native_unsupported() void {
+    eprintln("Error: reader mixed native AST handles with a text-only builder");
+    exit(1);
+}
+
+var AST_NATIVE_IDENT i64 = 1;
+var AST_NATIVE_NUMBER i64 = 2;
+var AST_NATIVE_BINOP i64 = 3;
+var AST_NATIVE_ASSIGN i64 = 4;
+var AST_NATIVE_SPAN i64 = 5;
+var AST_NATIVE_BLOCK i64 = 6;
+var AST_NATIVE_PROGRAM i64 = 7;
+var AST_NATIVE_VAR i64 = 8;
+var AST_NATIVE_FUNC i64 = 9;
+var AST_NATIVE_TYPE i64 = 10;
+var AST_NATIVE_PARAM i64 = 11;
+var AST_NATIVE_UNOP i64 = 12;
+var AST_NATIVE_RETURN i64 = 13;
+var AST_NATIVE_IF i64 = 14;
+var AST_NATIVE_WHILE_LABELED i64 = 15;
+var AST_NATIVE_CALL i64 = 16;
+var AST_NATIVE_STRING i64 = 17;
+var AST_NATIVE_TYPE_PTR i64 = 18;
+var AST_NATIVE_EXPR_STMT i64 = 19;
+var AST_NATIVE_INCLUDE i64 = 20;
+var AST_NATIVE_BOOL i64 = 21;
+var AST_NATIVE_NIL i64 = 22;
+var AST_NATIVE_FIELD i64 = 23;
+var AST_NATIVE_INDEX i64 = 24;
+var AST_NATIVE_BREAK i64 = 25;
+var AST_NATIVE_CONTINUE i64 = 26;
+var AST_NATIVE_BLOCK_EXPR i64 = 27;
+var AST_NATIVE_TYPE_ARRAY i64 = 28;

@@ -13,6 +13,64 @@ include "std/tools.lang"
 // - macos_arm64: mmap-based bump allocator with macOS flags
 // - libc: delegates to libc malloc()
 
+// A streaming reader can reclaim recognizer temporaries after lowering one
+// production. Pause the scope before allocating any values that must escape.
+struct ReaderScratchPage { next *ReaderScratchPage; data *u8; capacity i64; }
+var reader_scratch_active i64 = 0;
+var reader_scratch_head *ReaderScratchPage = nil;
+var reader_scratch_page *ReaderScratchPage = nil;
+var reader_scratch_used i64 = 0;
+var reader_scratch_capacity i64 = 0;
+
+func reader_scratch_begin() void {
+    reader_scratch_active = 1;
+    reader_scratch_page = nil;
+    reader_scratch_used = 0;
+}
+
+func reader_scratch_end() void { reader_scratch_active = 0; }
+
+func reader_scratch_alloc(size i64) *u8 {
+    var aligned i64 = ((size + 7) / 8) * 8;
+    if reader_scratch_page != nil {
+        if aligned <= reader_scratch_page.capacity - reader_scratch_used {
+            var result *u8 = reader_scratch_page.data + reader_scratch_used;
+            reader_scratch_used = reader_scratch_used + aligned;
+            return result;
+        }
+    }
+    var next *ReaderScratchPage = reader_scratch_head;
+    if reader_scratch_page != nil { next = reader_scratch_page.next; }
+    while next != nil {
+        if next.capacity >= aligned { break; }
+        next = next.next;
+    }
+    if next == nil {
+        var capacity i64 = 65536;
+        if aligned > capacity { capacity = aligned; }
+        if capacity > 268435456 - reader_scratch_capacity {
+            eprintln("Error: reader scratch memory limit exceeded");
+            exit(1);
+        }
+        reader_scratch_capacity = reader_scratch_capacity + capacity;
+        next = alloc(24);
+        if next == nil { eprintln("Error: reader scratch allocation failed"); exit(1); }
+        next.data = alloc(capacity);
+        if next.data == nil { eprintln("Error: reader scratch allocation failed"); exit(1); }
+        next.capacity = capacity;
+        if reader_scratch_page == nil {
+            next.next = reader_scratch_head;
+            reader_scratch_head = next;
+        } else {
+            next.next = reader_scratch_page.next;
+            reader_scratch_page.next = next;
+        }
+    }
+    reader_scratch_page = next;
+    reader_scratch_used = aligned;
+    return next.data;
+}
+
 // ============================================================
 // Dynamic Array (Vec)
 // ============================================================
@@ -20,7 +78,9 @@ include "std/tools.lang"
 // Data array stores i64 values (8 bytes each)
 
 pub func vec_new(cap i64) *u8 {
-    var v *u8 = malloc(24);
+    var v *u8 = nil;
+    if reader_scratch_active != 0 { v = reader_scratch_alloc(24); }
+    else { v = malloc(24); }
 
     // Initialize capacity
     if cap < 4 {
@@ -35,7 +95,8 @@ pub func vec_new(cap i64) *u8 {
 
     // Allocate initial data array
     var data_ptr **u8 = v + 16;
-    *data_ptr = malloc(cap * 8);
+    if reader_scratch_active != 0 { *data_ptr = reader_scratch_alloc(cap * 8); }
+    else { *data_ptr = malloc(cap * 8); }
 
     return v;
 }
@@ -72,7 +133,9 @@ pub func vec_push(v *u8, value i64) {
     if len >= cap {
         // Double capacity
         var new_cap i64 = cap * 2;
-        var new_data *u8 = malloc(new_cap * 8);
+        var new_data *u8 = nil;
+        if reader_scratch_active != 0 { new_data = reader_scratch_alloc(new_cap * 8); }
+        else { new_data = malloc(new_cap * 8); }
 
         // Copy old data
         var i i64 = 0;
@@ -86,7 +149,7 @@ pub func vec_push(v *u8, value i64) {
         }
 
         // Free old data and update vec
-        free(data);
+        if reader_scratch_active == 0 { free(data); }
         *cap_ptr = new_cap;
         *data_ptr = new_data;
         data = new_data;
@@ -413,12 +476,14 @@ pub func strlen(s *u8) i64 {
     return n;
 }
 
-pub func memcpy(dst *u8, src *u8, n i64) void {
+// Match the C ABI because LLVM can lower copy loops to this symbol.
+pub func memcpy(dst *u8, src *u8, n i64) *u8 {
     var i i64 = 0;
     while i < n {
         *(dst + i) = *(src + i);
         i = i + 1;
     }
+    return dst;
 }
 
 pub func streq(a *u8, b *u8) i64 {

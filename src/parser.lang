@@ -2632,8 +2632,14 @@ pub func node_set_span(node *u8, source_name *u8, source *u8,
                          start - phase_word(record.lines, low) + 1, start, end);
 }
 
+var node_origin_missing fn(*u8) void = nil;
+
 func node_origin_entry(node *u8) *u8 {
     var index i64 = phase_node_index_find(node);
+    if index < 0 && node != nil && node_origin_missing != nil {
+        node_origin_missing(node);
+        index = phase_node_index_find(node);
+    }
     if index < 0 { return nil; }
     return node_origins + index * 56;
 }

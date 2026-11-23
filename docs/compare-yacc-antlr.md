@@ -220,6 +220,11 @@ total, including all phases.
 | Scale lines/second | 48,616 | 171,238 | 9,890 |
 | Peak resident memory | 800.5 MiB | 156.0 MiB | 485.3 MiB |
 
+| Dated scale follow-up | Input | Change | Native check |
+|---|---:|---|---|
+| 2026-11-23 | 100,000 and 1,000,000 lines | Minted Tariff builds shared AST nodes in-process and passes them directly to LLVM lowering. See the minted-compiler results in [the example README](../examples/dsl-compare/README.md#minted-compiler-scale). | make scale-tariff checks the exact line count from argument 4. |
+
+
 Lang now beats the historical ANTLR total of 10.465 s and its rerun, and finishes
 well inside the deadline. It still loses to the historical Bison 0.635 s and the
 Bison rerun. These timings describe an already built frontend compiling the

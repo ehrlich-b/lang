@@ -1,0 +1,383 @@
+// Native builder storage belongs to the compiler invocation. A page contains
+// core nodes with private span headers immediately before their normal layout.
+include "std/ast_native.lang"
+
+struct NativeAstPage {
+    data *u8;
+    used i64;
+    invocation i64;
+}
+var native_ast_pages *u8 = nil;
+var native_ast_page *NativeAstPage = nil;
+var native_ast_invocation i64 = 0;
+var native_ast_nodes i64 = 0;
+var native_ast_limit i64 = 0;
+var native_ast_depth_limit i64 = 0;
+var native_ast_program *u8 = nil;
+var native_ast_symbols *u8 = nil;
+var NATIVE_AST_PAGE_BYTES i64 = 1048576;
+
+func native_ast_page_new() *NativeAstPage {
+    var page *NativeAstPage = alloc(24);
+    phase_charge(NATIVE_AST_PAGE_BYTES);
+    page.data = alloc(NATIVE_AST_PAGE_BYTES);
+    if page.data == nil { phase_error("allocation-failed", phase_diagnostic_source); }
+    page.invocation = native_ast_invocation;
+    if native_ast_pages == nil { native_ast_pages = vec_new(8); }
+    var i i64 = vec_len(native_ast_pages);
+    vec_push(native_ast_pages, page);
+    while i > 0 {
+        var previous *NativeAstPage = vec_get(native_ast_pages, i - 1);
+        if previous.data < page.data { break; }
+        vec_set(native_ast_pages, i, previous);
+        i = i - 1;
+    }
+    vec_set(native_ast_pages, i, page);
+    return page;
+}
+
+func native_ast_page_for(node *u8) *NativeAstPage {
+    var low i64 = 0;
+    var high i64 = vec_len(native_ast_pages);
+    while low < high {
+        var mid i64 = low + (high - low) / 2;
+        var page *NativeAstPage = vec_get(native_ast_pages, mid);
+        if node < page.data { high = mid; }
+        else if node >= page.data + page.used { low = mid + 1; }
+        else { return page; }
+    }
+    return nil;
+}
+
+// [size + 256 * height, span start, span end] are private. Most nodes never need a registry
+// entry, but queries can materialize precisely the same source provenance.
+func native_ast_node(kind i64, size i64) *u8 {
+    if native_ast_page == nil || native_ast_page.used + size + 24 > NATIVE_AST_PAGE_BYTES {
+        native_ast_page = native_ast_page_new();
+    }
+    var header *i64 = native_ast_page.data + native_ast_page.used;
+    *header = size + 256;
+    var node *u8 = native_ast_page.data + native_ast_page.used + 24;
+    native_ast_page.used = native_ast_page.used + size + 24;
+    node_set_kind(node, kind);
+    return node;
+}
+
+func native_ast_height(node *u8) i64 {
+    if node == nil { return 0; }
+    var header *i64 = node - 24;
+    return *header / 256;
+}
+
+func native_ast_vec_height(nodes *u8) i64 {
+    var depth i64 = 0;
+    var i i64 = 0;
+    while i < vec_len(nodes) {
+        var height i64 = native_ast_height(vec_get(nodes, i));
+        if height > depth { depth = height; }
+        i = i + 1;
+    }
+    return depth;
+}
+
+func native_ast_set_height(node *u8, depth i64) void {
+    if depth >= native_ast_depth_limit { phase_error("ast-depth", phase_diagnostic_source); }
+    var header *i64 = node - 24;
+    *header = *header % 256 + (depth + 1) * 256;
+}
+
+func native_ast_parent(kind i64, size i64, a *u8, b *u8, c *u8) *u8 {
+    var depth i64 = native_ast_height(a);
+    var second i64 = native_ast_height(b);
+    var third i64 = native_ast_height(c);
+    if second > depth { depth = second; }
+    if third > depth { depth = third; }
+    var node *u8 = native_ast_node(kind, size);
+    native_ast_set_height(node, depth);
+    return node;
+}
+
+func native_ast_origin(node *u8) void {
+    var page *NativeAstPage = native_ast_page_for(node);
+    if page == nil { return; }
+    var start *i64 = node - 16;
+    var end *i64 = node - 8;
+    var invocation *PhaseOrigin = phase_origin_get(page.invocation);
+    var source *PhaseSource = phase_source_get(invocation.source);
+    var saved_source i64 = phase_bound_source_id;
+    var saved_expansion i64 = phase_expansion_origin;
+    phase_bound_source_id = source.id;
+    phase_expansion_origin = invocation.id;
+    node_set_span(node, source.name, source.text, *start, *end);
+    phase_expansion_origin = saved_expansion;
+    phase_bound_source_id = saved_source;
+}
+
+func native_ast_symbol(text *u8) *u8 {
+    var found *u8 = map_get(native_ast_symbols, text);
+    if found != nil { return found; }
+    var owned *u8 = str_dup(text);
+    phase_charge(strlen(text) + 1);
+    map_set(native_ast_symbols, owned, owned);
+    return owned;
+}
+
+func native_ast_copy_vec(v *u8) *u8 {
+    var count i64 = vec_len(v);
+    phase_charge(count * 8);
+    var result *u8 = alloc(count * 8);
+    var data **u8 = v + 16;
+    if count > 0 { memcpy(result, *data, count * 8); }
+    return result;
+}
+
+func native_ast_build(kind i64, a *u8, b *u8, c *u8, d *u8, x i64, y i64) *u8 {
+    native_ast_nodes = native_ast_nodes + 1;
+    if native_ast_nodes > native_ast_limit { phase_error("ast-nodes", phase_diagnostic_source); }
+    if kind == AST_NATIVE_IDENT {
+        var n *u8 = native_ast_node(NODE_IDENT_EXPR, 24);
+        ident_expr_set_name(n, native_ast_symbol(a));
+        ident_expr_set_name_len(n, strlen(a));
+        return n;
+    }
+    if kind == AST_NATIVE_NUMBER {
+        var n *u8 = native_ast_node(NODE_NUMBER_EXPR, 24);
+        number_expr_set_value(n, native_ast_symbol(a));
+        number_expr_set_value_len(n, strlen(a));
+        return n;
+    }
+    if kind == AST_NATIVE_BINOP {
+        var token i64 = sexpr_op_to_token(a);
+        if token == TOKEN_BANG { phase_error("invalid-core-binary-operator", phase_diagnostic_source); }
+        var n *u8 = native_ast_parent(NODE_BINARY_EXPR, 32, b, c, nil);
+        binary_expr_set_op(n, token);
+        binary_expr_set_left(n, b);
+        binary_expr_set_right(n, c);
+        return n;
+    }
+    if kind == AST_NATIVE_ASSIGN {
+        var n *u8 = native_ast_parent(NODE_ASSIGN_STMT, 24, a, b, nil);
+        assign_stmt_set_target(n, a);
+        assign_stmt_set_value(n, b);
+        return n;
+    }
+    if kind == AST_NATIVE_SPAN {
+        if a == nil { return nil; }
+        var origin *PhaseOrigin = phase_origin_get(native_ast_invocation);
+        if phase_span_valid(origin.source, x, y) == 0 { phase_error("invalid-span", phase_diagnostic_source); }
+        if native_ast_page_for(a) == nil { phase_error("invalid-native-span", phase_diagnostic_source); }
+        var header *i64 = a - 24;
+        var size i64 = *header % 256;
+        var n *u8 = native_ast_node(node_kind(a), size);
+        var cloned_header *i64 = n - 24;
+        *cloned_header = *header;
+        memcpy(n, a, size);
+        var start *i64 = n - 16; *start = x;
+        var end *i64 = n - 8; *end = y;
+        return n;
+    }
+    if kind == AST_NATIVE_BLOCK {
+        var n *u8 = native_ast_node(NODE_BLOCK_STMT, 24);
+        native_ast_set_height(n, native_ast_vec_height(a));
+        block_stmt_set_stmts(n, native_ast_copy_vec(a));
+        block_stmt_set_count(n, vec_len(a));
+        return n;
+    }
+    if kind == AST_NATIVE_PROGRAM {
+        var p *u8 = alloc(16);
+        var decls **u8 = p; *decls = native_ast_copy_vec(a);
+        var count *i64 = p + 8; *count = vec_len(a);
+        native_ast_program = p;
+        return p;
+    }
+    if kind == AST_NATIVE_VAR {
+        var n *u8 = native_ast_parent(NODE_VAR_DECL, 56, c, nil, nil);
+        var_decl_set_name(n, native_ast_symbol(a));
+        var_decl_set_name_len(n, strlen(a));
+        var_decl_set_type(n, b);
+        var_decl_set_init(n, c);
+        return n;
+    }
+    if kind == AST_NATIVE_FUNC {
+        var n *u8 = native_ast_parent(NODE_FUNC_DECL, 72, d, nil, nil);
+        var count i64 = vec_len(b);
+        phase_charge(count * 24);
+        var params *u8 = alloc(count * 24);
+        var i i64 = 0;
+        while i < count {
+            memcpy(params + i * 24, vec_get(b, i), 24);
+            i = i + 1;
+        }
+        func_decl_set_name(n, native_ast_symbol(a));
+        func_decl_set_name_len(n, strlen(a));
+        func_decl_set_params(n, params);
+        func_decl_set_param_count(n, count);
+        func_decl_set_ret_type(n, c);
+        func_decl_set_body(n, d);
+        return n;
+    }
+    if kind == AST_NATIVE_TYPE {
+        var t *u8 = base_type_alloc();
+        base_type_set_name(t, native_ast_symbol(a));
+        base_type_set_name_len(t, strlen(a));
+        return t;
+    }
+    if kind == AST_NATIVE_PARAM {
+        var p *u8 = alloc(24);
+        param_set_name(p, native_ast_symbol(a));
+        param_set_name_len(p, strlen(a));
+        param_set_type(p, b);
+        return p;
+    }
+    if kind == AST_NATIVE_UNOP {
+        var token i64 = sexpr_op_to_token(a);
+        if token != TOKEN_MINUS && token != TOKEN_BANG && token != TOKEN_STAR && token != TOKEN_AMP {
+            phase_error("invalid-core-unary-operator", phase_diagnostic_source);
+        }
+        var n *u8 = native_ast_parent(NODE_UNARY_EXPR, 24, b, nil, nil);
+        unary_expr_set_op(n, token);
+        unary_expr_set_expr(n, b);
+        return n;
+    }
+    if kind == AST_NATIVE_RETURN {
+        var n *u8 = native_ast_parent(NODE_RETURN_STMT, 16, a, nil, nil);
+        return_stmt_set_value(n, a);
+        return n;
+    }
+    if kind == AST_NATIVE_IF {
+        var n *u8 = native_ast_parent(NODE_IF_STMT, 32, a, b, c);
+        if_stmt_set_cond(n, a);
+        if_stmt_set_then(n, b);
+        if_stmt_set_else(n, c);
+        return n;
+    }
+    if kind == AST_NATIVE_WHILE_LABELED {
+        var n *u8 = native_ast_parent(NODE_WHILE_STMT, 40, a, b, nil);
+        while_stmt_set_cond(n, a);
+        while_stmt_set_body(n, b);
+        if c != nil {
+            while_stmt_set_label(n, native_ast_symbol(c));
+            while_stmt_set_label_len(n, strlen(c));
+        }
+        return n;
+    }
+    if kind == AST_NATIVE_CALL {
+        var n *u8 = native_ast_node(NODE_CALL_EXPR, 32);
+        var height i64 = native_ast_vec_height(b);
+        var callee i64 = native_ast_height(a);
+        if callee > height { height = callee; }
+        native_ast_set_height(n, height);
+        call_expr_set_func(n, a);
+        call_expr_set_args(n, native_ast_copy_vec(b));
+        call_expr_set_arg_count(n, vec_len(b));
+        return n;
+    }
+    if kind == AST_NATIVE_STRING {
+        var n *u8 = native_ast_node(NODE_STRING_EXPR, 24);
+        var val *u8 = a;
+        if x < 2 { val = str_concat(str_concat("\"", a), "\""); }
+        string_expr_set_value(n, native_ast_symbol(val));
+        string_expr_set_value_len(n, strlen(val));
+        return n;
+    }
+    if kind == AST_NATIVE_TYPE_PTR {
+        var t *u8 = ptr_type_alloc();
+        ptr_type_set_elem(t, a);
+        return t;
+    }
+    if kind == AST_NATIVE_EXPR_STMT {
+        var n *u8 = native_ast_parent(NODE_EXPR_STMT, 16, a, nil, nil);
+        expr_stmt_set_expr(n, a);
+        return n;
+    }
+    if kind == AST_NATIVE_INCLUDE {
+        var n *u8 = native_ast_node(NODE_INCLUDE_DECL, 24);
+        include_decl_set_path(n, native_ast_symbol(a));
+        include_decl_set_path_len(n, strlen(a));
+        return n;
+    }
+    if kind == AST_NATIVE_BOOL {
+        var n *u8 = native_ast_node(NODE_BOOL_EXPR, 16);
+        bool_expr_set_value(n, x);
+        return n;
+    }
+    if kind == AST_NATIVE_NIL { return native_ast_node(NODE_NIL_EXPR, 8); }
+    if kind == AST_NATIVE_FIELD {
+        var n *u8 = native_ast_parent(NODE_FIELD_EXPR, 32, a, nil, nil);
+        var expr **u8 = n + 8; *expr = a;
+        var field **u8 = n + 16; *field = native_ast_symbol(b);
+        var len *i64 = n + 24; *len = strlen(b);
+        return n;
+    }
+    if kind == AST_NATIVE_INDEX {
+        var n *u8 = native_ast_parent(NODE_INDEX_EXPR, 24, a, b, nil);
+        var expr **u8 = n + 8; *expr = a;
+        var index **u8 = n + 16; *index = b;
+        return n;
+    }
+    if kind == AST_NATIVE_BREAK {
+        var n *u8 = native_ast_node(NODE_BREAK_STMT, 24);
+        if a != nil {
+            break_stmt_set_label(n, native_ast_symbol(a));
+            break_stmt_set_label_len(n, strlen(a));
+        }
+        return n;
+    }
+    if kind == AST_NATIVE_CONTINUE {
+        var n *u8 = native_ast_node(NODE_CONTINUE_STMT, 24);
+        if a != nil {
+            continue_stmt_set_label(n, native_ast_symbol(a));
+            continue_stmt_set_label_len(n, strlen(a));
+        }
+        return n;
+    }
+    if kind == AST_NATIVE_BLOCK_EXPR {
+        var n *u8 = native_ast_node(NODE_BLOCK_EXPR, 32);
+        var height i64 = native_ast_vec_height(a);
+        var tail i64 = native_ast_height(b);
+        if tail > height { height = tail; }
+        native_ast_set_height(n, height);
+        block_expr_set_stmts(n, native_ast_copy_vec(a));
+        block_expr_set_count(n, vec_len(a));
+        block_expr_set_tail(n, b);
+        return n;
+    }
+    if kind == AST_NATIVE_TYPE_ARRAY {
+        var t *u8 = array_type_alloc();
+        array_type_set_size(t, sexpr_atoi(a));
+        array_type_set_elem(t, b);
+        return t;
+    }
+    ast_native_unsupported();
+    return nil;
+}
+
+func native_ast_reader(content *u8, path *u8, key *u8, transform fn(*u8) *u8) *u8 {
+    reader_host_begin(key, content, path, nil);
+    phase_diagnostic_source = path;
+    native_ast_invocation = phase_origin_new(reader_host_source, 0, strlen(content), 0, reader_host_origin);
+    native_ast_page = nil;
+    native_ast_nodes = 0;
+    native_ast_limit = phase_node_limit();
+    native_ast_depth_limit = phase_depth_limit();
+    // The wire quota counts atoms and lists. The native quota instead bounds
+    // builder work, including transient and subsequently replaced nodes.
+    var setting *u8 = getenv("LANG_HOST_MAX_NODES");
+    if setting == nil || *setting == 0 { native_ast_limit = 16777216; }
+    native_ast_program = nil;
+    native_ast_symbols = map_new();
+    ast_native_build = &native_ast_build;
+    reader_request_output_target = cg_reader_output_target();
+    var result *u8 = transform(content);
+    var native i64 = ast_native_active;
+    ast_native_active = 0;
+    ast_native_build = nil;
+    reader_host_finish();
+    map_free(native_ast_symbols);
+    native_ast_symbols = nil;
+    if result == nil || reader_host_errors != 0 { return nil; }
+    if native == 0 { return parse_ast_from_reader_string(result, path, content); }
+    if result != native_ast_program { phase_error("invalid-native-program", path); }
+    node_origin_missing = &native_ast_origin;
+    return result;
+}

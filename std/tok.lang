@@ -116,10 +116,13 @@ struct Tokenizer {
     parser_enabled i64;
     parser_source *u8;
     parser_offset i64;
+    split_minus i64;
+    comment_cr i64;
+    parser_streaming i64;
 }
 
 func tok_new_state(input *u8) *Tokenizer {
-    var t *Tokenizer = alloc(248);  // 31 fields * 8 bytes
+    var t *Tokenizer = alloc(272);  // 34 fields * 8 bytes
     t.input = input;
     t.pos = 0;
     t.len = strlen(input);
@@ -371,6 +374,7 @@ pub func tok_skip_whitespace(t *Tokenizer) void {
         // the whitespace pass, so a layout reader can still see where it was.
         if tok_marker_at(t, t.comment_line) > 0 {
             while t.pos < t.len && tok_peek_char(t) != 10 {
+                if t.comment_cr != 0 && tok_peek_char(t) == 13 { break; }
                 tok_advance_char(t);
             }
             again = 1;
@@ -585,14 +589,14 @@ pub func tok_next(t *Tokenizer) void {
             return;
         }
         var mn i64 = tok_peek_char_at(t, 1);
-        if mn == 45 || mn == 61 {          // -- or -= (TOK_MINUS, tok_len=2, text)
+        if (mn == 45 && t.split_minus == 0) || mn == 61 {          // -- or -= (TOK_MINUS, tok_len=2, text)
             tok_advance_char(t);
             tok_advance_char(t);
             t.tok_len = 2;
             t.tok_kind = TOK_MINUS;
             return;
         }
-        if t.numbers == TOK_NUM_DEFAULT && tok_is_digit(tok_peek_char_at(t, 1)) {
+        if t.split_minus == 0 && t.numbers == TOK_NUM_DEFAULT && tok_is_digit(tok_peek_char_at(t, 1)) {
             // Negative number
             tok_advance_char(t);
             while tok_is_digit(tok_peek_char(t)) {
@@ -709,7 +713,9 @@ pub func tok_text(t *Tokenizer) *u8 {
     if t.stream_text != nil { return t.stream_text; }
     if t.tok_kind == TOK_UNKNOWN && t.tok_len == 1 &&
        *(t.input + t.tok_start) >= 128 { return "invalid UTF-8 byte"; }
-    var buf *u8 = alloc(t.tok_len + 1);
+    var buf *u8 = nil;
+    if reader_scratch_active != 0 { buf = reader_scratch_alloc(t.tok_len + 1); }
+    else { buf = alloc(t.tok_len + 1); }
     var i i64 = 0;
     while i < t.tok_len {
         *(buf + i) = *(t.input + t.tok_start + i);
@@ -953,9 +959,17 @@ pub func tok_parser_error(t *Tokenizer, code *u8, rule *u8, grammar i64) void {
     phase_error_at(code, t.parser_source, t.parser_offset + t.tok_start,
                    t.parser_offset + t.tok_start + t.tok_len);
 }
+// A streaming reader recognizes several roots in one input. Keep a single
+// work account across those roots, using the caller's default for this grammar.
+func tok_parser_streaming(t *Tokenizer, default_work i64) void {
+    t.parser_streaming = 1;
+    if phase_recognition_work == 0 {
+        t.parser_work_limit = phase_recognition_limit("LANG_PARSER_MAX_WORK", default_work, 1000000000);
+    }
+}
 pub func tok_parser_enter(t *Tokenizer, rule *u8, grammar i64) void {
     if t.parser_enabled == 0 { return; }
-    if t.parser_depth == 0 { t.parser_work = 0; t.parser_peak = 0; }
+    if t.parser_depth == 0 && t.parser_streaming == 0 { t.parser_work = 0; t.parser_peak = 0; }
     if t.parser_depth >= t.parser_depth_limit {
         tok_parser_error(t, "parser-depth-budget", rule, grammar);
     }

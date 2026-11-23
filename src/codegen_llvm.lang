@@ -17,6 +17,9 @@ var llvm_out_fd i64 = 0;
 var llvm_buf *u8 = nil;
 var llvm_len i64 = 0;
 var llvm_buf_size i64 = 0;
+var llvm_native_ast_output i64 = 0;
+var llvm_output_limit i64 = 0;
+var llvm_written i64 = 0;
 
 // Architecture flag: 1 = ARM64 (macOS), 0 = x86-64
 var llvm_is_arm64 i64 = 0;
@@ -216,6 +219,12 @@ func llvm_init_output(output_file *u8) void {
     llvm_buf_size = 65536;  // Grow geometrically under the host output budget
     llvm_buf = compiler_table_new(llvm_buf_size, 1);
     llvm_len = 0;
+    llvm_written = 0;
+    llvm_output_limit = phase_limit();
+    if llvm_native_ast_output != 0 {
+        var setting *u8 = getenv("LANG_HOST_MAX_BYTES");
+        if setting == nil || *setting == 0 { llvm_output_limit = 268435456; }
+    }
 
     llvm_out_fd = file_open(output_file, O_WRONLY_CREAT_TRUNC);
     if llvm_out_fd < 0 {
@@ -226,12 +235,20 @@ func llvm_init_output(output_file *u8) void {
 }
 
 func llvm_reserve_output(extra i64) void {
-    var maximum i64 = phase_limit();
-    if extra < 0 || extra > maximum - llvm_len {
+    var maximum i64 = llvm_output_limit;
+    if extra < 0 || extra > maximum - llvm_written - llvm_len {
         phase_error("byte-limit", "LLVM output buffer overflow (host output budget)");
     }
     var need i64 = llvm_len + extra;
     if need <= llvm_buf_size { return; }
+    // Debug metadata may refer to the beginning of the current instruction.
+    if llvm_native_ast_output != 0 && llvm_debug_enabled == 0 {
+        compiler_write_all(llvm_out_fd, llvm_buf, llvm_len);
+        llvm_written = llvm_written + llvm_len;
+        llvm_len = 0;
+        need = extra;
+        if need <= llvm_buf_size { return; }
+    }
     var capacity i64 = llvm_buf_size;
     while capacity < need { capacity = capacity * 2; }
     if capacity > maximum { capacity = maximum; }
@@ -7606,7 +7623,7 @@ func generate_llvm(prog *u8, output_file *u8) void {
     llvm_debug_finish();
     if timings_enabled != 0 { timings_end(cg_func_count + cg_global_count + cg_struct_count + cg_enum_count); timings_begin(5); }
     llvm_flush();
-    if timings_enabled != 0 { timings_end(llvm_len); }
+    if timings_enabled != 0 { timings_end(llvm_written + llvm_len); }
 }
 
 include "src/numeric_llvm.lang"

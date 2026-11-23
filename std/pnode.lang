@@ -32,7 +32,9 @@ var PNODE_CAPTURE i64 = 6;
 var PNODE_TOKEN i64 = 7;      // a token kind the reader defined, not the scanner
 
 pub func pnode_new(kind i64) *PNode {
-    var n *PNode = alloc(48);
+    var n *PNode = nil;
+    if reader_scratch_active != 0 { n = reader_scratch_alloc(48); }
+    else { n = alloc(48); }
     n.kind = kind;
     n.text = nil;
     n.children = nil;

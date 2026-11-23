@@ -115,3 +115,21 @@ For algebraic effects and pattern matching, see the `ast_perform`, `ast_handle`,
 [`test/suite/235_ast_literals.lang`](../test/suite/235_ast_literals.lang) through
 [`test/suite/238_ast_statements.lang`](../test/suite/238_ast_statements.lang)
 show the builders in context.
+
+## Native compiler handoff
+
+A reader intended for a minted native compiler can call `ast_use_native()`
+before building its program. A compiler invoked with `--trusted-reader` offers
+an in-process builder. Return the handle from `ast_program` or
+`ast_program1`. The host retains the core nodes through lowering and resolves
+their source spans when code generation asks for provenance.
+
+In this mode, AST fragments are opaque handles. Compose them with the same
+builder functions and vectors used for text. Native constructors cover base,
+pointer and array types, parameters, functions, variables, includes, scalar
+literals, operators, calls, field and index expressions, assignments, blocks,
+returns, branches and loops. A reader using raw text fragments or any other
+constructor should keep text mode. Ordinary reader workers and `lang read`
+offer the text builder, so a single source can support both routes. The
+`ast_use_native()` result lets a reader choose between streaming and whole-tree
+recognition when useful, as the Tariff example does.
