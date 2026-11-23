@@ -17,10 +17,10 @@
     },
     {
       "name": "Kaleidoscope Chapter 7 native agreement",
-      "value": 76,
+      "value": 78,
       "unit": "programs",
       "direction": "higher",
-      "detail": "76/76 at -O0 and -O2 against LLVM 19.1.7, including the Chapter 6 Mandelbrot views, and 4/4 tutorial rejections"
+      "detail": "78/78 at -O0 and -O2 against LLVM 19.1.7, including the Chapter 6 Mandelbrot views, and 5/5 tutorial rejections"
     },
     {
       "name": "C single-exec tests passing, of 220",

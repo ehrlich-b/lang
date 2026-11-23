@@ -41,8 +41,8 @@ make verify VERIFY_CASE=kaleidoscope
 python3 -B test/kaleidoscope/count.py "$LLVM_KALEIDOSCOPE"
 ```
 
-The score is **76/76 matching programs at both `-O0` and `-O2`**, including all
-three Chapter 6 Mandelbrot views, and **4/4 matching tutorial rejections**.
+The score is **78/78 matching programs at both `-O0` and `-O2`**, including all
+three Chapter 6 Mandelbrot views, and **5/5 matching tutorial rejections**.
 The local verify fragment checks 53 original programs and 15 original
 rejections. Both checks reported zero reader crashes. Native DWARF verified
 at both optimization levels, with unoptimized line rows for every

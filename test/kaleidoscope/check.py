@@ -29,8 +29,11 @@ TUTORIAL = {
     "03-cosine": (3, [(481, 481), (485, 485)]),
     "04-constant-folding": (4, [(28, 28)]),
     "04-reassociate": (4, [(73, 73)]),
+    "04-common-subexpression": (4, [(222, 222)]),
+    "04-first-top-level": (4, [(386, 386)]),
     "04-keep-definition": (4, [(402, 402), (411, 411), (421, 421)]),
     "04-redefine": (4, [(449, 449), (457, 457), (460, 460), (467, 467)]),
+    "04-redefine-after-call": (4, [(572, 573), (576, 577)]),
     "04-putchard": (4, [(666, 666)]),
     "04-math": (4, [(587, 587), (591, 591), (595, 595), (604, 604), (616, 616)]),
     "05-condition": (5, [(36, 41)]),
@@ -52,7 +55,7 @@ REVIEW_REGRESSIONS = {
     "assignment-bindings", "duplicate-parameters", "extern-changed-arity", "loop-bindings",
 }
 TUTORIAL_REJECTED = {
-    "02-stray-identifier", "02-stray-close", "03-prototype-names", "04-redefine",
+    "02-stray-identifier", "02-stray-close", "03-prototype-names", "04-redefine", "04-redefine-after-call",
 }
 
 
