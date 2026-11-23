@@ -37,6 +37,7 @@ func native_ast_page_new() *NativeAstPage {
 }
 
 func native_ast_page_for(node *u8) *NativeAstPage {
+    if native_ast_pages == nil { return nil; }
     var low i64 = 0;
     var high i64 = vec_len(native_ast_pages);
     while low < high {

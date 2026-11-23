@@ -191,7 +191,7 @@ pub func prec_is_assign(t *PrecTable, op *u8) i64 {
 }
 
 pub func prec_expr(t *PrecTable) *PrecExpr {
-    var e *PrecExpr = alloc(32);
+    var e *PrecExpr = malloc(32);
     e.table = t;
     e.items = vec_new(8);
     e.kinds = vec_new(8);

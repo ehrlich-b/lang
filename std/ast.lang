@@ -256,7 +256,7 @@ func ast_number(val *u8) *u8 {
 // (number val) from integer
 func ast_int(val i64) *u8 {
     if ast_native_active != 0 {
-        var digits *u8 = alloc(32);
+        var digits *u8 = malloc(32);
         itoa(val, digits);
         var node *u8 = ast_number(digits);
         free(digits);
