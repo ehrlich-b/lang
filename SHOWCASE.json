@@ -16,6 +16,13 @@
       "detail": "Five established polyglot examples (C, flow, forth, minilisp, minipy) plus the experimental Lua subset"
     },
     {
+      "name": "C single-exec tests passing, of 220",
+      "value": 174,
+      "unit": "tests",
+      "direction": "higher",
+      "detail": "174/220 LLVM native, from 54/220; c-testsuite single-exec"
+    },
+    {
       "name": "clox suite tests passing, of 246",
       "value": 235,
       "unit": "tests",

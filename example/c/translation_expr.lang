@@ -1,0 +1,596 @@
+struct CxExpr {
+    typ *CxType; code *u8; address *u8; binding *CxBinding;
+    constant i64; value i64; bytes *u8;
+}
+var cx_precedence *PrecTable = nil;
+var cx_imports *u8 = nil;
+
+func cx_expr(typ *CxType, code *u8) *CxExpr {
+    var value *CxExpr = alloc(56);
+    value.typ = typ; value.code = code;
+    return value;
+}
+
+func cx_number(typ *CxType, val i64) *CxExpr {
+    var value *CxExpr = cx_expr(typ, ast_int(val));
+    value.constant = 1; value.value = val;
+    return value;
+}
+
+func cx_ref(typ *CxType, address *u8) *CxExpr {
+    var value *CxExpr = cx_expr(typ, nil);
+    value.address = address;
+    return value;
+}
+
+func cx_ast_cast(typ *u8, value *u8) *u8 {
+    var sb *StringBuilder = ast_sb();
+    sb_str(sb, "(cast "); sb_str(sb, typ);
+    sb_char(sb, 32); sb_str(sb, value); sb_char(sb, 41);
+    return ast_finish(sb);
+}
+
+func cx_convert(typ *CxType, value *u8) *u8 {
+    if typ.kind != CX_INT || typ.size == 8 { return value; }
+    return cx_ast_cast(cx_storage_type(typ), cx_word(value));
+}
+
+func cx_object_address(typ *CxType, name *u8) *u8 {
+    var object *u8 = ast_ident(name);
+    if typ.kind == CX_ARRAY || typ.kind == CX_STRUCT {
+        // The indexed address path distinguishes global array storage.
+        object = ast_index(object, ast_int(0));
+    }
+    return ast_addr(object);
+}
+
+func cx_target(typ *CxType, address *u8) *u8 {
+    return ast_deref(cx_ast_cast(ast_type_ptr(cx_storage_type(typ)), cx_word(address)));
+}
+
+func cx_decay(e *CxExpr) *CxExpr {
+    if e.typ.kind == CX_ARRAY { return cx_expr(cx_ptr(e.typ.elem), e.address); }
+    return e;
+}
+
+func cx_value(e *CxExpr, at *PNode) *u8 {
+    e = cx_decay(e);
+    if e.typ.kind == CX_STRUCT || e.typ.kind == CX_FUNC {
+        cx_error(at, "aggregate and function values are unsupported here");
+    }
+    if e.code != nil { return cx_convert(e.typ, e.code); }
+    return cx_convert(e.typ, cx_target(e.typ, e.address));
+}
+
+func cx_scalar(e *CxExpr, at *PNode) *u8 {
+    e = cx_decay(e);
+    if e.typ.kind != CX_INT && e.typ.kind != CX_PTR { cx_error(at, "scalar operand required"); }
+    return cx_value(e, at);
+}
+
+func cx_as(typ *CxType, e *CxExpr, at *PNode) *u8 {
+    e = cx_decay(e);
+    if typ.kind != CX_INT && typ.kind != CX_PTR { cx_error(at, "unsupported value conversion"); }
+    if (e.typ.kind == CX_PTR && typ.kind == CX_INT) ||
+       (e.typ.kind == CX_INT && typ.kind == CX_PTR && (e.constant == 0 || e.value != 0)) {
+        cx_error(at, "implicit pointer/integer conversion");
+    }
+    return cx_convert(typ, cx_scalar(e, at));
+}
+
+func cx_digit(c i64) i64 {
+    if c >= 48 && c <= 57 { return c - 48; }
+    if c >= 65 && c <= 70 { return c - 55; }
+    if c >= 97 && c <= 102 { return c - 87; }
+    return 16;
+}
+
+func cx_literal(at *PNode) *CxExpr {
+    var text *u8 = at.text;
+    var i i64 = 0;
+    var radix i64 = 10;
+    if *text == 48 {
+        radix = 8;
+        if *(text + 1) == 120 || *(text + 1) == 88 { radix = 16; i = 2; }
+    }
+    var begin i64 = i;
+    var limit u64 = 1844674407370955161;
+    var last i64 = 5;
+    if radix == 8 { limit = 2305843009213693951; last = 7; }
+    if radix == 16 { limit = 1152921504606846975; last = 15; }
+    var value u64 = 0;
+    while cx_digit(*(text + i)) < radix {
+        var digit u64 = cx_digit(*(text + i));
+        if value > limit || (value == limit && digit > last) { cx_error(at, "integer literal outside 64-bit range"); }
+        value = value * radix + digit;
+        i = i + 1;
+    }
+    if i == begin { cx_error(at, "unsupported numeric literal"); }
+    var suffix *u8 = text + i;
+    var longs i64 = 0;
+    var uns i64 = 0;
+    while *suffix != 0 {
+        var byte i64 = *suffix;
+        if byte == 76 || byte == 108 { longs = longs + 1; }
+        else if (byte == 85 || byte == 117) && uns == 0 { uns = 1; }
+        else { cx_error(at, "floating-point or invalid integer literal"); }
+        suffix = suffix + 1;
+    }
+    if longs > 2 { cx_error(at, "invalid integer suffix"); }
+    if longs == 0 && value <= 2147483647 { return cx_number(cx_integer(4, uns), value); }
+    if longs == 0 && (uns != 0 || radix != 10) && value <= 4294967295 {
+        return cx_number(cx_integer(4, 1), value);
+    }
+    if value > 9223372036854775807 {
+        if uns == 0 && radix == 10 { cx_error(at, "signed integer literal outside 64-bit range"); }
+        uns = 1;
+    }
+    return cx_number(cx_integer(8, uns), value);
+}
+
+func cx_escape(text *u8, offset *i64, end i64, at *PNode) i64 {
+    var byte i64 = *(text + *offset);
+    *offset = *offset + 1;
+    if byte == 97 { return 7; }
+    if byte == 98 { return 8; }
+    if byte == 102 { return 12; }
+    if byte == 110 { return 10; }
+    if byte == 114 { return 13; }
+    if byte == 116 { return 9; }
+    if byte == 118 { return 11; }
+    if byte == 34 || byte == 39 || byte == 63 || byte == 92 { return byte; }
+    if byte >= 48 && byte <= 55 {
+        var value i64 = byte - 48;
+        var digits i64 = 1;
+        while digits < 3 && *offset < end && cx_digit(*(text + *offset)) < 8 {
+            value = value * 8 + cx_digit(*(text + *offset));
+            *offset = *offset + 1;
+            digits = digits + 1;
+        }
+        return value % 256;
+    }
+    if byte == 120 && *offset < end && cx_digit(*(text + *offset)) < 16 {
+        var value i64 = 0;
+        while *offset < end && cx_digit(*(text + *offset)) < 16 {
+            value = (value * 16 + cx_digit(*(text + *offset))) % 256;
+            *offset = *offset + 1;
+        }
+        return value;
+    }
+    cx_error(at, "unsupported escape sequence");
+    return 0;
+}
+
+func cx_decode(at *PNode, bytes *u8) void {
+    var end i64 = strlen(at.text) - 1;
+    var i i64 = 1;
+    while i < end {
+        var byte i64 = *(at.text + i);
+        i = i + 1;
+        if byte == 92 { byte = cx_escape(at.text, &i, end, at); }
+        vec_push(bytes, byte);
+    }
+}
+
+func cx_strings(n *PNode) *CxExpr {
+    var bytes *u8 = vec_new(16);
+    var i i64 = 0;
+    while i < vec_len(n.children) {
+        cx_decode(pnode_child(n, i), bytes);
+        i = i + 1;
+    }
+    vec_push(bytes, 0);
+    var chars *u8 = alloc(vec_len(bytes));
+    i = 0;
+    var embedded_nul i64 = 0;
+    while i < vec_len(bytes) - 1 {
+        var byte i64 = vec_get(bytes, i);
+        if byte == 0 { embedded_nul = 1; }
+        *(chars + i) = byte;
+        i = i + 1;
+    }
+    var code *u8 = ast_string(chars);
+    if embedded_nul != 0 {
+        var name *u8 = cx_temp();
+        var decl *u8 = ast_var(name, ast_type_array(cx_decimal(vec_len(bytes)), ast_type_u8()), nil);
+        ast_push(cx_declarations, decl);
+        var initializers *u8 = ast_vec();
+        i = 0;
+        while i < vec_len(bytes) - 1 {
+            var byte i64 = vec_get(bytes, i);
+            if byte != 0 { ast_push(initializers, ast_assign(ast_index(ast_ident(name), ast_int(i)), ast_int(byte))); }
+            i = i + 1;
+        }
+        code = ast_block_expr(initializers, ast_addr(ast_index(ast_ident(name), ast_int(0))));
+    }
+    var result *CxExpr = cx_ref(cx_array(cx_integer(1, 0), vec_len(bytes)), code);
+    result.bytes = bytes;
+    return result;
+}
+
+func cx_primary(n *PNode) *CxExpr {
+    if pnode_is(n, "number") { return cx_literal(n); }
+    if pnode_is(n, "char") {
+        var bytes *u8 = vec_new(4);
+        cx_decode(n, bytes);
+        if vec_len(bytes) != 1 { cx_error(n, "multibyte character constant is unsupported"); }
+        var value i64 = vec_get(bytes, 0);
+        if value > 127 { value = value - 256; }
+        return cx_number(cx_int(), value);
+    }
+    if pnode_is(n, "strings") { return cx_strings(n); }
+    if pnode_is(n, "paren") { return cx_comma(pnode_require(n, "value")); }
+    var b *CxBinding = cx_lookup(n.text);
+    if b == nil { cx_error(n, "undeclared identifier"); }
+    if b.constant != 0 { return cx_number(b.typ, b.value); }
+    var expr *CxExpr = cx_ref(b.typ, nil);
+    expr.binding = b;
+    if b.typ.kind != CX_FUNC {
+        if b.defined == 0 && cx_find(cx_globals, b.name) == b { cx_error(n, "external object storage is unsupported"); }
+        expr.address = cx_object_address(b.typ, b.native);
+        if b.typ.kind == CX_INT || b.typ.kind == CX_PTR { expr.code = ast_ident(b.native); }
+    }
+    return expr;
+}
+
+func cx_scalar_type(t *CxType) bool { return t.kind == CX_INT || t.kind == CX_PTR; }
+
+func cx_promotion(t *CxType) *CxType {
+    if t.kind == CX_INT && t.size < 4 { return cx_int(); }
+    return t;
+}
+
+func cx_common(a *CxType, b *CxType) *CxType {
+    if a.kind == CX_PTR { return a; }
+    if b.kind == CX_PTR { return b; }
+    a = cx_promotion(a); b = cx_promotion(b);
+    if a.size > b.size { return a; }
+    if b.size > a.size { return b; }
+    if a.unsigned != 0 { return a; }
+    return b;
+}
+
+func cx_numeric(op *u8, dst *u8, src *u8, l *u8, r *u8) *u8 {
+    var args *u8 = ast_vec();
+    ast_push(args, cx_word(l));
+    if r != nil { ast_push(args, cx_word(r)); }
+    return ast_numeric(op, dst, src, args);
+}
+
+func cx_word(code *u8) *u8 {
+    return ast_bor(ast_int(0), code);
+}
+
+func cx_op_name(op *u8) *u8 {
+    if streq(op, "+") { return "add_wrap"; }
+    if streq(op, "-") { return "sub_wrap"; }
+    if streq(op, "*") { return "mul_wrap"; }
+    if streq(op, "/") { return "div"; }
+    if streq(op, "%") { return "rem"; }
+    if streq(op, "<<") { return "shl"; }
+    if streq(op, ">>") { return "shr"; }
+    if streq(op, "&") { return "and"; }
+    if streq(op, "|") { return "or"; }
+    if streq(op, "^") { return "xor"; }
+    if streq(op, "==") { return "eq"; }
+    if streq(op, "!=") { return "ne"; }
+    if streq(op, "<") { return "lt"; }
+    if streq(op, "<=") { return "le"; }
+    if streq(op, ">") { return "gt"; }
+    return "ge";
+}
+
+func cx_comparison(op *u8) bool {
+    return *op == 61 || *op == 33 || (( *op == 60 || *op == 62) && *(op + 1) != *op);
+}
+
+func cx_fold(op *u8, t *CxType, x i64, y i64, at *PNode) i64 {
+    var ux u64 = x;
+    var uy u64 = y;
+    if t.size < 8 {
+        var bits i64 = t.size * 8;
+        var limit u64 = 1 << bits;
+        ux = ux % limit; uy = uy % limit;
+        x = ux; y = uy;
+        if t.unsigned == 0 {
+            if ux >= limit / 2 { x = ux - limit; }
+            if uy >= limit / 2 { y = uy - limit; }
+        }
+    }
+    if streq(op, "+") { return x + y; }
+    if streq(op, "-") { return x - y; }
+    if streq(op, "*") { return x * y; }
+    if streq(op, "/") || streq(op, "%") {
+        if y == 0 { cx_error(at, "division by zero in constant expression"); }
+        if t.unsigned != 0 {
+            if *op == 47 { return ux / uy; }
+            return ux % uy;
+        }
+        if x == -9223372036854775807 - 1 && y == -1 { cx_error(at, "division overflows signed integer"); }
+        if *op == 47 { return x / y; }
+        return x % y;
+    }
+    if streq(op, "==") { return x == y; }
+    if streq(op, "!=") { return x != y; }
+    if streq(op, "<") {
+        if t.unsigned != 0 { return ux < uy; }
+        return x < y;
+    }
+    if streq(op, "<=") {
+        if t.unsigned != 0 { return ux <= uy; }
+        return x <= y;
+    }
+    if streq(op, ">") {
+        if t.unsigned != 0 { return ux > uy; }
+        return x > y;
+    }
+    if streq(op, ">=") {
+        if t.unsigned != 0 { return ux >= uy; }
+        return x >= y;
+    }
+    if streq(op, "&") { return x & y; }
+    if streq(op, "^") { return x ^ y; }
+    if streq(op, "|") { return x | y; }
+    if y < 0 || y >= t.size * 8 { cx_error(at, "shift count outside integer width"); }
+    if streq(op, "<<") { return x << y; }
+    if t.unsigned != 0 { return ux >> y; }
+    return x >> y;
+}
+
+func cx_ptr_offset(ptr *u8, index *u8, size i64) *u8 {
+    return ast_add(cx_word(ptr), ast_mul(index, ast_int(size)));
+}
+
+func cx_binary(op *u8, l *CxExpr, r *CxExpr, at *PNode) *CxExpr {
+    l = cx_decay(l); r = cx_decay(r);
+    var left *u8 = cx_scalar(l, at);
+    var right *u8 = cx_scalar(r, at);
+    if streq(op, "&&") || streq(op, "||") {
+        return cx_expr(cx_int(), ast_binop(op, left, right));
+    }
+    var cmp bool = cx_comparison(op);
+    if l.typ.kind == CX_PTR && r.typ.kind == CX_PTR && streq(op, "-") {
+        if l.typ.elem.size == 0 || !cx_same_type(l.typ.elem, r.typ.elem) { cx_error(at, "incompatible pointer subtraction"); }
+        return cx_expr(cx_integer(8, 0), ast_div(ast_sub(cx_word(left), cx_word(right)), ast_int(l.typ.elem.size)));
+    }
+    if streq(op, "+") && r.typ.kind == CX_PTR && l.typ.kind == CX_INT {
+        return cx_binary(op, r, l, at);
+    }
+    if l.typ.kind == CX_PTR || r.typ.kind == CX_PTR {
+        if cmp {
+            return cx_expr(cx_int(), cx_numeric(cx_op_name(op), "i64", "u64", left, right));
+        }
+        if l.typ.kind != CX_PTR || r.typ.kind != CX_INT || l.typ.elem.size == 0 ||
+           !(streq(op, "+") || streq(op, "-")) {
+            cx_error(at, "unsupported pointer arithmetic");
+        }
+        if streq(op, "-") { right = ast_neg(right); }
+        return cx_expr(l.typ, cx_ptr_offset(left, right, l.typ.elem.size));
+    }
+    var typ *CxType = cx_common(l.typ, r.typ);
+    if streq(op, "<<") || streq(op, ">>") { typ = cx_promotion(l.typ); }
+    var result *CxType = typ;
+    var code *u8 = typ.code;
+    if cmp { result = cx_int(); code = "i64"; }
+    var e *CxExpr = cx_expr(result, cx_numeric(cx_op_name(op), code, typ.code, left, right));
+    if l.constant != 0 && r.constant != 0 {
+        e.constant = 1;
+        e.value = cx_fold(op, typ, l.value, r.value, at);
+    }
+    return e;
+}
+
+func cx_operators() *PrecTable {
+    var t *PrecTable = prec_new();
+    prec_left(t, "||");
+    prec_left(t, "&&");
+    prec_left(t, "|");
+    prec_left(t, "^");
+    prec_left(t, "&");
+    prec_left(t, "== !=");
+    prec_left(t, "< <= > >=");
+    prec_left(t, "<< >>");
+    prec_left(t, "+ -");
+    prec_left(t, "* / %");
+    return t;
+}
+
+func cx_climb(left *CxExpr, tail *PNode, index *i64, minimum i64) *CxExpr {
+    while *index < vec_len(tail.children) {
+        var item *PNode = pnode_child(tail, *index);
+        var op *PNode = pnode_require(item, "op");
+        var level i64 = prec_of(cx_precedence, op.text);
+        if level < minimum { return left; }
+        *index = *index + 1;
+        var right *CxExpr = cx_unary(pnode_require(item, "right"));
+        right = cx_climb(right, tail, index, level + 1);
+        left = cx_binary(op.text, left, right, op);
+    }
+    return left;
+}
+
+func cx_conditional(n *PNode) *CxExpr {
+    var index i64 = 0;
+    var left *CxExpr = cx_unary(pnode_require(n, "first"));
+    left = cx_climb(left, pnode_require(n, "rest"), &index, 0);
+    var choice *PNode = pnode_get(n, "choice");
+    if choice == nil { return left; }
+    var yes *CxExpr = cx_decay(cx_comma(pnode_require(choice, "yes")));
+    var no *CxExpr = cx_decay(cx_conditional(pnode_require(choice, "no")));
+    if !cx_scalar_type(yes.typ) || !cx_scalar_type(no.typ) { cx_error(choice, "conditional arms require scalar values"); }
+    var typ *CxType = cx_common(yes.typ, no.typ);
+    var name *u8 = cx_temp();
+    var target *u8 = ast_ident(name);
+    var body *u8 = ast_vec();
+    ast_push(body, ast_var(name, cx_storage_type(typ), nil));
+    ast_push(body, ast_if(cx_scalar(left, n),
+                         ast_block1(ast_assign(target, cx_as(typ, yes, choice))),
+                         ast_block1(ast_assign(target, cx_as(typ, no, choice)))));
+    var result *CxExpr = cx_expr(typ, ast_block_expr(body, target));
+    if left.constant != 0 && yes.constant != 0 && no.constant != 0 {
+        result.constant = 1;
+        result.value = no.value;
+        if left.value != 0 { result.value = yes.value; }
+    }
+    return result;
+}
+
+func cx_store(l *CxExpr, r *CxExpr, op *u8, post bool, at *PNode) *CxExpr {
+    if l.address == nil || !cx_scalar_type(l.typ) { cx_error(at, "assignment requires a scalar lvalue"); }
+    var statements *u8 = ast_vec();
+    var target *u8 = l.code;
+    if target == nil {
+        var addr *u8 = cx_temp();
+        ast_push(statements, ast_var(addr, ast_type_i64(), l.address));
+        target = cx_target(l.typ, ast_ident(addr));
+    }
+    var old *u8 = target;
+    if post {
+        var name *u8 = cx_temp();
+        ast_push(statements, ast_var(name, cx_storage_type(l.typ), target));
+        old = ast_ident(name);
+    }
+    if !streq(op, "=") {
+        var base *u8 = str_dup_n(op, strlen(op) - 1);
+        r = cx_binary(base, cx_expr(l.typ, cx_convert(l.typ, old)), r, at);
+    }
+    ast_push(statements, ast_assign(target, cx_as(l.typ, r, at)));
+    return cx_expr(l.typ, ast_block_expr(statements, cx_convert(l.typ, old)));
+}
+
+func cx_assignment(n *PNode) *CxExpr {
+    var l *CxExpr = cx_conditional(pnode_require(n, "head"));
+    var tail *PNode = pnode_get(n, "tail");
+    if tail == nil { return l; }
+    return cx_store(l, cx_assignment(pnode_require(tail, "right")),
+                    pnode_require(tail, "op").text, false, tail);
+}
+
+func cx_comma(n *PNode) *CxExpr {
+    var e *CxExpr = cx_assignment(pnode_require(n, "first"));
+    var rest *PNode = pnode_require(n, "rest");
+    if vec_len(rest.children) == 0 { return e; }
+    var statements *u8 = ast_vec();
+    var i i64 = 0;
+    while i < vec_len(rest.children) {
+        ast_push(statements, ast_expr_stmt(cx_value(e, n)));
+        e = cx_decay(cx_assignment(pnode_require(pnode_child(rest, i), "item")));
+        i = i + 1;
+    }
+    return cx_expr(e.typ, ast_block_expr(statements, cx_value(e, n)));
+}
+
+func cx_unary(n *PNode) *CxExpr {
+    if pnode_is(n, "postfix") { return cx_postfix(n); }
+    if pnode_is(n, "size_type") || pnode_is(n, "size_value") {
+        var t *CxType = nil;
+        if pnode_is(n, "size_type") { t = cx_type_name(pnode_require(n, "type")); }
+        else { t = cx_unary(pnode_require(n, "value")).typ; }
+        if t.size == 0 { cx_error(n, "sizeof requires a complete object type"); }
+        return cx_number(cx_integer(8, 1), t.size);
+    }
+    var operand *CxExpr = cx_unary(pnode_require(n, "value"));
+    if pnode_is(n, "cast") {
+        var t *CxType = cx_type_name(pnode_require(n, "type"));
+        if t.kind == CX_VOID { return cx_expr(t, cx_value(operand, n)); }
+        if !cx_scalar_type(t) { cx_error(n, "cast requires a scalar type"); }
+        var value *CxExpr = cx_expr(t, cx_convert(t, cx_scalar(operand, n)));
+        value.constant = operand.constant; value.value = operand.value;
+        return value;
+    }
+    var op *u8 = pnode_require(n, "op").text;
+    if streq(op, "++") || streq(op, "--") {
+        var assign *u8 = "+=";
+        if *op == 45 { assign = "-="; }
+        return cx_store(operand, cx_number(cx_int(), 1), assign, false, n);
+    }
+    if streq(op, "&") {
+        if operand.address == nil { cx_error(n, "address-of requires an object lvalue"); }
+        return cx_expr(cx_ptr(operand.typ), operand.address);
+    }
+    operand = cx_decay(operand);
+    var code *u8 = cx_scalar(operand, n);
+    if streq(op, "*") {
+        if operand.typ.kind != CX_PTR || operand.typ.elem.size == 0 { cx_error(n, "dereference requires a pointer to a complete object"); }
+        return cx_ref(operand.typ.elem, code);
+    }
+    if streq(op, "!") {
+        var result *CxExpr = cx_expr(cx_int(), ast_not(code));
+        result.constant = operand.constant; result.value = operand.value == 0;
+        return result;
+    }
+    if operand.typ.kind != CX_INT { cx_error(n, "integer operand required"); }
+    var typ *CxType = cx_promotion(operand.typ);
+    if streq(op, "-") { return cx_binary("-", cx_number(typ, 0), operand, n); }
+    if streq(op, "~") { return cx_binary("^", cx_number(typ, -1), operand, n); }
+    return cx_expr(typ, code);
+}
+
+func cx_call(n *PNode, target *CxExpr) *CxExpr {
+    if target.typ.kind != CX_FUNC || target.binding == nil { cx_error(n, "indirect calls are unsupported"); }
+    var t *CxType = target.typ;
+    var args *u8 = ast_vec();
+    var item *PNode = pnode_get(n, "first");
+    var rest *PNode = pnode_require(n, "rest");
+    var count i64 = 0;
+    while item != nil {
+        var value *CxExpr = cx_assignment(item);
+        if count < vec_len(t.params) {
+            var b *CxBinding = vec_get(t.params, count);
+            ast_push(args, cx_as(b.typ, value, item));
+        } else if t.variadic != 0 { ast_push(args, cx_scalar(value, item)); }
+        else { cx_error(item, "too many call arguments"); }
+        item = nil;
+        if count < vec_len(rest.children) { item = pnode_require(pnode_child(rest, count), "item"); }
+        count = count + 1;
+    }
+    if count < vec_len(t.params) { cx_error(n, "too few call arguments"); }
+    var name *u8 = target.binding.native;
+    if target.binding.defined == 0 { name = cx_import(target.binding, count, n); }
+    return cx_expr(t.elem, ast_span(ast_call_named(name, args), n.start, n.end));
+}
+
+func cx_postfix(n *PNode) *CxExpr {
+    var e *CxExpr = cx_primary(pnode_require(n, "base"));
+    var ops *PNode = pnode_require(n, "ops");
+    var i i64 = 0;
+    while i < vec_len(ops.children) {
+        var op *PNode = pnode_child(ops, i);
+        if pnode_is(op, "update") {
+            var assign *u8 = "+=";
+            if *op.text == 45 { assign = "-="; }
+            e = cx_store(e, cx_number(cx_int(), 1), assign, true, op);
+        } else if pnode_is(op, "call") {
+            e = cx_call(op, e);
+        } else if pnode_is(op, "index") {
+            e = cx_decay(e);
+            var index *CxExpr = cx_decay(cx_comma(pnode_require(op, "index")));
+            if index.typ.kind == CX_PTR && e.typ.kind == CX_INT { var swap *CxExpr = e; e = index; index = swap; }
+            if e.typ.kind != CX_PTR || e.typ.elem.size == 0 || index.typ.kind != CX_INT {
+                cx_error(op, "subscript requires a pointer and an integer");
+            }
+            e = cx_ref(e.typ.elem, cx_ptr_offset(cx_scalar(e, op), cx_scalar(index, op), e.typ.elem.size));
+        } else {
+            var addr *u8 = e.address;
+            var typ *CxType = e.typ;
+            if cx_text_is(pnode_require(op, "op"), "->") {
+                e = cx_decay(e);
+                if e.typ.kind != CX_PTR { cx_error(op, "arrow requires a struct pointer"); }
+                typ = e.typ.elem; addr = cx_scalar(e, op);
+            }
+            if typ.kind != CX_STRUCT || typ.fields == nil || addr == nil { cx_error(op, "member access requires a complete struct"); }
+            var name *PNode = pnode_require(op, "name");
+            var member *CxBinding = cx_find(typ.fields, name.text);
+            if member == nil { cx_error(name, "unknown struct member"); }
+            e = cx_ref(member.typ, ast_add(cx_word(addr), ast_int(member.offset)));
+        }
+        i = i + 1;
+    }
+    return e;
+}
+
+func cx_const(n *PNode, message *u8) i64 {
+    var value *CxExpr = cx_assignment(n);
+    if value.constant == 0 || value.typ.kind != CX_INT { cx_error(n, message); }
+    return value.value;
+}

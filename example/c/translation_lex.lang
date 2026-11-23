@@ -1,0 +1,91 @@
+// Extend the shared tokenizer's default profile with C preprocessing tokens.
+var TOK_C_CHAR i64 = 100;
+var TOK_C_TYPENAME i64 = 101;
+var TOK_C_XOR i64 = 25;
+var cx_source *u8 = nil;
+
+func cx_error(at *PNode, message *u8) void {
+    reader_error("reader-syntax-snippet", message, "c", cx_source, at.start, at.end);
+    exit(1);
+}
+
+func cx_error_span(start i64, end i64, message *u8) void {
+    var at *PNode = pnode_atom(0, nil);
+    at.start = start;
+    at.end = end;
+    cx_error(at, message);
+}
+
+func cx_ident_byte(c i64) bool {
+    return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) ||
+           (c >= 97 && c <= 122) || c == 95;
+}
+
+func cx_match_at(s *u8, end i64, start i64, spelling *u8) bool {
+    var len i64 = strlen(spelling);
+    return start + len <= end && str_eq_n(s + start, len, spelling, len);
+}
+
+func cx_tokens(text *u8) *u8 {
+    var result *u8 = tok_stream_new();
+    var scan *Tokenizer = tok_new_profile(text, tok_profile_new(TOK_NUM_DEFAULT, nil, "//", "/*", "*/"));
+    var length i64 = strlen(text);
+    while !tok_eof(scan) {
+        var start i64 = tok_start_offset(scan);
+        var end i64 = tok_end_offset(scan);
+        var kind i64 = tok_kind(scan);
+        var byte i64 = *(text + start);
+        if kind == TOK_UNKNOWN && scan.comment_error >= 0 {
+            cx_error_span(start, end, "unterminated comment");
+        }
+        if kind == TOK_NUMBER && byte == 45 {
+            tok_stream_push(result, TOK_MINUS, start, 1, nil);
+            start = start + 1;
+            byte = *(text + start);
+        }
+        if kind == TOK_NUMBER || (byte == 46 && *(text + start + 1) >= 48 && *(text + start + 1) <= 57) {
+            kind = TOK_NUMBER;
+            // A pp-number may include a suffix, a radix, or an exponent sign.
+            end = start + 1;
+            var next i64 = *(text + end);
+            while cx_ident_byte(next) || next == 46 ||
+                  ((next == 43 || next == 45) && cx_exponent_byte(*(text + end - 1))) {
+                end = end + 1;
+                next = *(text + end);
+            }
+        } else if kind == TOK_STRING {
+            if end <= start + 1 || *(text + end - 1) != byte {
+                cx_error_span(start, end, "unterminated literal");
+            }
+            if byte == 39 { kind = TOK_C_CHAR; }
+        } else if cx_match_at(text, length, start, "...") {
+            end = start + 3;
+        } else if cx_match_at(text, length, start, "<<=") || cx_match_at(text, length, start, ">>=") {
+            end = start + 3;
+        } else if (byte == 38 || byte == 94 || byte == 124) && *(text + start + 1) == 61 {
+            end = start + 2;
+        }
+        tok_stream_push(result, kind, start, end - start, nil);
+        tok_next(scan);
+        while !tok_eof(scan) && tok_start_offset(scan) < end { tok_next(scan); }
+    }
+    return result;
+}
+
+func cx_exponent_byte(c i64) bool {
+    return c == 101 || c == 69 || c == 112 || c == 80;
+}
+
+func cx_syntax(tokens *Tokenizer) void {
+    var start i64 = tok_error_offset(tokens);
+    var end i64 = tok_error_end_offset(tokens);
+    if start < 0 { start = tok_start_offset(tokens); end = tok_end_offset(tokens); }
+    var builder *StringBuilder = sb_new();
+    sb_str(builder, "unsupported or invalid C syntax");
+    if *tok_error_expected(tokens) != 0 {
+        sb_str(builder, " (expected ");
+        sb_str(builder, tok_error_expected(tokens));
+        sb_char(builder, 41);
+    }
+    cx_error_span(start, end, sb_finish(builder));
+}

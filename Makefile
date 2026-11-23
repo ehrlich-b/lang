@@ -440,8 +440,39 @@ _verify-complete: generate-os-layer generate-version-info
 
 	python3 scripts/build_receipt.py finish --input out/verify-input.json --compiler $(BOOTSTRAP_VERIFY_DIR)/kernel2 --output out/verify-receipt.json --artifact $(BOOTSTRAP_VERIFY_DIR)/kernel2.ll --artifact $(BOOTSTRAP_VERIFY_DIR)/kernel3.ll --artifact $(BOOTSTRAP_VERIFY_DIR)/reader_ast1.ast --artifact $(BOOTSTRAP_VERIFY_DIR)/reader_ast2.ast
 
+# Standalone C translation-unit reader and native test driver.
+.PHONY: c-reader c-reader-test c-score
+C_LANG ?= out/lang_next
+C_TESTSUITE ?=
+C_SCORE_MIN ?= 120
+C_JOBS ?= $(or $(JOBS),2)
+C_READER_SOURCES := $(wildcard example/c/translation_*.lang)
+
+ifeq ($(C_LANG),out/lang_next)
+out/lang_next: $(wildcard src/*.lang) $(filter-out std/os.lang,$(wildcard std/*.lang)) $(BOOTSTRAP_LL)
+	@$(MAKE) build
+endif
+
+out/c-reader: $(C_READER_SOURCES) $(filter-out std/os.lang,$(wildcard std/*.lang)) $(C_LANG)
+	LANGBE=llvm "$(C_LANG)" compiler c example/c/translation_unit.lang -o $@
+
+out/c-runtime.o: example/c/native.S
+	@mkdir -p out
+	$(CLANG) -c $< -o $@
+
+c-reader: out/c-reader out/c-runtime.o
+
+c-reader-test: c-reader
+	python3 -B example/c/driver.py --clang "$(CLANG)" fixtures --jobs "$(C_JOBS)"
+
+c-score: c-reader
+	@test -n "$(C_TESTSUITE)" || { echo 'Set C_TESTSUITE to a c-testsuite checkout' >&2; exit 1; }
+	python3 -B example/c/driver.py --clang "$(CLANG)" score "$(C_TESTSUITE)" --jobs "$(C_JOBS)" --minimum "$(C_SCORE_MIN)"
+
 # Non-promoting verification alias; never archives, installs or updates the seed.
-ifeq ($(VERIFY_CASE),author-trials)
+ifeq ($(VERIFY_CASE),c-reader)
+verify: c-reader-test
+else ifeq ($(VERIFY_CASE),author-trials)
 verify:
 	python3 -B test/reader_author/trial_protocol.py --case replay
 else ifeq ($(VERIFY_CASE),path-receipt)
@@ -520,6 +551,7 @@ verify:
 	python3 -B test/reader_author/route.py --case shipping
 else
 verify: bootstrap-verify
+	$(MAKE) c-reader-test C_LANG=$(BOOTSTRAP_VERIFY_DIR)/kernel2
 	python3 -B test/reader_author/editor.py --compiler $(BOOTSTRAP_VERIFY_DIR)/kernel2
 	python3 -B test/reader_author/demo.py --case stranger
 	python3 test/site_scoreboard.py

@@ -1,0 +1,417 @@
+// The standalone reader owns C type identity, conversions and LP64 layout.
+// The core receives scalar storage and aligned buffers with explicit offsets.
+struct CxType {
+    kind i64; code *u8; size i64; align i64; unsigned i64;
+    elem *CxType; count i64; fields *u8; params *u8; variadic i64;
+}
+var CX_VOID i64 = 0;
+var CX_INT i64 = 1;
+var CX_PTR i64 = 2;
+var CX_ARRAY i64 = 3;
+var CX_STRUCT i64 = 4;
+var CX_FUNC i64 = 5;
+
+struct CxBinding {
+    name *u8; native *u8; typ *CxType; at *PNode;
+    init *PNode; defined i64; constant i64; value i64; offset i64;
+}
+var cx_globals *u8 = nil;
+var cx_locals *u8 = nil;
+var cx_tags *u8 = nil;
+var cx_aliases *u8 = nil;
+var cx_declarations *u8 = nil;
+var cx_serial i64 = 0;
+var cx_alias_count i64 = 0;
+var cx_tag_scope i64 = 0;
+
+func cx_type_new(kind i64, code *u8, size i64, align i64) *CxType {
+    var t *CxType = alloc(80);
+    t.kind = kind; t.code = code; t.size = size; t.align = align;
+    return t;
+}
+
+func cx_integer(size i64, uns i64) *CxType {
+    var name *StringBuilder = sb_new();
+    if uns != 0 { sb_char(name, 117); } else { sb_char(name, 105); }
+    sb_int(name, size * 8);
+    var t *CxType = cx_type_new(CX_INT, sb_finish(name), size, size);
+    t.unsigned = uns;
+    return t;
+}
+
+func cx_int() *CxType { return cx_integer(4, 0); }
+
+func cx_ptr(elem *CxType) *CxType {
+    var t *CxType = cx_type_new(CX_PTR, nil, 8, 8);
+    t.elem = elem;
+    return t;
+}
+
+func cx_array(elem *CxType, count i64) *CxType {
+    var t *CxType = cx_type_new(CX_ARRAY, nil, elem.size * count, elem.align);
+    t.elem = elem; t.count = count;
+    return t;
+}
+
+func cx_decimal(value i64) *u8 {
+    var sb *StringBuilder = sb_new();
+    sb_int(sb, value);
+    return sb_finish(sb);
+}
+
+func cx_storage_type(t *CxType) *u8 {
+    if t.kind == CX_PTR { return ast_type_i64(); }
+    if t.kind == CX_ARRAY || t.kind == CX_STRUCT {
+        return ast_type_array(cx_decimal((t.size + 7) / 8), ast_type_i64());
+    }
+    return ast_type(t.code);
+}
+
+func cx_same_type(a *CxType, b *CxType) bool {
+    if a == b { return true; }
+    if a.kind != b.kind { return false; }
+    if a.kind == CX_INT { return a.size == b.size && a.unsigned == b.unsigned; }
+    if a.kind == CX_PTR { return cx_same_type(a.elem, b.elem); }
+    if a.kind == CX_ARRAY {
+        return (a.count == b.count || a.count == 0 || b.count == 0) && cx_same_type(a.elem, b.elem);
+    }
+    if a.kind == CX_FUNC {
+        if !cx_same_type(a.elem, b.elem) || a.variadic != b.variadic || vec_len(a.params) != vec_len(b.params) { return false; }
+        var i i64 = 0;
+        while i < vec_len(a.params) {
+            var ap *CxBinding = vec_get(a.params, i);
+            var bp *CxBinding = vec_get(b.params, i);
+            if !cx_same_type(ap.typ, bp.typ) { return false; }
+            i = i + 1;
+        }
+    }
+    return a.kind == CX_VOID || a.kind == CX_FUNC;
+}
+
+func cx_binding(name *u8, native *u8, typ *CxType, at *PNode) *CxBinding {
+    var b *CxBinding = alloc(72);
+    b.name = name; b.native = native; b.typ = typ; b.at = at;
+    return b;
+}
+
+func cx_find(bindings *u8, name *u8) *CxBinding {
+    var i i64 = vec_len(bindings);
+    while i > 0 {
+        i = i - 1;
+        var b *CxBinding = vec_get(bindings, i);
+        if b.name != nil && streq(b.name, name) { return b; }
+    }
+    return nil;
+}
+
+func cx_lookup(name *u8) *CxBinding {
+    var local *CxBinding = cx_find(cx_locals, name);
+    if local != nil { return local; }
+    return cx_find(cx_globals, name);
+}
+
+func cx_temp() *u8 {
+    cx_serial = cx_serial + 1;
+    return str_concat("__c_private_", cx_decimal(cx_serial));
+}
+
+func cx_text_is(n *PNode, name *u8) bool {
+    return n != nil && n.text != nil && streq(n.text, name);
+}
+
+func cx_has(spec *PNode, word *u8) bool {
+    var items *PNode = pnode_require(spec, "storage");
+    var i i64 = 0;
+    while i < vec_len(items.children) {
+        if cx_text_is(pnode_child(items, i), word) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+func cx_tag(tag *PNode) *CxType {
+    if tag == nil { return cx_type_new(CX_STRUCT, nil, 0, 1); }
+    var old *CxBinding = cx_find(cx_tags, tag.text);
+    if old != nil { return old.typ; }
+    var t *CxType = cx_type_new(CX_STRUCT, nil, 0, 1);
+    vec_push(cx_tags, cx_binding(tag.text, nil, t, tag));
+    return t;
+}
+
+func cx_base_type(spec *PNode) *CxType {
+    var base *PNode = pnode_require(spec, "base");
+    if pnode_is(base, "aggregate") { return cx_tag(pnode_require(base, "tag")); }
+    if pnode_is(base, "enumeration") { return cx_int(); }
+    if pnode_is(base, "alias") {
+        var alias *CxBinding = cx_find(cx_aliases, base.text);
+        if alias == nil { cx_error(base, "unknown typedef"); }
+        return alias.typ;
+    }
+    if pnode_is(base, "other") {
+        if cx_text_is(base, "void") { return cx_type_new(CX_VOID, "void", 0, 1); }
+        cx_error(base, "floating-point types are unsupported");
+    }
+    var size i64 = 4;
+    var uns i64 = 0;
+    var i i64 = 0;
+    while i < vec_len(base.children) {
+        var word *PNode = pnode_child(base, i);
+        if cx_text_is(word, "char") { size = 1; }
+        if cx_text_is(word, "short") { size = 2; }
+        if cx_text_is(word, "long") { size = 8; }
+        if cx_text_is(word, "unsigned") { uns = 1; }
+        if cx_text_is(word, "_Bool") { cx_error(word, "_Bool is unsupported"); }
+        i = i + 1;
+    }
+    return cx_integer(size, uns);
+}
+
+func cx_with_ptr(typ *CxType, node *PNode) *CxType {
+    var pointers *PNode = pnode_require(node, "ptr");
+    var i i64 = 0;
+    while i < vec_len(pointers.children) { typ = cx_ptr(typ); i = i + 1; }
+    return typ;
+}
+
+func cx_type_name(n *PNode) *CxType {
+    return cx_with_ptr(cx_base_type(pnode_require(n, "spec")), n);
+}
+
+func cx_objects(n *PNode) *u8 {
+    var items *u8 = vec_new(4);
+    vec_push(items, pnode_require(n, "first"));
+    var rest *PNode = pnode_require(n, "rest");
+    var i i64 = 0;
+    while i < vec_len(rest.children) {
+        vec_push(items, pnode_require(pnode_child(rest, i), "item"));
+        i = i + 1;
+    }
+    return items;
+}
+
+func cx_dims(base *CxType, n *PNode) *CxType {
+    var dims *PNode = pnode_require(n, "dims");
+    var i i64 = vec_len(dims.children);
+    while i > 0 {
+        i = i - 1;
+        var dim *PNode = pnode_child(dims, i);
+        var bound *PNode = pnode_get(dim, "size");
+        var count i64 = 0;
+        if bound != nil {
+            count = cx_const(bound, "array bound must be an integer constant");
+            if count <= 0 || count > 16777216 || base.size * count > 16777216 {
+                cx_error(bound, "array bound outside the supported storage range");
+            }
+        } else if i != 0 { cx_error(dim, "incomplete inner array bound"); }
+        base = cx_array(base, count);
+    }
+    return base;
+}
+
+func cx_initializer(n *PNode) *PNode {
+    var init *PNode = pnode_get(n, "init");
+    if init == nil { return nil; }
+    return pnode_require(init, "value");
+}
+
+func cx_object(base *CxType, n *PNode) *CxBinding {
+    var head *PNode = pnode_require(n, "head");
+    var name *PNode = pnode_require(head, "name");
+    var typ *CxType = cx_dims(cx_with_ptr(base, head), n);
+    var b *CxBinding = cx_binding(name.text, nil, typ, name);
+    b.init = cx_initializer(n);
+    if typ.kind == CX_ARRAY && typ.count == 0 && b.init != nil {
+        b.typ = cx_array(typ.elem, cx_initializer_count(typ.elem, b.init));
+    }
+    return b;
+}
+
+func cx_retag(tokens *Tokenizer, stream *u8) void {
+    if cx_alias_count == vec_len(cx_aliases) { return; }
+    cx_alias_count = vec_len(cx_aliases);
+    var i i64 = tok_mark(tokens);
+    while i < tok_stream_count(stream) {
+        var base i64 = i * 4;
+        if vec_get(stream, base) == TOK_IDENT {
+            var name *u8 = str_dup_n(cx_source + vec_get(stream, base + 1), vec_get(stream, base + 2));
+            if cx_find(cx_aliases, name) != nil { vec_set(stream, base, TOK_C_TYPENAME); }
+        }
+        i = i + 1;
+    }
+    tok_reset(tokens, tok_mark(tokens));
+}
+
+func cx_struct(n *PNode) *CxType {
+    var tag *PNode = pnode_get(n, "tag");
+    var typ *CxType = nil;
+    if tag != nil {
+        var i i64 = vec_len(cx_tags) - 1;
+        while i >= cx_tag_scope {
+            var local *CxBinding = vec_get(cx_tags, i);
+            if streq(local.name, tag.text) { typ = local.typ; break; }
+            i = i - 1;
+        }
+    }
+    if typ == nil {
+        typ = cx_type_new(CX_STRUCT, nil, 0, 1);
+        if tag != nil { vec_push(cx_tags, cx_binding(tag.text, nil, typ, tag)); }
+    }
+    if typ.fields != nil { cx_error(n, "duplicate struct definition"); }
+    var fields *PNode = pnode_require(n, "fields");
+    typ.fields = vec_new(8);
+    var i i64 = 0;
+    while i < vec_len(fields.children) {
+        var field *PNode = pnode_child(fields, i);
+        var base *CxType = nil;
+        var declarators *PNode = field;
+        if pnode_is(field, "nested") {
+            base = cx_struct(field);
+            declarators = pnode_get(field, "decls");
+            if declarators == nil { cx_error(field, "anonymous struct members are unsupported"); }
+        } else { base = cx_base_type(pnode_require(field, "spec")); }
+        var group *u8 = cx_objects(declarators);
+        var j i64 = 0;
+        while j < vec_len(group) {
+            var f *CxBinding = cx_object(base, vec_get(group, j));
+            if f.init != nil || f.typ.size == 0 { cx_error(f.at, "unsupported struct field type or initializer"); }
+            if cx_find(typ.fields, f.name) != nil { cx_error(f.at, "duplicate struct member"); }
+            f.offset = cx_align(typ.size, f.typ.align);
+            typ.size = f.offset + f.typ.size;
+            if f.typ.align > typ.align { typ.align = f.typ.align; }
+            vec_push(typ.fields, f);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    typ.size = cx_align(typ.size, typ.align);
+    if typ.size == 0 { cx_error(n, "empty struct is unsupported"); }
+    return typ;
+}
+
+func cx_align(offset i64, alignment i64) i64 {
+    return (offset + alignment - 1) / alignment * alignment;
+}
+
+func cx_register_global(b *CxBinding) *CxBinding {
+    var old *CxBinding = cx_find(cx_globals, b.name);
+    if old == nil { vec_push(cx_globals, b); return b; }
+    if old.constant != 0 || !cx_same_type(b.typ, old.typ) {
+        cx_error(b.at, "conflicting declaration");
+    }
+    return old;
+}
+
+func cx_collect_objects(base *CxType, n *PNode, storage *PNode) void {
+    var objects *u8 = cx_objects(n);
+    var i i64 = 0;
+    while i < vec_len(objects) {
+        var b *CxBinding = cx_object(base, vec_get(objects, i));
+        if storage != nil && cx_has(storage, "typedef") {
+            if b.init != nil || cx_find(cx_aliases, b.name) != nil { cx_error(b.at, "invalid typedef"); }
+            vec_push(cx_aliases, b);
+        } else {
+            if str_starts_with(b.name, "__c_") { cx_error(b.at, "reserved reader identifier"); }
+            b.native = b.name;
+            var binding *CxBinding = cx_register_global(b);
+            if storage == nil || !cx_has(storage, "extern") || b.init != nil { binding.defined = 1; }
+            if b.init != nil {
+                if binding != b && binding.init != nil { cx_error(b.at, "duplicate global initializer"); }
+                binding.typ = b.typ;
+                binding.init = b.init;
+            }
+        }
+        i = i + 1;
+    }
+}
+
+func cx_enum_members(n *PNode, scope *u8) void {
+    var item *PNode = pnode_require(n, "first");
+    var rest *PNode = pnode_require(n, "rest");
+    var value i64 = 0;
+    var i i64 = 0;
+    while item != nil {
+        var name *PNode = pnode_require(item, "name");
+        var init *PNode = cx_initializer(item);
+        if init != nil {
+            if !pnode_is(init, "scalar") { cx_error(init, "enum member requires an integer constant"); }
+            value = cx_const(init, "enum member requires an integer constant");
+        }
+        var b *CxBinding = cx_binding(name.text, nil, cx_int(), name);
+        b.constant = 1; b.value = value;
+        vec_push(scope, b);
+        value = value + 1;
+        item = nil;
+        if i < vec_len(rest.children) { item = pnode_require(pnode_child(rest, i), "item"); }
+        i = i + 1;
+    }
+}
+
+func cx_param(n *PNode) *CxBinding {
+    var typ *CxType = cx_type_name(n);
+    var dims *PNode = pnode_require(n, "dims");
+    if vec_len(dims.children) > 0 {
+        typ = cx_dims(typ, n);
+        typ = cx_ptr(typ.elem);
+    }
+    var name *PNode = pnode_get(n, "name");
+    var spelling *u8 = nil;
+    if name != nil { spelling = name.text; }
+    return cx_binding(spelling, cx_temp(), typ, n);
+}
+
+func cx_function_type(n *PNode) *CxType {
+    var head *PNode = pnode_require(n, "head");
+    var ret *CxType = cx_with_ptr(cx_base_type(pnode_require(n, "spec")), head);
+    if ret.kind == CX_STRUCT { cx_error(head, "struct value returns are unsupported"); }
+    var typ *CxType = cx_type_new(CX_FUNC, nil, 0, 1);
+    typ.elem = ret; typ.params = vec_new(8);
+    var params *PNode = pnode_require(n, "params");
+    var param *PNode = pnode_get(params, "first");
+    var rest *PNode = pnode_require(params, "rest");
+    if pnode_get(params, "variadic") != nil { typ.variadic = 1; }
+    if param != nil {
+        var b *CxBinding = cx_param(param);
+        if b.typ.kind == CX_VOID && b.name == nil && vec_len(rest.children) == 0 && typ.variadic == 0 { return typ; }
+        vec_push(typ.params, b);
+    }
+    var i i64 = 0;
+    while i < vec_len(rest.children) {
+        vec_push(typ.params, cx_param(pnode_require(pnode_child(rest, i), "param")));
+        i = i + 1;
+    }
+    i = 0;
+    while i < vec_len(typ.params) {
+        var p *CxBinding = vec_get(typ.params, i);
+        if p.typ.kind == CX_VOID || p.typ.kind == CX_STRUCT { cx_error(p.at, "void and struct value parameters are unsupported"); }
+        i = i + 1;
+    }
+    return typ;
+}
+
+func cx_collect(n *PNode) void {
+    if pnode_is(n, "function") {
+        var name *PNode = pnode_require(pnode_require(n, "head"), "name");
+        if str_starts_with(name.text, "__c_") { cx_error(name, "reserved reader identifier"); }
+        var typ *CxType = cx_function_type(n);
+        var b *CxBinding = cx_register_global(cx_binding(name.text, name.text, typ, name));
+        if pnode_is(pnode_require(n, "tail"), "body") {
+            if typ.variadic != 0 { cx_error(name, "variadic function definitions are unsupported"); }
+            if b.defined != 0 { cx_error(name, "duplicate function definition"); }
+            b.typ = typ;
+            b.defined = 1;
+        }
+    } else if pnode_is(n, "objects") {
+        var spec *PNode = pnode_require(n, "spec");
+        cx_collect_objects(cx_base_type(spec), n, spec);
+    } else if pnode_is(n, "aggregate") {
+        var typ *CxType = cx_struct(n);
+        var decls *PNode = pnode_get(n, "decls");
+        if decls != nil { cx_collect_objects(typ, decls, n); }
+    } else if pnode_is(n, "forward") {
+        cx_tag(pnode_require(n, "tag"));
+    } else {
+        cx_enum_members(n, cx_globals);
+        var decls *PNode = pnode_get(n, "decls");
+        if decls != nil { cx_collect_objects(cx_int(), decls, n); }
+    }
+}

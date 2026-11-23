@@ -1,0 +1,398 @@
+struct CxLoop {
+    parent *CxLoop; label *u8; switch_only i64;
+}
+var cx_loop *CxLoop = nil;
+var cx_return_type *CxType = nil;
+var cx_initializers *u8 = nil;
+var cx_scope_start i64 = 0;
+
+func cx_carrier_type(t *CxType) *u8 {
+    if t.kind == CX_INT || t.kind == CX_PTR { return ast_type_i64(); }
+    return cx_storage_type(t);
+}
+
+func cx_extern(name *u8, count i64, returns *CxType) *u8 {
+    var params *u8 = ast_vec();
+    var i i64 = 0;
+    while i < count {
+        ast_push(params, ast_param(cx_temp(), ast_type_i64()));
+        i = i + 1;
+    }
+    // The serialized extern declaration has the same operands as func.
+    var code *u8 = ast_func(name, params, cx_carrier_type(returns), ast_block(ast_vec()));
+    return str_concat("(extern_", code + 1);
+}
+
+func cx_import(b *CxBinding, count i64, at *PNode) *u8 {
+    var name *u8 = b.native;
+    if b.typ.variadic != 0 {
+        if (!streq(name, "printf") && !streq(name, "sprintf")) || count > 12 {
+            cx_error(at, "unsupported variadic native call");
+        }
+        name = str_concat(str_concat("__c_", name), cx_decimal(count));
+    }
+    if cx_find(cx_imports, name) == nil {
+        vec_push(cx_imports, cx_binding(name, name, b.typ, at));
+        ast_push(cx_declarations, cx_extern(name, count, b.typ.elem));
+    }
+    return name;
+}
+
+func cx_init_items(n *PNode) *u8 {
+    var items *u8 = vec_new(8);
+    var first *PNode = pnode_get(n, "first");
+    if first != nil { vec_push(items, first); }
+    var rest *PNode = pnode_require(n, "rest");
+    var i i64 = 0;
+    while i < vec_len(rest.children) {
+        vec_push(items, pnode_require(pnode_child(rest, i), "item"));
+        i = i + 1;
+    }
+    return items;
+}
+
+func cx_initializer_count(elem *CxType, n *PNode) i64 {
+    if pnode_is(n, "list") {
+        var items *u8 = cx_init_items(n);
+        var bound i64 = 0;
+        var next i64 = 0;
+        var i i64 = 0;
+        while i < vec_len(items) {
+            var item *PNode = vec_get(items, i);
+            var d *PNode = pnode_get(item, "designator");
+            if d != nil {
+                if !pnode_is(d, "index") { cx_error(d, "invalid array designator"); }
+                next = cx_const(pnode_require(d, "index"), "array designator must be constant");
+                if next < 0 { cx_error(d, "negative array designator"); }
+            }
+            next = next + 1;
+            if next > bound { bound = next; }
+            i = i + 1;
+        }
+        if bound * elem.size > 16777216 { cx_error(n, "initializer exceeds supported storage range"); }
+        return bound;
+    }
+    var str *CxExpr = cx_assignment(n);
+    if str.bytes == nil || elem.kind != CX_INT || elem.size != 1 {
+        cx_error(n, "array initializer requires braces or a character string");
+    }
+    return vec_len(str.bytes);
+}
+
+func cx_addr_plus(addr *u8, offset i64) *u8 {
+    if offset == 0 { return addr; }
+    return ast_add(cx_word(addr), ast_int(offset));
+}
+
+func cx_zero(items *u8, addr *u8, size i64) void {
+    var index *u8 = cx_temp();
+    var i *u8 = ast_ident(index);
+    var body *u8 = ast_vec();
+    var byte *u8 = ast_add(cx_word(addr), i);
+    ast_push(body, ast_assign(cx_target(cx_integer(1, 1), byte), ast_int(0)));
+    ast_push(body, ast_assign(i, ast_add(i, ast_int(1))));
+    ast_push(items, ast_var(index, ast_type_i64(), ast_int(0)));
+    ast_push(items, ast_while(ast_lt(i, ast_int(size)), ast_block(body)));
+}
+
+func cx_initialize(items *u8, t *CxType, addr *u8, n *PNode) void {
+    if !pnode_is(n, "list") {
+        var value *CxExpr = cx_assignment(n);
+        if t.kind == CX_ARRAY && t.elem.kind == CX_INT && t.elem.size == 1 && value.bytes != nil {
+            if vec_len(value.bytes) > t.count + 1 { cx_error(n, "character string does not fit array"); }
+            var i i64 = 0;
+            while i < vec_len(value.bytes) && i < t.count {
+                var target *u8 = cx_target(t.elem, cx_addr_plus(addr, i));
+                ast_push(items, ast_assign(target, ast_int(vec_get(value.bytes, i))));
+                i = i + 1;
+            }
+        } else if cx_scalar_type(t) {
+            ast_push(items, ast_assign(cx_target(t, addr), cx_as(t, value, n)));
+        } else { cx_error(n, "aggregate initializer requires braces"); }
+        return;
+    }
+    var entries *u8 = cx_init_items(n);
+    var index i64 = 0;
+    var i i64 = 0;
+    while i < vec_len(entries) {
+        var entry *PNode = vec_get(entries, i);
+        var d *PNode = pnode_get(entry, "designator");
+        var subtype *CxType = t;
+        var offset i64 = 0;
+        if t.kind == CX_ARRAY {
+            if d != nil {
+                if !pnode_is(d, "index") { cx_error(d, "invalid array designator"); }
+                index = cx_const(pnode_require(d, "index"), "array designator must be constant");
+            }
+            if index < 0 || index >= t.count { cx_error(entry, "array initializer index out of bounds"); }
+            subtype = t.elem; offset = index * subtype.size;
+        } else if t.kind == CX_STRUCT {
+            if d != nil {
+                if !pnode_is(d, "field") { cx_error(d, "invalid struct designator"); }
+                var name *PNode = pnode_require(d, "name");
+                var field *CxBinding = cx_find(t.fields, name.text);
+                if field == nil { cx_error(name, "unknown struct designator"); }
+                index = 0;
+                while vec_get(t.fields, index) != field { index = index + 1; }
+            }
+            if index >= vec_len(t.fields) { cx_error(entry, "excess struct initializer"); }
+            var field *CxBinding = vec_get(t.fields, index);
+            subtype = field.typ; offset = field.offset;
+        } else if index != 0 || d != nil { cx_error(entry, "excess scalar initializer"); }
+        cx_initialize(items, subtype, cx_addr_plus(addr, offset), pnode_require(entry, "value"));
+        index = index + 1;
+        i = i + 1;
+    }
+}
+
+func cx_object_decl(items *u8, b *CxBinding, static_storage bool) void {
+    var t *CxType = b.typ;
+    if t.size == 0 {
+        if static_storage && t.kind == CX_ARRAY && t.elem.size > 0 { b.typ = cx_array(t.elem, 1); t = b.typ; }
+        else { cx_error(b.at, "object requires a complete type"); }
+    }
+    var address *u8 = cx_object_address(t, b.native);
+    ast_push(items, ast_var(b.native, cx_carrier_type(t), nil));
+    if b.init != nil {
+        var target *u8 = items;
+        if static_storage { target = cx_initializers; }
+        else if !cx_scalar_type(t) { cx_zero(target, address, t.size); }
+        cx_initialize(target, t, address, b.init);
+    }
+}
+
+func cx_enter_scope() i64 {
+    var old i64 = cx_scope_start;
+    cx_scope_start = vec_len(cx_locals);
+    return old;
+}
+
+func cx_leave_scope(old i64) void {
+    while vec_len(cx_locals) > cx_scope_start { vec_pop(cx_locals); }
+    cx_scope_start = old;
+}
+
+func cx_locals_decl(out *u8, base *CxType, n *PNode, spec *PNode) void {
+    var items *u8 = cx_objects(n);
+    var i i64 = 0;
+    while i < vec_len(items) {
+        var b *CxBinding = cx_object(base, vec_get(items, i));
+        var existing *CxBinding = cx_find(cx_locals, b.name);
+        var j i64 = cx_scope_start;
+        while j < vec_len(cx_locals) {
+            if vec_get(cx_locals, j) == existing { cx_error(b.at, "duplicate local declaration"); }
+            j = j + 1;
+        }
+        b.native = cx_temp();
+        if spec != nil && cx_has(spec, "extern") { cx_error(b.at, "block-scope extern is unsupported"); }
+        if spec != nil && cx_has(spec, "typedef") { cx_error(b.at, "block-scope typedef is unsupported"); }
+        vec_push(cx_locals, b);
+        if spec != nil && cx_has(spec, "static") { cx_object_decl(cx_declarations, b, true); }
+        else { cx_object_decl(out, b, false); }
+        i = i + 1;
+    }
+}
+
+func cx_block_items(n *PNode, out *u8) void {
+    var items *PNode = pnode_require(n, "items");
+    var i i64 = 0;
+    while i < vec_len(items.children) {
+        cx_statement(pnode_child(items, i), out);
+        i = i + 1;
+    }
+}
+
+func cx_body(n *PNode) *u8 {
+    var old i64 = cx_enter_scope();
+    var tags i64 = vec_len(cx_tags);
+    var prior i64 = cx_tag_scope;
+    cx_tag_scope = tags;
+    var statements *u8 = ast_vec();
+    if pnode_is(n, "block") { cx_block_items(n, statements); }
+    else { cx_statement(n, statements); }
+    while vec_len(cx_tags) > tags { vec_pop(cx_tags); }
+    cx_tag_scope = prior;
+    cx_leave_scope(old);
+    return ast_block(statements);
+}
+
+func cx_enter_loop(switch_only i64) *CxLoop {
+    var loop *CxLoop = alloc(24);
+    loop.parent = cx_loop; loop.label = cx_temp(); loop.switch_only = switch_only;
+    cx_loop = loop;
+    return loop;
+}
+
+func cx_condition(n *PNode) *u8 {
+    if n == nil { return ast_int(1); }
+    return cx_scalar(cx_comma(n), n);
+}
+
+func cx_expression_statement(n *PNode, out *u8) void {
+    if n == nil { return; }
+    var value *CxExpr = cx_comma(n);
+    ast_push(out, ast_expr_stmt(cx_value(value, n)));
+}
+
+func cx_loop_statement(n *PNode) *u8 {
+    var old i64 = cx_enter_scope();
+    var statements *u8 = ast_vec();
+    var loop *CxLoop = cx_enter_loop(0);
+    var body *u8 = ast_vec();
+    var cond *u8 = nil;
+    var condition *PNode = pnode_get(n, "cond");
+    if pnode_is(n, "for") {
+        cx_statement(pnode_require(n, "init"), statements);
+        var step *u8 = ast_vec();
+        cx_expression_statement(pnode_get(n, "step"), step);
+        if ast_vec_len(step) > 0 {
+            var first *u8 = cx_temp();
+            ast_push(statements, ast_var(first, ast_type_i64(), ast_int(1)));
+            ast_push(body, ast_if(ast_ident(first),
+                ast_block1(ast_assign(ast_ident(first), ast_int(0))), ast_block(step)));
+            ast_push(body, ast_if(ast_not(cx_condition(condition)), ast_block1(ast_break(loop.label)), nil));
+            cond = ast_int(1);
+        }
+    } else if pnode_is(n, "do") {
+        var first *u8 = cx_temp();
+        ast_push(statements, ast_var(first, ast_type_i64(), ast_int(1)));
+        cond = ast_or(ast_ident(first), cx_condition(condition));
+        ast_push(body, ast_assign(ast_ident(first), ast_int(0)));
+    }
+    if cond == nil { cond = cx_condition(condition); }
+    ast_push(body, cx_body(pnode_require(n, "body")));
+    ast_push(statements, ast_while_labeled(cond, ast_block(body), loop.label));
+    cx_loop = loop.parent;
+    cx_leave_scope(old);
+    return ast_block(statements);
+}
+
+func cx_switch_statement(n *PNode) *u8 {
+    var loop *CxLoop = cx_enter_loop(1);
+    var old i64 = cx_enter_scope();
+    var out *u8 = ast_vec();
+    var body *u8 = ast_vec();
+    var source *PNode = pnode_require(n, "cond");
+    var selector *CxExpr = cx_comma(source);
+    if selector.typ.kind != CX_INT { cx_error(source, "switch requires an integer"); }
+    var value_name *u8 = cx_temp();
+    var label_name *u8 = cx_temp();
+    var current *u8 = ast_ident(value_name);
+    var label *u8 = ast_ident(label_name);
+    ast_push(out, ast_var(value_name, ast_type_i64(), cx_scalar(selector, source)));
+    ast_push(out, ast_var(label_name, ast_type_i64(), ast_int(0)));
+    var fallback i64 = 0;
+    var labels *u8 = vec_new(8);
+    var items *PNode = pnode_require(n, "items");
+    var i i64 = 0;
+    var active i64 = 0;
+    while i < vec_len(items.children) {
+        var item *PNode = pnode_child(items, i);
+        if pnode_is(item, "case") || pnode_is(item, "default") {
+            active = i + 1;
+            if pnode_is(item, "case") {
+                var points *PNode = pnode_require(item, "value");
+                var number i64 = cx_const(points, "case value must be an integer constant");
+                var j i64 = 0;
+                while j < vec_len(labels) {
+                    if vec_get(labels, j) == number { cx_error(item, "duplicate case label"); }
+                    j = j + 1;
+                }
+                vec_push(labels, number);
+                var test *u8 = ast_eq(current, ast_int(number));
+                ast_push(out, ast_if(test, ast_block1(ast_assign(label, ast_int(active))), nil));
+            } else {
+                if fallback != 0 { cx_error(item, "duplicate default label"); }
+                fallback = active;
+            }
+        } else {
+            if active == 0 { cx_error(item, "statements before the first switch label are unsupported"); }
+            var block *u8 = ast_vec();
+            cx_statement(item, block);
+            ast_push(body, ast_if(ast_le(label, ast_int(active)), ast_block(block), nil));
+        }
+        i = i + 1;
+    }
+    if fallback != 0 { ast_push(out, ast_if(ast_eq(label, ast_int(0)), ast_block1(ast_assign(label, ast_int(fallback))), nil)); }
+    ast_push(body, ast_break(loop.label));
+    ast_push(out, ast_while_labeled(ast_ne(label, ast_int(0)), ast_block(body), loop.label));
+    cx_leave_scope(old);
+    cx_loop = loop.parent;
+    return ast_block(out);
+}
+
+func cx_statement(n *PNode, out *u8) void {
+    var code *u8 = nil;
+    if pnode_is(n, "expr") { cx_expression_statement(pnode_get(n, "value"), out); return; }
+    if pnode_is(n, "decl") {
+        var spec *PNode = pnode_require(n, "spec");
+        cx_locals_decl(out, cx_base_type(spec), n, spec);
+        return;
+    }
+    if pnode_is(n, "aggregate") || pnode_is(n, "enumeration") {
+        var typ *CxType = cx_int();
+        if pnode_is(n, "aggregate") { typ = cx_struct(n); }
+        else { cx_enum_members(n, cx_locals); }
+        var decls *PNode = pnode_get(n, "decls");
+        if decls != nil { cx_locals_decl(out, typ, decls, n); }
+        return;
+    }
+    if pnode_is(n, "block") { code = cx_body(n); }
+    else if pnode_is(n, "if") {
+        var alternate *u8 = nil;
+        var alt *PNode = pnode_get(n, "alt");
+        if alt != nil { alternate = cx_body(pnode_require(alt, "body")); }
+        code = ast_if(cx_condition(pnode_require(n, "cond")), cx_body(pnode_require(n, "body")), alternate);
+    } else if pnode_is(n, "for") || pnode_is(n, "while") || pnode_is(n, "do") {
+        code = cx_loop_statement(n);
+    } else if pnode_is(n, "switch") { code = cx_switch_statement(n); }
+    else if pnode_is(n, "break") {
+        if cx_loop == nil { cx_error(n, "break outside a loop or switch"); }
+        code = ast_break(cx_loop.label);
+    } else if pnode_is(n, "continue") {
+        var loop *CxLoop = cx_loop;
+        while loop != nil && loop.switch_only != 0 { loop = loop.parent; }
+        if loop == nil { cx_error(n, "continue outside a loop"); }
+        code = ast_continue(loop.label);
+    } else {
+        var value *PNode = pnode_get(n, "value");
+        if value == nil && cx_return_type.kind == CX_VOID { code = ast_return_void(); }
+        else if value == nil || cx_return_type.kind == CX_VOID { cx_error(n, "return value disagrees with function type"); }
+        else { code = ast_return(cx_as(cx_return_type, cx_comma(value), n)); }
+    }
+    ast_push(out, ast_span(code, n.start, n.end));
+}
+
+func cx_define(n *PNode) void {
+    if !pnode_is(n, "function") { return; }
+    var tail *PNode = pnode_require(n, "tail");
+    if !pnode_is(tail, "body") { return; }
+    var name *PNode = pnode_require(pnode_require(n, "head"), "name");
+    var b *CxBinding = cx_find(cx_globals, name.text);
+    var params *u8 = ast_vec();
+    var body *u8 = ast_vec();
+    var old i64 = cx_enter_scope();
+    var tags i64 = vec_len(cx_tags);
+    var prior i64 = cx_tag_scope;
+    cx_tag_scope = tags;
+    cx_return_type = b.typ.elem;
+    var i i64 = 0;
+    while i < vec_len(b.typ.params) {
+        var p *CxBinding = vec_get(b.typ.params, i);
+        if p.name == nil || cx_find(cx_locals, p.name) != nil { cx_error(p.at, "definition requires distinct parameter names"); }
+        vec_push(cx_locals, p);
+        ast_push(params, ast_param(p.native, cx_carrier_type(p.typ)));
+        i = i + 1;
+    }
+    if streq(b.name, "main") {
+        if b.typ.elem.kind != CX_INT || vec_len(b.typ.params) > 2 { cx_error(name, "unsupported main signature"); }
+        ast_push(body, ast_expr_stmt(ast_call0("__c_init_globals")));
+    }
+    cx_block_items(tail, body);
+    if streq(b.name, "main") { ast_push(body, ast_return(ast_int(0))); }
+    var function *u8 = ast_func(b.native, params, cx_carrier_type(b.typ.elem), ast_block(body));
+    ast_push(cx_declarations, ast_span(function, n.start, n.end));
+    while vec_len(cx_tags) > tags { vec_pop(cx_tags); }
+    cx_tag_scope = prior;
+    cx_leave_scope(old);
+}

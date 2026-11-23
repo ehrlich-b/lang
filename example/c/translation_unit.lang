@@ -1,0 +1,141 @@
+// Standalone C translation units. c.lang retains the embedded reader ABI.
+require "std/core"
+require "std/tok"
+include "std/parser_reader.lang"
+include "std/ast.lang"
+include "std/prec.lang"
+include "example/c/translation_lex.lang"
+
+#parser{
+    cx_external = aggregate:cx_aggregate_decl | enumeration:cx_enum_decl | forward:cx_forward | function:cx_function | objects:cx_decl
+    cx_function = spec:cx_spec head:cx_name '(' params:cx_params ')' tail:cx_function_tail
+    cx_function_tail = body:cx_block | prototype:cx_semicolon
+    cx_semicolon = ';'
+    cx_params = first:cx_param? rest:cx_more_param* variadic:cx_variadic?
+    cx_more_param = ',' param:cx_param
+    cx_variadic = ',' '...'
+    cx_param = spec:cx_spec ptr:cx_ptr* name:symbol? dims:cx_dim*
+    cx_decl = spec:cx_spec first:cx_object rest:cx_more_object* ';'
+    cx_more_object = ',' item:cx_object
+    cx_object = head:cx_name dims:cx_dim* init:cx_initializer?
+    cx_name = ptr:cx_ptr* name:symbol
+    cx_initializer = '=' value:cx_init
+    cx_init = list:cx_init_list | scalar:cx_assignment
+    cx_init_list = '{' first:cx_element? rest:cx_more_element* ','? '}'
+    cx_more_element = ',' item:cx_element
+    cx_element = designator:cx_designator? value:cx_init
+    cx_designator = field:cx_field_designator | index:cx_index_designator
+    cx_field_designator = '.' name:symbol '='
+    cx_index_designator = '[' index:cx_assignment ']' '='
+    cx_dim = '[' size:cx_assignment? ']'
+    cx_spec = storage:cx_storage* base:cx_base quals:cx_qual*
+    cx_storage = 'extern' | 'static' | 'register' | 'auto' | 'typedef' | 'inline' | 'const' | 'volatile' | 'restrict'
+    cx_qual = 'const' | 'volatile' | 'restrict'
+    cx_base = aggregate:cx_struct_type | enumeration:cx_enum_type | integer:cx_integer | alias:<c_typename> | other:cx_other_type
+    cx_integer = cx_int_word+
+    cx_int_word = 'char' | 'short' | 'int' | 'long' | 'signed' | 'unsigned' | '_Bool'
+    cx_other_type = 'void' | 'float' | 'double'
+    cx_struct_type = 'struct' tag:cx_identifier
+    cx_enum_type = 'enum' tag:cx_identifier
+    cx_type = spec:cx_spec ptr:cx_ptr*
+    cx_ptr = '*' cx_qual*
+    cx_aggregate_decl = storage:cx_storage* 'struct' tag:cx_identifier? '{' fields:cx_struct_field* '}' decls:cx_objects? ';'
+    cx_struct_field = nested:cx_aggregate_decl | simple:cx_decl
+    cx_forward = 'struct' tag:cx_identifier ';'
+    cx_identifier = symbol | <c_typename>
+    cx_objects = first:cx_object rest:cx_more_object*
+    cx_enum_decl = storage:cx_storage* 'enum' tag:cx_identifier? '{' first:cx_member rest:cx_more_member* ','? '}' decls:cx_objects? ';'
+    cx_member = name:symbol init:cx_initializer?
+    cx_more_member = ',' item:cx_member
+    cx_block = '{' items:cx_stmt* '}'
+    cx_stmt = block:cx_block | ret:cx_return | if:cx_if | while:cx_while | do:cx_do | for:cx_for | switch:cx_switch | break:cx_break | continue:cx_continue | aggregate:cx_aggregate_decl | enumeration:cx_enum_decl | decl:cx_decl | expr:cx_expr_stmt
+    cx_return = 'return' value:cx_comma? ';'
+    cx_if = 'if' '(' cond:cx_comma ')' body:cx_stmt alt:cx_else?
+    cx_else = 'else' body:cx_stmt
+    cx_while = 'while' '(' cond:cx_comma ')' body:cx_stmt
+    cx_do = 'do' body:cx_stmt 'while' '(' cond:cx_comma ')' ';'
+    cx_for = 'for' '(' init:cx_for_init cond:cx_comma? ';' step:cx_comma? ')' body:cx_stmt
+    cx_for_init = decl:cx_decl | expr:cx_expr_stmt
+    cx_switch = 'switch' '(' cond:cx_comma ')' '{' items:cx_case_item* '}'
+    cx_case_item = case:cx_case | default:cx_default | cx_stmt
+    cx_case = 'case' value:cx_assignment ':'
+    cx_default = 'default' ':'
+    cx_break = 'break' ';'
+    cx_continue = 'continue' ';'
+    cx_expr_stmt = value:cx_comma? ';'
+    cx_comma = first:cx_assignment rest:cx_more_comma*
+    cx_more_comma = ',' item:cx_assignment
+    cx_assignment = head:cx_expr tail:cx_assignment_tail?
+    cx_assignment_tail = op:cx_assign_op right:cx_assignment
+    cx_assign_op = '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '^=' | '|=' | '<<=' | '>>='
+    cx_expr = first:cx_unary rest:cx_bin_tail* choice:cx_choice?
+    cx_bin_tail = op:cx_bin_op right:cx_unary
+    cx_bin_op = '||' | '&&' | '|' | <c_xor> | '&' | '==' | '!=' | '<' | '>' | '<=' | '>=' | '<<' | '>>' | '+' | '-' | '*' | '/' | '%'
+    cx_choice = '?' yes:cx_comma ':' no:cx_expr
+    cx_unary = size_type:cx_size_type | size_value:cx_size_value | cast:cx_cast | prefix:cx_prefix | postfix:cx_postfix
+    cx_size_type = 'sizeof' '(' type:cx_type ')'
+    cx_size_value = 'sizeof' value:cx_unary
+    cx_cast = '(' type:cx_type ')' value:cx_unary
+    cx_prefix = op:cx_prefix_op value:cx_unary
+    cx_prefix_op = '++' | '--' | '!' | '~' | '+' | '-' | '&' | '*'
+    cx_postfix = base:cx_primary ops:cx_postfix_op*
+    cx_postfix_op = call:cx_call | index:cx_index | member:cx_member_access | update:cx_update
+    cx_call = '(' first:cx_assignment? rest:cx_more_comma* ')'
+    cx_index = '[' index:cx_comma ']'
+    cx_member_access = op:cx_member_op name:symbol
+    cx_member_op = '.' | '->'
+    cx_update = '++' | '--'
+    cx_primary = number:number | char:<c_char> | strings:cx_strings | name:symbol | paren:cx_paren
+    cx_strings = string+
+    cx_paren = '(' value:cx_comma ')'
+}
+
+include "example/c/translation_types.lang"
+include "example/c/translation_expr.lang"
+include "example/c/translation_stmt.lang"
+
+reader c(text *u8) *u8 {
+    cx_source = text;
+    cx_globals = vec_new(32);
+    cx_locals = vec_new(32);
+    cx_tags = vec_new(16);
+    cx_aliases = vec_new(16);
+    cx_declarations = ast_vec();
+    cx_loop = nil;
+    cx_imports = vec_new(8);
+    cx_initializers = ast_vec();
+    cx_alias_count = 0;
+    cx_scope_start = 0;
+    cx_tag_scope = 0;
+    cx_serial = 0;
+    cx_precedence = cx_operators();
+    var nodes *u8 = vec_new(32);
+    var stream *u8 = cx_tokens(text);
+    var tokens *Tokenizer = tok_new_stream(text, stream);
+    while !tok_eof(tokens) {
+        var n *PNode = parse_cx_external(tokens);
+        if n == nil { cx_syntax(tokens); }
+        vec_push(nodes, n);
+        cx_collect(n);
+        // A typedef changes the token kind of later occurrences of its name.
+        // Rewrite only the unread suffix. Parsed nodes retain their original span.
+        cx_retag(tokens, stream);
+    }
+    var entry *CxBinding = cx_find(cx_globals, "main");
+    if entry == nil || entry.typ.kind != CX_FUNC || entry.defined == 0 {
+        cx_error_span(0, 0, "translation unit requires a main definition");
+    }
+    var i i64 = 0;
+    while i < vec_len(cx_globals) {
+        var b *CxBinding = vec_get(cx_globals, i);
+        if b.typ.kind != CX_FUNC && b.defined != 0 { cx_object_decl(cx_declarations, b, true); }
+        i = i + 1;
+    }
+    i = 0;
+    while i < vec_len(nodes) {
+        cx_define(vec_get(nodes, i));
+        i = i + 1;
+    }
+    ast_push(cx_declarations, ast_func("__c_init_globals", ast_vec(), ast_type_void(), ast_block(cx_initializers)));
+    return ast_program(cx_declarations);
+}
