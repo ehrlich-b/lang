@@ -22,13 +22,13 @@ var reader_scratch_page *ReaderScratchPage = nil;
 var reader_scratch_used i64 = 0;
 var reader_scratch_capacity i64 = 0;
 
-func reader_scratch_begin() void {
+pub func reader_scratch_begin() void {
     reader_scratch_active = 1;
     reader_scratch_page = nil;
     reader_scratch_used = 0;
 }
 
-func reader_scratch_end() void { reader_scratch_active = 0; }
+pub func reader_scratch_end() void { reader_scratch_active = 0; }
 
 pub func reader_scratch_alloc(size i64) *u8 {
     var aligned i64 = ((size + 7) / 8) * 8;

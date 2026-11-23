@@ -1,7 +1,25 @@
 """Synthetic diagnostic rubric examples, independent of measured output."""
+from pathlib import Path
+import tempfile
 import unittest
 
 from check import PROPERTIES, score_diagnostic
+from run import frontend_diff
+
+
+class FrontendDiff(unittest.TestCase):
+    def test_added_and_removed_source_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            before = Path(directory) / 'before'
+            after = Path(directory) / 'after'
+            before.mkdir()
+            after.mkdir()
+            (before / 'old.lang').write_text('old\n')
+            (after / 'new.lang').write_text('new\n')
+            patch, added, removed = frontend_diff(before, after)
+        self.assertEqual((added, removed), (1, 1))
+        self.assertIn('+new\n', patch)
+        self.assertIn('-old\n', patch)
 
 
 class DiagnosticScoring(unittest.TestCase):

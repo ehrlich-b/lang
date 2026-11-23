@@ -118,6 +118,10 @@ interrupt once the Lang arm has produced transcript records.
 
 ## Minted-compiler scale
 
+`lang/tariff.lang` is the comparison frontend that emits text AST. The
+mintable `lang/reader.lang` shares its parser and supplies the `tariff` reader
+declaration.
+
 Run `make scale-tariff` from the repository root. It generates 100,000 and
 1,000,000 physical lines, mints Tariff, and checks that the linked program prints
 the line count for argument 4. The runner records wall time and peak RSS using

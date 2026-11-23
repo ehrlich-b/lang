@@ -33,6 +33,21 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def frontend_diff(before, after):
+    names = {path.name for root in (before, after) for path in root.iterdir() if path.is_file()}
+    patches, added, removed = [], 0, 0
+    for name in sorted(names):
+        old, new = before / name, after / name
+        diff = list(difflib.unified_diff(
+            old.read_text().splitlines(True) if old.is_file() else [],
+            new.read_text().splitlines(True) if new.is_file() else [],
+            fromfile='before/' + name, tofile='after/' + name))
+        added += sum(s.startswith('+') and not s.startswith('+++') for s in diff)
+        removed += sum(s.startswith('-') and not s.startswith('---') for s in diff)
+        patches.extend(diff)
+    return ''.join(patches), added, removed
+
+
 class Experiment:
     def __init__(self, tools, report, sdk=None):
         self.tools = tools.resolve()
@@ -273,20 +288,11 @@ class Experiment:
             rejected = self.call(old['frontend'] + [fixtures / 'precedence.tariff'], required=False)
             assert rejected['exit_code'] == 1 and Path(rejected['stderr']).read_text(), rejected
             row['baseline_comments'] = self.comments(arm, old, fixtures, armroot / 'before-comments')
-            patches, added, removed = [], 0, 0
-            for f in sorted(source.iterdir()):
-                if not f.is_file():
-                    continue
-                diff = list(difflib.unified_diff((before / f.name).read_text().splitlines(True),
-                                                f.read_text().splitlines(True),
-                                                fromfile='before/' + f.name, tofile='after/' + f.name))
-                added += sum(s.startswith('+') and not s.startswith('+++') for s in diff)
-                removed += sum(s.startswith('-') and not s.startswith('---') for s in diff)
-                patches.extend(diff)
+            changes, added, removed = frontend_diff(before, source)
             patch = armroot / 'operator-change.diff'
-            patch.write_text(''.join(patches))
+            patch.write_text(changes)
             row['operator_change'] = dict(added=added, removed=removed, lines_touched=added + removed,
-                                          patch=str(patch), diff=''.join(patches), baseline=previous, probes=probes,
+                                          patch=str(patch), diff=changes, baseline=previous, probes=probes,
                                           baseline_decimal=old_decimal,
                                           baseline_rejects_remainder=rejected)
             if not smoke:

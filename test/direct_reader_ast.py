@@ -35,6 +35,34 @@ def snapshot(root, compiler, env, reader, source, work):
     return compact, formatted, normalized
 
 
+def check_tariff_cli_and_sdk_mint(work, compiler, env):
+    consumer = work / "consumer"
+    consumer.mkdir()
+    original = ROOT / TARIFF / "lang/tariff.lang"
+    source = ROOT / TARIFF / "fixtures/benchmark.tariff"
+    harness = ROOT / TARIFF / "harness.c"
+    cli = consumer / "tariff.lang"
+    cli.write_bytes(original.read_bytes())
+    call(consumer, compiler, env, "tariff.lang", "-o", "frontend.ll")
+    call(consumer, "clang", env, "-O2", "frontend.ll", "-o", "frontend")
+    (consumer / "program.ast").write_bytes(call(consumer, "./frontend", env, source))
+    call(consumer, compiler, env, "--from-ast", "program.ast", "--ast-source", source,
+         "-o", "program.ll")
+    call(consumer, "clang", env, "-O2", "program.ll", harness, "-o", "program")
+    assert call(consumer, "./program", env, "2000000") == b"6000002995045\n"
+    print("PASS copied Tariff CLI emits AST that links and runs")
+
+    # The SDK's consumer replaces the CLI main with a reader declaration.
+    body, separator, _ = original.read_text().partition("\nfunc main(")
+    assert separator, original
+    cli.write_text(body + "\nreader tariff(text *u8) *u8 { return tariff_read(text); }\n")
+    call(consumer, compiler, env, "compiler", "tariff", "tariff.lang", "-o", "tariffc")
+    call(consumer, "./tariffc", env, source, "-o", "minted.ll")
+    call(consumer, "clang", env, "-O2", "minted.ll", harness, "-o", "minted")
+    assert call(consumer, "./minted", env, "2000000") == b"6000002995045\n"
+    print("PASS existing SDK Tariff adaptation mints a working compiler")
+
+
 def check_direct(work, compiler, env):
     reader = TARIFF / "lang/reader.lang"
     minted = work / "tariff"
@@ -53,6 +81,16 @@ def check_direct(work, compiler, env):
         call(ROOT, minted, env, "--trusted-reader", source, "--emit=llvm", "-o", actual)
         assert expected.read_bytes() == actual.read_bytes(), source
     print("PASS Tariff fixtures produce identical LLVM through direct and text AST")
+
+    malformed = work / "missing-open-brace.tariff"
+    malformed.write_text("fn compute(n) return n;\n")
+    expected = b"expected '{', found return @14:20"
+    for command in ([compiler, "read", reader, malformed],
+                    [minted, "--trusted-reader", "--check-reader", malformed]):
+        failure = subprocess.run(command, cwd=ROOT, env=env, capture_output=True)
+        assert failure.returncode == 1 and not failure.stdout, failure
+        assert expected in failure.stderr, failure.stderr
+    print("PASS Tariff diagnoses a missing opening brace on both AST paths")
 
 
 def fixture_cases(work):
@@ -82,9 +120,16 @@ def fixture_cases(work):
         source = work / f"program.{suffix}"
         source.write_text(text)
         yield EXAMPLE / reader, source
-    source = work / "program.scheme"
-    source.write_bytes((ROOT / EXAMPLE / "scheme/basic.scm").read_bytes())
-    yield EXAMPLE / "scheme/scheme.lang", source
+    for fixture in sorted((ROOT / EXAMPLE / "scheme").glob("*.scm")):
+        if fixture.name != "refusal.scm":
+            source = work / (fixture.stem + ".scheme")
+            source.write_bytes(fixture.read_bytes())
+            yield EXAMPLE / "scheme/scheme.lang", source
+    for name in ("arithmetic.lua", "false.lua"):
+        yield EXAMPLE / "lua/lua.lang", ROOT / "test/lua" / name
+    tree = work / "tree-reader.lang"
+    tree.write_text('include "std/parser_reader.lang"\ninclude "example/tree/tree.lang"\n')
+    yield tree, ROOT / "test/pnode_dump_source.pdebug"
 
 
 def check_text(work, compiler, env, base):
@@ -115,6 +160,7 @@ def main():
                             "LANG_CACHE": str(work / "cache")}
         if args.base:
             check_text(work, args.compiler.resolve(), env, args.base.resolve())
+        check_tariff_cli_and_sdk_mint(work, args.compiler.resolve(), env)
         check_direct(work, args.compiler.resolve(), env)
 
 

@@ -1,4 +1,4 @@
-include "examples/dsl-compare/lang/reader.lang"
+include "examples/dsl-compare/lang/tariff_parser.lang"
 
 func main(argc i64, argv **u8) i64 {
     if argc != 2 { return 2; }
