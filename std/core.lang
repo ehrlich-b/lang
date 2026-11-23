@@ -30,7 +30,7 @@ func reader_scratch_begin() void {
 
 func reader_scratch_end() void { reader_scratch_active = 0; }
 
-func reader_scratch_alloc(size i64) *u8 {
+pub func reader_scratch_alloc(size i64) *u8 {
     var aligned i64 = ((size + 7) / 8) * 8;
     if reader_scratch_page != nil {
         if aligned <= reader_scratch_page.capacity - reader_scratch_used {

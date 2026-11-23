@@ -136,10 +136,10 @@ and peak MiB. The 100,000-line figures are medians of five runs. The
 
 | Input and compiler | Frontend | Backend | Native link | Source to native |
 |---|---:|---:|---:|---:|
-| 100,000 base | 2.537 / 791.7 | 2.140 / 726.0 | 2.302 / 212.0 | 8.058 / 794.3 |
-| 100,000 direct | 0.374 / 50.9 | 0.333 / 146.4 | 2.095 / 212.4 | 3.128 / 212.4 |
-| 1,000,000 base | 1.773 / 714.5 (refused) | — | — | — |
-| 1,000,000 direct | 4.294 / 488.6 | 5.057 / 1,435.7 | 23.131 / 1,300.0 | 32.902 / 1,435.7 |
+| 100,000 base | 1.927 / 792.0 | 1.734 / 726.1 | 1.542 / 213.5 | 4.870 / 794.5 |
+| 100,000 direct | 0.323 / 50.9 | 0.217 / 146.6 | 1.698 / 212.9 | 2.287 / 212.9 |
+| 1,000,000 base | 1.340 / 714.8 (refused) | — | — | 1.348 / 743.1 (refused) |
+| 1,000,000 direct | 3.047 / 488.9 | 1.965 / 1,443.0 | 15.377 / 1,348.2 | 20.532 / 1,443.0 |
 
 The base phase probes use the standalone text reader and `--from-ast`.
 The base total independently times the minted compiler and link. On the direct
