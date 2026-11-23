@@ -811,7 +811,8 @@ func read_run_reader_raw(name *u8, source_path *u8, content *u8) *u8 {
             return nil;
         }
 
-        var exe_path *u8 = build_reader_cache_path(name, name_len);
+        var exe_path *u8 = compiler_reader_executable(name, name_len, build_reader_cache_path(name, name_len));
+        if exe_path == nil { return nil; }
         output = reader_host_worker(exe_path, content, strlen(content), name, source_path, nil);
         var n i64 = phase_worker_status;
         if output != nil { n = strlen(output); }

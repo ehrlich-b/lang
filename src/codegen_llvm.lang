@@ -7078,71 +7078,15 @@ func llvm_emit_decl_inner(decl *u8) void {
     }
 
     if k == NODE_READER_EXPR {
-        // Reader macro at declaration level - expand and emit declarations
-        var name *u8 = reader_expr_name(decl);
-        var name_len i64 = reader_expr_name_len(decl);
-        var content *u8 = reader_expr_content(decl);
-        var content_len i64 = reader_expr_content_len(decl);
-
-        // First check for embedded reader function (composed compilers)
-        var embedded_func *u8 = find_embedded_reader_func(name, name_len);
-        if embedded_func != nil {
-            // Call embedded reader function directly (signature: fn(*u8) *u8)
-            var output *u8 = compiler_invoke_reader(decl, embedded_func, nil);
-            if output != nil {
-                // Parse output as S-expr AST (readers MUST output AST)
-                var prog *u8 = parse_ast_from_reader_string(
-                    output, node_origin_source(decl), content
-                );
-            llvm_debug_bind_reader(decl, content);
-                if prog != nil {
-                    var inc_decls *u8 = program_decls(prog);
-                    var inc_count i64 = program_decl_count(prog);
-                    var i i64 = 0;
-                    while i < inc_count {
-                        var generated_decl *u8 = get_decl(inc_decls, i);
-                        node_copy_origin(generated_decl, decl);
-                        llvm_emit_decl(generated_decl);
-                        i = i + 1;
-                    }
-                }
-            }
-            return;
-        }
-
-        // Fall back to external executable
-        var reader_decl *u8 = find_reader(name, name_len);
-        if reader_decl == nil {
-            return;  // Error already reported
-        }
-
-        // Build path to reader executable
-        var exe_path *u8 = build_reader_cache_path(name, name_len);
-
-        // Execute reader with content as input
-        var output *u8 = compiler_invoke_reader(decl, nil, exe_path);
-        var n i64 = phase_worker_status;
-        if output != nil { n = strlen(output); }
-
-        if n <= 0 {
-            return;
-        }
-
-        // Parse output as S-expr AST (readers MUST output AST)
-        var prog *u8 = parse_ast_from_reader_string(
-            output, node_origin_source(decl), content
-        );
-            llvm_debug_bind_reader(decl, content);
-        if prog != nil {
-            var inc_decls *u8 = program_decls(prog);
-            var inc_count i64 = program_decl_count(prog);
-            var i i64 = 0;
-            while i < inc_count {
-                var generated_decl *u8 = get_decl(inc_decls, i);
-                node_copy_origin(generated_decl, decl);
-                llvm_emit_decl(generated_decl);
-                i = i + 1;
-            }
+        var prog *u8 = expand_reader_decl(decl);
+        if prog == nil { return; }
+        llvm_debug_bind_reader(decl, reader_expr_content(decl));
+        var i i64 = 0;
+        while i < program_decl_count(prog) {
+            var generated_decl *u8 = get_decl(program_decls(prog), i);
+            node_copy_origin(generated_decl, decl);
+            llvm_emit_decl(generated_decl);
+            i = i + 1;
         }
         return;
     }

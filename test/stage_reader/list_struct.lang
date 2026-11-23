@@ -3,7 +3,7 @@ include "std/generic.lang"
 // A byte before an i64 makes the reflected stride include alignment padding.
 struct Pair { tag u8; value i64; }
 
-reader instantiate_list(text *u8) *u8 {
+reader instantiate_list(text *u8) *u8 cached {
     var types *u8 = stage_types("struct Pair { tag u8; value i64; }");
     return list_instantiate_with_types(text, types);
 }

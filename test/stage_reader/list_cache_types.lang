@@ -1,0 +1,5 @@
+struct Pair { item *u8; }
+
+func cache_type_declarations() *u8 {
+    return "struct Pair { item *u8; }";
+}

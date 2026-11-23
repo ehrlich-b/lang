@@ -737,8 +737,8 @@ func sexpr_to_node_inner(node *PNode) *u8 {
         return n;
     }
 
-    // (reader [pub] name param body)
-    if streq(head, "reader") {
+    // (reader [pub] name param body) or (cached_reader [pub] name param body)
+    if streq(head, "reader") || streq(head, "cached_reader") {
         var n *u8 = reader_decl_alloc();
 
         // Check for optional pub keyword
@@ -760,6 +760,8 @@ func sexpr_to_node_inner(node *PNode) *u8 {
         reader_decl_set_is_pub(n, is_pub);
         // Body is already AST since we're parsing S-expressions
         reader_decl_set_is_ast(n, 1);
+        var reader_node *ReaderDecl = n;
+        reader_node.cached = streq(head, "cached_reader");
         return n;
     }
 

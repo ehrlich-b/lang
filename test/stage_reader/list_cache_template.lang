@@ -1,0 +1,7 @@
+include "std/generic.lang"
+include "list_cache_types.lang"
+
+reader instantiate_list(text *u8) *u8 cached {
+    var types *u8 = stage_types(cache_type_declarations());
+    return list_instantiate_with_types(text, types);
+}

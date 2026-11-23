@@ -438,7 +438,9 @@ func ast_emit_node_inner(node *u8) void {
     }
 
     if kind == NODE_READER_DECL {
-        ast_emit_str("(reader ");
+        var reader_node *ReaderDecl = node;
+        if reader_node.cached != 0 { ast_emit_str("(cached_reader "); }
+        else { ast_emit_str("(reader "); }
         if reader_decl_is_pub(node) {
             ast_emit_str("pub ");
         }

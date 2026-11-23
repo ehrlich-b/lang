@@ -18,6 +18,7 @@ const AST_SHAPES = {
   'enum': 'd:sV',
   'effect': 'd:sTt',
   'reader': 'd:ssn',
+  'cached_reader': 'd:ssn',
   'macro': 'd:sMn',
   'include': 'd:q',
   'require': 'd:q',
@@ -170,7 +171,7 @@ function formatLangAst(source) {
         !(role === 'd' && head === 'reader_expr')) return invalid(node);
     let signature = schema.slice(2);
     let index = 1;
-    if (['func', 'extern_func', 'var', 'extern_var', 'struct', 'enum', 'effect', 'reader'].includes(head) &&
+    if (['func', 'extern_func', 'var', 'extern_var', 'struct', 'enum', 'effect', 'reader', 'cached_reader'].includes(head) &&
         children[index]?.text === 'pub') index++;
     if (head === 'program' && children[1]?.children?.[0]?.text === 'ast-version') {
       validate(children[1], 'z'); index++;

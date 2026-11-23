@@ -1,7 +1,7 @@
 include "std/generic.lang"
 include "std/reader_diagnostics.lang"
 
-reader instantiate_list(text *u8) *u8 {
+reader instantiate_list(text *u8) *u8 cached {
     var program *u8 = list_instantiate(text);
     if program == nil {
         var message *u8 = str_concat("cannot instantiate List for ", text);

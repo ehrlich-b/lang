@@ -111,10 +111,32 @@ artifact reuse is disabled. An identity receipt is written only after linking
 succeeds. Toolchain hermeticity and concurrent atomic artifact publication are
 not established by this legacy artifact cache.
 
-The legacy native execution profile inherits ambient authority and is trusted.
-Forking is not a sandbox. Deadlines, cancellation, confinement, semantic fuel,
-phase-cycle scheduling and complete specialization/result caching are later
-services. No frontend typing or runtime memory/scheduling policy is introduced.
+## Reader specializations
+
+Use `reader name(type *u8) *u8 cached { ... }` for a native source reader that
+generates a module deterministically from the exact type descriptor bytes,
+its declared source closure and the output target. The reader chooses the
+descriptor format and encodes any type environment it needs in its inputs.
+Declare source dependencies with `include` or `require`. A cached reader must
+avoid ambient values such as files outside that closure, environment settings,
+clocks and side effects. Ordinary readers keep their existing behavior.
+
+For declaration expansions, the host combines the template identity, SHA-256
+of the type descriptor bytes and the output target. Template identity includes
+the reader wrapper, transitive source digests, executing compiler, native
+backend, layout profile and cache protocol. `LANG_CACHE/specializations`
+stores checksummed AST bytes after successful expansion and AST validation.
+Each build parses the AST again and binds it to the current invocation's
+origins. Partial entries and diagnostic-bearing results are excluded from
+reuse. Concurrent writers publish complete entries atomically. The native
+worker executable is obtained only on a miss. Expression and raw reader
+requests still execute the reader normally.
+
+The native execution profile inherits ambient authority and is trusted.
+Deadlines, cancellation, confinement, semantic fuel and phase-cycle scheduling
+remain separate services. The cache directory is part of the trusted build
+environment. `LANG_TRACE_STAGE_WORKERS=1` reports native reader compilation
+and execution starts to stderr for inspection.
 
 The [worker attack corpus](WORKER_CORPUS.md) prepares bounded authority,
 cancellation and stale-publication cases with independent expected outcomes.

@@ -1,5 +1,4 @@
-// Declared import dependency_bytes for legacy reader artifacts. This is artifact
-// invalidation, not specialization/result caching or a phase scheduler.
+// Declared import identities shared by reader artifacts and specialization templates.
 var phase_compiler_path *u8 = nil;
 var phase_compiler_digest *u8 = nil;
 pub func phase_binary_digest(path *u8) *u8 {

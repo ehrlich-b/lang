@@ -14,6 +14,11 @@ var phase_worker_end i64 = 0;
 var phase_worker_status i64 = 0;
 var phase_worker_output_len i64 = 0;
 var phase_worker_hook fn(*u8, *u8, i64) *u8 = nil;
+func phase_trace_worker_start(kind *u8) void {
+    var enabled *u8 = getenv("LANG_TRACE_STAGE_WORKERS");
+    if enabled == nil || streq(enabled, "1") == 0 { return; }
+    eprint("stage-worker-start "); eprintln(kind);
+}
 pub func phase_worker_call(program *u8, input *u8, len i64) *u8 {
     if phase_worker_hook == nil { return phase_exec_capture(program, input, len); }
     return phase_worker_hook(program, input, len);
@@ -158,6 +163,7 @@ pub func phase_exec_capture_buffer(program *u8, input *u8, input_len i64, binary
     }
 
     // Parent process
+    phase_trace_worker_start("reader-run");
     if stderr_write >= 0 { os_close(stderr_write); }
     // Close child's ends of pipes
     os_close(stdin_read);

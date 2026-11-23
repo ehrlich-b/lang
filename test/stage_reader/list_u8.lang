@@ -1,6 +1,6 @@
 include "std/generic.lang"
 
-reader instantiate_list(text *u8) *u8 {
+reader instantiate_list(text *u8) *u8 cached {
     return list_instantiate(text);
 }
 

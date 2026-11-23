@@ -15,6 +15,7 @@ func ast_shape_schema(head *u8) *u8 {
     if streq(head, "enum") { return "d:sV"; }
     if streq(head, "effect") { return "d:sTt"; }
     if streq(head, "reader") { return "d:ssn"; }
+    if streq(head, "cached_reader") { return "d:ssn"; }
     if streq(head, "macro") { return "d:sMn"; }
     if streq(head, "include") { return "d:q"; }
     if streq(head, "require") { return "d:q"; }
@@ -146,7 +147,7 @@ func ast_shape_validate(node *PNode, role u8) void {
     signature = schema + 2;
     if streq(head, "func") || streq(head, "extern_func") || streq(head, "var") ||
        streq(head, "extern_var") || streq(head, "struct") || streq(head, "enum") ||
-       streq(head, "effect") || streq(head, "reader") {
+       streq(head, "effect") || streq(head, "reader") || streq(head, "cached_reader") {
         if count > 1 { if sexpr_is(sexpr_get(node, 1), "pub") { index = 2; } }
     }
     if streq(head, "program") && count > 1 {

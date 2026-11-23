@@ -1,0 +1,6 @@
+include "list_cache_template.lang"
+
+#instantiate_list{u8}
+#instantiate_list{Pair}
+
+func main() i64 { return 42; }

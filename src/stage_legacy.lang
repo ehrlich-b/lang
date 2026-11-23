@@ -9,47 +9,17 @@ pub func phase_legacy_compile(request *PhaseCompileRequest) i64 {
     return cg_had_error;
 }
 
-// Legacy reader artifact adapter. New execution engines implement phase_host hooks.
-pub func compile_reader_to_executable(decl *u8) void {
+// Generate the template in its declaration's file context. Both native
+// artifact compilation and specialization identity use these exact bytes.
+func phase_reader_wrapper(decl *u8, use_llvm i64) *u8 {
     var name *u8 = reader_decl_name(decl);
     var name_len i64 = reader_decl_name_len(decl);
     var param_name *u8 = reader_decl_param_name(decl);
     var param_len i64 = reader_decl_param_len(decl);
     var body *u8 = reader_decl_body(decl);
 
-    // Build cache path: $LANG_CACHE/readers/<name>
-    var base_path *u8 = build_reader_cache_path(name, name_len);
-    var exe_path *u8 = str_dup(base_path);
-    var link_path *u8 = phase_reader_link_path(exe_path);
-
-    // Create cache directories
-    var cache_base *u8 = get_cache_base();
-    var readers_dir *u8 = str_concat(cache_base, "/readers");
-    os_mkdir(cache_base, 493);
-    os_mkdir(readers_dir, 493);
-
-    // Backend selection: LLVM if requested-or-default AND available
-    // (standalone compilers don't include codegen_llvm.lang)
-    var use_llvm i64 = 0;
-    if cg_host_reader_uses_llvm() != 0 && cg_has_llvm_backend != 0 {
-        use_llvm = 1;
-    }
-
-    var src_path *u8 = str_concat(base_path, ".lang");
-    // Output path depends on backend: .ll for LLVM, .s for x86
-    var out_path *u8 = nil;
-    if use_llvm {
-        out_path = str_concat(base_path, ".ll");
-    } else {
-        out_path = str_concat(base_path, ".s");
-    }
-    var obj_path *u8 = str_concat(base_path, ".o");
-
-    // Loop variables used throughout function
     var i i64 = 0;
     var j i64 = 0;
-    var dependency_newer i64 = 0;
-    var exe_mtime i64 = file_mtime(exe_path);
 
     // Build wrapper source with dependencies from the reader's current file.
     var wrapper *u8 = nil;
@@ -148,8 +118,6 @@ pub func compile_reader_to_executable(decl *u8) void {
             var k i64 = node_kind(sibling);
             if k == NODE_INCLUDE_DECL {
                 ast_to_string_include_decl(sibling);
-                var dep_path *u8 = str_dup_n(include_decl_path(sibling), include_decl_path_len(sibling));
-                if resource_file_mtime(dep_path) > exe_mtime { dependency_newer = 1; }
             }
             // For reader caching, treat require like include (inline the code)
             if k == NODE_REQUIRE_DECL {
@@ -159,9 +127,6 @@ pub func compile_reader_to_executable(decl *u8) void {
                 ast_str_append_cstr("include \"");
                 ast_str_append(mod, mod_len);
                 ast_str_append_cstr(".lang\"\n");
-                var dep_base *u8 = str_dup_n(mod, mod_len);
-                var dep_path *u8 = str_concat(dep_base, ".lang");
-                if resource_file_mtime(dep_path) > exe_mtime { dependency_newer = 1; }
             }
             i = i + 1;
         }
@@ -276,11 +241,20 @@ pub func compile_reader_to_executable(decl *u8) void {
         while *entry_main != 0 { *wp = *entry_main; wp = wp + 1; entry_main = entry_main + 1; }
     }
     *wp = 0;
+    return wrapper;
+}
 
+// Legacy reader artifact adapter. A specialization miss supplies a private stem.
+func compile_reader_to_executable(decl *u8, exe_path *u8, wrapper *u8, use_llvm i64, identity *u8) void {
+    var name *u8 = reader_decl_name(decl);
+    var name_len i64 = reader_decl_name_len(decl);
+    var link_path *u8 = phase_reader_link_path(exe_path);
+    var src_path *u8 = str_concat(exe_path, ".lang");
+    var out_path *u8 = str_concat(exe_path, ".s");
+    if use_llvm != 0 { out_path = str_concat(exe_path, ".ll"); }
+    var obj_path *u8 = str_concat(exe_path, ".o");
     var wlen i64 = strlen(wrapper);
-
-    var identity *u8 = phase_reader_identity(wrapper, use_llvm);
-    var identity_path *u8 = str_concat(base_path, ".identity");
+    var identity_path *u8 = str_concat(exe_path, ".identity");
     if file_mtime(exe_path) != 0 && phase_identity_matches(identity_path, identity) != 0 &&
        reader_wrapper_matches(src_path, wrapper, wlen) != 0 { return; }
 
@@ -319,6 +293,7 @@ pub func compile_reader_to_executable(decl *u8) void {
         if phase_compile_hook == nil { phase_compile_hook = &phase_legacy_compile; }
         os__exit(phase_host_compile(request));
     }
+    phase_trace_worker_start("reader-compile");
 
     // Parent: wait for child to finish
     var status *i64 = alloc(8);
@@ -503,6 +478,7 @@ pub func compile_from_embedded_ast(name *u8, name_len i64, ast *u8) *u8 {
     }
 
     // Parent: wait for child
+    phase_trace_worker_start("reader-compile");
     var status *i64 = alloc(8);
     os_waitpid(pid, status, 0);
     var exit_code i64 = process_status_code(*status);

@@ -1,0 +1,117 @@
+// Persistent copied AST for deterministic, explicitly opted-in reader templates.
+struct PhaseSpecializationTemplate {
+    wrapper *u8;
+    digest *u8;
+    llvm i64;
+    program *u8;
+}
+
+var phase_specialization_sequence i64 = 0;
+
+func phase_specialization_dir() *u8 {
+    return str_concat(get_cache_base(), "/specializations");
+}
+
+func phase_specialization_pending(path *u8) *u8 {
+    phase_specialization_sequence = phase_specialization_sequence + 1;
+    var name *PhaseBuffer = phase_buffer_new(phase_limit(), path);
+    phase_buffer_text(name, path); phase_buffer_text(name, ".pending-");
+    phase_buffer_int(name, os_getpid()); phase_buffer_text(name, "-");
+    phase_buffer_int(name, phase_specialization_sequence);
+    return name.data;
+}
+
+func phase_specialization_template(wrapper *u8, identity *u8, llvm i64) *PhaseSpecializationTemplate {
+    var key *PhaseBuffer = phase_buffer_new(phase_limit(), "specialization template");
+    phase_buffer_field(key, "reader-specialization-v1");
+    phase_buffer_field(key, identity);
+    var profile *u8 = getenv("LANG_LAYOUT_PROFILE");
+    if profile == nil { profile = ""; }
+    phase_buffer_field(key, profile);
+    var template *PhaseSpecializationTemplate = alloc(32);
+    template.wrapper = wrapper;
+    template.digest = phase_digest(key.data, key.len);
+    template.llvm = llvm;
+    return template;
+}
+
+func phase_specialization_key(template *PhaseSpecializationTemplate, input *u8, len i64) *u8 {
+    var key *PhaseBuffer = phase_buffer_new(phase_limit(), "specialization request");
+    phase_buffer_field(key, template.digest);
+    phase_buffer_field(key, phase_digest(input, len));
+    phase_buffer_field(key, cg_reader_output_target());
+    return phase_digest(key.data, key.len);
+}
+
+// A miss may require a native executable. Concurrent builds link privately and
+// publish a complete executable under the immutable template identity.
+func phase_specialization_worker(decl *u8, template *PhaseSpecializationTemplate) *u8 {
+    if template.program != nil { return template.program; }
+    var dir *u8 = phase_specialization_dir();
+    var program *u8 = str_concat(str_concat(dir, "/"), template.digest);
+    var fd i64 = file_open(program, O_RDONLY);
+    if fd >= 0 { file_close(fd); template.program = program; return program; }
+
+    var attempt *u8 = phase_specialization_pending(program);
+    if os_mkdir(attempt, 448) != 0 { phase_error("specialization-workspace", attempt); }
+    var pending *u8 = str_concat(attempt, "/reader");
+    compile_reader_to_executable(decl, pending, template.wrapper, template.llvm, nil);
+    if cg_had_error != 0 { return nil; }
+    if rename(pending, program) != 0 { phase_error("specialization-worker-publish", program); }
+    os_unlink(str_concat(pending, ".lang"));
+    if template.llvm != 0 { os_unlink(str_concat(pending, ".ll")); }
+    else { os_unlink(str_concat(pending, ".s")); }
+    os_rmdir(attempt);
+    template.program = program;
+    return program;
+}
+
+// An entry starts with a hex checksum of the request key and the AST digest.
+// A truncated, oversized or misplaced entry is a miss. Provenance stays local
+// to the consuming compiler and is rebound by its usual reader AST parser.
+func phase_specialization_checksum(key *u8, ast *u8, len i64) *u8 {
+    return phase_digest(str_concat(key, phase_digest(ast, len)), 128);
+}
+
+func phase_specialization_read(path *u8, key *u8) *u8 {
+    var fd i64 = file_open(path, O_RDONLY);
+    if fd < 0 { return nil; }
+    var header *u8 = alloc(64);
+    var offset i64 = 0;
+    while offset < 64 {
+        var count i64 = file_read(fd, header + offset, 64 - offset);
+        if count <= 0 { file_close(fd); return nil; }
+        offset = offset + count;
+    }
+    var ast *PhaseBuffer = phase_buffer_new(phase_limit(), path);
+    var chunk *u8 = alloc(4096);
+    var count i64 = file_read(fd, chunk, 4096);
+    while count > 0 {
+        if count > ast.limit - ast.len { file_close(fd); return nil; }
+        phase_buffer_append(ast, chunk, count);
+        count = file_read(fd, chunk, 4096);
+    }
+    file_close(fd);
+    if count < 0 || ast.len == 0 { return nil; }
+    if strlen(ast.data) != ast.len || !memcmp(header, phase_specialization_checksum(key, ast.data, ast.len), 64) {
+        return nil;
+    }
+    return ast.data;
+}
+
+func phase_specialization_write(path *u8, key *u8, ast *u8) void {
+    var pending *u8 = phase_specialization_pending(path);
+    var fd i64 = os_open(pending, O_WRONLY_CREAT_EXCL, 384);
+    if fd < 0 { return; }
+    var len i64 = strlen(ast);
+    var checksum *u8 = phase_specialization_checksum(key, ast, len);
+    var valid i64 = file_write(fd, checksum, 64) == 64;
+    var offset i64 = 0;
+    while valid != 0 && offset < len {
+        var count i64 = file_write(fd, ast + offset, len - offset);
+        if count <= 0 { valid = 0; }
+        else { offset = offset + count; }
+    }
+    if os_close(fd) == 0 && valid != 0 && rename(pending, path) == 0 { return; }
+    os_unlink(pending);
+}
