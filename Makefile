@@ -494,6 +494,9 @@ verify:
 else ifeq ($(VERIFY_CASE),inspect)
 verify:
 	python3 -B test/reader_author/inspect.py --case shipping
+else ifeq ($(VERIFY_CASE),lox)
+verify: build
+	COMPILER=out/lang_next bash example/lox/test/run.sh
 else ifeq ($(VERIFY_CASE),two-readers)
 verify:
 	python3 -B test/reader_author/lexer_profile.py --case two-readers
@@ -780,11 +783,9 @@ test-bootstrap:
 borders: build
 	python3 test/borders/run.py
 # Score a Lox executable against the Crafting Interpreters suite.
-LOX_SUITE ?= ../craftinginterpreters
 .PHONY: lox-score
-lox-score: init
-	@$(MAKE) generate-os-layer LANGLIBC=libc
-	LOX_SUITE="$(LOX_SUITE)" sh test/lox/run-score.sh
+lox-score: build
+	COMPILER=out/lang_next LOX_SUITE="$(LOX_SUITE)" sh test/lox/run-score.sh
 
 .PHONY: scoreboard
 scoreboard:

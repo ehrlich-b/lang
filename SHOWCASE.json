@@ -17,10 +17,10 @@
     },
     {
       "name": "clox suite tests passing, of 246",
-      "value": 58,
+      "value": 235,
       "unit": "tests",
       "direction": "higher",
-      "detail": "Whole-corpus score: 58/246"
+      "detail": "Pinned clox suite: 235/246, up from 58/246"
     },
     {
       "name": "Compiler functions executed by LLVM suite",

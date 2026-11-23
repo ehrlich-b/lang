@@ -1,0 +1,2 @@
+var setting = false;
+setting();

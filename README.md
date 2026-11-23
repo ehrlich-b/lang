@@ -199,6 +199,10 @@ No two of the five agree on so much as where a block ends: parens, braces, `;`, 
 
 None of this extended the kernel; readers are syntax plugins, not compiler patches. The honest claim isn't "capture any language" — it's *compose any syntax at the ABI level in one native binary*.
 
+The [Lox reader](./example/lox/README.md) compiles statements, closures and
+classes with inheritance to LLVM using the public reader toolkit. Run
+`make lox-score LOX_SUITE=/path/to/craftinginterpreters` for the pinned suite.
+
 ## It compiles itself
 
 Check the language-author path with

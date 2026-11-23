@@ -4,3 +4,4 @@
 {"revision":"integrated-functions-and-review-fixes","passing":58,"total":246}
 {"revision":"ten-item-recomposition","passing":58,"total":246}
 {"revision":"full-scoreboard-base-1d9f702","passing":58,"total":246,"status":"completed","lua_llvm":"0/33","lua_wasm":"0/33","borders_wrong":4}
+{"revision":"lox-control-flow-and-classes","passing":235,"total":246,"status":"completed"}

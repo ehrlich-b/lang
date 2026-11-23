@@ -1,0 +1,2 @@
+print "compilation should never execute this";
+return 123;

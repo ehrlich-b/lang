@@ -1,0 +1,7 @@
+class Alarm {
+  init(hour, minute) {
+    this.hour = hour;
+    this.minute = minute;
+  }
+}
+Alarm(7);

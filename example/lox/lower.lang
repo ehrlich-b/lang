@@ -1,0 +1,415 @@
+// Resolve names against lexical scopes while emitting explicit runtime frames.
+struct LoxLocal { name *u8; depth i64; initializing bool; next *LoxLocal; }
+struct LoxLower {
+    text *u8; locals *LoxLocal; depth i64; function_kind i64; class_kind i64;
+    functions *u8; unique i64; failed bool;
+}
+// Assignable expressions retain their binding or receiver until '=' is known.
+struct LoxExpr { code *u8; name *PNode; distance i64; object *u8; }
+
+func lx_fresh(p *LoxLower, prefix *u8) *u8 {
+    p.unique = p.unique + 1;
+    var name *StringBuilder = sb_new();
+    sb_str(name, prefix);
+    sb_int(name, p.unique);
+    return sb_finish(name);
+}
+func lx_site(node *PNode) *u8 { return ast_int(node.start); }
+func lx_repeated(node *PNode, name *u8) *u8 { return pnode_require(node, name).children; }
+
+func lx_diagnostic(text *u8, start i64, end i64, message *u8) void {
+    var buf *StringBuilder = sb_new();
+    sb_str(buf, "Error at ");
+    if start == strlen(text) { sb_str(buf, "end"); }
+    else {
+        var stop i64 = start;
+        while stop < end && text[stop] != 10 && text[stop] != 13 { stop = stop + 1; }
+        sb_char(buf, 39);
+        sb_str(buf, str_dup_n(text + start, stop - start));
+        sb_char(buf, 39);
+    }
+    sb_str(buf, ": ");
+    sb_str(buf, message);
+    reader_error("reader-syntax-snippet", sb_finish(buf), "lox", text, start, end);
+}
+func lx_fail(p *LoxLower, node *PNode, message *u8) void {
+    p.failed = true;
+    lx_diagnostic(p.text, node.start, node.end, message);
+}
+func lx_syntax(tokens *Tokenizer, text *u8) void {
+    var start i64 = tok_error_offset(tokens);
+    var end i64 = tok_error_end_offset(tokens);
+    if start < 0 { start = tok_start_offset(tokens); end = tok_end_offset(tokens); }
+    var expected *u8 = tok_error_expected(tokens);
+    var prior *u8 = "";
+    var earlier *u8 = "";
+    tok_reset(tokens, 0);
+    while !tok_eof(tokens) && tok_start_offset(tokens) < start {
+        earlier = prior;
+        prior = tok_text(tokens);
+        tok_next(tokens);
+    }
+    var message *u8 = str_concat("Expected ", str_concat(expected, "."));
+    if streq(expected, "symbol") {
+        if streq(prior, ".") {
+            message = "Expect property name after '.'.";
+            if streq(earlier, "super") { message = "Expect superclass method name."; }
+        } else if streq(prior, "var") { message = "Expect variable name."; }
+        else if streq(prior, "fun") { message = "Expect function name."; }
+        else if streq(prior, "class") { message = "Expect class name."; }
+        else if streq(prior, "<") { message = "Expect superclass name."; }
+    } else if streq(expected, "'.'") && streq(prior, "super") {
+        message = "Expect '.' after 'super'.";
+    } else if streq(expected, "'{'") {
+        message = "Expect '{' before function or class body.";
+    } else if streq(expected, "end of input") || str_starts_with(expected, "'!' or '-' or number") ||
+               str_starts_with(expected, "'{' or 'if'") {
+        message = "Expect expression.";
+    }
+    lx_diagnostic(text, start, end, message);
+}
+func lx_declare(p *LoxLower, name *PNode) *LoxLocal {
+    if p.depth == 0 { return nil; }
+    var prior *LoxLocal = p.locals;
+    while prior != nil && prior.depth == p.depth {
+        if streq(prior.name, name.text) {
+            lx_fail(p, name, "Already a variable with this name in this scope.");
+            return nil;
+        }
+        prior = prior.next;
+    }
+    var local *LoxLocal = alloc(32);
+    local.name = name.text; local.depth = p.depth;
+    local.initializing = false; local.next = p.locals; p.locals = local;
+    return local;
+}
+func lx_distance(p *LoxLower, name *PNode) i64 {
+    var local *LoxLocal = p.locals;
+    while local != nil {
+        if streq(local.name, name.text) {
+            if local.initializing { lx_fail(p, name, "Can't read local variable in its own initializer."); }
+            return p.depth - local.depth;
+        }
+        local = local.next;
+    }
+    return -1;
+}
+func lx_load(p *LoxLower, name *PNode) *u8 {
+    return ast_call3("lox_get", ast_int(lx_distance(p, name)), ast_string(name.text), lx_site(name));
+}
+func lx_enter(p *LoxLower, body *u8) void {
+    p.depth = p.depth + 1;
+    ast_push(body, ast_expr_stmt(ast_call0("lox_begin")));
+}
+func lx_leave(p *LoxLower, body *u8) void {
+    while p.locals != nil && p.locals.depth == p.depth { p.locals = p.locals.next; }
+    p.depth = p.depth - 1;
+    ast_push(body, ast_expr_stmt(ast_call0("lox_end")));
+}
+
+func lx_value(code *u8) *LoxExpr {
+    var e *LoxExpr = alloc(32);
+    e.code = code; e.name = nil; e.distance = -1; e.object = nil;
+    return e;
+}
+func lx_read(e *LoxExpr) *u8 {
+    if e.name == nil { return e.code; }
+    var name *PNode = e.name;
+    if e.object != nil {
+        return ast_call3("lox_property", e.object, ast_string(name.text), lx_site(name));
+    }
+    return ast_call3("lox_get", ast_int(e.distance), ast_string(name.text), lx_site(name));
+}
+func lx_primary_code(p *LoxLower, node *PNode) *LoxExpr {
+    var branch *u8 = pnode_branch(node);
+    if streq(branch, "number_value") { return lx_value(ast_call1("lox_number", ast_string(node.text))); }
+    if streq(branch, "string_value") {
+        var text *u8 = node.text;
+        return lx_value(ast_call1("lox_string", ast_string(str_dup_n(text + 1, strlen(text) - 2))));
+    }
+    if streq(branch, "truth") { return lx_value(ast_call1("lox_bool", ast_int(1))); }
+    if streq(branch, "falsehood") { return lx_value(ast_call1("lox_bool", ast_int(0))); }
+    if streq(branch, "null_value") { return lx_value(ast_call0("lox_nil")); }
+    if streq(branch, "group") { return lx_value(lx_expr(p, pnode_require(node, "value"))); }
+    if streq(branch, "receiver") {
+        if p.class_kind == 0 { lx_fail(p, node, "Can't use 'this' outside of a class."); }
+        return lx_value(lx_load(p, node));
+    }
+    if streq(branch, "superclass") {
+        var keyword *PNode = pnode_require(node, "keyword");
+        if p.class_kind == 0 { lx_fail(p, keyword, "Can't use 'super' outside of a class."); }
+        else if p.class_kind == 1 { lx_fail(p, keyword, "Can't use 'super' in a class with no superclass."); }
+        var receiver *PNode = pnode_atom_span(PNODE_SYMBOL, "this", keyword.start, keyword.end);
+        var name *PNode = pnode_require(node, "name");
+        return lx_value(ast_call4("lox_super", lx_load(p, keyword), lx_load(p, receiver),
+                                 ast_string(name.text), lx_site(name)));
+    }
+    var value *LoxExpr = lx_value(nil);
+    value.name = node;
+    value.distance = lx_distance(p, node);
+    return value;
+}
+func lx_postfix_code(p *LoxLower, node *PNode) *LoxExpr {
+    var value *LoxExpr = lx_primary_code(p, pnode_require(node, "primary"));
+    var suffixes *u8 = lx_repeated(node, "suffixes");
+    var i i64 = 0;
+    while i < vec_len(suffixes) && !p.failed {
+        var suffix *PNode = vec_get(suffixes, i);
+        var receiver *u8 = lx_read(value);
+        if pnode_is(suffix, "get") {
+            value = lx_value(nil);
+            value.name = pnode_require(suffix, "name");
+            value.object = receiver;
+        } else {
+            value = lx_value(lx_call_code(p, suffix, receiver));
+        }
+        i = i + 1;
+    }
+    return value;
+}
+func lx_call_code(p *LoxLower, node *PNode, callee *u8) *u8 {
+    var args *PNode = pnode_get(node, "args");
+    var close *PNode = pnode_require(node, "close");
+    var body *u8 = ast_vec();
+    var callee_var *u8 = lx_fresh(p, "lox_callee_");
+    var argv *u8 = lx_fresh(p, "lox_argv_");
+    var count i64 = 0;
+    var rest *u8 = nil;
+    if args != nil {
+        rest = lx_repeated(args, "rest");
+        count = vec_len(rest) + 1;
+        if count > 255 {
+            var excess *PNode = vec_get(rest, 254);
+            lx_fail(p, pnode_require(excess, "value"), "Can't have more than 255 arguments.");
+            return ast_int(0);
+        }
+    }
+    ast_push(body, ast_var(callee_var, ast_type_i64(), callee));
+    ast_push(body, ast_var(argv, ast_type_i64(), ast_call1("lox_args", ast_int(count))));
+    if args != nil {
+        ast_push(body, ast_expr_stmt(ast_call3("lox_arg_set", ast_ident(argv), ast_int(0),
+                                              lx_expr(p, pnode_require(args, "first")))));
+        var i i64 = 0;
+        while i < vec_len(rest) && !p.failed {
+            var item *PNode = vec_get(rest, i);
+            ast_push(body, ast_expr_stmt(ast_call3("lox_arg_set", ast_ident(argv), ast_int(i + 1),
+                                                  lx_expr(p, pnode_require(item, "value")))));
+            i = i + 1;
+        }
+    }
+    return ast_block_expr(body, ast_call3("lox_call", ast_ident(callee_var), ast_ident(argv), lx_site(close)));
+}
+func lx_logical(p *LoxLower, op *PNode, lhs *u8, rhs *u8) *u8 {
+    var name *u8 = lx_fresh(p, "lox_logic_");
+    var body *u8 = ast_vec();
+    var test *u8 = ast_call1("lox_truthy", ast_ident(name));
+    if streq(op.text, "or") { test = ast_unop("!", test); }
+    ast_push(body, ast_var(name, ast_type_i64(), lhs));
+    ast_push(body, ast_if_then(test, ast_block1(ast_assign(ast_ident(name), rhs))));
+    return ast_block_expr(body, ast_ident(name));
+}
+func lx_precedence(p *LoxLower, node *PNode) *LoxExpr {
+    if pnode_is(node, "postfix") { return lx_postfix_code(p, node); }
+    if pnode_is(node, "prefix") {
+        var op *PNode = pnode_require(node, "op");
+        var rhs *u8 = lx_read(lx_precedence(p, pnode_require(node, "rhs")));
+        if streq(op.text, "!") { return lx_value(ast_call1("lox_not", rhs)); }
+        return lx_value(ast_call2("lox_negate", rhs, lx_site(op)));
+    }
+    var value *LoxExpr = lx_precedence(p, pnode_require(node, "head"));
+    var tail *u8 = lx_repeated(node, "tail");
+    var i i64 = 0;
+    while i < vec_len(tail) && !p.failed {
+        var item *PNode = vec_get(tail, i);
+        var op *PNode = pnode_require(item, "op");
+        var rhs *u8 = lx_read(lx_precedence(p, pnode_require(item, "rhs")));
+        if streq(op.text, "or") || streq(op.text, "and") {
+            value = lx_value(lx_logical(p, op, lx_read(value), rhs));
+        } else {
+            value = lx_value(ast_call4("lox_binary", ast_string(op.text), lx_read(value), rhs, lx_site(op)));
+        }
+        i = i + 1;
+    }
+    return value;
+}
+func lx_expr(p *LoxLower, node *PNode) *u8 {
+    if p.failed { return ast_int(0); }
+    var e *LoxExpr = lx_precedence(p, pnode_require(node, "value"));
+    var write *PNode = pnode_get(node, "write");
+    if write == nil || p.failed { return lx_read(e); }
+    var target *PNode = e.name;
+    if target == nil {
+        lx_fail(p, pnode_require(write, "eq"), "Invalid assignment target.");
+        return ast_int(0);
+    }
+    var rhs *u8 = lx_expr(p, pnode_require(write, "value"));
+    if e.object != nil {
+        var object *u8 = ast_call2("lox_require_instance", e.object, lx_site(target));
+        return ast_call3("lox_set_property", object, ast_string(target.text), rhs);
+    }
+    // clox attributes a global assignment to the last token of its RHS.
+    return ast_call4("lox_assign", ast_int(e.distance), ast_string(target.text), rhs, ast_int(write.end - 1));
+}
+
+func lx_parameter(p *LoxLower, body *u8, name *PNode, index i64) void {
+    if index == 255 { lx_fail(p, name, "Can't have more than 255 parameters."); return; }
+    lx_declare(p, name);
+    ast_push(body, ast_expr_stmt(ast_call2("lox_define", ast_string(name.text),
+                                          ast_call1("lox_argument", ast_int(index)))));
+}
+// Each closure pairs a native function with its defining environment.
+func lx_function(p *LoxLower, node *PNode, kind i64) *u8 {
+    var locals *LoxLocal = p.locals;
+    var previous i64 = p.function_kind;
+    p.function_kind = kind;
+    p.depth = p.depth + 1;
+    var name *PNode = pnode_require(node, "name");
+    if kind != 1 { lx_declare(p, pnode_atom_span(PNODE_SYMBOL, "this", name.start, name.end)); }
+    var body *u8 = ast_vec();
+    var params *PNode = pnode_get(node, "params");
+    var count i64 = 0;
+    if params != nil {
+        lx_parameter(p, body, pnode_require(params, "first"), 0);
+        count = 1;
+        var rest *u8 = lx_repeated(params, "rest");
+        while count <= vec_len(rest) && !p.failed {
+            var item *PNode = vec_get(rest, count - 1);
+            lx_parameter(p, body, pnode_require(item, "name"), count);
+            count = count + 1;
+        }
+    }
+    lx_decls(p, body, pnode_require(node, "body"));
+    ast_push(body, ast_return(ast_call0("lox_nil")));
+    p.locals = locals; p.depth = p.depth - 1; p.function_kind = previous;
+    var symbol *u8 = lx_fresh(p, "lox_guest_");
+    ast_push(p.functions, ast_func(symbol, ast_vec(), ast_type_i64(), ast_block(body)));
+    return ast_call3("lox_function", ast_addr(ast_ident(symbol)), ast_int(count), ast_string(name.text));
+}
+func lx_class_code(p *LoxLower, node *PNode, body *u8) void {
+    var name *PNode = pnode_require(node, "name");
+    lx_declare(p, name);
+    var previous i64 = p.class_kind;
+    p.class_kind = 1;
+    var base *PNode = pnode_get(node, "base");
+    var superclass *u8 = ast_int(0);
+    var site *PNode = name;
+    if base != nil {
+        p.class_kind = 2;
+        var parent *PNode = pnode_require(base, "name");
+        if streq(name.text, parent.text) { lx_fail(p, parent, "A class can't inherit from itself."); return; }
+        superclass = lx_load(p, parent);
+        site = parent;
+    }
+    var class_id *u8 = lx_fresh(p, "lox_class_");
+    ast_push(body, ast_var(class_id, ast_type_i64(), ast_call3("lox_class", ast_string(name.text), superclass, lx_site(site))));
+    ast_push(body, ast_expr_stmt(ast_call2("lox_define", ast_string(name.text), ast_ident(class_id))));
+    if base != nil {
+        lx_enter(p, body);
+        lx_declare(p, pnode_atom_span(PNODE_SYMBOL, "super", base.start, base.end));
+        ast_push(body, ast_expr_stmt(ast_call2("lox_define", ast_string("super"),
+                                              ast_call1("lox_superclass", ast_ident(class_id)))));
+    }
+    var methods *u8 = lx_repeated(node, "methods");
+    var i i64 = 0;
+    while i < vec_len(methods) && !p.failed {
+        var method *PNode = vec_get(methods, i);
+        var method_name *PNode = pnode_require(method, "name");
+        var kind i64 = 2;
+        if streq(method_name.text, "init") { kind = 3; }
+        ast_push(body, ast_expr_stmt(ast_call2("lox_method", ast_ident(class_id), lx_function(p, method, kind))));
+        i = i + 1;
+    }
+    if base != nil { lx_leave(p, body); }
+    p.class_kind = previous;
+}
+func lx_decls(p *LoxLower, body *u8, node *PNode) void {
+    var items *u8 = lx_repeated(node, "items");
+    var i i64 = 0;
+    while i < vec_len(items) && !p.failed {
+        var item *PNode = vec_get(items, i);
+        lx_stmt(p, item, body);
+        i = i + 1;
+    }
+}
+func lx_stmt_block(p *LoxLower, node *PNode) *u8 {
+    var body *u8 = ast_vec();
+    lx_stmt(p, node, body);
+    return ast_block(body);
+}
+func lx_for_code(p *LoxLower, node *PNode, body *u8) void {
+    var init *PNode = pnode_require(node, "init");
+    var scoped bool = !pnode_is(init, "empty");
+    if scoped { lx_enter(p, body); lx_stmt(p, init, body); }
+    var test *PNode = pnode_get(node, "test");
+    var cond *u8 = ast_bool(true);
+    if test != nil { cond = ast_call1("lox_truthy", lx_expr(p, test)); }
+    var loop *u8 = ast_vec();
+    lx_stmt(p, pnode_require(node, "body"), loop);
+    var step *PNode = pnode_get(node, "step");
+    if step != nil { ast_push(loop, ast_expr_stmt(lx_expr(p, step))); }
+    ast_push(body, ast_while(cond, ast_block(loop)));
+    if scoped { lx_leave(p, body); }
+}
+func lx_stmt(p *LoxLower, node *PNode, body *u8) void {
+    if p.failed { return; }
+    if pnode_is(node, "block") {
+        lx_enter(p, body);
+        lx_decls(p, body, node);
+        lx_leave(p, body);
+    } else if pnode_is(node, "variable_decl") {
+        var name *PNode = pnode_require(node, "name");
+        var local *LoxLocal = lx_declare(p, name);
+        if local != nil { local.initializing = true; }
+        var value *u8 = ast_call0("lox_nil");
+        var init *PNode = pnode_get(node, "init");
+        if init != nil { value = lx_expr(p, pnode_require(init, "value")); }
+        if local != nil { local.initializing = false; }
+        ast_push(body, ast_expr_stmt(ast_call2("lox_define", ast_string(name.text), value)));
+    } else if pnode_is(node, "function_decl") {
+        var signature *PNode = pnode_require(node, "signature");
+        var name *PNode = pnode_require(signature, "name");
+        lx_declare(p, name);
+        ast_push(body, ast_expr_stmt(ast_call2("lox_define", ast_string(name.text), lx_function(p, signature, 1))));
+    } else if pnode_is(node, "class_decl") {
+        lx_class_code(p, node, body);
+    } else if pnode_is(node, "return_stmt") {
+        var keyword *PNode = pnode_require(node, "keyword");
+        var result *PNode = pnode_get(node, "value");
+        if p.function_kind == 0 { lx_fail(p, keyword, "Can't return from top-level code."); }
+        else if p.function_kind == 3 && result != nil { lx_fail(p, keyword, "Can't return a value from an initializer."); }
+        var value *u8 = ast_call0("lox_nil");
+        if result != nil { value = lx_expr(p, result); }
+        ast_push(body, ast_return(value));
+    } else if pnode_is(node, "conditional") {
+        var test *u8 = ast_call1("lox_truthy", lx_expr(p, pnode_require(node, "test")));
+        var yes *u8 = lx_stmt_block(p, pnode_require(node, "yes"));
+        var no *u8 = nil;
+        var otherwise *PNode = pnode_get(node, "otherwise");
+        if otherwise != nil { no = lx_stmt_block(p, pnode_require(otherwise, "body")); }
+        ast_push(body, ast_if(test, yes, no));
+    } else if pnode_is(node, "while_loop") {
+        var test *u8 = ast_call1("lox_truthy", lx_expr(p, pnode_require(node, "test")));
+        ast_push(body, ast_while(test, lx_stmt_block(p, pnode_require(node, "body"))));
+    } else if pnode_is(node, "for_loop") {
+        lx_for_code(p, node, body);
+    } else {
+        var value *u8 = lx_expr(p, pnode_require(node, "value"));
+        if pnode_is(node, "print_stmt") { value = ast_call1("lox_print", value); }
+        ast_push(body, ast_expr_stmt(value));
+    }
+}
+func lx_program(tree *PNode, text *u8) *u8 {
+    var p *LoxLower = alloc(64);
+    p.text = text; p.locals = nil; p.depth = 0; p.function_kind = 0;
+    p.class_kind = 0; p.functions = ast_vec(); p.unique = 0; p.failed = false;
+    var body *u8 = ast_vec();
+    var params *u8 = ast_vec();
+    ast_push(params, ast_param("argc", ast_type_i64()));
+    ast_push(params, ast_param("argv", ast_type_ptr(ast_type_str())));
+    ast_push(body, ast_expr_stmt(ast_call3("lox_start", ast_ident("argc"), ast_ident("argv"), ast_string(text))));
+    lx_decls(p, body, tree);
+    if p.failed { return nil; }
+    ast_push(body, ast_return(ast_int(0)));
+    ast_push(p.functions, ast_func("main", params, ast_type_i64(), ast_block(body)));
+    return ast_program(p.functions);
+}

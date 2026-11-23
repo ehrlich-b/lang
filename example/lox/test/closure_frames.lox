@@ -1,0 +1,17 @@
+var next;
+var read;
+fun install() {
+  var n = 0;
+  {
+    fun inc() { n = n + 1; }
+    fun current() { return n; }
+    next = inc;
+    read = current;
+  }
+}
+install();
+next();
+next();
+print read();
+install();
+print read();

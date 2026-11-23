@@ -1,0 +1,16 @@
+var total = 0;
+for (var i = 0; i < 5; i = i + 1) {
+  if (i == 2) total = total + 10;
+  else total = total + i;
+}
+var remaining = 2;
+while (remaining > 0) {
+  remaining = remaining - 1;
+  total = total + 1;
+}
+print total;
+print "kept" or unknown;
+print nil and unknown;
+if (true) if (false) print "wrong"; else print "nearest";
+print 7--2;
+print clock() >= 0;

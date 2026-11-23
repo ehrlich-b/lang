@@ -1,0 +1,23 @@
+class Ticket {
+  init(id) {
+    this.id = id;
+  }
+  label() {
+    return "ticket " + this.id;
+  }
+}
+class DayPass < Ticket {
+  label() {
+    fun delayed() { return super.label(); }
+    return delayed;
+  }
+}
+var pass = DayPass("15");
+var method = pass.label;
+var answer = method();
+pass.id = "16";
+print answer();
+print pass.init("17") == pass;
+print answer();
+pass.label = "field";
+print pass.label;

@@ -1,0 +1,2 @@
+// Nested groups exercise the parser host diagnostic.
+print ((((((((((((((((((((((((42))))))))))))))))))))))));
