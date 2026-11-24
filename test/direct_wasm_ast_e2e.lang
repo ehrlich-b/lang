@@ -1,6 +1,8 @@
 include "std/ast.lang"
 
 func main() i64 {
+    if ast_use_native() != 0 { return 1; }
     var node *u8 = ast_number("42");
-    return *node;
+    if streq(node, "(number 42)") { return 40; }
+    return 2;
 }

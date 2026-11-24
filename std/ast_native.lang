@@ -1,17 +1,7 @@
 include "std/core.lang"
 
-// Optional in-process adapter installed by a trusted compiler host.
-// The ordinary builder still returns NUL-terminated S-expressions.
 var ast_native_active i64 = 0;
-var ast_native_build fn(i64, *u8, *u8, *u8, *u8, i64, i64) *u8 = nil;
-
-// Request native handles for the current reader invocation, if offered by
-// the host. Call before constructing any AST, and treat results as opaque.
-func ast_use_native() i64 {
-    if ast_native_build == nil { return 0; }
-    ast_native_active = 1;
-    return 1;
-}
+include "std/ast_native_host.lang"
 
 func ast_native_unsupported() void {
     eprintln("Error: reader mixed native AST handles with a text-only builder");

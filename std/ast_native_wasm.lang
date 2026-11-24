@@ -1,0 +1,7 @@
+// Direct Wasm readers exchange text with the host.
+func ast_use_native() i64 { return 0; }
+
+func ast_native_build(kind i64, a *u8, b *u8, c *u8, d *u8, x i64, y i64) *u8 {
+    ast_native_unsupported();
+    return nil;
+}
