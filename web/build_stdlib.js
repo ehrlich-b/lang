@@ -11,6 +11,8 @@ const paths = [
   'src/host_temp.lang',
   'src/lang_generics.lang',
   'src/layout.lang',
+  'src/node_origin_host.lang',
+  'src/node_origin_wasm.lang',
   'src/numeric_types.lang',
   'src/parser.lang',
   'src/phase_host.lang',

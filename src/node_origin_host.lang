@@ -1,0 +1,8 @@
+// A native compiler may lazily attach origins to nodes received from a reader.
+var node_origin_missing fn(*u8) void = nil;
+
+func node_origin_resolve_missing(node *u8) i64 {
+    if node == nil || node_origin_missing == nil { return -1; }
+    node_origin_missing(node);
+    return phase_node_index_find(node);
+}
