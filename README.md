@@ -137,6 +137,11 @@ For a local lab, run `make build`, `./web/build_compiler.sh`, then
 --no-save playwright`); set `CHROMIUM_PATH` to use an existing browser and
 `LAB_EVIDENCE_DIR` to save screenshots and a JSON receipt.
 
+`make test-compiler-wasm` uses Playwright and its headless Chromium build.
+Run `npm ci` to install the pinned test dependency, or set `NODE_PATH` to a
+shared `node_modules` directory containing it. Set `PLAYWRIGHT_BROWSERS_PATH`
+to the shared browser cache when using a preinstalled Chromium build.
+
 To try source diagnostics locally, serve `web/` with
 `python3 -m http.server 8080 --bind 127.0.0.1 --directory web`, open
 `http://127.0.0.1:8080/lab.html`, and choose any of the five **find an error**

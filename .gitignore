@@ -1,5 +1,6 @@
 # Build artifacts
 out/
+node_modules/
 
 # Legacy Go compiler binary (source kept in archive/boot-go/)
 archive/boot-go/lang0

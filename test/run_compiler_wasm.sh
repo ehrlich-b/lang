@@ -3,8 +3,19 @@
 set -e
 cd "$(dirname "$0")/.."
 
+if ! node -e '
+    const { createRequire } = require("node:module");
+    const { resolve } = require("node:path");
+    const requireFromTest = createRequire(resolve("test/lab_reader_deadline.mjs"));
+    requireFromTest(process.env.PLAYWRIGHT_MODULE || "playwright");
+'; then
+    echo 'Browser tests need Playwright. Run npm ci or set NODE_PATH to an existing node_modules directory.' >&2
+    exit 1
+fi
+
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/lang-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
+export LANG_CACHE="$tmp/compiler-cache"
 
 WEB_OUTPUT_DIR="$tmp/web" ./web/build_compiler.sh
 node test/compiler_direct_wasm_e2e.js "$tmp/web/compiler.wasm"
