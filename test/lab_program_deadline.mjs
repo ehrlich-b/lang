@@ -19,7 +19,12 @@ const server = http.createServer(async (req, res) => {
     const pathname = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
     const filename = path.resolve(web, `.${pathname}`);
     if (!filename.startsWith(`${web}${path.sep}`)) throw new Error('invalid path');
-    const data = await fs.readFile(compilerWasm && pathname === '/compiler.wasm' ? compilerWasm : filename);
+    let artifact = filename;
+    if (compilerWasm && pathname === '/compiler.wasm') artifact = compilerWasm;
+    if (compilerWasm && pathname === '/stdlib.json') {
+      artifact = path.join(path.dirname(compilerWasm), 'stdlib.json');
+    }
+    const data = await fs.readFile(artifact);
     const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm' };
     res.writeHead(200, { 'Content-Type': types[path.extname(filename)] || 'text/plain' });
     res.end(data);
