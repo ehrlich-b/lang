@@ -1,0 +1,5 @@
+// The native stage evaluator needs a compiler subprocess and linker.
+func stage_run(ast *u8, args *PhaseBuffer) *PhaseBuffer {
+    stage_fail("native-stage-evaluation-unavailable");
+    return nil;
+}

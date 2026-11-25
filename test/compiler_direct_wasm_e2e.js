@@ -351,6 +351,13 @@ func main() i64 {
       `minilisp pipeline mismatch: result=${minilisp.ran.value} tag=${lispTag} value=${lispValue}`,
     );
   }
+  const stagedLisp = await compileReaderPipeline(
+    'example/minilisp/minilisp.lang', 'minilisp', '(defun main () (stage 42))',
+  );
+  if (stagedLisp.ast !== null ||
+      !stagedLisp.readerRun.stderr.includes('stage-error: native-stage-evaluation-unavailable')) {
+    throw new Error(`native stage evaluation did not fail explicitly: ${stagedLisp.readerRun.stderr}`);
+  }
   const cRead = await compileReaderPipeline(
     'example/c/c.lang', 'c', 'int main() { return 42; }',
   );

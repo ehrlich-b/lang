@@ -1624,6 +1624,11 @@ func wasm_collect_path(path *u8, path_len i64) void {
         path = "src/node_origin_wasm.lang";
         path_len = strlen(path);
     }
+    var stage_native *u8 = "std/stage_native.lang";
+    if wasm_name_eq(path, path_len, stage_native, strlen(stage_native)) != 0 {
+        path = "std/stage_wasm.lang";
+        path_len = strlen(path);
+    }
     // compiler.wasm already owns the #parser{} generator. A reader module
     // needs only the generated parser's token/PNode runtime.
     if compiler_direct_reader_runtime_only() != 0 && wasm_name_eq(path, path_len, "std/parser_reader.lang", 22) != 0 {
