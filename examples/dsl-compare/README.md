@@ -130,7 +130,9 @@ Compiler construction and execution of the resulting program are outside the
 source-to-native sample. Both pipelines link the same harness at Clang `-O2`.
 
 For a side-by-side run, pass `SCALE_BASE=/path/to/base-checkout`. Set
-`SCALE_ASSERT=1` to enforce the 100,000-line time and memory thresholds.
+`SCALE_ASSERT=1` to enforce a maximum of 50% of baseline wall time and 30%
+of baseline peak RSS at 100,000 lines. Paired runs alternate which compiler
+goes first and collect diagnostic phase probes after both timed samples.
 The base gets a 10,000,000-step parser work allowance because its default
 refuses the historical fixture. The candidate runs with its default limits.
 

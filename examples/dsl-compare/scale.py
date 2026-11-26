@@ -63,15 +63,13 @@ def build(root, work, clang, env, base):
     return compiler, minted, frontend
 
 
-def one(root, work, tools, source, lines, clang, env, base):
-    compiler, minted, frontend = tools
+def compile_program(root, work, minted, source, lines, clang, env, base):
     flag = [] if base else ["--trusted-reader"]
     ir = work / "program.ll"
     program = work / "program"
     harness = root / "examples/dsl-compare/harness.c"
 
-    # Compiling and linking the exact minted output is the end-to-end sample.
-    # The extra probes below recover phase peaks without changing that sample.
+    # Compile and link the exact minted output before running any phase probes.
     start = time.monotonic()
     emission = timed([minted, *flag, source, "--emit=llvm", "-o", ir], root, env)
     link = None
@@ -79,6 +77,19 @@ def one(root, work, tools, source, lines, clang, env, base):
         link = timed([clang, "-O2", ir, harness, "-o", program], root, env)
     elapsed = time.monotonic() - start
 
+    status = link[2] if link else emission[2]
+    peak = max(emission[1], link[1]) if link else emission[1]
+    if status == 0:
+        answer = subprocess.check_output([program, "4"], text=True, cwd=root, env=env)
+        if answer != f"{lines}\n":
+            raise RuntimeError(f"Expected {lines}, got {answer!r}")
+        print(f"argument 4 => {answer.strip()}", flush=True)
+    return emission, link, (elapsed, peak, status, "")
+
+
+def probe_reader(root, work, tools, source, env, base, sample):
+    compiler, minted, frontend = tools
+    emission, link, total = sample
     if base:
         ast = work / "base-program.ast"
         with ast.open("wb") as output:
@@ -88,7 +99,7 @@ def one(root, work, tools, source, lines, clang, env, base):
             lower = timed([compiler, "--from-ast", ast, "--ast-source", source,
                            "-o", work / "base-lowered.ll"], root, env)
     else:
-        front = timed([minted, *flag, source, "--check-reader"], root, env)
+        front = timed([minted, "--trusted-reader", source, "--check-reader"], root, env)
         phases = {int(n): int(ns) / 1e9 for n, ns in TIMING.findall(emission[3])}
         lower = None
         if emission[2] == 0:
@@ -98,13 +109,9 @@ def one(root, work, tools, source, lines, clang, env, base):
                           ("link", link), ("minted", emission)):
         if sample is not None and sample[2]:
             print(f"{label} exit {sample[2]}: {sample[3].strip()}", flush=True)
-    if emission[2] or link is None or link[2] or front[2] or lower is None or lower[2]:
-        return front, lower, link, (elapsed, emission[1], emission[2] or 1, "")
-    answer = subprocess.check_output([program, "4"], text=True, cwd=root, env=env)
-    if answer != f"{lines}\n":
-        raise RuntimeError(f"Expected {lines}, got {answer!r}")
-    print(f"argument 4 => {answer.strip()}", flush=True)
-    return front, lower, link, (elapsed, max(emission[1], link[1]), 0, "")
+    if front[2] or lower is None or lower[2]:
+        total = (total[0], total[1], total[2] or 1, total[3])
+    return front, lower, link, total
 
 
 def summarize(label, lines, samples):
@@ -149,25 +156,34 @@ def main():
     if args.base:
         print("Base recognition uses LANG_PARSER_MAX_WORK=10000000; candidate uses defaults.")
     current = build(ROOT, work, args.clang, env, False)
-    base = build(args.base.resolve(), work, args.clang, base_env, True) if args.base else None
+    arms = [(ROOT, current, env, False)]
+    if args.base:
+        base_root = args.base.resolve()
+        base = build(base_root, work, args.clang, base_env, True)
+        arms.insert(0, (base_root, base, base_env, True))
+        print("Paired source-to-native runs alternate order; phase probes follow each pair.")
     success = True
     for lines in args.lines:
         source = work / f"{lines}.tariff"
         generate(source, lines)
         count = args.runs if args.runs is not None else (5 if lines == 100_000 else 1)
-        before = []
-        after = []
-        for _ in range(count):
-            if base:
-                before.append(one(args.base.resolve(), work, base, source, lines, args.clang, base_env, True))
-            after.append(one(ROOT, work, current, source, lines, args.clang, env, False))
-        reference = summarize("Base", lines, before) if base else None
-        result = summarize("Current", lines, after)
+        samples = {False: [], True: []}
+        for run in range(count):
+            order = arms if run % 2 == 0 else reversed(arms)
+            pair = []
+            for root, tools, arm_env, is_base in order:
+                _, minted, _ = tools
+                sample = compile_program(root, work, minted, source, lines, args.clang, arm_env, is_base)
+                pair.append((root, tools, arm_env, is_base, sample))
+            for root, tools, arm_env, is_base, sample in pair:
+                samples[is_base].append(probe_reader(root, work, tools, source, arm_env, is_base, sample))
+        reference = summarize("Base", lines, samples[True]) if args.base else None
+        result = summarize("Current", lines, samples[False])
         success &= result[2]
         if reference and lines == 100_000 and args.assert_scale:
             ratio_time, ratio_rss = result[0] / reference[0], result[1] / reference[1]
-            print(f"Time ratio {ratio_time:.1%}, peak RSS ratio {ratio_rss:.1%}", flush=True)
-            success &= (reference[2] and ratio_time <= 0.60 and ratio_rss <= 0.40
+            print(f"Time ratio {ratio_time:.2%}, peak RSS ratio {ratio_rss:.2%}", flush=True)
+            success &= (reference[2] and ratio_time <= 0.50 and ratio_rss <= 0.30
                         and result[1] <= 320)
     return 0 if success else 1
 
